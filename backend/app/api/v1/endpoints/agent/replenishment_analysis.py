@@ -47,10 +47,10 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentSettingUpdate,
 )
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.services.infra.inventory_cache import (
     get_inventory_replenishment_cache,
     set_inventory_replenishment_cache,
-    invalidate_inventory_replenishment_cache,
 )
 from app.services.inventory.replenishment import (
     REPLENISHMENT_ORDER_BY_FIELDS,
@@ -627,6 +627,7 @@ def _preview_setting(body: dict, request: Request) -> dict:
     build_preview=_preview_setting,
     validate=_validate_setting_body,
 )
+@invalidate_cache_on_commit(domains=["inventory_replenishment"], project_id_from="path")
 async def update_replenishment_analysis_setting(
     request: Request,
     db: Session = Depends(get_primary_db_session),
@@ -681,8 +682,6 @@ async def update_replenishment_analysis_setting(
             **_audit_kwargs(request),
         )
         db.commit()
-        # BLF-633: 设置写同样需要失效补货分析缓存（否则 R1 最长 5 分钟旧值）。
-        invalidate_inventory_replenishment_cache(project_id)
     return agent_ok(
         {
             "project_id": int(row.project_id),

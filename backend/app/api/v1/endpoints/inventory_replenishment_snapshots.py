@@ -1,10 +1,16 @@
 """Inventory replenishment snapshot endpoints."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.services import project_service
 from app.services.inventory.replenishment_snapshot import (
     create_replenishment_snapshot,
@@ -31,24 +37,22 @@ from app.schemas.inventory_replenishment import (
 from app.services.audit_log_service import (
     append_operation_audit_log,
 )
-from app.services.infra.inventory_cache import (
-    invalidate_inventory_analysis_cache,
-    invalidate_inventory_replenishment_cache,
-    invalidate_inventory_snapshot_options_cache,
-)
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 
-router = APIRouter(prefix="/inventory-replenishment-snapshots", dependencies=[Depends(protected)])
+router = APIRouter(
+    prefix="/inventory-replenishment-snapshots", dependencies=[Depends(protected)]
+)
 
 
 def _to_summary(summary_json: dict) -> InventoryReplenishmentSnapshotSummary:
     return InventoryReplenishmentSnapshotSummary(
-        sku_count=summary_json.get('sku_count', 0),
-        out_of_stock_risk_count=summary_json.get('out_of_stock_risk_count', 0),
-        healthy_count=summary_json.get('healthy_count', 0),
-        slow_moving_count=summary_json.get('slow_moving_count', 0),
-        pending_data_count=summary_json.get('pending_data_count', 0),
-        total_available_inventory=summary_json.get('total_available_inventory', 0),
-        total_in_transit_quantity=summary_json.get('total_in_transit_quantity', 0),
+        sku_count=summary_json.get("sku_count", 0),
+        out_of_stock_risk_count=summary_json.get("out_of_stock_risk_count", 0),
+        healthy_count=summary_json.get("healthy_count", 0),
+        slow_moving_count=summary_json.get("slow_moving_count", 0),
+        pending_data_count=summary_json.get("pending_data_count", 0),
+        total_available_inventory=summary_json.get("total_available_inventory", 0),
+        total_in_transit_quantity=summary_json.get("total_in_transit_quantity", 0),
     )
 
 
@@ -67,8 +71,10 @@ def _to_list_item(snapshot) -> InventoryReplenishmentSnapshotListItem:
         sales_report_date=snapshot.sales_report_date,
         row_count=snapshot.row_count,
         created_by=snapshot.created_by,
-        created_at=snapshot.created_at.isoformat() if snapshot.created_at else '',
-        summary=_to_summary(snapshot.summary_json) if snapshot.summary_json else InventoryReplenishmentSnapshotSummary(
+        created_at=snapshot.created_at.isoformat() if snapshot.created_at else "",
+        summary=_to_summary(snapshot.summary_json)
+        if snapshot.summary_json
+        else InventoryReplenishmentSnapshotSummary(
             sku_count=0,
             out_of_stock_risk_count=0,
             healthy_count=0,
@@ -81,6 +87,14 @@ def _to_list_item(snapshot) -> InventoryReplenishmentSnapshotListItem:
 
 
 @router.post("", response_model=InventoryReplenishmentSnapshotDetail)
+@invalidate_cache_on_commit(
+    domains=[
+        "inventory_replenishment",
+        "inventory_analysis",
+        "inventory_snapshot_options",
+    ],
+    project_id_from="query",
+)
 def create_snapshot(
     request: Request,
     project_id: int = Query(gt=0),
@@ -125,9 +139,6 @@ def create_snapshot(
         request=request,
     )
     db.commit()
-    invalidate_inventory_analysis_cache(project_id)
-    invalidate_inventory_replenishment_cache(project_id)
-    invalidate_inventory_snapshot_options_cache(project_id)
 
     # 获取明细
     items = get_snapshot_items(db, snapshot.id)
@@ -174,7 +185,7 @@ def create_snapshot(
         sales_report_date=snapshot.sales_report_date,
         row_count=snapshot.row_count,
         created_by=snapshot.created_by,
-        created_at=snapshot.created_at.isoformat() if snapshot.created_at else '',
+        created_at=snapshot.created_at.isoformat() if snapshot.created_at else "",
         summary=_to_summary(snapshot.summary_json),
         items=snapshot_items,
     )
@@ -208,6 +219,7 @@ def get_snapshot_endpoint(
     snapshot = get_snapshot_detail(db, snapshot_id)
     if snapshot is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
 
     items = get_snapshot_items(db, snapshot_id)
@@ -254,7 +266,7 @@ def get_snapshot_endpoint(
         sales_report_date=snapshot.sales_report_date,
         row_count=snapshot.row_count,
         created_by=snapshot.created_by,
-        created_at=snapshot.created_at.isoformat() if snapshot.created_at else '',
+        created_at=snapshot.created_at.isoformat() if snapshot.created_at else "",
         summary=_to_summary(snapshot.summary_json),
         items=snapshot_items,
     )
@@ -274,6 +286,7 @@ def get_snapshot_items_endpoint(
     snapshot = get_snapshot_detail(db, snapshot_id)
     if snapshot is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
 
     items = get_snapshot_items(db, snapshot_id)
@@ -283,27 +296,27 @@ def get_snapshot_items_endpoint(
     keyword_text = (keyword or "").strip().lower()
     if keyword_text:
         filtered_items = [
-            item for item in filtered_items
-            if keyword_text in item.sku.lower() or (item.asin and keyword_text in item.asin.lower())
+            item
+            for item in filtered_items
+            if keyword_text in item.sku.lower()
+            or (item.asin and keyword_text in item.asin.lower())
         ]
 
     normalized_risk = (risk_status or "").strip()
     if normalized_risk and normalized_risk != "all":
         filtered_items = [
-            item for item in filtered_items
-            if item.risk_status == normalized_risk
+            item for item in filtered_items if item.risk_status == normalized_risk
         ]
 
     if in_transit_only:
         filtered_items = [
-            item for item in filtered_items
-            if item.in_transit_quantity > 0
+            item for item in filtered_items if item.in_transit_quantity > 0
         ]
 
     # 分页
     total = len(filtered_items)
     offset = (page - 1) * page_size
-    paged_items = filtered_items[offset:offset + page_size]
+    paged_items = filtered_items[offset : offset + page_size]
     has_next = offset + page_size < total
 
     # 读时 join SkuRecord,补上 product_name(快照表不存该字段)
@@ -366,6 +379,14 @@ def get_snapshot_items_endpoint(
 
 
 @router.patch("/{snapshot_id}", response_model=InventoryReplenishmentSnapshotListItem)
+@invalidate_cache_on_commit(
+    domains=[
+        "inventory_replenishment",
+        "inventory_analysis",
+        "inventory_snapshot_options",
+    ],
+    project_id_from="global",
+)
 def update_snapshot_endpoint(
     request: Request,
     snapshot_id: int,
@@ -377,11 +398,15 @@ def update_snapshot_endpoint(
     """更新快照名称或备注（仅管理员）"""
     if not is_admin:
         from fastapi import HTTPException, status
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可修改快照")
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可修改快照"
+        )
 
     snapshot = get_snapshot_detail(db, snapshot_id)
     if snapshot is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
 
     updated = update_snapshot(
@@ -411,6 +436,14 @@ def update_snapshot_endpoint(
 
 
 @router.delete("/{snapshot_id}")
+@invalidate_cache_on_commit(
+    domains=[
+        "inventory_replenishment",
+        "inventory_analysis",
+        "inventory_snapshot_options",
+    ],
+    project_id_from="global",
+)
 def delete_snapshot_endpoint(
     request: Request,
     snapshot_id: int,
@@ -421,11 +454,15 @@ def delete_snapshot_endpoint(
     """删除快照（仅管理员）"""
     if not is_admin:
         from fastapi import HTTPException, status
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可删除快照")
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可删除快照"
+        )
 
     snapshot = get_snapshot_detail(db, snapshot_id)
     if snapshot is None:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
 
     success = delete_snapshot(db, snapshot_id)
@@ -440,8 +477,5 @@ def delete_snapshot_endpoint(
             request=request,
         )
         db.commit()
-        invalidate_inventory_analysis_cache(snapshot.project_id)
-        invalidate_inventory_replenishment_cache(snapshot.project_id)
-        invalidate_inventory_snapshot_options_cache(snapshot.project_id)
 
     return {"success": success, "snapshot_id": snapshot_id}

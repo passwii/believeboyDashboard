@@ -1,13 +1,19 @@
 """
 佣金记录端点。
 """
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.models.commission_record import CommissionRecord
 
 from app.schemas.system_management.commission.records import (
@@ -32,13 +38,21 @@ from app.schemas.system_management.commission._enums import (
     CommissionRatioSource,
 )
 
-from app.services.audit_log_service import append_operation_view_log, append_operation_audit_log
+from app.services.audit_log_service import (
+    append_operation_view_log,
+    append_operation_audit_log,
+)
 from app.services.system_management import (
     _parse_report_month,
     _to_iso,
     upsert_commission_records,
     update_commission_payment_status,
     update_commission_project_payment,
+)
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
+from app.services.infra.commission_cache import (
+    get_commission_records_cache,
+    set_commission_records_cache,
 )
 
 
@@ -47,23 +61,43 @@ router = APIRouter(prefix="/commission-management", tags=["佣金管理"])
 
 def _serialize_commission_record_row(row: CommissionRecord) -> CommissionRecordItem:
     return CommissionRecordItem(
-        id=row.id, report_month=row.report_month, country=row.country, project_id=row.project_id,
-        project_name=row.project_name, project_month_id=row.project_month_id,
-        person_name=row.person_name, income_category=CommissionIncomeCategory(row.income_category),
-        income_total_usd=float(row.income_total_usd), factory_commission_rate=float(row.factory_commission_rate),
-        operator_bonus_ratio=float(row.operator_bonus_ratio), bonus_amount_usd=float(row.bonus_amount_usd),
-        usd_to_rmb_rate=float(row.usd_to_rmb_rate), bonus_amount_rmb=float(row.bonus_amount_rmb),
+        id=row.id,
+        report_month=row.report_month,
+        country=row.country,
+        project_id=row.project_id,
+        project_name=row.project_name,
+        project_month_id=row.project_month_id,
+        person_name=row.person_name,
+        income_category=CommissionIncomeCategory(row.income_category),
+        income_total_usd=float(row.income_total_usd),
+        factory_commission_rate=float(row.factory_commission_rate),
+        operator_bonus_ratio=float(row.operator_bonus_ratio),
+        bonus_amount_usd=float(row.bonus_amount_usd),
+        usd_to_rmb_rate=float(row.usd_to_rmb_rate),
+        bonus_amount_rmb=float(row.bonus_amount_rmb),
         bonus_ratio_source=CommissionRatioSource(row.bonus_ratio_source),
-        manual_bonus_ratio=float(row.manual_bonus_ratio) if row.manual_bonus_ratio is not None else None,
+        manual_bonus_ratio=float(row.manual_bonus_ratio)
+        if row.manual_bonus_ratio is not None
+        else None,
         payment_status=CommissionPaymentStatus(row.payment_status),
-        payment_confirmed_at=_to_iso(row.payment_confirmed_at), payment_confirmed_by=row.payment_confirmed_by,
-        is_locked=bool(row.is_locked), locked_at=_to_iso(row.locked_at), locked_by=row.locked_by,
-        is_active=bool(row.is_active), deactivated_at=_to_iso(row.deactivated_at),
-        computed_at=_to_iso(row.computed_at) or "", updated_at=_to_iso(row.updated_at) or "",
+        payment_confirmed_at=_to_iso(row.payment_confirmed_at),
+        payment_confirmed_by=row.payment_confirmed_by,
+        is_locked=bool(row.is_locked),
+        locked_at=_to_iso(row.locked_at),
+        locked_by=row.locked_by,
+        is_active=bool(row.is_active),
+        deactivated_at=_to_iso(row.deactivated_at),
+        computed_at=_to_iso(row.computed_at) or "",
+        updated_at=_to_iso(row.updated_at) or "",
     )
 
 
 @router.post("/records/upsert", response_model=CommissionRecordsResponse)
+@invalidate_cache_on_commit(
+    domains=["commission_records"],
+    cascade=["commission_summary", "operator_performance", "data_management"],
+    project_id_from="global",
+)
 def upsert_commission_records_endpoint(
     payload: UpsertCommissionRecordsRequest,
     request: Request,
@@ -86,12 +120,24 @@ def upsert_commission_records_endpoint(
         now=now,
     )
 
-    append_operation_audit_log(db, action="commission.bonus_records.upsert", target_type="commission_bonus_record", target_id=report_month, operator=operator, after={"report_month": report_month, "country": country, "incoming_items": len(payload.items)}, request=request)
+    append_operation_audit_log(
+        db,
+        action="commission.bonus_records.upsert",
+        target_type="commission_bonus_record",
+        target_id=report_month,
+        operator=operator,
+        after={
+            "report_month": report_month,
+            "country": country,
+            "incoming_items": len(payload.items),
+        },
+        request=request,
+    )
 
-    from app.services.infra import invalidate_data_management_overview_cache
-    invalidate_data_management_overview_cache()
-
-    return CommissionRecordsResponse(report_month=report_month, items=[_serialize_commission_record_row(r) for r in rows])
+    return CommissionRecordsResponse(
+        report_month=report_month,
+        items=[_serialize_commission_record_row(r) for r in rows],
+    )
 
 
 @router.get("/records", response_model=CommissionRecordsResponse)
@@ -109,24 +155,72 @@ def list_commission_records(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    normalized_person = (person_name or "").strip()
+    cached = get_commission_records_cache(
+        report_month=month,
+        country=country,
+        person_name=normalized_person,
+        include_inactive=include_inactive,
+    )
+    if cached is not None:
+        return CommissionRecordsResponse(**cached)
+
     stmt = select(CommissionRecord).where(
         CommissionRecord.report_month == month,
         CommissionRecord.country == country,
     )
     if not include_inactive:
         stmt = stmt.where(CommissionRecord.is_active.is_(True))
-    normalized_person = (person_name or "").strip()
     if normalized_person:
         stmt = stmt.where(CommissionRecord.person_name == normalized_person)
-    stmt = stmt.order_by(CommissionRecord.person_name.asc(), CommissionRecord.project_name.asc(), CommissionRecord.income_category.asc())
+    stmt = stmt.order_by(
+        CommissionRecord.person_name.asc(),
+        CommissionRecord.project_name.asc(),
+        CommissionRecord.income_category.asc(),
+    )
 
     rows = db.execute(stmt).scalars().all()
-    append_operation_view_log(db, action="commission.bonus_records.view", target_type="commission_bonus_record", target_id=month, operator=operator, after={"report_month": month, "country": country, "person_name": normalized_person or None, "include_inactive": include_inactive, "count": len(rows)}, request=request)
+    append_operation_view_log(
+        db,
+        action="commission.bonus_records.view",
+        target_type="commission_bonus_record",
+        target_id=month,
+        operator=operator,
+        after={
+            "report_month": month,
+            "country": country,
+            "person_name": normalized_person or None,
+            "include_inactive": include_inactive,
+            "count": len(rows),
+        },
+        request=request,
+    )
     db.commit()
-    return CommissionRecordsResponse(report_month=month, items=[_serialize_commission_record_row(r) for r in rows])
+    payload = {
+        "report_month": month,
+        "items": [
+            _serialize_commission_record_row(r).model_dump(mode="json") for r in rows
+        ],
+    }
+    set_commission_records_cache(
+        report_month=month,
+        country=country,
+        person_name=normalized_person,
+        include_inactive=include_inactive,
+        data=payload,
+    )
+    return CommissionRecordsResponse(**payload)
 
 
-@router.patch("/records/{record_id}/payment-status", response_model=UpdateCommissionPaymentStatusResponse)
+@router.patch(
+    "/records/{record_id}/payment-status",
+    response_model=UpdateCommissionPaymentStatusResponse,
+)
+@invalidate_cache_on_commit(
+    domains=["commission_records"],
+    cascade=["commission_summary", "operator_performance", "data_management"],
+    project_id_from="global",
+)
 def update_commission_payment_status_endpoint(
     record_id: int,
     payload: UpdateCommissionPaymentStatusRequest,
@@ -134,11 +228,13 @@ def update_commission_payment_status_endpoint(
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionPaymentStatusResponse:
-    from app.services.infra import invalidate_data_management_overview_cache
-
     now = datetime.now().astimezone().replace(microsecond=0)
 
-    row = db.execute(select(CommissionRecord).where(CommissionRecord.id == record_id)).scalars().first()
+    row = (
+        db.execute(select(CommissionRecord).where(CommissionRecord.id == record_id))
+        .scalars()
+        .first()
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="record not found")
     before = _serialize_commission_record_row(row)
@@ -153,10 +249,20 @@ def update_commission_payment_status_endpoint(
     db.refresh(row)
 
     after = _serialize_commission_record_row(row)
-    append_operation_audit_log(db, action="commission.bonus_record.payment_status.update", target_type="commission_bonus_record", target_id=record_id, operator=operator, before=before, after=after, request=request)
-    invalidate_data_management_overview_cache()
+    append_operation_audit_log(
+        db,
+        action="commission.bonus_record.payment_status.update",
+        target_type="commission_bonus_record",
+        target_id=record_id,
+        operator=operator,
+        before=before,
+        after=after,
+        request=request,
+    )
 
-    return UpdateCommissionPaymentStatusResponse(item=_serialize_commission_record_row(row))
+    return UpdateCommissionPaymentStatusResponse(
+        item=_serialize_commission_record_row(row)
+    )
 
 
 @router.get("/project-months", response_model=CommissionProjectMonthsResponse)
@@ -179,11 +285,21 @@ def list_commission_project_months(
     )
     if country:
         stmt = stmt.where(CommissionProjectMonth.country == country)
-    stmt = stmt.order_by(CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.country.asc())
+    stmt = stmt.order_by(
+        CommissionProjectMonth.project_id.asc(), CommissionProjectMonth.country.asc()
+    )
 
     rows = db.execute(stmt).scalars().all()
 
-    append_operation_view_log(db, action="commission.project_months.view", target_type="commission_project_month", target_id=month, operator=operator, after={"report_month": month, "country": country, "count": len(rows)}, request=request)
+    append_operation_view_log(
+        db,
+        action="commission.project_months.view",
+        target_type="commission_project_month",
+        target_id=month,
+        operator=operator,
+        after={"report_month": month, "country": country, "count": len(rows)},
+        request=request,
+    )
     db.commit()
 
     items = [
@@ -212,7 +328,15 @@ def list_commission_project_months(
     return CommissionProjectMonthsResponse(report_month=month, items=items)
 
 
-@router.patch("/project-months/{project_month_id}/payment", response_model=UpdateCommissionProjectPaymentResponse)
+@router.patch(
+    "/project-months/{project_month_id}/payment",
+    response_model=UpdateCommissionProjectPaymentResponse,
+)
+@invalidate_cache_on_commit(
+    domains=["commission_records"],
+    cascade=["commission_summary", "operator_performance", "data_management"],
+    project_id_from="global",
+)
 def update_commission_project_payment_endpoint(
     project_month_id: int,
     payload: UpdateCommissionProjectPaymentRequest,
@@ -221,11 +345,18 @@ def update_commission_project_payment_endpoint(
     operator: str | None = Depends(get_request_operator),
 ) -> UpdateCommissionProjectPaymentResponse:
     from app.models.commission_project_month import CommissionProjectMonth
-    from app.services.infra import invalidate_data_management_overview_cache
 
     now = datetime.now().astimezone().replace(microsecond=0)
 
-    row = db.execute(select(CommissionProjectMonth).where(CommissionProjectMonth.id == project_month_id)).scalars().first()
+    row = (
+        db.execute(
+            select(CommissionProjectMonth).where(
+                CommissionProjectMonth.id == project_month_id
+            )
+        )
+        .scalars()
+        .first()
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="project month record not found")
 
@@ -270,8 +401,16 @@ def update_commission_project_payment_endpoint(
         "received_rmb": float(row.received_rmb),
     }
 
-    append_operation_audit_log(db, action="commission.project_commission.payment.update", target_type="commission_project_month", target_id=project_month_id, operator=operator, before=before_data, after=after_data, request=request)
-    invalidate_data_management_overview_cache()
+    append_operation_audit_log(
+        db,
+        action="commission.project_commission.payment.update",
+        target_type="commission_project_month",
+        target_id=project_month_id,
+        operator=operator,
+        before=before_data,
+        after=after_data,
+        request=request,
+    )
 
     return UpdateCommissionProjectPaymentResponse(
         item=CommissionProjectMonthItem(

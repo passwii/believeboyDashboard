@@ -1,6 +1,7 @@
 """
 数据管理端点。
 """
+
 import logging
 from datetime import datetime
 
@@ -8,7 +9,12 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.core.config import get_settings
 
 from app.schemas.system_management.data_management import (
@@ -24,7 +30,10 @@ from app.schemas.system_management.data_management import (
     UpdateDataStatusResponse,
 )
 
-from app.services.audit_log_service import append_operation_view_log, append_operation_audit_log
+from app.services.audit_log_service import (
+    append_operation_view_log,
+    append_operation_audit_log,
+)
 from app.services.system_management import (
     _check_database,
     _load_data_state,
@@ -35,9 +44,9 @@ from app.services.system_management import (
 from app.services.infra import (
     clear_all_caches,
     get_data_management_overview_cache,
-    invalidate_data_management_overview_cache,
     set_data_management_overview_cache,
 )
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 
 
 router = APIRouter(prefix="/data-management", tags=["数据管理"])
@@ -80,9 +89,16 @@ def get_data_management_status(
 
     return DataManagementStatusResponse(
         server_time=checked_at,
-        database=DatabaseStatus(engine=engine, source=source, healthy=db_healthy, checked_at=checked_at),
+        database=DatabaseStatus(
+            engine=engine, source=source, healthy=db_healthy, checked_at=checked_at
+        ),
         cache_enabled=False,
-        summary=DataSummary(total_tables=0, total_rows=0, stale_tables=0, data_status=DataLifecycleStatus(data_status)),
+        summary=DataSummary(
+            total_tables=0,
+            total_rows=0,
+            stale_tables=0,
+            data_status=DataLifecycleStatus(data_status),
+        ),
         data_status_note=note,
         data_status_updated_at=updated_at,
         data_status_updated_by=updated_by,
@@ -140,15 +156,27 @@ def get_data_management_overview(
         for s in table_statuses
     ]
     typed_recent = [
-        RecentSystemStatusItem(source=r["source"], level=r["level"], message=r["message"], occurred_at=r["occurred_at"])
+        RecentSystemStatusItem(
+            source=r["source"],
+            level=r["level"],
+            message=r["message"],
+            occurred_at=r["occurred_at"],
+        )
         for r in recent_statuses
     ]
 
     payload = DataManagementOverviewResponse(
         server_time=checked_at,
-        database=DatabaseStatus(engine=engine, source=source, healthy=db_healthy, checked_at=checked_at),
+        database=DatabaseStatus(
+            engine=engine, source=source, healthy=db_healthy, checked_at=checked_at
+        ),
         cache_enabled=False,
-        summary=DataSummary(total_tables=len(table_statuses), total_rows=total_rows, stale_tables=stale_tables, data_status=DataLifecycleStatus(data_status)),
+        summary=DataSummary(
+            total_tables=len(table_statuses),
+            total_rows=total_rows,
+            stale_tables=stale_tables,
+            data_status=DataLifecycleStatus(data_status),
+        ),
         data_status_note=note,
         data_status_updated_at=updated_at,
         data_status_updated_by=updated_by,
@@ -160,21 +188,35 @@ def get_data_management_overview(
         action="system.data_management.overview.view",
         target_type="system_management",
         operator=operator,
-        after={"total_tables": len(table_statuses), "total_rows": total_rows, "stale_tables": stale_tables, "recent_status_count": len(recent_statuses)},
+        after={
+            "total_tables": len(table_statuses),
+            "total_rows": total_rows,
+            "stale_tables": stale_tables,
+            "recent_status_count": len(recent_statuses),
+        },
         request=request,
     )
     db.commit()
     set_data_management_overview_cache(payload.model_dump(mode="json"))
 
-    perf_ms = int((datetime.now().astimezone() - overall_started_at).total_seconds() * 1000)
+    perf_ms = int(
+        (datetime.now().astimezone() - overall_started_at).total_seconds() * 1000
+    )
     performance_logger.info(
         "data_management_overview cache=miss total_ms=%s db_check_ms=%s data_state_ms=%s table_scan_ms=%s recent_statuses_ms=%s tables=%s total_rows=%s",
-        perf_ms, db_check_ms, data_state_ms, table_scan_ms, recent_ms, len(table_statuses), total_rows,
+        perf_ms,
+        db_check_ms,
+        data_state_ms,
+        table_scan_ms,
+        recent_ms,
+        len(table_statuses),
+        total_rows,
     )
     return payload
 
 
 @router.patch("/data-status", response_model=UpdateDataStatusResponse)
+@invalidate_cache_on_commit(domains=["data_management"], project_id_from="global")
 def update_data_status(
     payload: UpdateDataStatusRequest,
     request: Request,
@@ -183,7 +225,9 @@ def update_data_status(
 ) -> UpdateDataStatusResponse:
     from app.services.system_management import _load_data_state, set_data_status
 
-    before_status, before_note, before_updated_by, before_updated_at = _load_data_state(db)
+    before_status, before_note, before_updated_by, before_updated_at = _load_data_state(
+        db
+    )
 
     new_status, note, updated_by, updated_at = set_data_status(
         db,
@@ -198,11 +242,20 @@ def update_data_status(
         target_type="system_management_data_state",
         target_id="1",
         operator=operator,
-        before={"status": before_status, "note": before_note, "updated_by": before_updated_by, "updated_at": before_updated_at},
-        after={"status": new_status, "note": note, "updated_by": updated_by, "updated_at": updated_at},
+        before={
+            "status": before_status,
+            "note": before_note,
+            "updated_by": before_updated_by,
+            "updated_at": before_updated_at,
+        },
+        after={
+            "status": new_status,
+            "note": note,
+            "updated_by": updated_by,
+            "updated_at": updated_at,
+        },
         request=request,
     )
-    invalidate_data_management_overview_cache()
 
     return UpdateDataStatusResponse(
         status=payload.status,
@@ -225,6 +278,16 @@ def clear_all_cache(
     from app.services.audit_log_service import append_operation_audit_log
 
     deleted_count = clear_all_caches()
-    append_operation_audit_log(db, action="system.cache.clear_all", target_type="redis_cache", target_id="all", operator=operator, after={"deleted_count": deleted_count}, request=request)
+    append_operation_audit_log(
+        db,
+        action="system.cache.clear_all",
+        target_type="redis_cache",
+        target_id="all",
+        operator=operator,
+        after={"deleted_count": deleted_count},
+        request=request,
+    )
     db.commit()
-    return ClearCacheResponse(deleted_count=deleted_count, message=f"成功清理 {deleted_count} 个缓存键")
+    return ClearCacheResponse(
+        deleted_count=deleted_count, message=f"成功清理 {deleted_count} 个缓存键"
+    )

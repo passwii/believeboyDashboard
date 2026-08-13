@@ -4,6 +4,7 @@
 """
 
 from app.services.infra.cache import cache_delete, cache_get, cache_set
+from app.services.infra.cache_decorator import register_invalidate_fn
 from app.services.infra.redis import _p
 
 DATA_MANAGEMENT_OVERVIEW_KEY = _p("data_management:overview")
@@ -20,3 +21,7 @@ def set_data_management_overview_cache(payload: dict) -> None:
 
 def invalidate_data_management_overview_cache() -> None:
     cache_delete(DATA_MANAGEMENT_OVERVIEW_KEY)
+
+
+# 域注册（供装饰器契约使用，BLF-665 子 #2）
+register_invalidate_fn("data_management", invalidate_data_management_overview_cache)
