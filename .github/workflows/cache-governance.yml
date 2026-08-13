@@ -1,0 +1,68 @@
+name: Cache Governance
+
+# BLF-665 子 #1：缓存治理不变量测试 + CI 钩子（防 BLF-633 重演）。
+# - check_cache_decorator_coverage.py：白名单腐烂 hard fail + 未登记写端点 soft warn
+# - A 类 8 个 + B 类 4 个不变量测试
+# 任一失败即阻断 PR 合入。
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/services/infra/**"
+      - "backend/tests/services/infra/**"
+      - "backend/scripts/check_cache_decorator_coverage.py"
+      - "backend/app/api/v1/endpoints/**"
+      - "backend/app/celery_tasks/**"
+      - ".github/workflows/cache-governance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/services/infra/**"
+      - "backend/tests/services/infra/**"
+      - "backend/scripts/check_cache_decorator_coverage.py"
+      - "backend/app/api/v1/endpoints/**"
+      - "backend/app/celery_tasks/**"
+      - ".github/workflows/cache-governance.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cache-governance:
+    name: cache-decorator invariants (A8+B4 + CI hook)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # A/B 类测试是纯单测（内存 store + spy），不触达数据库；
+      # 但 app 包 import 时 Settings 校验需要 database_url，故给占位值。
+      DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/ci_placeholder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: CI hook — cache decorator coverage
+        working-directory: backend
+        run: python scripts/check_cache_decorator_coverage.py
+
+      - name: Invariant tests (A8 + B4)
+        working-directory: backend
+        run: |
+          python -m pytest \
+            tests/services/infra/test_cache_decorator.py \
+            tests/services/infra/test_cache_decorator_invariants.py \
+            -v
