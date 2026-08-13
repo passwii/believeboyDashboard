@@ -178,11 +178,10 @@ def _parse_router_decorator(deco: ast.AST) -> tuple[str | None, str | None]:
     return method, path
 
 
-def scan_function_decorators(root: Path | None, module: str, function: str) -> set[str]:
-    """读取某模块某函数的装饰器名集合（AST）。
-
-    用于 B1/B2 的 decorator_applied=True 校验——确认代码里装饰器真实存在。
-    """
+def scan_function_decorators(
+    root: Path | None = None, module: str = "", function: str = ""
+) -> set[str]:
+    """读取某模块某函数的装饰器名集合（AST）。"""
     root = root or _BACKEND_ROOT
     rel = Path(*module.split(".")).with_suffix(".py")
     py = root / rel

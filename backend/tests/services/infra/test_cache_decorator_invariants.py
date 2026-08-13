@@ -94,7 +94,8 @@ class TestL0L2EndpointsRequireDecorator:
         for spec in L0_WRITE_ENDPOINTS + L2_WRITE_ENDPOINTS:
             if not spec.decorator_applied:
                 continue
-            actual = scan_function_decorators(spec.module, spec.function)
+            # 首个参数是 root（可选）；直接传 None 走默认 _BACKEND_ROOT
+            actual = scan_function_decorators(None, spec.module, spec.function)
             assert spec.required_decorator in actual, (
                 f"端点 {spec.module}.{spec.function} 声明已应用 "
                 f"{spec.required_decorator!r}，但代码装饰器为 {sorted(actual) or '无'}"

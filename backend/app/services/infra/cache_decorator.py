@@ -440,6 +440,45 @@ def _validate_decorator_args(
         raise ValueError(f"未知 project_id_from 策略: {project_id_from!r}")
 
 
+# ── 成功后统一失效（L0/L1 装饰器共享；支持 async 端点）──────────────────
+# BLF-667: 原实现仅支持同步函数，agent 端点（R6 等）是 async，直接包会
+# 把 coroutine 当返回值导致永不失效 + 破坏 require_confirmation 的 async 检测。
+
+
+def _run_invalidation_after_success(
+    *,
+    func: Callable,
+    result: Any,
+    args: tuple,
+    kwargs: dict,
+    domain_list: list[str],
+    project_id_from: str,
+    resource_id_from: str | None,
+    cascade_list: tuple[str, ...],
+    on_error: str,
+) -> None:
+    """函数成功返回后执行失效（L0/L1 共用）。异常在函数内已向上传播（A1/A7）。"""
+    try:
+        project_ids = _resolve_project_ids(project_id_from, args, kwargs, func)
+    except ValueError as exc:
+        # 解析失败：L0 强一致宁可全量失效也不留旧值（A3 兜底语义）
+        logger.warning(
+            "cache_decorator: %s project_id 解析失败，回退全量失效: %s",
+            func.__name__,
+            exc,
+        )
+        project_ids = [None]
+    resource_id = _resolve_resource_id(resource_id_from, args, kwargs)
+    _safe_invalidate(
+        domain_list,
+        project_ids,
+        cascade=cascade_list,
+        resource_id=resource_id,
+        on_error=on_error,
+        context=func.__name__,
+    )
+
+
 # ── L0 强一致装饰器 ───────────────────────────────────────────────────
 
 
@@ -478,29 +517,42 @@ def invalidate_cache_on_commit(
     cascade_list = tuple(cascade or ())
 
     def decorator(func: Callable) -> Callable:
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                # HTTPException / 其他异常在 func 内抛出 → 直接传播、不失效
+                result = await func(*args, **kwargs)
+                _run_invalidation_after_success(
+                    func=func,
+                    result=result,
+                    args=args,
+                    kwargs=kwargs,
+                    domain_list=domain_list,
+                    project_id_from=project_id_from,
+                    resource_id_from=resource_id_from,
+                    cascade_list=cascade_list,
+                    on_error=on_error,
+                )
+                return result
+
+            return async_wrapper
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # HTTPException / 其他异常在 func 内抛出 → 直接传播、不失效
             # （写未提交；A7 场景：HTTPException 跳过）。
             result = func(*args, **kwargs)
-            try:
-                project_ids = _resolve_project_ids(project_id_from, args, kwargs, func)
-            except ValueError as exc:
-                # 解析失败：L0 强一致宁可全量失效也不留旧值（A3 兜底语义）
-                logger.warning(
-                    "cache_decorator: %s project_id 解析失败，回退全量失效: %s",
-                    func.__name__,
-                    exc,
-                )
-                project_ids = [None]
-            resource_id = _resolve_resource_id(resource_id_from, args, kwargs)
-            _safe_invalidate(
-                domain_list,
-                project_ids,
-                cascade=cascade_list,
-                resource_id=resource_id,
+            _run_invalidation_after_success(
+                func=func,
+                result=result,
+                args=args,
+                kwargs=kwargs,
+                domain_list=domain_list,
+                project_id_from=project_id_from,
+                resource_id_from=resource_id_from,
+                cascade_list=cascade_list,
                 on_error=on_error,
-                context=func.__name__,
             )
             return result
 
@@ -536,23 +588,39 @@ def invalidate_cache_on_commit_l1(
     domain_list = list(domains)
 
     def decorator(func: Callable) -> Callable:
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                result = await func(*args, **kwargs)
+                _run_invalidation_after_success(
+                    func=func,
+                    result=result,
+                    args=args,
+                    kwargs=kwargs,
+                    domain_list=domain_list,
+                    project_id_from=project_id_from,
+                    resource_id_from=None,
+                    cascade_list=(),
+                    on_error="log",
+                )
+                return result
+
+            return async_wrapper
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
-            try:
-                project_ids = _resolve_project_ids(project_id_from, args, kwargs, func)
-            except ValueError as exc:
-                logger.warning(
-                    "cache_decorator: %s project_id 解析失败，回退全量失效: %s",
-                    func.__name__,
-                    exc,
-                )
-                project_ids = [None]
-            _safe_invalidate(
-                domain_list,
-                project_ids,
+            _run_invalidation_after_success(
+                func=func,
+                result=result,
+                args=args,
+                kwargs=kwargs,
+                domain_list=domain_list,
+                project_id_from=project_id_from,
+                resource_id_from=None,
+                cascade_list=(),
                 on_error="log",
-                context=func.__name__,
             )
             return result
 
