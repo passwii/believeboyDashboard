@@ -34,6 +34,7 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleUpdate,
 )
 from app.services import infra as redis_service
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.services import shipment as shipment_service
 from app.services.audit_log_service import (
     append_operation_audit_log,
@@ -93,7 +94,9 @@ def _get_project_or_shell_404(db: Session, project_id: int) -> Project:
     return project
 
 
-def _resolve_schedule(db: Session, project_id: int, shipment_no: str) -> ShipmentSchedule:
+def _resolve_schedule(
+    db: Session, project_id: int, shipment_no: str
+) -> ShipmentSchedule:
     row = db.scalars(
         select(ShipmentSchedule).where(
             ShipmentSchedule.project_id == project_id,
@@ -130,13 +133,15 @@ def _normalize_items_body(body: dict) -> list[dict]:
     for index, item in enumerate(raw_items, start=1):
         if not isinstance(item, dict):
             raise AgentApiError(
-                ErrorCode.VALIDATION_FAILED, human_message=f"第 {index} 行：明细必须是对象"
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"第 {index} 行：明细必须是对象",
             )
         sku = str(item.get("sku") or "").strip()
         quantity = item.get("quantity")
         if not sku:
             raise AgentApiError(
-                ErrorCode.VALIDATION_FAILED, human_message=f"第 {index} 行：sku 不能为空"
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"第 {index} 行：sku 不能为空",
             )
         if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
             raise AgentApiError(
@@ -397,7 +402,9 @@ def get_shipment_audit(
             "items": [
                 {
                     "id": row.id,
-                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "created_at": row.created_at.isoformat()
+                    if row.created_at
+                    else None,
                     "action": row.action,
                     "agent_id": row.agent_id,
                     "operator": row.operator,
@@ -425,7 +432,9 @@ def _validate_create(body: dict, request: Request) -> None:
     shipping_method = str(body.get("shipping_method") or "").strip()
     shipment_status = str(body.get("shipment_status") or "").strip()
     if not shipment_no:
-        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="shipment_no 不能为空")
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="shipment_no 不能为空"
+        )
     if shipping_method not in ALLOWED_SHIPPING_METHOD:
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
@@ -480,6 +489,10 @@ def _preview_create(body: dict, request: Request) -> dict:
     build_preview=_preview_create,
     validate=_validate_create,
 )
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
+)
 async def create_shipment(
     request: Request, db: Session = Depends(get_primary_db_session)
 ) -> dict:
@@ -507,7 +520,9 @@ async def create_shipment(
         shipment_batch=body.get("shipment_batch"),
     )
     with _service_errors():
-        row = shipment_service.create_shipment_schedule(db, create_payload, operator=None)
+        row = shipment_service.create_shipment_schedule(
+            db, create_payload, operator=None
+        )
         replace_shipment_schedule_items(db, row, items, source_type="manual")
         _invalidate_shipment_caches(row)
         append_operation_audit_log(
@@ -573,6 +588,10 @@ def _preview_replace_items(body: dict, request: Request) -> dict:
     action="shipment.items.replace",
     build_preview=_preview_replace_items,
     validate=_validate_replace_items,
+)
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
 )
 async def replace_shipment_items(
     request: Request, db: Session = Depends(get_primary_db_session)
@@ -646,7 +665,10 @@ def _build_update_payload(schedule, patch: dict) -> ShipmentScheduleUpdate:
             return float(value)
         return value
 
-    data = {name: (patch[name] if name in patch else current(name)) for name in _PATCHABLE_FIELDS}
+    data = {
+        name: (patch[name] if name in patch else current(name))
+        for name in _PATCHABLE_FIELDS
+    }
     data["project_id"] = int(schedule.project_id)
     return ShipmentScheduleUpdate(**data)
 
@@ -654,7 +676,9 @@ def _build_update_payload(schedule, patch: dict) -> ShipmentScheduleUpdate:
 def _validate_patch(body: dict, request: Request) -> None:
     _check_idempotency_header(request)
     if not isinstance(body, dict) or not body:
-        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="请求体必须是非空对象")
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="请求体必须是非空对象"
+        )
     if "items" in body:
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
@@ -666,12 +690,18 @@ def _validate_patch(body: dict, request: Request) -> None:
             ErrorCode.VALIDATION_FAILED,
             human_message=f"不支持的字段: {', '.join(unknown)}",
         )
-    if "shipment_status" in body and body["shipment_status"] not in ALLOWED_SHIPMENT_STATUS:
+    if (
+        "shipment_status" in body
+        and body["shipment_status"] not in ALLOWED_SHIPMENT_STATUS
+    ):
         raise AgentApiError(
             ErrorCode.SHIPMENT_STATUS_INVALID,
             details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
         )
-    if "shipping_method" in body and body["shipping_method"] not in ALLOWED_SHIPPING_METHOD:
+    if (
+        "shipping_method" in body
+        and body["shipping_method"] not in ALLOWED_SHIPPING_METHOD
+    ):
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
             human_message=(
@@ -710,6 +740,10 @@ def _preview_patch(body: dict, request: Request) -> dict:
 @require_confirmation(
     action="shipment.update", build_preview=_preview_patch, validate=_validate_patch
 )
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
+)
 async def patch_shipment(
     request: Request, db: Session = Depends(get_primary_db_session)
 ) -> dict:
@@ -718,7 +752,9 @@ async def patch_shipment(
     shipment_no = str(request.path_params["shipment_no"])
     with _service_errors():
         schedule = _resolve_schedule(db, project_id, shipment_no)
-        before = {name: getattr(schedule, name) for name in body if name in _PATCHABLE_FIELDS}
+        before = {
+            name: getattr(schedule, name) for name in body if name in _PATCHABLE_FIELDS
+        }
         payload = _build_update_payload(schedule, body)
         row = shipment_service.update_shipment_schedule(
             db, schedule.id, payload, operator=None
@@ -793,6 +829,10 @@ def _preview_status(body: dict, request: Request) -> dict:
     action="shipment.status.transition",
     build_preview=_preview_status,
     validate=_validate_status,
+)
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
 )
 async def transition_shipment_status(
     request: Request, db: Session = Depends(get_primary_db_session)
@@ -874,6 +914,10 @@ def _preview_recalculate(body: dict, request: Request) -> dict:
     build_preview=_preview_recalculate,
     validate=_validate_recalculate,
 )
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
+)
 async def recalculate_shipment_costs(
     request: Request, db: Session = Depends(get_primary_db_session)
 ) -> dict:
@@ -882,8 +926,10 @@ async def recalculate_shipment_costs(
     shipment_no = str(request.path_params["shipment_no"])
     with _service_errors():
         schedule = _resolve_schedule(db, project_id, shipment_no)
-        row, sku_count, total_quantity = shipment_service.calculate_shipment_schedule_costs(
-            db, schedule.id, logistics_unit_price=body["logistics_unit_price"]
+        row, sku_count, total_quantity = (
+            shipment_service.calculate_shipment_schedule_costs(
+                db, schedule.id, logistics_unit_price=body["logistics_unit_price"]
+            )
         )
         _invalidate_shipment_caches(row)
         append_operation_audit_log(
@@ -896,7 +942,9 @@ async def recalculate_shipment_costs(
                 "shipment_no": row.shipment_no,
                 "logistics_unit_price": float(row.logistics_unit_price or 0),
                 "total_volume_m3": float(row.total_volume_m3 or 0),
-                "total_chargeable_weight_kg": float(row.total_chargeable_weight_kg or 0),
+                "total_chargeable_weight_kg": float(
+                    row.total_chargeable_weight_kg or 0
+                ),
                 "logistics_total_price": float(row.logistics_total_price or 0),
                 "sku_count": sku_count,
                 "total_quantity": total_quantity,
@@ -956,6 +1004,10 @@ def _preview_delete(body: dict, request: Request) -> dict:
     action="shipment.delete",
     build_preview=_preview_delete,
     validate=_validate_delete,
+)
+@invalidate_cache_on_commit_l1(
+    domains=["shipment_schedules"],
+    project_id_from="path",
 )
 async def delete_shipment(
     request: Request, db: Session = Depends(get_primary_db_session)

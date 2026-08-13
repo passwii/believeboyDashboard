@@ -70,6 +70,7 @@ from app.services.data.sku_info import (
     upsert_sku_record,
 )
 from app.services.infra import invalidate_financial_series_cache
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.services.shipment import sync_first_leg_cost_from_shipment_summary
 from app.services.ai.factory_info_parser import parse_factory_info_sync
 from app.services.data.sku_info_batch import (
@@ -229,6 +230,10 @@ def _list_sku_records_endpoint(
 @router.post(
     "/product-costs", response_model=SkuRecordUpsertResponse, include_in_schema=False
 )
+@invalidate_cache_on_commit_l1(
+    domains=["sku_info"],
+    project_id_from="global",
+)
 def create_or_update_sku_record(
     payload: SkuRecordCreate,
     request: Request,
@@ -302,6 +307,7 @@ def bulk_create_or_update_sku_records(
     response_model=SkuRecordItem,
     include_in_schema=False,
 )
+@invalidate_cache_on_commit_l1(domains=["sku_info"], project_id_from="global")
 def update_sku_record(
     sku_record_id: int,
     payload: SkuRecordUpdate,
@@ -339,6 +345,10 @@ def update_sku_record(
     status_code=status.HTTP_204_NO_CONTENT,
     include_in_schema=False,
 )
+@invalidate_cache_on_commit_l1(
+    domains=["sku_info"],
+    project_id_from="global",
+)
 def delete_sku_record_endpoint(
     sku_record_id: int,
     request: Request,
@@ -375,6 +385,10 @@ def delete_sku_record_endpoint(
     response_model=SkuRecordItem,
     include_in_schema=False,
 )
+@invalidate_cache_on_commit_l1(
+    domains=["sku_info"],
+    project_id_from="global",
+)
 def move_sku_record(
     sku_record_id: int,
     payload: SkuRecordSortMove,
@@ -408,6 +422,10 @@ def move_sku_record(
     "/product-costs/import-csv",
     response_model=SkuRecordBulkUpsertResponse,
     include_in_schema=False,
+)
+@invalidate_cache_on_commit_l1(
+    domains=["sku_info"],
+    project_id_from="global",
 )
 def import_sku_records_from_csv(
     request: Request,

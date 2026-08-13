@@ -28,6 +28,7 @@ from app.api.deps import (
 )
 from app.db.session import SessionLocal
 from app.models.crm import CrmCustomer, CrmLead
+from app.services.infra import crm_cache  # noqa: F401 —— 触发 crm/crm_tasks 域 invalidate_fn 注册
 from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.schemas.crm import (
     AuditLogListResponse,
