@@ -606,7 +606,7 @@ def _get_monthly_returns(
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
 
         records = query.all()
 
@@ -735,7 +735,7 @@ def _get_inventory_summary(db: Session, project_ids: list[int] | None, country: 
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
 
         rows = query.all()
         total_available = sum(int(r.available_qty or 0) for r in rows)
