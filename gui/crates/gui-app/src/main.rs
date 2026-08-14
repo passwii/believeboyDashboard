@@ -23,6 +23,7 @@ use gpui::{
     WindowBounds, WindowKind, WindowOptions,
 };
 use gpui::prelude::*;
+use gpui_component::TitleBar;
 use tracing_subscriber::EnvFilter;
 
 use assets::AppAssets;
@@ -149,6 +150,11 @@ fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>
 }
 
 /// 打开主窗口（1280×800 侧栏 + 内容区）。退出登录 → 清 Keychain → 关本窗开登录窗。
+///
+/// P2-1（BLF-688）：主窗口改用 gpui-component `TitleBar::title_bar_options()`——
+/// `appears_transparent: true` 让系统标题栏透明、traffic lights 定位到 (9,9)，
+/// 使红绿灯悬于 RootView 自绘的统一工具栏（TitleBar 组件）之上，实现 macOS 原生
+/// unified toolbar 质感。
 fn open_main_window(
     cx: &mut App,
     client: Client,
@@ -165,6 +171,7 @@ fn open_main_window(
         .open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitleBar::title_bar_options()),
                 ..Default::default()
             },
             |_, cx| cx.new(|cx| RootView::new(cx, Some(session))),
