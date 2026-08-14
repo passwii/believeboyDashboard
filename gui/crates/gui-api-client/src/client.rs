@@ -4,19 +4,49 @@
 //! 调用方通过 `client.with_session(...)` 或 `auth::login` 拿到带会话的 client。
 //!
 //! 鉴权模型（后端 FastAPI，非 JWT）：
-//! 登录后持有 `AuthSession { user_id, email, session_id }`，后续每个请求带上
-//! `X-User-Id` / `X-User-Email` / `X-Session-Id` 三个 header 声明身份。
+//! 登录后持有 `AuthSession { user_id, email, session_id, ... }`，后续每个请求带上
+//! `X-User-Id` / `X-User-Email` / `X-Session-Id` 三个身份头，外加上下文头
+//! `X-User-Name` / `X-Operator` / `X-Role-Type` / `X-Is-Admin`（与 Web 端
+//! Vercel 代理 backend-auth.ts 同一契约；`/projects/manage` 依赖这些过滤）。
 
 use std::time::Duration;
 
+use gui_domain::auth::UserRoleType;
+
 use crate::error::ApiError;
 
-/// 登录后的会话凭据（对应 backend 读取的 X-User-Id / X-User-Email / X-Session-Id）
+/// 百分号编码（等价 Web 端 `encodeURIComponent`：仅保留 unreserved 字符，UTF-8 逐字节
+/// `%XX`）。backend 侧用 `urllib.parse.unquote` 读取这些上下文头（见 deps.py
+/// `_decode_header_value`），所以中文姓名 / 运营别名必须编码后才能放进 HTTP header。
+fn percent_encode(input: &str) -> String {
+    const UNRESERVED: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
+    let mut out = String::with_capacity(input.len());
+    for &b in input.as_bytes() {
+        if UNRESERVED.contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push('%');
+            out.push_str(&format!("{:02X}", b));
+        }
+    }
+    out
+}
+
+/// 登录后的会话凭据（对应 backend 读取的 X-User-Id / X-User-Email / X-Session-Id
+/// 及其余上下文头：X-User-Name / X-Operator / X-Role-Type / X-Is-Admin）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthSession {
     pub user_id: String,
     pub email: String,
     pub session_id: String,
+    /// 显示名（X-User-Name）
+    pub user_name: Option<String>,
+    /// 运营别名（X-Operator）
+    pub operator_name_zh: Option<String>,
+    /// 角色（X-Role-Type）
+    pub role_type: UserRoleType,
+    /// 是否管理员（X-Is-Admin: true）——backend `/projects/manage` 据此返回全部项目
+    pub is_admin: bool,
 }
 
 impl AuthSession {
@@ -26,6 +56,10 @@ impl AuthSession {
             user_id: resp.id.clone(),
             email: resp.email.clone(),
             session_id: resp.session_id.clone(),
+            user_name: Some(resp.name.clone()),
+            operator_name_zh: resp.operator_name_zh.clone(),
+            role_type: resp.role_type,
+            is_admin: resp.is_admin,
         }
     }
 }
@@ -144,6 +178,18 @@ impl Client {
                 // backend 侧用 unquote() 读取，原样发送即可（邮箱本身不含 %xx 转义）
                 .header("X-User-Email", &session.email)
                 .header("X-Session-Id", &session.session_id);
+            // 上下文头：与 Web 端 Vercel 代理（backend-auth.ts）同一契约——
+            // `/projects/manage` 依赖 X-Is-Admin / X-Operator 决定返回哪些项目
+            if let Some(name) = &session.user_name {
+                req = req.header("X-User-Name", percent_encode(name));
+            }
+            if let Some(op) = &session.operator_name_zh {
+                req = req.header("X-Operator", percent_encode(op));
+            }
+            req = req.header("X-Role-Type", session.role_type.as_str());
+            if session.is_admin {
+                req = req.header("X-Is-Admin", "true");
+            }
         }
         if !query.is_empty() {
             req = req.query(query);
@@ -195,6 +241,10 @@ mod tests {
             user_id: "u".into(),
             email: "e@x.com".into(),
             session_id: "s".into(),
+            user_name: Some("测试".into()),
+            operator_name_zh: Some("测试".into()),
+            role_type: UserRoleType::Operator,
+            is_admin: false,
         };
         let authed = client.with_session(session.clone());
         assert!(!client.is_authenticated());
@@ -210,6 +260,10 @@ mod tests {
             user_id: "u".into(),
             email: "e@x.com".into(),
             session_id: "s".into(),
+            user_name: None,
+            operator_name_zh: None,
+            role_type: UserRoleType::Admin,
+            is_admin: true,
         };
         let authed = client.with_session(session.clone()).with_api_key("k123");
         assert_eq!(authed.config.api_key.as_deref(), Some("k123"));
@@ -217,5 +271,42 @@ mod tests {
         // 派生链保持 API key：登录返回的带会话 client 不应丢 key
         let again = authed.with_session(session.clone());
         assert_eq!(again.config.api_key.as_deref(), Some("k123"));
+    }
+
+    #[tokio::test]
+    async fn session_context_headers_match_web_proxy_contract() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/api/v1/projects/manage")
+            .match_header("X-User-Id", "u")
+            .match_header("X-User-Email", "e@x.com")
+            .match_header("X-Session-Id", "s")
+            .match_header("X-User-Name", "%E6%B5%8B%E8%AF%95")
+            .match_header("X-Operator", "%E6%B5%8B%E8%AF%95%E8%BF%90%E8%90%A5")
+            .match_header("X-Role-Type", "admin")
+            .match_header("X-Is-Admin", "true")
+            .match_header("Authorization", "Bearer k123")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("[]")
+            .create();
+
+        let session = AuthSession {
+            user_id: "u".into(),
+            email: "e@x.com".into(),
+            session_id: "s".into(),
+            user_name: Some("测试".into()),
+            operator_name_zh: Some("测试运营".into()),
+            role_type: UserRoleType::Admin,
+            is_admin: true,
+        };
+        let client = Client::new(server.url()).with_api_key("k123").with_session(session);
+        let result: Vec<serde_json::Value> = client
+            .get_json("/api/v1/projects/manage", &[])
+            .await
+            .expect("请求失败");
+
+        m.assert();
+        assert!(result.is_empty());
     }
 }

@@ -17,6 +17,17 @@ pub enum UserRoleType {
     Businessdev,
 }
 
+impl UserRoleType {
+    /// 后端 `X-Role-Type` 头的字符串值（与 serde lowercase 一致）
+    pub fn as_str(self) -> &'static str {
+        match self {
+            UserRoleType::Admin => "admin",
+            UserRoleType::Operator => "operator",
+            UserRoleType::Businessdev => "businessdev",
+        }
+    }
+}
+
 fn default_role_type() -> UserRoleType {
     UserRoleType::Operator
 }
