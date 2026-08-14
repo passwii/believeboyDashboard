@@ -134,7 +134,8 @@ pub struct DashboardView {
     state: Entity<DashboardState>,
     /// 带会话的 API client
     client: Client,
-    /// 项目列表（reload 时刷新）
+    /// 项目列表（reload 时刷新；GUI-9 Top 项目消费，暂只读）
+    #[allow(dead_code)]
     projects: Vec<ManagedProject>,
     /// 当前选中项目；`None` = 全部项目（对齐 frontend `ALL_PROJECTS` 默认）
     selected_project_id: Option<ProjectId>,
@@ -159,22 +160,26 @@ impl DashboardView {
         }
     }
 
-    /// 当前状态（只读，测试 / GUI-7+ 用）
+    /// 当前状态（只读，测试 / GUI-8+ 用）
+    #[allow(dead_code)] // GUI-8/9 消费前仅供测试使用
     pub fn current_state(&self, cx: &App) -> DashboardState {
         self.state.read(cx).clone()
     }
 
-    /// 项目列表（只读）
+    /// 项目列表（只读；GUI-9 Top 项目消费）
+    #[allow(dead_code)]
     pub fn projects(&self) -> &[ManagedProject] {
         &self.projects
     }
 
     /// 选中项目；`None` = 全部项目
+    #[allow(dead_code)]
     pub fn selected_project_id(&self) -> Option<ProjectId> {
         self.selected_project_id
     }
 
     /// 最新请求序号（测试断言用）
+    #[allow(dead_code)]
     pub fn latest_request_id(&self) -> u64 {
         self.latest_request_id
     }
@@ -213,6 +218,7 @@ impl DashboardView {
 
     /// 切换选中项目 → 立即 reload（项目切换重新拉数据）。
     /// 选中同一项目为 no-op，避免无意义的重复请求。
+    #[allow(dead_code)] // GUI-8 项目选择器接入前仅供测试使用
     pub fn select_project(&mut self, project_id: Option<ProjectId>, cx: &mut Context<Self>) {
         if project_id == self.selected_project_id {
             return;
