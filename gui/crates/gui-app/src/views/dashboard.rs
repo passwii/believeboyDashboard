@@ -23,9 +23,10 @@
 //! - 数据流：`list_managed_projects` → `daily_analysis_all`（近 7 天窗口，`country=US`，
 //!   与 frontend 调用口径一致）；无项目时不发聚合请求，直接进 Empty。
 //! - 状态持有在 `Entity<DashboardState>` 中（gpui 0.2 的 `Model` 更名），后续
-//!   GUI-7/8/9（数字带 / 图表 / Top 项目）可以订阅或直接读取。
+//!   GUI-7/9（数字带 / Top 项目）可以订阅或直接读取。
 //! - 展示组件全部来自 gpui-component（用户 2026-08-14 指定组件库）：
 //!   Loading → `Skeleton`；Error → `Alert`（内联）；Empty → `Icon` + 文案；主题 → `ActiveTheme`。
+//! - GUI-8（1.0-c）已接入 6 张图表占位卡（`widgets::chart_placeholder`，v1.1 换真图表）。
 
 use chrono::{Days, NaiveDate};
 use gpui::{
@@ -360,7 +361,7 @@ fn render_empty(
         )
 }
 
-/// Loaded：1.0-a 先渲染轻量摘要（数字带 / 图表 / Top 项目由 GUI-7/8/9 接入）
+/// Loaded：标题 + 6 张图表占位卡（GUI-8 / 1.0-c；数字带 / Top 项目在 GUI-7/9 接入）
 fn render_loaded(
     theme: &gpui_component::Theme,
     data: &DashboardData,
@@ -389,12 +390,10 @@ fn render_loaded(
                     day_count
                 )),
         )
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .child("数字带 / 图表 / Top 项目在 GUI-7/8/9 接入"),
-        )
+        // GUI-8：6 个图表位置占位卡（v1.1 接 gpui-component Chart 真图表）
+        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(
+            theme,
+        ))
 }
 
 #[cfg(test)]
