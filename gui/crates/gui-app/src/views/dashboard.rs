@@ -35,8 +35,9 @@ use gpui::{
 use gpui_component::{ActiveTheme, Icon, Sizable, alert::Alert, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex};
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
-use gui_domain::dashboard::DailyAnalysisResponse;
+use gui_domain::dashboard::{DailyAnalysisResponse, KpiSummary};
 
+use crate::views::stat_band::{stat_band, stat_band_skeleton};
 use crate::widgets::top_projects::{TopProjectRow, TopProjectsWidget};
 
 /// 项目 ID（对齐 `ManagedProject.id`，i64）
@@ -330,12 +331,8 @@ fn render_loading(theme: &gpui_component::Theme) -> impl IntoElement {
             div().w(px(180.)).h(px(36.)).child(Skeleton::new()),
         )
         .child(
-            // KPI 数字带占位（4 张卡）
-            h_flex()
-                .gap_3()
-                .children((0..4).map(|_| {
-                    div().flex_1().h(px(96.)).child(Skeleton::new())
-                })),
+            // KPI 数字带占位（GUI-7：6 张骨架卡，数字位置放 Skeleton）
+            stat_band_skeleton(theme),
         )
         .child(
             // 主体内容占位
@@ -424,6 +421,11 @@ fn render_loaded(
     top_projects: Entity<TopProjectsWidget>,
 ) -> impl IntoElement {
     let daily = data.daily.as_ref();
+    let kpi = daily.map_or_else(KpiSummary::default, |d| KpiSummary::from_rows(&d.summary_rows));
+    let comparison = data
+        .compare
+        .as_ref()
+        .map_or_else(KpiSummary::default, |d| KpiSummary::from_rows(&d.summary_rows));
     let day_count = daily.map_or(0, |d| d.summary_rows.len());
     v_flex()
         .id("dashboard-loaded")
@@ -447,6 +449,8 @@ fn render_loaded(
                     day_count
                 )),
         )
+        // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
+        .child(stat_band(&kpi, &comparison, theme))
         // GUI-8：6 个图表位置占位卡（v1.1 接 gpui-component Chart 真图表）
         .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(
             theme,

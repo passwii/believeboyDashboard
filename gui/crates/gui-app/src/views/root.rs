@@ -3,6 +3,8 @@
 //! 继承 GUI-3（BLF-675）的侧栏渲染 / 键盘导航 / 占位内容区，
 //! GUI-2（BLF-674）叠加：已登录用户信息栏 + 退出登录（emit `RootViewEvent::Logout`，
 //! 由 main.rs 清 Keychain 并切回登录窗口）。
+//! GUI-7（BLF-679）叠加：Dashboard 首页作为「sidebar 之外的着陆页」启动即显示
+//! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
 
 use gpui::{
     Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton, MouseUpEvent,
@@ -11,9 +13,9 @@ use gpui::{
 use gpui::prelude::*;
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
-use gui_domain::sidebar::sidebar_groups;
 
 use crate::theme::Theme;
+use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 
@@ -38,31 +40,36 @@ pub enum RootViewEvent {
 pub struct RootView {
     pub sidebar: Entity<SidebarView>,
     pub content: Entity<PlaceholderView>,
+    /// Dashboard 着陆页（sidebar 之外的首页，对齐 Web /dashboard）；启动即显示
+    dashboard: Option<Entity<DashboardView>>,
+    /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
+    show_dashboard: bool,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
 }
 
 impl RootView {
     pub fn new(cx: &mut Context<Self>, session: Option<SessionInfo>) -> Self {
-        // 启动时默认选中第一个子项（运营 → 站点导航），内容区立即显示对应占位 View
-        let initial = sidebar_groups()
-            .first()
-            .and_then(|group| group.items.first())
-            .cloned();
-        let (initial_title, initial_url) = match &initial {
-            Some(item) => (item.title.clone(), item.url.clone()),
-            None => (
-                "欢迎使用 BelieveBoy GUI".into(),
-                "从左侧选择一个功能入口".into(),
-            ),
-        };
+        // GUI-7：Dashboard 首页为着陆页（sidebar 之外的 landing），启动默认显示；
+        // 侧栏初始无选中项，点击/键盘选中后再切换内容区为对应占位视图。
+        let show_dashboard = session.is_some();
+        let dashboard = session.as_ref().map(|s| {
+            let client = s.client.clone();
+            cx.new(|cx| {
+                let mut view = DashboardView::new(cx, client, Vec::new());
+                // 启动即触发首屏拉取（项目列表 + 近 7 天聚合 + 对比期）
+                view.reload(cx);
+                view
+            })
+        });
 
-        let sidebar = cx.new(|cx| SidebarView::new(initial.as_ref().map(|i| i.url.as_str()), cx));
-        let content = cx.new(|_| PlaceholderView::new(&initial_title, &initial_url));
+        let sidebar = cx.new(|cx| SidebarView::new(None, cx));
+        let content = cx.new(|_| PlaceholderView::new("", ""));
 
-        // 侧栏选中变化 → 内容区切换到对应占位 View
+        // 侧栏选中变化 → 内容区切换到对应占位 View（并离开 Dashboard 着陆页）
         cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
             let SidebarEvent::Select { url, title } = event;
+            this.show_dashboard = false;
             this.content.update(cx, |content, cx| {
                 content.title = title.clone();
                 content.url = url.clone();
@@ -75,6 +82,8 @@ impl RootView {
         Self {
             sidebar,
             content,
+            dashboard,
+            show_dashboard,
             session,
             focus_handle: cx.focus_handle(),
         }
@@ -118,7 +127,14 @@ impl Render for RootView {
                             .id("content")
                             .flex_1()
                             .h_full()
-                            .child(self.content.clone()),
+                            .child(if self.show_dashboard {
+                                self.dashboard.clone().map_or_else(
+                                    || self.content.clone().into_any_element(),
+                                    |dashboard| dashboard.into_any_element(),
+                                )
+                            } else {
+                                self.content.clone().into_any_element()
+                            }),
                     ),
             )
     }
