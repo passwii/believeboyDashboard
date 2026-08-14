@@ -37,6 +37,8 @@ use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::dashboard::DailyAnalysisResponse;
 
+use crate::widgets::top_projects::{TopProjectRow, TopProjectsWidget};
+
 /// 项目 ID（对齐 `ManagedProject.id`，i64）
 pub type ProjectId = i64;
 
@@ -47,6 +49,15 @@ pub fn last_7_days_window(today: NaiveDate) -> (NaiveDate, NaiveDate) {
     (from, to)
 }
 
+/// 对比期窗口（对齐 frontend page.tsx：`prevFrom = from - 7`，`prevTo = from - 1`，
+/// 即当前窗口紧邻的前一个 7 天窗口，用于 Top 项目的环比）。
+pub fn previous_7_days_window(window: (NaiveDate, NaiveDate)) -> (NaiveDate, NaiveDate) {
+    let (from, _to) = window;
+    let prev_to = from.pred_opt().unwrap_or(from);
+    let prev_from = prev_to.checked_sub_days(Days::new(6)).unwrap_or(prev_to);
+    (prev_from, prev_to)
+}
+
 /// Dashboard 数据载荷（Loaded 持有；GUI-7/8/9 消费渲染）
 #[derive(Debug, Clone, PartialEq)]
 pub struct DashboardData {
@@ -54,6 +65,9 @@ pub struct DashboardData {
     pub projects: Vec<ManagedProject>,
     /// 聚合数据；`None` = 无项目而未发起聚合请求
     pub daily: Option<DailyAnalysisResponse>,
+    /// 对比期（前一 7 天窗口）聚合数据（GUI-9 Top 项目环比用）；
+    /// 对比期拉取失败时为 `None`（环比显示「—」，不阻塞主数据）
+    pub compare: Option<DailyAnalysisResponse>,
 }
 
 impl DashboardData {
@@ -63,10 +77,31 @@ impl DashboardData {
         self.projects.is_empty()
             || self.daily.as_ref().is_none_or(|d| d.summary_rows.is_empty())
     }
+
+    /// Top 项目聚合行（GUI-9 消费；纯函数聚合，默认销售额降序取 Top 6）
+    pub fn top_projects(&self) -> Vec<TopProjectRow> {
+        let Some(daily) = &self.daily else {
+            return Vec::new();
+        };
+        let compare = self
+            .compare
+            .as_ref()
+            .map(|c| &c.project_breakdown);
+        crate::widgets::top_projects::compute_top_projects(
+            &daily.project_breakdown,
+            compare,
+            &self.projects,
+        )
+    }
 }
 
 /// Dashboard 状态机（四态）
+///
+/// `Loaded` 持有完整载荷（项目 + 本期 + 对比期），变体体积明显大于其余三个；
+/// 状态机按「每轮 fetch 一次克隆」使用（render 内 clone 判型），体积影响可接受，
+/// 故对 large_enum_variant 显式放行（GUI-9 为环比引入 compare 字段后触发）。
 #[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum DashboardState {
     /// 首屏 / reload 拉取中（骨架屏）
     Loading,
@@ -104,18 +139,22 @@ pub struct DashboardView {
     selected_project_id: Option<ProjectId>,
     /// 请求竞态保护：只有等于最新值的响应才被应用（u64 溢出回绕安全）
     latest_request_id: u64,
+    /// Top 项目列表（GUI-9 / 1.0-d）
+    top_projects: Entity<TopProjectsWidget>,
 }
 
 impl DashboardView {
     /// 新建视图：初始 `Loading`，由调用方（GUI-7 起 root.rs）在合适时机触发 `reload()`
     pub fn new(cx: &mut Context<Self>, client: Client, projects: Vec<ManagedProject>) -> Self {
         let state = cx.new(|_| DashboardState::Loading);
+        let top_projects = cx.new(|_| TopProjectsWidget::new());
         Self {
             state,
             client,
             projects,
             selected_project_id: None,
             latest_request_id: 0,
+            top_projects,
         }
     }
 
@@ -192,6 +231,13 @@ impl DashboardView {
         if request_id != self.latest_request_id {
             return; // 过期响应，丢弃
         }
+        // Loaded 落点前先把 Top 项目行喂给 GUI-9 组件（数据驱动，非渲染期副作用）
+        if let Ok(data) = &result {
+            if !data.is_empty() {
+                let rows = data.top_projects();
+                self.top_projects.update(cx, |widget, cx| widget.set_data(rows, cx));
+            }
+        }
         self.state.update(cx, |state, cx| {
             *state = DashboardState::from_fetch_result(result);
             cx.notify();
@@ -216,6 +262,7 @@ async fn load_dashboard(
         return Ok(DashboardData {
             projects: Vec::new(),
             daily: None,
+            compare: None,
         });
     }
     let ids = match selected_project_id {
@@ -228,13 +275,18 @@ async fn load_dashboard(
     };
     let today = chrono::Local::now().date_naive();
     let (from, to) = last_7_days_window(today);
-    let daily = client
-        .daily_analysis_all(&ids, "US", from, to)
-        .await
-        .map_err(|e| e.user_message())?;
+    let (compare_from, compare_to) = previous_7_days_window((from, to));
+    // 本期 + 对比期并行拉取（对齐 frontend page.tsx 的 Promise.all）；
+    // 对比期失败不阻塞主数据（环比显示「—」）
+    let (daily, compare) = tokio::join!(
+        client.daily_analysis_all(&ids, "US", from, to),
+        client.daily_analysis_all(&ids, "US", compare_from, compare_to),
+    );
+    let daily = daily.map_err(|e| e.user_message())?;
     Ok(DashboardData {
         projects,
         daily: Some(daily),
+        compare: compare.ok(),
     })
 }
 
@@ -243,11 +295,14 @@ impl Render for DashboardView {
         let theme = cx.theme().clone();
         // 克隆状态机（1.0-a 直接克隆；GUI-7+ 若帧率高可改为借用判别字段）
         let state = self.state.read(cx).clone();
+        let top_projects = self.top_projects.clone();
         match state {
             DashboardState::Loading => render_loading(&theme).into_any_element(),
             DashboardState::Error(msg) => render_error(cx, &theme, &msg).into_any_element(),
             DashboardState::Empty => render_empty(cx, &theme).into_any_element(),
-            DashboardState::Loaded(data) => render_loaded(&theme, &data).into_any_element(),
+            DashboardState::Loaded(data) => {
+                render_loaded(cx, &theme, &data, top_projects).into_any_element()
+            }
         }
     }
 }
@@ -361,10 +416,12 @@ fn render_empty(
         )
 }
 
-/// Loaded：标题 + 6 张图表占位卡（GUI-8 / 1.0-c；数字带 / Top 项目在 GUI-7/9 接入）
+/// Loaded：标题 + 6 张图表占位卡（GUI-8 / 1.0-c）+ Top 项目列表（GUI-9 / 1.0-d）
 fn render_loaded(
+    _cx: &mut Context<DashboardView>,
     theme: &gpui_component::Theme,
     data: &DashboardData,
+    top_projects: Entity<TopProjectsWidget>,
 ) -> impl IntoElement {
     let daily = data.daily.as_ref();
     let day_count = daily.map_or(0, |d| d.summary_rows.len());
@@ -394,6 +451,8 @@ fn render_loaded(
         .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(
             theme,
         ))
+        // Top 项目列表（GUI-9 / 1.0-d）
+        .child(div().flex_1().min_h(px(240.)).child(top_projects))
 }
 
 #[cfg(test)]
@@ -479,6 +538,7 @@ mod tests {
         DashboardData {
             projects: vec![project(1, "测试项目")],
             daily: Some(daily_response(1)),
+            compare: None,
         }
     }
 
@@ -497,6 +557,7 @@ mod tests {
         let no_projects = DashboardData {
             projects: Vec::new(),
             daily: None,
+            compare: None,
         };
         assert_eq!(
             DashboardState::from_fetch_result(Ok(no_projects)),
@@ -507,6 +568,7 @@ mod tests {
         let no_rows = DashboardData {
             projects: vec![project(1, "测试项目")],
             daily: Some(daily_response(0)),
+            compare: None,
         };
         assert_eq!(
             DashboardState::from_fetch_result(Ok(no_rows)),
@@ -537,16 +599,179 @@ mod tests {
         assert!(DashboardData {
             projects: Vec::new(),
             daily: None,
+            compare: None,
         }
         .is_empty());
         // 有项目无 daily → 空
         assert!(DashboardData {
             projects: vec![project(1, "A")],
             daily: None,
+            compare: None,
         }
         .is_empty());
         // 有项目 + 有行 → 非空
         assert!(!sample_data().is_empty());
+    }
+
+    #[test]
+    fn previous_7_days_window_matches_frontend_contract() {
+        // 当前窗口 2026-08-07..2026-08-13（today = 08-14）
+        let cur = last_7_days_window(NaiveDate::from_ymd_opt(2026, 8, 14).unwrap());
+        assert_eq!(cur, (NaiveDate::from_ymd_opt(2026, 8, 7).unwrap(), NaiveDate::from_ymd_opt(2026, 8, 13).unwrap()));
+        // frontend: prevFrom = from - 7，prevTo = from - 1
+        let prev = previous_7_days_window(cur);
+        assert_eq!(prev.0.to_string(), "2026-07-31");
+        assert_eq!(prev.1.to_string(), "2026-08-06");
+        assert_eq!((prev.1 - prev.0).num_days(), 6);
+    }
+
+    #[test]
+    fn dashboard_data_top_projects_aggregates_with_compare() {
+        // project_breakdown 含项目 1（2 行聚合）+ 项目 2（1 行）；compare 含项目 1 的对比期
+        let mut breakdown = HashMap::new();
+        breakdown.insert(
+            1i64,
+            ProjectBreakdownEntry {
+                project_name: "项目 A".to_string(),
+                summary_rows: vec![
+                    gui_domain::dashboard::DailyAnalysisRow {
+                        date: NaiveDate::from_ymd_opt(2026, 8, 12).unwrap(),
+                        order_qty: 10,
+                        sales_amount: 1000.0,
+                        impressions: 0,
+                        clicks: 0,
+                        cpc: 0.0,
+                        ad_spend: 50.0,
+                        ad_orders: 0,
+                        available_qty: 0,
+                        page_views: 0,
+                        units_ordered: 0,
+                        sessions: 0,
+                        ordered_sales_amount: 0.0,
+                        conversion_rate: 0.0,
+                    },
+                    gui_domain::dashboard::DailyAnalysisRow {
+                        date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
+                        order_qty: 20,
+                        sales_amount: 2000.0,
+                        impressions: 0,
+                        clicks: 0,
+                        cpc: 0.0,
+                        ad_spend: 100.0,
+                        ad_orders: 0,
+                        available_qty: 0,
+                        page_views: 0,
+                        units_ordered: 0,
+                        sessions: 0,
+                        ordered_sales_amount: 0.0,
+                        conversion_rate: 0.0,
+                    },
+                ],
+                detail_rows: Vec::new(),
+            },
+        );
+        breakdown.insert(
+            2i64,
+            ProjectBreakdownEntry {
+                project_name: "项目 B".to_string(),
+                summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
+                    date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
+                    order_qty: 5,
+                    sales_amount: 300.0,
+                    impressions: 0,
+                    clicks: 0,
+                    cpc: 0.0,
+                    ad_spend: 20.0,
+                    ad_orders: 0,
+                    available_qty: 0,
+                    page_views: 0,
+                    units_ordered: 0,
+                    sessions: 0,
+                    ordered_sales_amount: 0.0,
+                    conversion_rate: 0.0,
+                }],
+                detail_rows: Vec::new(),
+            },
+        );
+        let mut compare_breakdown = HashMap::new();
+        compare_breakdown.insert(
+            1i64,
+            ProjectBreakdownEntry {
+                project_name: "项目 A".to_string(),
+                summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
+                    date: NaiveDate::from_ymd_opt(2026, 8, 6).unwrap(),
+                    order_qty: 10,
+                    sales_amount: 2500.0,
+                    impressions: 0,
+                    clicks: 0,
+                    cpc: 0.0,
+                    ad_spend: 0.0,
+                    ad_orders: 0,
+                    available_qty: 0,
+                    page_views: 0,
+                    units_ordered: 0,
+                    sessions: 0,
+                    ordered_sales_amount: 0.0,
+                    conversion_rate: 0.0,
+                }],
+                detail_rows: Vec::new(),
+            },
+        );
+
+        let data = DashboardData {
+            projects: vec![project(1, "项目 A"), project(2, "项目 B")],
+            daily: Some(DailyAnalysisResponse {
+                summary_rows: Vec::new(),
+                detail_rows: Vec::new(),
+                available_dates: Default::default(),
+                project_breakdown: breakdown,
+            }),
+            compare: Some(DailyAnalysisResponse {
+                summary_rows: Vec::new(),
+                detail_rows: Vec::new(),
+                available_dates: Default::default(),
+                project_breakdown: compare_breakdown,
+            }),
+        };
+
+        let rows = data.top_projects();
+        // 默认销售额降序：项目 A(3000) > 项目 B(300)
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].project_name, "项目 A");
+        assert_eq!(rows[0].total_sales, 3000.0);
+        assert_eq!(rows[0].total_orders, 30);
+        // 环比 = (3000 - 2500) / 2500 × 100 = 20%
+        assert_eq!(rows[0].change, Some(20.0));
+        // 项目 B 无对比期 → change 为 None
+        assert_eq!(rows[1].change, None);
+    }
+
+    #[gpui::test]
+    async fn apply_result_feeds_top_projects_widget_on_loaded(cx: &mut gpui::TestAppContext) {
+        let view = create_view(cx);
+        let data = sample_data();
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(1, Ok(data.clone()), cx);
+            });
+        });
+        // 状态落到 Loaded，且 Top 项目组件已收到行（1 个项目）
+        cx.read(|app| {
+            let state = view.read(app).state.read(app).clone();
+            assert_eq!(state, DashboardState::Loaded(data));
+            assert_eq!(view.read(app).top_projects.read(app).rows().len(), 1);
+        });
+        // 失败结果不喂 Top 组件（保持原有行）
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 2;
+                this.apply_result(2, Err("接口 500".to_string()), cx);
+            });
+        });
+        cx.read(|app| {
+            assert_eq!(view.read(app).top_projects.read(app).rows().len(), 1);
+        });
     }
 
     // ---------- 视图级竞态保护 / 状态转移（TestAppContext，无真实网络） ----------
@@ -618,6 +843,7 @@ mod tests {
                     Ok(DashboardData {
                         projects: Vec::new(),
                         daily: None,
+                        compare: None,
                     }),
                     cx,
                 );

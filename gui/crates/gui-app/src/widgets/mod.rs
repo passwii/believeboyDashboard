@@ -2,3 +2,4 @@
 
 pub mod chart_placeholder;
 pub mod text_input;
+pub mod top_projects;
