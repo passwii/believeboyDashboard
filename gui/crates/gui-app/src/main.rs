@@ -1,93 +1,39 @@
-//! 应用入口
+//! 应用入口（窗口协调器）
 //!
 //! 启动流程：
-//! 1. 初始化 tracing
-//! 2. 读环境配置（api_base / token）
-//! 3. 启动 GPUI 应用，打开主窗口（左侧侧栏 + 右侧内容区），初始聚焦侧栏
-//!
-//! 阶段 0.1 骨架：只证明 workspace / GPUI 依赖链跑通；
-//! 阶段 0.3：主窗口接入侧栏（8 大分类 52 子项，数据来自 gui-domain::sidebar），
-//! 点击子项 → 内容区切换到对应占位 View；0.3 打磨版补齐图标 / 键盘导航 / 语义色板。
-//! 鉴权与真实页面在后续 issue 实现。
+//! 1. 初始化 tracing / 读 api_base
+//! 2. 读 Keychain（service=believeboy-gui）：
+//!    - 有会话 → 直接打开主窗口（侧栏 + 内容区），后台 `me()` 校验（401 → 清 Keychain 回登录窗）
+//!    - 无会话 → 打开登录小窗口（440×560）
+//! 3. 登录成功 → 存 Keychain → 关登录窗、开主窗口
+//! 4. 主窗口点「退出登录」→ 清 Keychain → 关主窗、回登录窗
 
 mod assets;
 mod icon;
+mod keychain;
+mod runtime;
 mod theme;
 mod views;
+mod widgets;
 
 use std::env;
 
 use gpui::{
-    actions, div, prelude::*, px, rgb, size, App, Application, Bounds, Context, Entity, Focusable,
-    KeyBinding, Window, WindowBounds, WindowOptions,
+    actions, px, size, App, Application, Bounds, Focusable, KeyBinding, TitlebarOptions,
+    WindowBounds, WindowKind, WindowOptions,
 };
+use gpui::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 use assets::AppAssets;
-use gui_domain::sidebar::sidebar_groups;
+use gui_api_client::client::AuthSession;
+use gui_api_client::Client;
+use gui_domain::auth::LoginResponse;
 
-use views::placeholder::PlaceholderView;
-use views::sidebar::{SidebarEvent, SidebarView};
+use views::login::{LoginView, LoginViewEvent};
+use views::root::{RootView, RootViewEvent, SessionInfo};
 
 actions!(gui_app, [Quit]);
-
-/// 根视图：左侧侧栏 + 右侧内容区（两栏布局）
-struct RootView {
-    sidebar: Entity<SidebarView>,
-    content: Entity<PlaceholderView>,
-}
-
-impl RootView {
-    fn new(cx: &mut Context<Self>) -> Self {
-        // 启动时默认选中第一个子项（运营 → 站点导航），内容区立即显示对应占位 View
-        let initial = sidebar_groups()
-            .first()
-            .and_then(|group| group.items.first())
-            .cloned();
-        let (initial_title, initial_url) = match &initial {
-            Some(item) => (item.title.clone(), item.url.clone()),
-            None => (
-                "欢迎使用 BelieveBoy GUI".into(),
-                "从左侧选择一个功能入口".into(),
-            ),
-        };
-
-        let sidebar = cx.new(|cx| SidebarView::new(initial.as_ref().map(|i| i.url.as_str()), cx));
-        let content = cx.new(|_| PlaceholderView::new(&initial_title, &initial_url));
-
-        // 侧栏选中变化 → 内容区切换到对应占位 View
-        cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
-            let SidebarEvent::Select { url, title } = event;
-            this.content.update(cx, |content, cx| {
-                content.title = title.clone();
-                content.url = url.clone();
-                cx.notify();
-            });
-            cx.notify();
-        })
-        .detach();
-
-        Self { sidebar, content }
-    }
-}
-
-impl Render for RootView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("root")
-            .flex()
-            .size_full()
-            .bg(rgb(0xfafafa))
-            .child(self.sidebar.clone())
-            .child(
-                div()
-                    .id("content")
-                    .flex_1()
-                    .h_full()
-                    .child(self.content.clone()),
-            )
-    }
-}
 
 fn main() -> anyhow::Result<()> {
     // 1. .env（仅本地开发）
@@ -106,35 +52,163 @@ fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "https://api.believeboy.com".to_string());
     tracing::info!(api_base, "believeboy-gui 启动中");
 
-    // 4. 后端客户端（后续鉴权 / 数据接口使用；0.3 阶段侧栏为纯硬编码，暂不发起请求）
-    let _client = gui_api_client::Client::new(&api_base);
-
-    // 5. 启动 GPUI 主窗口（左侧侧栏 + 右侧内容区），初始聚焦侧栏以支持键盘导航
+    // 4. 启动 GPUI 应用
     Application::new()
         .with_assets(AppAssets)
-        .run(|cx: &mut App| {
-            let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
-            let window = cx
-                .open_window(
-                    WindowOptions {
-                        window_bounds: Some(WindowBounds::Windowed(bounds)),
-                        ..Default::default()
-                    },
-                    |_, cx| cx.new(RootView::new),
-                )
-                .expect("打开主窗口失败");
+        .run(move |cx: &mut App| {
+            use crate::widgets::text_input as ti;
 
-            // 初始聚焦侧栏（键盘 ↑/↓ 导航立即可用）
-            window
-                .update(cx, |root, window, cx| {
-                    window.focus(&root.sidebar.read(cx).focus_handle(cx));
-                })
-                .ok();
-
-            cx.activate(true);
+            // 文本输入 / 登录提交 / 退出所需的全局按键绑定
+            cx.bind_keys([
+                KeyBinding::new("backspace", ti::Backspace, None),
+                KeyBinding::new("delete", ti::Delete, None),
+                KeyBinding::new("left", ti::Left, None),
+                KeyBinding::new("right", ti::Right, None),
+                KeyBinding::new("shift-left", ti::SelectLeft, None),
+                KeyBinding::new("shift-right", ti::SelectRight, None),
+                KeyBinding::new("cmd-a", ti::SelectAll, None),
+                KeyBinding::new("cmd-v", ti::Paste, None),
+                KeyBinding::new("cmd-c", ti::Copy, None),
+                KeyBinding::new("cmd-x", ti::Cut, None),
+                KeyBinding::new("home", ti::Home, None),
+                KeyBinding::new("end", ti::End, None),
+                KeyBinding::new("ctrl-cmd-space", ti::ShowCharacterPalette, None),
+                KeyBinding::new("enter", ti::Enter, None),
+                KeyBinding::new("cmd-q", Quit, None),
+            ]);
             cx.on_action(|_: &Quit, cx| cx.quit());
-            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+
+            // 启动：有会话 → 主窗口；无 → 登录窗口
+            let client = Client::new(&api_base);
+            match keychain::load_session() {
+                Ok(Some(resp)) => {
+                    let authed = client.with_session(AuthSession::from_login(&resp));
+                    open_main_window(cx, authed, resp, None);
+                }
+                Ok(None) => open_login_window(cx, client, None),
+                Err(msg) => open_login_window(cx, client, Some(format!("钥匙串读取失败：{msg}（本次不自动登录）"))),
+            }
         });
 
     Ok(())
+}
+
+/// 打开登录小窗口（440×560）。登录成功 → 存 Keychain → 关本窗开主窗。
+fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>) {
+    let bounds = Bounds::centered(None, size(px(440.0), px(560.0)), cx);
+    let window = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("BelieveBoy GUI".into()),
+                    appears_transparent: false,
+                    traffic_light_position: None,
+                }),
+                kind: WindowKind::Normal,
+                is_resizable: false,
+                ..Default::default()
+            },
+            |_, cx| cx.new(|cx| LoginView::new(cx, client, initial_error)),
+        )
+        .expect("打开登录窗口失败");
+
+    let login = window.update(cx, |_, _, cx| cx.entity()).expect("登录窗口根视图");
+    let login_window = window;
+
+    // 登录成功 → 持久化会话 → 关登录窗 → 开主窗
+    cx.subscribe(&login, move |_login, event: &LoginViewEvent, cx| {
+        let warning = keychain::save_session(&event.user)
+            .err()
+            .map(|m| format!("⚠️ 会话未持久化：{m}（重启后需重新登录）"));
+        login_window
+            .update(cx, |_, window, _| window.remove_window())
+            .ok();
+        open_main_window(cx, event.client.clone(), event.user.clone(), warning);
+    })
+    .detach();
+
+    // 初始焦点邮箱框 + 置前
+    window
+        .update(cx, |view, window, cx| {
+            window.focus(&view.focus_handle(cx));
+            cx.activate(true);
+        })
+        .ok();
+}
+
+/// 打开主窗口（1280×800 侧栏 + 内容区）。退出登录 → 清 Keychain → 关本窗开登录窗。
+fn open_main_window(
+    cx: &mut App,
+    client: Client,
+    user: LoginResponse,
+    warning: Option<String>,
+) {
+    let session = SessionInfo {
+        client: client.clone(),
+        user,
+        warning,
+    };
+    let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
+    let window = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                ..Default::default()
+            },
+            |_, cx| cx.new(|cx| RootView::new(cx, Some(session))),
+        )
+        .expect("打开主窗口失败");
+
+    let root = window.update(cx, |_, _, cx| cx.entity()).expect("主窗口根视图");
+    let main_window = window;
+
+    // 退出登录 → 清 Keychain → 关主窗 → 回登录窗
+    let base_client = client.clone();
+    cx.subscribe(&root, move |_root, event: &RootViewEvent, cx| {
+        if *event == RootViewEvent::Logout {
+            let _ = keychain::clear_session();
+            main_window
+                .update(cx, |_, window, _| window.remove_window())
+                .ok();
+            open_login_window(cx, base_client.without_session(), None);
+        }
+    })
+    .detach();
+
+    // 初始聚焦侧栏（键盘 ↑/↓ 导航立即可用）
+    window
+        .update(cx, |root, window, cx| {
+            window.focus(&root.sidebar.read(cx).focus_handle(cx));
+            cx.activate(true);
+        })
+        .ok();
+
+    // 后台校验会话：401 → 清 Keychain 回登录窗；网络错 → 主窗口横幅提示（会话仍保留）
+    let bg = cx.background_executor().clone();
+    let validate_client = client.clone();
+    let login_base = client.without_session();
+    let validate_window = window;
+    cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+        let result = bg
+            .spawn(async move { crate::runtime::runtime().block_on(validate_client.me()) })
+            .await;
+        let _ = cx.update(|cx| match result {
+            Ok(_) => { /* 会话有效（me() 已刷新 Redis 滑动窗口） */ }
+            Err(e) if e.is_unauthorized() => {
+                let _ = keychain::clear_session();
+                validate_window
+                    .update(cx, |_, window, _| window.remove_window())
+                    .ok();
+                open_login_window(cx, login_base, Some("会话已失效，请重新登录".to_string()));
+            }
+            Err(e) => {
+                let msg = format!("⚠️ 无法连接服务器：{}", e.user_message());
+                validate_window
+                    .update(cx, |root, _window, cx| root.set_warning(msg, cx))
+                    .ok();
+            }
+        });
+    })
+    .detach();
 }

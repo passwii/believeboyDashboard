@@ -17,6 +17,7 @@
 //! - `tools`       工具箱
 //! - `system`      系统管理
 
+pub mod auth;
 pub mod common;
 pub mod dashboard;
 pub mod sidebar;

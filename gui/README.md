@@ -54,9 +54,17 @@ cargo build --release -p gui-app
 
 ```toml
 api_base = "https://api.believeboy.com"
-# token 优先从 macOS Keychain 读取（service=believeboy-gui, account=default）
-# 不建议把 token 写在配置文件里
+# 会话优先从 macOS Keychain 读取（service=believeboy-gui, account=default，存 LoginResponse JSON）
+# 不建议把密码/会话写在配置文件里
 ```
+
+## 鉴权模型（与 Web 端共用同一组 FastAPI 端点）
+
+- `POST /api/v1/auth/login`：`{ email, password }` → `LoginResponse`（含 `session_id`）
+- 后续请求带 `X-User-Id` / `X-User-Email` / `X-Session-Id` 三个 header（非 JWT）
+- 会话由后端 Redis 滑动窗口续期，`GET /api/v1/auth/me` 每次调用即续期；**无 refresh token 端点**
+- 登录成功后把 `LoginResponse` JSON 存入 macOS Keychain（service=`believeboy-gui`, account=`default`），
+  重启自动恢复会话跳过登录；退出登录 / 会话失效时清除 Keychain 条目
 
 ## 与 Web 端的关系
 
@@ -68,7 +76,7 @@ api_base = "https://api.believeboy.com"
 ## 状态
 
 - [x] 0.1 workspace 骨架（2026-08-14）
-- [ ] 0.2 鉴权（login → Keychain 存 token）
+- [x] 0.2 鉴权（login → Keychain 存会话）（2026-08-14，BLF-674）
 - [x] 0.3 sidebar 数据权威收编（GUI-3，2026-08-14）
 - [ ] 1.0 Dashboard 首页（只读 MVP）
 - [ ] 2.0 运营 → 站点导航

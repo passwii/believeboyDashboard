@@ -29,3 +29,4 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 keyring = { workspace = true }
 dotenvy = { workspace = true }
+unicode-segmentation = "1.12"
