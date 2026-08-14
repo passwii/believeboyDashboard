@@ -19,6 +19,7 @@ gui-domain = { workspace = true }
 gui-api-client = { workspace = true }
 
 gpui = { workspace = true }
+gpui-component = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
@@ -30,3 +31,7 @@ chrono = { workspace = true }
 keyring = { workspace = true }
 dotenvy = { workspace = true }
 unicode-segmentation = "1.12"
+
+[dev-dependencies]
+# 视图级单元测试需要 TestAppContext / gpui::test（dashboard.rs 竞态保护测试）
+gpui = { workspace = true, features = ["test-support"] }

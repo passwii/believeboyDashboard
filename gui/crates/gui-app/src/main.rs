@@ -58,6 +58,10 @@ fn main() -> anyhow::Result<()> {
         .run(move |cx: &mut App| {
             use crate::widgets::text_input as ti;
 
+            // 初始化 gpui-component（主题系统 + 全局状态；GUI-6 起 Dashboard 视图的
+            // Skeleton / Spinner / Alert / Icon 依赖其语义色板与全局单例）
+            gpui_component::init(cx);
+
             // 文本输入 / 登录提交 / 退出所需的全局按键绑定
             cx.bind_keys([
                 KeyBinding::new("backspace", ti::Backspace, None),
