@@ -69,6 +69,7 @@ api_base = "https://api.believeboy.com"
 
 - [x] 0.1 workspace 骨架（2026-08-14）
 - [ ] 0.2 鉴权（login → Keychain 存 token）
+- [x] 0.3 sidebar 数据权威收编（GUI-3，2026-08-14）
 - [ ] 1.0 Dashboard 首页（只读 MVP）
 - [ ] 2.0 运营 → 站点导航
 - [ ] 3.0 销售数据（日 / 周 / 复购等）
