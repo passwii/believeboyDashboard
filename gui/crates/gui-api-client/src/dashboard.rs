@@ -83,6 +83,10 @@ mod tests {
             user_id: "u_1".into(),
             email: "demo@believeboy.com".into(),
             session_id: "sess_1".into(),
+            user_name: Some("测试".into()),
+            operator_name_zh: Some("测试".into()),
+            role_type: gui_domain::auth::UserRoleType::Operator,
+            is_admin: false,
         };
         Client::new(base_url).with_session(session)
     }
