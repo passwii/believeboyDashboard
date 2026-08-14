@@ -3,22 +3,27 @@
 //! 启动流程：
 //! 1. 初始化 tracing
 //! 2. 读环境配置（api_base / token）
-//! 3. 启动 GPUI 应用，打开主窗口（左侧侧栏 + 右侧内容区）
+//! 3. 启动 GPUI 应用，打开主窗口（左侧侧栏 + 右侧内容区），初始聚焦侧栏
 //!
 //! 阶段 0.1 骨架：只证明 workspace / GPUI 依赖链跑通；
 //! 阶段 0.3：主窗口接入侧栏（8 大分类 52 子项，数据来自 gui-domain::sidebar），
-//! 点击子项 → 内容区切换到对应占位 View。鉴权与真实页面在后续 issue 实现。
+//! 点击子项 → 内容区切换到对应占位 View；0.3 打磨版补齐图标 / 键盘导航 / 语义色板。
+//! 鉴权与真实页面在后续 issue 实现。
 
+mod assets;
+mod icon;
+mod theme;
 mod views;
 
 use std::env;
 
 use gpui::{
-    actions, prelude::*, App, Application, Bounds, Context, Entity, KeyBinding, Window,
-    WindowBounds, WindowOptions, div, px, rgb, size,
+    actions, div, prelude::*, px, rgb, size, App, Application, Bounds, Context, Entity, Focusable,
+    KeyBinding, Window, WindowBounds, WindowOptions,
 };
 use tracing_subscriber::EnvFilter;
 
+use assets::AppAssets;
 use gui_domain::sidebar::sidebar_groups;
 
 use views::placeholder::PlaceholderView;
@@ -41,7 +46,10 @@ impl RootView {
             .cloned();
         let (initial_title, initial_url) = match &initial {
             Some(item) => (item.title.clone(), item.url.clone()),
-            None => ("欢迎使用 BelieveBoy GUI".into(), "从左侧选择一个功能入口".into()),
+            None => (
+                "欢迎使用 BelieveBoy GUI".into(),
+                "从左侧选择一个功能入口".into(),
+            ),
         };
 
         let sidebar = cx.new(|cx| SidebarView::new(initial.as_ref().map(|i| i.url.as_str()), cx));
@@ -87,7 +95,9 @@ fn main() -> anyhow::Result<()> {
 
     // 2. tracing
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .init();
 
@@ -99,22 +109,32 @@ fn main() -> anyhow::Result<()> {
     // 4. 后端客户端（后续鉴权 / 数据接口使用；0.3 阶段侧栏为纯硬编码，暂不发起请求）
     let _client = gui_api_client::Client::new(&api_base);
 
-    // 5. 启动 GPUI 主窗口（左侧侧栏 + 右侧内容区）
-    Application::new().run(|cx: &mut App| {
-        let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..Default::default()
-            },
-            |_, cx| cx.new(RootView::new),
-        )
-        .expect("打开主窗口失败");
+    // 5. 启动 GPUI 主窗口（左侧侧栏 + 右侧内容区），初始聚焦侧栏以支持键盘导航
+    Application::new()
+        .with_assets(AppAssets)
+        .run(|cx: &mut App| {
+            let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
+            let window = cx
+                .open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(bounds)),
+                        ..Default::default()
+                    },
+                    |_, cx| cx.new(RootView::new),
+                )
+                .expect("打开主窗口失败");
 
-        cx.activate(true);
-        cx.on_action(|_: &Quit, cx| cx.quit());
-        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
-    });
+            // 初始聚焦侧栏（键盘 ↑/↓ 导航立即可用）
+            window
+                .update(cx, |root, window, cx| {
+                    window.focus(&root.sidebar.read(cx).focus_handle(cx));
+                })
+                .ok();
+
+            cx.activate(true);
+            cx.on_action(|_: &Quit, cx| cx.quit());
+            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+        });
 
     Ok(())
 }
