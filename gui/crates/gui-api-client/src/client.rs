@@ -74,7 +74,8 @@ impl Client {
         path: &str,
         query: &[(&str, String)],
     ) -> Result<T, ApiError> {
-        self.request_json(reqwest::Method::GET, path, query, None::<()>).await
+        self.request_json(reqwest::Method::GET, path, query, None::<()>.as_ref())
+            .await
     }
 
     /// 通用 JSON 请求

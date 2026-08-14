@@ -38,23 +38,10 @@ impl Client {
             email: email.to_string(),
             password: password.to_string(),
         };
-        // 走 request_json
-        let url = format!("{}{}", self.base_url(), path);
-        let resp = self
-            .http()
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(ApiError::Transport)?;
-        let status = resp.status();
-        let bytes = resp.bytes().await.map_err(ApiError::Transport)?;
-        if !status.is_success() {
-            let body = String::from_utf8_lossy(&bytes).to_string();
-            return Err(ApiError::from_response(status.as_u16(), &body));
-        }
-        let payload: LoginResponse = serde_json::from_slice(&bytes)
-            .map_err(|e| ApiError::Deserialize(e.to_string()))?;
+        // 走统一的 request_json（自动拼 base_url + 错误映射 + 反序列化）
+        let payload: LoginResponse = self
+            .request_json(reqwest::Method::POST, path, &[], Some(&body))
+            .await?;
         let new_client = self.with_token(&payload.access_token);
         Ok((new_client, payload))
     }

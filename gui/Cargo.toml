@@ -38,8 +38,10 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
-# UI（先锁版本；GPUI 0.1.x 偶有 breaking change）
-gpui = { version = "0.1", package = "gpui" }
+# UI（先锁版本；注意：gpui 0.1.x 已从 crates.io yank，最低可用 0.2.x）
+# runtime-shaders：本机只有 Command Line Tools（无完整 Xcode），metal 编译器不可用，
+# 用运行时编译 shader 替代构建期 xcrun metal（见 BLF-673 验证结论）。
+gpui = { version = "0.2", package = "gpui", features = ["runtime_shaders"] }
 
 # 时间
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }

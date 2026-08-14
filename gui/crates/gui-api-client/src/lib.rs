@@ -14,3 +14,6 @@ pub mod client;
 pub mod error;
 pub mod auth;
 pub mod dashboard;
+
+// 常用类型在 crate 根暴露，避免 `gui_api_client::client::Client` 这种深路径
+pub use client::{Client, ClientConfig};

@@ -1,8 +1,8 @@
 # Rust / Cargo
 /target/
 **/*.rs.bk
-Cargo.lock
-# 保留根 Cargo.lock；如果有 monorepo workspace 共享锁的需求可改回
+# 根 workspace 的 Cargo.lock 需要提交（可复现构建）；只忽略子 crate 内的锁文件
+crates/*/Cargo.lock
 
 # macOS
 .DS_Store
