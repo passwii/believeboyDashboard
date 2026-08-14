@@ -1,4 +1,4 @@
-//! 主窗口根视图：顶部会话栏 + 左侧侧栏 + 右侧内容区（两栏布局）
+//! 主窗口根视图：顶部 TitleBar + 会话栏 + 左侧侧栏 + 右侧内容区
 //!
 //! 继承 GUI-3（BLF-675）的侧栏渲染 / 键盘导航 / 占位内容区，
 //! GUI-2（BLF-674）叠加：已登录用户信息栏 + 退出登录（emit `RootViewEvent::Logout`，
@@ -7,12 +7,17 @@
 //! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
 //! GUI-12（BLF-684）叠加：侧栏命中「运营 → 站点导航」URL 时显示真实站点导航视图
 //! （懒创建），其余子项仍为占位视图。
+//! P2-1（BLF-688）叠加：主窗口顶部改为 gpui-component `TitleBar`（unified toolbar
+//! 风格，macOS 原生质感）——系统 traffic lights 悬于其上（main.rs 配
+//! `TitleBar::title_bar_options()`），左侧显示当前视图标题，右侧收敛已登录用户
+//! 信息与退出登录（原内容区会话栏上移），警告横幅下沉为标题栏下的窄条。
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, rgb, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
-    MouseUpEvent, Render, Window,
+    div, rgb, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
+    MouseButton, MouseUpEvent, Render, Window,
 };
+use gpui_component::{ActiveTheme, TitleBar};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
@@ -21,6 +26,9 @@ use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
+
+/// 警告文本色（琥珀色；沿用 GUI-2 会话栏配色，P2-2 主题 token 化时收编）
+const WARNING_TEXT: u32 = 0xb45309;
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -39,7 +47,7 @@ pub enum RootViewEvent {
     Logout,
 }
 
-/// 根视图：会话栏 + 侧栏 + 内容区
+/// 根视图：TitleBar + 侧栏 + 内容区
 pub struct RootView {
     pub sidebar: Entity<SidebarView>,
     pub content: Entity<PlaceholderView>,
@@ -51,6 +59,8 @@ pub struct RootView {
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
     show_site_navigation: bool,
+    /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
+    current_title: String,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
 }
@@ -73,10 +83,12 @@ impl RootView {
         let sidebar = cx.new(|cx| SidebarView::new(None, cx));
         let content = cx.new(|_| PlaceholderView::new("", ""));
 
-        // 侧栏选中变化 → 内容区切换（GUI-12：命中站点导航 URL 显示真实视图，其余仍为占位）
+        // 侧栏选中变化 → 内容区切换 + TitleBar 标题跟随（GUI-12：命中站点导航
+        // URL 显示真实视图，其余仍为占位）
         cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
             let SidebarEvent::Select { url, title } = event;
             this.show_dashboard = false;
+            this.current_title = title.clone();
             if url == SITE_NAV_URL {
                 this.site_navigation
                     .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
@@ -100,6 +112,7 @@ impl RootView {
             site_navigation: None,
             show_dashboard,
             show_site_navigation: false,
+            current_title: "Dashboard".to_string(),
             session,
             focus_handle: cx.focus_handle(),
         }
@@ -127,35 +140,53 @@ impl Render for RootView {
         div()
             .id("root")
             .flex()
+            .flex_col()
             .size_full()
-            .bg(rgb(0xfafafa))
-            .child(self.sidebar.clone())
+            .bg(theme.content_bg)
+            // P2-1：统一工具栏（unified toolbar）。系统 traffic lights 悬于其上，
+            // 左侧当前视图标题，右侧已登录用户 + 退出登录。
+            .child(title_bar(&self.current_title, &self.session, cx))
+            .when(
+                self.session
+                    .as_ref()
+                    .and_then(|s| s.warning.as_ref())
+                    .is_some(),
+                |root| root.child(warning_banner(&self.session)),
+            )
             .child(
                 div()
-                    .id("content-col")
+                    .id("root-body")
+                    .flex()
                     .flex_1()
+                    .min_h_0()
                     .h_full()
-                    .flex_col()
-                    .bg(theme.content_bg)
-                    .child(session_header(&self.session, theme, cx))
+                    .child(self.sidebar.clone())
                     .child(
                         div()
-                            .id("content")
+                            .id("content-col")
                             .flex_1()
                             .h_full()
-                            .child(if self.show_dashboard {
-                                self.dashboard.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |dashboard| dashboard.into_any_element(),
-                                )
-                            } else if self.show_site_navigation {
-                                self.site_navigation.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else {
-                                self.content.clone().into_any_element()
-                            }),
+                            .flex_col()
+                            .bg(theme.content_bg)
+                            .child(
+                                div()
+                                    .id("content")
+                                    .flex_1()
+                                    .h_full()
+                                    .child(if self.show_dashboard {
+                                        self.dashboard.clone().map_or_else(
+                                            || self.content.clone().into_any_element(),
+                                            |dashboard| dashboard.into_any_element(),
+                                        )
+                                    } else if self.show_site_navigation {
+                                        self.site_navigation.clone().map_or_else(
+                                            || self.content.clone().into_any_element(),
+                                            |view| view.into_any_element(),
+                                        )
+                                    } else {
+                                        self.content.clone().into_any_element()
+                                    }),
+                            ),
                     ),
             )
     }
@@ -167,14 +198,37 @@ impl Focusable for RootView {
     }
 }
 
-/// 内容区顶部的会话栏：已登录用户 + 警告 + 退出登录
-fn session_header(
+/// 顶部统一工具栏：左侧当前视图标题，右侧已登录用户 + 退出登录。
+///
+/// 使用 gpui-component `TitleBar`（macOS 下自动避让 traffic lights 区域并支持
+/// 双击缩放 / 拖拽移动窗口），配色取自 `cx.theme()` 语义 token（跟随系统亮/暗）。
+fn title_bar(
+    title: &str,
     session: &Option<SessionInfo>,
-    theme: Theme,
+    cx: &mut Context<RootView>,
+) -> impl IntoElement {
+    let theme = cx.theme().clone();
+
+    TitleBar::new()
+        .child(
+            div()
+                .id("title-bar-title")
+                .text_sm()
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(theme.secondary_foreground)
+                .child(title.to_string()),
+        )
+        .child(session_cluster(session, theme, cx))
+}
+
+/// 标题栏右侧：警告（已并入下方窄条时此处为空）+ 用户身份 + 退出登录
+fn session_cluster(
+    session: &Option<SessionInfo>,
+    theme: gpui_component::Theme,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
     let Some(s) = session else {
-        return div().id("session-header-empty");
+        return div().id("session-cluster-empty");
     };
     let role_label = match s.user.role_type {
         gui_domain::auth::UserRoleType::Admin => "管理员",
@@ -182,51 +236,99 @@ fn session_header(
         gui_domain::auth::UserRoleType::Businessdev => "业务拓展",
     };
 
-    div()
-        .id("session-header")
-        .flex()
-        .flex_row()
+    gpui_component::h_flex()
+        .id("session-cluster")
         .items_center()
-        .justify_between()
         .gap_4()
-        .px_4()
-        .py_2()
-        .border_b_1()
-        .border_color(theme.content_card_border)
-        .bg(theme.content_card_bg)
         .child(
             div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap_3()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.content_title)
-                        .child(format!(
-                            "已登录：{}（{}）· {}",
-                            s.user.name, s.user.email, role_label
-                        )),
-                )
-                .children(
-                    s.warning
-                        .as_ref()
-                        .map(|w| div().text_sm().text_color(rgb(0xb45309)).child(w.clone())),
-                ),
+                .text_sm()
+                .text_color(theme.muted_foreground)
+                .child(format!("{} · {}", s.user.name, role_label)),
         )
         .child(
             div()
-                .px_3()
-                .py_1()
-                .rounded(px(6.))
-                .border_1()
-                .border_color(rgb(0xd1d5db))
-                .text_size(px(13.))
-                .text_color(rgb(0x374151))
+                .id("logout-button")
+                .px_2()
+                .py_0p5()
+                .rounded(theme.radius)
+                .text_sm()
+                .text_color(theme.secondary_foreground)
                 .cursor(CursorStyle::PointingHand)
-                .hover(|style| style.bg(rgb(0xe5e7eb)))
+                .hover(|style| style.bg(theme.secondary_hover))
+                .active(|style| style.bg(theme.secondary_active))
                 .on_mouse_up(MouseButton::Left, cx.listener(RootView::on_logout_click))
                 .child("退出登录"),
         )
+}
+
+/// 标题栏下方警告窄条（Keychain 持久化失败 / 服务器连接失败等非致命提示）
+fn warning_banner(session: &Option<SessionInfo>) -> impl IntoElement {
+    let Some(s) = session else {
+        return div().id("warning-banner-empty");
+    };
+    let Some(warning) = &s.warning else {
+        return div().id("warning-banner-empty");
+    };
+
+    div()
+        .id("warning-banner")
+        .flex()
+        .items_center()
+        .w_full()
+        .px_4()
+        .py_1()
+        .text_xs()
+        .text_color(rgb(WARNING_TEXT))
+        .child(warning.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gui_domain::auth::UserRoleType;
+
+    /// 锁 P2-1 窗口 chrome 契约：主窗口必须透明标题栏 + traffic lights 位于 (9,9)，
+    /// 让系统红绿灯悬于自绘 TitleBar 之上（macOS unified toolbar）。
+    #[test]
+    fn title_bar_options_contract() {
+        let options = TitleBar::title_bar_options();
+        assert!(options.appears_transparent, "标题栏必须透明以露出自绘 TitleBar");
+        assert_eq!(
+            options.traffic_light_position,
+            Some(gpui::point(gpui::px(9.0), gpui::px(9.0))),
+            "traffic lights 必须定位到 (9,9)（gpui-component 默认）"
+        );
+    }
+
+    /// 渲染冒烟（无会话）：TitleBar + 侧栏 + Dashboard 着陆页骨架可完整渲染不 panic。
+    #[gpui::test]
+    async fn root_renders_title_bar_without_session(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (_view, _window_cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
+    }
+
+    /// 渲染冒烟（有会话）：标题栏右侧用户身份 + 退出登录 + 警告窄条路径可渲染。
+    /// client 指向 127.0.0.1:1（必拒绝连接），Dashboard 首屏拉取会快速进入错误态，
+    /// 不依赖网络环境。
+    #[gpui::test]
+    async fn root_renders_title_bar_with_session(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-test".into(),
+                name: "测试用户".into(),
+                email: "test@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: true,
+                is_active: true,
+                role_type: UserRoleType::Admin,
+                session_id: "s-test".into(),
+            },
+            warning: Some("无法连接服务器：test".into()),
+        };
+        let (_view, _window_cx) =
+            cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+    }
 }
