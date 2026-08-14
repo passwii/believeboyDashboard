@@ -43,6 +43,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 # 用运行时编译 shader 替代构建期 xcrun metal（见 BLF-673 验证结论）。
 gpui = { version = "0.2", package = "gpui", features = ["runtime_shaders"] }
 
+# UI 组件库（用户 2026-08-14 指定：能用则尽量全部替换使用，不手写轮子）
+# 0.5.1 依赖 gpui 0.2.2 与 workspace 一致；文档 https://longbridge.github.io/gpui-component/
+gpui-component = { version = "0.5" }
+
 # 时间
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 

@@ -2,8 +2,10 @@
 
 `gui/crates/gui-app/assets/icons/` 下的 SVG 图标来源与许可：
 
-- **Lucide 图标**（37 个，如 layout-dashboard / store / trending-up 等）：
-  - 来源：https://lucide.dev （`lucide-react` v0.577.0 提取的原始路径数据）
+- **Lucide 图标**（43 个，如 layout-dashboard / store / trending-up 等）：
+  - 来源：https://lucide.dev （`lucide-react` v0.577.0 提取的原始路径数据；
+    GUI-6 新增的 6 个 loader / info / circle-check / triangle-alert / circle-x / close
+    取自 lucide 官方仓库 `icons/*.svg`，同 ISC 许可）
   - 许可：**ISC License**（Copyright (c) for portions of Lucide）
   - 原版权声明与许可文本：https://github.com/lucide-icons/lucide/blob/main/LICENSE
   - 提取方式：读取 `lucide-react/dist/esm/icons/*.js` 的 `__iconNode` 数据，渲染为
