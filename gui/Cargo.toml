@@ -38,8 +38,10 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
-# UI（先锁版本；GPUI 0.1.x 偶有 breaking change）
-gpui = { version = "0.1", package = "gpui" }
+# UI（先锁版本；crates.io 无 0.1.x 稳定版，最低 0.2.0；0.2.x 需 edition 2024 → Rust >= 1.85）
+# runtime_shaders：构建期不需要 xcrun metal（本机无完整 Xcode，只有 Command Line Tools）；
+# Metal shader 改为运行时由系统 Metal 框架编译（Zed 开发构建同款做法）。
+gpui = { version = "0.2", package = "gpui", features = ["runtime_shaders"] }
 
 # 时间
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }

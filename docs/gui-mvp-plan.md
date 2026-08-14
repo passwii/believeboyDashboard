@@ -175,7 +175,7 @@ impl Render for DashboardView {
 |---|---|
 | GPUI 图表库缺 | 数字大卡片 MVP 先行；图表用 `plotters` 或 Zed 内置组件；远期自绘 |
 | FastAPI 端点与 GUI 类型不一致 | 阶段 0.5 一次性联调对齐；Pydantic ↔ Rust 类型加 integration test |
-| GPUI 0.1.x API 不稳定 | `Cargo.toml` 锁版本；关注 zed-industries/zed 主仓更新 |
+| GPUI 0.2.x API 不稳定 | `Cargo.toml` 锁版本（0.2 为 crates.io 首个稳定版，无 0.1.x）；关注 zed-industries/zed 主仓更新 |
 | 鉴权 token 过期 | 0.2 阶段就接 refresh token，401 自动重试 |
 | macOS Keychain 权限弹窗 | 0.2 阶段首次启动时引导 |
 

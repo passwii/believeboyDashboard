@@ -10,7 +10,6 @@
 
 use std::env;
 
-use anyhow::Context;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> anyhow::Result<()> {
