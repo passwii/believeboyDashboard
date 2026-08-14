@@ -1,0 +1,67 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gui-app",
+    "crates/gui-api-client",
+    "crates/gui-domain",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+license = "Proprietary"
+authors = ["BelieveBoy Team"]
+publish = false
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+
+# WebSocket（远期实时数据刷新用；MVP 不接入）
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+
+# 序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 错误
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# UI（先锁版本；GPUI 0.1.x 偶有 breaking change）
+gpui = { version = "0.1", package = "gpui" }
+
+# 时间
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+# Keychain（macOS 存 token）
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# 本地存储（远期离线缓存；MVP 不接入）
+redb = "2.2"
+
+# 配置
+dotenvy = "0.15"
+
+# LSP 友好的工具
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# 内部 crate
+gui-domain = { path = "crates/gui-domain", version = "0.1.0" }
+gui-api-client = { path = "crates/gui-api-client", version = "0.1.0" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

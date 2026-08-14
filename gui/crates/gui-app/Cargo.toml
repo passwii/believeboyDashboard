@@ -1,0 +1,31 @@
+[package]
+name = "gui-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+description = "BelieveBoy GUI 应用入口（GPUI 视图、状态、main）"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[[bin]]
+name = "believeboy-gui"
+path = "src/main.rs"
+
+[dependencies]
+gui-domain = { workspace = true }
+gui-api-client = { workspace = true }
+
+gpui = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+keyring = { workspace = true }
+dotenvy = { workspace = true }

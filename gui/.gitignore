@@ -1,0 +1,17 @@
+# Rust / Cargo
+/target/
+**/*.rs.bk
+Cargo.lock
+# 保留根 Cargo.lock；如果有 monorepo workspace 共享锁的需求可改回
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# 本地配置
+.env
+.env.local
+*.local.toml
