@@ -1,7 +1,9 @@
 //! Dashboard 相关 API
 //!
+//! Dashboard 相关 API
+//!
 //! 端点对齐 frontend `app/dashboard/page.tsx`：
-//! - `useManagedProjects`           →  `GET /api/v1/projects/managed`
+//! - `useManagedProjects`           →  `GET /api/v1/projects/manage`
 //! - daily-analysis (聚合)          →  `GET /api/v1/daily-analysis/all`
 //! - daily-analysis (按国家)        →  `GET /api/v1/daily-analysis/all-countries`
 
@@ -14,10 +16,16 @@ use gui_domain::{
 use crate::client::Client;
 use crate::error::ApiError;
 
+/// `/api/v1/projects/manage`（backend `app/api/v1/endpoints/projects.py` 的路由；
+/// 注意是 **manage** 不是 managed——GUI-5 之前的笔误已在此修正）
+pub(crate) const MANAGED_PROJECTS_PATH: &str = "/api/v1/projects/manage";
+
 impl Client {
     /// 当前用户可管理的项目列表
+    ///
+    /// 返回 `ProjectItem` 强类型字段（见 `gui_domain::common::ManagedProject`）。
     pub async fn list_managed_projects(&self) -> Result<Vec<ManagedProject>, ApiError> {
-        self.get_json("/api/v1/projects/managed", &[]).await
+        self.get_json(MANAGED_PROJECTS_PATH, &[]).await
     }
 
     /// 销售数据聚合（按天 + 项目分解）
@@ -51,5 +59,19 @@ impl Client {
         ];
         self.get_json("/api/v1/daily-analysis/all-countries", &query)
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 契约测试：项目列表端点路径必须与 backend 实际路由一致
+    /// （backend `app/api/v1/endpoints/projects.py`：`/projects/manage`，
+    /// frontend `lib/project-client-cache.ts` 也走 `/projects/manage`）。
+    /// 曾经误写为 `/projects/managed`（不存在，返回 404），此处锁定防回归。
+    #[test]
+    fn managed_projects_path_matches_backend_route() {
+        assert_eq!(MANAGED_PROJECTS_PATH, "/api/v1/projects/manage");
     }
 }
