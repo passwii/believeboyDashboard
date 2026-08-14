@@ -88,9 +88,14 @@ impl SidebarView {
         match key {
             "up" | "down" => {
                 let delta = if key == "up" { -1 } else { 1 };
-                let next = (self.cursor as isize + delta)
-                    .clamp(0, self.flat_items.len() as isize - 1)
-                    as usize;
+                // 着陆页（无选中项）首次键盘导航：先选中当前游标项（0），不跳跃
+                let next = if self.selected_url.is_none() {
+                    self.cursor
+                } else {
+                    (self.cursor as isize + delta)
+                        .clamp(0, self.flat_items.len() as isize - 1)
+                        as usize
+                };
                 if next != self.cursor {
                     self.cursor = next;
                     let item = &self.flat_items[next];
