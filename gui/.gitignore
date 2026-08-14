@@ -1,5 +1,7 @@
 # Rust / Cargo
 /target/
+# bundle.sh 产物（.app / .dmg）
+/dist/
 **/*.rs.bk
 # 根 workspace 的 Cargo.lock 需要提交（可复现构建）；只忽略子 crate 内的锁文件
 crates/*/Cargo.lock
