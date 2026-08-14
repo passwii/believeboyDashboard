@@ -1,12 +1,56 @@
 /**
  * Shared table chrome for the inventory-ledger tabs: client-side pagination
- * bar + CSV export button (BLF-428 前端重构).
+ * bar + CSV export button + 列头（中文 label + 英文列名 tooltip, BLF-431）.
  */
 
 import { ChevronLeft, ChevronRight, FileDown } from 'lucide-react'
 
+import { DENSE_HEAD } from '@/components/ui/data-card'
 import { Button } from '@/components/ui/button'
+import { TableHead } from '@/components/ui/table'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { buildCsv, downloadCsv } from './ledger-derive'
+
+/**
+ * 列头单元格（BLF-431）：显示中文 label，hover 时以 tooltip 显示英文列名
+ * （spec 表头 "Amazon 英文列名"，如 Starting Warehouse Balance）。
+ *
+ * 需要外层包一个 <TooltipProvider>（见表组件用法）。
+ */
+export function ColumnHeader({
+  label,
+  tooltip,
+  className,
+}: {
+  label: string
+  /** 英文列名；缺省则无 tooltip */
+  tooltip?: string
+  className?: string
+}) {
+  if (!tooltip) {
+    return (
+      <TableHead className={cn(DENSE_HEAD, className)}>
+        {label}
+      </TableHead>
+    )
+  }
+  return (
+    <TableHead className={cn(DENSE_HEAD, className)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help border-b border-dashed border-border/60">{label}</span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{tooltip}</TooltipContent>
+      </Tooltip>
+    </TableHead>
+  )
+}
 
 export function PaginationBar({
   page,

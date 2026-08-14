@@ -20,22 +20,22 @@ import {
   DataTableCardBody,
   DataTableCardHeader,
   DENSE_CELL,
-  DENSE_HEAD,
 } from '@/components/ui/data-card'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { EmptyTableState } from '@/components/ui/empty-state'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import { DispositionBadge } from './ledger-badges'
 import { waterLevelSeries } from './ledger-derive'
-import { ExportCsvButton, PaginationBar } from './ledger-table-parts'
+import { ColumnHeader, ExportCsvButton, PaginationBar } from './ledger-table-parts'
+import { summaryEn, summaryLabel } from './ledger-glossary'
 import type { LedgerSummaryRow } from './ledger-types'
 
 const PAGE_SIZE = 50
@@ -57,6 +57,8 @@ const waterChartConfig = Object.fromEntries(
 type ColumnDef = {
   key: string
   label: string
+  /** 英文列名（spec 表头）→ hover tooltip（BLF-431） */
+  tooltip?: string
   align?: 'right'
   render: (r: LedgerSummaryRow) => ReactNode
   csv: (r: LedgerSummaryRow) => unknown
@@ -69,16 +71,18 @@ const num = (v: number) => (
 )
 
 const PRIMARY_COLUMNS: ColumnDef[] = [
-  { key: 'date', label: '日期', render: (r) => r.date, csv: (r) => r.date },
+  { key: 'date', label: summaryLabel('date'), tooltip: summaryEn('date'), render: (r) => r.date, csv: (r) => r.date },
   {
     key: 'msku',
-    label: 'MSKU',
+    label: summaryLabel('msku'),
+    tooltip: summaryEn('msku'),
     render: (r) => <span className="font-mono text-xs">{r.msku}</span>,
     csv: (r) => r.msku,
   },
   {
     key: 'title',
-    label: '品名',
+    label: summaryLabel('title'),
+    tooltip: summaryEn('title'),
     render: (r) => (
       <span className="block max-w-[180px] truncate text-xs text-muted-foreground" title={r.title ?? ''}>
         {r.title || '—'}
@@ -88,49 +92,56 @@ const PRIMARY_COLUMNS: ColumnDef[] = [
   },
   {
     key: 'location',
-    label: '仓库',
+    label: summaryLabel('location'),
+    tooltip: summaryEn('location'),
     render: (r) => <span className="font-mono text-xs">{r.location}</span>,
     csv: (r) => r.location,
   },
   {
     key: 'disposition',
-    label: '状态',
+    label: summaryLabel('disposition'),
+    tooltip: summaryEn('disposition'),
     render: (r) => <DispositionBadge disposition={r.disposition} />,
     csv: (r) => r.disposition,
   },
   {
     key: 'starting_balance',
-    label: '期初',
+    label: summaryLabel('starting_balance'),
+    tooltip: summaryEn('starting_balance'),
     align: 'right',
     render: (r) => <span className="tabular-nums">{r.starting_balance}</span>,
     csv: (r) => r.starting_balance,
   },
-  { key: 'receipts', label: '入库', align: 'right', render: (r) => num(r.receipts), csv: (r) => r.receipts },
+  { key: 'receipts', label: summaryLabel('receipts'), tooltip: summaryEn('receipts'), align: 'right', render: (r) => num(r.receipts), csv: (r) => r.receipts },
   {
     key: 'customer_shipments',
-    label: '出库',
+    label: summaryLabel('customer_shipments'),
+    tooltip: summaryEn('customer_shipments'),
     align: 'right',
     render: (r) => num(r.customer_shipments),
     csv: (r) => r.customer_shipments,
   },
   {
     key: 'customer_returns',
-    label: '客户退货',
+    label: summaryLabel('customer_returns'),
+    tooltip: summaryEn('customer_returns'),
     align: 'right',
     render: (r) => num(r.customer_returns),
     csv: (r) => r.customer_returns,
   },
   {
     key: 'warehouse_transfer_io',
-    label: '调拨',
+    label: summaryLabel('warehouse_transfer_io'),
+    tooltip: summaryEn('warehouse_transfer_io'),
     align: 'right',
     render: (r) => num(r.warehouse_transfer_io),
     csv: (r) => r.warehouse_transfer_io,
   },
-  { key: 'damaged', label: '损坏', align: 'right', render: (r) => num(r.damaged), csv: (r) => r.damaged },
+  { key: 'damaged', label: summaryLabel('damaged'), tooltip: summaryEn('damaged'), align: 'right', render: (r) => num(r.damaged), csv: (r) => r.damaged },
   {
     key: 'ending_balance',
-    label: '期末',
+    label: summaryLabel('ending_balance'),
+    tooltip: summaryEn('ending_balance'),
     align: 'right',
     render: (r) => <span className="font-medium tabular-nums">{r.ending_balance}</span>,
     csv: (r) => r.ending_balance,
@@ -140,38 +151,43 @@ const PRIMARY_COLUMNS: ColumnDef[] = [
 const SECONDARY_COLUMNS: ColumnDef[] = [
   {
     key: 'in_transit_between',
-    label: '在途',
+    label: summaryLabel('in_transit_between'),
+    tooltip: summaryEn('in_transit_between'),
     align: 'right',
     render: (r) => num(r.in_transit_between),
     csv: (r) => r.in_transit_between,
   },
   {
     key: 'vendor_returns',
-    label: '供应商退货',
+    label: summaryLabel('vendor_returns'),
+    tooltip: summaryEn('vendor_returns'),
     align: 'right',
     render: (r) => num(r.vendor_returns),
     csv: (r) => r.vendor_returns,
   },
-  { key: 'found', label: '盘盈', align: 'right', render: (r) => num(r.found), csv: (r) => r.found },
-  { key: 'lost', label: '盘亏', align: 'right', render: (r) => num(r.lost), csv: (r) => r.lost },
-  { key: 'disposed', label: '报废', align: 'right', render: (r) => num(r.disposed), csv: (r) => r.disposed },
+  { key: 'found', label: summaryLabel('found'), tooltip: summaryEn('found'), align: 'right', render: (r) => num(r.found), csv: (r) => r.found },
+  { key: 'lost', label: summaryLabel('lost'), tooltip: summaryEn('lost'), align: 'right', render: (r) => num(r.lost), csv: (r) => r.lost },
+  { key: 'disposed', label: summaryLabel('disposed'), tooltip: summaryEn('disposed'), align: 'right', render: (r) => num(r.disposed), csv: (r) => r.disposed },
   {
     key: 'other_events',
-    label: '其他',
+    label: summaryLabel('other_events'),
+    tooltip: summaryEn('other_events'),
     align: 'right',
     render: (r) => num(r.other_events),
     csv: (r) => r.other_events,
   },
   {
     key: 'unknown_events',
-    label: '未知',
+    label: summaryLabel('unknown_events'),
+    tooltip: summaryEn('unknown_events'),
     align: 'right',
     render: (r) => num(r.unknown_events),
     csv: (r) => r.unknown_events,
   },
   {
     key: 'store',
-    label: 'Store',
+    label: summaryLabel('store'),
+    tooltip: summaryEn('store'),
     render: (r) => <span className="text-xs text-muted-foreground">{r.store || '—'}</span>,
     csv: (r) => r.store ?? '',
   },
@@ -281,32 +297,37 @@ export function LedgerSummaryTab({
           }
         />
         <DataTableCardBody>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {columns.map((c) => (
-                  <TableHead key={c.key} className={cn(DENSE_HEAD, c.align === 'right' && 'text-right')}>
-                    {c.label}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <EmptyTableState colSpan={columns.length} message={emptyText} />
-              ) : (
-                pageRows.map((r) => (
-                  <TableRow key={r.id}>
-                    {columns.map((c) => (
-                      <TableCell key={c.key} className={cn(DENSE_CELL, c.align === 'right' && 'text-right')}>
-                        {c.render(r)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <TooltipProvider delayDuration={150}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((c) => (
+                    <ColumnHeader
+                      key={c.key}
+                      label={c.label}
+                      tooltip={c.tooltip}
+                      className={c.align === 'right' ? 'text-right' : undefined}
+                    />
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pageRows.length === 0 ? (
+                  <EmptyTableState colSpan={columns.length} message={emptyText} />
+                ) : (
+                  pageRows.map((r) => (
+                    <TableRow key={r.id}>
+                      {columns.map((c) => (
+                        <TableCell key={c.key} className={cn(DENSE_CELL, c.align === 'right' && 'text-right')}>
+                          {c.render(r)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TooltipProvider>
           <PaginationBar
             page={page}
             pageCount={pageCount}
