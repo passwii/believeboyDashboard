@@ -27,3 +27,4 @@ chrono = { workspace = true }
 
 [dev-dependencies]
 # 单元测试用 mockito 或 wiremock；先留空，后续 issue 引入
+tokio = { workspace = true }

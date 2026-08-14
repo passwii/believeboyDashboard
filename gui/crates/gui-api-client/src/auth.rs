@@ -1,50 +1,39 @@
-//! 鉴权相关
+//! 鉴权 API
 //!
-//! 后端登录：复用 frontend 已经走通的 `next-auth` 链路使用的同一组端点
-//! （通常为 `/api/v1/auth/login` 或 `/api/auth/callback/credentials`），
-//! GUI 端不依赖 next-auth，直接 POST 用户名密码拿 JWT。
+//! 后端会话模型（`backend/app/api/v1/endpoints/auth.py`，与 Web 端 next-auth 共用）：
+//! - `POST /api/v1/auth/login`：`{ email, password }` → `LoginResponse`（含 `session_id`）
+//! - `GET  /api/v1/auth/me`：用 `X-User-Id` / `X-User-Email` / `X-Session-Id` 头校验会话
+//! - **无 refresh token 端点**：会话由 Redis 滑动窗口续期，每次 `me()` 即续期
 
-use serde::{Deserialize, Serialize};
+use gui_domain::auth::{LoginRequest, LoginResponse, MeResponse};
 
-use crate::client::Client;
+use crate::client::{AuthSession, Client};
 use crate::error::ApiError;
 
-/// 登录请求体（与 backend FastAPI 端点对齐；具体字段在 issue 0.2 联调时定）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-/// 登录响应（字段名与后端实际返回对齐，issue 0.2 时补全）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoginResponse {
-    pub access_token: String,
-    #[serde(default)]
-    pub refresh_token: Option<String>,
-    #[serde(default)]
-    pub token_type: Option<String>,
-    #[serde(default)]
-    pub expires_in: Option<i64>,
-}
-
 impl Client {
-    /// 用邮箱 + 密码登录，拿到带 token 的新 client
+    /// 用邮箱 + 密码登录，拿到带会话的新 client
     pub async fn login(&self, email: &str, password: &str) -> Result<(Self, LoginResponse), ApiError> {
-        // TODO(issue 0.2): 与 backend 联调确认 path / 字段
-        // 占位 path：暂用 /api/v1/auth/login
-        let path = "/api/v1/auth/login";
         let body = LoginRequest {
-            email: email.to_string(),
+            email: email.trim().to_lowercase(),
             password: password.to_string(),
         };
-        // 走统一的 request_json（自动拼 base_url + 错误映射 + 反序列化）
         let payload: LoginResponse = self
-            .request_json(reqwest::Method::POST, path, &[], Some(&body))
+            .request_json(reqwest::Method::POST, "/api/v1/auth/login", &[], Some(&body))
             .await?;
-        let new_client = self.with_token(&payload.access_token);
+
+        if !payload.is_active {
+            return Err(ApiError::Http {
+                status: 401,
+                message: "账号已禁用".to_string(),
+            });
+        }
+
+        let new_client = self.with_session(AuthSession::from_login(&payload));
         Ok((new_client, payload))
     }
+
+    /// 校验 / 续期当前会话（启动时调用；401 表示会话已失效需要重新登录）
+    pub async fn me(&self) -> Result<MeResponse, ApiError> {
+        self.get_json("/api/v1/auth/me", &[]).await
+    }
 }
-
-
