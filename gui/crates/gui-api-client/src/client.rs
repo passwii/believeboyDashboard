@@ -30,11 +30,14 @@ impl AuthSession {
     }
 }
 
-/// API base URL（不带尾斜杠）+ 可选会话
+/// API base URL（不带尾斜杠）+ 可选会话 + 可选 API key
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub base_url: String,
     pub session: Option<AuthSession>,
+    /// 生产后端 dashboard 路由要求 API key（`require_api_key`，与 Web 端 Vercel
+    /// 代理 `?api_key=` 同源；GUI 直连后端需自带，见 README `BELIEVEBOY_TOKEN`）
+    pub api_key: Option<String>,
 }
 
 /// API 客户端（cheap to clone：`reqwest::Client` 内部 Arc）
@@ -57,6 +60,19 @@ impl Client {
             config: ClientConfig {
                 base_url: base_url.into(),
                 session: None,
+                api_key: None,
+            },
+        }
+    }
+
+    /// 派生一个带 API key 的客户端（生产后端 dashboard 路由需要，`Authorization: Bearer`）
+    pub fn with_api_key(&self, api_key: impl Into<String>) -> Self {
+        Self {
+            http: self.http.clone(),
+            config: ClientConfig {
+                base_url: self.config.base_url.clone(),
+                session: self.config.session.clone(),
+                api_key: Some(api_key.into()),
             },
         }
     }
@@ -68,6 +84,7 @@ impl Client {
             config: ClientConfig {
                 base_url: self.config.base_url.clone(),
                 session: Some(session),
+                api_key: self.config.api_key.clone(),
             },
         }
     }
@@ -79,6 +96,7 @@ impl Client {
             config: ClientConfig {
                 base_url: self.config.base_url.clone(),
                 session: None,
+                api_key: self.config.api_key.clone(),
             },
         }
     }
@@ -117,6 +135,9 @@ impl Client {
     ) -> Result<T, ApiError> {
         let url = format!("{}{}", self.config.base_url, path);
         let mut req = self.http.request(method, &url);
+        if let Some(api_key) = &self.config.api_key {
+            req = req.bearer_auth(api_key);
+        }
         if let Some(session) = &self.config.session {
             req = req
                 .header("X-User-Id", &session.user_id)
@@ -180,5 +201,21 @@ mod tests {
         assert!(authed.is_authenticated());
         assert_eq!(authed.session(), Some(&session));
         assert_eq!(authed.base_url(), "https://api.example.com");
+    }
+
+    #[test]
+    fn with_api_key_preserves_session_and_base_url() {
+        let client = Client::new("https://api.example.com");
+        let session = AuthSession {
+            user_id: "u".into(),
+            email: "e@x.com".into(),
+            session_id: "s".into(),
+        };
+        let authed = client.with_session(session.clone()).with_api_key("k123");
+        assert_eq!(authed.config.api_key.as_deref(), Some("k123"));
+        assert_eq!(authed.session(), Some(&session));
+        // 派生链保持 API key：登录返回的带会话 client 不应丢 key
+        let again = authed.with_session(session.clone());
+        assert_eq!(again.config.api_key.as_deref(), Some("k123"));
     }
 }

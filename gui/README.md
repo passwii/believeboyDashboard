@@ -78,15 +78,18 @@ xcrun notarytool store-credentials believeboy-gui \
 
 ## 配置文件
 
-`gui-app` 启动时按以下顺序读取：
+`gui-app` 启动时按以下顺序读取（当前仅实现环境变量；`config.toml` 为预留）：
 
-1. 环境变量（`BELIEVEBOY_API_BASE`、`BELIEVEBOY_TOKEN`）
-2. `~/.config/believeboy-gui/config.toml`（macOS 实际路径 `~/Library/Application Support/believeboy-gui/config.toml`）
+1. 环境变量：`BELIEVEBOY_API_BASE`（API 地址，默认 `https://dash-api.believeboy.com`）、
+   `BELIEVEBOY_TOKEN`（API key，可选——生产后端 dashboard 路由要求，同 Web 端 Vercel 代理
+   `?api_key=` 的 key；桌面端直连后端，请求带 `Authorization: Bearer <key>`）
+2. `~/.config/believeboy-gui/config.toml`（macOS 实际路径 `~/Library/Application Support/believeboy-gui/config.toml`，未实现，预留）
 
-配置项：
+预留配置项：
 
 ```toml
-api_base = "https://api.believeboy.com"
+api_base = "https://dash-api.believeboy.com"
+api_key = ""
 # 会话优先从 macOS Keychain 读取（service=believeboy-gui, account=default，存 LoginResponse JSON）
 # 不建议把密码/会话写在配置文件里
 ```

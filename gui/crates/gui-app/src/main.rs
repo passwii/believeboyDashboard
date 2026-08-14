@@ -47,10 +47,13 @@ fn main() -> anyhow::Result<()> {
         .with_target(false)
         .init();
 
-    // 3. 读 api_base
+    // 3. 读 api_base + api_key（README 契约：BELIEVEBOY_API_BASE / BELIEVEBOY_TOKEN）
+    //    默认 api_base 指向生产后端 dash-api.believeboy.com（api.believeboy.com 是
+    //    另一套 AI 网关，非 dashboard 后端，GUI-11 冒烟实测确认）
     let api_base = env::var("BELIEVEBOY_API_BASE")
-        .unwrap_or_else(|_| "https://api.believeboy.com".to_string());
-    tracing::info!(api_base, "believeboy-gui 启动中");
+        .unwrap_or_else(|_| "https://dash-api.believeboy.com".to_string());
+    let api_key = env::var("BELIEVEBOY_TOKEN").ok();
+    tracing::info!(api_base, api_key_present = api_key.is_some(), "believeboy-gui 启动中");
 
     // 4. 启动 GPUI 应用
     Application::new()
@@ -84,6 +87,10 @@ fn main() -> anyhow::Result<()> {
 
             // 启动：有会话 → 主窗口；无 → 登录窗口
             let client = Client::new(&api_base);
+            let client = match &api_key {
+                Some(key) => client.with_api_key(key),
+                None => client,
+            };
             match keychain::load_session() {
                 Ok(Some(resp)) => {
                     let authed = client.with_session(AuthSession::from_login(&resp));
