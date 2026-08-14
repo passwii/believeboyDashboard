@@ -5,12 +5,14 @@
 //! 由 main.rs 清 Keychain 并切回登录窗口）。
 //! GUI-7（BLF-679）叠加：Dashboard 首页作为「sidebar 之外的着陆页」启动即显示
 //! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
+//! GUI-12（BLF-684）叠加：侧栏命中「运营 → 站点导航」URL 时显示真实站点导航视图
+//! （懒创建），其余子项仍为占位视图。
 
-use gpui::{
-    Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton, MouseUpEvent,
-    Render, Window, div, px, rgb,
-};
 use gpui::prelude::*;
+use gpui::{
+    div, px, rgb, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseUpEvent, Render, Window,
+};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
@@ -18,6 +20,7 @@ use crate::theme::Theme;
 use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
 use crate::views::sidebar::{SidebarEvent, SidebarView};
+use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -42,8 +45,12 @@ pub struct RootView {
     pub content: Entity<PlaceholderView>,
     /// Dashboard 着陆页（sidebar 之外的首页，对齐 Web /dashboard）；启动即显示
     dashboard: Option<Entity<DashboardView>>,
+    /// 站点导航真实视图（GUI-12；首个接入的真实 sidebar 页面，点击「运营 → 站点导航」懒创建）
+    site_navigation: Option<Entity<SiteNavigationView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
+    /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
+    show_site_navigation: bool,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
 }
@@ -66,15 +73,22 @@ impl RootView {
         let sidebar = cx.new(|cx| SidebarView::new(None, cx));
         let content = cx.new(|_| PlaceholderView::new("", ""));
 
-        // 侧栏选中变化 → 内容区切换到对应占位 View（并离开 Dashboard 着陆页）
+        // 侧栏选中变化 → 内容区切换（GUI-12：命中站点导航 URL 显示真实视图，其余仍为占位）
         cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
             let SidebarEvent::Select { url, title } = event;
             this.show_dashboard = false;
-            this.content.update(cx, |content, cx| {
-                content.title = title.clone();
-                content.url = url.clone();
-                cx.notify();
-            });
+            if url == SITE_NAV_URL {
+                this.site_navigation
+                    .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
+                this.show_site_navigation = true;
+            } else {
+                this.show_site_navigation = false;
+                this.content.update(cx, |content, cx| {
+                    content.title = title.clone();
+                    content.url = url.clone();
+                    cx.notify();
+                });
+            }
             cx.notify();
         })
         .detach();
@@ -83,7 +97,9 @@ impl RootView {
             sidebar,
             content,
             dashboard,
+            site_navigation: None,
             show_dashboard,
+            show_site_navigation: false,
             session,
             focus_handle: cx.focus_handle(),
         }
@@ -131,6 +147,11 @@ impl Render for RootView {
                                 self.dashboard.clone().map_or_else(
                                     || self.content.clone().into_any_element(),
                                     |dashboard| dashboard.into_any_element(),
+                                )
+                            } else if self.show_site_navigation {
+                                self.site_navigation.clone().map_or_else(
+                                    || self.content.clone().into_any_element(),
+                                    |view| view.into_any_element(),
                                 )
                             } else {
                                 self.content.clone().into_any_element()
@@ -188,12 +209,11 @@ fn session_header(
                             s.user.name, s.user.email, role_label
                         )),
                 )
-                .children(s.warning.as_ref().map(|w| {
-                    div()
-                        .text_sm()
-                        .text_color(rgb(0xb45309))
-                        .child(w.clone())
-                })),
+                .children(
+                    s.warning
+                        .as_ref()
+                        .map(|w| div().text_sm().text_color(rgb(0xb45309)).child(w.clone())),
+                ),
         )
         .child(
             div()

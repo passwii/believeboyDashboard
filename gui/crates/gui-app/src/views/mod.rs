@@ -6,6 +6,7 @@
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
 //! - `stat_band`  Dashboard 数字带（GUI-7 / 1.0-b，frontend v2-stats 的 GPUI 等价）
+//! - `site_navigation` 站点导航（GUI-12 / 2.0，静态数据，点击卡片默认浏览器打开）
 //! - `placeholder`占位内容视图
 //!
 //! 后续每个 sidebar 子项对应一个真实 View，按 frontend sidebar 顺序推进。
@@ -17,4 +18,5 @@ pub mod login;
 pub mod placeholder;
 pub mod root;
 pub mod sidebar;
+pub mod site_navigation;
 pub mod stat_band;
