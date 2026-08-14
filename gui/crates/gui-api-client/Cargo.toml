@@ -26,5 +26,6 @@ tracing = { workspace = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
-# 单元测试用 mockito 或 wiremock；先留空，后续 issue 引入
+# 单元测试 mock HTTP server（BLF-677 GUI-5 引入）
+mockito = "1.6"
 tokio = { workspace = true }
