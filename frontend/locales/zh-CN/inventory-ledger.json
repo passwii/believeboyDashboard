@@ -1,0 +1,38 @@
+{
+  "summary": {
+    "date": "日期", "fnsku": "FNSKU", "asin": "ASIN", "msku": "MSKU", "title": "品名",
+    "disposition": "处置状态", "location": "仓库", "starting_balance": "期初库存",
+    "in_transit_between": "在途库存", "receipts": "入库", "customer_shipments": "客户发货",
+    "customer_returns": "客户退货", "vendor_returns": "供应商退货", "warehouse_transfer_io": "仓库调拨",
+    "found": "盘盈", "lost": "盘亏", "damaged": "损坏", "disposed": "报废",
+    "other_events": "其他事件", "ending_balance": "期末库存", "unknown_events": "未知事件", "store": "店铺"
+  },
+  "detail": {
+    "date": "日期", "fnsku": "FNSKU", "asin": "ASIN", "msku": "MSKU", "title": "品名",
+    "event_type": "事件类型", "reference_id": "参考编号", "quantity": "数量",
+    "fulfillment_center": "履约中心", "disposition": "处置状态", "reason": "原因",
+    "country": "国家/地区", "reconciled_quantity": "已对账数量", "unreconciled_quantity": "未对账数量",
+    "date_and_time": "日期时间", "store": "店铺"
+  },
+  "technical": { "id": "记录 ID", "batch_id": "上传批次 ID" },
+  "en": {
+    "summary": {
+      "date": "Date", "fnsku": "FNSKU", "asin": "ASIN", "msku": "MSKU", "title": "Title",
+      "disposition": "Disposition", "location": "Location", "starting_balance": "Starting Warehouse Balance",
+      "in_transit_between": "In Transit Between Warehouses", "receipts": "Receipts",
+      "customer_shipments": "Customer Shipments", "customer_returns": "Customer Returns",
+      "vendor_returns": "Vendor Returns", "warehouse_transfer_io": "Warehouse Transfer In/Out",
+      "found": "Found", "lost": "Lost", "damaged": "Damaged", "disposed": "Disposed",
+      "other_events": "Other Events", "ending_balance": "Ending Warehouse Balance",
+      "unknown_events": "Unknown Events", "store": "Store"
+    },
+    "detail": {
+      "date": "Date", "fnsku": "FNSKU", "asin": "ASIN", "msku": "MSKU", "title": "Title",
+      "event_type": "Event Type", "reference_id": "Reference ID", "quantity": "Quantity",
+      "fulfillment_center": "Fulfillment Center", "disposition": "Disposition", "reason": "Reason",
+      "country": "Country", "reconciled_quantity": "Reconciled Quantity",
+      "unreconciled_quantity": "Unreconciled Quantity", "date_and_time": "Date and Time", "store": "Store"
+    },
+    "technical": { "id": "Record ID", "batch_id": "Upload Batch ID" }
+  }
+}

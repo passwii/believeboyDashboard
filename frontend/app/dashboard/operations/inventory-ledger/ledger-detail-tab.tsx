@@ -13,24 +13,41 @@ import {
   DataTableCardBody,
   DataTableCardHeader,
   DENSE_CELL,
-  DENSE_HEAD,
 } from '@/components/ui/data-card'
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import { DispositionBadge } from './ledger-badges'
-import { ExportCsvButton, PaginationBar } from './ledger-table-parts'
+import { ColumnHeader, ExportCsvButton, PaginationBar } from './ledger-table-parts'
+import { detailEn, detailLabel, technicalEn, technicalLabel } from './ledger-glossary'
 import { eventTypeLabel, type LedgerDetailRow } from './ledger-types'
 
 const PAGE_SIZE = 50
+
+/** 表格列头：键 → 中文 label + 英文列名 tooltip（BLF-431，spec 表头为准） */
+const DETAIL_HEADERS: {
+  key: string
+  label: string
+  tooltip: string
+  align?: 'right'
+}[] = [
+  { key: 'date', label: detailLabel('date'), tooltip: detailEn('date') },
+  { key: 'msku', label: detailLabel('msku'), tooltip: detailEn('msku') },
+  { key: 'event_type', label: detailLabel('event_type'), tooltip: detailEn('event_type') },
+  { key: 'quantity', label: detailLabel('quantity'), tooltip: detailEn('quantity'), align: 'right' },
+  { key: 'fulfillment_center', label: detailLabel('fulfillment_center'), tooltip: detailEn('fulfillment_center') },
+  { key: 'disposition', label: detailLabel('disposition'), tooltip: detailEn('disposition') },
+  { key: 'reference_id', label: detailLabel('reference_id'), tooltip: detailEn('reference_id') },
+  { key: 'batch_id', label: technicalLabel('batch_id'), tooltip: technicalEn('batch_id') },
+]
 
 export function LedgerDetailTab({
   rows,
@@ -100,58 +117,60 @@ export function LedgerDetailTab({
         }
       />
       <DataTableCardBody>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={DENSE_HEAD}>日期</TableHead>
-              <TableHead className={DENSE_HEAD}>SKU</TableHead>
-              <TableHead className={DENSE_HEAD}>事件</TableHead>
-              <TableHead className={cn(DENSE_HEAD, 'text-right')}>数量</TableHead>
-              <TableHead className={DENSE_HEAD}>仓库</TableHead>
-              <TableHead className={DENSE_HEAD}>Disposition</TableHead>
-              <TableHead className={DENSE_HEAD}>Reference ID</TableHead>
-              <TableHead className={DENSE_HEAD}>批次</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pageRows.length === 0 ? (
-              <EmptyTableState colSpan={8} message={emptyText} />
-            ) : (
-              pageRows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className={DENSE_CELL}>{r.date}</TableCell>
-                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{r.msku}</TableCell>
-                  <TableCell className={DENSE_CELL}>
-                    <Badge variant="outline" className="text-xs">
-                      {eventTypeLabel(r.event_type)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      DENSE_CELL,
-                      'text-right font-mono text-xs tabular-nums',
-                      r.quantity > 0 ? 'text-[hsl(var(--data-positive))]' : r.quantity < 0 ? 'text-[hsl(var(--data-negative))]' : undefined,
-                    )}
-                  >
-                    {r.quantity > 0 ? `+${r.quantity}` : r.quantity}
-                  </TableCell>
-                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>
-                    {r.fulfillment_center}
-                  </TableCell>
-                  <TableCell className={DENSE_CELL}>
-                    <DispositionBadge disposition={r.disposition} />
-                  </TableCell>
-                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
-                    {r.reference_id || '—'}
-                  </TableCell>
-                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
-                    {r.batch_id ?? '—'}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <TooltipProvider delayDuration={150}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {DETAIL_HEADERS.map((h) => (
+                  <ColumnHeader
+                    key={h.key}
+                    label={h.label}
+                    tooltip={h.tooltip}
+                    className={h.align === 'right' ? 'text-right' : undefined}
+                  />
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageRows.length === 0 ? (
+                <EmptyTableState colSpan={DETAIL_HEADERS.length} message={emptyText} />
+              ) : (
+                pageRows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className={DENSE_CELL}>{r.date}</TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{r.msku}</TableCell>
+                    <TableCell className={DENSE_CELL}>
+                      <Badge variant="outline" className="text-xs">
+                        {eventTypeLabel(r.event_type)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        DENSE_CELL,
+                        'text-right font-mono text-xs tabular-nums',
+                        r.quantity > 0 ? 'text-[hsl(var(--data-positive))]' : r.quantity < 0 ? 'text-[hsl(var(--data-negative))]' : undefined,
+                      )}
+                    >
+                      {r.quantity > 0 ? `+${r.quantity}` : r.quantity}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>
+                      {r.fulfillment_center}
+                    </TableCell>
+                    <TableCell className={DENSE_CELL}>
+                      <DispositionBadge disposition={r.disposition} />
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
+                      {r.reference_id || '—'}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
+                      {r.batch_id ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TooltipProvider>
         <PaginationBar page={page} pageCount={pageCount} total={rows.length} onPageChange={setPage} />
       </DataTableCardBody>
     </DataTableCard>
