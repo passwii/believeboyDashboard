@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SkuMonthEom(BaseModel):
@@ -154,32 +154,35 @@ class LedgerSummaryRow(BaseModel):
 
     1 row = 1 (FNSKU × FC × Disposition × Date) snapshot. Sparse ledger:
     Amazon only emits a row when the combination changed that day.
+
+    字段英文列名 = Amazon Summary 一览视图表头；中文 label 对照见
+    docs/superpowers/specs/2026-08-14-inventory-ledger-field-glossary.md。
     """
 
-    id: int
-    date: date
-    fnsku: str | None = None
-    asin: str | None = None
-    msku: str
-    title: str | None = None
-    disposition: str
-    location: str
-    starting_balance: int = 0
-    in_transit_between: int = 0
-    receipts: int = 0
-    customer_shipments: int = 0
-    customer_returns: int = 0
-    vendor_returns: int = 0
-    warehouse_transfer_io: int = 0
-    found: int = 0
-    lost: int = 0
-    damaged: int = 0
-    disposed: int = 0
-    other_events: int = 0
-    ending_balance: int = 0
-    unknown_events: int = 0
-    store: str | None = None
-    batch_id: int | None = None
+    id: int = Field(description="记录 ID")
+    date: Annotated[date, Field(description="日期")]
+    fnsku: str | None = Field(default=None, description="FNSKU")
+    asin: str | None = Field(default=None, description="ASIN")
+    msku: str = Field(description="MSKU")
+    title: str | None = Field(default=None, description="品名")
+    disposition: str = Field(description="处置状态")
+    location: str = Field(description="仓库")
+    starting_balance: int = Field(default=0, description="期初库存")
+    in_transit_between: int = Field(default=0, description="在途库存")
+    receipts: int = Field(default=0, description="入库")
+    customer_shipments: int = Field(default=0, description="客户发货")
+    customer_returns: int = Field(default=0, description="客户退货")
+    vendor_returns: int = Field(default=0, description="供应商退货")
+    warehouse_transfer_io: int = Field(default=0, description="仓库调拨")
+    found: int = Field(default=0, description="盘盈")
+    lost: int = Field(default=0, description="盘亏")
+    damaged: int = Field(default=0, description="损坏")
+    disposed: int = Field(default=0, description="报废")
+    other_events: int = Field(default=0, description="其他事件")
+    ending_balance: int = Field(default=0, description="期末库存")
+    unknown_events: int = Field(default=0, description="未知事件")
+    store: str | None = Field(default=None, description="店铺")
+    batch_id: int | None = Field(default=None, description="上传批次 ID")
 
 
 class LedgerSummaryResponse(BaseModel):
@@ -190,26 +193,30 @@ class LedgerSummaryResponse(BaseModel):
 
 
 class LedgerDetailRow(BaseModel):
-    """A single event-level row from the Amazon Detailed view."""
+    """A single event-level row from the Amazon Detailed view.
 
-    id: int
-    date: date
-    fnsku: str | None = None
-    asin: str | None = None
-    msku: str
-    title: str | None = None
-    event_type: str
-    reference_id: str | None = None
-    quantity: int
-    fulfillment_center: str
-    disposition: str
-    reason: str | None = None
-    country: str | None = None
-    reconciled_quantity: int | None = None
-    unreconciled_quantity: int | None = None
-    date_and_time: datetime | None = None
-    store: str | None = None
-    batch_id: int | None = None
+    字段英文列名 = Amazon Detailed 详细视图表头；中文 label 对照见
+    docs/superpowers/specs/2026-08-14-inventory-ledger-field-glossary.md。
+    """
+
+    id: int = Field(description="记录 ID")
+    date: Annotated[date, Field(description="日期")]
+    fnsku: str | None = Field(default=None, description="FNSKU")
+    asin: str | None = Field(default=None, description="ASIN")
+    msku: str = Field(description="MSKU")
+    title: str | None = Field(default=None, description="品名")
+    event_type: str = Field(description="事件类型")
+    reference_id: str | None = Field(default=None, description="参考编号")
+    quantity: int = Field(description="数量")
+    fulfillment_center: str = Field(description="履约中心")
+    disposition: str = Field(description="处置状态")
+    reason: str | None = Field(default=None, description="原因")
+    country: str | None = Field(default=None, description="国家/地区")
+    reconciled_quantity: int | None = Field(default=None, description="已对账数量")
+    unreconciled_quantity: int | None = Field(default=None, description="未对账数量")
+    date_and_time: datetime | None = Field(default=None, description="日期时间")
+    store: str | None = Field(default=None, description="店铺")
+    batch_id: int | None = Field(default=None, description="上传批次 ID")
 
 
 class LedgerDetailResponse(BaseModel):
