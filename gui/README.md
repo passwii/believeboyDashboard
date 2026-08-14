@@ -43,6 +43,39 @@ cargo run -p gui-app
 cargo build --release -p gui-app
 ```
 
+## 打包 .app / .dmg（GUI-10）
+
+```bash
+cd gui
+
+# 1) 打 .app（ad-hoc 签名，本机可运行）
+./scripts/bundle.sh
+# 2) 加 .dmg
+./scripts/bundle.sh --dmg
+# 3) 有 Apple Developer ID 时正式签名（--options runtime，供公证）
+APPLE_SIGN_IDENTITY="Developer ID Application: 公司名 (TEAMID)" ./scripts/bundle.sh --dmg
+```
+
+产物在 `gui/dist/`：`BelieveBoy GUI.app` / `BelieveBoy GUI.dmg`。
+
+- 应用图标：`python3 scripts/make-icon.py` 重新生成 `assets/AppIcon.icns`（Pillow，仅生成时需要）
+- 正式分发（Gatekeeper 放行）需要 Developer ID 签名 + 公证：
+
+```bash
+# 一次：存公证凭据（Apple ID + App-Specific Password + Team ID）
+xcrun notarytool store-credentials believeboy-gui \
+  --apple-id 你的AppleID --team-id TEAMID \
+  --password "App专用密码"
+
+# 之后：公证 + staple（会等 Apple 服务器数分钟）
+./scripts/notarize.sh            # 公证 dist/BelieveBoy GUI.app
+./scripts/notarize.sh dist/xxx.dmg
+```
+
+> 说明：未用 cargo-bundle —— 它是 `cargo install` 的 subcommand，作为 dev-dependency 不提供
+> `cargo bundle` 命令且 0.6 已停更；bundle.sh 手写组装 .app 零外部依赖、离线可用。
+> CI 出 .dmg：`.github/workflows/release-macos.yml`（workflow_dispatch / tag `gui-v*`）。
+
 ## 配置文件
 
 `gui-app` 启动时按以下顺序读取：
