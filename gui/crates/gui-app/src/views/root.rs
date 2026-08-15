@@ -17,12 +17,12 @@
 use gpui::prelude::*;
 use gpui::{
     div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
-    FontWeight, MouseButton, MouseUpEvent, Render, Window,
+    FontWeight, MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
-use gpui_component::{ActiveTheme, Icon, IconName, Sizable};
+use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::breadcrumb_for;
@@ -99,6 +99,9 @@ pub struct RootView {
     /// P4-1：侧栏当前是否折叠（订阅 `SidebarEvent::Collapsed` 同步；折叠态下
     /// 内容区头部最左渲染「展开侧栏」按钮）
     sidebar_collapsed: bool,
+    /// P4-1 修复：窗口拖拽武装标志——鼠标在内容区头部按下后置真，移动时触发
+    /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
+    should_move: bool,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
     /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
@@ -301,6 +304,7 @@ impl RootView {
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
             sidebar_collapsed: false,
+            should_move: false,
             session,
             focus_handle: cx.focus_handle(),
             theme_appearance_sub: None,
@@ -317,6 +321,35 @@ impl RootView {
 
     fn on_logout_click(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         cx.emit(RootViewEvent::Logout);
+    }
+
+    /// P4-1 修复：武装窗口拖拽（内容区头部鼠标按下）
+    fn arm_drag(&mut self) {
+        self.should_move = true;
+    }
+
+    /// P4-1 修复：解除拖拽武装（松开 / 在头部外按下）
+    fn disarm_drag(&mut self) {
+        self.should_move = false;
+    }
+
+    /// P4-1 修复：消费拖拽武装——返回 true 表示应启动窗口拖拽并解除武装。
+    /// 拆成无 `Window` 依赖的方法以便单测锁状态机。
+    fn consume_drag_armed(&mut self) -> bool {
+        if self.should_move {
+            self.should_move = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// P4-1 修复：鼠标移动时若已武装则启动原生窗口拖拽（与 gpui-component TitleBar
+    /// 行为一致——按下并拖动 = 拖窗；按下即松 = 点击，头部内按钮不受影响）
+    fn maybe_start_window_move(&mut self, window: &mut Window) {
+        if self.consume_drag_armed() {
+            window.start_window_move();
+        }
     }
 }
 
@@ -467,6 +500,33 @@ fn content_header(
         )
         .child(theme_switcher(cx))
         .child(session_cluster(session, theme, cx))
+        .map(|el| attach_window_drag(el, cx))
+}
+
+/// P4-1 修复：给内容区头部挂窗口拖拽交互——复刻 gpui-component `TitleBar` 的交互链：
+/// `WindowControlArea::Drag` 注册原生拖拽区；按下武装 → 移动时 `start_window_move()`
+/// 启动原生窗口拖拽；未移动直接松开 = 普通点击（外观菜单/退出登录仍可交互）；macOS
+/// 双击 = `titlebar_double_click()`。与侧栏头部（sidebar.rs）构成左右两条拖拽区。
+fn attach_window_drag(
+    el: gpui::Stateful<gpui::Div>,
+    cx: &mut Context<RootView>,
+) -> gpui::Stateful<gpui::Div> {
+    el.window_control_area(WindowControlArea::Drag)
+        .when(cfg!(target_os = "macos"), |this| {
+            this.on_double_click(|_, window, _| window.titlebar_double_click())
+        })
+        .on_mouse_down_out(cx.listener(|this, _, _, _| this.disarm_drag()))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.arm_drag()),
+        )
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.disarm_drag()),
+        )
+        .on_mouse_move(
+            cx.listener(|this, _: &MouseMoveEvent, window, _| this.maybe_start_window_move(window)),
+        )
 }
 
 /// 面包屑路径行：`一级分类 › 二级标题`（gpui-component Breadcrumb，末项为
@@ -751,5 +811,27 @@ mod tests {
             cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
         // 深色偏好仍生效（显式模式不被系统外观覆盖）
         cx.update(|cx| assert!(AppTheme::current(cx).is_dark()));
+    }
+
+    /// P4-1 修复（review 阻塞项）：内容区头部窗口拖拽武装状态机——与侧栏头部
+    /// 同契约：按下武装、移动消费、松开/外出解除；未武装移动不触发。
+    #[gpui::test]
+    async fn content_header_window_drag_state_machine(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
+        view.update(cx, |this, _| {
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed());
+
+            this.arm_drag();
+            assert!(this.should_move);
+            assert!(this.consume_drag_armed());
+            assert!(!this.should_move);
+
+            this.arm_drag();
+            this.disarm_drag();
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed());
+        });
     }
 }

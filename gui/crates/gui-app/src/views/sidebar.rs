@@ -18,13 +18,16 @@
 //!   折叠后为 56px 图标轨道（icon rail），折叠按钮迁往右侧内容区头部（root.rs），
 //!   悬停显示原生 tooltip（gpui 内建 tooltip 系统），分组以间距分隔
 //! - **键盘导航保持**：↑/↓ 移动选中并激活，Enter 确认（GUI-3 实现，折叠不影响）
+//! - **窗口拖拽（P4-1 修复）**：移除跨全宽 TitleBar 后，侧栏头部承担窗口拖拽职责——
+//!   复刻 gpui-component TitleBar 交互链（`WindowControlArea::Drag` + 按下武装/移动
+//!   `start_window_move()` + 双击 `titlebar_double_click()`），traffic lights 旁即拖拽区
 
 use gpui::{
     div, prelude::*, px, svg, App, BoxShadow, Context, EventEmitter, FocusHandle, Focusable,
-    KeyDownEvent, SharedString, Window,
+    KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Window, WindowControlArea,
 };
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::{ActiveTheme, Icon, IconName, Sizable};
+use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 
 use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
 
@@ -63,6 +66,9 @@ pub struct SidebarView {
     focus_handle: FocusHandle,
     /// P2-3：是否折叠为图标轨道
     collapsed: bool,
+    /// P4-1 修复：窗口拖拽武装标志——鼠标在侧栏头部按下后置真，移动时触发
+    /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
+    should_move: bool,
 }
 
 struct FlatItem {
@@ -93,6 +99,36 @@ impl SidebarView {
             flat_items,
             focus_handle: cx.focus_handle(),
             collapsed: false,
+            should_move: false,
+        }
+    }
+
+    /// P4-1 修复：武装窗口拖拽（侧栏头部鼠标按下）
+    fn arm_drag(&mut self) {
+        self.should_move = true;
+    }
+
+    /// P4-1 修复：解除拖拽武装（松开 / 在头部外按下）
+    fn disarm_drag(&mut self) {
+        self.should_move = false;
+    }
+
+    /// P4-1 修复：消费拖拽武装——返回 true 表示应启动窗口拖拽并解除武装。
+    /// 拆成无 `Window` 依赖的方法以便单测锁状态机。
+    fn consume_drag_armed(&mut self) -> bool {
+        if self.should_move {
+            self.should_move = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// P4-1 修复：鼠标移动时若已武装则启动原生窗口拖拽（与 gpui-component TitleBar
+    /// 行为一致——按下并拖动 = 拖窗；按下即松 = 点击，头部内按钮不受影响）
+    fn maybe_start_window_move(&mut self, window: &mut Window) {
+        if self.consume_drag_armed() {
+            window.start_window_move();
         }
     }
 
@@ -246,7 +282,8 @@ fn sidebar_header(
                     .w_full()
                     .h(px(SIDEBAR_HEADER_ROW))
                     .child(brand_mark(theme)),
-            );
+            )
+            .map(|el| attach_window_drag(el, cx));
     }
 
     div()
@@ -284,6 +321,33 @@ fn sidebar_header(
                 )
                 .child(div().flex_1())
                 .child(collapse_toggle_button(false, cx)),
+        )
+        .map(|el| attach_window_drag(el, cx))
+}
+
+/// P4-1 修复：给头部容器挂窗口拖拽交互——复刻 gpui-component `TitleBar` 的交互链：
+/// `WindowControlArea::Drag` 注册原生拖拽区（与 traffic lights 共存）；按下武装 →
+/// 移动时 `start_window_move()` 启动原生窗口拖拽；未移动直接松开 = 普通点击（头部内
+/// 折叠按钮仍可交互）；macOS 双击 = `titlebar_double_click()`（缩放/最小化跟随系统偏好）。
+fn attach_window_drag(
+    el: gpui::Stateful<gpui::Div>,
+    cx: &mut Context<SidebarView>,
+) -> gpui::Stateful<gpui::Div> {
+    el.window_control_area(WindowControlArea::Drag)
+        .when(cfg!(target_os = "macos"), |this| {
+            this.on_double_click(|_, window, _| window.titlebar_double_click())
+        })
+        .on_mouse_down_out(cx.listener(|this, _, _, _| this.disarm_drag()))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.arm_drag()),
+        )
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.disarm_drag()),
+        )
+        .on_mouse_move(
+            cx.listener(|this, _: &MouseMoveEvent, window, _| this.maybe_start_window_move(window)),
         )
 }
 
@@ -578,5 +642,31 @@ mod tests {
             flat, 52,
             "8 组共 52 个子项（与 frontend SIDEBAR_TOP_GROUPS 一致）"
         );
+    }
+
+    /// P4-1 修复（review 阻塞项）：窗口拖拽武装状态机——按下武装、移动消费并
+    /// 解除、松开/外出解除；未武装时移动不触发。锁「按下即松 = 点击不拖窗」契约。
+    #[gpui::test]
+    async fn window_drag_arm_consume_disarm(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| SidebarView::new(None, cx));
+        view.update(cx, |this, _| {
+            // 初始未武装
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed(), "未武装时移动不触发拖拽");
+
+            // 按下武装 → 移动消费（触发拖拽）并解除
+            this.arm_drag();
+            assert!(this.should_move);
+            assert!(this.consume_drag_armed(), "武装后移动应触发拖拽");
+            assert!(!this.should_move, "消费后武装解除");
+            assert!(!this.consume_drag_armed(), "重复消费不再触发");
+
+            // 按下后未移动直接松开（disarm）＝ 点击不拖窗
+            this.arm_drag();
+            this.disarm_drag();
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed());
+        });
     }
 }
