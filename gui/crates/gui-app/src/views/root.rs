@@ -26,6 +26,8 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
 use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
+use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
+use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
@@ -59,12 +61,20 @@ pub struct RootView {
     site_navigation: Option<Entity<SiteNavigationView>>,
     /// 运营 → 销售数据真实视图（P3-1；点击「运营 → 销售数据」懒创建，复用数据管线）
     daily_analysis: Option<Entity<DailyAnalysisView>>,
+    /// 广告 → 广告分析真实视图（P3-3；点击「广告 → 广告分析」懒创建）
+    ad_analysis: Option<Entity<AdAnalysisView>>,
+    /// 广告 → 广告数据真实视图（P3-3；点击「广告 → 广告数据」懒创建）
+    ad_data: Option<Entity<AdDataView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
     show_site_navigation: bool,
     /// 内容区当前是否显示销售数据视图（sidebar Select 命中 DAILY_ANALYSIS_URL 时置真）
     show_daily_analysis: bool,
+    /// 内容区当前是否显示广告分析视图（sidebar Select 命中广告分析前缀时置真）
+    show_ad_analysis: bool,
+    /// 内容区当前是否显示广告数据视图（sidebar Select 命中 AD_DATA_URL 时置真）
+    show_ad_data: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     session: Option<SessionInfo>,
@@ -102,6 +112,8 @@ impl RootView {
                     .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
                 this.show_site_navigation = true;
                 this.show_daily_analysis = false;
+                this.show_ad_analysis = false;
+                this.show_ad_data = false;
             } else if url == DAILY_ANALYSIS_URL {
                 // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                 this.daily_analysis.get_or_insert_with(|| {
@@ -115,9 +127,45 @@ impl RootView {
                 });
                 this.show_site_navigation = false;
                 this.show_daily_analysis = true;
+                this.show_ad_analysis = false;
+                this.show_ad_data = false;
+            } else if url == AD_ANALYSIS_URL || url.starts_with("/dashboard/advertising/ad-analysis") {
+                // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                this.ad_analysis.get_or_insert_with(|| {
+                    let client = this.session.as_ref().map(|s| s.client.clone());
+                    cx.new(|cx| {
+                        let mut view = AdAnalysisView::new(
+                            cx,
+                            client.unwrap_or_else(|| Client::new("")),
+                        );
+                        view.reload(cx);
+                        view
+                    })
+                });
+                this.show_site_navigation = false;
+                this.show_daily_analysis = false;
+                this.show_ad_analysis = true;
+                this.show_ad_data = false;
+            } else if url == AD_DATA_URL {
+                // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
+                this.ad_data.get_or_insert_with(|| {
+                    let client = this.session.as_ref().map(|s| s.client.clone());
+                    cx.new(|cx| {
+                        let mut view =
+                            AdDataView::new(cx, client.unwrap_or_else(|| Client::new("")));
+                        view.reload(cx);
+                        view
+                    })
+                });
+                this.show_site_navigation = false;
+                this.show_daily_analysis = false;
+                this.show_ad_analysis = false;
+                this.show_ad_data = true;
             } else {
                 this.show_site_navigation = false;
                 this.show_daily_analysis = false;
+                this.show_ad_analysis = false;
+                this.show_ad_data = false;
                 this.content.update(cx, |content, cx| {
                     content.title = title.clone();
                     content.url = url.clone();
@@ -134,9 +182,13 @@ impl RootView {
             dashboard,
             site_navigation: None,
             daily_analysis: None,
+            ad_analysis: None,
+            ad_data: None,
             show_dashboard,
             show_site_navigation: false,
             show_daily_analysis: false,
+            show_ad_analysis: false,
+            show_ad_data: false,
             current_title: "Dashboard".to_string(),
             session,
             focus_handle: cx.focus_handle(),
@@ -207,6 +259,16 @@ impl Render for RootView {
                                     )
                                 } else if self.show_daily_analysis {
                                     self.daily_analysis.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |view| view.into_any_element(),
+                                    )
+                                } else if self.show_ad_analysis {
+                                    self.ad_analysis.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |view| view.into_any_element(),
+                                    )
+                                } else if self.show_ad_data {
+                                    self.ad_data.clone().map_or_else(
                                         || self.content.clone().into_any_element(),
                                         |view| view.into_any_element(),
                                     )

@@ -14,6 +14,8 @@
 //!
 //! > GUI-7 起 `dashboard` 挂载到 root.rs：作为「sidebar 之外的着陆页」在启动时默认
 //! > 显示（对齐 Web /dashboard 首页），侧栏选中任意项后切换到对应占位视图。
+pub mod ad_analysis;
+pub mod ad_data;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod login;

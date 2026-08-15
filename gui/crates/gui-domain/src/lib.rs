@@ -18,6 +18,7 @@
 //! - `system`      系统管理
 
 pub mod auth;
+pub mod advertising;
 pub mod common;
 pub mod dashboard;
 pub mod operations;

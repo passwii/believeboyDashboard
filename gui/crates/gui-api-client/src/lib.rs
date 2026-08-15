@@ -11,10 +11,11 @@
 //! - `auth`        登录 / 会话校验（domain crate 不涉及，所以放这里）
 //! - 其余一级分类对应同名模块
 
-pub mod client;
-pub mod error;
+pub mod advertising;
 pub mod auth;
 pub mod dashboard;
+pub mod error;
+pub mod client;
 
 // 常用类型在 crate 根暴露，避免 `gui_api_client::client::Client` 这种深路径
 pub use client::{Client, ClientConfig};
