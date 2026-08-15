@@ -149,6 +149,14 @@ pub struct AppTheme {
     pub success_soft: Hsla,
     /// 危险浅底（跌 delta 徽章背景，`danger` 的低透明度派生）
     pub danger_soft: Hsla,
+
+    // ---- 图表序列色（P3-2；frontend dashboard-v2 chartConfig 的蓝色系对齐）----
+    /// 主序列（销售额；frontend sales `#2563eb` / 深色 `#60a5fa`）
+    pub chart_primary: Hsla,
+    /// 次序列（销量 / 广告花费；frontend volume/ad_spend `#60a5fa` / 深色 `#93c5fd`）
+    pub chart_secondary: Hsla,
+    /// 第三序列（库存等单序列强调；frontend stock `#1d4ed8` / 深色 `#3b82f6`）
+    pub chart_tertiary: Hsla,
 }
 
 impl AppTheme {
@@ -201,6 +209,11 @@ impl AppTheme {
             danger: c(0xef4444),      // red-500（跌）
             success_soft: c(0x22c55e).alpha(0.12),
             danger_soft: c(0xef4444).alpha(0.12),
+
+            // 图表序列色（蓝色系，对齐 frontend dashboard-v2 chartConfig）
+            chart_primary: c(0x2563eb),   // blue-600（销售额）
+            chart_secondary: c(0x60a5fa), // blue-400（销量 / 广告花费）
+            chart_tertiary: c(0x1d4ed8),  // blue-700（库存）
         }
     }
 
@@ -248,6 +261,35 @@ impl AppTheme {
             danger: c(0xf87171),      // red-400
             success_soft: c(0x4ade80).alpha(0.16),
             danger_soft: c(0xf87171).alpha(0.16),
+
+            // 图表序列色（深色下提亮保证在深底上可见）
+            chart_primary: c(0x60a5fa),   // blue-400
+            chart_secondary: c(0x93c5fd), // blue-300
+            chart_tertiary: c(0x3b82f6),  // blue-500
+        }
+    }
+
+    /// 图表分段色板（P3-2：PieChart / BarChart 多分段着色；亮暗两态成组，
+    /// 蓝色系递进，对齐 frontend dashboard-v2 的 chartConfig 蓝色家族）
+    pub fn chart_palette(&self) -> [Hsla; 6] {
+        if self.dark {
+            [
+                c(0x60a5fa), // blue-400
+                c(0x93c5fd), // blue-300
+                c(0x3b82f6), // blue-500
+                c(0xbfdbfe), // blue-200
+                c(0x1d4ed8), // blue-700
+                c(0x2563eb), // blue-600
+            ]
+        } else {
+            [
+                c(0x2563eb), // blue-600
+                c(0x60a5fa), // blue-400
+                c(0x1d4ed8), // blue-700
+                c(0x93c5fd), // blue-300
+                c(0x3b82f6), // blue-500
+                c(0xbfdbfe), // blue-200
+            ]
         }
     }
 
@@ -313,6 +355,41 @@ mod tests {
         assert_ne!(light.sidebar_item_shadow, dark.sidebar_item_shadow);
         // 品牌蓝两态保持一致（frontend 品牌色恒 blue-500）
         assert_eq!(light.brand, dark.brand);
+    }
+
+    /// P3-2 回归锁：图表序列色在亮暗两态都必须不透明（可见），
+    /// 且分段色板长度固定、主/次序列两态不同（深色下提亮）。
+    #[test]
+    fn chart_tokens_opaque_and_palette_stable() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            for color in [
+                theme.chart_primary,
+                theme.chart_secondary,
+                theme.chart_tertiary,
+            ] {
+                assert_eq!(color.a, 1.0, "图表序列色必须不透明");
+            }
+            let palette = theme.chart_palette();
+            assert_eq!(palette.len(), 6);
+            for color in palette {
+                assert_eq!(color.a, 1.0, "图表分段色必须不透明");
+            }
+            // 分段色两两不同（PieChart 扇形可区分）
+            for i in 0..palette.len() {
+                for j in (i + 1)..palette.len() {
+                    assert_ne!(palette[i], palette[j], "分段色 {i}/{j} 重复");
+                }
+            }
+        }
+        // 深色下主序列提亮（与浅色不同，保证深底可见度）
+        assert_ne!(
+            AppTheme::light().chart_primary,
+            AppTheme::dark().chart_primary
+        );
+        assert_ne!(
+            AppTheme::light().chart_secondary,
+            AppTheme::dark().chart_secondary
+        );
     }
 
     /// P2-2 回归锁：语义状态色（accent/success/danger/warning）在亮暗两态都必须
