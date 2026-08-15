@@ -41,3 +41,6 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAcce
 [dev-dependencies]
 # 视图级单元测试需要 TestAppContext / gpui::test（dashboard.rs 竞态保护测试）
 gpui = { workspace = true, features = ["test-support"] }
+# BLF-712：logo.svg 渲染契约测试——用 gpui 同款 SVG 渲染器（resvg/usvg，已在锁文件
+# 作为 gpui 依赖）离屏验证应用图标几何（不引入新 crate 下载）。
+resvg = "0.45"

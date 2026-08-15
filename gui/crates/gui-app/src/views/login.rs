@@ -6,15 +6,21 @@
 //! P2-5（BLF-692）：表单控件全面换成 gpui-component 原生组件——
 //! `Input`（原生边框 + 焦点环 + Tab 焦点序列）+ `Button`（品牌蓝主按钮 +
 //! loading 态）+ `Alert`（错误提示）；原自绘 div 按钮与自绘 TextField 移除。
+//!
+//! P4-4（BLF-712）：登录窗视觉打磨——按 BLF-709 的 macOS 原生 light/dark 基线
+//! 去掉「白卡片」改为窗口画布直接承载表单（System Settings 式扁平原生），顶部
+//! 应用图标图块（`icons/logo.svg` 复刻 AppIcon.icns 身份）+ 排版层级 + 输入框
+//! 语义图标前缀/密码显隐（`mask_toggle`）/邮箱可清空 + 底部版本页脚 + 表单淡入。
 
 use gpui::prelude::*;
-use gpui::{div, px, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Render, Window};
+use gpui::{div, px, svg, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Render, Window};
 use gpui_component::alert::Alert;
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
+use crate::motion;
 use crate::theme::AppTheme;
 
 /// 登录成功事件（携带带会话的 client + 用户信息）
@@ -73,9 +79,9 @@ impl LoginView {
         if self.email.is_some() {
             return;
         }
-        let email = cx.new(|cx| InputState::new(window, cx).placeholder("邮箱（必填）"));
+        let email = cx.new(|cx| InputState::new(window, cx).placeholder("you@example.com"));
         let password = cx
-            .new(|cx| InputState::new(window, cx).placeholder("密码（必填）").masked(true));
+            .new(|cx| InputState::new(window, cx).placeholder("请输入密码").masked(true));
 
         // 回车提交 / 输入变化清除错误（任一字段）
         let sub_email = cx.subscribe(&email, |this, _e, event: &InputEvent, cx| match event {
@@ -178,85 +184,140 @@ impl Render for LoginView {
         let email = self.email.clone().unwrap();
         let password = self.password.clone().unwrap();
 
-        div()
-            .size_full()
+        // 表单：直接落在窗口画布（window_bg）上——macOS 系统设置/登录面板的
+        // 扁平原生样式（BLF-709 基线：无卡片、无半透明）；顶部应用图标图块。
+        let form = div()
             .flex()
             .flex_col()
-            .items_center()
-            .justify_center()
-            .bg(theme.window_bg)
+            .w(px(360.))
+            .gap_4()
+            .child(
+                // 应用图标（复刻 AppIcon.icns：蓝渐变圆角方块 + 白色上升柱状图）
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(svg().path("icons/logo.svg").size(px(72.))),
+            )
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .w(px(360.))
-                    .bg(theme.card_bg)
-                    .rounded(px(theme.radius_lg))
-                    .border_1()
-                    .border_color(theme.separator)
-                    .p(px(32.))
-                    .gap_4()
+                    .items_center()
+                    .gap_1()
                     .child(
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(22.))
-                                    .text_color(theme.text_primary)
-                                    .child("登录 BelieveBoy"),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("使用你的 BelieveBoy 账号继续"),
-                            ),
+                            .text_size(px(22.))
+                            .text_color(theme.text_primary)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child("登录"),
                     )
                     .child(
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("邮箱"),
-                            )
-                            .child(Input::new(&email).w_full()),
-                    )
+                            .text_size(px(13.))
+                            .text_color(theme.text_secondary)
+                            .child("使用你的 BelieveBoy 账号继续"),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
                     .child(
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("密码"),
-                            )
-                            .child(Input::new(&password).w_full()),
+                            .text_size(px(13.))
+                            .text_color(theme.text_secondary)
+                            .child("邮箱"),
                     )
                     .child(
-                        Button::new("login-submit")
-                            .custom(btn_variant)
-                            .label(if submitting {
-                                "登录中…"
-                            } else {
-                                "登 录"
-                            })
-                            .loading(submitting)
+                        Input::new(&email)
                             .w_full()
-                            .h(px(36.))
-                            .on_click(move |_, _window, cx| {
-                                this.update(cx, LoginView::submit_login);
-                            }),
+                            .h(px(32.))
+                            .prefix(
+                                svg()
+                                    .path("icons/mail.svg")
+                                    .size(px(14.))
+                                    .text_color(theme.text_muted),
+                            )
+                            .cleanable(true),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_size(px(13.))
+                            .text_color(theme.text_secondary)
+                            .child("密码"),
                     )
-                    .children(
-                        status_text.map(|msg| Alert::error("login-error", msg)),
+                    .child(
+                        Input::new(&password)
+                            .w_full()
+                            .h(px(32.))
+                            .prefix(
+                                svg()
+                                    .path("icons/lock.svg")
+                                    .size(px(14.))
+                                    .text_color(theme.text_muted),
+                            )
+                            .mask_toggle(),
+                    ),
+            )
+            .child(
+                Button::new("login-submit")
+                    .custom(btn_variant)
+                    .label(if submitting {
+                        "登录中…"
+                    } else {
+                        "登 录"
+                    })
+                    .loading(submitting)
+                    .w_full()
+                    .h(px(36.))
+                    .on_click(move |_, _window, cx| {
+                        this.update(cx, LoginView::submit_login);
+                    }),
+            )
+            .children(status_text.map(|msg| Alert::error("login-error", msg)));
+
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(theme.window_bg)
+            // 表单整体首次出现淡入（复用 P4-2 动效系统，自动尊重「减弱动态效果」）
+            .child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(motion::enter_fade_in(
+                        "login-panel-fade".into(),
+                        form,
+                        motion::reduce_motion(cx),
+                    )),
+            )
+            // 底部版本页脚（macOS 应用惯例：muted 小字）
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .pb(px(16.))
+                    .child(
+                        div()
+                            .text_size(px(11.))
+                            .text_color(theme.text_muted)
+                            .child(format!(
+                                "BelieveBoy 桌面端 · v{}",
+                                env!("CARGO_PKG_VERSION")
+                            )),
                     ),
             )
     }
