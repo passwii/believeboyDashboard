@@ -1,0 +1,9 @@
+{"type":"session_rebound","value":{"reason":"startup"},"at":"2026-08-15T01:43:57.037Z"}
+{"type":"session_waiting_for_load","value":{"reason":"startup"},"at":"2026-08-15T01:43:57.055Z"}
+{"type":"session_rebound","value":{"reason":"startup"},"at":"2026-08-15T01:43:57.089Z"}
+{"type":"id_invalidation","value":{"oldId":"01a00316-f8c6-70f6-bc49-2e105948e277","newId":"01a00316-f934-794e-836f-c37dbd588c92","reason":"forced_rewrite","at":"2026-08-15T01:43:57.095Z"},"at":"2026-08-15T01:43:57.095Z"}
+{"type":"session_waiting_for_load","value":{"reason":"startup"},"at":"2026-08-15T01:43:57.095Z"}
+{"type":"session_shutdown","value":{"reason":"quit"},"at":"2026-08-15T01:43:57.143Z"}
+{"type":"session_shutdown","value":{"reason":"quit"},"at":"2026-08-15T01:43:57.161Z"}
+{"type":"session_rebound","value":{"reason":"startup"},"at":"2026-08-15T01:44:00.812Z"}
+{"type":"id_invalidation","value":{"oldId":"01a00316-f934-794e-836f-c37dbd588c92","newId":"01a00090-76ce-7c66-adc5-af8122d35f29","reason":"session_shutdown","shutdownReason":"quit","at":"2026-08-15T01:44:00.828Z"},"at":"2026-08-15T01:44:00.828Z"}
