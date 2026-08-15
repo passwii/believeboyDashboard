@@ -18,7 +18,9 @@ use gpui::{
     div, linear_color_stop, linear_gradient, prelude::*, px, rgb, ClickEvent, Context, FontWeight,
     Hsla, Render, SharedString, Window,
 };
-use gpui_component::{h_flex, v_flex, ActiveTheme, Icon, IconName, Sizable, Theme};
+use gpui_component::{h_flex, v_flex, Icon, IconName, Sizable};
+
+use crate::theme::AppTheme;
 use gui_domain::operations::site_navigation::{
     forum_count, forum_items, platform_count, platform_items, SiteNavigationItem, TYPE_LABEL,
 };
@@ -57,7 +59,9 @@ impl Default for SiteNavigationView {
 
 impl Render for SiteNavigationView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
+        let theme = AppTheme::current(cx);
+        // 品牌强调色（P2-2：gpui-component 默认主题未定义 `blue` 基色，改用 AppTheme accent）
+        let accent = theme.accent;
         // 窗口宽度驱动列数（窗口 resize 自动触发重渲染，列数随之变化）
         let columns = grid_columns(window.bounds().size.width.into());
         let platforms = platform_items();
@@ -68,9 +72,9 @@ impl Render for SiteNavigationView {
             .size_full()
             .gap_6()
             .p_6()
-            .bg(theme.background)
+            .bg(theme.window_bg)
             .overflow_y_scroll()
-            .child(header_card(&theme))
+            .child(header_card(&theme, accent))
             .child(section(
                 "平台",
                 "核心运营入口",
@@ -95,15 +99,15 @@ impl Render for SiteNavigationView {
 // ---------------------------------------------------------------------------
 
 /// 顶部统计卡（frontend PageHeader `actions`：平台总数 / 资讯论坛 / 平台类型）
-fn header_card(theme: &Theme) -> impl IntoElement {
+fn header_card(theme: &AppTheme, accent: Hsla) -> impl IntoElement {
     v_flex()
         .id("site-nav-header")
         .gap_4()
         .p_5()
-        .rounded(theme.radius)
+        .rounded(px(theme.radius))
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
         .child(
             h_flex()
                 .flex_wrap()
@@ -114,49 +118,49 @@ fn header_card(theme: &Theme) -> impl IntoElement {
                     v_flex()
                         .max_w(px(640.))
                         .gap_3()
-                        .child(eyebrow_pill(theme))
+                        .child(eyebrow_pill(accent))
                         .child(
                             div()
                                 .text_sm()
-                                .text_color(theme.muted_foreground)
+                                .text_color(theme.text_muted)
                                 .child("聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。"),
                         ),
                 )
                 .child(
                     h_flex()
                         .gap_2()
-                        .children(stats_cards(theme)),
+                        .children(stats_cards(theme, accent)),
                 ),
         )
 }
 
 /// Eyebrow pill（对齐 frontend PageHeader pill 形态：带 icon 的胶囊小标）
-fn eyebrow_pill(theme: &Theme) -> impl IntoElement {
+fn eyebrow_pill(accent: Hsla) -> impl IntoElement {
     h_flex()
         .items_center()
         .gap_2()
         .rounded_full()
         .border_1()
-        .border_color(theme.blue.opacity(0.25))
-        .bg(theme.blue.opacity(0.10))
+        .border_color(accent.opacity(0.25))
+        .bg(accent.opacity(0.10))
         .px_3()
         .py_1()
         .child(
             Icon::new(IconName::Building2)
                 .with_size(px(14.))
-                .text_color(theme.blue.opacity(0.9)),
+                .text_color(accent.opacity(0.9)),
         )
         .child(
             div()
                 .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(theme.blue.opacity(0.9))
+                .text_color(accent.opacity(0.9))
                 .child(SharedString::from("运营导航 · 站点导航")),
         )
 }
 
 /// 3 张统计卡：图标 + 数值 + 标签（库无 Statistic 卡 → div 自绘，对齐 frontend stats）
-fn stats_cards(theme: &Theme) -> Vec<impl IntoElement> {
+fn stats_cards(theme: &AppTheme, accent: Hsla) -> Vec<impl IntoElement> {
     // (label, value, icon) 对齐 frontend `stats` 数组
     let stats: [(&str, SharedString, IconName); 3] = [
         (
@@ -185,26 +189,26 @@ fn stats_cards(theme: &Theme) -> Vec<impl IntoElement> {
                 .px_3()
                 .py_2()
                 .w(px(104.))
-                .rounded(theme.radius)
+                .rounded(px(theme.radius))
                 .border_1()
-                .border_color(theme.border)
-                .bg(theme.muted)
+                .border_color(theme.separator)
+                .bg(theme.muted_fill)
                 .child(
                     Icon::new(icon.clone())
                         .with_size(px(16.))
-                        .text_color(theme.blue.opacity(0.85)),
+                        .text_color(accent.opacity(0.85)),
                 )
                 .child(
                     div()
                         .text_base()
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.foreground)
+                        .text_color(theme.text_primary)
                         .child(value.clone()),
                 )
                 .child(
                     div()
                         .text_xs()
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.text_muted)
                         .child(SharedString::from(*label)),
                 )
         })
@@ -221,7 +225,7 @@ fn section(
     subtitle: &str,
     items: &[SiteNavigationItem],
     columns: usize,
-    theme: &Theme,
+    theme: &AppTheme,
     cx: &mut Context<SiteNavigationView>,
 ) -> impl IntoElement {
     v_flex()
@@ -236,13 +240,13 @@ fn section(
                     div()
                         .text_lg()
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.foreground)
+                        .text_color(theme.text_primary)
                         .child(SharedString::from(title.to_string())),
                 )
                 .child(
                     div()
                         .text_xs()
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.text_muted)
                         .child(SharedString::from(subtitle.to_string())),
                 ),
         )
@@ -258,7 +262,7 @@ fn section(
 /// 单张平台卡片：渐变 wash + 名称 + 区域 Badge + 品类 + 「点击直达」
 fn platform_card(
     item: &SiteNavigationItem,
-    theme: &Theme,
+    theme: &AppTheme,
     cx: &mut Context<SiteNavigationView>,
 ) -> impl IntoElement {
     // frontend `tone` 首色 → 渐变 wash（0.22 → 0 透明度，≈ from-[色]/20~25 via-… to-transparent）
@@ -275,8 +279,8 @@ fn platform_card(
         .p_4()
         .rounded_2xl()
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
         .cursor_pointer()
         .hover(|this| {
             this.border_color(accent.opacity(0.55))
@@ -319,7 +323,7 @@ fn platform_card(
                                     div()
                                         .text_lg()
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(theme.foreground)
+                                        .text_color(theme.text_primary)
                                         .child(SharedString::from(item.name.clone())),
                                 )
                                 .child(region_badge(item, theme)),
@@ -329,11 +333,11 @@ fn platform_card(
                             div()
                                 .rounded_lg()
                                 .border_1()
-                                .border_color(theme.border)
-                                .bg(theme.muted)
+                                .border_color(theme.separator)
+                                .bg(theme.muted_fill)
                                 .p_1()
-                                .text_color(theme.muted_foreground)
-                                .hover(|this| this.text_color(theme.blue))
+                                .text_color(theme.text_muted)
+                                .hover(|this| this.text_color(accent))
                                 .child(Icon::new(IconName::ExternalLink).with_size(px(16.))),
                         ),
                 )
@@ -343,7 +347,7 @@ fn platform_card(
                         .min_h(px(48.))
                         .flex_1()
                         .text_sm()
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.text_muted)
                         .child(SharedString::from(item.category.clone())),
                 )
                 .child(
@@ -352,7 +356,7 @@ fn platform_card(
                         .justify_between()
                         .gap_2()
                         .border_t_1()
-                        .border_color(theme.border)
+                        .border_color(theme.separator)
                         .pt_3()
                         .child(category_pill(item, theme))
                         .child(
@@ -361,7 +365,7 @@ fn platform_card(
                                 .gap_1()
                                 .text_xs()
                                 .font_weight(FontWeight::MEDIUM)
-                                .text_color(theme.blue.opacity(0.8))
+                                .text_color(accent.opacity(0.8))
                                 .child(SharedString::from("点击直达")),
                         ),
                 ),
@@ -369,43 +373,43 @@ fn platform_card(
 }
 
 /// 区域 Badge（Building2 icon + 区域名；对齐 frontend region pill）
-fn region_badge(item: &SiteNavigationItem, theme: &Theme) -> impl IntoElement {
+fn region_badge(item: &SiteNavigationItem, theme: &AppTheme) -> impl IntoElement {
     h_flex()
         .items_center()
         .gap_1()
         .rounded_full()
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.muted)
+        .border_color(theme.separator)
+        .bg(theme.muted_fill)
         .px_2()
         .py_0p5()
         .child(
             Icon::new(IconName::Building2)
                 .with_size(px(12.))
-                .text_color(theme.muted_foreground),
+                .text_color(theme.text_muted),
         )
         .child(
             div()
                 .text_xs()
-                .text_color(theme.muted_foreground)
+                .text_color(theme.text_muted)
                 .child(SharedString::from(item.region.clone())),
         )
 }
 
 /// 品类 pill（对齐 frontend 卡片底部品类标签）
-fn category_pill(item: &SiteNavigationItem, theme: &Theme) -> impl IntoElement {
+fn category_pill(item: &SiteNavigationItem, theme: &AppTheme) -> impl IntoElement {
     h_flex()
         .items_center()
         .rounded_full()
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.muted)
+        .border_color(theme.separator)
+        .bg(theme.muted_fill)
         .px_2p5()
         .py_1()
         .child(
             div()
                 .text_xs()
-                .text_color(theme.foreground.opacity(0.85))
+                .text_color(theme.text_primary.opacity(0.85))
                 .child(SharedString::from(item.category.clone())),
         )
 }

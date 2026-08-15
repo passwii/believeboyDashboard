@@ -21,9 +21,11 @@
 
 use gpui::{div, prelude::*, px, Hsla, IntoElement, ParentElement};
 use gpui_component::{
-    Icon, IconName, Sizable, StyledExt, Theme, h_flex, skeleton::Skeleton, tooltip::Tooltip, v_flex,
+    h_flex, skeleton::Skeleton, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt,
 };
 use gui_domain::dashboard::KpiSummary;
+
+use crate::theme::AppTheme;
 
 /// 环比说明文案（Tooltip 悬停展示）
 const DELTA_TOOLTIP: &str = "环比上一周期（近 7 天 vs 前一 7 天）";
@@ -161,7 +163,11 @@ pub fn format_percent(value: f64) -> String {
 // ---------------------------------------------------------------------------
 
 /// 数字带：横向 flex 排列 6 张 KPI 卡（当前期 vs 对比期的环比 delta 已含）
-pub fn stat_band(current: &KpiSummary, comparison: &KpiSummary, theme: &Theme) -> impl IntoElement {
+pub fn stat_band(
+    current: &KpiSummary,
+    comparison: &KpiSummary,
+    theme: &AppTheme,
+) -> impl IntoElement {
     let stats = compute_stats(current, comparison);
     h_flex()
         .id("stat-band")
@@ -170,7 +176,7 @@ pub fn stat_band(current: &KpiSummary, comparison: &KpiSummary, theme: &Theme) -
 }
 
 /// 加载态：6 张骨架卡（数字位置放 Skeleton，对齐 frontend loading 骨架结构）
-pub fn stat_band_skeleton(theme: &Theme) -> impl IntoElement {
+pub fn stat_band_skeleton(theme: &AppTheme) -> impl IntoElement {
     h_flex()
         .id("stat-band-skeleton")
         .gap_3()
@@ -178,12 +184,12 @@ pub fn stat_band_skeleton(theme: &Theme) -> impl IntoElement {
 }
 
 /// 单张 KPI 卡：label + 环比 delta（右上）+ 大数字
-fn render_card(stat: &KpiStat, theme: &Theme) -> impl IntoElement {
-    // 对齐 frontend `text-blue-700 dark:text-foreground`：亮色主题数值用品牌蓝，暗色用前景色
+fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
+    // 对齐 frontend `text-blue-700 dark:text-foreground`：亮色主题数值用品牌强调色，暗色用前景色
     let value_color = if theme.is_dark() {
-        theme.foreground
+        theme.text_primary
     } else {
-        theme.blue
+        theme.accent
     };
     // 转 owned String（gpui 元素要求 'static 内容，且保持返回类型无生命周期参数）
     let value_text = stat.value.clone().unwrap_or_else(|| "—".to_string());
@@ -191,15 +197,20 @@ fn render_card(stat: &KpiStat, theme: &Theme) -> impl IntoElement {
         .flex_1()
         .gap_2()
         .p_3()
-        .rounded(theme.radius)
+        .rounded(px(theme.radius))
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
         .child(
             h_flex()
                 .justify_between()
                 .items_center()
-                .child(div().text_sm().text_color(theme.muted_foreground).child(stat.label))
+                .child(
+                    div()
+                        .text_sm()
+                        .text_color(theme.text_muted)
+                        .child(stat.label),
+                )
                 .child(render_delta(stat.delta, theme, stat.label)),
         )
         .child(
@@ -211,33 +222,28 @@ fn render_card(stat: &KpiStat, theme: &Theme) -> impl IntoElement {
         )
 }
 
-/// 环比 delta：涨绿（bullish）/ 跌红（bearish）/ 持平（中性灰 Minus）；
+/// 环比 delta：涨绿（success）/ 跌红（danger）/ 持平（中性灰 Minus）；
 /// 不可得 → "—"。悬停显示环比说明 Tooltip（`id` 保证每张卡唯一；tooltip 属
 /// `StatefulInteractiveElement`，需先 `.id()` 提升为 `Stateful<Div>`）。
-fn render_delta(delta: Option<f64>, theme: &Theme, label: &'static str) -> impl IntoElement {
+fn render_delta(delta: Option<f64>, theme: &AppTheme, label: &'static str) -> impl IntoElement {
     match delta {
         None => div()
             .text_sm()
-            .text_color(theme.muted_foreground)
+            .text_color(theme.text_muted)
             .child("—")
             .into_any_element(),
         Some(d) if d > 0.0 => {
-            delta_row(d, theme.bullish, IconName::ChevronUp, label).into_any_element()
+            delta_row(d, theme.success, IconName::ChevronUp, label).into_any_element()
         }
         Some(d) if d < 0.0 => {
-            delta_row(d.abs(), theme.bearish, IconName::ChevronDown, label).into_any_element()
+            delta_row(d.abs(), theme.danger, IconName::ChevronDown, label).into_any_element()
         }
-        Some(_) => delta_row(0.0, theme.muted_foreground, IconName::Minus, label).into_any_element(),
+        Some(_) => delta_row(0.0, theme.text_muted, IconName::Minus, label).into_any_element(),
     }
 }
 
 /// delta 行：箭头图标 + 绝对值百分比（对齐 frontend `DeltaIcon` + `DeltaValue` absolute）
-fn delta_row(
-    abs_delta: f64,
-    color: Hsla,
-    icon: IconName,
-    label: &'static str,
-) -> impl IntoElement {
+fn delta_row(abs_delta: f64, color: Hsla, icon: IconName, label: &'static str) -> impl IntoElement {
     div()
         .id(gpui::SharedString::from(format!("kpi-delta-{label}")))
         .flex()
@@ -252,15 +258,15 @@ fn delta_row(
 }
 
 /// 骨架卡：label / 数字 / delta 三档占位（对齐 frontend V2Stats loading 结构）
-fn skeleton_card(theme: &Theme) -> impl IntoElement {
+fn skeleton_card(theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_2()
         .p_3()
-        .rounded(theme.radius)
+        .rounded(px(theme.radius))
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
         .child(div().w(px(64.)).child(Skeleton::new()))
         .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
         .child(div().w(px(80.)).child(Skeleton::new()))

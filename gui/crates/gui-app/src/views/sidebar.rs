@@ -10,14 +10,14 @@
 //! - 稳定元素 ID（基于子项 url），语义 role + aria label
 
 use gpui::{
-    div, prelude::*, px, rgb, svg, App, Context, EventEmitter, FocusHandle, Focusable,
-    KeyDownEvent, SharedString, Window,
+    div, prelude::*, px, svg, App, Context, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
+    SharedString, Window,
 };
 
 use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
 
 use crate::icon::icon_path;
-use crate::theme::Theme;
+use crate::theme::AppTheme;
 
 /// 侧栏发出的导航事件
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,8 +92,7 @@ impl SidebarView {
                 let next = if self.selected_url.is_none() {
                     self.cursor
                 } else {
-                    (self.cursor as isize + delta)
-                        .clamp(0, self.flat_items.len() as isize - 1)
+                    (self.cursor as isize + delta).clamp(0, self.flat_items.len() as isize - 1)
                         as usize
                 };
                 if next != self.cursor {
@@ -134,7 +133,7 @@ impl Focusable for SidebarView {
 
 impl Render for SidebarView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::dark_sidebar_light_content();
+        let theme = AppTheme::current(cx);
         let selected_url = self.selected_url.clone();
         let focus_handle = self.focus_handle.clone();
 
@@ -167,7 +166,7 @@ impl Render for SidebarView {
     }
 }
 
-fn sidebar_header(theme: &Theme) -> impl IntoElement {
+fn sidebar_header(theme: &AppTheme) -> impl IntoElement {
     div()
         .id("sidebar-header")
         .flex()
@@ -196,7 +195,7 @@ fn sidebar_header(theme: &Theme) -> impl IntoElement {
                     div()
                         .text_base()
                         .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_color(theme.sidebar_header_text)
+                        .text_color(theme.sidebar_text)
                         .child(SharedString::from("BelieveBoy")),
                 )
                 .child(
@@ -208,7 +207,7 @@ fn sidebar_header(theme: &Theme) -> impl IntoElement {
         )
 }
 
-fn sidebar_footer(theme: &Theme) -> impl IntoElement {
+fn sidebar_footer(theme: &AppTheme) -> impl IntoElement {
     div()
         .id("sidebar-footer")
         .flex()
@@ -231,7 +230,7 @@ fn render_group(
     selected_url: Option<&str>,
     cx: &mut Context<SidebarView>,
 ) -> impl IntoElement {
-    let theme = Theme::dark_sidebar_light_content();
+    let theme = AppTheme::current(cx);
     let group_id = group.id.clone();
     let group_icon = icon_path(&group.icon);
 
@@ -280,7 +279,7 @@ fn render_item(
     active: bool,
     cx: &mut Context<SidebarView>,
 ) -> impl IntoElement {
-    let theme = Theme::dark_sidebar_light_content();
+    let theme = AppTheme::current(cx);
     let url = item.url.clone();
     let title = item.title.clone();
     let item_id = SharedString::from(format!("sidebar-item-{}", item.url));
@@ -301,7 +300,7 @@ fn render_item(
         .text_color(if active {
             theme.sidebar_item_active_text
         } else {
-            theme.sidebar_item_text
+            theme.sidebar_text
         })
         .font_weight(if active {
             gpui::FontWeight::MEDIUM
@@ -323,7 +322,7 @@ fn render_item(
         .child(svg().path(icon_path).size(px(16.0)).text_color(if active {
             theme.sidebar_item_active_text
         } else {
-            rgb(0x9ca3af).into() // gray-400，弱化未激活图标
+            theme.sidebar_group_text // 弱化未激活图标
         }))
         .child(SharedString::from(item.title.clone()))
         .on_click(cx.listener(move |this, _, _, cx| {

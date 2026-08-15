@@ -3,14 +3,15 @@
 //! 邮箱 + 密码表单，回车 / 按钮提交；错误显示后端 `detail`。
 //! 提交成功时 emit `LoginViewEvent`，由 main.rs 存 Keychain 并打开主窗口。
 
-use gpui::{
-    App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
-    MouseUpEvent, Render, Window, div, px, rgb, red, white,
-};
 use gpui::prelude::*;
+use gpui::{
+    div, px, App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseUpEvent, Render, Window,
+};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
+use crate::theme::{AppTheme, SPACE_10};
 use crate::widgets::text_input::{TextField, TextFieldSubmit};
 
 /// 登录成功事件（携带带会话的 client + 用户信息）
@@ -34,14 +35,12 @@ pub struct LoginView {
     /// 未登录的 base client（登录成功后派生带会话 client）
     client: Client,
     status: LoginStatus,
+    /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
+    pub theme_appearance_sub: Option<gpui::Subscription>,
 }
 
 impl LoginView {
-    pub fn new(
-        cx: &mut Context<Self>,
-        client: Client,
-        initial_error: Option<String>,
-    ) -> Self {
+    pub fn new(cx: &mut Context<Self>, client: Client, initial_error: Option<String>) -> Self {
         let email = cx.new(|cx| TextField::new(cx, "邮箱（必填）", false));
         let password = cx.new(|cx| TextField::new(cx, "密码（必填）", true));
 
@@ -67,6 +66,7 @@ impl LoginView {
             password,
             client,
             status,
+            theme_appearance_sub: None,
         }
     }
 
@@ -126,6 +126,7 @@ impl EventEmitter<LoginViewEvent> for LoginView {}
 
 impl Render for LoginView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = AppTheme::current(cx);
         let (status_text, submitting) = match &self.status {
             LoginStatus::Idle => (None, false),
             LoginStatus::Submitting => (None, true),
@@ -138,22 +139,22 @@ impl Render for LoginView {
             .flex_col()
             .items_center()
             .justify_center()
-            .bg(rgb(0xf3f4f6))
+            .bg(theme.window_bg)
             .child(
                 div()
                     .flex()
                     .flex_col()
                     .w(px(360.))
-                    .bg(white())
-                    .rounded(px(12.))
+                    .bg(theme.card_bg)
+                    .rounded(px(theme.radius_lg))
                     .border_1()
-                    .border_color(rgb(0xe5e7eb))
+                    .border_color(theme.separator)
                     .p(px(28.))
                     .gap_4()
                     .child(
                         div()
                             .text_size(px(22.))
-                            .text_color(rgb(0x111827))
+                            .text_color(theme.text_primary)
                             .child("登录 BelieveBoy"),
                     )
                     .child(
@@ -164,7 +165,7 @@ impl Render for LoginView {
                             .child(
                                 div()
                                     .text_size(px(13.))
-                                    .text_color(rgb(0x374151))
+                                    .text_color(theme.text_secondary)
                                     .child("邮箱"),
                             )
                             .child(self.email.clone()),
@@ -177,7 +178,7 @@ impl Render for LoginView {
                             .child(
                                 div()
                                     .text_size(px(13.))
-                                    .text_color(rgb(0x374151))
+                                    .text_color(theme.text_secondary)
                                     .child("密码"),
                             )
                             .child(self.password.clone()),
@@ -187,22 +188,25 @@ impl Render for LoginView {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .h(px(40.))
+                            .h(px(SPACE_10))
                             .rounded(px(8.))
-                            .bg(rgb(0x1a66ff))
+                            .bg(theme.accent)
                             .text_size(px(15.))
-                            .text_color(white())
+                            .text_color(theme.on_accent)
                             .cursor(CursorStyle::PointingHand)
-                            .hover(|style| style.bg(rgb(0x1552d4)))
+                            .hover(|style| style.bg(theme.accent_hover))
                             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_login_click))
-                            .child(if submitting { "登录中…" } else { "登 录" }),
+                            .child(if submitting {
+                                "登录中…"
+                            } else {
+                                "登 录"
+                            }),
                     )
-                    .children(status_text.map(|msg| {
-                        div()
-                            .text_size(px(13.))
-                            .text_color(red())
-                            .child(msg)
-                    })),
+                    .children(
+                        status_text.map(|msg| {
+                            div().text_size(px(13.)).text_color(theme.danger).child(msg)
+                        }),
+                    ),
             )
     }
 }

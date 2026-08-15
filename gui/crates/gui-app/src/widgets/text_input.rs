@@ -7,14 +7,15 @@
 
 use std::ops::Range;
 
-use gpui::{
-    actions, rgb, App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, Entity,
-    EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString,
-    Style, TextRun, UTF16Selection, UnderlineStyle, Window, div, fill, hsla, point, px, relative,
-    rgba, size, white,
-};
 use gpui::prelude::*;
+use gpui::{
+    actions, div, fill, point, px, relative, size, App, Bounds, ClipboardItem, Context,
+    CursorStyle, Element, ElementId, Entity, EntityInputHandler, EventEmitter, FocusHandle,
+    Focusable, GlobalElementId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun, UTF16Selection,
+    UnderlineStyle, Window,
+};
+use gpui_component::ActiveTheme;
 use unicode_segmentation::UnicodeSegmentation;
 
 actions!(
@@ -240,7 +241,8 @@ impl TextField {
         }
         // closest_index_for_x 返回展示字符串（secret 模式为圆点串）的字节偏移，需换算回内容偏移
         let display_index = line.closest_index_for_x(position.x - bounds.left());
-        self.content_index_from_display(display_index).min(self.content.len())
+        self.content_index_from_display(display_index)
+            .min(self.content.len())
     }
 
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
@@ -452,7 +454,8 @@ impl EntityInputHandler for TextField {
                 bounds.left() + last_layout.x_for_index(self.display_byte_index(range.end)),
                 bounds.bottom(),
             ),
-        ))    }
+        ))
+    }
 
     fn character_index_for_point(
         &mut self,
@@ -528,7 +531,7 @@ impl Element for TextElement {
         let style = window.text_style();
 
         let (display_text, text_color) = if content.is_empty() {
-            (input.placeholder.clone(), hsla(0., 0., 0., 0.35))
+            (input.placeholder.clone(), cx.theme().muted_foreground)
         } else if input.secret {
             ("•".repeat(content.chars().count()).into(), style.color)
         } else {
@@ -582,6 +585,9 @@ impl Element for TextElement {
             .text_system()
             .shape_line(display_text, font_size, &runs, None);
 
+        // P2-2：光标/选区用品牌强调色 token（gpui-component 默认主题的 accent 是中性灰，
+        // 登录/输入框的蓝色光标语义应跟随 AppTheme.accent）
+        let accent = crate::theme::AppTheme::current(cx).accent;
         let cursor_pos = line.x_for_index(cursor_display);
         let (selection, cursor) = if selected_range.is_empty() {
             (
@@ -591,7 +597,7 @@ impl Element for TextElement {
                         point(bounds.left() + cursor_pos, bounds.top()),
                         size(px(2.), bounds.bottom() - bounds.top()),
                     ),
-                    rgb(0x1a66ff),
+                    accent,
                 )),
             )
         } else {
@@ -607,7 +613,7 @@ impl Element for TextElement {
                             bounds.bottom(),
                         ),
                     ),
-                    rgba(0x1a66ff30),
+                    accent.opacity(0.2),
                 )),
                 None,
             )
@@ -688,7 +694,8 @@ impl Render for TextField {
                     .h(px(30. + 6. * 2.))
                     .w_full()
                     .p(px(6.))
-                    .bg(white())
+                    // P2-2：输入框底色跟随主题（亮=白，暗=深色，避免暗色下白块刺眼）
+                    .bg(cx.theme().background)
                     .child(TextElement { input: cx.entity() }),
             )
     }

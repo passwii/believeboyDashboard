@@ -6,7 +6,7 @@
 use gpui::{div, prelude::*, px, svg, Context, SharedString, Window};
 
 use crate::icon::icon_path;
-use crate::theme::Theme;
+use crate::theme::{AppTheme, SPACE_10, SPACE_12};
 
 pub struct PlaceholderView {
     pub title: String,
@@ -23,8 +23,8 @@ impl PlaceholderView {
 }
 
 impl Render for PlaceholderView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::dark_sidebar_light_content();
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = AppTheme::current(cx);
 
         div()
             .id("placeholder-content")
@@ -34,7 +34,7 @@ impl Render for PlaceholderView {
             .items_center()
             .justify_center()
             .gap_3()
-            .bg(theme.content_bg)
+            .bg(theme.window_bg)
             .child(
                 div()
                     .id("placeholder-card")
@@ -42,41 +42,35 @@ impl Render for PlaceholderView {
                     .flex_col()
                     .items_center()
                     .gap_3()
-                    .px(px(48.0))
-                    .py(px(40.0))
+                    .px(px(SPACE_12))
+                    .py(px(SPACE_10))
                     .rounded_xl()
-                    .bg(theme.content_card_bg)
+                    .bg(theme.card_bg)
                     .border_1()
-                    .border_color(theme.content_card_border)
+                    .border_color(theme.separator)
                     .child(placeholder_icon(&theme, &self.title))
                     .child(
                         div()
                             .text_2xl()
-                            .text_color(theme.content_title)
+                            .text_color(theme.text_primary)
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(SharedString::from(self.title.clone())),
                     )
                     .child(
                         div()
                             .text_sm()
-                            .text_color(theme.content_subtitle)
+                            .text_color(theme.text_secondary)
                             .child(SharedString::from(self.url.clone())),
                     )
-                    .child(
-                        div()
-                            .mt_2()
-                            .text_sm()
-                            .text_color(theme.content_muted)
-                            .child(SharedString::from(
-                                "该页面 GUI 实现中（按 frontend sidebar 顺序推进）",
-                            )),
-                    ),
+                    .child(div().mt_2().text_sm().text_color(theme.text_muted).child(
+                        SharedString::from("该页面 GUI 实现中（按 frontend sidebar 顺序推进）"),
+                    )),
             )
     }
 }
 
 /// 占位卡上方的图标（取当前子项的图标资源）
-fn placeholder_icon(theme: &Theme, title: &str) -> impl IntoElement {
+fn placeholder_icon(theme: &AppTheme, title: &str) -> impl IntoElement {
     // 这里只按标题取个代表性图标；后续真实 View 落地后此函数移除
     let path = icon_path(match title {
         "站点导航" => "LayoutDashboard",
@@ -95,11 +89,6 @@ fn placeholder_icon(theme: &Theme, title: &str) -> impl IntoElement {
         .flex()
         .items_center()
         .justify_center()
-        .bg(theme.brand_soft) // blue-50
-        .child(
-            svg()
-                .path(path)
-                .size(px(28.0))
-                .text_color(theme.content_accent),
-        )
+        .bg(theme.accent_soft) // 强调色浅底（亮：blue-50 / 暗：blue-950）
+        .child(svg().path(path).size(px(28.0)).text_color(theme.accent))
 }
