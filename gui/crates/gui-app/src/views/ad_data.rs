@@ -25,13 +25,10 @@ use gpui::{
     WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     h_flex,
     input::{Input, InputEvent, InputState},
-    menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
+    menu::PopupMenuItem,
     table::{Column, ColumnSort, Table, TableDelegate, TableState},
     v_flex, Icon, IconName, Sizable, StyledExt,
 };
@@ -43,6 +40,7 @@ use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
 use crate::views::ad_analysis::ad_country_label;
+use crate::widgets::{filter_bar, pagination, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告数据条目一致）
 pub const AD_DATA_URL: &str = "/dashboard/advertising/ad-data";
@@ -58,7 +56,7 @@ const COUNTRY_OPTIONS: [(&str, &str); 3] = [
 const DEFAULT_COUNTRY: &str = "US";
 
 /// 每页行数选项（对齐 frontend `PAGE_SIZE_OPTIONS`）
-const PAGE_SIZE_OPTIONS: [i64; 4] = [50, 100, 200, 500];
+const PAGE_SIZE_OPTIONS: [usize; 4] = [50, 100, 200, 500];
 
 /// 默认每页行数（对齐 frontend `useState(100)`）
 const DEFAULT_PAGE_SIZE: i64 = 100;
@@ -410,15 +408,47 @@ impl Render for AdDataView {
             ))
             // 状态区
             .child(match state {
-                AdDataState::Loading => render_loading(&theme).into_any_element(),
-                AdDataState::Error(msg) => render_error(cx, &theme, &msg).into_any_element(),
-                AdDataState::Empty => render_empty(
-                    cx,
+                AdDataState::Loading => {
+                    v_flex()
+                        .id("ad-data-loading")
+                        .gap_4()
+                        .child(state_views::loading_state(&theme, "加载中…"))
+                        .child(
+                            div()
+                                .w_full()
+                                .h(px(320.))
+                                .child(gpui_component::skeleton::Skeleton::new()),
+                        )
+                        .into_any_element()
+                }
+                AdDataState::Error(msg) => state_views::error_state(
+                    &view,
                     &theme,
-                    self.selected_project_id.is_none(),
-                    self.available_types.is_empty(),
+                    "ad-data-error",
+                    "广告数据加载失败",
+                    msg,
+                    |this, cx| this.reload(cx),
                 )
                 .into_any_element(),
+                AdDataState::Empty => {
+                    let message = if self.selected_project_id.is_none() {
+                        "请先选择项目以加载广告数据"
+                    } else if self.available_types.is_empty() {
+                        "当前项目/国家下暂无成功入库的广告报表数据"
+                    } else {
+                        "当前筛选条件下没有广告原始数据"
+                    };
+                    state_views::empty_state_with_action(
+                        &view,
+                        &theme,
+                        "ad-data-empty",
+                        "icons/package.svg",
+                        message,
+                        "刷新",
+                        |this, cx| this.reload(cx),
+                    )
+                    .into_any_element()
+                }
                 AdDataState::Loaded(data) => {
                     let subtitle = format!(
                         "报表：{}",
@@ -427,7 +457,7 @@ impl Render for AdDataView {
                             .and_then(|t| ad_report_type(t))
                             .map_or_else(|| "—".to_string(), |c| c.label.to_string())
                     );
-                    let (displayed, filtered_total, page, page_count) =
+                    let (displayed, filtered_total, page, _page_count) =
                         table.read(cx).stats(cx);
                     let page_size = table.read(cx).page_size;
                     render_loaded(
@@ -438,7 +468,6 @@ impl Render for AdDataView {
                         displayed,
                         filtered_total,
                         page,
-                        page_count,
                         page_size,
                         crate::motion::reduce_motion(cx),
                     )
@@ -449,184 +478,10 @@ impl Render for AdDataView {
 }
 
 // ---------------------------------------------------------------------------
-// 四态渲染
-// ---------------------------------------------------------------------------
-
-fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("ad-data-loading")
-        .gap_4()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
-        )
-        .child(div().w_full().h(px(320.)).child(Skeleton::new()))
-}
-
-fn render_error(
-    cx: &mut Context<AdDataView>,
-    app_theme: &AppTheme,
-    msg: &str,
-) -> impl IntoElement {
-    v_flex()
-        .id("ad-data-error")
-        .gap_3()
-        .p_4()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            Alert::error("ad-data-error", msg)
-                .title("广告数据加载失败")
-                .w_full(),
-        )
-        .child(
-            div().w_full().flex().justify_end().child(
-                Button::new("ad-data-error-retry")
-                    .outline()
-                    .small()
-                    .label("重试")
-                    .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-            ),
-        )
-}
-
-fn render_empty(
-    cx: &mut Context<AdDataView>,
-    app_theme: &AppTheme,
-    needs_project: bool,
-    no_available_types: bool,
-) -> impl IntoElement {
-    let message = if needs_project {
-        "请先选择项目以加载广告数据"
-    } else if no_available_types {
-        "当前项目/国家下暂无成功入库的广告报表数据"
-    } else {
-        "当前筛选条件下没有广告原始数据"
-    };
-    v_flex()
-        .id("ad-data-empty")
-        .items_center()
-        .justify_center()
-        .gap_3()
-        .px_8()
-        .py_10()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            Icon::new(Icon::empty())
-                .path("icons/package.svg")
-                .with_size(px(40.))
-                .text_color(app_theme.text_muted.opacity(0.7)),
-        )
-        .child(
-            div()
-                .text_size(px(14.))
-                .text_color(app_theme.text_muted)
-                .child(message),
-        )
-        .child(
-            Button::new("ad-data-empty-refresh")
-                .outline()
-                .small()
-                .label("刷新")
-                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-        )
-}
-
-/// Loaded：概览徽章 + 原始表 + 分页栏
-#[allow(clippy::too_many_arguments)]
-fn render_loaded(
-    app_theme: &AppTheme,
-    data: &AdDataPayload,
-    table: Entity<AdRawTable>,
-    report_label: &str,
-    displayed: usize,
-    filtered_total: usize,
-    page: usize,
-    page_count: usize,
-    page_size: i64,
-    reduce: bool,
-) -> impl IntoElement {
-    let first = if displayed == 0 {
-        0
-    } else {
-        filtered_total.saturating_sub(displayed) + 1
-    };
-    let last = filtered_total;
-    // P4-2：表格 enter 轻量 fade-in（一次性；减弱动态时瞬时）
-    crate::motion::enter_fade_in(
-        gpui::SharedString::from("ad-data-loaded-fade"),
-        v_flex()
-            .id("ad-data-loaded")
-            .gap_3()
-            .child(
-                h_flex()
-                    .id("ad-data-badges")
-                    .gap_2()
-                    .items_center()
-                    .flex_wrap()
-                    .text_sm()
-                    .text_color(app_theme.text_muted)
-                    .child(badge(app_theme, report_label))
-                    .child(badge(
-                        app_theme,
-                        &format!("服务端总行数：{}", format_count(data.total_rows)),
-                    ))
-                    .child(badge(
-                        app_theme,
-                        &format!(
-                            "当前显示：第 {first}-{last} / 共 {} 行",
-                            format_count(filtered_total as i64)
-                        ),
-                    )),
-            )
-            .child(table.clone())
-            .child(render_pagination(
-                app_theme, table, page, page_count, page_size,
-            )),
-        reduce,
-    )
-}
-
-fn badge(app_theme: &AppTheme, text: &str) -> impl IntoElement {
-    div()
-        .px_2()
-        .py_0p5()
-        .rounded_full()
-        .bg(app_theme.muted_fill)
-        .text_color(app_theme.text_muted)
-        .child(text.to_string())
-}
-
-/// 千分位（对齐 frontend toLocaleString）
-fn format_count(v: i64) -> String {
-    let digits = v.abs().to_string();
-    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
-    for (i, ch) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    if v < 0 {
-        out.insert(0, '-');
-    }
-    out
-}
-
-// ---------------------------------------------------------------------------
 // 筛选栏（项目 / 站点 / 报表类型 / 搜索 / 刷新）
 // ---------------------------------------------------------------------------
 
+/// 筛选栏：项目 + 站点 + 报表类型 + 搜索框 + 刷新（控件用公共 filter_bar 组件）。
 #[allow(clippy::too_many_arguments)]
 fn render_filter_bar(
     view: &Entity<AdDataView>,
@@ -667,12 +522,8 @@ fn render_filter_bar(
     let view_for_type = view.clone();
     let view_for_refresh = view.clone();
 
-    h_flex()
-        .id("ad-data-filters")
-        .gap_3()
-        .items_center()
-        .flex_wrap()
-        .child(filter_select(app_theme, "项目", project_label, "ad-data-project-filter", move |menu, _window, _cx| {
+    filter_bar::filter_bar_layout(app_theme)
+        .child(filter_bar::filter_select(app_theme, "项目", project_label, "ad-data-project-filter", move |menu, _window, _cx| {
             let mut menu = menu;
             for project in &projects_owned {
                 let checked = selected_project_id == Some(project.id);
@@ -687,7 +538,7 @@ fn render_filter_bar(
             }
             menu
         }))
-        .child(filter_select(app_theme, "站点", ad_country_label(country).into(), "ad-data-country-filter", move |menu, _window, _cx| {
+        .child(filter_bar::filter_select(app_theme, "站点", ad_country_label(country).into(), "ad-data-country-filter", move |menu, _window, _cx| {
             let mut menu = menu;
             for (value, label) in COUNTRY_OPTIONS {
                 let checked = country == value;
@@ -700,7 +551,7 @@ fn render_filter_bar(
             }
             menu
         }))
-        .child(filter_select(app_theme, "报表类型", type_label, "ad-data-type-filter", move |menu, _window, _cx| {
+        .child(filter_bar::filter_select(app_theme, "报表类型", type_label, "ad-data-type-filter", move |menu, _window, _cx| {
             let mut menu = menu;
             for t in &available_owned {
                 let checked = selected_type_owned.as_deref() == Some(t.as_str());
@@ -750,38 +601,97 @@ fn render_filter_bar(
         )
 }
 
-/// 带 label 的下拉筛选（项目 / 站点 / 报表类型共用）
-fn filter_select(
+/// Loaded：概览徽章 + 原始表 + 分页栏
+#[allow(clippy::too_many_arguments)]
+fn render_loaded(
     app_theme: &AppTheme,
-    label: &str,
-    current: SharedString,
-    id: &'static str,
-    menu_builder: impl Fn(
-            gpui_component::menu::PopupMenu,
-            &mut Window,
-            &mut gpui::Context<'_, gpui_component::menu::PopupMenu>,
-        ) -> gpui_component::menu::PopupMenu
-        + 'static,
+    data: &AdDataPayload,
+    table: Entity<AdRawTable>,
+    report_label: &str,
+    displayed: usize,
+    filtered_total: usize,
+    page: usize,
+    page_size: i64,
+    reduce: bool,
 ) -> impl IntoElement {
-    h_flex()
-        .gap_2()
-        .items_center()
-        .child(
-            div()
-                .text_sm()
-                .text_color(app_theme.text_muted)
-                .child(label.to_string()),
-        )
-        .child(
-            Button::new(id)
-                .outline()
-                .small()
-                .label(current)
-                .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, menu_builder),
-        )
+    let first = if displayed == 0 {
+        0
+    } else {
+        filtered_total.saturating_sub(displayed) + 1
+    };
+    let last = filtered_total;
+    // P4-2：表格 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("ad-data-loaded-fade"),
+        v_flex()
+            .id("ad-data-loaded")
+            .gap_3()
+            .child(
+                h_flex()
+                    .id("ad-data-badges")
+                    .gap_2()
+                    .items_center()
+                    .flex_wrap()
+                    .text_sm()
+                    .text_color(app_theme.text_muted)
+                    .child(badge(app_theme, report_label))
+                    .child(badge(
+                        app_theme,
+                        &format!("服务端总行数：{}", format_count(data.total_rows)),
+                    ))
+                    .child(badge(
+                        app_theme,
+                        &format!(
+                            "当前显示：第 {first}-{last} / 共 {} 行",
+                            format_count(filtered_total as i64)
+                        ),
+                    )),
+            )
+            .child(table.clone())
+            .child({
+                let state = pagination::PageState::new(page, page_size.max(1) as usize, filtered_total);
+                pagination::pagination_bar(
+                    &table,
+                    app_theme,
+                    "ad-data-pagination",
+                    &state,
+                    &PAGE_SIZE_OPTIONS,
+                    |this, page, cx| this.set_page(page, cx),
+                    |this, size, cx| this.set_page_size(size as i64, cx),
+                )
+            }),
+        reduce,
+    )
 }
 
+fn badge(app_theme: &AppTheme, text: &str) -> impl IntoElement {
+    div()
+        .px_2()
+        .py_0p5()
+        .rounded_full()
+        .bg(app_theme.muted_fill)
+        .text_color(app_theme.text_muted)
+        .child(text.to_string())
+}
+
+/// 千分位（对齐 frontend toLocaleString）
+fn format_count(v: i64) -> String {
+    let digits = v.abs().to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    if v < 0 {
+        out.insert(0, '-');
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// 筛选栏（项目 / 站点 / 报表类型 / 搜索 / 刷新）
 // ---------------------------------------------------------------------------
 // 原始表（搜索 / 排序 / 分页全部在 delegate 内部完成）
 // ---------------------------------------------------------------------------
@@ -1260,15 +1170,6 @@ impl AdRawTable {
         (displayed, filtered_total, page, page_count)
     }
 
-    /// 分页操作（视图按钮调用）
-    fn go_prev(&mut self, cx: &mut Context<Self>) {
-        self.set_page(self.page.saturating_sub(1).max(1), cx);
-    }
-
-    fn go_next(&mut self, cx: &mut Context<Self>) {
-        let next = self.page + 1;
-        self.set_page(next, cx);
-    }
 }
 
 impl Default for AdRawTable {
@@ -1332,94 +1233,6 @@ impl Render for AdRawTable {
 
 // ---------------------------------------------------------------------------
 // 分页栏
-// ---------------------------------------------------------------------------
-
-fn render_pagination(
-    app_theme: &AppTheme,
-    table: Entity<AdRawTable>,
-    page: usize,
-    page_count: usize,
-    page_size: i64,
-) -> impl IntoElement {
-    let view_for_size = table.clone();
-    let view_for_prev = table.clone();
-    let view_for_next = table.clone();
-
-    h_flex()
-        .id("ad-data-pagination")
-        .w_full()
-        .items_center()
-        .justify_between()
-        .gap_3()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .text_sm()
-                .text_color(app_theme.text_muted)
-                .child(div().child("每页"))
-                .child(
-                    Button::new("ad-data-page-size")
-                        .outline()
-                        .small()
-                        .label(SharedString::from(format!("{page_size}")))
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(gpui::Corner::TopLeft, move |menu, _window, _cx| {
-                            let mut menu = menu;
-                            for size in PAGE_SIZE_OPTIONS {
-                                let view = view_for_size.clone();
-                                menu = menu.item(
-                                    PopupMenuItem::new(SharedString::from(format!("{size}")))
-                                        .on_click(move |_, _window, cx| {
-                                            view.update(cx, |this, cx| {
-                                                this.set_page_size(size, cx)
-                                            });
-                                        }),
-                                );
-                            }
-                            menu
-                        }),
-                )
-                .child(div().child("行")),
-        )
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Button::new("ad-data-prev")
-                        .outline()
-                        .small()
-                        .label("上一页")
-                        .on_click(move |_, _window, cx| {
-                            let view = view_for_prev.clone();
-                            view.update(cx, |this, cx| this.go_prev(cx));
-                        }),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child(format!("第 {page} / {page_count} 页")),
-                )
-                .child(
-                    Button::new("ad-data-next")
-                        .outline()
-                        .small()
-                        .label("下一页")
-                        .on_click(move |_, _window, cx| {
-                            let view = view_for_next.clone();
-                            view.update(cx, |this, cx| this.go_next(cx));
-                        }),
-                ),
-        )
-}
-
-// ---------------------------------------------------------------------------
-// 测试
-// ---------------------------------------------------------------------------
-
-/// 测试宿主：仅渲染 AdDataView（渲染冒烟用）
 #[cfg(test)]
 struct AdDataHost {
     view: Entity<AdDataView>,

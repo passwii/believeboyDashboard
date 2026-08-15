@@ -20,6 +20,7 @@
 pub mod auth;
 pub mod advertising;
 pub mod common;
+pub mod filter;
 pub mod dashboard;
 pub mod finance;
 pub mod operations;

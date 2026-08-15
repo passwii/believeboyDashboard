@@ -18,6 +18,7 @@ pub mod error;
 pub mod client;
 pub mod monthly_reports;
 pub mod platform_revenues;
+pub mod query;
 pub mod scheduled_reports;
 
 // 常用类型在 crate 根暴露，避免 `gui_api_client::client::Client` 这种深路径

@@ -42,45 +42,27 @@
 
 use chrono::{Datelike, NaiveDate};
 use gpui::{
-    div, prelude::*, px, FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled,
+    div, prelude::*, px, IntoElement, ParentElement, Styled,
 };
-use gpui_component::{
-    chart::{AreaChart, BarChart, LineChart, PieChart},
-    h_flex, v_flex, Icon, Sizable, StyledExt,
-};
+use gpui_component::{h_flex, v_flex};
 use gui_domain::dashboard::DailyAnalysisRow;
 
 use crate::theme::AppTheme;
 use crate::views::daily_analysis::country_label;
 use crate::views::dashboard::{CountryBreakdownData, DashboardData};
-use crate::views::stat_band::{format_compact_currency, pct_change, render_delta};
-use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
+use crate::views::stat_band::pct_change;
+use crate::widgets::chart_primitives::{
+    bar_series_chart, big_number, chart_area, chart_card, chart_empty, donut_share_chart,
+    dual_area_chart, share_legend, stat_item, trend_area_chart, trend_line_chart,
+};
+use crate::widgets::top_projects::fmt_num_precise;
+
+// 向后兼容导出（既有消费者路径 `widgets::charts::ShareRow` 等不变）
+pub use crate::widgets::chart_primitives::{SalesSpendPoint, ShareRow, TrendPoint};
 
 // ---------------------------------------------------------------------------
 // 数据派生（纯函数，供测试；口径对齐 frontend v2-*-chart.tsx）
 // ---------------------------------------------------------------------------
-
-/// 趋势图数据点（X 轴标签 = "M/D"，对齐 frontend `dayLabel`）
-#[derive(Debug, Clone, PartialEq)]
-pub struct TrendPoint {
-    pub label: String,
-    pub value: f64,
-}
-
-/// 双序列对比点（销售额 vs 广告花费）
-#[derive(Debug, Clone, PartialEq)]
-pub struct SalesSpendPoint {
-    pub label: String,
-    pub sales: f64,
-    pub ad_spend: f64,
-}
-
-/// 占比 / 分布行（项目 / 国家销售额）
-#[derive(Debug, Clone, PartialEq)]
-pub struct ShareRow {
-    pub name: String,
-    pub sales: f64,
-}
 
 /// 流量汇总（对齐 frontend `computeTrafficStats`）
 #[derive(Debug, Clone, PartialEq)]
@@ -244,171 +226,8 @@ fn stock_delta(current: &[DailyAnalysisRow], compare: &[DailyAnalysisRow]) -> Op
 }
 
 // ---------------------------------------------------------------------------
-// 图表元素构建（gpui-component chart）
+// 图表元素构建（widgets::chart_primitives 提供基元，此处组装卡片）
 // ---------------------------------------------------------------------------
-
-/// 把占比行按分段色板着色（供 PieChart / 图例共用，保证扇形与图例颜色一致）
-fn decorate(rows: &[ShareRow], palette: &[Hsla; 6]) -> Vec<(ShareRow, Hsla)> {
-    rows.iter()
-        .enumerate()
-        .map(|(i, r)| (r.clone(), palette[i % palette.len()]))
-        .collect()
-}
-
-/// 趋势折线（单序列；销售额卡）
-fn line_chart(points: &[TrendPoint], color: Hsla) -> impl IntoElement {
-    LineChart::new(points.to_vec())
-        .x(|p| p.label.clone())
-        .y(|p| p.value)
-        .stroke(color)
-        .natural()
-        .dot()
-        .tick_margin(1)
-}
-
-/// 双序列面积图（销售额 vs 广告花费；共用轴）
-fn sales_spend_chart(points: &[SalesSpendPoint], theme: &AppTheme) -> impl IntoElement {
-    AreaChart::new(points.to_vec())
-        .x(|p| p.label.clone())
-        .y(|p| p.sales)
-        .y(|p| p.ad_spend)
-        .stroke(theme.chart_primary)
-        .stroke(theme.chart_secondary)
-        .fill(theme.chart_primary.opacity(0.18))
-        .fill(theme.chart_secondary.opacity(0.18))
-        .linear()
-        .linear()
-        .tick_margin(1)
-}
-
-/// 环形占比图（项目销售额；右侧图例由调用方绘制）
-fn pie_chart(rows: &[ShareRow], inner_radius: f32, theme: &AppTheme) -> impl IntoElement {
-    let palette = theme.chart_palette();
-    PieChart::new(decorate(rows, &palette))
-        .value(|(r, _)| r.sales as f32)
-        .color(|(_, c)| *c)
-        .inner_radius(inner_radius)
-}
-
-/// 柱状分布图（跨国家销售额；柱顶 $K 标签）
-fn bar_chart(rows: &[ShareRow], color: Hsla) -> impl IntoElement {
-    BarChart::new(rows.to_vec())
-        .x(|r| r.name.clone())
-        .y(|r| r.sales)
-        .fill(move |_| color)
-        .label(|r| format_compact_currency(r.sales))
-        .tick_margin(1)
-}
-
-/// 单序列面积图（库存 / 流量）
-fn area_chart(points: &[TrendPoint], color: Hsla, fill_alpha: f32) -> impl IntoElement {
-    AreaChart::new(points.to_vec())
-        .x(|p| p.label.clone())
-        .y(|p| p.value)
-        .stroke(color)
-        .fill(color.opacity(fill_alpha))
-        .natural()
-        .tick_margin(1)
-}
-
-// ---------------------------------------------------------------------------
-// 卡片渲染
-// ---------------------------------------------------------------------------
-
-/// 图表卡外壳：卡片底 + 头部（图标气泡 + 标题 + 环比 + 描述）+ 图表区。
-/// `delta` 为 `None` 时头部不渲染环比徽章（对齐 frontend 有/无 Delta 的卡片）。
-fn chart_card(
-    id: &'static str,
-    title: &'static str,
-    description: impl Into<SharedString>,
-    icon_path: &'static str,
-    delta: Option<Option<f64>>,
-    theme: &AppTheme,
-    body: impl IntoElement,
-) -> impl IntoElement {
-    // 图标气泡底：亮色 accent_soft（蓝 50）/ 暗色 muted_fill（对齐 frontend
-    // `bg-blue-100 dark:bg-[hsl(var(--surface-subtle))]`）
-    let chip_bg = if theme.is_dark() {
-        theme.muted_fill
-    } else {
-        theme.accent_soft
-    };
-    let chip_icon = if theme.is_dark() {
-        theme.text_muted
-    } else {
-        theme.accent
-    };
-    v_flex()
-        .id(id)
-        .w_full()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .p_4()
-        .gap_3()
-        .child(
-            v_flex()
-                .gap_1()
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .items_center()
-                        .child(
-                            h_flex()
-                                .size_7()
-                                .flex_shrink_0()
-                                .items_center()
-                                .justify_center()
-                                .rounded_md()
-                                .bg(chip_bg)
-                                .child(
-                                    Icon::empty()
-                                        .path(icon_path)
-                                        .with_size(px(14.))
-                                        .text_color(chip_icon),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(14.))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(theme.text_primary)
-                                .child(title),
-                        )
-                        .when(delta.is_some(), |this| {
-                            let delta = delta.unwrap();
-                            this.child(render_delta(delta, theme, title))
-                        }),
-                )
-                .child(
-                    div()
-                        .text_size(px(12.))
-                        .text_color(theme.text_muted)
-                        .child(description.into()),
-                ),
-        )
-        .child(body)
-}
-
-/// 图表区容器：固定高度（对齐 frontend chartClass md 档）——图表元素 layout
-/// 为 Size::full()，必须由父容器给定尺寸。
-fn chart_area(chart_height_px: f32, chart: impl IntoElement) -> impl IntoElement {
-    div().w_full().h(px(chart_height_px)).child(chart)
-}
-
-/// 图表区空态（无该维度数据时居中提示）
-fn chart_empty(text: &'static str, chart_height_px: f32, theme: &AppTheme) -> impl IntoElement {
-    div()
-        .w_full()
-        .h(px(chart_height_px))
-        .rounded(px(theme.radius))
-        .flex()
-        .items_center()
-        .justify_center()
-        .text_size(px(13.))
-        .text_color(theme.text_muted)
-        .child(text)
-}
 
 /// 1. 销售额（趋势折线；环比徽章 + 每日销售额）
 fn revenue_card(
@@ -428,7 +247,7 @@ fn revenue_card(
         if points.is_empty() {
             chart_empty("暂无销售数据", 320.0, theme).into_any_element()
         } else {
-            chart_area(320.0, line_chart(&points, theme.chart_primary)).into_any_element()
+            chart_area(320.0, trend_line_chart(&points, theme.chart_primary)).into_any_element()
         },
     )
 }
@@ -451,7 +270,8 @@ fn channel_card(
         if points.is_empty() {
             chart_empty("暂无销售数据", 320.0, theme).into_any_element()
         } else {
-            chart_area(320.0, sales_spend_chart(&points, theme)).into_any_element()
+            chart_area(320.0, dual_area_chart(&points, theme.chart_primary, theme.chart_secondary))
+                .into_any_element()
         },
     )
 }
@@ -460,8 +280,7 @@ fn channel_card(
 fn project_card(data: &DashboardData, theme: &AppTheme) -> impl IntoElement {
     let rows = project_share(data);
     let total: f64 = rows.iter().map(|r| r.sales).sum();
-    let palette = theme.chart_palette();
-    let legend = legend_list(&rows, &palette, total, theme);
+    let legend = share_legend(&rows, total, theme);
     let body = if rows.is_empty() {
         chart_empty("暂无项目数据", 256.0, theme).into_any_element()
     } else {
@@ -474,7 +293,7 @@ fn project_card(data: &DashboardData, theme: &AppTheme) -> impl IntoElement {
                 // 环形图：外径 = 0.4 × 高度（gpui-component 默认），内径取一半 → 环
                 div()
                     .flex_1()
-                    .child(pie_chart(&rows, 256.0 * 0.4 * 0.5, theme)),
+                    .child(donut_share_chart(&rows, 256.0 * 0.4 * 0.5, theme)),
             )
             .child(div().w(px(150.)).child(legend))
             .into_any_element()
@@ -505,7 +324,7 @@ fn country_card(country: Option<&CountryBreakdownData>, theme: &AppTheme) -> imp
     let body = if rows.is_empty() {
         chart_empty("暂无国家数据", 256.0, theme).into_any_element()
     } else {
-        chart_area(256.0, bar_chart(&rows, theme.chart_secondary)).into_any_element()
+        chart_area(256.0, bar_series_chart(&rows, theme.chart_secondary)).into_any_element()
     };
     chart_card(
         "chart-country",
@@ -531,31 +350,10 @@ fn stock_card(
     } else {
         v_flex()
             .gap_2()
-            .child(
-                h_flex()
-                    .gap_1p5()
-                    .items_baseline()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(if theme.is_dark() {
-                                theme.text_primary
-                            } else {
-                                theme.accent
-                            })
-                            .child(fmt_num_precise(current)),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child("件 · 区间末快照"),
-                    ),
-            )
+            .child(big_number(fmt_num_precise(current), "件 · 区间末快照", theme))
             .child(chart_area(
                 256.0 - 44.0,
-                area_chart(&points, theme.chart_tertiary, 0.22),
+                trend_area_chart(&points, theme.chart_tertiary, 0.22),
             ))
             .into_any_element()
     };
@@ -580,7 +378,7 @@ fn traffic_card(rows: &[DailyAnalysisRow], theme: &AppTheme) -> impl IntoElement
             .gap_3()
             .child(chart_area(
                 256.0 - 60.0,
-                area_chart(&points, theme.chart_secondary, 0.18),
+                trend_area_chart(&points, theme.chart_secondary, 0.18),
             ))
             .child(
                 h_flex()
@@ -620,74 +418,6 @@ fn traffic_card(rows: &[DailyAnalysisRow], theme: &AppTheme) -> impl IntoElement
         theme,
         body,
     )
-}
-
-/// footer 统计项（label + 数值）
-fn stat_item(
-    label: &'static str,
-    value: impl Into<SharedString>,
-    theme: &AppTheme,
-) -> impl IntoElement {
-    h_flex()
-        .gap_1()
-        .text_xs()
-        .child(div().text_color(theme.text_muted).child(label))
-        .child(
-            div()
-                .font_semibold()
-                .text_color(if theme.is_dark() {
-                    theme.text_primary
-                } else {
-                    theme.accent
-                })
-                .child(value.into()),
-        )
-}
-
-/// 占比图例行：色点 + 名称（截断）+ 金额 + 占比
-fn legend_list(
-    rows: &[ShareRow],
-    palette: &[Hsla; 6],
-    total: f64,
-    theme: &AppTheme,
-) -> impl IntoElement {
-    let decorated = decorate(rows, palette);
-    v_flex()
-        .gap_2()
-        .children(decorated.into_iter().map(|(row, color)| {
-            let share = if total > 0.0 {
-                row.sales / total * 100.0
-            } else {
-                0.0
-            };
-            h_flex()
-                .w_full()
-                .gap_2()
-                .items_center()
-                .child(div().size_2p5().rounded_full().bg(color))
-                .child(
-                    div()
-                        .flex_1()
-                        .text_size(px(12.))
-                        .text_color(theme.text_secondary)
-                        .truncate()
-                        .child(row.name),
-                )
-                .child(
-                    div()
-                        .text_size(px(12.))
-                        .text_color(theme.text_muted)
-                        .child(fmt_money_precise(row.sales)),
-                )
-                .child(
-                    div()
-                        .w(px(44.))
-                        .text_right()
-                        .text_size(px(12.))
-                        .text_color(theme.text_primary)
-                        .child(format!("{share:.1}%")),
-                )
-        }))
 }
 
 /// 渲染 6 卡图表网格：2 列（对齐 frontend `lg:grid-cols-4` + 每卡 `col-span-2` → 每行 2 张）。
@@ -977,6 +707,7 @@ mod tests {
 
     #[test]
     fn decorate_assigns_palette_colors_round_robin() {
+        use crate::widgets::chart_primitives::decorate;
         let rows = vec![
             ShareRow {
                 name: "A".into(),
