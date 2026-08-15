@@ -23,6 +23,7 @@ pub mod monthly_report;
 pub mod placeholder;
 pub mod platform_revenue;
 pub mod root;
+pub mod scheduled_reports;
 pub mod sidebar;
 pub mod site_navigation;
 pub mod stat_band;

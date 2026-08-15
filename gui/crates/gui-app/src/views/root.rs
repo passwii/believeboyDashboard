@@ -33,6 +33,7 @@ use crate::views::dashboard::DashboardView;
 use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::placeholder::PlaceholderView;
 use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
+use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 
@@ -67,10 +68,12 @@ pub struct RootView {
     ad_analysis: Option<Entity<AdAnalysisView>>,
     /// 广告 → 广告数据真实视图（P3-3；点击「广告 → 广告数据」懒创建）
     ad_data: Option<Entity<AdDataView>>,
-    /// 报表中心 → 财务月报真实视图（P3-4；点击「报表中心 → 财务月报」懒创建）
+/// 报表中心 → 财务月报真实视图（P3-4；点击「报表中心 → 财务月报」懒创建）
     monthly_report: Option<Entity<MonthlyReportView>>,
     /// 财务资金 → 平台回款真实视图（P3-4；点击「财务资金 → 平台回款」懒创建）
     platform_revenue: Option<Entity<PlatformRevenueView>>,
+    /// 报表中心 → 定时报告真实视图（P3-5；点击「报表中心 → 定时报告」懒创建）
+    scheduled_reports: Option<Entity<ScheduledReportsView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
@@ -81,10 +84,12 @@ pub struct RootView {
     show_ad_analysis: bool,
     /// 内容区当前是否显示广告数据视图（sidebar Select 命中 AD_DATA_URL 时置真）
     show_ad_data: bool,
-    /// 内容区当前是否显示财务月报视图（sidebar Select 命中 MONTHLY_REPORT_URL 时置真）
+/// 内容区当前是否显示财务月报视图（sidebar Select 命中 MONTHLY_REPORT_URL 时置真）
     show_monthly_report: bool,
     /// 内容区当前是否显示平台回款视图（sidebar Select 命中 PLATFORM_REVENUE_URL 时置真）
     show_platform_revenue: bool,
+    /// 内容区当前是否显示定时报告视图（sidebar Select 命中 SCHEDULED_REPORTS_URL 时置真）
+    show_scheduled_reports: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     session: Option<SessionInfo>,
@@ -215,6 +220,26 @@ impl RootView {
                 this.show_ad_data = false;
                 this.show_monthly_report = false;
                 this.show_platform_revenue = true;
+            } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL) {
+                // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
+                this.scheduled_reports.get_or_insert_with(|| {
+                    let client = this.session.as_ref().map(|s| s.client.clone());
+                    cx.new(|cx| {
+                        let mut view = ScheduledReportsView::new(
+                            cx,
+                            client.unwrap_or_else(|| Client::new("")),
+                        );
+                        view.reload_active_tab(cx);
+                        view
+                    })
+                });
+                this.show_site_navigation = false;
+                this.show_daily_analysis = false;
+                this.show_ad_analysis = false;
+                this.show_ad_data = false;
+                this.show_monthly_report = false;
+                this.show_platform_revenue = false;
+                this.show_scheduled_reports = true;
             } else {
                 this.show_site_navigation = false;
                 this.show_daily_analysis = false;
@@ -222,6 +247,7 @@ impl RootView {
                 this.show_ad_data = false;
                 this.show_monthly_report = false;
                 this.show_platform_revenue = false;
+                this.show_scheduled_reports = false;
                 this.content.update(cx, |content, cx| {
                     content.title = title.clone();
                     content.url = url.clone();
@@ -240,15 +266,17 @@ impl RootView {
             daily_analysis: None,
             ad_analysis: None,
             ad_data: None,
-            monthly_report: None,
+monthly_report: None,
             platform_revenue: None,
+            scheduled_reports: None,
             show_dashboard,
             show_site_navigation: false,
             show_daily_analysis: false,
             show_ad_analysis: false,
             show_ad_data: false,
-            show_monthly_report: false,
+show_monthly_report: false,
             show_platform_revenue: false,
+            show_scheduled_reports: false,
             current_title: "Dashboard".to_string(),
             session,
             focus_handle: cx.focus_handle(),
@@ -329,6 +357,11 @@ impl Render for RootView {
                                     )
                                 } else if self.show_ad_data {
                                     self.ad_data.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |view| view.into_any_element(),
+                                    )
+                                } else if self.show_scheduled_reports {
+                                    self.scheduled_reports.clone().map_or_else(
                                         || self.content.clone().into_any_element(),
                                         |view| view.into_any_element(),
                                     )

@@ -24,4 +24,5 @@ pub mod dashboard;
 pub mod finance;
 pub mod operations;
 pub mod reports;
+pub mod scheduled_reports;
 pub mod sidebar;
