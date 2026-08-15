@@ -51,6 +51,7 @@ pub const ICON_PATHS: &[&str] = &[
     "icons/coins.svg",
     "icons/database.svg",
     "icons/dollar-sign.svg",
+    "icons/eye.svg",
     "icons/file-bar-chart.svg",
     "icons/file-code.svg",
     "icons/file-search.svg",
@@ -61,6 +62,9 @@ pub const ICON_PATHS: &[&str] = &[
     "icons/layers.svg",
     "icons/layout-dashboard.svg",
     "icons/loader.svg",
+    "icons/lock.svg",
+    "icons/logo.svg",
+    "icons/mail.svg",
     "icons/messages-square.svg",
     "icons/minus.svg",
     "icons/package.svg",
@@ -107,6 +111,7 @@ fn icon_file(path: &str) -> Option<Cow<'static, [u8]>> {
         "icons/coins.svg" => include_bytes!("../assets/icons/coins.svg"),
         "icons/database.svg" => include_bytes!("../assets/icons/database.svg"),
         "icons/dollar-sign.svg" => include_bytes!("../assets/icons/dollar-sign.svg"),
+        "icons/eye.svg" => include_bytes!("../assets/icons/eye.svg"),
         "icons/file-bar-chart.svg" => include_bytes!("../assets/icons/file-bar-chart.svg"),
         "icons/file-code.svg" => include_bytes!("../assets/icons/file-code.svg"),
         "icons/file-search.svg" => include_bytes!("../assets/icons/file-search.svg"),
@@ -117,6 +122,9 @@ fn icon_file(path: &str) -> Option<Cow<'static, [u8]>> {
         "icons/layers.svg" => include_bytes!("../assets/icons/layers.svg"),
         "icons/layout-dashboard.svg" => include_bytes!("../assets/icons/layout-dashboard.svg"),
         "icons/loader.svg" => include_bytes!("../assets/icons/loader.svg"),
+        "icons/lock.svg" => include_bytes!("../assets/icons/lock.svg"),
+        "icons/logo.svg" => include_bytes!("../assets/icons/logo.svg"),
+        "icons/mail.svg" => include_bytes!("../assets/icons/mail.svg"),
         "icons/messages-square.svg" => include_bytes!("../assets/icons/messages-square.svg"),
         "icons/minus.svg" => include_bytes!("../assets/icons/minus.svg"),
         "icons/package.svg" => include_bytes!("../assets/icons/package.svg"),
@@ -142,4 +150,40 @@ fn icon_file(path: &str) -> Option<Cow<'static, [u8]>> {
         _ => return None,
     };
     Some(Cow::Borrowed(data))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 资产契约（BLF-712）：`ICON_PATHS` 中登记的每个图标都必须能通过 `AppAssets`
+    /// 解析出非空内容——防止「登记了路径但 `include_bytes` 表漏写」导致运行时图标空白。
+    #[test]
+    fn all_embedded_icons_resolve() {
+        let assets = AppAssets;
+        for path in ICON_PATHS {
+            let data = assets
+                .load(path)
+                .unwrap_or_else(|e| panic!("{path} 加载报错: {e}"))
+                .unwrap_or_else(|| panic!("{path} 未在 include_bytes 表中注册"));
+            assert!(!data.is_empty(), "{path} 内容为空");
+        }
+    }
+
+    /// 登录窗口专用图标（logo / mail / lock / eye）必须全部内嵌登记。
+    ///
+    /// - `eye.svg` 是 gpui-component `Input::mask_toggle` 的 `IconName::Eye` 解析路径
+    ///   （icons/eye.svg），缺了密码显隐按钮会渲染空白。
+    /// - `logo.svg` 承载 AppIcon 白色柱状图几何（渐变底由登录视图绘制）。
+    #[test]
+    fn login_window_icons_registered() {
+        for path in [
+            "icons/logo.svg",
+            "icons/mail.svg",
+            "icons/lock.svg",
+            "icons/eye.svg",
+        ] {
+            assert!(ICON_PATHS.contains(&path), "{path} 不在 ICON_PATHS 中");
+        }
+    }
 }

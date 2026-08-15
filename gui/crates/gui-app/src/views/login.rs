@@ -6,15 +6,29 @@
 //! P2-5（BLF-692）：表单控件全面换成 gpui-component 原生组件——
 //! `Input`（原生边框 + 焦点环 + Tab 焦点序列）+ `Button`（品牌蓝主按钮 +
 //! loading 态）+ `Alert`（错误提示）；原自绘 div 按钮与自绘 TextField 移除。
+//!
+//! P4-4（BLF-712）：登录窗口专项打磨——去掉 web 式白卡片，表单直接落在
+//! `window_bg` 画布（macOS 系统设置/登录面板的扁平原生样式）：
+//! - 顶部 AppIcon 图块：蓝渐变圆角方块 + 白色上升柱状图（复刻 AppIcon.icns /
+//!   make-icon.py 身份；渐变底用 gpui `linear_gradient`，白色图形层为内嵌 logo.svg）
+//! - 主标题 semibold + 副标题 secondaryLabel（macOS 排版节奏）
+//! - 邮箱/密码加语义图标前缀（mail/lock，text_muted）+ 密码 `mask_toggle` 显隐 +
+//!   邮箱 `cleanable` 可清空 + 示例邮箱占位符（无字段标签，占位符即语义）
+//! - 底部 muted 版本页脚；表单整体 150ms 淡入（`enter_fade_in`，尊重减弱动态）
 
 use gpui::prelude::*;
-use gpui::{div, px, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Render, Window};
+use gpui::{
+    div, linear_color_stop, linear_gradient, px, rgb, svg, App, Context, Entity, EventEmitter,
+    FocusHandle, Focusable, Render, SharedString, Window,
+};
 use gpui_component::alert::Alert;
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::StyledExt;
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
+use crate::motion::{enter_fade_in, reduce_motion};
 use crate::theme::AppTheme;
 
 /// 登录成功事件（携带带会话的 client + 用户信息）
@@ -73,9 +87,8 @@ impl LoginView {
         if self.email.is_some() {
             return;
         }
-        let email = cx.new(|cx| InputState::new(window, cx).placeholder("邮箱（必填）"));
-        let password = cx
-            .new(|cx| InputState::new(window, cx).placeholder("密码（必填）").masked(true));
+        let email = cx.new(|cx| InputState::new(window, cx).placeholder("you@example.com"));
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder("密码").masked(true));
 
         // 回车提交 / 输入变化清除错误（任一字段）
         let sub_email = cx.subscribe(&email, |this, _e, event: &InputEvent, cx| match event {
@@ -88,16 +101,17 @@ impl LoginView {
             }
             _ => {}
         });
-        let sub_password = cx.subscribe(&password, |this, _e, event: &InputEvent, cx| match event {
-            InputEvent::PressEnter { .. } => this.submit_login(cx),
-            InputEvent::Change => {
-                if matches!(this.status, LoginStatus::Error(_)) {
-                    this.status = LoginStatus::Idle;
-                    cx.notify();
+        let sub_password =
+            cx.subscribe(&password, |this, _e, event: &InputEvent, cx| match event {
+                InputEvent::PressEnter { .. } => this.submit_login(cx),
+                InputEvent::Change => {
+                    if matches!(this.status, LoginStatus::Error(_)) {
+                        this.status = LoginStatus::Idle;
+                        cx.notify();
+                    }
                 }
-            }
-            _ => {}
-        });
+                _ => {}
+            });
 
         self.email = Some(email.clone());
         self.password = Some(password);
@@ -156,6 +170,35 @@ impl LoginView {
 
 impl EventEmitter<LoginViewEvent> for LoginView {}
 
+/// AppIcon 图块（BLF-712）：蓝渐变圆角方块 + 白色上升柱状图。
+///
+/// 色值与几何与 `gui/scripts/make-icon.py` 完全一致：TOP #0D6EC7 → BOTTOM #06488C
+/// 垂直渐变（gpui `linear_gradient` 角度 180° = 自顶向下）；柱状图/箭头几何在
+/// `icons/logo.svg`（1024 画布同比例复刻）。gpui 0.2.2 的 `svg()` 只能单色渲染
+/// （alpha 蒙版 + text_color 着色），因此渐变底用 `linear_gradient` 绘制、白色
+/// 图形层用 logo.svg 以白色叠加——亮暗两态都与打包图标一致。
+fn login_logo_tile() -> impl gpui::IntoElement {
+    const ICON_TOP: u32 = 0x0d6ec7; // make-icon.py TOP（亮蓝）
+    const ICON_BOTTOM: u32 = 0x06488c; // make-icon.py BOTTOM（深蓝）
+    const TILE_SIZE: f32 = 64.0; // 登录窗顶部图块边长（px）
+    const TILE_RADIUS: f32 = 12.0; // ≈ make-icon RADIUS 比例（185/1024 ≈ 18%）
+
+    div()
+        .size(px(TILE_SIZE))
+        .rounded(px(TILE_RADIUS))
+        .bg(linear_gradient(
+            180.0,
+            linear_color_stop(rgb(ICON_TOP), 0.0),
+            linear_color_stop(rgb(ICON_BOTTOM), 1.0),
+        ))
+        .child(
+            svg()
+                .path("icons/logo.svg")
+                .size_full()
+                .text_color(rgb(0xffffff)),
+        )
+}
+
 impl Render for LoginView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
@@ -177,87 +220,111 @@ impl Render for LoginView {
         let this = cx.entity();
         let email = self.email.clone().unwrap();
         let password = self.password.clone().unwrap();
+        let reduce = reduce_motion(cx);
+
+        // 表单主体：直接落在 window_bg 画布上（无卡片边框/投影）——
+        // logo 图块 → 标题 → 输入区 → 主按钮 → 错误提示，macOS 节奏间距
+        let form = div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .w(px(360.))
+            .gap_4()
+            .child(login_logo_tile())
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_size(px(22.))
+                            .font_semibold()
+                            .text_color(theme.text_primary)
+                            .child("登录 BelieveBoy"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(13.))
+                            .text_color(theme.text_secondary)
+                            .child("使用你的 BelieveBoy 账号继续"),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .mt_2()
+                    .child(
+                        Input::new(&email)
+                            .prefix(
+                                svg()
+                                    .path("icons/mail.svg")
+                                    .size(px(14.))
+                                    .text_color(theme.text_muted),
+                            )
+                            .cleanable(true)
+                            .w_full(),
+                    )
+                    .child(
+                        Input::new(&password)
+                            .prefix(
+                                svg()
+                                    .path("icons/lock.svg")
+                                    .size(px(14.))
+                                    .text_color(theme.text_muted),
+                            )
+                            .mask_toggle()
+                            .w_full(),
+                    ),
+            )
+            .child(
+                Button::new("login-submit")
+                    .custom(btn_variant)
+                    .label(if submitting { "登录中…" } else { "登录" })
+                    .loading(submitting)
+                    .w_full()
+                    .h(px(36.))
+                    .on_click(move |_, _window, cx| {
+                        this.update(cx, LoginView::submit_login);
+                    }),
+            )
+            .children(status_text.map(|msg| Alert::error("login-error", msg)));
 
         div()
             .size_full()
             .flex()
             .flex_col()
             .items_center()
-            .justify_center()
             .bg(theme.window_bg)
             .child(
+                // 中央内容区：表单整体 150ms 淡入（减弱动态时瞬时）
                 div()
+                    .flex_1()
+                    .w_full()
                     .flex()
                     .flex_col()
-                    .w(px(360.))
-                    .bg(theme.card_bg)
-                    .rounded(px(theme.radius_lg))
-                    .border_1()
-                    .border_color(theme.separator)
-                    .p(px(32.))
-                    .gap_4()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(22.))
-                                    .text_color(theme.text_primary)
-                                    .child("登录 BelieveBoy"),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("使用你的 BelieveBoy 账号继续"),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("邮箱"),
-                            )
-                            .child(Input::new(&email).w_full()),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .text_color(theme.text_secondary)
-                                    .child("密码"),
-                            )
-                            .child(Input::new(&password).w_full()),
-                    )
-                    .child(
-                        Button::new("login-submit")
-                            .custom(btn_variant)
-                            .label(if submitting {
-                                "登录中…"
-                            } else {
-                                "登 录"
-                            })
-                            .loading(submitting)
-                            .w_full()
-                            .h(px(36.))
-                            .on_click(move |_, _window, cx| {
-                                this.update(cx, LoginView::submit_login);
-                            }),
-                    )
-                    .children(
-                        status_text.map(|msg| Alert::error("login-error", msg)),
-                    ),
+                    .items_center()
+                    .justify_center()
+                    .child(enter_fade_in(
+                        SharedString::from("login-form-fade"),
+                        form,
+                        reduce,
+                    )),
+            )
+            .child(
+                // 版本页脚（原生应用惯例）
+                div().w_full().pb(px(16.)).flex().justify_center().child(
+                    div()
+                        .text_size(px(11.))
+                        .text_color(theme.text_muted)
+                        .child(format!(
+                            "BelieveBoy 桌面端 · v{}",
+                            env!("CARGO_PKG_VERSION")
+                        )),
+                ),
             )
     }
 }
@@ -273,8 +340,8 @@ mod tests {
     use super::*;
     use gpui::Entity;
     use gpui_component::Root;
-    use std::{cell::RefCell, rc::Rc};
     use gui_api_client::Client;
+    use std::{cell::RefCell, rc::Rc};
 
     /// 建窗：首层必须是 gpui-component `Root`（Input 聚焦时经 `Root::read` 跟踪
     /// focused_input）。返回 LoginView 实体句柄。
@@ -293,7 +360,7 @@ mod tests {
         login
     }
 
-    /// 渲染冒烟（浅色）：原生 Input/Button/Alert 骨架可完整渲染不 panic。
+    /// 渲染冒烟（浅色）：原生 Input/Button/Alert 骨架 + AppIcon 图块可完整渲染不 panic。
     #[gpui::test]
     async fn login_renders_in_light_mode(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
@@ -330,5 +397,28 @@ mod tests {
                 assert!(matches!(this.status, LoginStatus::Error(_)));
             });
         });
+    }
+
+    /// 全帧绘制冒烟（BLF-712）：layout → prepaint → paint 一条龙执行——渐变图块、
+    /// 白色柱状图 overlay、前缀图标与原生 Input/Button/Alert 的绘制路径都跑一遍，
+    /// paint 阶段不 panic 即渲染结构无错误。
+    ///
+    /// 注：gpui 测试环境的 AssetSource 为空，logo.svg 的栅格化不在测试内发生；
+    /// 资源解析由 `assets::tests` 直接验证，几何正确性由 QuickLook 渲染比对确认。
+    #[gpui::test]
+    async fn login_draws_full_frame(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, vcx) = cx.add_window_view(|window, cx| {
+            let view = cx.new(|cx| LoginView::new(cx, Client::new("http://127.0.0.1:1"), None));
+            Root::new(view.clone(), window, cx)
+        });
+        vcx.draw(
+            gpui::point(px(0.0), px(0.0)),
+            gpui::Size::new(
+                gpui::AvailableSpace::MaxContent,
+                gpui::AvailableSpace::MaxContent,
+            ),
+            |_, _| view.clone(),
+        );
     }
 }

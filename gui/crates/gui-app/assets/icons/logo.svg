@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" stroke="none">
+  <!--
+    登录窗口 logo 图块（白色柱状图 + 上升趋势箭头），几何与 gui/scripts/make-icon.py
+    的 draw_bars 完全一致（1024 画布、chart 区域 460×340 居中、bar 宽 95、gap 26）。
+    蓝色渐变圆角方块底由登录视图用 gpui linear_gradient + rounded 绘制，
+    本 SVG 只承载白色图形层（运行时经 gpui svg() 以 currentColor 白色着色）。
+  -->
+  <g fill="currentColor">
+    <rect x="282" y="539" width="95" height="143" rx="31"/>
+    <rect x="403" y="485" width="95" height="197" rx="31"/>
+    <rect x="524" y="430" width="95" height="252" rx="31"/>
+    <rect x="645" y="369" width="95" height="313" rx="31"/>
+  </g>
+  <path d="M403 552 L524 484 L740 416" stroke="currentColor" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M786 393 L740 416 L786 462 Z" fill="currentColor"/>
+</svg>
