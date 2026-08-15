@@ -24,6 +24,9 @@ from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from app.api.v1.endpoints.external_retired import external_retired_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.internal.api_keys import router as internal_api_keys_router
+from app.api.v1.endpoints.internal.user_api_keys import (
+    router as internal_user_api_keys_router,
+)
 from app.api.v1.endpoints.internal.ad_data import router as internal_ad_data_router
 from app.api.v1.endpoints.internal_jobs import router as internal_jobs_router
 from app.api.v1.endpoints.jobs import router as jobs_router
@@ -96,5 +99,6 @@ include_lazy_router(api_router, "app.api.v1.router_groups.crm_group")
 api_router.include_router(notifications_router)
 api_router.include_router(internal_jobs_router)
 api_router.include_router(internal_api_keys_router)
+api_router.include_router(internal_user_api_keys_router)
 # BLF-459 V3：/external/* 下线后浏览器 ad-data 页的内部读路由。
 api_router.include_router(internal_ad_data_router)

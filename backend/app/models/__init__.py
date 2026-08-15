@@ -86,6 +86,7 @@ from app.models.return_analysis import ReturnAnalysisRecord, ReturnCustomerComme
 from app.models.analysis_return_aggregate import AnalysisReturnAggregate
 from app.models.agent_api_key import AgentApiKey
 from app.models.agent_api_audit_log import AgentApiAuditLog
+from app.models.user_api_key import UserApiKey
 from app.models.digital_employee import (
     DigitalEmployee,
     DigitalEmployeeTask,
@@ -177,6 +178,7 @@ __all__ = [
     "AnalysisReturnAggregate",
     "AgentApiKey",
     "AgentApiAuditLog",
+    "UserApiKey",
     "ProjectGoal",
     "MonthlyReport",
     "MonthlyReportTransaction",
