@@ -19,7 +19,8 @@ gui/
 │   ├── gui-api-client/     # reqwest 封装，调后端 HTTP，依赖 gui-domain
 │   └── gui-app/            # GPUI 应用入口、视图、状态、main
 └── docs/
-    └── mvp-plan.md         # 阶段计划（与根 docs/gui-mvp-plan.md 同步）
+    ├── mvp-plan.md         # 阶段计划（与根 docs/gui-mvp-plan.md 同步）
+    └── add-business-module.md  # 新增业务模块指南（BLF-759 公共基建交付）
 ```
 
 依赖方向：`gui-app` → `gui-api-client` → `gui-domain`（单向，不允许反向）。

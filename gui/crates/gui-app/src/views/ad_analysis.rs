@@ -40,6 +40,8 @@ use gui_domain::advertising::{
 
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
+use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
+use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告分析条目一致）
@@ -116,6 +118,16 @@ pub struct AdAnalysisView {
     selected_project_id: Option<i64>,
     /// 当前站点（"US" / "DE" / "UK"）
     country: &'static str,
+    /// 日期区间筛选（默认近 7 天；ad_analysis_overview 支持 date_from/date_to）
+    date_range: DateRange,
+    /// 日期区间选择器（懒建 + 订阅 Change）
+    date_picker: Option<Entity<DateRangePickerState>>,
+    /// 三个 Top 表（高消耗活动 / SKU / 浪费搜索词；懒建 DataTable）
+    top_campaigns_table: Option<Entity<DataTable<AdTopCampaignRow>>>,
+    top_products_table: Option<Entity<DataTable<AdTopProductRow>>>,
+    top_waste_terms_table: Option<Entity<DataTable<AdTopWasteTermRow>>>,
+    /// 日期区间选择器事件订阅（必须持有，否则变更不送达）
+    _subscriptions: Vec<gpui::Subscription>,
     /// 请求竞态保护：只有等于最新值的响应才被应用
     latest_request_id: u64,
 }
@@ -124,12 +136,28 @@ impl AdAnalysisView {
     /// 新建视图：初始 `Loading`，由 root.rs 懒创建后触发 `reload()`
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let state = cx.new(|_| AdAnalysisState::Loading);
+        // 默认近 7 天（对齐旧行为）；订阅日期区间选择器的变更
+        let (from, to) = last_7_days_window(chrono::Local::now().date_naive());
+        let date_range = DateRange::new(Some(from), Some(to));
+        let date_picker = cx.new(DateRangePickerState::new);
+        let subscription = cx.subscribe(&date_picker, |this, _entity, ev, cx| {
+            let range = match ev {
+                DateRangeEvent::Change(range) => *range,
+            };
+            this.apply_date_range(range, cx);
+        });
         Self {
             state,
             client,
             projects: Vec::new(),
             selected_project_id: None,
             country: DEFAULT_COUNTRY,
+            date_range,
+            date_picker: Some(date_picker),
+            top_campaigns_table: None,
+            top_products_table: None,
+            top_waste_terms_table: None,
+            _subscriptions: vec![subscription],
             latest_request_id: 0,
         }
     }
@@ -149,6 +177,11 @@ impl AdAnalysisView {
         let request_id = self.latest_request_id;
         let selected = self.selected_project_id;
         let country = self.country;
+        // 未设置区间时回退近 7 天（防御：外部 set_range 清空等）
+        let (date_from, date_to) = match (self.date_range.from, self.date_range.to) {
+            (Some(f), Some(t)) => (f, t),
+            _ => last_7_days_window(chrono::Local::now().date_naive()),
+        };
 
         self.state.update(cx, |state, cx| {
             *state = AdAnalysisState::Loading;
@@ -161,7 +194,7 @@ impl AdAnalysisView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime()
-                        .block_on(load_ad_analysis(&client, selected, country))
+                        .block_on(load_ad_analysis(&client, selected, country, date_from, date_to))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -188,6 +221,58 @@ impl AdAnalysisView {
         }
         self.country = country;
         self.reload(cx);
+    }
+
+    /// 应用日期区间（同一区间 no-op）→ reload
+    pub fn apply_date_range(&mut self, range: DateRange, cx: &mut Context<Self>) {
+        if self.date_range == range {
+            return;
+        }
+        self.date_range = range;
+        self.reload(cx);
+    }
+
+    /// 把概览 Top 行同步进三张 DataTable（懒建 + 幂等注入；render 期调用）
+    fn sync_top_tables(&mut self, data: &AdAnalysisData, cx: &mut Context<Self>) {
+        let campaigns = self
+            .top_campaigns_table
+            .get_or_insert_with(|| {
+                cx.new(|_| {
+                    DataTable::new("ad-top-campaigns-table", campaign_columns())
+                        .striped(true)
+                        .empty_text("暂无活动明细")
+                        .max_height(280.0)
+                })
+            });
+        campaigns.update(cx, |table, cx| {
+            table.set_rows_if_changed(&data.overview.top_campaigns, cx);
+        });
+        let products = self
+            .top_products_table
+            .get_or_insert_with(|| {
+                cx.new(|_| {
+                    DataTable::new("ad-top-products-table", product_columns())
+                        .striped(true)
+                        .empty_text("暂无推广商品明细")
+                        .max_height(280.0)
+                })
+            });
+        products.update(cx, |table, cx| {
+            table.set_rows_if_changed(&data.overview.top_products, cx);
+        });
+        let waste = self
+            .top_waste_terms_table
+            .get_or_insert_with(|| {
+                cx.new(|_| {
+                    DataTable::new("ad-top-waste-table", waste_columns())
+                        .striped(true)
+                        .empty_text("暂无浪费词明细")
+                        .max_height(280.0)
+                })
+            });
+        waste.update(cx, |table, cx| {
+            table.set_rows_if_changed(&data.overview.top_waste_terms, cx);
+        });
     }
 
     /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前记录项目列表。
@@ -218,13 +303,13 @@ async fn load_ad_analysis(
     client: &Client,
     selected_project_id: Option<i64>,
     country: &str,
+    date_from: chrono::NaiveDate,
+    date_to: chrono::NaiveDate,
 ) -> Result<AdAnalysisData, String> {
     let projects = client
         .list_managed_projects()
         .await
         .map_err(|e| e.user_message())?;
-    let today = chrono::Local::now().date_naive();
-    let (date_from, date_to) = last_7_days_window(today);
 
     let Some(project_id) = selected_project_id else {
         return Ok(AdAnalysisData {
@@ -314,6 +399,7 @@ impl Render for AdAnalysisView {
                 &self.projects,
                 self.selected_project_id,
                 self.country,
+                self.date_picker.clone(),
             ))
             // 状态区
             .child(match state {
@@ -324,7 +410,13 @@ impl Render for AdAnalysisView {
                 AdAnalysisState::Empty => {
                     render_empty(cx, &theme, self.selected_project_id.is_none()).into_any_element()
                 }
-                AdAnalysisState::Loaded(data) => render_loaded(&theme, &data).into_any_element(),
+                AdAnalysisState::Loaded(data) => {
+                    self.sync_top_tables(&data, cx);
+                    let campaigns = self.top_campaigns_table.clone().expect("已同步");
+                    let products = self.top_products_table.clone().expect("已同步");
+                    let waste = self.top_waste_terms_table.clone().expect("已同步");
+                    render_loaded(&theme, &data, campaigns, products, waste).into_any_element()
+                }
             })
     }
 }
@@ -441,7 +533,13 @@ fn render_empty(
 }
 
 /// Loaded：指标卡 + 周期对比 + 近 7 日趋势 + Top 表 + 分析/风险
-fn render_loaded(app_theme: &AppTheme, data: &AdAnalysisData) -> impl IntoElement {
+fn render_loaded(
+    app_theme: &AppTheme,
+    data: &AdAnalysisData,
+    campaigns: Entity<DataTable<AdTopCampaignRow>>,
+    products: Entity<DataTable<AdTopProductRow>>,
+    waste: Entity<DataTable<AdTopWasteTermRow>>,
+) -> impl IntoElement {
     let overview = &data.overview;
     v_flex()
         .id("ad-analysis-loaded")
@@ -463,9 +561,9 @@ fn render_loaded(app_theme: &AppTheme, data: &AdAnalysisData) -> impl IntoElemen
                 .id("ad-analysis-top-grid")
                 .gap_4()
                 .flex_wrap()
-                .child(top_campaigns_card(&overview.top_campaigns, app_theme))
-                .child(top_products_card(&overview.top_products, app_theme))
-                .child(top_waste_terms_card(&overview.top_waste_terms, app_theme)),
+                .child(top_campaigns_card(app_theme, campaigns))
+                .child(top_products_card(app_theme, products))
+                .child(top_waste_terms_card(app_theme, waste)),
         )
         // 结构化分析 + 风险提醒
         .child(
@@ -487,12 +585,14 @@ fn render_loaded(app_theme: &AppTheme, data: &AdAnalysisData) -> impl IntoElemen
 ///
 /// on_click 是静态闭包（`&mut App`），通过捕获 `Entity<AdAnalysisView>` 更新视图
 /// （BLF-692 沉淀的「Button on_click 捕获 cx.entity()」范式，同 daily_analysis.rs）。
+#[allow(clippy::too_many_arguments)]
 fn render_filter_bar(
     view: &Entity<AdAnalysisView>,
     app_theme: &AppTheme,
     projects: &[ManagedProject],
     selected_project_id: Option<i64>,
     country: &'static str,
+    date_picker: Option<Entity<DateRangePickerState>>,
 ) -> impl IntoElement {
     let projects_owned = projects.to_vec();
     let project_label: SharedString = match selected_project_id {
@@ -590,6 +690,10 @@ fn render_filter_bar(
                         ),
                 ),
         )
+        // 日期区间（DateRangePicker 公共组件；变更经订阅回连 reload）
+        .when(date_picker.is_some(), |this| {
+            this.child(date_picker.clone().expect("已创建"))
+        })
         .child(div().flex_1())
         .child(
             Button::new("ad-analysis-refresh")
@@ -884,20 +988,19 @@ fn trend_row(row: &AdTrendRow, tinted: bool, app_theme: &AppTheme) -> impl IntoE
 }
 
 // ---------------------------------------------------------------------------
-// Top 表（高消耗活动 / 高消耗 SKU / 浪费搜索词，div 自绘 mini 表）
+// Top 表（高消耗活动 / 高消耗 SKU / 浪费搜索词，复用公共 DataTable）
 // ---------------------------------------------------------------------------
 
-/// mini 表容器：标题 + 说明 + 表体
-fn mini_table_card(
-    id: &str,
-    title: &str,
-    subtitle: &str,
+/// Top 表卡片外壳：标题 + 说明 + DataTable 实体
+fn top_table_card<T: Clone + PartialEq + 'static>(
+    id: &'static str,
+    title: &'static str,
+    subtitle: &'static str,
     app_theme: &AppTheme,
-    header: impl IntoElement,
-    rows: impl IntoElement,
+    table: Entity<DataTable<T>>,
 ) -> impl IntoElement {
     v_flex()
-        .id(SharedString::from(id.to_string()))
+        .id(id)
         .flex_1()
         .min_w(px(300.))
         .rounded(px(app_theme.radius_lg))
@@ -924,216 +1027,131 @@ fn mini_table_card(
                         .child(subtitle.to_string()),
                 ),
         )
-        .child(
-            div()
-                .id("ad-mini-table-scroll")
-                .max_h(px(280.))
-                .overflow_y_scroll()
-                .child(v_flex().gap_0().child(header).child(rows)),
-        )
+        .child(table)
 }
 
-fn top_campaigns_card(rows: &[AdTopCampaignRow], app_theme: &AppTheme) -> impl IntoElement {
-    mini_table_card(
+/// 高消耗活动列定义（对齐旧 mini 表头：活动 / Spend / Sales / 订单 / ACOS）
+fn campaign_columns() -> Vec<ColumnDef<AdTopCampaignRow>> {
+    vec![
+        ColumnDef::text("campaign", "活动", |r: &AdTopCampaignRow, _| {
+            SharedString::from(r.campaign_name.clone().unwrap_or_else(|| "—".to_string()))
+        }),
+        ColumnDef::text("spend", "Spend", |r: &AdTopCampaignRow, _| {
+            SharedString::from(fmt_money_precise(r.spend))
+        })
+        .width(88.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("sales", "Sales", |r: &AdTopCampaignRow, _| {
+            SharedString::from(fmt_money_precise(r.sales_7d))
+        })
+        .width(88.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("orders", "订单", |r: &AdTopCampaignRow, _| {
+            SharedString::from(fmt_num_precise(r.orders_7d))
+        })
+        .width(56.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("acos", "ACOS", |r: &AdTopCampaignRow, _| {
+            SharedString::from(format!("{:.2}%", r.acos * 100.0))
+        })
+        .width(64.0)
+        .align(CellAlign::Right),
+    ]
+}
+
+/// 高消耗 SKU 列定义（SKU / Spend / Sales / 订单 / ACOS）
+fn product_columns() -> Vec<ColumnDef<AdTopProductRow>> {
+    vec![
+        ColumnDef::text("sku", "SKU", |r: &AdTopProductRow, _| {
+            SharedString::from(r.ad_sku.clone().unwrap_or_else(|| "—".to_string()))
+        }),
+        ColumnDef::text("spend", "Spend", |r: &AdTopProductRow, _| {
+            SharedString::from(fmt_money_precise(r.spend))
+        })
+        .width(88.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("sales", "Sales", |r: &AdTopProductRow, _| {
+            SharedString::from(fmt_money_precise(r.sales_7d))
+        })
+        .width(88.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("orders", "订单", |r: &AdTopProductRow, _| {
+            SharedString::from(fmt_num_precise(r.orders_7d))
+        })
+        .width(56.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("acos", "ACOS", |r: &AdTopProductRow, _| {
+            SharedString::from(format!("{:.2}%", r.acos * 100.0))
+        })
+        .width(64.0)
+        .align(CellAlign::Right),
+    ]
+}
+
+/// 浪费搜索词列定义（搜索词 / 活动 / 点击 / Spend / 订单）
+fn waste_columns() -> Vec<ColumnDef<AdTopWasteTermRow>> {
+    vec![
+        ColumnDef::text("term", "搜索词", |r: &AdTopWasteTermRow, _| {
+            SharedString::from(r.search_term.clone().unwrap_or_else(|| "—".to_string()))
+        }),
+        ColumnDef::text("campaign", "活动", |r: &AdTopWasteTermRow, _| {
+            SharedString::from(r.campaign_name.clone().unwrap_or_else(|| "—".to_string()))
+        })
+        .width(120.0),
+        ColumnDef::text("clicks", "点击", |r: &AdTopWasteTermRow, _| {
+            SharedString::from(fmt_num_precise(r.clicks))
+        })
+        .width(56.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("spend", "Spend", |r: &AdTopWasteTermRow, _| {
+            SharedString::from(fmt_money_precise(r.spend))
+        })
+        .width(88.0)
+        .align(CellAlign::Right),
+        ColumnDef::text("orders", "订单", |r: &AdTopWasteTermRow, _| {
+            SharedString::from(fmt_num_precise(r.orders_7d))
+        })
+        .width(56.0)
+        .align(CellAlign::Right),
+    ]
+}
+
+fn top_campaigns_card(
+    app_theme: &AppTheme,
+    table: Entity<DataTable<AdTopCampaignRow>>,
+) -> impl IntoElement {
+    top_table_card(
         "ad-analysis-top-campaigns",
         "高消耗活动",
         "按花费排序的 Top 广告活动",
         app_theme,
-        h_flex()
-            .id("ad-top-campaign-header")
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(app_theme.separator)
-            .text_xs()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(app_theme.text_muted)
-            .child(div().flex_1().truncate().child("活动"))
-            .child(div().w(px(88.)).text_right().child("Spend"))
-            .child(div().w(px(88.)).text_right().child("Sales"))
-            .child(div().w(px(56.)).text_right().child("订单"))
-            .child(div().w(px(64.)).text_right().child("ACOS")),
-        v_flex()
-            .gap_0()
-            .children(rows.iter().enumerate().map(|(ix, r)| {
-                let bg = if ix % 2 == 1 {
-                    app_theme.muted_fill.opacity(0.5)
-                } else {
-                    app_theme.card_bg
-                };
-                h_flex()
-                    .id(SharedString::from(format!("ad-top-campaign-{ix}")))
-                    .px_4()
-                    .py_1p5()
-                    .gap_3()
-                    .bg(bg)
-                    .text_sm()
-                    .text_color(app_theme.text_secondary)
-                    .child(
-                        div()
-                            .flex_1()
-                            .truncate()
-                            .text_color(app_theme.text_primary)
-                            .child(r.campaign_name.clone().unwrap_or_else(|| "—".to_string())),
-                    )
-                    .child(div().w(px(88.)).text_right().child(fmt_money_precise(r.spend)))
-                    .child(div().w(px(88.)).text_right().child(fmt_money_precise(r.sales_7d)))
-                    .child(div().w(px(56.)).text_right().child(fmt_num_precise(r.orders_7d)))
-                    .child(
-                        div()
-                            .w(px(64.))
-                            .text_right()
-                            .child(format!("{:.2}%", r.acos * 100.0)),
-                    )
-            }))
-            .when(rows.is_empty(), |this| {
-                this.child(
-                    div()
-                        .px_4()
-                        .py_6()
-                        .text_center()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("暂无活动明细"),
-                )
-            }),
+        table,
     )
 }
 
-fn top_products_card(rows: &[AdTopProductRow], app_theme: &AppTheme) -> impl IntoElement {
-    mini_table_card(
+fn top_products_card(
+    app_theme: &AppTheme,
+    table: Entity<DataTable<AdTopProductRow>>,
+) -> impl IntoElement {
+    top_table_card(
         "ad-analysis-top-products",
         "高消耗 SKU",
         "按花费排序的 Top 推广商品",
         app_theme,
-        h_flex()
-            .id("ad-top-product-header")
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(app_theme.separator)
-            .text_xs()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(app_theme.text_muted)
-            .child(div().flex_1().truncate().child("SKU"))
-            .child(div().w(px(88.)).text_right().child("Spend"))
-            .child(div().w(px(88.)).text_right().child("Sales"))
-            .child(div().w(px(56.)).text_right().child("订单"))
-            .child(div().w(px(64.)).text_right().child("ACOS")),
-        v_flex()
-            .gap_0()
-            .children(rows.iter().enumerate().map(|(ix, r)| {
-                let bg = if ix % 2 == 1 {
-                    app_theme.muted_fill.opacity(0.5)
-                } else {
-                    app_theme.card_bg
-                };
-                h_flex()
-                    .id(SharedString::from(format!("ad-top-product-{ix}")))
-                    .px_4()
-                    .py_1p5()
-                    .gap_3()
-                    .bg(bg)
-                    .text_sm()
-                    .text_color(app_theme.text_secondary)
-                    .child(
-                        div()
-                            .flex_1()
-                            .truncate()
-                            .text_color(app_theme.text_primary)
-                            .child(r.ad_sku.clone().unwrap_or_else(|| "—".to_string())),
-                    )
-                    .child(div().w(px(88.)).text_right().child(fmt_money_precise(r.spend)))
-                    .child(div().w(px(88.)).text_right().child(fmt_money_precise(r.sales_7d)))
-                    .child(div().w(px(56.)).text_right().child(fmt_num_precise(r.orders_7d)))
-                    .child(
-                        div()
-                            .w(px(64.))
-                            .text_right()
-                            .child(format!("{:.2}%", r.acos * 100.0)),
-                    )
-            }))
-            .when(rows.is_empty(), |this| {
-                this.child(
-                    div()
-                        .px_4()
-                        .py_6()
-                        .text_center()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("暂无推广商品明细"),
-                )
-            }),
+        table,
     )
 }
 
-fn top_waste_terms_card(rows: &[AdTopWasteTermRow], app_theme: &AppTheme) -> impl IntoElement {
-    mini_table_card(
+fn top_waste_terms_card(
+    app_theme: &AppTheme,
+    table: Entity<DataTable<AdTopWasteTermRow>>,
+) -> impl IntoElement {
+    top_table_card(
         "ad-analysis-top-waste-terms",
         "浪费搜索词",
         "有花费但订单贡献为 0 的搜索词",
         app_theme,
-        h_flex()
-            .id("ad-top-waste-header")
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(app_theme.separator)
-            .text_xs()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(app_theme.text_muted)
-            .child(div().flex_1().truncate().child("搜索词"))
-            .child(div().w(px(120.)).truncate().child("活动"))
-            .child(div().w(px(56.)).text_right().child("点击"))
-            .child(div().w(px(88.)).text_right().child("Spend"))
-            .child(div().w(px(56.)).text_right().child("订单")),
-        v_flex()
-            .gap_0()
-            .children(rows.iter().enumerate().map(|(ix, r)| {
-                let bg = if ix % 2 == 1 {
-                    app_theme.muted_fill.opacity(0.5)
-                } else {
-                    app_theme.card_bg
-                };
-                h_flex()
-                    .id(SharedString::from(format!("ad-top-waste-{ix}")))
-                    .px_4()
-                    .py_1p5()
-                    .gap_3()
-                    .bg(bg)
-                    .text_sm()
-                    .text_color(app_theme.text_secondary)
-                    .child(
-                        div()
-                            .flex_1()
-                            .truncate()
-                            .text_color(app_theme.text_primary)
-                            .child(r.search_term.clone().unwrap_or_else(|| "—".to_string())),
-                    )
-                    .child(
-                        div()
-                            .w(px(120.))
-                            .truncate()
-                            .child(r.campaign_name.clone().unwrap_or_else(|| "—".to_string())),
-                    )
-                    .child(div().w(px(56.)).text_right().child(fmt_num_precise(r.clicks)))
-                    .child(div().w(px(88.)).text_right().child(fmt_money_precise(r.spend)))
-                    .child(div().w(px(56.)).text_right().child(fmt_num_precise(r.orders_7d)))
-            }))
-            .when(rows.is_empty(), |this| {
-                this.child(
-                    div()
-                        .px_4()
-                        .py_6()
-                        .text_center()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("暂无达到观察门槛的浪费搜索词"),
-                )
-            }),
+        table,
     )
 }
 
