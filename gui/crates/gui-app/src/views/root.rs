@@ -35,8 +35,9 @@ use crate::views::dashboard::DashboardView;
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::placeholder::PlaceholderView;
-use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
-use crate::views::portfolio_overview::{PortfolioOverviewView, PORTFOLIO_URL};
+use crate::views::platform_inspection::{PLATFORM_INSPECTION_URL, PlatformInspectionView};
+use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
+use crate::views::portfolio_overview::{PORTFOLIO_URL, PortfolioOverviewView};
 use crate::views::project_goals::{PROJECT_GOALS_URL, ProjectGoalsView};
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
@@ -91,6 +92,8 @@ pub struct RootView {
     return_analysis: Option<Entity<ReturnAnalysisView>>,
     /// 运营 → 库存分析真实视图（P5-2；点击「运营 → 库存分析」懒创建）
     inventory_analysis: Option<Entity<InventoryAnalysisView>>,
+    /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
+    platform_inspection: Option<Entity<PlatformInspectionView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
@@ -117,6 +120,8 @@ pub struct RootView {
     show_return_analysis: bool,
     /// 内容区当前是否显示库存分析视图（sidebar Select 命中 INVENTORY_ANALYSIS_URL 时置真）
     show_inventory_analysis: bool,
+    /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
+    show_platform_inspection: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
@@ -167,13 +172,15 @@ impl RootView {
                             .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
                         this.show_site_navigation = true;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
                     } else if url == STORE_NAV_URL {
@@ -191,13 +198,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = true;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -216,13 +224,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = true;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -241,16 +250,17 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = true;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
-                        this.show_portfolio_overview = true;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -268,13 +278,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = true;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -291,13 +302,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = true;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -316,13 +328,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = true;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -341,13 +354,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = true;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -367,6 +381,7 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -374,6 +389,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = true;
                         this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
                     } else if url == PROJECT_GOALS_URL {
@@ -391,6 +407,7 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -416,13 +433,14 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = true;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -441,19 +459,49 @@ impl RootView {
                         });
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
-                        this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = true;
+                    } else if url == PLATFORM_INSPECTION_URL
+                        || url.starts_with(PLATFORM_INSPECTION_URL)
+                    {
+                        // P5-1：平台巡检视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.platform_inspection.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = PlatformInspectionView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_platform_inspection = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -492,6 +540,7 @@ impl RootView {
             project_goals: None,
             return_analysis: None,
             inventory_analysis: None,
+            platform_inspection: None,
             show_dashboard,
             show_site_navigation: false,
             show_store_navigation: false,
@@ -505,6 +554,7 @@ impl RootView {
             show_project_goals: false,
             show_return_analysis: false,
             show_inventory_analysis: false,
+            show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
             sidebar_collapsed: false,
@@ -552,6 +602,8 @@ impl RootView {
             "return-analysis"
         } else if self.show_inventory_analysis {
             "inventory-analysis"
+        } else if self.show_platform_inspection {
+            "platform-inspection"
         } else {
             "placeholder"
         }
@@ -626,6 +678,11 @@ impl RootView {
             )
         } else if self.show_inventory_analysis {
             self.inventory_analysis.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_platform_inspection {
+            self.platform_inspection.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -1156,6 +1213,11 @@ mod tests {
                 "store-navigation",
             ),
             (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
                 "/dashboard/operations/daily-analysis",
                 "销售数据",
                 "daily-analysis",
@@ -1196,6 +1258,11 @@ mod tests {
                 "库存分析",
                 "inventory-analysis",
             ),
+            (
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "platform-inspection",
+            ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
@@ -1205,8 +1272,8 @@ mod tests {
     /// P5-1：view_key 两步切换契约——`view_key_follows_active_view` 仅覆盖 dashboard
     /// → 各视图的单步切换；新增「业务视图 A → 业务视图 B」两步路径锁各分支 reset
     /// 列表完整（避免新增视图分支漏 reset 既有 `show_*`，触发 view_key/content_view
-    /// if/else 链中靠前的 show_* 误命中）。9 对：7 对既有相邻业务视图 + 2 对
-    /// project_goals ↔ return-analysis 双向（PR #337 合并后新增分支的跨 reset 契约）。
+    /// if/else 链中靠前的 show_* 误命中）。覆盖既有相邻业务视图对（退货/库存/定时报告/
+    /// 项目目标/组合分析）与平台巡检（PLATFORM_INSPECTION_URL 分支对既有视图的复位）。
     #[gpui::test]
     async fn view_key_two_step_transitions(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
@@ -1305,6 +1372,55 @@ mod tests {
                 "/dashboard/operations/inventory-analysis",
                 "库存分析",
                 "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "platform-inspection",
+            ),
+            (
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "platform-inspection",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "platform-inspection",
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
