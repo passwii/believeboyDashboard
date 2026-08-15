@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- BelieveBoy 应用图标（复刻 gui/scripts/make-icon.py → AppIcon.icns：
+       Big Sur 风格蓝渐变圆角方块 + 白色上升柱状图；几何参数与脚本一致。
+       内容整体裁剪到圆角方块内——等价脚本末尾 Image.composite 的最终 mask。 -->
+  <defs>
+    <linearGradient id="bb-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0D6EC7"/>
+      <stop offset="1" stop-color="#06488C"/>
+    </linearGradient>
+    <clipPath id="bb-clip">
+      <rect width="1024" height="1024" rx="185"/>
+    </clipPath>
+  </defs>
+  <rect width="1024" height="1024" rx="185" fill="url(#bb-bg)"/>
+  <g clip-path="url(#bb-clip)">
+    <ellipse cx="149.5" cy="149.5" rx="490.5" ry="490.5" fill="#FFFFFF" opacity="0.15"/>
+    <g fill="#FFFFFF">
+      <rect x="282" y="540" width="95" height="142" rx="31"/>
+      <rect x="403" y="485" width="95" height="197" rx="31"/>
+      <rect x="524" y="431" width="95" height="251" rx="31"/>
+      <rect x="645" y="370" width="95" height="312" rx="31"/>
+    </g>
+    <path d="M403 552 L524 484 L740 416" fill="none" stroke="#FFFFFF" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="786,393 740,416 786,462" fill="#FFFFFF"/>
+  </g>
+</svg>
