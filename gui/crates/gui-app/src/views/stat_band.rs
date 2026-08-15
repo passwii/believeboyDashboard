@@ -236,7 +236,12 @@ fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
 /// `StatefulInteractiveElement`，需先 `.id()` 提升为 `Stateful<Div>`）。
 ///
 /// P2-4：涨/跌改为徽章样式（语义色浅底胶囊），持平/不可得保持纯文字（无底）。
-fn render_delta(delta: Option<f64>, theme: &AppTheme, label: &'static str) -> impl IntoElement {
+/// P3-2：图表卡头部复用（label 用图表标题保证元素 id 唯一）。
+pub(crate) fn render_delta(
+    delta: Option<f64>,
+    theme: &AppTheme,
+    label: &'static str,
+) -> impl IntoElement {
     match delta {
         None => div()
             .text_sm()

@@ -26,7 +26,8 @@
 //!   GUI-7/9（数字带 / Top 项目）可以订阅或直接读取。
 //! - 展示组件全部来自 gpui-component（用户 2026-08-14 指定组件库）：
 //!   Loading → `Skeleton`；Error → `Alert`（内联）；Empty → `Icon` + 文案；主题 → `ActiveTheme`。
-//! - GUI-8（1.0-c）已接入 6 张图表占位卡（`widgets::chart_placeholder`，v1.1 换真图表）。
+//! - P3-2（BLF-702）已把 GUI-8 的 6 张图表占位卡换成真图表
+//!   （`widgets::charts`，gpui-component Line/Area/Pie/Bar）。
 
 use chrono::{Days, NaiveDate};
 use gpui::{div, prelude::*, px, App, AsyncApp, Context, Entity, Render, WeakEntity, Window};
@@ -36,7 +37,8 @@ use gpui_component::{
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
-use gui_domain::dashboard::{DailyAnalysisResponse, KpiSummary};
+use gui_domain::dashboard::{CountryBreakdownEntry, DailyAnalysisResponse, KpiSummary};
+use std::collections::HashMap;
 
 use crate::theme::AppTheme;
 use crate::views::stat_band::{stat_band, stat_band_skeleton};
@@ -61,6 +63,19 @@ pub fn previous_7_days_window(window: (NaiveDate, NaiveDate)) -> (NaiveDate, Nai
     (prev_from, prev_to)
 }
 
+/// 跨国家分布数据（P3-2 图表数据源；来自 `/all-countries`，仅支持单项目）
+///
+/// 代表项目 = 选中项目（“全部项目”时取第一个项目），对齐 frontend
+/// `loadCountriesData` 的 `effectiveProjectId` 口径。拉取失败时整个字段为
+/// `None`（静默降级，跨国家卡显示「暂无国家数据」，不阻塞主数据）。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CountryBreakdownData {
+    /// 代表项目名（跨国家卡描述文案；“全部项目”时取第一个项目名）
+    pub representative_project_name: String,
+    /// `country_breakdown` 原始载荷（P3-2 图表卡消费）
+    pub breakdown: HashMap<String, CountryBreakdownEntry>,
+}
+
 /// Dashboard 数据载荷（Loaded 持有；GUI-7/8/9 消费渲染）
 #[derive(Debug, Clone, PartialEq)]
 pub struct DashboardData {
@@ -71,6 +86,9 @@ pub struct DashboardData {
     /// 对比期（前一 7 天窗口）聚合数据（GUI-9 Top 项目环比用）；
     /// 对比期拉取失败时为 `None`（环比显示「—」，不阻塞主数据）
     pub compare: Option<DailyAnalysisResponse>,
+    /// 跨国家分布（P3-2 图表卡；代表项目 = 选中或第一个项目）；
+    /// 拉取失败时为 `None`（跨国家卡显示「暂无国家数据」，不阻塞主数据）
+    pub country: Option<CountryBreakdownData>,
 }
 
 impl DashboardData {
@@ -271,6 +289,7 @@ async fn load_dashboard(
             projects: Vec::new(),
             daily: None,
             compare: None,
+            country: None,
         });
     }
     let ids = match selected_project_id {
@@ -291,10 +310,32 @@ async fn load_dashboard(
         client.daily_analysis_all(&ids, "US", compare_from, compare_to),
     );
     let daily = daily.map_err(|e| e.user_message())?;
+    // 跨国家分布（/all-countries，仅支持单项目）：代表项目 = 选中项目，
+    // “全部项目”时取第一个项目（对齐 frontend loadCountriesData 口径）；
+    // 失败静默降级为 None（跨国家卡「暂无国家数据」，不阻塞主数据）
+    let representative_id = selected_project_id.or_else(|| projects.first().map(|p| p.id));
+    let representative_name = projects
+        .iter()
+        .find(|p| Some(p.id) == representative_id)
+        .or_else(|| projects.first())
+        .map(|p| p.name.clone())
+        .unwrap_or_default();
+    let country = match representative_id {
+        Some(project_id) => client
+            .daily_analysis_all_countries(project_id, from, to)
+            .await
+            .ok()
+            .map(|resp| CountryBreakdownData {
+                representative_project_name: representative_name,
+                breakdown: resp.country_breakdown,
+            }),
+        None => None,
+    };
     Ok(DashboardData {
         projects,
         daily: Some(daily),
         compare: compare.ok(),
+        country,
     })
 }
 
@@ -366,7 +407,7 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         )
 }
 
-/// 图表占位卡骨架（标题骨架 + 描述骨架 + 图表区骨架），与 `chart_placeholder_card` 同构
+/// 图表占位卡骨架（标题骨架 + 描述骨架 + 图表区骨架），与 `chart_card` 同构
 fn chart_card_skeleton(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .w_full()
@@ -518,8 +559,8 @@ fn render_loaded(
         )
         // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
         .child(stat_band(&kpi, &comparison, app_theme))
-        // GUI-8：6 个图表位置占位卡（v1.1 接 gpui-component Chart 真图表）
-        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(app_theme))
+        // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar，数据源 = daily-analysis 管线）
+        .child(crate::widgets::charts::render_chart_grid(data, app_theme))
         // Top 项目列表（GUI-9 / 1.0-d）
         .child(div().w_full().child(top_projects))
 }
@@ -608,6 +649,7 @@ mod tests {
             projects: vec![project(1, "测试项目")],
             daily: Some(daily_response(1)),
             compare: None,
+            country: None,
         }
     }
 
@@ -627,6 +669,7 @@ mod tests {
             projects: Vec::new(),
             daily: None,
             compare: None,
+            country: None,
         };
         assert_eq!(
             DashboardState::from_fetch_result(Ok(no_projects)),
@@ -638,6 +681,7 @@ mod tests {
             projects: vec![project(1, "测试项目")],
             daily: Some(daily_response(0)),
             compare: None,
+            country: None,
         };
         assert_eq!(
             DashboardState::from_fetch_result(Ok(no_rows)),
@@ -669,6 +713,7 @@ mod tests {
             projects: Vec::new(),
             daily: None,
             compare: None,
+            country: None,
         }
         .is_empty());
         // 有项目无 daily → 空
@@ -676,6 +721,7 @@ mod tests {
             projects: vec![project(1, "A")],
             daily: None,
             compare: None,
+            country: None,
         }
         .is_empty());
         // 有项目 + 有行 → 非空
@@ -807,6 +853,7 @@ mod tests {
                 available_dates: Default::default(),
                 project_breakdown: compare_breakdown,
             }),
+            country: None,
         };
 
         let rows = data.top_projects();
@@ -919,6 +966,7 @@ mod tests {
                         projects: Vec::new(),
                         daily: None,
                         compare: None,
+                        country: None,
                     }),
                     cx,
                 );
