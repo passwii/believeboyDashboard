@@ -655,6 +655,7 @@ fn render_subs_panel(
     let projects = this.projects.clone();
     let sub_frequency = this.sub_frequency;
     let sub_status = this.sub_status;
+    let reduce = crate::motion::reduce_motion(cx);
     match state {
         SubsState::Loading => render_loading(theme).into_any_element(),
         SubsState::Error(msg) => render_error(
@@ -676,6 +677,7 @@ fn render_subs_panel(
                 sub_frequency,
                 sub_status,
                 subs.len(),
+                reduce,
             )
             .into_any_element()
         }
@@ -694,6 +696,7 @@ fn render_ledger_panel(
     let status_filter = this.status_filter;
     let expanded = this.expanded_days.clone();
     let selected = this.selected_key.clone();
+    let reduce = crate::motion::reduce_motion(cx);
     match state {
         LedgerState::Loading => render_loading(theme).into_any_element(),
         LedgerState::Error(msg) => render_error(
@@ -713,6 +716,7 @@ fn render_ledger_panel(
             status_filter,
             &expanded,
             selected.as_deref(),
+            reduce,
         )
         .into_any_element(),
     }
@@ -873,23 +877,29 @@ fn render_subs_loaded(
     sub_frequency: &'static str,
     sub_status: &'static str,
     total: usize,
+    reduce: bool,
 ) -> impl IntoElement {
-    v_flex()
-        .id("scheduled-reports-subs-loaded")
-        .w_full()
-        .gap_3()
-        .child(render_subs_filter_bar(view, sub_frequency, sub_status))
-        .child(render_subs_table(filtered, projects, theme))
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme.text_muted)
-                .child(if total > filtered.len() {
-                    format!("已显示 {} 条（共 {} 条）", filtered.len(), total)
-                } else {
-                    format!("共 {} 条订阅", total)
-                }),
-        )
+    // P4-2：列表 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("scheduled-reports-subs-loaded-fade"),
+        v_flex()
+            .id("scheduled-reports-subs-loaded")
+            .w_full()
+            .gap_3()
+            .child(render_subs_filter_bar(view, sub_frequency, sub_status))
+            .child(render_subs_table(filtered, projects, theme))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(theme.text_muted)
+                    .child(if total > filtered.len() {
+                        format!("已显示 {} 条（共 {} 条）", filtered.len(), total)
+                    } else {
+                        format!("共 {} 条订阅", total)
+                    }),
+            ),
+        reduce,
+    )
 }
 
 /// 订阅过滤栏：频率 + 启用状态（DropdownMenu）+ 刷新
@@ -1121,27 +1131,33 @@ fn render_ledger_loaded(
     status_filter: &'static str,
     expanded: &HashSet<String>,
     selected: Option<&str>,
+    reduce: bool,
 ) -> impl IntoElement {
     let days = group_ledger_by_day(&resp.items);
-    v_flex()
-        .id("scheduled-reports-ledger-loaded")
-        .w_full()
-        .gap_3()
-        .child(render_ledger_filter_bar(view, theme, frequency, status_filter))
-        .child(render_ledger_summary(&resp.summary, theme))
-        .when(resp.total as usize > resp.items.len(), |this| {
-            this.child(
-                div()
-                    .text_xs()
-                    .text_color(theme.warning)
-                    .child(format!(
-                        "当前范围数据量较大，仅显示最新 {} 条（共 {} 条）。请调整筛选条件查看更早记录。",
-                        resp.items.len(),
-                        resp.total
-                    )),
-            )
-        })
-        .child(render_ledger_days(view, theme, &days, expanded, selected))
+    // P4-2：台账列表 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("scheduled-reports-ledger-loaded-fade"),
+        v_flex()
+            .id("scheduled-reports-ledger-loaded")
+            .w_full()
+            .gap_3()
+            .child(render_ledger_filter_bar(view, theme, frequency, status_filter))
+            .child(render_ledger_summary(&resp.summary, theme))
+            .when(resp.total as usize > resp.items.len(), |this| {
+                this.child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.warning)
+                        .child(format!(
+                            "当前范围数据量较大，仅显示最新 {} 条（共 {} 条）。请调整筛选条件查看更早记录。",
+                            resp.items.len(),
+                            resp.total
+                        )),
+                )
+            })
+            .child(render_ledger_days(view, theme, &days, expanded, selected)),
+        reduce,
+    )
 }
 
 /// 台账过滤栏：频率 + 状态（DropdownMenu）+ 刷新

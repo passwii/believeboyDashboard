@@ -632,59 +632,65 @@ fn render_loaded(
     let view = cx.entity();
     let totals = calculate_totals(&data.items);
     let totals_text = format_totals(&totals);
+    let reduce = crate::motion::reduce_motion(cx);
 
-    v_flex()
-        .id("platform-revenue-loaded")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        // 大标题区
-        .child(
-            v_flex()
-                .gap_1()
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_semibold()
-                        .text_color(app_theme.text_primary)
-                        .child("平台回款"),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child(format!(
-                            "共 {} 条 · 第 {} / {} 页 · 合计 {}",
-                            data.total,
-                            data.page,
-                            data.total_pages,
-                            if totals_text.is_empty() {
-                                "—".to_string()
-                            } else {
-                                totals_text
-                            }
-                        )),
-                ),
-        )
-        // 筛选栏
-        .child(render_filter_bar(
-            &view,
-            app_theme,
-            &projects,
-            &filters,
-        ))
-        // 回款列表表（含合计行）
-        .child(table)
-        // 分页条
-        .child(pagination_bar(
-            &view,
-            app_theme,
-            page,
-            data.total_pages,
-            page_size,
-        ))
+    // P4-2：页面 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("platform-revenue-loaded-fade"),
+        v_flex()
+            .id("platform-revenue-loaded")
+            .size_full()
+            .gap_4()
+            .p_6()
+            .overflow_y_scroll()
+            .bg(app_theme.window_bg)
+            // 大标题区
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_semibold()
+                            .text_color(app_theme.text_primary)
+                            .child("平台回款"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(app_theme.text_muted)
+                            .child(format!(
+                                "共 {} 条 · 第 {} / {} 页 · 合计 {}",
+                                data.total,
+                                data.page,
+                                data.total_pages,
+                                if totals_text.is_empty() {
+                                    "—".to_string()
+                                } else {
+                                    totals_text
+                                }
+                            )),
+                    ),
+            )
+            // 筛选栏
+            .child(render_filter_bar(
+                &view,
+                app_theme,
+                &projects,
+                &filters,
+            ))
+            // 回款列表表（含合计行）
+            .child(table)
+            // 分页条
+            .child(pagination_bar(
+                &view,
+                app_theme,
+                page,
+                data.total_pages,
+                page_size,
+            )),
+        reduce,
+    )
 }
 
 // ---------------------------------------------------------------------------

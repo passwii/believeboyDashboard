@@ -469,7 +469,7 @@ async fn load_daily_analysis(
 }
 
 impl Render for DailyAnalysisView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
         let detail_table = self.detail_table.clone();
@@ -479,6 +479,7 @@ impl Render for DailyAnalysisView {
             DailyAnalysisState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
             DailyAnalysisState::Empty => render_empty(cx, &app_theme).into_any_element(),
             DailyAnalysisState::Loaded(data) => render_loaded(
+                window,
                 cx,
                 &app_theme,
                 &data,
@@ -616,6 +617,7 @@ fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> im
 /// Loaded：大标题区 + 筛选栏 + 数字带 + 销售趋势 + 维度下钻 + SKU 明细表
 #[allow(clippy::too_many_arguments)]
 fn render_loaded(
+    window: &mut Window,
     cx: &mut Context<DailyAnalysisView>,
     app_theme: &AppTheme,
     data: &DailyAnalysisData,
@@ -633,57 +635,62 @@ fn render_loaded(
         AnalysisMode::SingleProject => "维度下钻",
     };
     let view = cx.entity();
+    let reduce = crate::motion::reduce_motion(cx);
 
-    v_flex()
-        .id("daily-analysis-loaded")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        // 大标题区：标题 + 副标题（页面层级最上层）
-        .child(
-            v_flex()
-                .gap_1()
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_semibold()
-                        .text_color(app_theme.text_primary)
-                        .child("销售数据"),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child(format!(
-                            "{} · {} · {} ~ {} · {} 天汇总",
-                            data.console.project_name,
-                            country_label(&data.console.country),
-                            data.console.start_date,
-                            data.console.end_date,
-                            data.console.summary_days
-                        )),
-                ),
-        )
-        // 筛选栏：项目 + 站点 + 刷新
-        .child(render_filter_bar(
-            &view,
-            app_theme,
-            &projects,
-            selected_project_id,
-            country,
-        ))
-        // 数字带（复用 stat_band；当前期 vs 对比期环比）
-        .child(stat_band(&kpi, &compare_kpi, app_theme))
-        // 销售趋势：图表 v1.1（P3-2）接入前用「占位说明 + 每日列表」呈现
-        .child(trend_card(&data.summary_rows, app_theme))
-        // 维度下钻（全部项目 → 项目维度；跨站点 → 国家维度；单项目单站点 → 隐藏）
-        .when(!data.breakdown.is_empty(), |page| {
-            page.child(breakdown_card(breakdown_title, breakdown_table, app_theme))
-        })
-        // SKU 明细表
-        .child(detail_table)
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("daily-analysis-loaded-fade"),
+        v_flex()
+            .id("daily-analysis-loaded")
+            .size_full()
+            .gap_4()
+            .p_6()
+            .overflow_y_scroll()
+            .bg(app_theme.window_bg)
+            // 大标题区：标题 + 副标题（页面层级最上层）
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_semibold()
+                            .text_color(app_theme.text_primary)
+                            .child("销售数据"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(app_theme.text_muted)
+                            .child(format!(
+                                "{} · {} · {} ~ {} · {} 天汇总",
+                                data.console.project_name,
+                                country_label(&data.console.country),
+                                data.console.start_date,
+                                data.console.end_date,
+                                data.console.summary_days
+                            )),
+                    ),
+            )
+            // 筛选栏：项目 + 站点 + 刷新
+            .child(render_filter_bar(
+                &view,
+                app_theme,
+                &projects,
+                selected_project_id,
+                country,
+            ))
+            // 数字带（复用 stat_band；当前期 vs 对比期环比）
+            .child(stat_band(&kpi, &compare_kpi, app_theme, window, cx))
+            // 销售趋势：图表 v1.1（P3-2）接入前用「占位说明 + 每日列表」呈现
+            .child(trend_card(&data.summary_rows, app_theme))
+            // 维度下钻（全部项目 → 项目维度；跨站点 → 国家维度；单项目单站点 → 隐藏）
+            .when(!data.breakdown.is_empty(), |page| {
+                page.child(breakdown_card(breakdown_title, breakdown_table, app_theme))
+            })
+            // SKU 明细表
+            .child(detail_table),
+        reduce,
+    )
 }
 
 // ---------------------------------------------------------------------------

@@ -440,6 +440,7 @@ impl Render for AdDataView {
                         page,
                         page_count,
                         page_size,
+                        crate::motion::reduce_motion(cx),
                     )
                     .into_any_element()
                 }
@@ -553,6 +554,7 @@ fn render_loaded(
     page: usize,
     page_count: usize,
     page_size: i64,
+    reduce: bool,
 ) -> impl IntoElement {
     let first = if displayed == 0 {
         0
@@ -560,34 +562,39 @@ fn render_loaded(
         filtered_total.saturating_sub(displayed) + 1
     };
     let last = filtered_total;
-    v_flex()
-        .id("ad-data-loaded")
-        .gap_3()
-        .child(
-            h_flex()
-                .id("ad-data-badges")
-                .gap_2()
-                .items_center()
-                .flex_wrap()
-                .text_sm()
-                .text_color(app_theme.text_muted)
-                .child(badge(app_theme, report_label))
-                .child(badge(
-                    app_theme,
-                    &format!("服务端总行数：{}", format_count(data.total_rows)),
-                ))
-                .child(badge(
-                    app_theme,
-                    &format!(
-                        "当前显示：第 {first}-{last} / 共 {} 行",
-                        format_count(filtered_total as i64)
-                    ),
-                )),
-        )
-        .child(table.clone())
-        .child(render_pagination(
-            app_theme, table, page, page_count, page_size,
-        ))
+    // P4-2：表格 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("ad-data-loaded-fade"),
+        v_flex()
+            .id("ad-data-loaded")
+            .gap_3()
+            .child(
+                h_flex()
+                    .id("ad-data-badges")
+                    .gap_2()
+                    .items_center()
+                    .flex_wrap()
+                    .text_sm()
+                    .text_color(app_theme.text_muted)
+                    .child(badge(app_theme, report_label))
+                    .child(badge(
+                        app_theme,
+                        &format!("服务端总行数：{}", format_count(data.total_rows)),
+                    ))
+                    .child(badge(
+                        app_theme,
+                        &format!(
+                            "当前显示：第 {first}-{last} / 共 {} 行",
+                            format_count(filtered_total as i64)
+                        ),
+                    )),
+            )
+            .child(table.clone())
+            .child(render_pagination(
+                app_theme, table, page, page_count, page_size,
+            )),
+        reduce,
+    )
 }
 
 fn badge(app_theme: &AppTheme, text: &str) -> impl IntoElement {

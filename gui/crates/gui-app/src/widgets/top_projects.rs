@@ -513,42 +513,46 @@ impl Render for TopProjectsWidget {
             cx.new(|cx| TableState::new(delegate, window, cx))
         });
         let theme = AppTheme::current(cx);
-        // P2-4（BLF-691）：Table 包在原生卡片容器（radius_lg + 轻投影）中，与 KPI 卡 /
-        // 图表卡统一卡片语言；表头区标题 + 描述，卡片内分隔线对齐 frontend CardHeader border-b。
-        v_flex()
-            .id("top-projects")
-            .w_full()
-            .rounded(px(theme.radius_lg))
-            .bg(theme.card_bg)
-            .shadow(vec![theme.card_shadow_box()])
-            .overflow_y_scroll()
-            .child(
-                v_flex()
-                    .gap_1()
-                    .px_4()
-                    .py_3()
-                    .border_b_1()
-                    .border_color(theme.separator)
-                    .child(
-                        div()
-                            .text_base()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text_primary)
-                            .child("项目排行"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child("各项目销售额与广告花费对比（近 7 天）"),
-                    ),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(220.))
-                    .child(Table::new(table).bordered(false).large()),
-            )
+        let reduce = crate::motion::reduce_motion(cx);
+        // P4-2：列表 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+        crate::motion::enter_fade_in(
+            gpui::SharedString::from("top-projects-fade"),
+            v_flex()
+                .id("top-projects")
+                .w_full()
+                .rounded(px(theme.radius_lg))
+                .bg(theme.card_bg)
+                .shadow(vec![theme.card_shadow_box()])
+                .overflow_y_scroll()
+                .child(
+                    v_flex()
+                        .gap_1()
+                        .px_4()
+                        .py_3()
+                        .border_b_1()
+                        .border_color(theme.separator)
+                        .child(
+                            div()
+                                .text_base()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(theme.text_primary)
+                                .child("项目排行"),
+                        )
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(theme.text_muted)
+                                .child("各项目销售额与广告花费对比（近 7 天）"),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h(px(220.))
+                        .child(Table::new(table).bordered(false).large()),
+                ),
+            reduce,
+        )
     }
 }
 

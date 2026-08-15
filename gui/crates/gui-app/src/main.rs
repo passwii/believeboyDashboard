@@ -11,6 +11,7 @@
 mod assets;
 mod icon;
 mod keychain;
+mod motion;
 mod runtime;
 mod theme;
 mod views;
@@ -30,6 +31,7 @@ use assets::AppAssets;
 use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
+use motion::{detect_system_reduce_motion, MotionPref};
 use theme::{set_theme_pref, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
@@ -73,6 +75,10 @@ fn main() -> anyhow::Result<()> {
             // open_*_window 内注册（on_window_appearance_changed），系统切亮/暗时
             // 无感跟随。显式浅色/深色由标题栏外观菜单写入本全局。
             set_theme_pref(ThemePreference::FollowSystem, None, cx);
+
+            // P4-2（BLF-708）：动效偏好基线——启动时读取系统「减弱动态效果」，
+            // 写入全局；所有动效路径据此降级为瞬时切换/无动画。
+            cx.set_global(MotionPref(detect_system_reduce_motion()));
 
             // 登录窗 / 主窗口的文本输入、菜单、窗口级按键绑定：
             // - 文本输入（gpui-component Input，上下文 "Input"）由 gpui_component::init 注册
