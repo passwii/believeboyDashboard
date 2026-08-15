@@ -13,14 +13,15 @@
 
 pub mod advertising;
 pub mod auth;
+pub mod client;
 pub mod dashboard;
 pub mod error;
-pub mod client;
 pub mod monthly_reports;
 pub mod platform_revenues;
 pub mod portfolio;
 pub mod project_goals;
 pub mod query;
+pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod store_navigation;
 
