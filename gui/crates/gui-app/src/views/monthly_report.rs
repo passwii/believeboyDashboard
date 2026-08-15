@@ -587,62 +587,68 @@ fn render_loaded(
     let resp = &data.response;
     let trend = &resp.trend;
     let show_vat = VAT_COUNTRIES.contains(&country);
+    let reduce = crate::motion::reduce_motion(cx);
 
-    v_flex()
-        .id("monthly-report-loaded")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        // 大标题区：标题 + 副标题（页面层级最上层）
-        .child(
-            v_flex()
-                .gap_1()
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_semibold()
-                        .text_color(app_theme.text_primary)
-                        .child("财务月报"),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child(format!(
-                            "{} · {} · {} 至 {} · {} 个月",
-                            resp.project_name,
-                            country_label(country),
-                            format_month(&resp.start_month),
-                            format_month(&resp.end_month),
-                            months_back
-                        )),
-                ),
-        )
-        // 筛选栏：项目 + 站点 + 月份窗口 + 刷新
-        .child(render_filter_bar(
-            &view,
-            app_theme,
-            &projects,
-            selected_project_id,
-            country,
-            months_back,
-        ))
-        // 汇总指标卡（trend 聚合）
-        .child(summary_cards(trend, country, app_theme))
-        // 月度趋势（AreaChart 双序列：销售额 vs 退款）
-        .child(trend_card(&resp.rows, country, app_theme))
-        // 月度明细表
-        .child(detail_table)
-        .when(show_vat, |page| {
-            page.child(
-                div()
-                    .text_xs()
-                    .text_color(app_theme.text_muted)
-                    .child(format!("{} 站启用 VAT 列（销售税）", country_label(country))),
+    // P4-2：页面 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("monthly-report-loaded-fade"),
+        v_flex()
+            .id("monthly-report-loaded")
+            .size_full()
+            .gap_4()
+            .p_6()
+            .overflow_y_scroll()
+            .bg(app_theme.window_bg)
+            // 大标题区：标题 + 副标题（页面层级最上层）
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_semibold()
+                            .text_color(app_theme.text_primary)
+                            .child("财务月报"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(app_theme.text_muted)
+                            .child(format!(
+                                "{} · {} · {} 至 {} · {} 个月",
+                                resp.project_name,
+                                country_label(country),
+                                format_month(&resp.start_month),
+                                format_month(&resp.end_month),
+                                months_back
+                            )),
+                    ),
             )
-        })
+            // 筛选栏：项目 + 站点 + 月份窗口 + 刷新
+            .child(render_filter_bar(
+                &view,
+                app_theme,
+                &projects,
+                selected_project_id,
+                country,
+                months_back,
+            ))
+            // 汇总指标卡（trend 聚合）
+            .child(summary_cards(trend, country, app_theme))
+            // 月度趋势（AreaChart 双序列：销售额 vs 退款）
+            .child(trend_card(&resp.rows, country, app_theme))
+            // 月度明细表
+            .child(detail_table)
+            .when(show_vat, |page| {
+                page.child(
+                    div()
+                        .text_xs()
+                        .text_color(app_theme.text_muted)
+                        .child(format!("{} 站启用 VAT 列（销售税）", country_label(country))),
+                )
+            }),
+        reduce,
+    )
 }
 
 // ---------------------------------------------------------------------------

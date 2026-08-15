@@ -340,7 +340,7 @@ async fn load_dashboard(
 }
 
 impl Render for DashboardView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app_theme = AppTheme::current(cx);
         // 克隆状态机（1.0-a 直接克隆；GUI-7+ 若帧率高可改为借用判别字段）
         let state = self.state.read(cx).clone();
@@ -350,7 +350,7 @@ impl Render for DashboardView {
             DashboardState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
             DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),
             DashboardState::Loaded(data) => {
-                render_loaded(cx, &app_theme, &data, top_projects).into_any_element()
+                render_loaded(window, cx, &app_theme, &data, top_projects).into_any_element()
             }
         }
     }
@@ -515,7 +515,8 @@ fn render_empty(cx: &mut Context<DashboardView>, app_theme: &AppTheme) -> impl I
 /// `gap_4` 分组间距、`overflow_y_scroll` 页面滚动（内容超出 800px 窗口时可滚，
 /// 不再裁切）。卡片语言统一（KPI / 图表 / Top 列表都是 radius_lg + 轻投影）。
 fn render_loaded(
-    _cx: &mut Context<DashboardView>,
+    window: &mut Window,
+    cx: &mut Context<DashboardView>,
     app_theme: &AppTheme,
     data: &DashboardData,
     top_projects: Entity<TopProjectsWidget>,
@@ -528,41 +529,46 @@ fn render_loaded(
         KpiSummary::from_rows(&d.summary_rows)
     });
     let day_count = daily.map_or(0, |d| d.summary_rows.len());
-    v_flex()
-        .id("dashboard-loaded")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        .child(
-            // 大标题区：标题 + 副标题（页面层级最上层）
-            v_flex()
-                .gap_1()
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_semibold()
-                        .text_color(app_theme.text_primary)
-                        .child("数据看板"),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child(format!(
-                            "已加载：{} 个项目 · 近 7 天 {} 天聚合数据",
-                            data.projects.len(),
-                            day_count
-                        )),
-                ),
-        )
-        // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
-        .child(stat_band(&kpi, &comparison, app_theme))
-        // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar，数据源 = daily-analysis 管线）
-        .child(crate::widgets::charts::render_chart_grid(data, app_theme))
-        // Top 项目列表（GUI-9 / 1.0-d）
-        .child(div().w_full().child(top_projects))
+    let reduce = crate::motion::reduce_motion(cx);
+    crate::motion::enter_fade_in(
+        gpui::SharedString::from("dashboard-loaded-fade"),
+        v_flex()
+            .id("dashboard-loaded")
+            .size_full()
+            .gap_4()
+            .p_6()
+            .overflow_y_scroll()
+            .bg(app_theme.window_bg)
+            .child(
+                // 大标题区：标题 + 副标题（页面层级最上层）
+                v_flex()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_semibold()
+                            .text_color(app_theme.text_primary)
+                            .child("数据看板"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(app_theme.text_muted)
+                            .child(format!(
+                                "已加载：{} 个项目 · 近 7 天 {} 天聚合数据",
+                                data.projects.len(),
+                                day_count
+                            )),
+                    ),
+            )
+            // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
+            .child(stat_band(&kpi, &comparison, app_theme, window, cx))
+            // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar，数据源 = daily-analysis 管线）
+            .child(crate::widgets::charts::render_chart_grid(data, app_theme))
+            // Top 项目列表（GUI-9 / 1.0-d）
+            .child(div().w_full().child(top_projects)),
+        reduce,
+    )
 }
 
 #[cfg(test)]

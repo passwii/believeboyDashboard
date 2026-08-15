@@ -19,7 +19,7 @@
 //!   如 3100 → "$3K"（前端同行为）；不追求 0.5 边界的舍入位级一致；
 //! - GPUI 无 tabular-nums 字体特性支持，数字用等宽性较弱的比例数字（视觉差异极小）。
 
-use gpui::{div, prelude::*, px, Hsla, IntoElement, ParentElement};
+use gpui::{div, prelude::*, px, App, AnimationExt, Div, Hsla, IntoElement, ParentElement, SharedString, Stateful, Styled, Window};
 use gpui_component::{
     h_flex, skeleton::Skeleton, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt,
 };
@@ -30,12 +30,38 @@ use crate::theme::AppTheme;
 /// 环比说明文案（Tooltip 悬停展示）
 const DELTA_TOOLTIP: &str = "环比上一周期（近 7 天 vs 前一 7 天）";
 
+/// KPI 数值类型（P4-2：count-up 插值 + 每帧格式化用）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KpiKind {
+    /// 紧凑货币（format_compact_currency）
+    Currency,
+    /// 紧凑数字（format_compact_number）
+    Number,
+    /// 百分比（format_percent）
+    Percent,
+}
+
+impl KpiKind {
+    /// 按类型格式化（对齐各展示层函数）
+    pub fn format(self, v: f64) -> String {
+        match self {
+            Self::Currency => format_compact_currency(v),
+            Self::Number => format_compact_number(v.round() as i64),
+            Self::Percent => format_percent(v),
+        }
+    }
+}
+
 /// 单个 KPI 卡数据（纯展示派生，可单测）
 #[derive(Debug, Clone, PartialEq)]
 pub struct KpiStat {
     pub label: &'static str,
     /// 格式化后的展示值（如 "$3.1K" / "5.00%"）；None = 数据不可得（毛利润）→ 显示 "—"
     pub value: Option<String>,
+    /// P4-2：原始数值（count-up 起点 0 的目标值）；None = 数据不可得 → 不参与 count-up
+    pub raw: Option<f64>,
+    /// P4-2：数值类型（count-up 每帧格式化用）
+    pub kind: KpiKind,
     /// 环比百分比（如 25.0 = +25%，-20.0 = -20%）；None = 无对比期 / 不可得 → 显示 "—"
     pub delta: Option<f64>,
 }
@@ -58,11 +84,15 @@ pub fn compute_stats(current: &KpiSummary, comparison: &KpiSummary) -> [KpiStat;
         KpiStat {
             label: "销售额",
             value: Some(format_compact_currency(current.sales_amount)),
+            raw: Some(current.sales_amount),
+            kind: KpiKind::Currency,
             delta: Some(pct_change(current.sales_amount, comparison.sales_amount)),
         },
         KpiStat {
             label: "订单量",
             value: Some(format_compact_number(current.order_qty)),
+            raw: Some(current.order_qty as f64),
+            kind: KpiKind::Number,
             delta: Some(pct_change(
                 current.order_qty as f64,
                 comparison.order_qty as f64,
@@ -71,16 +101,22 @@ pub fn compute_stats(current: &KpiSummary, comparison: &KpiSummary) -> [KpiStat;
         KpiStat {
             label: "广告花费",
             value: Some(format_compact_currency(current.ad_spend)),
+            raw: Some(current.ad_spend),
+            kind: KpiKind::Currency,
             delta: Some(pct_change(current.ad_spend, comparison.ad_spend)),
         },
         KpiStat {
             label: "ACoS",
             value: Some(format_percent(current.acos)),
+            raw: Some(current.acos),
+            kind: KpiKind::Percent,
             delta: Some(pct_change(current.acos, comparison.acos)),
         },
         KpiStat {
             label: "转化率",
             value: Some(format_percent(current.conversion_rate)),
+            raw: Some(current.conversion_rate),
+            kind: KpiKind::Percent,
             delta: Some(pct_change(
                 current.conversion_rate,
                 comparison.conversion_rate,
@@ -89,6 +125,8 @@ pub fn compute_stats(current: &KpiSummary, comparison: &KpiSummary) -> [KpiStat;
         KpiStat {
             label: "毛利润",
             value: current.gross_profit.map(format_compact_currency),
+            raw: current.gross_profit,
+            kind: KpiKind::Currency,
             delta: None,
         },
     ]
@@ -163,16 +201,27 @@ pub fn format_percent(value: f64) -> String {
 // ---------------------------------------------------------------------------
 
 /// 数字带：横向 flex 排列 6 张 KPI 卡（当前期 vs 对比期的环比 delta 已含）
+///
+/// P4-2：大数字 count-up（Loaded 后从 0 计数到目标值，600ms ease-out）；
+/// 卡片 hover 背景过渡；减弱动态时瞬时。`window`/`cx` 供 hover 过渡的
+/// `use_keyed_state` 使用（视图渲染时传入）。
 pub fn stat_band(
     current: &KpiSummary,
     comparison: &KpiSummary,
     theme: &AppTheme,
+    window: &mut Window,
+    cx: &mut App,
 ) -> impl IntoElement {
     let stats = compute_stats(current, comparison);
+    let reduce = crate::motion::reduce_motion(cx);
     h_flex()
         .id("stat-band")
         .gap_3()
-        .children(stats.iter().map(|stat| render_card(stat, theme)))
+        .children(
+            stats
+                .iter()
+                .map(|stat| render_card(stat, theme, window, cx, reduce)),
+        )
 }
 
 /// 加载态：6 张骨架卡（数字位置放 Skeleton，对齐 frontend loading 骨架结构）
@@ -187,7 +236,15 @@ pub fn stat_band_skeleton(theme: &AppTheme) -> impl IntoElement {
 ///
 /// P2-4（BLF-691）原生卡片质感：`radius_lg` 圆角 + 柔和轻投影 + hover 浅底反馈
 /// （对齐 macOS 系统设置/备忘录式卡片），涨绿跌红用语义色（success/danger）。
-fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
+/// P4-2（BLF-708）：大数字 count-up（有 raw 时从 0 计数到目标，600ms ease-out；
+/// 减弱动态/无 raw 时瞬时显示）+ hover 背景过渡（100ms 插值）。
+fn render_card(
+    stat: &KpiStat,
+    theme: &AppTheme,
+    window: &mut Window,
+    cx: &mut App,
+    reduce: bool,
+) -> impl IntoElement {
     // 对齐 frontend `text-blue-700 dark:text-foreground`：亮色主题数值用品牌强调色，暗色用前景色
     let value_color = if theme.is_dark() {
         theme.text_primary
@@ -200,16 +257,23 @@ fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
     } else {
         theme.accent_soft
     };
+    // P4-2：hover 过渡闭包捕获的 owned 颜色（避免借用 theme 引用逃逸）
+    let card_bg = theme.card_bg;
     // 转 owned String（gpui 元素要求 'static 内容，且保持返回类型无生命周期参数）
     let value_text = stat.value.clone().unwrap_or_else(|| "—".to_string());
-    v_flex()
+    // P4-2：count-up 每帧格式化（raw + kind 捕获进动画闭包）
+    let raw = stat.raw;
+    let kind = stat.kind;
+    let label = stat.label;
+
+    let base = v_flex()
+        .id(SharedString::from(format!("kpi-card-{label}")))
         .flex_1()
         .gap_2()
         .p_4()
         .rounded(px(theme.radius_lg))
         .bg(theme.card_bg)
         .shadow(vec![theme.card_shadow_box()])
-        .hover(|this| this.bg(hover_bg))
         .child(
             h_flex()
                 .justify_between()
@@ -221,14 +285,42 @@ fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
                         .child(stat.label),
                 )
                 .child(render_delta(stat.delta, theme, stat.label)),
-        )
-        .child(
-            div()
-                .text_2xl()
-                .font_semibold()
-                .text_color(value_color)
-                .child(value_text),
-        )
+        );
+
+    let value_el = if let (Some(raw), false) = (raw, reduce) {
+        // count-up：动画 id 编码 label，元素首次出现时从 0 计数到目标
+        div()
+            .text_2xl()
+            .font_semibold()
+            .text_color(value_color)
+            .with_animation(
+                SharedString::from(format!("kpi-count-{label}")),
+                crate::motion::animation(
+                    crate::motion::DURATION_COUNT_UP,
+                    crate::motion::ease_out_cubic,
+                ),
+                move |el, delta| el.child(kind.format(crate::motion::count_up(raw, delta))),
+            )
+            .into_any_element()
+    } else {
+        div()
+            .text_2xl()
+            .font_semibold()
+            .text_color(value_color)
+            .child(value_text)
+            .into_any_element()
+    };
+
+    crate::motion::hover_transition(
+        SharedString::from(format!("kpi-card-{label}")),
+        base.child(value_el),
+        window,
+        cx,
+        move |el: Stateful<Div>, t| {
+            use gpui::Styled;
+            el.bg(crate::motion::lerp_hsla(card_bg, hover_bg, t))
+        },
+    )
 }
 
 /// 环比 delta：涨绿（success）/ 跌红（danger）/ 持平（中性灰 Minus）；
@@ -434,5 +526,31 @@ mod tests {
         let stats = compute_stats(&current(), &empty);
         assert!(stats.iter().take(5).all(|s| s.delta == Some(0.0)));
         assert_eq!(stats[5].delta, None);
+    }
+
+    /// P4-2：compute_stats 填 raw/kind——count-up 需要原始数值 + 类型（每帧格式化）
+    #[test]
+    fn compute_stats_fills_raw_and_kind_for_count_up() {
+        let stats = compute_stats(&current(), &comparison());
+        assert_eq!(stats[0].raw, Some(400.0));
+        assert_eq!(stats[0].kind, KpiKind::Currency);
+        assert_eq!(stats[1].raw, Some(40.0));
+        assert_eq!(stats[1].kind, KpiKind::Number);
+        assert_eq!(stats[3].raw, Some(0.0));
+        assert_eq!(stats[3].kind, KpiKind::Percent);
+        // 毛利润无数据 → raw None（不参与 count-up，显示 "—"）
+        assert_eq!(stats[5].raw, None);
+        assert_eq!(stats[5].kind, KpiKind::Currency);
+    }
+
+    /// P4-2：KpiKind::format 对齐各展示层函数（count-up 每帧格式化路径）
+    #[test]
+    fn kpi_kind_format_matches_display_functions() {
+        assert_eq!(KpiKind::Currency.format(3100.0), format_compact_currency(3100.0));
+        assert_eq!(KpiKind::Number.format(1234.0), format_compact_number(1234));
+        assert_eq!(KpiKind::Percent.format(5.0), format_percent(5.0));
+        // 插值中间值也能格式化（count-up 每帧调用，不能 panic）
+        assert_eq!(KpiKind::Currency.format(1550.0), "$2K");
+        assert_eq!(KpiKind::Percent.format(2.5), "2.50%");
     }
 }

@@ -32,6 +32,12 @@ keyring = { workspace = true }
 dotenvy = { workspace = true }
 unicode-segmentation = "1.12"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# 读取系统「减弱动态效果」（prefers-reduced-motion）：gpui 0.2.2 无 reduce-motion API，
+# 用 AppKit NSWorkspace 读取。objc2-app-kit 0.3.2 已在锁文件（blade-graphics → gpui 的
+# 传递依赖），此处仅改为直接依赖并开 NSWorkspace feature——不引入新 crate。
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSAccessibility", "NSWorkspace"] }
+
 [dev-dependencies]
 # 视图级单元测试需要 TestAppContext / gpui::test（dashboard.rs 竞态保护测试）
 gpui = { workspace = true, features = ["test-support"] }

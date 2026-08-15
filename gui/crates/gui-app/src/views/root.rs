@@ -319,6 +319,91 @@ impl RootView {
         cx.notify();
     }
 
+    /// P4-2：当前内容区视图身份（视图切换过渡动画 id 用）——视图变化时该键变化，
+    /// `with_animation` 的元素状态随之重建，淡入动画重放。
+    fn view_key(&self) -> &'static str {
+        if self.show_dashboard {
+            "dashboard"
+        } else if self.show_site_navigation {
+            "site-navigation"
+        } else if self.show_daily_analysis {
+            "daily-analysis"
+        } else if self.show_ad_analysis {
+            "ad-analysis"
+        } else if self.show_ad_data {
+            "ad-data"
+        } else if self.show_monthly_report {
+            "monthly-report"
+        } else if self.show_platform_revenue {
+            "platform-revenue"
+        } else if self.show_scheduled_reports {
+            "scheduled-reports"
+        } else {
+            "placeholder"
+        }
+    }
+
+    /// P4-2：当前内容区视图（带视图切换过渡动画）。
+    ///
+    /// 选中侧栏项 / Dashboard↔业务页切换时，内容视图从 0→1 淡入（`with_animation` 的
+    /// 动画 id 编码当前视图身份——视图变化 → 元素状态重建 → 动画重放）；减弱动态时
+    /// 直接渲染（瞬时切换）。
+    fn content_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let reduce = crate::motion::reduce_motion(cx);
+        let active = if self.show_dashboard {
+            self.dashboard.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_site_navigation {
+            self.site_navigation.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_daily_analysis {
+            self.daily_analysis.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_ad_analysis {
+            self.ad_analysis.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_ad_data {
+            self.ad_data.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_monthly_report {
+            self.monthly_report.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_platform_revenue {
+            self.platform_revenue.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_scheduled_reports {
+            self.scheduled_reports.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else {
+            self.content.clone().into_any_element()
+        };
+
+        // P4-2：视图切换过渡。AnyElement 不实现 Styled，先包一层 div 再套淡入动画；
+        // 减弱动态时直接渲染（瞬时切换）。
+        let wrapped = div().id("content-active").size_full().child(active);
+        crate::motion::view_fade_in(
+            gpui::SharedString::from(format!("view-{}", self.view_key())),
+            wrapped,
+            reduce,
+        )
+    }
+
     fn on_logout_click(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         cx.emit(RootViewEvent::Logout);
     }
@@ -397,49 +482,7 @@ impl Render for RootView {
                             .id("content")
                             .flex_1()
                             .h_full()
-                            .child(if self.show_dashboard {
-                                self.dashboard.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |dashboard| dashboard.into_any_element(),
-                                )
-                            } else if self.show_site_navigation {
-                                self.site_navigation.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_daily_analysis {
-                                self.daily_analysis.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_ad_analysis {
-                                self.ad_analysis.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_ad_data {
-                                self.ad_data.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_scheduled_reports {
-                                self.scheduled_reports.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_monthly_report {
-                                self.monthly_report.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else if self.show_platform_revenue {
-                                self.platform_revenue.clone().map_or_else(
-                                    || self.content.clone().into_any_element(),
-                                    |view| view.into_any_element(),
-                                )
-                            } else {
-                                self.content.clone().into_any_element()
-                            }),
+                            .child(self.content_view(cx)),
                     ),
             )
     }
@@ -833,5 +876,106 @@ mod tests {
             assert!(!this.should_move);
             assert!(!this.consume_drag_armed());
         });
+    }
+
+    /// P4-2：view_key 契约——初始 Dashboard 为 "dashboard"；侧栏选中各业务视图后
+    /// 键跟随（视图切换过渡动画 id 据此变化 → 淡入重放）。
+    #[gpui::test]
+    async fn view_key_follows_active_view(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-key".into(),
+                name: "键测试".into(),
+                email: "key@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-key".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 初始：Dashboard 着陆页
+        cx.read(|app| assert_eq!(view.read(app).view_key(), "dashboard"));
+
+        // 侧栏选中各业务视图 → 键跟随
+        for (url, title, key) in [
+            (
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "site-navigation",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/advertising/ad-analysis",
+                "广告分析",
+                "ad-analysis",
+            ),
+            (
+                "/dashboard/advertising/ad-data",
+                "广告数据",
+                "ad-data",
+            ),
+            (
+                "/dashboard/reports/monthly-report/display",
+                "财务月报",
+                "monthly-report",
+            ),
+            (
+                "/dashboard/finance/platform-revenue",
+                "平台回款",
+                "platform-revenue",
+            ),
+            (
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "scheduled-reports",
+            ),
+        ] {
+            sidebar.update(cx, |this, cx| this.select(url, title, cx));
+            cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
+        }
+    }
+
+    /// P4-2：减弱动态效果分支渲染冒烟——MotionPref(true) 时主窗口（含视图切换淡入
+    /// 降级、侧栏瞬时切换）可完整渲染不 panic。
+    #[gpui::test]
+    async fn root_renders_with_reduce_motion(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            cx.set_global(crate::motion::MotionPref(true));
+        });
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-reduce".into(),
+                name: "减弱动态用户".into(),
+                email: "reduce@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-reduce".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        // 减弱动态下切换到业务视图仍可渲染（无动画路径）
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        sidebar.update(cx, |this, cx| {
+            this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
+        });
+        // 折叠也瞬时切换
+        sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| assert!(view.read(app).sidebar_collapsed));
     }
 }

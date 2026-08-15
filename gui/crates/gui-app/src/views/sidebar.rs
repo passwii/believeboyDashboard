@@ -23,8 +23,9 @@
 //!   `start_window_move()` + 双击 `titlebar_double_click()`），traffic lights 旁即拖拽区
 
 use gpui::{
-    div, prelude::*, px, svg, App, BoxShadow, Context, EventEmitter, FocusHandle, Focusable,
-    KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Window, WindowControlArea,
+    div, prelude::*, px, svg, App, AnimationExt, BoxShadow, Context, EventEmitter, FocusHandle,
+    Focusable, KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Stateful, Window,
+    WindowControlArea,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
@@ -32,6 +33,7 @@ use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable
 use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
 
 use crate::icon::icon_path;
+use crate::motion::{hover_transition, lerp_hsla, reduce_motion};
 use crate::theme::AppTheme;
 
 /// 展开态侧栏宽度（px）
@@ -66,6 +68,9 @@ pub struct SidebarView {
     focus_handle: FocusHandle,
     /// P2-3：是否折叠为图标轨道
     collapsed: bool,
+    /// P4-2：折叠动画起点宽度（px）——上次 toggle 时的展示宽度，渲染层
+    /// `with_animation` 从它插值到目标宽度；减弱动态时直接瞬时切换。
+    width_anim_from: f32,
     /// P4-1 修复：窗口拖拽武装标志——鼠标在侧栏头部按下后置真，移动时触发
     /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
     should_move: bool,
@@ -99,6 +104,7 @@ impl SidebarView {
             flat_items,
             focus_handle: cx.focus_handle(),
             collapsed: false,
+            width_anim_from: SIDEBAR_WIDTH,
             should_move: false,
         }
     }
@@ -144,7 +150,10 @@ impl SidebarView {
     /// 折叠/展开切换（P4-1；展开态由侧栏头部右上角按钮触发，折叠态由右侧
     /// 内容区头部最左的展开按钮触发——root.rs 通过本方法驱动）。
     /// 切换后 emit [`SidebarEvent::Collapsed`]，RootView 同步内容区头部布局。
+    /// P4-2：切换时记录动画起点宽度（当前展示宽度），渲染层据此做宽度过渡；
+    /// 减弱动态时仍同步状态（由渲染层决定瞬时/动画）。
     pub(crate) fn toggle_collapsed(&mut self, cx: &mut Context<Self>) {
+        self.width_anim_from = self.width();
         self.collapsed = !self.collapsed;
         cx.emit(SidebarEvent::Collapsed {
             collapsed: self.collapsed,
@@ -218,17 +227,21 @@ impl Focusable for SidebarView {
 }
 
 impl Render for SidebarView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
         let selected_url = self.selected_url.clone();
         let focus_handle = self.focus_handle.clone();
         let collapsed = self.collapsed;
+        let reduce = reduce_motion(cx);
+        // P4-2：宽度过渡动画起点/目标（toggle 时记录起点，见 [`SidebarView::toggle_collapsed`]）
+        let width_from = self.width_anim_from;
+        let width_to = self.width();
 
-        div()
+        let base = div()
             .id("sidebar")
             .flex()
             .flex_col()
-            .w(px(self.width()))
+            .w(px(width_to))
             .h_full()
             // P2-3 材质：半透明 sidebar_bg 覆盖在主窗口系统模糊材质之上（main.rs 配
             // `WindowBackgroundAppearance::Blurred` + root 不画不透明背景），透出模糊；
@@ -248,13 +261,25 @@ impl Render for SidebarView {
                     .flex_1()
                     .w_full()
                     .overflow_y_scroll()
-                    .children(
-                        self.groups.iter().map(|group| {
-                            render_group(group, selected_url.as_deref(), collapsed, cx)
-                        }),
-                    ),
+                    .children(self.groups.iter().map(|group| {
+                        render_group(group, selected_url.as_deref(), collapsed, window, cx)
+                    })),
             )
-            .child(sidebar_footer(&theme, collapsed))
+            .child(sidebar_footer(&theme, collapsed));
+
+        if reduce {
+            // 减弱动态：瞬时切换（无宽度动画）
+            return base.into_any_element();
+        }
+
+        // P4-2：宽度过渡动画。动画 id 编码折叠态——折叠翻转 → 元素状态重建 → 动画
+        // 0→1 重放 → 宽度从起点插值到目标（ease-out，200ms）。
+        base.with_animation(
+            SharedString::from(format!("sidebar-width-{collapsed}")),
+            crate::motion::animation(crate::motion::DURATION_SIDEBAR, crate::motion::ease_out_cubic),
+            move |el, delta| el.w(px(width_from + (width_to - width_from) * crate::motion::ease_out_cubic(delta))),
+        )
+        .into_any_element()
     }
 }
 
@@ -407,6 +432,7 @@ fn render_group(
     group: &SidebarGroup,
     selected_url: Option<&str>,
     collapsed: bool,
+    window: &mut Window,
     cx: &mut Context<SidebarView>,
 ) -> impl IntoElement {
     let theme = AppTheme::current(cx);
@@ -421,11 +447,9 @@ fn render_group(
         .when(!collapsed, |this| {
             this.child(render_group_header(group, &theme))
         })
-        .children(
-            group.items.iter().map(|item| {
-                render_item(item, selected_url == Some(item.url.as_str()), collapsed, cx)
-            }),
-        )
+        .children(group.items.iter().map(|item| {
+            render_item(item, selected_url == Some(item.url.as_str()), collapsed, window, cx)
+        }))
 }
 
 /// 分组标题（section header）：小字号/灰色/上留白，纯文字（macOS 原生语义）。
@@ -445,10 +469,13 @@ fn render_group_header(group: &SidebarGroup, theme: &AppTheme) -> impl IntoEleme
 /// 单个子项：
 /// - 展开态：图标 + 文字，选中=中性色圆角胶囊（浅色白胶囊+投影 / 深色高亮灰）
 /// - 折叠态：纯图标居中，悬停显示原生 tooltip（标题）
+///
+/// P4-2：hover 背景/图标颜色过渡（`hover_transition`，100ms 插值）；减弱动态时瞬时。
 fn render_item(
     item: &SidebarItem,
     active: bool,
     collapsed: bool,
+    window: &mut Window,
     cx: &mut Context<SidebarView>,
 ) -> impl IntoElement {
     let theme = AppTheme::current(cx);
@@ -456,18 +483,42 @@ fn render_item(
     let title = item.title.clone();
     let item_id = SharedString::from(format!("sidebar-item-{}", item.url));
     let icon_path = icon_path(&item.icon);
-    let icon_color = if active {
+    let icon_normal = if active {
         theme.sidebar_item_active_text
     } else {
         // 未激活图标弱化（macOS 侧栏图标常态 60% 灰度）
         theme.sidebar_group_text
     };
+    // P4-2：hover 时图标提亮到侧栏文字色（未激活项），激活项保持激活色
+    let icon_hover = if active {
+        theme.sidebar_item_active_text
+    } else {
+        theme.sidebar_text
+    };
     // 点击 / tooltip / 文字各持一份（闭包 move 捕获）
     let url_for_click = url.clone();
     let title_for_click = title.clone();
 
+    let text_normal = if active {
+        theme.sidebar_item_active_text
+    } else {
+        theme.sidebar_text
+    };
+    // P4-2：hover 时文字提亮到激活态文字色（macOS 侧栏 hover 文字略亮）
+    let text_hover = theme.sidebar_item_active_text;
+    let bg_normal = if active {
+        theme.sidebar_item_active_bg
+    } else {
+        gpui::transparent_black()
+    };
+    let bg_hover = if active {
+        theme.sidebar_item_active_bg
+    } else {
+        theme.sidebar_item_hover
+    };
+
     let base = div()
-        .id(item_id)
+        .id(item_id.clone())
         .flex()
         .items_center()
         .w_full()
@@ -478,52 +529,66 @@ fn render_item(
         .rounded(px(theme.radius))
         .cursor_pointer()
         .text_sm()
-        .text_color(if active {
-            theme.sidebar_item_active_text
-        } else {
-            theme.sidebar_text
-        })
         .font_weight(if active {
             gpui::FontWeight::MEDIUM
         } else {
             gpui::FontWeight::NORMAL
-        })
-        .bg(if active {
-            theme.sidebar_item_active_bg
-        } else {
-            gpui::transparent_black()
         })
         .shadow(if active {
             vec![active_item_shadow(&theme)]
         } else {
             vec![]
         })
-        .hover(|this| {
-            this.bg(if active {
-                theme.sidebar_item_active_bg
-            } else {
-                theme.sidebar_item_hover
-            })
-        })
-        .child(svg().path(icon_path).size(px(16.0)).text_color(icon_color))
         .on_click(cx.listener(move |this, _, _, cx| {
             this.select(&url_for_click, &title_for_click, cx);
         }));
 
     if collapsed {
-        // 图标轨道：图标居中；悬停出原生 tooltip 补足标题可发现性
-        return base
-            .justify_center()
-            .tooltip(move |_window, cx| cx.new(|_| SidebarTooltip::new(title.clone())).into())
-            .into_any_element();
+        // 图标轨道：图标居中；悬停出原生 tooltip 补足标题可发现性。
+        // 图标颜色跟随 hover 过渡（icon_normal → icon_hover）。
+        let tooltip_title = title.clone();
+        return hover_transition(
+            item_id,
+            base.justify_center().tooltip(move |_window, cx| {
+                cx.new(|_| SidebarTooltip::new(tooltip_title.clone())).into()
+            }),
+            window,
+            cx,
+            move |el: Stateful<gpui::Div>, t| {
+                use gpui::Styled;
+                el.bg(lerp_hsla(bg_normal, bg_hover, t)).child(
+                    svg()
+                        .path(icon_path)
+                        .size(px(16.0))
+                        .text_color(lerp_hsla(icon_normal, icon_hover, t)),
+                )
+            },
+        )
+        .into_any_element();
     }
 
-    base.child(
-        div()
-            .flex_1()
-            .min_w_0()
-            .truncate()
-            .child(SharedString::from(item.title.clone())),
+    hover_transition(
+        item_id,
+        base,
+        window,
+        cx,
+        move |el: Stateful<gpui::Div>, t| {
+            use gpui::Styled;
+            el.bg(lerp_hsla(bg_normal, bg_hover, t))
+                .text_color(lerp_hsla(text_normal, text_hover, t))
+                .child(svg().path(icon_path).size(px(16.0)).text_color(lerp_hsla(
+                    icon_normal,
+                    icon_hover,
+                    t,
+                )))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .child(SharedString::from(title.clone())),
+                )
+        },
     )
     .into_any_element()
 }
@@ -594,6 +659,36 @@ mod tests {
         });
     }
 
+    /// P4-2：折叠动画起点宽度契约——toggle 时 `width_anim_from` 记录**切换前**的展示宽度
+    /// （渲染层 `with_animation` 据此从旧宽度插值到新宽度，而不是跳变）。
+    #[gpui::test]
+    async fn toggle_collapsed_records_animation_start_width(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| SidebarView::new(None, cx));
+        cx.read(|app| {
+            let sidebar = view.read(app);
+            assert_eq!(sidebar.width_anim_from, SIDEBAR_WIDTH, "初始起点 = 展开宽");
+        });
+
+        // 展开 → 折叠：起点 = 240（展开宽），目标 = 56
+        view.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| {
+            let sidebar = view.read(app);
+            assert!(sidebar.collapsed);
+            assert_eq!(sidebar.width_anim_from, SIDEBAR_WIDTH);
+            assert_eq!(sidebar.width(), SIDEBAR_WIDTH_COLLAPSED);
+        });
+
+        // 折叠 → 展开：起点 = 56（折叠宽），目标 = 240
+        view.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| {
+            let sidebar = view.read(app);
+            assert!(!sidebar.collapsed);
+            assert_eq!(sidebar.width_anim_from, SIDEBAR_WIDTH_COLLAPSED);
+            assert_eq!(sidebar.width(), SIDEBAR_WIDTH);
+        });
+    }
+
     /// P2-3：渲染冒烟——展开态（含分组标题 + 选中态路径）与折叠态（图标轨道 +
     /// tooltip 构造路径）均可完整渲染不 panic。
     #[gpui::test]
@@ -603,6 +698,20 @@ mod tests {
             SidebarView::new(Some("/dashboard/operations/site-navigation"), cx)
         });
         // 折叠态再渲染一次（tooltip 构造路径 + 图标轨道布局）
+        view.update(cx, |this, cx| this.toggle_collapsed(cx));
+    }
+
+    /// P4-2：减弱动态效果分支渲染冒烟——MotionPref(true) 时侧栏（无宽度动画 + 无
+    /// hover 过渡）展开/折叠两态均可完整渲染不 panic。
+    #[gpui::test]
+    async fn sidebar_renders_with_reduce_motion(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            cx.set_global(crate::motion::MotionPref(true));
+        });
+        let (view, cx) = cx.add_window_view(|_window, cx| {
+            SidebarView::new(Some("/dashboard/operations/site-navigation"), cx)
+        });
         view.update(cx, |this, cx| this.toggle_collapsed(cx));
     }
 

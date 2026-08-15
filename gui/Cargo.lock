@@ -2577,6 +2577,7 @@ dependencies = [
  "gui-api-client",
  "gui-domain",
  "keyring",
+ "objc2-app-kit",
  "serde",
  "serde_json",
  "tokio",
