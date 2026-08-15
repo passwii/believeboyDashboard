@@ -22,4 +22,5 @@ pub mod advertising;
 pub mod common;
 pub mod dashboard;
 pub mod operations;
+pub mod scheduled_reports;
 pub mod sidebar;
