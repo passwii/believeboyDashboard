@@ -209,6 +209,57 @@ impl Client {
 
         serde_json::from_slice(&bytes).map_err(|e| ApiError::Deserialize(e.to_string()))
     }
+
+    /// 发起请求并丢弃响应体（DELETE 204 No Content 等无内容成功响应）。
+    ///
+    /// 与 [`Self::request_json`] 同一鉴权 / query / body 管线，仅成功时不要求
+    /// 响应体可反序列化——后端 `204` 返回空 body，走 `request_json` 会因空体
+    /// 反序列化失败而误报错误。
+    pub(crate) async fn request_discard<B: serde::Serialize>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<&B>,
+    ) -> Result<(), ApiError> {
+        let url = format!("{}{}", self.config.base_url, path);
+        let mut req = self.http.request(method, &url);
+        if let Some(api_key) = &self.config.api_key {
+            req = req.bearer_auth(api_key);
+        }
+        if let Some(session) = &self.config.session {
+            req = req
+                .header("X-User-Id", &session.user_id)
+                .header("X-User-Email", &session.email)
+                .header("X-Session-Id", &session.session_id);
+            if let Some(name) = &session.user_name {
+                req = req.header("X-User-Name", percent_encode(name));
+            }
+            if let Some(op) = &session.operator_name_zh {
+                req = req.header("X-Operator", percent_encode(op));
+            }
+            req = req.header("X-Role-Type", session.role_type.as_str());
+            if session.is_admin {
+                req = req.header("X-Is-Admin", "true");
+            }
+        }
+        if !query.is_empty() {
+            req = req.query(query);
+        }
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+
+        let resp = req.send().await?;
+        let status = resp.status();
+        let bytes = resp.bytes().await?;
+
+        if !status.is_success() {
+            let body = String::from_utf8_lossy(&bytes).to_string();
+            return Err(ApiError::from_response(status.as_u16(), &body));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -19,6 +19,7 @@ pub mod client;
 pub mod monthly_reports;
 pub mod platform_revenues;
 pub mod portfolio;
+pub mod project_goals;
 pub mod query;
 pub mod scheduled_reports;
 pub mod store_navigation;
