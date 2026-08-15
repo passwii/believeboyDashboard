@@ -38,6 +38,7 @@ use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
 use crate::views::scheduled_reports::{SCHEDULED_REPORTS_URL, ScheduledReportsView};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SITE_NAV_URL, SiteNavigationView};
+use crate::views::store_navigation::{STORE_NAV_URL, StoreNavigationView};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -64,6 +65,8 @@ pub struct RootView {
     dashboard: Option<Entity<DashboardView>>,
     /// 站点导航真实视图（GUI-12；首个接入的真实 sidebar 页面，点击「运营 → 站点导航」懒创建）
     site_navigation: Option<Entity<SiteNavigationView>>,
+    /// 店铺导航真实视图（P5-1；点击「运营 → 店铺导航」懒创建，数据源 /projects/manage）
+    store_navigation: Option<Entity<StoreNavigationView>>,
     /// 运营 → 销售数据真实视图（P3-1；点击「运营 → 销售数据」懒创建，复用数据管线）
     daily_analysis: Option<Entity<DailyAnalysisView>>,
     /// 广告 → 广告分析真实视图（P3-3；点击「广告 → 广告分析」懒创建）
@@ -80,6 +83,8 @@ pub struct RootView {
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
     show_site_navigation: bool,
+    /// 内容区当前是否显示店铺导航视图（sidebar Select 命中 STORE_NAV_URL 时置真）
+    show_store_navigation: bool,
     /// 内容区当前是否显示销售数据视图（sidebar Select 命中 DAILY_ANALYSIS_URL 时置真）
     show_daily_analysis: bool,
     /// 内容区当前是否显示广告分析视图（sidebar Select 命中广告分析前缀时置真）
@@ -141,6 +146,27 @@ impl RootView {
                         this.site_navigation
                             .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
                         this.show_site_navigation = true;
+                        this.show_store_navigation = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                    } else if url == STORE_NAV_URL {
+                        // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.store_navigation.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = StoreNavigationView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = true;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -160,6 +186,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = true;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -181,6 +208,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = true;
                         this.show_ad_data = false;
@@ -198,6 +226,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = true;
@@ -217,6 +246,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -236,6 +266,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -256,6 +287,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -264,6 +296,7 @@ impl RootView {
                         this.show_scheduled_reports = true;
                     } else {
                         this.show_site_navigation = false;
+                        this.show_store_navigation = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -287,6 +320,7 @@ impl RootView {
             content,
             dashboard,
             site_navigation: None,
+            store_navigation: None,
             daily_analysis: None,
             ad_analysis: None,
             ad_data: None,
@@ -295,6 +329,7 @@ impl RootView {
             scheduled_reports: None,
             show_dashboard,
             show_site_navigation: false,
+            show_store_navigation: false,
             show_daily_analysis: false,
             show_ad_analysis: false,
             show_ad_data: false,
@@ -326,6 +361,8 @@ impl RootView {
             "dashboard"
         } else if self.show_site_navigation {
             "site-navigation"
+        } else if self.show_store_navigation {
+            "store-navigation"
         } else if self.show_daily_analysis {
             "daily-analysis"
         } else if self.show_ad_analysis {
@@ -357,6 +394,11 @@ impl RootView {
             )
         } else if self.show_site_navigation {
             self.site_navigation.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_store_navigation {
+            self.store_navigation.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -910,6 +952,11 @@ mod tests {
                 "/dashboard/operations/site-navigation",
                 "站点导航",
                 "site-navigation",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
             ),
             (
                 "/dashboard/operations/daily-analysis",
