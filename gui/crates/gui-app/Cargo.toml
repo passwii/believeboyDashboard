@@ -35,3 +35,5 @@ unicode-segmentation = "1.12"
 [dev-dependencies]
 # 视图级单元测试需要 TestAppContext / gpui::test（dashboard.rs 竞态保护测试）
 gpui = { workspace = true, features = ["test-support"] }
+# 视图级渲染冒烟测试需要 mock HTTP server（对齐 gui-api-client 的 mockito 契约测试）
+mockito = "1.6"

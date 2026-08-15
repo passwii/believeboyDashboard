@@ -7,6 +7,8 @@
 //! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
 //! GUI-12（BLF-684）叠加：侧栏命中「运营 → 站点导航」URL 时显示真实站点导航视图
 //! （懒创建），其余子项仍为占位视图。
+//! P3-1（BLF-701）叠加：侧栏命中「运营 → 销售数据」URL 时显示销售数据真实视图
+//! （懒创建，四态状态机 + 筛选 + 维度下钻）。
 //! P2-1（BLF-688）叠加：主窗口顶部改为 gpui-component `TitleBar`（unified toolbar
 //! 风格，macOS 原生质感）——系统 traffic lights 悬于其上（main.rs 配
 //! `TitleBar::title_bar_options()`），左侧显示当前视图标题，右侧收敛已登录用户
@@ -26,6 +28,7 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
 use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
+use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
 use crate::views::sidebar::{SidebarEvent, SidebarView};
@@ -56,10 +59,14 @@ pub struct RootView {
     dashboard: Option<Entity<DashboardView>>,
     /// 站点导航真实视图（GUI-12；首个接入的真实 sidebar 页面，点击「运营 → 站点导航」懒创建）
     site_navigation: Option<Entity<SiteNavigationView>>,
+    /// 销售数据真实视图（P3-1；点击「运营 → 销售数据」懒创建）
+    daily_analysis: Option<Entity<DailyAnalysisView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
     show_site_navigation: bool,
+    /// 内容区当前是否显示销售数据视图（sidebar Select 命中 DAILY_ANALYSIS_URL 时置真）
+    show_daily_analysis: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     session: Option<SessionInfo>,
@@ -87,7 +94,7 @@ impl RootView {
         let content = cx.new(|_| PlaceholderView::new("", ""));
 
         // 侧栏选中变化 → 内容区切换 + TitleBar 标题跟随（GUI-12：命中站点导航
-        // URL 显示真实视图，其余仍为占位）
+        // URL 显示真实视图；P3-1：命中销售数据 URL 显示真实视图；其余仍为占位）
         cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
             let SidebarEvent::Select { url, title } = event;
             this.show_dashboard = false;
@@ -96,8 +103,28 @@ impl RootView {
                 this.site_navigation
                     .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
                 this.show_site_navigation = true;
+                this.show_daily_analysis = false;
+            } else if url == DAILY_ANALYSIS_URL {
+                // 会话必存在（侧栏交互仅发生在已登录窗口）；无会话时用必拒连接地址兜底
+                let client = this
+                    .session
+                    .as_ref()
+                    .map(|s| s.client.clone())
+                    .unwrap_or_else(|| Client::new("http://127.0.0.1:1".to_string()));
+                this.daily_analysis.get_or_insert_with(|| {
+                    let client = client.clone();
+                    cx.new(|cx| {
+                        let mut view = DailyAnalysisView::new(cx, client);
+                        // 首次进入即触发首屏拉取
+                        view.reload(cx);
+                        view
+                    })
+                });
+                this.show_site_navigation = false;
+                this.show_daily_analysis = true;
             } else {
                 this.show_site_navigation = false;
+                this.show_daily_analysis = false;
                 this.content.update(cx, |content, cx| {
                     content.title = title.clone();
                     content.url = url.clone();
@@ -113,8 +140,10 @@ impl RootView {
             content,
             dashboard,
             site_navigation: None,
+            daily_analysis: None,
             show_dashboard,
             show_site_navigation: false,
+            show_daily_analysis: false,
             current_title: "Dashboard".to_string(),
             session,
             focus_handle: cx.focus_handle(),
@@ -180,6 +209,11 @@ impl Render for RootView {
                                     )
                                 } else if self.show_site_navigation {
                                     self.site_navigation.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |view| view.into_any_element(),
+                                    )
+                                } else if self.show_daily_analysis {
+                                    self.daily_analysis.clone().map_or_else(
                                         || self.content.clone().into_any_element(),
                                         |view| view.into_any_element(),
                                     )

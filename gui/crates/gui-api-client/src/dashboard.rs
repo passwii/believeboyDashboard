@@ -4,6 +4,7 @@
 //! `app/dashboard/page.tsx` / `app/dashboard/v1/page.tsx` 调用口径一致）：
 //! - `useManagedProjects`           →  `GET /api/v1/projects/manage`（注意是 manage 不是
 //!   managed，见 `backend/app/api/v1/endpoints/projects.py`）
+//! - daily-analysis (单项目+站点)    →  `GET /api/v1/daily-analysis`
 //! - daily-analysis (聚合)          →  `GET /api/v1/daily-analysis/all`
 //! - daily-analysis (按国家)        →  `GET /api/v1/daily-analysis/all-countries`
 //!
@@ -22,6 +23,9 @@ use crate::error::ApiError;
 /// `GET /projects/manage` —— backend 实际路由（`projects.py`），不是 `/projects/managed`
 pub(crate) const MANAGED_PROJECTS_PATH: &str = "/api/v1/projects/manage";
 
+/// `GET /daily-analysis` —— 单项目 + 具体站点（可选 SKU 过滤）
+const DAILY_ANALYSIS_PATH: &str = "/api/v1/daily-analysis";
+
 /// `GET /daily-analysis/all` —— 多项目聚合
 const DAILY_ANALYSIS_ALL_PATH: &str = "/api/v1/daily-analysis/all";
 
@@ -32,6 +36,32 @@ impl Client {
     /// 当前用户可管理的项目列表
     pub async fn list_managed_projects(&self) -> Result<Vec<ManagedProject>, ApiError> {
         self.get_json(MANAGED_PROJECTS_PATH, &[]).await
+    }
+
+    /// 单项目 + 具体站点的销售数据（P3-1：销售数据页「单项目 × 具体站点」分支）
+    ///
+    /// 对齐 frontend `daily-analysis-client.tsx` 的第三个分支：
+    /// `GET /api/v1/daily-analysis?project_id=X&country=US&start_date=...&end_date=...`
+    /// （可选 `sku` 过滤 SKU 粒度明细）。响应为 `DailyAnalysisResponse`（与 `/all`
+    /// 同形：summary_rows / detail_rows / available_dates / project_breakdown）。
+    pub async fn daily_analysis(
+        &self,
+        project_id: i64,
+        country: &str,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        sku: Option<&str>,
+    ) -> Result<DailyAnalysisResponse, ApiError> {
+        let mut query = vec![
+            ("project_id", project_id.to_string()),
+            ("country", country.to_string()),
+            ("start_date", start_date.to_string()),
+            ("end_date", end_date.to_string()),
+        ];
+        if let Some(sku) = sku {
+            query.push(("sku", sku.to_string()));
+        }
+        self.get_json(DAILY_ANALYSIS_PATH, &query).await
     }
 
     /// 销售数据聚合（按天 + 项目分解）
@@ -97,9 +127,10 @@ mod tests {
         assert_eq!(MANAGED_PROJECTS_PATH, "/api/v1/projects/manage");
     }
 
-    /// 契约测试：`/daily-analysis/*` 路径锁定 backend 实际路由
+    /// 契约测试：`/daily-analysis*` 路径锁定 backend 实际路由
     #[test]
     fn daily_analysis_paths_match_backend_routes() {
+        assert_eq!(DAILY_ANALYSIS_PATH, "/api/v1/daily-analysis");
         assert_eq!(DAILY_ANALYSIS_ALL_PATH, "/api/v1/daily-analysis/all");
         assert_eq!(
             DAILY_ANALYSIS_ALL_COUNTRIES_PATH,
@@ -200,6 +231,113 @@ mod tests {
         assert_eq!(resp.summary_rows[0].date.to_string(), "2026-08-13");
         let proj = resp.project_breakdown.get(&1).expect("缺少项目 1");
         assert_eq!(proj.project_name, "测试项目 A");
+    }
+
+    #[tokio::test]
+    async fn daily_analysis_sends_query_params_and_parses_response() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", DAILY_ANALYSIS_PATH)
+            .match_header("X-User-Id", "u_1")
+            .match_header("X-User-Email", "demo@believeboy.com")
+            .match_header("X-Session-Id", "sess_1")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("project_id".into(), "1".into()),
+                Matcher::UrlEncoded("country".into(), "US".into()),
+                Matcher::UrlEncoded("start_date".into(), "2026-08-07".into()),
+                Matcher::UrlEncoded("end_date".into(), "2026-08-13".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "summary_rows": [
+                        {
+                            "date": "2026-08-13",
+                            "order_qty": 21,
+                            "sales_amount": 1860.0,
+                            "impressions": 8100,
+                            "clicks": 240,
+                            "cpc": 0.51,
+                            "ad_spend": 122.4,
+                            "ad_orders": 4,
+                            "available_qty": 90,
+                            "page_views": 430,
+                            "units_ordered": 15,
+                            "sessions": 380,
+                            "ordered_sales_amount": 1790.0,
+                            "conversion_rate": 0.0349
+                        }
+                    ],
+                    "detail_rows": [],
+                    "available_dates": {
+                        "sales_report": ["2026-08-13"],
+                        "ad_product_report": ["2026-08-13"],
+                        "inventory_report": [],
+                        "business_report": ["2026-08-13"]
+                    },
+                    "project_breakdown": {
+                        "1": {
+                            "project_name": "测试项目 A",
+                            "summary_rows": [],
+                            "detail_rows": []
+                        }
+                    }
+                }"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let start = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 8, 13).unwrap();
+        let resp = client
+            .daily_analysis(1, "US", start, end, None)
+            .await
+            .expect("请求失败");
+
+        m.assert();
+        assert_eq!(resp.summary_rows.len(), 1);
+        assert_eq!(resp.summary_rows[0].order_qty, 21);
+        assert_eq!(resp.summary_rows[0].date.to_string(), "2026-08-13");
+        assert_eq!(resp.available_dates.sales_report.len(), 1);
+        let proj = resp.project_breakdown.get(&1).expect("缺少项目 1");
+        assert_eq!(proj.project_name, "测试项目 A");
+    }
+
+    #[tokio::test]
+    async fn daily_analysis_includes_sku_param_when_given() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", DAILY_ANALYSIS_PATH)
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("project_id".into(), "1".into()),
+                Matcher::UrlEncoded("country".into(), "US".into()),
+                Matcher::UrlEncoded("start_date".into(), "2026-08-07".into()),
+                Matcher::UrlEncoded("end_date".into(), "2026-08-13".into()),
+                Matcher::UrlEncoded("sku".into(), "B0-A-001".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "summary_rows": [],
+                    "detail_rows": [],
+                    "available_dates": {},
+                    "project_breakdown": {}
+                }"#,
+            )
+            .create();
+
+        let client = Client::new(server.url());
+        let start = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 8, 13).unwrap();
+        let resp = client
+            .daily_analysis(1, "US", start, end, Some("B0-A-001"))
+            .await
+            .expect("请求失败");
+
+        m.assert();
+        assert!(resp.summary_rows.is_empty());
     }
 
     #[tokio::test]
