@@ -22,6 +22,8 @@ pub mod inventory_analysis;
 pub mod login;
 pub mod monthly_report;
 pub mod placeholder;
+pub mod platform_inspection;
+pub mod platform_inspection_edit;
 pub mod platform_revenue;
 pub mod portfolio_overview;
 pub mod project_goals;
