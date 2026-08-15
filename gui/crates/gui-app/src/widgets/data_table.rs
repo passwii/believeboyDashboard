@@ -53,10 +53,12 @@ pub type CellRenderer<T> = Box<dyn Fn(&T, &AppTheme) -> AnyElement>;
 
 /// 列定义（通用行类型的渲染 / 排序约定）
 pub struct ColumnDef<T> {
-    /// 列 id（表头 element id 用；如 `"stock-sku"`）
-    pub id: &'static str,
+    /// 列 id（表头 element id 用；如 `"stock-sku"`）。
+    /// `String`（非 `&'static str`）以支持**动态列**（库存分析的在途 shipment 列
+    /// 数量随响应变化，id 需含 shipment_no 去重，见 inventory_analysis.rs）。
+    pub id: String,
     /// 表头标题
-    pub title: &'static str,
+    pub title: SharedString,
     /// 列宽（px）；`None` = 弹性占满剩余空间
     pub width: Option<f32>,
     /// 对齐（表头 + 单元格）
@@ -74,10 +76,10 @@ pub struct ColumnDef<T> {
 
 impl<T> ColumnDef<T> {
     /// 构造文本列（默认左对齐、不可排序）
-    pub fn text(id: &'static str, title: &'static str, render: fn(&T, &AppTheme) -> SharedString) -> Self {
+    pub fn text(id: impl Into<String>, title: impl Into<SharedString>, render: fn(&T, &AppTheme) -> SharedString) -> Self {
         Self {
-            id,
-            title,
+            id: id.into(),
+            title: title.into(),
             width: None,
             align: CellAlign::Left,
             sortable: false,
@@ -88,12 +90,10 @@ impl<T> ColumnDef<T> {
     }
 
     /// 构造数值列（默认右对齐；可排序）
-    /// 当前示例视图用 text+align 组合；`number` 为公共 API 面供后续视图
-    #[allow(dead_code)]
-    pub fn number(id: &'static str, title: &'static str, sort_value: fn(&T) -> f64, render: fn(&T, &AppTheme) -> SharedString) -> Self {
+    pub fn number(id: impl Into<String>, title: impl Into<SharedString>, sort_value: fn(&T) -> f64, render: fn(&T, &AppTheme) -> SharedString) -> Self {
         Self {
-            id,
-            title,
+            id: id.into(),
+            title: title.into(),
             width: None,
             align: CellAlign::Right,
             sortable: true,
@@ -307,7 +307,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                 let sortable = col.sortable;
                 let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
                 let header_cell = div()
-                    .id(col.id)
+                    .id(SharedString::from(col.id.clone()))
                     .when(sortable, |this| {
                         this.cursor(CursorStyle::PointingHand)
                     })
@@ -329,7 +329,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                         h_flex()
                             .gap_1()
                             .items_center()
-                            .child(div().child(col.title))
+                            .child(div().child(col.title.clone()))
                             .child(
                                 gpui_component::Icon::new(icon)
                                     .with_size(px(12.))
@@ -340,7 +340,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                     None
                 };
                 header_cell
-                    .child(arrow.unwrap_or_else(|| div().child(col.title)))
+                    .child(arrow.unwrap_or_else(|| div().child(col.title.clone())))
                     .when(sortable, |this| {
                         let sort_col_ix = col_ix;
                         this.on_click(cx.listener(move |table, _, _, cx| {
