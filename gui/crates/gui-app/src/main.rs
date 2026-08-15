@@ -21,7 +21,7 @@ use std::env;
 use gpui::prelude::*;
 use gpui::{
     actions, px, size, App, Application, Bounds, Focusable, KeyBinding, TitlebarOptions,
-    WindowBounds, WindowKind, WindowOptions,
+    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
 };
 use gpui_component::TitleBar;
 use tracing_subscriber::EnvFilter;
@@ -191,6 +191,10 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitleBar::title_bar_options()),
+                // P2-3（BLF-690）：主窗口背景用系统模糊材质（NSVisualEffectView，macOS
+                // 12+；旧系统回退到 CGS 窗口背景模糊）。RootView 根容器不画不透明背景，
+                // 侧栏以半透明 sidebar_bg 覆盖其上——透出模糊，实现 Finder 式侧栏材质。
+                window_background: WindowBackgroundAppearance::Blurred,
                 ..Default::default()
             },
             |_, cx| cx.new(|cx| RootView::new(cx, Some(session))),

@@ -146,9 +146,9 @@ impl Render for RootView {
             .flex()
             .flex_col()
             .size_full()
-            .bg(theme.window_bg)
-            // P2-1：统一工具栏（unified toolbar）。系统 traffic lights 悬于其上，
-            // 左侧当前视图标题，右侧已登录用户 + 退出登录。
+            // P2-3（BLF-690）：根容器不画不透明背景——主窗口背景为系统模糊材质
+            // （main.rs `WindowBackgroundAppearance::Blurred`），侧栏的半透明材质
+            // 直接透出该模糊；右侧内容区仍由下方 content-col 覆盖不透明 window_bg。
             .child(title_bar(&self.current_title, &self.session, cx))
             .when(
                 self.session
@@ -323,6 +323,8 @@ fn warning_banner(session: &Option<SessionInfo>, theme: &AppTheme) -> impl IntoE
         .px_4()
         .py_1()
         .text_xs()
+        // 根容器已透明（P2-3 材质），横幅需自带不透明底保证文字可读
+        .bg(theme.window_bg)
         .text_color(theme.warning)
         .child(warning.clone())
 }
