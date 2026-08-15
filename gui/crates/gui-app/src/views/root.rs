@@ -32,6 +32,7 @@ use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
+use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::placeholder::PlaceholderView;
 use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
@@ -88,6 +89,8 @@ pub struct RootView {
     project_goals: Option<Entity<ProjectGoalsView>>,
     /// 运营 → 退货分析真实视图（P5-1；点击「运营 → 退货分析」懒创建）
     return_analysis: Option<Entity<ReturnAnalysisView>>,
+    /// 运营 → 库存分析真实视图（P5-2；点击「运营 → 库存分析」懒创建）
+    inventory_analysis: Option<Entity<InventoryAnalysisView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
@@ -112,6 +115,8 @@ pub struct RootView {
     show_project_goals: bool,
     /// 内容区当前是否显示退货分析视图（sidebar Select 命中 RETURN_ANALYSIS_URL 时置真）
     show_return_analysis: bool,
+    /// 内容区当前是否显示库存分析视图（sidebar Select 命中 INVENTORY_ANALYSIS_URL 时置真）
+    show_inventory_analysis: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
@@ -170,6 +175,7 @@ impl RootView {
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.store_navigation.get_or_insert_with(|| {
@@ -194,6 +200,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.daily_analysis.get_or_insert_with(|| {
@@ -218,6 +225,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.portfolio_overview.get_or_insert_with(|| {
@@ -241,6 +249,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                         this.show_portfolio_overview = true;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
@@ -268,6 +277,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ad_data.get_or_insert_with(|| {
@@ -290,6 +300,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.monthly_report.get_or_insert_with(|| {
@@ -314,6 +325,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.platform_revenue.get_or_insert_with(|| {
@@ -338,6 +350,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
                         // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -362,6 +375,7 @@ impl RootView {
                         this.show_scheduled_reports = true;
                         this.show_portfolio_overview = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                     } else if url == PROJECT_GOALS_URL {
                         // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.project_goals.get_or_insert_with(|| {
@@ -386,6 +400,7 @@ impl RootView {
                         this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = true;
+                        this.show_inventory_analysis = false;
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.return_analysis.get_or_insert_with(|| {
@@ -410,6 +425,32 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_return_analysis = true;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                    } else if url == INVENTORY_ANALYSIS_URL {
+                        // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.inventory_analysis.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = InventoryAnalysisView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -422,6 +463,7 @@ impl RootView {
                         this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
                             content.url = url.clone();
@@ -449,6 +491,7 @@ impl RootView {
             portfolio_overview: None,
             project_goals: None,
             return_analysis: None,
+            inventory_analysis: None,
             show_dashboard,
             show_site_navigation: false,
             show_store_navigation: false,
@@ -461,6 +504,7 @@ impl RootView {
             show_portfolio_overview: false,
             show_project_goals: false,
             show_return_analysis: false,
+            show_inventory_analysis: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
             sidebar_collapsed: false,
@@ -506,6 +550,8 @@ impl RootView {
             "portfolio-overview"
         } else if self.show_return_analysis {
             "return-analysis"
+        } else if self.show_inventory_analysis {
+            "inventory-analysis"
         } else {
             "placeholder"
         }
@@ -575,6 +621,11 @@ impl RootView {
             )
         } else if self.show_return_analysis {
             self.return_analysis.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_inventory_analysis {
+            self.inventory_analysis.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -1140,6 +1191,11 @@ mod tests {
                 "退货分析",
                 "return-analysis",
             ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
@@ -1235,6 +1291,20 @@ mod tests {
                 "/dashboard/operations/project-goals",
                 "项目目标",
                 "project-goals",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
@@ -1357,6 +1427,132 @@ mod tests {
                     view.read(app).view_key(),
                     expected_key,
                     "项目目标两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+    /// P5-2（BLF-719）：库存分析 ↔ 各业务视图的两步切换契约——锁每个既有分支的
+    /// reset 列表都补了 `show_inventory_analysis = false`（以及 INVENTORY_ANALYSIS_URL
+    /// 分支自身对全部既有 show_* 的复位），避免既有分支漏 reset show_inventory_analysis
+    /// 触发 view_key/content_view 链末位误命中。
+    #[gpui::test]
+    async fn view_key_inventory_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-inv2step".into(),
+                name: "库存分析两步切换".into(),
+                email: "inv2step@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-inv2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 库存分析 ↔ 各业务视图双向矩阵：A → 库存分析 与 库存分析 → B 都必须
+        // 落在最后选中视图（覆盖 INVENTORY_ANALYSIS_URL 分支 reset 完整性与既有
+        // 分支对 show_inventory_analysis 的复位）。
+        let transitions = [
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "site-navigation",
+            ),
+            (
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "scheduled-reports",
+            ),
+            (
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "库存分析两步切换 {title_a} → {title_b}"
                 )
             });
         }

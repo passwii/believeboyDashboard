@@ -16,6 +16,7 @@ pub mod auth;
 pub mod client;
 pub mod dashboard;
 pub mod error;
+pub mod inventory;
 pub mod monthly_reports;
 pub mod platform_revenues;
 pub mod portfolio;

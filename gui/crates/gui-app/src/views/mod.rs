@@ -18,6 +18,7 @@ pub mod ad_analysis;
 pub mod ad_data;
 pub mod daily_analysis;
 pub mod dashboard;
+pub mod inventory_analysis;
 pub mod login;
 pub mod monthly_report;
 pub mod placeholder;
