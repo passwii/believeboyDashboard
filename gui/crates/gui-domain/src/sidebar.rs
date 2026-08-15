@@ -43,21 +43,73 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
             label: "运营".into(),
             icon: "LayoutDashboard".into(),
             items: vec![
-                item("站点导航", "/dashboard/operations/site-navigation", "LayoutDashboard"),
-                item("店铺导航", "/dashboard/operations/store-navigation", "Store"),
-                item("销售数据", "/dashboard/operations/daily-analysis", "TrendingUp"),
-                item("退货分析", "/dashboard/operations/return-analysis", "RotateCcw"),
+                item(
+                    "站点导航",
+                    "/dashboard/operations/site-navigation",
+                    "LayoutDashboard",
+                ),
+                item(
+                    "店铺导航",
+                    "/dashboard/operations/store-navigation",
+                    "Store",
+                ),
+                item(
+                    "销售数据",
+                    "/dashboard/operations/daily-analysis",
+                    "TrendingUp",
+                ),
+                item(
+                    "退货分析",
+                    "/dashboard/operations/return-analysis",
+                    "RotateCcw",
+                ),
                 item("项目目标", "/dashboard/operations/project-goals", "Target"),
-                item("调研分析", "/dashboard/operations/research-analysis", "FileSearch"),
-                item("平台巡检", "/dashboard/operations/platform-inspection", "Shield"),
-                item("库存分析", "/dashboard/operations/inventory-analysis", "Warehouse"),
-                item("按周产品分析", "/dashboard/operations/weekly-product-analysis", "BarChart3"),
-                item("组合分析", "/dashboard/operations/portfolio-overview", "Layers"),
+                item(
+                    "调研分析",
+                    "/dashboard/operations/research-analysis",
+                    "FileSearch",
+                ),
+                item(
+                    "平台巡检",
+                    "/dashboard/operations/platform-inspection",
+                    "Shield",
+                ),
+                item(
+                    "库存分析",
+                    "/dashboard/operations/inventory-analysis",
+                    "Warehouse",
+                ),
+                item(
+                    "按周产品分析",
+                    "/dashboard/operations/weekly-product-analysis",
+                    "BarChart3",
+                ),
+                item(
+                    "组合分析",
+                    "/dashboard/operations/portfolio-overview",
+                    "Layers",
+                ),
                 item("SKU 信息", "/dashboard/operations/sku-info", "FileBarChart"),
-                item("补货分析", "/dashboard/operations/inventory-replenishment", "Repeat2"),
-                item("库存分类账", "/dashboard/operations/inventory-ledger", "ClipboardCheck"),
-                item("季节性补货分析", "/dashboard/operations/seasonal-replenishment", "CalendarRange"),
-                item("发货管理", "/dashboard/operations/shipment-management", "Package"),
+                item(
+                    "补货分析",
+                    "/dashboard/operations/inventory-replenishment",
+                    "Repeat2",
+                ),
+                item(
+                    "库存分类账",
+                    "/dashboard/operations/inventory-ledger",
+                    "ClipboardCheck",
+                ),
+                item(
+                    "季节性补货分析",
+                    "/dashboard/operations/seasonal-replenishment",
+                    "CalendarRange",
+                ),
+                item(
+                    "发货管理",
+                    "/dashboard/operations/shipment-management",
+                    "Package",
+                ),
             ],
         },
         // 2. 报表中心（7 项）
@@ -72,7 +124,11 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
                     &["/dashboard/reports/monthly-report"],
                     "FileBarChart",
                 ),
-                item("产品分析", "/dashboard/reports/product-analysis", "Calculator"),
+                item(
+                    "产品分析",
+                    "/dashboard/reports/product-analysis",
+                    "Calculator",
+                ),
                 item_with_prefixes(
                     "新品核算",
                     "/dashboard/reports/pricing-calculation/new-product",
@@ -101,10 +157,18 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
             label: "财务资金".into(),
             icon: "DollarSign".into(),
             items: vec![
-                item("平台回款", "/dashboard/finance/platform-revenue", "Banknote"),
+                item(
+                    "平台回款",
+                    "/dashboard/finance/platform-revenue",
+                    "Banknote",
+                ),
                 item("汇率信息", "/dashboard/finance/exchange-rate", "DollarSign"),
                 item("VAT 发票", "/dashboard/finance/vat-invoice", "Receipt"),
-                item("佣金管理", "/dashboard/finance/commission-management", "Coins"),
+                item(
+                    "佣金管理",
+                    "/dashboard/finance/commission-management",
+                    "Coins",
+                ),
             ],
         },
         // 4. 广告（2 项）
@@ -147,9 +211,17 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
                     &["/dashboard/ai/believeboy-models"],
                     "FileText",
                 ),
-                item("客服交流", "/dashboard/ai/customer-service", "MessagesSquare"),
+                item(
+                    "客服交流",
+                    "/dashboard/ai/customer-service",
+                    "MessagesSquare",
+                ),
                 item("数字员工", "/dashboard/ai/digital-employees", "Users"),
-                item("虚拟办公室", "/dashboard/ai/digital-employees/office", "LayoutDashboard"),
+                item(
+                    "虚拟办公室",
+                    "/dashboard/ai/digital-employees/office",
+                    "LayoutDashboard",
+                ),
             ],
         },
         // 6. CRM 客户与合作伙伴（7 项）
@@ -203,8 +275,16 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
             label: "工具箱".into(),
             icon: "Wrench".into(),
             items: vec![
-                item("Markdown 转换", "/dashboard/tools/markdown-to-word", "FileText"),
-                item("Markdown/HTML 渲染", "/dashboard/tools/page-render", "FileCode"),
+                item(
+                    "Markdown 转换",
+                    "/dashboard/tools/markdown-to-word",
+                    "FileText",
+                ),
+                item(
+                    "Markdown/HTML 渲染",
+                    "/dashboard/tools/page-render",
+                    "FileCode",
+                ),
             ],
         },
         // 8. 系统管理（8 项）
@@ -215,15 +295,48 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
             items: vec![
                 item("更新日志", "/dashboard/system/changelog", "History"),
                 item("项目信息", "/dashboard/system/project-info", "Store"),
-                item("数据库状态", "/dashboard/system/data-management", "Database"),
+                item(
+                    "数据库状态",
+                    "/dashboard/system/data-management",
+                    "Database",
+                ),
                 item("账号管理", "/dashboard/system/account-management", "Users"),
-                item("运营管理", "/dashboard/system/operator-management", "ShieldUser"),
+                item(
+                    "运营管理",
+                    "/dashboard/system/operator-management",
+                    "ShieldUser",
+                ),
                 item("告警中心", "/dashboard/system/alerts", "Bell"),
                 item("日志查看", "/dashboard/system/logs", "History"),
-                item("Agent 接入管理", "/dashboard/system/agent-management", "Shield"),
+                item(
+                    "Agent 接入管理",
+                    "/dashboard/system/agent-management",
+                    "Shield",
+                ),
             ],
         },
     ]
+}
+
+/// 由侧栏子项 url 解析面包屑路径（一级分类 → 二级标题），如
+/// `/dashboard/operations/daily-analysis` → `["运营", "销售数据"]`。
+///
+/// 先按精确 url 匹配，再按 `match_prefixes` 前缀匹配（广告分析等带前缀项的
+/// 深层子路径也能命中）；找不到返回 `None`（Dashboard 着陆页等侧栏之外页面）。
+pub fn breadcrumb_for(url: &str) -> Option<Vec<String>> {
+    for group in sidebar_groups() {
+        for item in &group.items {
+            let exact = item.url == url;
+            let prefixed = item
+                .match_prefixes
+                .iter()
+                .any(|p| url.starts_with(p.as_str()));
+            if exact || prefixed {
+                return Some(vec![group.label.clone(), item.title.clone()]);
+            }
+        }
+    }
+    None
 }
 
 /// 分组数（固定 8）。
@@ -282,9 +395,10 @@ mod tests {
     fn per_group_counts_match_frontend() {
         let groups = sidebar_groups();
         for (id, expected) in EXPECTED_PER_GROUP {
-            let group = groups.iter().find(|g| g.id == *id).unwrap_or_else(|| {
-                panic!("缺少分组 {id}（frontend 8 大分类之一）")
-            });
+            let group = groups
+                .iter()
+                .find(|g| g.id == *id)
+                .unwrap_or_else(|| panic!("缺少分组 {id}（frontend 8 大分类之一）"));
             assert_eq!(
                 group.items.len(),
                 *expected,
@@ -335,5 +449,46 @@ mod tests {
         let json = serde_json::to_string(&groups).expect("序列化失败");
         let back: Vec<SidebarGroup> = serde_json::from_str(&json).expect("反序列化失败");
         assert_eq!(groups, back);
+    }
+
+    /// P4-1：面包屑解析契约——常规项按精确 url 命中（一级分类 → 二级标题），
+    /// 带 match_prefixes 的项按前缀命中，侧栏之外的 url（如 Dashboard 着陆页）返回 None。
+    #[test]
+    fn breadcrumb_for_resolves_group_and_item() {
+        // 精确匹配（运营 → 销售数据）
+        assert_eq!(
+            breadcrumb_for("/dashboard/operations/daily-analysis"),
+            Some(vec!["运营".to_string(), "销售数据".to_string()])
+        );
+        // 精确匹配（报表中心 → 定时报告）
+        assert_eq!(
+            breadcrumb_for("/dashboard/reports/scheduled-reports"),
+            Some(vec!["报表中心".to_string(), "定时报告".to_string()])
+        );
+        // match_prefixes 前缀匹配（广告 → 广告分析：深层子路径也能命中）
+        assert_eq!(
+            breadcrumb_for("/dashboard/advertising/ad-analysis/overview"),
+            Some(vec!["广告".to_string(), "广告分析".to_string()])
+        );
+        assert_eq!(
+            breadcrumb_for("/dashboard/advertising/ad-analysis/campaign/123"),
+            Some(vec!["广告".to_string(), "广告分析".to_string()])
+        );
+        // 侧栏之外的 url → None（Dashboard 着陆页）
+        assert_eq!(breadcrumb_for("/dashboard"), None);
+        assert_eq!(breadcrumb_for(""), None);
+    }
+
+    /// P4-1：面包屑解析对全部 52 个子项都必须命中（每个子项都能找到所属分类）。
+    #[test]
+    fn breadcrumb_for_covers_all_items() {
+        for group in sidebar_groups() {
+            for item in &group.items {
+                let path = breadcrumb_for(&item.url).expect("子项 url 应能解析出面包屑");
+                assert_eq!(path.len(), 2, "面包屑应有两级（分类 + 标题）");
+                assert_eq!(path[0], group.label, "面包屑首级应是所属分类");
+                assert_eq!(path[1], item.title, "面包屑末级应是子项标题");
+            }
+        }
     }
 }

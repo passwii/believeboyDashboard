@@ -1,4 +1,4 @@
-//! 左侧侧栏视图（P2-3 原生化打磨版，BLF-690）
+//! 左侧侧栏视图（P2-3 原生化打磨版，BLF-690；P4-1 窗口 Chrome 重构版，BLF-707）
 //!
 //! 渲染 gui-domain::sidebar 的 8 个一级分类 + 全部二级子项（52 项，硬编码数据）。
 //!
@@ -7,21 +7,27 @@
 //!   `WindowBackgroundAppearance::Blurred`，RootView 根容器不画不透明背景），
 //!   侧栏以低透明度 [`crate::theme::AppTheme::sidebar_bg`] 覆盖其上透出模糊，
 //!   右侧 1px 发丝分隔线（Finder 风格）
+//! - **全高布局（P4-1）**：侧栏从窗口顶部开始（不再有跨全宽的 TitleBar），
+//!   头部顶部留出 traffic lights 避让区（系统红绿灯悬于其上）
 //! - **选中态**：中性色圆角胶囊（浅色=白胶囊+柔和投影 / 深色=高亮灰胶囊），
 //!   hover 轻微灰底反馈；macOS 侧栏选中不用品牌蓝（那是 iOS 风格），靠明度区分
 //! - **分组标题（section header）**：小字号/灰色/上留白，纯文字无图标（原生语义）
 //! - **间距体系**：行高 32px、圆角 6px、图标 16px 定宽对齐、8px 内边距与图标间距、
 //!   文字超长省略号截断
-//! - **折叠/展开**：底部切换按钮；折叠后为 56px 图标轨道（icon rail），
+//! - **折叠/展开（P4-1）**：切换按钮在**侧栏头部右上角**（Mail/Notes 风格）；
+//!   折叠后为 56px 图标轨道（icon rail），折叠按钮迁往右侧内容区头部（root.rs），
 //!   悬停显示原生 tooltip（gpui 内建 tooltip 系统），分组以间距分隔
 //! - **键盘导航保持**：↑/↓ 移动选中并激活，Enter 确认（GUI-3 实现，折叠不影响）
+//! - **窗口拖拽（P4-1 修复）**：移除跨全宽 TitleBar 后，侧栏头部承担窗口拖拽职责——
+//!   复刻 gpui-component TitleBar 交互链（`WindowControlArea::Drag` + 按下武装/移动
+//!   `start_window_move()` + 双击 `titlebar_double_click()`），traffic lights 旁即拖拽区
 
 use gpui::{
     div, prelude::*, px, svg, App, BoxShadow, Context, EventEmitter, FocusHandle, Focusable,
-    KeyDownEvent, SharedString, Window,
+    KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Window, WindowControlArea,
 };
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::{ActiveTheme, Icon, IconName, Sizable};
+use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 
 use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
 
@@ -34,12 +40,19 @@ const SIDEBAR_WIDTH: f32 = 240.0;
 const SIDEBAR_WIDTH_COLLAPSED: f32 = 56.0;
 /// 侧栏材质透明度：半透明覆盖在主窗口系统模糊之上（越低越透出背景）
 const SIDEBAR_BG_ALPHA: f32 = 0.85;
+/// P4-1：侧栏头部顶部 traffic lights 避让高度（px）——系统红绿灯位于 (9,9)、
+/// 直径约 12px（y 9–21），主窗口不再有跨全宽 TitleBar，红绿灯直接悬于侧栏头部之上
+const TRAFFIC_LIGHTS_CLEARANCE: f32 = 34.0;
+/// 侧栏头部品牌行高度（px，logo + APP 名称 + 折叠按钮）
+const SIDEBAR_HEADER_ROW: f32 = 52.0;
 
 /// 侧栏发出的导航事件
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SidebarEvent {
     /// 选中某个子项
     Select { url: String, title: String },
+    /// P4-1：折叠状态变化（RootView 据此在内容区头部渲染/收起展开按钮）
+    Collapsed { collapsed: bool },
 }
 
 /// 左侧侧栏视图
@@ -53,6 +66,9 @@ pub struct SidebarView {
     focus_handle: FocusHandle,
     /// P2-3：是否折叠为图标轨道
     collapsed: bool,
+    /// P4-1 修复：窗口拖拽武装标志——鼠标在侧栏头部按下后置真，移动时触发
+    /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
+    should_move: bool,
 }
 
 struct FlatItem {
@@ -83,6 +99,36 @@ impl SidebarView {
             flat_items,
             focus_handle: cx.focus_handle(),
             collapsed: false,
+            should_move: false,
+        }
+    }
+
+    /// P4-1 修复：武装窗口拖拽（侧栏头部鼠标按下）
+    fn arm_drag(&mut self) {
+        self.should_move = true;
+    }
+
+    /// P4-1 修复：解除拖拽武装（松开 / 在头部外按下）
+    fn disarm_drag(&mut self) {
+        self.should_move = false;
+    }
+
+    /// P4-1 修复：消费拖拽武装——返回 true 表示应启动窗口拖拽并解除武装。
+    /// 拆成无 `Window` 依赖的方法以便单测锁状态机。
+    fn consume_drag_armed(&mut self) -> bool {
+        if self.should_move {
+            self.should_move = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// P4-1 修复：鼠标移动时若已武装则启动原生窗口拖拽（与 gpui-component TitleBar
+    /// 行为一致——按下并拖动 = 拖窗；按下即松 = 点击，头部内按钮不受影响）
+    fn maybe_start_window_move(&mut self, window: &mut Window) {
+        if self.consume_drag_armed() {
+            window.start_window_move();
         }
     }
 
@@ -95,13 +141,19 @@ impl SidebarView {
         }
     }
 
-    /// 折叠/展开切换（P2-3；底部切换按钮触发）
-    fn toggle_collapsed(&mut self, cx: &mut Context<Self>) {
+    /// 折叠/展开切换（P4-1；展开态由侧栏头部右上角按钮触发，折叠态由右侧
+    /// 内容区头部最左的展开按钮触发——root.rs 通过本方法驱动）。
+    /// 切换后 emit [`SidebarEvent::Collapsed`]，RootView 同步内容区头部布局。
+    pub(crate) fn toggle_collapsed(&mut self, cx: &mut Context<Self>) {
         self.collapsed = !self.collapsed;
+        cx.emit(SidebarEvent::Collapsed {
+            collapsed: self.collapsed,
+        });
         cx.notify();
     }
 
-    fn select(&mut self, url: &str, title: &str, cx: &mut Context<Self>) {
+    /// 选中某个子项（RootView 订阅后切换内容区；pub(crate) 供 root 测试驱动）
+    pub(crate) fn select(&mut self, url: &str, title: &str, cx: &mut Context<Self>) {
         if self.selected_url.as_deref() == Some(url) {
             return;
         }
@@ -187,7 +239,7 @@ impl Render for SidebarView {
             .focusable()
             .track_focus(&focus_handle)
             .on_key_down(cx.listener(|this, event, _, cx| this.on_key_down(event, cx)))
-            .child(sidebar_header(&theme, collapsed))
+            .child(sidebar_header(&theme, collapsed, cx))
             .child(
                 div()
                     .id("sidebar-scroll")
@@ -202,49 +254,100 @@ impl Render for SidebarView {
                         }),
                     ),
             )
-            .child(sidebar_footer(&theme, collapsed, cx))
+            .child(sidebar_footer(&theme, collapsed))
     }
 }
 
-/// 侧栏头部：品牌标识 + 名称。折叠态只显示品牌方块（居中）。
-fn sidebar_header(theme: &AppTheme, collapsed: bool) -> impl IntoElement {
+/// 侧栏头部（P4-1）：顶部留出 traffic lights 避让区（系统红绿灯悬于其上），
+/// 品牌行 = logo + APP 名称 + 右上角折叠按钮（Mail/Notes 风格）。
+/// 折叠态只显示品牌方块（居中）——折叠按钮迁往右侧内容区头部（root.rs）。
+fn sidebar_header(
+    theme: &AppTheme,
+    collapsed: bool,
+    cx: &mut Context<SidebarView>,
+) -> impl IntoElement {
     if collapsed {
         return div()
             .id("sidebar-header")
             .flex()
+            .flex_col()
             .items_center()
-            .justify_center()
             .w_full()
-            .h(px(52.0))
-            .child(brand_mark(theme));
+            .child(div().h(px(TRAFFIC_LIGHTS_CLEARANCE)))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .w_full()
+                    .h(px(SIDEBAR_HEADER_ROW))
+                    .child(brand_mark(theme)),
+            )
+            .map(|el| attach_window_drag(el, cx));
     }
 
     div()
         .id("sidebar-header")
         .flex()
-        .items_center()
+        .flex_col()
         .w_full()
-        .h(px(52.0))
-        .gap_2()
-        .px_3()
-        // 原生侧栏头部无底部分隔线（材质整体一体，分组靠留白）
-        .child(brand_mark(theme))
+        .child(div().h(px(TRAFFIC_LIGHTS_CLEARANCE)))
         .child(
             div()
-                .flex_col()
+                .flex()
+                .items_center()
+                .w_full()
+                .h(px(SIDEBAR_HEADER_ROW))
+                .gap_2()
+                .px_3()
+                // 原生侧栏头部无底部分隔线（材质整体一体，分组靠留白）
+                .child(brand_mark(theme))
                 .child(
                     div()
-                        .text_base()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_color(theme.sidebar_text)
-                        .child(SharedString::from("BelieveBoy")),
+                        .flex_col()
+                        .child(
+                            div()
+                                .text_base()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(theme.sidebar_text)
+                                .child(SharedString::from("BelieveBoy")),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.sidebar_group_text)
+                                .child(SharedString::from("彼励扶 Dashboard")),
+                        ),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.sidebar_group_text)
-                        .child(SharedString::from("彼励扶 Dashboard")),
-                ),
+                .child(div().flex_1())
+                .child(collapse_toggle_button(false, cx)),
+        )
+        .map(|el| attach_window_drag(el, cx))
+}
+
+/// P4-1 修复：给头部容器挂窗口拖拽交互——复刻 gpui-component `TitleBar` 的交互链：
+/// `WindowControlArea::Drag` 注册原生拖拽区（与 traffic lights 共存）；按下武装 →
+/// 移动时 `start_window_move()` 启动原生窗口拖拽；未移动直接松开 = 普通点击（头部内
+/// 折叠按钮仍可交互）；macOS 双击 = `titlebar_double_click()`（缩放/最小化跟随系统偏好）。
+fn attach_window_drag(
+    el: gpui::Stateful<gpui::Div>,
+    cx: &mut Context<SidebarView>,
+) -> gpui::Stateful<gpui::Div> {
+    el.window_control_area(WindowControlArea::Drag)
+        .when(cfg!(target_os = "macos"), |this| {
+            this.on_double_click(|_, window, _| window.titlebar_double_click())
+        })
+        .on_mouse_down_out(cx.listener(|this, _, _, _| this.disarm_drag()))
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.arm_drag()),
+        )
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _, _, _| this.disarm_drag()),
+        )
+        .on_mouse_move(
+            cx.listener(|this, _: &MouseMoveEvent, window, _| this.maybe_start_window_move(window)),
         )
 }
 
@@ -260,30 +363,17 @@ fn brand_mark(theme: &AppTheme) -> impl IntoElement {
         .child(div().size(px(10.0)).rounded_full().bg(theme.brand_soft))
 }
 
-/// 侧栏底部：功能入口计数 + 折叠/展开切换按钮。
-///
-/// 折叠态只保留居中切换按钮（图标轨道下缘）。
-fn sidebar_footer(
-    theme: &AppTheme,
-    collapsed: bool,
-    cx: &mut Context<SidebarView>,
-) -> impl IntoElement {
+/// 侧栏底部（P4-1）：功能入口计数。折叠态不渲染——折叠后仅剩 56px 图标轨道，
+/// 切换按钮已上移至侧栏头部（展开态）/ 右侧内容区头部（折叠态）。
+fn sidebar_footer(theme: &AppTheme, collapsed: bool) -> impl IntoElement {
     if collapsed {
-        return div()
-            .id("sidebar-footer")
-            .flex()
-            .items_center()
-            .justify_center()
-            .w_full()
-            .h(px(36.0))
-            .child(collapse_toggle_button(collapsed, cx));
+        return div().id("sidebar-footer-empty");
     }
 
     div()
         .id("sidebar-footer")
         .flex()
         .items_center()
-        .justify_between()
         .w_full()
         .h(px(36.0))
         .px_3()
@@ -293,10 +383,10 @@ fn sidebar_footer(
                 .text_color(theme.sidebar_footer_text)
                 .child(SharedString::from("52 个功能入口")),
         )
-        .child(collapse_toggle_button(collapsed, cx))
 }
 
-/// 折叠/展开切换按钮（ghost 图标按钮 + tooltip）
+/// 折叠/展开切换按钮（ghost 图标按钮 + tooltip；P4-1 起仅用于侧栏头部展开态
+/// 与内容区头部的展开按钮，底部不再渲染）
 fn collapse_toggle_button(collapsed: bool, cx: &mut Context<SidebarView>) -> impl IntoElement {
     let (icon, tip) = if collapsed {
         (IconName::PanelLeftOpen, "展开侧栏")
@@ -480,6 +570,8 @@ impl Render for SidebarTooltip {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     /// P2-3：侧栏默认展开；展开/折叠宽度契约（240 ↔ 56）。
     #[gpui::test]
@@ -514,6 +606,33 @@ mod tests {
         view.update(cx, |this, cx| this.toggle_collapsed(cx));
     }
 
+    /// P4-1：折叠切换 emit [`SidebarEvent::Collapsed`]——RootView 据此同步
+    /// 内容区头部的展开按钮（折叠按钮从侧栏头迁移到右侧内容区头部）。
+    #[gpui::test]
+    async fn toggle_collapsed_emits_collapsed_event(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let (view, cx) = cx.add_window_view(|_window, cx| {
+            let events = events.clone();
+            // 订阅正在创建的自身实体句柄（cx.entity()）
+            let sidebar = cx.entity();
+            cx.subscribe(&sidebar, move |_, _, event: &SidebarEvent, _| {
+                events.borrow_mut().push(event.clone());
+            })
+            .detach();
+            SidebarView::new(None, cx)
+        });
+        view.update(cx, |this, cx| this.toggle_collapsed(cx));
+        view.update(cx, |this, cx| this.toggle_collapsed(cx));
+        assert_eq!(
+            *events.borrow(),
+            vec![
+                SidebarEvent::Collapsed { collapsed: true },
+                SidebarEvent::Collapsed { collapsed: false },
+            ]
+        );
+    }
+
     /// P2-3：键盘导航数据契约——展平子项数 = 8 组全量 52 项，折叠不改变导航范围。
     #[test]
     fn sidebar_flat_items_cover_all_groups() {
@@ -523,5 +642,31 @@ mod tests {
             flat, 52,
             "8 组共 52 个子项（与 frontend SIDEBAR_TOP_GROUPS 一致）"
         );
+    }
+
+    /// P4-1 修复（review 阻塞项）：窗口拖拽武装状态机——按下武装、移动消费并
+    /// 解除、松开/外出解除；未武装时移动不触发。锁「按下即松 = 点击不拖窗」契约。
+    #[gpui::test]
+    async fn window_drag_arm_consume_disarm(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| SidebarView::new(None, cx));
+        view.update(cx, |this, _| {
+            // 初始未武装
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed(), "未武装时移动不触发拖拽");
+
+            // 按下武装 → 移动消费（触发拖拽）并解除
+            this.arm_drag();
+            assert!(this.should_move);
+            assert!(this.consume_drag_armed(), "武装后移动应触发拖拽");
+            assert!(!this.should_move, "消费后武装解除");
+            assert!(!this.consume_drag_armed(), "重复消费不再触发");
+
+            // 按下后未移动直接松开（disarm）＝ 点击不拖窗
+            this.arm_drag();
+            this.disarm_drag();
+            assert!(!this.should_move);
+            assert!(!this.consume_drag_armed());
+        });
     }
 }
