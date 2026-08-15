@@ -36,6 +36,7 @@ use crate::views::monthly_report::{MONTHLY_REPORT_URL, MonthlyReportView};
 use crate::views::placeholder::PlaceholderView;
 use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
 use crate::views::portfolio_overview::{PORTFOLIO_URL, PortfolioOverviewView};
+use crate::views::project_goals::{PROJECT_GOALS_URL, ProjectGoalsView};
 use crate::views::scheduled_reports::{SCHEDULED_REPORTS_URL, ScheduledReportsView};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SITE_NAV_URL, SiteNavigationView};
@@ -82,6 +83,8 @@ pub struct RootView {
     scheduled_reports: Option<Entity<ScheduledReportsView>>,
     /// 运营 → 组合分析真实视图（P5-1；点击「运营 → 组合分析」懒创建）
     portfolio_overview: Option<Entity<PortfolioOverviewView>>,
+    /// 运营 → 项目目标真实视图（P5-1；点击「运营 → 项目目标」懒创建）
+    project_goals: Option<Entity<ProjectGoalsView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
@@ -102,6 +105,8 @@ pub struct RootView {
     show_scheduled_reports: bool,
     /// 内容区当前是否显示组合分析视图（sidebar Select 命中 PORTFOLIO_URL 时置真）
     show_portfolio_overview: bool,
+    /// 内容区当前是否显示项目目标视图（sidebar Select 命中 PROJECT_GOALS_URL 时置真）
+    show_project_goals: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
@@ -158,6 +163,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.store_navigation.get_or_insert_with(|| {
@@ -179,6 +186,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.daily_analysis.get_or_insert_with(|| {
@@ -200,6 +209,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.portfolio_overview.get_or_insert_with(|| {
@@ -222,6 +233,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = true;
+                        this.show_project_goals = false;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -245,6 +257,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ad_data.get_or_insert_with(|| {
@@ -264,6 +278,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.monthly_report.get_or_insert_with(|| {
@@ -285,6 +301,8 @@ impl RootView {
                         this.show_monthly_report = true;
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.platform_revenue.get_or_insert_with(|| {
@@ -306,6 +324,8 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = true;
                         this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_project_goals = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
                         // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -329,6 +349,30 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = true;
                         this.show_portfolio_overview = false;
+                        this.show_project_goals = false;
+                    } else if url == PROJECT_GOALS_URL {
+                        // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.project_goals.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = ProjectGoalsView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_project_goals = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -339,6 +383,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
+                        this.show_project_goals = false;
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
                             content.url = url.clone();
@@ -364,6 +409,7 @@ impl RootView {
             platform_revenue: None,
             scheduled_reports: None,
             portfolio_overview: None,
+            project_goals: None,
             show_dashboard,
             show_site_navigation: false,
             show_store_navigation: false,
@@ -374,6 +420,7 @@ impl RootView {
             show_platform_revenue: false,
             show_scheduled_reports: false,
             show_portfolio_overview: false,
+            show_project_goals: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
             sidebar_collapsed: false,
@@ -413,6 +460,8 @@ impl RootView {
             "platform-revenue"
         } else if self.show_scheduled_reports {
             "scheduled-reports"
+        } else if self.show_project_goals {
+            "project-goals"
         } else if self.show_portfolio_overview {
             "portfolio-overview"
         } else {
@@ -469,6 +518,11 @@ impl RootView {
             )
         } else if self.show_scheduled_reports {
             self.scheduled_reports.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_project_goals {
+            self.project_goals.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -1028,6 +1082,11 @@ mod tests {
                 "/dashboard/reports/scheduled-reports",
                 "定时报告",
                 "scheduled-reports",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
             ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));

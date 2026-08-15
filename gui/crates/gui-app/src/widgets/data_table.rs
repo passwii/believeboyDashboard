@@ -48,6 +48,9 @@ pub enum SortDir {
     Descending,
 }
 
+/// 自定义单元格渲染器（闭包捕获视图实体或纯 fn 指针；P5-1 起支持闭包）
+pub type CellRenderer<T> = Box<dyn Fn(&T, &AppTheme) -> AnyElement>;
+
 /// 列定义（通用行类型的渲染 / 排序约定）
 pub struct ColumnDef<T> {
     /// 列 id（表头 element id 用；如 `"stock-sku"`）
@@ -64,8 +67,9 @@ pub struct ColumnDef<T> {
     pub sort_value: Option<fn(&T) -> f64>,
     /// 单元格文本格式化（默认渲染；`render_element` 存在时忽略）
     pub render: fn(&T, &AppTheme) -> SharedString,
-    /// 自定义单元格渲染（图标 / 彩色 badge 等；优先于 `render`）
-    pub render_element: Option<fn(&T, &AppTheme) -> AnyElement>,
+    /// 自定义单元格渲染（图标 / 彩色 badge / 行内按钮等；优先于 `render`）。
+    /// 用闭包可捕获视图实体（P5-1 起支持；`fn` 指针仍兼容）。
+    pub render_element: Option<CellRenderer<T>>,
 }
 
 impl<T> ColumnDef<T> {
@@ -120,10 +124,11 @@ impl<T> ColumnDef<T> {
     }
 
     /// 自定义单元格渲染（覆盖 `render`）
-    /// 公共 API 面（图标 / 彩色 badge 等自定义单元格；供后续视图）
-    #[allow(dead_code)]
-    pub fn with_render_element(mut self, render: fn(&T, &AppTheme) -> AnyElement) -> Self {
-        self.render_element = Some(render);
+    pub fn with_render_element(
+        mut self,
+        render: impl Fn(&T, &AppTheme) -> AnyElement + 'static,
+    ) -> Self {
+        self.render_element = Some(Box::new(render));
         self
     }
 }
@@ -383,7 +388,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                     .text_color(theme.text_secondary)
                     .children(self.columns.iter().map(|col| {
                         let cell = div().when_align(col.align, col.width, &theme);
-                        match col.render_element {
+                        match &col.render_element {
                             Some(render) => cell.child(render(row, &theme)),
                             None => cell.child((col.render)(row, &theme)),
                         }
