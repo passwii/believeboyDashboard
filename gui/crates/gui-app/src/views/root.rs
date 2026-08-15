@@ -16,8 +16,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
-    FontWeight, MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
+    Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
+    MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea, div, px,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
@@ -27,17 +27,17 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::breadcrumb_for;
 
-use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
-use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
-use crate::views::ad_data::{AdDataView, AD_DATA_URL};
-use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
+use crate::theme::{AppTheme, ThemePref, ThemePreference, set_theme_pref};
+use crate::views::ad_analysis::{AD_ANALYSIS_URL, AdAnalysisView};
+use crate::views::ad_data::{AD_DATA_URL, AdDataView};
+use crate::views::daily_analysis::{DAILY_ANALYSIS_URL, DailyAnalysisView};
 use crate::views::dashboard::DashboardView;
-use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
+use crate::views::monthly_report::{MONTHLY_REPORT_URL, MonthlyReportView};
 use crate::views::placeholder::PlaceholderView;
-use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
-use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
+use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
+use crate::views::scheduled_reports::{SCHEDULED_REPORTS_URL, ScheduledReportsView};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
-use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
+use crate::views::site_navigation::{SITE_NAV_URL, SiteNavigationView};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -448,11 +448,12 @@ impl Render for RootView {
             .id("root")
             .flex()
             .size_full()
-            // P2-3（BLF-690）：根容器不画不透明背景——主窗口背景为系统模糊材质
-            // （main.rs `WindowBackgroundAppearance::Blurred`），侧栏的半透明材质
-            // 直接透出该模糊；右侧内容区仍由下方 content-col 覆盖不透明 window_bg。
-            // P4-1（BLF-707）：不再有跨全宽 TitleBar——侧栏全高从窗口顶部开始
-            // （头部顶部留 traffic lights 避让区，系统红绿灯悬于其上）。
+            // P4-3（BLF-709）材质收敛：主窗口背景改用不透明（main.rs 移除
+            // `WindowBackgroundAppearance::Blurred`）——GPUI 0.2.2 无 NSVisualEffectView
+            // 接入，整窗模糊 + 半透明叠加观感粗糙且禁用亚像素文字渲染（apple-glass.md
+            // Tier 4/6）。根容器画不透明 window_bg 兜底（侧栏折叠动画期间无透底/间隙），
+            // 侧栏与内容列均为不透明实色（macOS 原生标准窗口观感）。
+            .bg(theme.window_bg)
             .child(self.sidebar.clone())
             .child(
                 div()
@@ -920,11 +921,7 @@ mod tests {
                 "广告分析",
                 "ad-analysis",
             ),
-            (
-                "/dashboard/advertising/ad-data",
-                "广告数据",
-                "ad-data",
-            ),
+            ("/dashboard/advertising/ad-data", "广告数据", "ad-data"),
             (
                 "/dashboard/reports/monthly-report/display",
                 "财务月报",

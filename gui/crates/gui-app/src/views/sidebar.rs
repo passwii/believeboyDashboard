@@ -3,10 +3,10 @@
 //! 渲染 gui-domain::sidebar 的 8 个一级分类 + 全部二级子项（52 项，硬编码数据）。
 //!
 //! macOS 原生质感（对齐 Finder / 系统设置侧栏）：
-//! - **半透明材质**：主窗口背景为系统模糊材质（main.rs 配
-//!   `WindowBackgroundAppearance::Blurred`，RootView 根容器不画不透明背景），
-//!   侧栏以低透明度 [`crate::theme::AppTheme::sidebar_bg`] 覆盖其上透出模糊，
-//!   右侧 1px 发丝分隔线（Finder 风格）
+//! - **不透明实色材质（P4-3）**：GPUI 0.2.2 无 NSVisualEffectView 直接接入，半透明
+//!   覆盖 + 系统整窗模糊模拟观感粗糙（且禁用亚像素文字渲染，见 build-gpui-apps
+//!   apple-glass.md Tier 4/6）——收敛为不透明显实色侧栏（浅 #ECECEC / 深 #282828），
+//!   右侧 1px 发丝分隔线（Finder 风格），文字图标清晰不脏
 //! - **全高布局（P4-1）**：侧栏从窗口顶部开始（不再有跨全宽的 TitleBar），
 //!   头部顶部留出 traffic lights 避让区（系统红绿灯悬于其上）
 //! - **选中态**：中性色圆角胶囊（浅色=白胶囊+柔和投影 / 深色=高亮灰胶囊），
@@ -23,14 +23,14 @@
 //!   `start_window_move()` + 双击 `titlebar_double_click()`），traffic lights 旁即拖拽区
 
 use gpui::{
-    div, prelude::*, px, svg, App, AnimationExt, BoxShadow, Context, EventEmitter, FocusHandle,
-    Focusable, KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Stateful, Window,
-    WindowControlArea,
+    AnimationExt, App, BoxShadow, Context, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
+    MouseButton, MouseMoveEvent, SharedString, Stateful, Window, WindowControlArea, div,
+    prelude::*, px, svg,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 
-use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
+use gui_domain::sidebar::{SidebarGroup, SidebarItem, sidebar_groups};
 
 use crate::icon::icon_path;
 use crate::motion::{hover_transition, lerp_hsla, reduce_motion};
@@ -40,8 +40,6 @@ use crate::theme::AppTheme;
 const SIDEBAR_WIDTH: f32 = 240.0;
 /// 折叠态侧栏宽度（px，图标轨道）
 const SIDEBAR_WIDTH_COLLAPSED: f32 = 56.0;
-/// 侧栏材质透明度：半透明覆盖在主窗口系统模糊之上（越低越透出背景）
-const SIDEBAR_BG_ALPHA: f32 = 0.85;
 /// P4-1：侧栏头部顶部 traffic lights 避让高度（px）——系统红绿灯位于 (9,9)、
 /// 直径约 12px（y 9–21），主窗口不再有跨全宽 TitleBar，红绿灯直接悬于侧栏头部之上
 const TRAFFIC_LIGHTS_CLEARANCE: f32 = 34.0;
@@ -243,12 +241,12 @@ impl Render for SidebarView {
             .flex_col()
             .w(px(width_to))
             .h_full()
-            // P2-3 材质：半透明 sidebar_bg 覆盖在主窗口系统模糊材质之上（main.rs 配
-            // `WindowBackgroundAppearance::Blurred` + root 不画不透明背景），透出模糊；
+            // P4-3 材质：不透明实色 sidebar_bg（macOS 浅 #ECECEC / 深 #282828）——
+            // 半透明叠加系统模糊的模拟已收敛（粗糙且禁用亚像素文字渲染）；
             // 右侧发丝分隔线把侧栏与内容区切开（macOS sidebar 风格）
-            .bg(theme.sidebar_bg.alpha(SIDEBAR_BG_ALPHA))
+            .bg(theme.sidebar_bg)
             .border_r_1()
-            .border_color(theme.sidebar_border.alpha(0.7))
+            .border_color(theme.sidebar_border)
             .focusable()
             .track_focus(&focus_handle)
             .on_key_down(cx.listener(|this, event, _, cx| this.on_key_down(event, cx)))
@@ -276,8 +274,15 @@ impl Render for SidebarView {
         // 0→1 重放 → 宽度从起点插值到目标（ease-out，200ms）。
         base.with_animation(
             SharedString::from(format!("sidebar-width-{collapsed}")),
-            crate::motion::animation(crate::motion::DURATION_SIDEBAR, crate::motion::ease_out_cubic),
-            move |el, delta| el.w(px(width_from + (width_to - width_from) * crate::motion::ease_out_cubic(delta))),
+            crate::motion::animation(
+                crate::motion::DURATION_SIDEBAR,
+                crate::motion::ease_out_cubic,
+            ),
+            move |el, delta| {
+                el.w(px(width_from
+                    + (width_to - width_from)
+                        * crate::motion::ease_out_cubic(delta)))
+            },
         )
         .into_any_element()
     }
@@ -376,16 +381,23 @@ fn attach_window_drag(
         )
 }
 
-/// 品牌小方块（展开态左侧 / 折叠态居中）
+/// 品牌标识（展开态左侧 / 折叠态居中）：中性圆角方块 + Dashboard 图标——P4-3（BLF-709）
+/// 去掉品牌蓝方块+圆点的自定义质感，收敛为 macOS 原生应用图标位观感
+/// （方块底 = 中性浅填充，图标 = 侧栏文字色，不引入品牌色）。
 fn brand_mark(theme: &AppTheme) -> impl IntoElement {
     div()
         .size(px(22.0))
-        .rounded_md()
+        .rounded(px(6.0))
         .flex()
         .items_center()
         .justify_center()
-        .bg(theme.brand)
-        .child(div().size(px(10.0)).rounded_full().bg(theme.brand_soft))
+        .bg(theme.muted_fill)
+        .child(
+            svg()
+                .path("icons/layout-dashboard.svg")
+                .size(px(13.0))
+                .text_color(theme.sidebar_text),
+        )
 }
 
 /// 侧栏底部（P4-1）：功能入口计数。折叠态不渲染——折叠后仅剩 56px 图标轨道，
@@ -448,7 +460,13 @@ fn render_group(
             this.child(render_group_header(group, &theme))
         })
         .children(group.items.iter().map(|item| {
-            render_item(item, selected_url == Some(item.url.as_str()), collapsed, window, cx)
+            render_item(
+                item,
+                selected_url == Some(item.url.as_str()),
+                collapsed,
+                window,
+                cx,
+            )
         }))
 }
 
@@ -550,17 +568,19 @@ fn render_item(
         return hover_transition(
             item_id,
             base.justify_center().tooltip(move |_window, cx| {
-                cx.new(|_| SidebarTooltip::new(tooltip_title.clone())).into()
+                cx.new(|_| SidebarTooltip::new(tooltip_title.clone()))
+                    .into()
             }),
             window,
             cx,
             move |el: Stateful<gpui::Div>, t| {
                 use gpui::Styled;
                 el.bg(lerp_hsla(bg_normal, bg_hover, t)).child(
-                    svg()
-                        .path(icon_path)
-                        .size(px(16.0))
-                        .text_color(lerp_hsla(icon_normal, icon_hover, t)),
+                    svg().path(icon_path).size(px(16.0)).text_color(lerp_hsla(
+                        icon_normal,
+                        icon_hover,
+                        t,
+                    )),
                 )
             },
         )
