@@ -21,6 +21,8 @@ pub mod auth;
 pub mod advertising;
 pub mod common;
 pub mod dashboard;
+pub mod finance;
 pub mod operations;
+pub mod reports;
 pub mod scheduled_reports;
 pub mod sidebar;

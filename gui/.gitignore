@@ -17,3 +17,6 @@ crates/*/Cargo.lock
 .env
 .env.local
 *.local.toml
+
+# warm-target symlink（复用 main worktree 构建缓存，勿提交）
+/target
