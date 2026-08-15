@@ -132,6 +132,25 @@ fn default_usd() -> String {
     "USD".to_string()
 }
 
+/// `/api/v1/daily-analysis` 响应（**单项目 + 单国家**主端点；frontend `DailyAnalysisResponse` 1:1）
+///
+/// 与 [`DailyAnalysisResponse`]（`/all` 端点）不同：本载荷带 `console` 请求诊断
+/// （项目名 / 国家 / 日期区间 / 各报表源天数 / 缺失日期），frontend
+/// `app/dashboard/operations/daily-analysis` 单项目 + 指定站点时调用此端点。
+/// `comparison_summary_rows` 为后端 schema 预留字段（实际载荷恒缺省），
+/// 对比期数据由客户端另行拉取（与 frontend `Promise.all` 口径一致）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DailyAnalysisSingleResponse {
+    pub console: DailyAnalysisConsoleResponse,
+    pub summary_rows: Vec<DailyAnalysisRow>,
+    #[serde(default)]
+    pub detail_rows: Vec<DailyAnalysisDetailRow>,
+    #[serde(default)]
+    pub available_dates: AvailableDates,
+    #[serde(default)]
+    pub comparison_summary_rows: Option<Vec<DailyAnalysisRow>>,
+}
+
 /// `/api/v1/daily-analysis/all` 响应（frontend `DailyAnalysisAllProjectsResponse` 1:1）
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DailyAnalysisResponse {
@@ -258,6 +277,105 @@ mod tests {
 
     fn approx(a: f64, b: f64) {
         assert!((a - b).abs() < 1e-9, "expected {a} ≈ {b}");
+    }
+
+    #[test]
+    fn daily_analysis_single_response_deserializes_sample_json() {
+        // 后端 build_daily_analysis 的真实响应形态（GET /api/v1/daily-analysis），
+        // 对齐 backend/app/services/daily/analysis.py 的 result dict
+        let json = r#"{
+            "console": {
+                "project_id": 1,
+                "project_name": "测试项目 A",
+                "country": "US",
+                "start_date": "2026-08-07",
+                "end_date": "2026-08-13",
+                "requested_days": 7,
+                "summary_days": 7,
+                "detail_rows": 1,
+                "sales_source_days": 7,
+                "ad_source_days": 7,
+                "inventory_source_days": 5,
+                "business_source_days": 6,
+                "missing_dates": ["2026-08-11"],
+                "latest_sales_date": "2026-08-13",
+                "latest_ad_date": "2026-08-13",
+                "latest_inventory_date": "2026-08-12",
+                "latest_business_date": "2026-08-13"
+            },
+            "summary_rows": [
+                {
+                    "date": "2026-08-13",
+                    "order_qty": 21,
+                    "sales_amount": 1860.0,
+                    "impressions": 8100,
+                    "clicks": 240,
+                    "cpc": 0.51,
+                    "ad_spend": 122.4,
+                    "ad_orders": 4,
+                    "available_qty": 90,
+                    "page_views": 430,
+                    "units_ordered": 15,
+                    "sessions": 380,
+                    "ordered_sales_amount": 1790.0,
+                    "conversion_rate": 3.49
+                }
+            ],
+            "detail_rows": [
+                {
+                    "date": "2026-08-13",
+                    "sku": "B0-A-001",
+                    "asin": "B0EXAMPLE1",
+                    "order_qty": 4,
+                    "sales_amount": 360.0,
+                    "impressions": 1800,
+                    "clicks": 60,
+                    "cpc": 0.48,
+                    "ad_spend": 28.8,
+                    "ad_orders": 1,
+                    "available_qty": 30,
+                    "in_transit_qty": 12,
+                    "page_views": 96,
+                    "units_ordered": 3,
+                    "sessions": 80,
+                    "ordered_sales_amount": 350.0,
+                    "conversion_rate": 3.12
+                }
+            ],
+            "available_dates": {
+                "sales_report": ["2026-08-13"],
+                "ad_product_report": ["2026-08-13"],
+                "inventory_report": ["2026-08-12"],
+                "business_report": ["2026-08-13"]
+            }
+        }"#;
+        let resp: DailyAnalysisSingleResponse = serde_json::from_str(json).expect("反序列化失败");
+
+        assert_eq!(resp.console.project_id, 1);
+        assert_eq!(resp.console.country, "US");
+        assert_eq!(resp.console.requested_days, 7);
+        assert_eq!(resp.console.summary_days, 7);
+        assert_eq!(resp.console.detail_rows, 1);
+        assert_eq!(resp.console.missing_dates, vec!["2026-08-11".to_string()]);
+        assert_eq!(
+            resp.console.latest_inventory_date.as_deref(),
+            Some("2026-08-12")
+        );
+
+        assert_eq!(resp.summary_rows.len(), 1);
+        assert_eq!(resp.summary_rows[0].date.to_string(), "2026-08-13");
+        approx(resp.summary_rows[0].sales_amount, 1860.0);
+
+        assert_eq!(resp.detail_rows.len(), 1);
+        assert_eq!(resp.detail_rows[0].sku, "B0-A-001");
+        assert_eq!(resp.detail_rows[0].in_transit_qty, 12);
+
+        assert_eq!(
+            resp.available_dates.sales_report,
+            vec!["2026-08-13".to_string()]
+        );
+        // 预留字段缺省 → None（后端实际载荷不输出）
+        assert_eq!(resp.comparison_summary_rows, None);
     }
 
     #[test]
