@@ -15,7 +15,7 @@
 //! 迁移说明：此前 `Theme::dark_sidebar_light_content()`（深侧栏+浅内容区混合外观）
 //! 已废弃——跟随系统后侧栏与内容区同亮同暗，语义字段全部收敛到 [`AppTheme`]。
 
-use gpui::{point, px, rgb, App, BoxShadow, Hsla, Window};
+use gpui::{App, BoxShadow, Hsla, Window, point, px, rgb};
 use gpui_component::{ActiveTheme, ThemeMode};
 
 /// 4px 间距尺度上的常用大间距（间距 token；小间距直接用 gpui 的 `.px_*/.gap_*`
@@ -85,8 +85,9 @@ pub fn on_window_appearance_changed(window: &mut Window, cx: &mut App) {
 
 /// 语义色板（业务语义层，从当前外观派生）
 ///
-/// 色值设计对齐 macOS HIG 系统语义色（windowBackground / sidebar / separator /
-/// controlAccent）+ frontend 品牌蓝（blue-500），亮暗两态各自成组。
+/// 色值设计对齐 macOS 经典 light/dark 系统色（Apple HIG system colors：
+/// windowBackground / sidebar / separator / controlAccent / systemGreen / systemRed），
+/// 亮暗两态各自成组；P4-3（BLF-709）起不再使用前端品牌蓝，全面收敛为 macOS 原生观感。
 #[derive(Clone, Copy, Debug)]
 pub struct AppTheme {
     /// 当前是否深色外观（跟随系统/显式深色）
@@ -135,10 +136,6 @@ pub struct AppTheme {
     pub on_accent: Hsla,
     /// 强调色浅底（徽标/图标气泡背景）
     pub accent_soft: Hsla,
-    /// 品牌主色（侧栏品牌块）
-    pub brand: Hsla,
-    /// 品牌块上的前景点/字
-    pub brand_soft: Hsla,
     /// 成功（涨/通过）
     pub success: Hsla,
     /// 警告（警示横幅）
@@ -174,41 +171,42 @@ impl AppTheme {
             radius: 6.0,
             radius_lg: 8.0,
 
-            // 背景层级（macOS light：画布 neutral-100、卡片白、分隔 neutral-200）
-            window_bg: c(0xf5f5f5),
+            // 背景层级（macOS light system colors：windowBackground #F5F5F7、
+            // controlBackground 白、separator #E5E5E5、中性浅填充 secondarySystemFill）
+            window_bg: c(0xf5f5f7),
             card_bg: c(0xffffff),
-            muted_fill: c(0xf5f5f5),
+            muted_fill: c(0xebebf0),
             separator: c(0xe5e5e5),
             card_shadow: c(0x000000).alpha(0.06),
 
-            // 侧栏（浅色：macOS 浅侧栏，选中白胶囊 + 轻投影）
+            // 侧栏（浅色：不透明显实色 #ECECEC——macOS 系统设置/Finder 浅侧栏观感，
+            // 选中白胶囊 + 极轻投影；无品牌色块）
             sidebar_bg: c(0xececec),
-            sidebar_border: c(0xd4d4d8),
-            sidebar_text: c(0x3f3f46),
-            sidebar_group_text: c(0x71717a),
-            sidebar_item_hover: c(0xd9d9de),
+            sidebar_border: c(0xe5e5e5),
+            sidebar_text: c(0x1d1d1f),
+            sidebar_group_text: c(0x86868b),
+            sidebar_item_hover: c(0xe8e8ec),
             sidebar_item_active_bg: c(0xffffff),
-            sidebar_item_active_text: c(0x18181b),
-            sidebar_item_shadow: c(0x000000).alpha(0.09),
-            sidebar_footer_text: c(0x71717a),
+            sidebar_item_active_text: c(0x1d1d1f),
+            sidebar_item_shadow: c(0x000000).alpha(0.06),
+            sidebar_footer_text: c(0x86868b),
 
-            // 文字层级
-            text_primary: c(0x0a0a0a),
-            text_secondary: c(0x525252),
-            text_muted: c(0x737373),
+            // 文字层级（Apple HIG：label / secondaryLabel / quaternaryLabel）
+            text_primary: c(0x1d1d1f),
+            text_secondary: c(0x6e6e73),
+            text_muted: c(0xaeaeb2),
 
-            // 强调 / 状态
-            accent: c(0x3b82f6),       // blue-500
-            accent_hover: c(0x2563eb), // blue-600（hover 加深）
+            // 强调 / 状态（macOS system colors：controlAccent / systemGreen /
+            // systemOrange / systemRed）
+            accent: c(0x007aff),       // controlAccent
+            accent_hover: c(0x0066cc), // 按压加深
             on_accent: c(0xffffff),
-            accent_soft: c(0xeff6ff), // blue-50
-            brand: c(0x3b82f6),       // blue-500
-            brand_soft: c(0xeff6ff),  // blue-50（brand 方块上的内点）
-            success: c(0x22c55e),     // green-500（涨）
-            warning: c(0xd97706),     // amber-600
-            danger: c(0xef4444),      // red-500（跌）
-            success_soft: c(0x22c55e).alpha(0.12),
-            danger_soft: c(0xef4444).alpha(0.12),
+            accent_soft: c(0x007aff).alpha(0.12),
+            success: c(0x34c759), // systemGreen（涨）
+            warning: c(0xff9f0a), // systemOrange
+            danger: c(0xff3b30),  // systemRed（跌）
+            success_soft: c(0x34c759).alpha(0.12),
+            danger_soft: c(0xff3b30).alpha(0.12),
 
             // 图表序列色（蓝色系，对齐 frontend dashboard-v2 chartConfig）
             chart_primary: c(0x2563eb),   // blue-600（销售额）
@@ -226,41 +224,41 @@ impl AppTheme {
             radius: 6.0,
             radius_lg: 8.0,
 
-            // 背景层级（对齐 gpui-component 默认深色：画布 #0a0a0a、卡片 zinc-900）
-            window_bg: c(0x0a0a0a),
-            card_bg: c(0x18181b),
-            muted_fill: c(0x171717),
-            separator: c(0x27272a),
-            card_shadow: c(0x000000).alpha(0.40),
+            // 背景层级（macOS dark system colors：windowBackground #282828、
+            // 卡片 elevated #323232、separator #3A3A3C、暗色投影收敛靠 border 区分）
+            window_bg: c(0x282828),
+            card_bg: c(0x323232),
+            muted_fill: c(0x323232),
+            separator: c(0x3a3a3c),
+            card_shadow: c(0x000000).alpha(0.25),
 
-            // 侧栏（深色：zinc-900，对齐 frontend 深侧栏）
-            sidebar_bg: c(0x18181b),
-            sidebar_border: c(0x27272a),
-            sidebar_text: c(0xd4d4d8),
-            sidebar_group_text: c(0x71717a),
-            sidebar_item_hover: c(0x27272a),
-            sidebar_item_active_bg: c(0x3f3f46),
-            sidebar_item_active_text: c(0xffffff),
-            sidebar_item_shadow: c(0x000000).alpha(0.30),
-            sidebar_footer_text: c(0x71717a),
+            // 侧栏（深色：与窗口同底 #282828——macOS 暗色侧栏与内容同色，靠选中
+            // 灰胶囊 #3A3A3C 区分；选中项无投影，扁平原生）
+            sidebar_bg: c(0x282828),
+            sidebar_border: c(0x3a3a3c),
+            sidebar_text: c(0xf5f5f7),
+            sidebar_group_text: c(0x98989d),
+            sidebar_item_hover: c(0x323232),
+            sidebar_item_active_bg: c(0x3a3a3c),
+            sidebar_item_active_text: c(0xf5f5f7),
+            sidebar_item_shadow: c(0x000000).alpha(0.0),
+            sidebar_footer_text: c(0x98989d),
 
-            // 文字层级
-            text_primary: c(0xfafafa),
-            text_secondary: c(0xa1a1aa),
-            text_muted: c(0x71717a),
+            // 文字层级（Apple HIG dark：label / secondaryLabel / quaternaryLabel）
+            text_primary: c(0xf5f5f7),
+            text_secondary: c(0xa1a1a6),
+            text_muted: c(0x7c7c80),
 
-            // 强调 / 状态（深色下提亮保证对比度）
-            accent: c(0x60a5fa),       // blue-400
-            accent_hover: c(0x3b82f6), // blue-500（hover 加深）
+            // 强调 / 状态（深色提亮保证对比度）
+            accent: c(0x0a84ff),       // controlAccent
+            accent_hover: c(0x409cff), // 按压提亮
             on_accent: c(0xffffff),
-            accent_soft: c(0x172554), // blue-950（深底浅蓝）
-            brand: c(0x3b82f6),       // blue-500（品牌块深色下保持）
-            brand_soft: c(0xeff6ff),  // 亮内点（brand 方块上）
-            success: c(0x4ade80),     // green-400
-            warning: c(0xfbbf24),     // amber-400
-            danger: c(0xf87171),      // red-400
-            success_soft: c(0x4ade80).alpha(0.16),
-            danger_soft: c(0xf87171).alpha(0.16),
+            accent_soft: c(0x0a84ff).alpha(0.16),
+            success: c(0x30d158), // systemGreen（涨）
+            warning: c(0xffd60a), // systemYellow
+            danger: c(0xff453a),  // systemRed（跌）
+            success_soft: c(0x30d158).alpha(0.16),
+            danger_soft: c(0xff453a).alpha(0.16),
 
             // 图表序列色（深色下提亮保证在深底上可见）
             chart_primary: c(0x60a5fa),   // blue-400
@@ -351,10 +349,54 @@ mod tests {
         assert_ne!(light.window_bg, dark.window_bg);
         assert_ne!(light.text_primary, dark.text_primary);
         assert_ne!(light.success, dark.success);
-        // 选中胶囊投影两态不一致（浅色更弱、深色更强）
+        // 选中胶囊投影两态不一致（浅色极轻、深色无投影）
         assert_ne!(light.sidebar_item_shadow, dark.sidebar_item_shadow);
-        // 品牌蓝两态保持一致（frontend 品牌色恒 blue-500）
-        assert_eq!(light.brand, dark.brand);
+    }
+
+    /// P4-3（BLF-709）回归锁：配色对齐 macOS 经典 light/dark 系统色
+    /// （Apple HIG system colors，BLF-709 基准值）——防止回退到 Tailwind/zinc 色系。
+    #[test]
+    fn macos_system_color_contract() {
+        let light = AppTheme::light();
+        let dark = AppTheme::dark();
+
+        // 亮色基准：windowBackground #F5F5F7 / controlBackground #FFFFFF /
+        // separator #E5E5E5 / label #1D1D1F / secondaryLabel #6E6E73 /
+        // quaternaryLabel #AEAEB2 / controlAccent #007AFF
+        assert_eq!(light.window_bg, c(0xf5f5f7));
+        assert_eq!(light.card_bg, c(0xffffff));
+        assert_eq!(light.separator, c(0xe5e5e5));
+        assert_eq!(light.text_primary, c(0x1d1d1f));
+        assert_eq!(light.text_secondary, c(0x6e6e73));
+        assert_eq!(light.text_muted, c(0xaeaeb2));
+        assert_eq!(light.accent, c(0x007aff));
+
+        // 暗色基准：windowBackground #282828 / separator #3A3A3C /
+        // label #F5F5F7 / secondaryLabel #A1A1A6 / quaternaryLabel #7C7C80 /
+        // controlAccent #0A84FF / 选中灰 #3A3A3C
+        assert_eq!(dark.window_bg, c(0x282828));
+        assert_eq!(dark.separator, c(0x3a3a3c));
+        assert_eq!(dark.text_primary, c(0xf5f5f7));
+        assert_eq!(dark.text_secondary, c(0xa1a1a6));
+        assert_eq!(dark.text_muted, c(0x7c7c80));
+        assert_eq!(dark.accent, c(0x0a84ff));
+        assert_eq!(dark.sidebar_item_active_bg, c(0x3a3a3c));
+
+        // 侧栏材质：不透明显实色（P4-3 收敛——半透明叠加系统模糊已弃用）
+        assert_eq!(light.sidebar_bg.a, 1.0, "浅色侧栏必须不透明");
+        assert_eq!(dark.sidebar_bg.a, 1.0, "深色侧栏必须不透明");
+        // 选中胶囊投影：浅色极轻（macOS 原生）、深色无投影（扁平暗侧栏）
+        assert!(
+            light.sidebar_item_shadow.a > 0.0 && light.sidebar_item_shadow.a < 0.1,
+            "浅色选中投影应极轻"
+        );
+        assert_eq!(dark.sidebar_item_shadow.a, 0.0, "深色选中胶囊无投影");
+
+        // 状态色对齐 macOS system colors（涨绿跌红语义保持）
+        assert_eq!(light.success, c(0x34c759));
+        assert_eq!(light.danger, c(0xff3b30));
+        assert_eq!(dark.success, c(0x30d158));
+        assert_eq!(dark.danger, c(0xff453a));
     }
 
     /// P3-2 回归锁：图表序列色在亮暗两态都必须不透明（可见），

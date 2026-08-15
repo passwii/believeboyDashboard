@@ -21,18 +21,18 @@ use std::{cell::RefCell, env, rc::Rc};
 
 use gpui::prelude::*;
 use gpui::{
-    actions, px, size, App, Application, Bounds, Entity, Focusable, KeyBinding, TitlebarOptions,
-    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
+    App, Application, Bounds, Entity, Focusable, KeyBinding, TitlebarOptions, WindowBounds,
+    WindowKind, WindowOptions, actions, px, size,
 };
 use gpui_component::{Root, TitleBar};
 use tracing_subscriber::EnvFilter;
 
 use assets::AppAssets;
-use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
+use gui_api_client::client::AuthSession;
 use gui_domain::auth::LoginResponse;
-use motion::{detect_system_reduce_motion, MotionPref};
-use theme::{set_theme_pref, ThemePreference};
+use motion::{MotionPref, detect_system_reduce_motion};
+use theme::{ThemePreference, set_theme_pref};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
@@ -193,10 +193,13 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitleBar::title_bar_options()),
-                // P2-3（BLF-690）：主窗口背景用系统模糊材质（NSVisualEffectView，macOS
-                // 12+；旧系统回退到 CGS 窗口背景模糊）。RootView 根容器不画不透明背景，
-                // 侧栏以半透明 sidebar_bg 覆盖其上——透出模糊，实现 Finder 式侧栏材质。
-                window_background: WindowBackgroundAppearance::Blurred,
+                // P4-3（BLF-709）材质收敛：主窗口背景改回不透明（默认）——GPUI 0.2.2
+                // 无 NSVisualEffectView 直接接入，`WindowBackgroundAppearance::Blurred`
+                // 整窗模糊只能靠侧栏半透明覆盖模拟，观感粗糙且按 gpui 约束禁用亚像素
+                // 文字渲染（见 build-gpui-apps references/apple-glass.md Tier 4/6）。
+                // 收敛为不透明窗口 + 实色分层（侧栏/内容列各自实色），即 macOS 原生
+                // 标准窗口质感，文字渲染也恢复亚像素清晰度。
+                // P4-1（BLF-707）：仍保留透明标题栏 + traffic lights(9,9) 悬于侧栏头部。
                 // P2-5（BLF-692）：主窗口最小尺寸，避免内容被压到不可用（侧栏折叠态
                 // 也保证右侧内容区至少有可读宽度）。
                 window_min_size: Some(size(px(960.0), px(640.0))),
