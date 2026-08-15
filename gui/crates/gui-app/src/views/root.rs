@@ -11,24 +11,25 @@
 //! 风格，macOS 原生质感）——系统 traffic lights 悬于其上（main.rs 配
 //! `TitleBar::title_bar_options()`），左侧显示当前视图标题，右侧收敛已登录用户
 //! 信息与退出登录（原内容区会话栏上移），警告横幅下沉为标题栏下的窄条。
+//! P2-2（BLF-689）叠加：主题系统基线——全视图消费 [`AppTheme`] 语义 token
+//! （跟随系统亮/暗），标题栏新增「外观」菜单（跟随系统/浅色/深色三态切换）。
 
 use gpui::prelude::*;
 use gpui::{
-    div, rgb, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    MouseButton, MouseUpEvent, Render, Window,
+    div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
+    FontWeight, MouseButton, MouseUpEvent, Render, Window,
 };
-use gpui_component::{ActiveTheme, TitleBar};
+use gpui_component::button::Button;
+use gpui_component::menu::{DropdownMenu, PopupMenuItem};
+use gpui_component::{ActiveTheme, Icon, IconName, Sizable, TitleBar};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
-use crate::theme::Theme;
+use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
 use crate::views::dashboard::DashboardView;
 use crate::views::placeholder::PlaceholderView;
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
-
-/// 警告文本色（琥珀色；沿用 GUI-2 会话栏配色，P2-2 主题 token 化时收编）
-const WARNING_TEXT: u32 = 0xb45309;
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -63,6 +64,8 @@ pub struct RootView {
     current_title: String,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
+    /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
+    pub theme_appearance_sub: Option<gpui::Subscription>,
 }
 
 impl RootView {
@@ -115,6 +118,7 @@ impl RootView {
             current_title: "Dashboard".to_string(),
             session,
             focus_handle: cx.focus_handle(),
+            theme_appearance_sub: None,
         }
     }
 
@@ -135,14 +139,14 @@ impl EventEmitter<RootViewEvent> for RootView {}
 
 impl Render for RootView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::dark_sidebar_light_content();
+        let theme = AppTheme::current(cx);
 
         div()
             .id("root")
             .flex()
             .flex_col()
             .size_full()
-            .bg(theme.content_bg)
+            .bg(theme.window_bg)
             // P2-1：统一工具栏（unified toolbar）。系统 traffic lights 悬于其上，
             // 左侧当前视图标题，右侧已登录用户 + 退出登录。
             .child(title_bar(&self.current_title, &self.session, cx))
@@ -151,7 +155,7 @@ impl Render for RootView {
                     .as_ref()
                     .and_then(|s| s.warning.as_ref())
                     .is_some(),
-                |root| root.child(warning_banner(&self.session)),
+                |root| root.child(warning_banner(&self.session, &theme)),
             )
             .child(
                 div()
@@ -167,26 +171,22 @@ impl Render for RootView {
                             .flex_1()
                             .h_full()
                             .flex_col()
-                            .bg(theme.content_bg)
-                            .child(
-                                div()
-                                    .id("content")
-                                    .flex_1()
-                                    .h_full()
-                                    .child(if self.show_dashboard {
-                                        self.dashboard.clone().map_or_else(
-                                            || self.content.clone().into_any_element(),
-                                            |dashboard| dashboard.into_any_element(),
-                                        )
-                                    } else if self.show_site_navigation {
-                                        self.site_navigation.clone().map_or_else(
-                                            || self.content.clone().into_any_element(),
-                                            |view| view.into_any_element(),
-                                        )
-                                    } else {
-                                        self.content.clone().into_any_element()
-                                    }),
-                            ),
+                            .bg(theme.window_bg)
+                            .child(div().id("content").flex_1().h_full().child(
+                                if self.show_dashboard {
+                                    self.dashboard.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |dashboard| dashboard.into_any_element(),
+                                    )
+                                } else if self.show_site_navigation {
+                                    self.site_navigation.clone().map_or_else(
+                                        || self.content.clone().into_any_element(),
+                                        |view| view.into_any_element(),
+                                    )
+                                } else {
+                                    self.content.clone().into_any_element()
+                                },
+                            )),
                     ),
             )
     }
@@ -198,16 +198,16 @@ impl Focusable for RootView {
     }
 }
 
-/// 顶部统一工具栏：左侧当前视图标题，右侧已登录用户 + 退出登录。
+/// 顶部统一工具栏：左侧当前视图标题，右侧「外观」菜单 + 已登录用户 + 退出登录。
 ///
 /// 使用 gpui-component `TitleBar`（macOS 下自动避让 traffic lights 区域并支持
-/// 双击缩放 / 拖拽移动窗口），配色取自 `cx.theme()` 语义 token（跟随系统亮/暗）。
+/// 双击缩放 / 拖拽移动窗口），配色取自 `AppTheme` 语义 token（跟随系统亮/暗）。
 fn title_bar(
     title: &str,
     session: &Option<SessionInfo>,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
-    let theme = cx.theme().clone();
+    let theme = AppTheme::current(cx);
 
     TitleBar::new()
         .child(
@@ -215,21 +215,65 @@ fn title_bar(
                 .id("title-bar-title")
                 .text_sm()
                 .font_weight(FontWeight::MEDIUM)
-                .text_color(theme.secondary_foreground)
+                .text_color(theme.text_secondary)
                 .child(title.to_string()),
         )
+        .child(theme_switcher(cx))
         .child(session_cluster(session, theme, cx))
+}
+
+/// 标题栏「外观」菜单：跟随系统 / 浅色 / 深色 三态（P2-2 主题基线）。
+///
+/// 当前项带勾选标记；切换经 [`set_theme_pref`] 写入全局偏好并即时换肤。
+/// 跟随系统时系统亮暗变化由窗口外观监听自动同步。
+fn theme_switcher(cx: &mut Context<RootView>) -> impl IntoElement {
+    let pref = cx
+        .try_global::<ThemePref>()
+        .map(|p| p.0)
+        .unwrap_or_default();
+
+    Button::new("theme-switcher")
+        .icon(Icon::new(IconName::Palette).with_size(px(14.)))
+        .tooltip("外观：跟随系统 / 浅色 / 深色")
+        .dropdown_menu_with_anchor(Corner::TopRight, move |menu, _window, _cx| {
+            menu.item(
+                PopupMenuItem::new(ThemePreference::Light.label())
+                    .icon(IconName::Sun)
+                    .checked(pref == ThemePreference::Light)
+                    .on_click(move |_, window, cx| {
+                        set_theme_pref(ThemePreference::Light, Some(window), cx)
+                    }),
+            )
+            .item(
+                PopupMenuItem::new(ThemePreference::Dark.label())
+                    .icon(IconName::Moon)
+                    .checked(pref == ThemePreference::Dark)
+                    .on_click(move |_, window, cx| {
+                        set_theme_pref(ThemePreference::Dark, Some(window), cx)
+                    }),
+            )
+            .item(
+                PopupMenuItem::new(ThemePreference::FollowSystem.label())
+                    .icon(IconName::Palette)
+                    .checked(pref == ThemePreference::FollowSystem)
+                    .on_click(move |_, window, cx| {
+                        set_theme_pref(ThemePreference::FollowSystem, Some(window), cx)
+                    }),
+            )
+        })
 }
 
 /// 标题栏右侧：警告（已并入下方窄条时此处为空）+ 用户身份 + 退出登录
 fn session_cluster(
     session: &Option<SessionInfo>,
-    theme: gpui_component::Theme,
+    theme: AppTheme,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
     let Some(s) = session else {
         return div().id("session-cluster-empty");
     };
+    // 退出登录按钮 hover/active 用 gpui-component 语义色（中性反馈）
+    let component = cx.theme().clone();
     let role_label = match s.user.role_type {
         gui_domain::auth::UserRoleType::Admin => "管理员",
         gui_domain::auth::UserRoleType::Operator => "运营",
@@ -243,7 +287,7 @@ fn session_cluster(
         .child(
             div()
                 .text_sm()
-                .text_color(theme.muted_foreground)
+                .text_color(theme.text_muted)
                 .child(format!("{} · {}", s.user.name, role_label)),
         )
         .child(
@@ -251,19 +295,19 @@ fn session_cluster(
                 .id("logout-button")
                 .px_2()
                 .py_0p5()
-                .rounded(theme.radius)
+                .rounded(px(theme.radius))
                 .text_sm()
-                .text_color(theme.secondary_foreground)
+                .text_color(theme.text_secondary)
                 .cursor(CursorStyle::PointingHand)
-                .hover(|style| style.bg(theme.secondary_hover))
-                .active(|style| style.bg(theme.secondary_active))
+                .hover(|style| style.bg(component.secondary_hover))
+                .active(|style| style.bg(component.secondary_active))
                 .on_mouse_up(MouseButton::Left, cx.listener(RootView::on_logout_click))
                 .child("退出登录"),
         )
 }
 
 /// 标题栏下方警告窄条（Keychain 持久化失败 / 服务器连接失败等非致命提示）
-fn warning_banner(session: &Option<SessionInfo>) -> impl IntoElement {
+fn warning_banner(session: &Option<SessionInfo>, theme: &AppTheme) -> impl IntoElement {
     let Some(s) = session else {
         return div().id("warning-banner-empty");
     };
@@ -279,7 +323,7 @@ fn warning_banner(session: &Option<SessionInfo>) -> impl IntoElement {
         .px_4()
         .py_1()
         .text_xs()
-        .text_color(rgb(WARNING_TEXT))
+        .text_color(theme.warning)
         .child(warning.clone())
 }
 
@@ -293,7 +337,10 @@ mod tests {
     #[test]
     fn title_bar_options_contract() {
         let options = TitleBar::title_bar_options();
-        assert!(options.appears_transparent, "标题栏必须透明以露出自绘 TitleBar");
+        assert!(
+            options.appears_transparent,
+            "标题栏必须透明以露出自绘 TitleBar"
+        );
         assert_eq!(
             options.traffic_light_position,
             Some(gpui::point(gpui::px(9.0), gpui::px(9.0))),
@@ -330,5 +377,42 @@ mod tests {
         };
         let (_view, _window_cx) =
             cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+    }
+
+    /// P2-2：主题偏好三态菜单语义（label + 显式性），不依赖全局状态。
+    #[test]
+    fn theme_pref_menu_semantics() {
+        assert_eq!(ThemePreference::default(), ThemePreference::FollowSystem);
+        assert_eq!(ThemePreference::FollowSystem.label(), "跟随系统");
+        assert!(ThemePreference::Dark.is_explicit());
+        assert!(!ThemePreference::FollowSystem.is_explicit());
+    }
+
+    /// P2-2 核心契约：强制深色模式下主窗口（TitleBar + 外观菜单 + 侧栏 + 会话栏）
+    /// 可完整渲染不 panic（AppTheme::dark 语义色板路径）。
+    #[gpui::test]
+    async fn root_renders_in_dark_mode(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            set_theme_pref(ThemePreference::Dark, None, cx);
+        });
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-test".into(),
+                name: "深色用户".into(),
+                email: "dark@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-dark".into(),
+            },
+            warning: None,
+        };
+        let (_view, _window_cx) =
+            cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        // 深色偏好仍生效（显式模式不被系统外观覆盖）
+        cx.update(|cx| assert!(AppTheme::current(cx).is_dark()));
     }
 }

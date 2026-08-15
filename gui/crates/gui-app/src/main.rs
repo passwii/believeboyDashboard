@@ -18,11 +18,11 @@ mod widgets;
 
 use std::env;
 
+use gpui::prelude::*;
 use gpui::{
     actions, px, size, App, Application, Bounds, Focusable, KeyBinding, TitlebarOptions,
     WindowBounds, WindowKind, WindowOptions,
 };
-use gpui::prelude::*;
 use gpui_component::TitleBar;
 use tracing_subscriber::EnvFilter;
 
@@ -30,6 +30,7 @@ use assets::AppAssets;
 use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
+use theme::{set_theme_pref, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
@@ -54,7 +55,11 @@ fn main() -> anyhow::Result<()> {
     let api_base = env::var("BELIEVEBOY_API_BASE")
         .unwrap_or_else(|_| "https://dash-api.believeboy.com".to_string());
     let api_key = env::var("BELIEVEBOY_TOKEN").ok();
-    tracing::info!(api_base, api_key_present = api_key.is_some(), "believeboy-gui 启动中");
+    tracing::info!(
+        api_base,
+        api_key_present = api_key.is_some(),
+        "believeboy-gui 启动中"
+    );
 
     // 4. 启动 GPUI 应用
     Application::new()
@@ -65,6 +70,11 @@ fn main() -> anyhow::Result<()> {
             // 初始化 gpui-component（主题系统 + 全局状态；GUI-6 起 Dashboard 视图的
             // Skeleton / Spinner / Alert / Icon 依赖其语义色板与全局单例）
             gpui_component::init(cx);
+
+            // P2-2（BLF-689）：主题偏好基线——默认跟随系统；窗口外观监听在
+            // open_*_window 内注册（on_window_appearance_changed），系统切亮/暗时
+            // 无感跟随。显式浅色/深色由标题栏外观菜单写入本全局。
+            set_theme_pref(ThemePreference::FollowSystem, None, cx);
 
             // 文本输入 / 登录提交 / 退出所需的全局按键绑定
             cx.bind_keys([
@@ -98,7 +108,11 @@ fn main() -> anyhow::Result<()> {
                     open_main_window(cx, authed, resp, None);
                 }
                 Ok(None) => open_login_window(cx, client, None),
-                Err(msg) => open_login_window(cx, client, Some(format!("钥匙串读取失败：{msg}（本次不自动登录）"))),
+                Err(msg) => open_login_window(
+                    cx,
+                    client,
+                    Some(format!("钥匙串读取失败：{msg}（本次不自动登录）")),
+                ),
             }
         });
 
@@ -125,7 +139,17 @@ fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>
         )
         .expect("打开登录窗口失败");
 
-    let login = window.update(cx, |_, _, cx| cx.entity()).expect("登录窗口根视图");
+    // P2-2：监听登录窗口外观变化（跟随系统时同步全局外观并重绘）
+    window
+        .update(cx, |login, window, _cx| {
+            login.theme_appearance_sub =
+                Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+        })
+        .ok();
+
+    let login = window
+        .update(cx, |_, _, cx| cx.entity())
+        .expect("登录窗口根视图");
     let login_window = window;
 
     // 登录成功 → 持久化会话 → 关登录窗 → 开主窗
@@ -155,12 +179,7 @@ fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>
 /// `appears_transparent: true` 让系统标题栏透明、traffic lights 定位到 (9,9)，
 /// 使红绿灯悬于 RootView 自绘的统一工具栏（TitleBar 组件）之上，实现 macOS 原生
 /// unified toolbar 质感。
-fn open_main_window(
-    cx: &mut App,
-    client: Client,
-    user: LoginResponse,
-    warning: Option<String>,
-) {
+fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: Option<String>) {
     let session = SessionInfo {
         client: client.clone(),
         user,
@@ -178,7 +197,17 @@ fn open_main_window(
         )
         .expect("打开主窗口失败");
 
-    let root = window.update(cx, |_, _, cx| cx.entity()).expect("主窗口根视图");
+    // P2-2：监听主窗口外观变化（跟随系统时同步全局外观并重绘，无闪烁）
+    window
+        .update(cx, |root, window, _cx| {
+            root.theme_appearance_sub =
+                Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+        })
+        .ok();
+
+    let root = window
+        .update(cx, |_, _, cx| cx.entity())
+        .expect("主窗口根视图");
     let main_window = window;
 
     // 退出登录 → 清 Keychain → 关主窗 → 回登录窗

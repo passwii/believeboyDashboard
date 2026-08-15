@@ -19,6 +19,8 @@ use gpui::{
     Hsla, Render, SharedString, Window,
 };
 use gpui_component::{h_flex, v_flex, ActiveTheme, Icon, IconName, Sizable, Theme};
+
+use crate::theme::AppTheme;
 use gui_domain::operations::site_navigation::{
     forum_count, forum_items, platform_count, platform_items, SiteNavigationItem, TYPE_LABEL,
 };
@@ -58,6 +60,8 @@ impl Default for SiteNavigationView {
 impl Render for SiteNavigationView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        // 品牌强调色（P2-2：gpui-component 默认主题未定义 `blue` 基色，改用 AppTheme accent）
+        let accent = AppTheme::current(cx).accent;
         // 窗口宽度驱动列数（窗口 resize 自动触发重渲染，列数随之变化）
         let columns = grid_columns(window.bounds().size.width.into());
         let platforms = platform_items();
@@ -70,7 +74,7 @@ impl Render for SiteNavigationView {
             .p_6()
             .bg(theme.background)
             .overflow_y_scroll()
-            .child(header_card(&theme))
+            .child(header_card(&theme, accent))
             .child(section(
                 "平台",
                 "核心运营入口",
@@ -95,7 +99,7 @@ impl Render for SiteNavigationView {
 // ---------------------------------------------------------------------------
 
 /// 顶部统计卡（frontend PageHeader `actions`：平台总数 / 资讯论坛 / 平台类型）
-fn header_card(theme: &Theme) -> impl IntoElement {
+fn header_card(theme: &Theme, accent: Hsla) -> impl IntoElement {
     v_flex()
         .id("site-nav-header")
         .gap_4()
@@ -114,7 +118,7 @@ fn header_card(theme: &Theme) -> impl IntoElement {
                     v_flex()
                         .max_w(px(640.))
                         .gap_3()
-                        .child(eyebrow_pill(theme))
+                        .child(eyebrow_pill(accent))
                         .child(
                             div()
                                 .text_sm()
@@ -125,38 +129,38 @@ fn header_card(theme: &Theme) -> impl IntoElement {
                 .child(
                     h_flex()
                         .gap_2()
-                        .children(stats_cards(theme)),
+                        .children(stats_cards(theme, accent)),
                 ),
         )
 }
 
 /// Eyebrow pill（对齐 frontend PageHeader pill 形态：带 icon 的胶囊小标）
-fn eyebrow_pill(theme: &Theme) -> impl IntoElement {
+fn eyebrow_pill(accent: Hsla) -> impl IntoElement {
     h_flex()
         .items_center()
         .gap_2()
         .rounded_full()
         .border_1()
-        .border_color(theme.blue.opacity(0.25))
-        .bg(theme.blue.opacity(0.10))
+        .border_color(accent.opacity(0.25))
+        .bg(accent.opacity(0.10))
         .px_3()
         .py_1()
         .child(
             Icon::new(IconName::Building2)
                 .with_size(px(14.))
-                .text_color(theme.blue.opacity(0.9)),
+                .text_color(accent.opacity(0.9)),
         )
         .child(
             div()
                 .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(theme.blue.opacity(0.9))
+                .text_color(accent.opacity(0.9))
                 .child(SharedString::from("运营导航 · 站点导航")),
         )
 }
 
 /// 3 张统计卡：图标 + 数值 + 标签（库无 Statistic 卡 → div 自绘，对齐 frontend stats）
-fn stats_cards(theme: &Theme) -> Vec<impl IntoElement> {
+fn stats_cards(theme: &Theme, accent: Hsla) -> Vec<impl IntoElement> {
     // (label, value, icon) 对齐 frontend `stats` 数组
     let stats: [(&str, SharedString, IconName); 3] = [
         (
@@ -192,7 +196,7 @@ fn stats_cards(theme: &Theme) -> Vec<impl IntoElement> {
                 .child(
                     Icon::new(icon.clone())
                         .with_size(px(16.))
-                        .text_color(theme.blue.opacity(0.85)),
+                        .text_color(accent.opacity(0.85)),
                 )
                 .child(
                     div()
@@ -333,7 +337,7 @@ fn platform_card(
                                 .bg(theme.muted)
                                 .p_1()
                                 .text_color(theme.muted_foreground)
-                                .hover(|this| this.text_color(theme.blue))
+                                .hover(|this| this.text_color(accent))
                                 .child(Icon::new(IconName::ExternalLink).with_size(px(16.))),
                         ),
                 )
@@ -361,7 +365,7 @@ fn platform_card(
                                 .gap_1()
                                 .text_xs()
                                 .font_weight(FontWeight::MEDIUM)
-                                .text_color(theme.blue.opacity(0.8))
+                                .text_color(accent.opacity(0.8))
                                 .child(SharedString::from("点击直达")),
                         ),
                 ),

@@ -30,13 +30,16 @@
 
 use chrono::{Days, NaiveDate};
 use gpui::{
-    prelude::*, App, AsyncApp, Context, Entity, MouseButton, Render, WeakEntity, Window, div, px,
+    div, prelude::*, px, App, AsyncApp, Context, Entity, MouseButton, Render, WeakEntity, Window,
 };
-use gpui_component::{ActiveTheme, Icon, Sizable, alert::Alert, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex};
+use gpui_component::{
+    alert::Alert, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, ActiveTheme, Icon, Sizable,
+};
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::dashboard::{DailyAnalysisResponse, KpiSummary};
 
+use crate::theme::AppTheme;
 use crate::views::stat_band::{stat_band, stat_band_skeleton};
 use crate::widgets::top_projects::{TopProjectRow, TopProjectsWidget};
 
@@ -76,7 +79,10 @@ impl DashboardData {
     /// 无项目，或没有任何聚合行 → 空态（暂无销售数据）
     pub fn is_empty(&self) -> bool {
         self.projects.is_empty()
-            || self.daily.as_ref().is_none_or(|d| d.summary_rows.is_empty())
+            || self
+                .daily
+                .as_ref()
+                .is_none_or(|d| d.summary_rows.is_empty())
     }
 
     /// Top 项目聚合行（GUI-9 消费；纯函数聚合，默认销售额降序取 Top 6）
@@ -84,10 +90,7 @@ impl DashboardData {
         let Some(daily) = &self.daily else {
             return Vec::new();
         };
-        let compare = self
-            .compare
-            .as_ref()
-            .map(|c| &c.project_breakdown);
+        let compare = self.compare.as_ref().map(|c| &c.project_breakdown);
         crate::widgets::top_projects::compute_top_projects(
             &daily.project_breakdown,
             compare,
@@ -200,19 +203,17 @@ impl DashboardView {
 
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
-        cx.spawn(
-            async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
-                let result = bg
-                    .spawn(async move {
-                        crate::runtime::runtime().block_on(load_dashboard(&client, selected))
-                    })
-                    .await;
-                this.update(&mut *cx, |this, cx| {
-                    this.apply_result(request_id, result, cx);
+        cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
+            let result = bg
+                .spawn(async move {
+                    crate::runtime::runtime().block_on(load_dashboard(&client, selected))
                 })
-                .ok();
-            },
-        )
+                .await;
+            this.update(&mut *cx, |this, cx| {
+                this.apply_result(request_id, result, cx);
+            })
+            .ok();
+        })
         .detach();
     }
 
@@ -242,7 +243,8 @@ impl DashboardView {
         if let Ok(data) = &result {
             if !data.is_empty() {
                 let rows = data.top_projects();
-                self.top_projects.update(cx, |widget, cx| widget.set_data(rows, cx));
+                self.top_projects
+                    .update(cx, |widget, cx| widget.set_data(rows, cx));
             }
         }
         self.state.update(cx, |state, cx| {
@@ -300,22 +302,23 @@ async fn load_dashboard(
 impl Render for DashboardView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let app_theme = AppTheme::current(cx);
         // 克隆状态机（1.0-a 直接克隆；GUI-7+ 若帧率高可改为借用判别字段）
         let state = self.state.read(cx).clone();
         let top_projects = self.top_projects.clone();
         match state {
-            DashboardState::Loading => render_loading(&theme).into_any_element(),
+            DashboardState::Loading => render_loading(&theme, &app_theme).into_any_element(),
             DashboardState::Error(msg) => render_error(cx, &theme, &msg).into_any_element(),
             DashboardState::Empty => render_empty(cx, &theme).into_any_element(),
             DashboardState::Loaded(data) => {
-                render_loaded(cx, &theme, &data, top_projects).into_any_element()
+                render_loaded(cx, &theme, &data, top_projects, &app_theme).into_any_element()
             }
         }
     }
 }
 
 /// Loading：骨架屏（顶部选择器占位 + KPI 卡占位 + 主体占位）
-fn render_loading(theme: &gpui_component::Theme) -> impl IntoElement {
+fn render_loading(theme: &gpui_component::Theme, app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("dashboard-loading")
         .size_full()
@@ -325,11 +328,7 @@ fn render_loading(theme: &gpui_component::Theme) -> impl IntoElement {
         .child(
             h_flex()
                 .gap_2()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(theme.foreground.opacity(0.6)),
-                )
+                .child(Spinner::new().small().color(theme.foreground.opacity(0.6)))
                 .child(div().text_color(theme.muted_foreground).child("加载中…")),
         )
         .child(
@@ -338,7 +337,7 @@ fn render_loading(theme: &gpui_component::Theme) -> impl IntoElement {
         )
         .child(
             // KPI 数字带占位（GUI-7：6 张骨架卡，数字位置放 Skeleton）
-            stat_band_skeleton(theme),
+            stat_band_skeleton(app_theme),
         )
         .child(
             // 主体内容占位
@@ -374,7 +373,10 @@ fn render_error(
                 .text_color(theme.foreground)
                 .cursor(gpui::CursorStyle::PointingHand)
                 .hover(|style| style.bg(theme.secondary))
-                .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| this.reload(cx)))
+                .on_mouse_up(
+                    MouseButton::Left,
+                    cx.listener(|this, _, _, cx| this.reload(cx)),
+                )
                 .child("重试"),
         )
 }
@@ -414,7 +416,10 @@ fn render_empty(
                 .text_color(theme.foreground)
                 .cursor(gpui::CursorStyle::PointingHand)
                 .hover(|style| style.bg(theme.secondary))
-                .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| this.reload(cx)))
+                .on_mouse_up(
+                    MouseButton::Left,
+                    cx.listener(|this, _, _, cx| this.reload(cx)),
+                )
                 .child("刷新"),
         )
 }
@@ -425,13 +430,15 @@ fn render_loaded(
     theme: &gpui_component::Theme,
     data: &DashboardData,
     top_projects: Entity<TopProjectsWidget>,
+    app_theme: &AppTheme,
 ) -> impl IntoElement {
     let daily = data.daily.as_ref();
-    let kpi = daily.map_or_else(KpiSummary::default, |d| KpiSummary::from_rows(&d.summary_rows));
-    let comparison = data
-        .compare
-        .as_ref()
-        .map_or_else(KpiSummary::default, |d| KpiSummary::from_rows(&d.summary_rows));
+    let kpi = daily.map_or_else(KpiSummary::default, |d| {
+        KpiSummary::from_rows(&d.summary_rows)
+    });
+    let comparison = data.compare.as_ref().map_or_else(KpiSummary::default, |d| {
+        KpiSummary::from_rows(&d.summary_rows)
+    });
     let day_count = daily.map_or(0, |d| d.summary_rows.len());
     v_flex()
         .id("dashboard-loaded")
@@ -456,11 +463,9 @@ fn render_loaded(
                 )),
         )
         // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
-        .child(stat_band(&kpi, &comparison, theme))
+        .child(stat_band(&kpi, &comparison, app_theme))
         // GUI-8：6 个图表位置占位卡（v1.1 接 gpui-component Chart 真图表）
-        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(
-            theme,
-        ))
+        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(theme))
         // Top 项目列表（GUI-9 / 1.0-d）
         .child(div().flex_1().min_h(px(240.)).child(top_projects))
 }
@@ -627,7 +632,13 @@ mod tests {
     fn previous_7_days_window_matches_frontend_contract() {
         // 当前窗口 2026-08-07..2026-08-13（today = 08-14）
         let cur = last_7_days_window(NaiveDate::from_ymd_opt(2026, 8, 14).unwrap());
-        assert_eq!(cur, (NaiveDate::from_ymd_opt(2026, 8, 7).unwrap(), NaiveDate::from_ymd_opt(2026, 8, 13).unwrap()));
+        assert_eq!(
+            cur,
+            (
+                NaiveDate::from_ymd_opt(2026, 8, 7).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 8, 13).unwrap()
+            )
+        );
         // frontend: prevFrom = from - 7，prevTo = from - 1
         let prev = previous_7_days_window(cur);
         assert_eq!(prev.0.to_string(), "2026-07-31");
