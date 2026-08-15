@@ -113,6 +113,8 @@ pub struct AppTheme {
     pub sidebar_item_hover: Hsla,
     pub sidebar_item_active_bg: Hsla,
     pub sidebar_item_active_text: Hsla,
+    /// 选中胶囊的柔和投影色（macOS 浅色侧栏选中项带轻投影）
+    pub sidebar_item_shadow: Hsla,
     pub sidebar_footer_text: Hsla,
 
     // ---- 文字层级 ----
@@ -161,7 +163,7 @@ impl AppTheme {
             card_bg: c(0xffffff),
             separator: c(0xe5e5e5),
 
-            // 侧栏（浅色：macOS 浅侧栏，选中白胶囊）
+            // 侧栏（浅色：macOS 浅侧栏，选中白胶囊 + 轻投影）
             sidebar_bg: c(0xececec),
             sidebar_border: c(0xd4d4d8),
             sidebar_text: c(0x3f3f46),
@@ -169,6 +171,7 @@ impl AppTheme {
             sidebar_item_hover: c(0xd9d9de),
             sidebar_item_active_bg: c(0xffffff),
             sidebar_item_active_text: c(0x18181b),
+            sidebar_item_shadow: c(0x000000).alpha(0.09),
             sidebar_footer_text: c(0x71717a),
 
             // 文字层级
@@ -211,6 +214,7 @@ impl AppTheme {
             sidebar_item_hover: c(0x27272a),
             sidebar_item_active_bg: c(0x3f3f46),
             sidebar_item_active_text: c(0xffffff),
+            sidebar_item_shadow: c(0x000000).alpha(0.30),
             sidebar_footer_text: c(0x71717a),
 
             // 文字层级
@@ -278,6 +282,8 @@ mod tests {
         assert_ne!(light.window_bg, dark.window_bg);
         assert_ne!(light.text_primary, dark.text_primary);
         assert_ne!(light.success, dark.success);
+        // 选中胶囊投影两态不一致（浅色更弱、深色更强）
+        assert_ne!(light.sidebar_item_shadow, dark.sidebar_item_shadow);
         // 品牌蓝两态保持一致（frontend 品牌色恒 blue-500）
         assert_eq!(light.brand, dark.brand);
     }
