@@ -16,8 +16,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea, div, px,
+    div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
+    FontWeight, MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
@@ -27,20 +27,21 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::breadcrumb_for;
 
-use crate::theme::{AppTheme, ThemePref, ThemePreference, set_theme_pref};
-use crate::views::ad_analysis::{AD_ANALYSIS_URL, AdAnalysisView};
-use crate::views::ad_data::{AD_DATA_URL, AdDataView};
-use crate::views::daily_analysis::{DAILY_ANALYSIS_URL, DailyAnalysisView};
+use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
+use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
+use crate::views::ad_data::{AdDataView, AD_DATA_URL};
+use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
-use crate::views::monthly_report::{MONTHLY_REPORT_URL, MonthlyReportView};
+use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::placeholder::PlaceholderView;
-use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
-use crate::views::portfolio_overview::{PORTFOLIO_URL, PortfolioOverviewView};
+use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
+use crate::views::portfolio_overview::{PortfolioOverviewView, PORTFOLIO_URL};
 use crate::views::project_goals::{PROJECT_GOALS_URL, ProjectGoalsView};
-use crate::views::scheduled_reports::{SCHEDULED_REPORTS_URL, ScheduledReportsView};
+use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
+use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
-use crate::views::site_navigation::{SITE_NAV_URL, SiteNavigationView};
-use crate::views::store_navigation::{STORE_NAV_URL, StoreNavigationView};
+use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
+use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -85,6 +86,8 @@ pub struct RootView {
     portfolio_overview: Option<Entity<PortfolioOverviewView>>,
     /// 运营 → 项目目标真实视图（P5-1；点击「运营 → 项目目标」懒创建）
     project_goals: Option<Entity<ProjectGoalsView>>,
+    /// 运营 → 退货分析真实视图（P5-1；点击「运营 → 退货分析」懒创建）
+    return_analysis: Option<Entity<ReturnAnalysisView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
     show_dashboard: bool,
     /// 内容区当前是否显示站点导航视图（sidebar Select 命中 SITE_NAV_URL 时置真）
@@ -107,6 +110,8 @@ pub struct RootView {
     show_portfolio_overview: bool,
     /// 内容区当前是否显示项目目标视图（sidebar Select 命中 PROJECT_GOALS_URL 时置真）
     show_project_goals: bool,
+    /// 内容区当前是否显示退货分析视图（sidebar Select 命中 RETURN_ANALYSIS_URL 时置真）
+    show_return_analysis: bool,
     /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
@@ -187,6 +192,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -210,6 +216,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -232,8 +239,9 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
-                        this.show_portfolio_overview = true;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_portfolio_overview = true;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -258,6 +266,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -279,6 +288,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -302,6 +312,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -325,6 +336,7 @@ impl RootView {
                         this.show_platform_revenue = true;
                         this.show_portfolio_overview = false;
                         this.show_scheduled_reports = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
@@ -372,7 +384,32 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = true;
+                    } else if url == RETURN_ANALYSIS_URL {
+                        // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.return_analysis.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = ReturnAnalysisView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_portfolio_overview = false;
+                        this.show_scheduled_reports = false;
+                        this.show_return_analysis = true;
+                        this.show_project_goals = false;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -383,6 +420,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -410,6 +448,7 @@ impl RootView {
             scheduled_reports: None,
             portfolio_overview: None,
             project_goals: None,
+            return_analysis: None,
             show_dashboard,
             show_site_navigation: false,
             show_store_navigation: false,
@@ -421,6 +460,7 @@ impl RootView {
             show_scheduled_reports: false,
             show_portfolio_overview: false,
             show_project_goals: false,
+            show_return_analysis: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
             sidebar_collapsed: false,
@@ -464,6 +504,8 @@ impl RootView {
             "project-goals"
         } else if self.show_portfolio_overview {
             "portfolio-overview"
+        } else if self.show_return_analysis {
+            "return-analysis"
         } else {
             "placeholder"
         }
@@ -528,6 +570,11 @@ impl RootView {
             )
         } else if self.show_portfolio_overview {
             self.portfolio_overview.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_return_analysis {
+            self.return_analysis.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -1088,9 +1135,230 @@ mod tests {
                 "项目目标",
                 "project-goals",
             ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
+        }
+    }
+
+    /// P5-1：view_key 两步切换契约——`view_key_follows_active_view` 仅覆盖 dashboard
+    /// → 各视图的单步切换；新增「业务视图 A → 业务视图 B」两步路径锁各分支 reset
+    /// 列表完整（避免新增视图分支漏 reset 既有 `show_*`，触发 view_key/content_view
+    /// if/else 链中靠前的 show_* 误命中）。9 对：7 对既有相邻业务视图 + 2 对
+    /// project_goals ↔ return-analysis 双向（PR #337 合并后新增分支的跨 reset 契约）。
+    #[gpui::test]
+    async fn view_key_two_step_transitions(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-2step".into(),
+                name: "两步切换".into(),
+                email: "twostep@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 两步切换矩阵：先 A 后 B → view_key 必须为 B（覆盖每一对相邻业务视图）
+        let transitions = [
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "scheduled-reports",
+            ),
+            (
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "return-analysis",
+            ),
+            (
+                "/dashboard/operations/return-analysis",
+                "退货分析",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+    /// P5-1（PR #337 合并后）：项目目标 ↔ 各业务视图的两步切换契约——锁每个既有
+    /// 分支的 reset 列表都补了 `show_project_goals = false`（以及项目目标分支自身
+    /// 对全部既有 show_* 的复位），避免 PROJECT_GOALS_URL 分支漏 reset 既有视图
+    /// 或既有分支漏 reset show_project_goals。
+    #[gpui::test]
+    async fn view_key_project_goals_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-pg2step".into(),
+                name: "项目目标两步切换".into(),
+                email: "pg2step@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-pg2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 项目目标 ↔ 各业务视图双向矩阵：A → 项目目标 与 项目目标 → B 都必须
+        // 落在最后选中视图（覆盖 PROJECT_GOALS_URL 分支 reset 完整性与既有分支
+        // 对 show_project_goals 的复位）。
+        let transitions = [
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/portfolio-overview",
+                "组合分析",
+                "portfolio-overview",
+            ),
+            (
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "scheduled-reports",
+            ),
+            (
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "project-goals",
+            ),
+            (
+                "/dashboard/operations/project-goals",
+                "项目目标",
+                "/dashboard/operations/site-navigation",
+                "站点导航",
+                "site-navigation",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "项目目标两步切换 {title_a} → {title_b}"
+                )
+            });
         }
     }
 
