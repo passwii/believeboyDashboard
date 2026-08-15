@@ -22,6 +22,7 @@ pub mod login;
 pub mod monthly_report;
 pub mod placeholder;
 pub mod platform_revenue;
+pub mod portfolio_overview;
 pub mod root;
 pub mod scheduled_reports;
 pub mod sidebar;
