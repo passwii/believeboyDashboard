@@ -513,19 +513,25 @@ impl Render for TopProjectsWidget {
             cx.new(|cx| TableState::new(delegate, window, cx))
         });
         let theme = AppTheme::current(cx);
+        // P2-4（BLF-691）：Table 包在原生卡片容器（radius_lg + 轻投影）中，与 KPI 卡 /
+        // 图表卡统一卡片语言；表头区标题 + 描述，卡片内分隔线对齐 frontend CardHeader border-b。
         v_flex()
             .id("top-projects")
-            .size_full()
-            .gap_3()
+            .w_full()
+            .rounded(px(theme.radius_lg))
+            .bg(theme.card_bg)
+            .shadow(vec![theme.card_shadow_box()])
+            .overflow_y_scroll()
             .child(
                 v_flex()
                     .gap_1()
-                    .pb_3()
+                    .px_4()
+                    .py_3()
                     .border_b_1()
                     .border_color(theme.separator)
                     .child(
                         div()
-                            .text_lg()
+                            .text_base()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(theme.text_primary)
                             .child("项目排行"),

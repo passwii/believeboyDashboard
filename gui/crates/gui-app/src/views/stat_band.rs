@@ -184,6 +184,9 @@ pub fn stat_band_skeleton(theme: &AppTheme) -> impl IntoElement {
 }
 
 /// 单张 KPI 卡：label + 环比 delta（右上）+ 大数字
+///
+/// P2-4（BLF-691）原生卡片质感：`radius_lg` 圆角 + 柔和轻投影 + hover 浅底反馈
+/// （对齐 macOS 系统设置/备忘录式卡片），涨绿跌红用语义色（success/danger）。
 fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
     // 对齐 frontend `text-blue-700 dark:text-foreground`：亮色主题数值用品牌强调色，暗色用前景色
     let value_color = if theme.is_dark() {
@@ -191,16 +194,22 @@ fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
     } else {
         theme.accent
     };
+    // hover 浅底：亮色用 accent_soft（蓝 50），暗色用 muted_fill（中性微亮）
+    let hover_bg = if theme.is_dark() {
+        theme.muted_fill
+    } else {
+        theme.accent_soft
+    };
     // 转 owned String（gpui 元素要求 'static 内容，且保持返回类型无生命周期参数）
     let value_text = stat.value.clone().unwrap_or_else(|| "—".to_string());
     v_flex()
         .flex_1()
         .gap_2()
-        .p_3()
-        .rounded(px(theme.radius))
-        .border_1()
-        .border_color(theme.separator)
+        .p_4()
+        .rounded(px(theme.radius_lg))
         .bg(theme.card_bg)
+        .shadow(vec![theme.card_shadow_box()])
+        .hover(|this| this.bg(hover_bg))
         .child(
             h_flex()
                 .justify_between()
@@ -225,6 +234,8 @@ fn render_card(stat: &KpiStat, theme: &AppTheme) -> impl IntoElement {
 /// 环比 delta：涨绿（success）/ 跌红（danger）/ 持平（中性灰 Minus）；
 /// 不可得 → "—"。悬停显示环比说明 Tooltip（`id` 保证每张卡唯一；tooltip 属
 /// `StatefulInteractiveElement`，需先 `.id()` 提升为 `Stateful<Div>`）。
+///
+/// P2-4：涨/跌改为徽章样式（语义色浅底胶囊），持平/不可得保持纯文字（无底）。
 fn render_delta(delta: Option<f64>, theme: &AppTheme, label: &'static str) -> impl IntoElement {
     match delta {
         None => div()
@@ -232,17 +243,50 @@ fn render_delta(delta: Option<f64>, theme: &AppTheme, label: &'static str) -> im
             .text_color(theme.text_muted)
             .child("—")
             .into_any_element(),
-        Some(d) if d > 0.0 => {
-            delta_row(d, theme.success, IconName::ChevronUp, label).into_any_element()
-        }
-        Some(d) if d < 0.0 => {
-            delta_row(d.abs(), theme.danger, IconName::ChevronDown, label).into_any_element()
-        }
+        Some(d) if d > 0.0 => delta_badge(
+            d,
+            theme.success,
+            theme.success_soft,
+            IconName::ChevronUp,
+            label,
+        )
+        .into_any_element(),
+        Some(d) if d < 0.0 => delta_badge(
+            d.abs(),
+            theme.danger,
+            theme.danger_soft,
+            IconName::ChevronDown,
+            label,
+        )
+        .into_any_element(),
         Some(_) => delta_row(0.0, theme.text_muted, IconName::Minus, label).into_any_element(),
     }
 }
 
-/// delta 行：箭头图标 + 绝对值百分比（对齐 frontend `DeltaIcon` + `DeltaValue` absolute）
+/// delta 徽章（P2-4）：语义色文字 + 浅底胶囊 + 箭头图标，悬停显示环比说明
+fn delta_badge(
+    abs_delta: f64,
+    color: Hsla,
+    soft_bg: Hsla,
+    icon: IconName,
+    label: &'static str,
+) -> impl IntoElement {
+    h_flex()
+        .id(gpui::SharedString::from(format!("kpi-delta-{label}")))
+        .items_center()
+        .gap_1()
+        .px_1p5()
+        .py_0p5()
+        .rounded_full()
+        .bg(soft_bg)
+        .text_sm()
+        .text_color(color)
+        .tooltip(move |window, cx| Tooltip::new(DELTA_TOOLTIP).build(window, cx))
+        .child(Icon::new(icon).with_size(px(12.)).text_color(color))
+        .child(div().child(format!("{abs_delta:.1}%")))
+}
+
+/// delta 行（持平 / 不可得）：箭头图标 + 绝对值百分比，无徽章底（对齐 frontend `DeltaIcon` + `DeltaValue`）
 fn delta_row(abs_delta: f64, color: Hsla, icon: IconName, label: &'static str) -> impl IntoElement {
     div()
         .id(gpui::SharedString::from(format!("kpi-delta-{label}")))
@@ -262,11 +306,10 @@ fn skeleton_card(theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_2()
-        .p_3()
-        .rounded(px(theme.radius))
-        .border_1()
-        .border_color(theme.separator)
+        .p_4()
+        .rounded(px(theme.radius_lg))
         .bg(theme.card_bg)
+        .shadow(vec![theme.card_shadow_box()])
         .child(div().w(px(64.)).child(Skeleton::new()))
         .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
         .child(div().w(px(80.)).child(Skeleton::new()))

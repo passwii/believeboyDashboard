@@ -15,7 +15,7 @@
 //! 迁移说明：此前 `Theme::dark_sidebar_light_content()`（深侧栏+浅内容区混合外观）
 //! 已废弃——跟随系统后侧栏与内容区同亮同暗，语义字段全部收敛到 [`AppTheme`]。
 
-use gpui::{rgb, App, Hsla, Window};
+use gpui::{point, px, rgb, App, BoxShadow, Hsla, Window};
 use gpui_component::{ActiveTheme, ThemeMode};
 
 /// 4px 间距尺度上的常用大间距（间距 token；小间距直接用 gpui 的 `.px_*/.gap_*`
@@ -106,6 +106,8 @@ pub struct AppTheme {
     pub muted_fill: Hsla,
     /// 分隔线（separator）
     pub separator: Hsla,
+    /// 卡片轻投影色（macOS 原生卡片：柔和低透明度阴影，亮暗两态各自成组）
+    pub card_shadow: Hsla,
 
     // ---- 侧栏（跟随系统亮/暗）----
     pub sidebar_bg: Hsla,
@@ -143,6 +145,10 @@ pub struct AppTheme {
     pub warning: Hsla,
     /// 危险（跌/错误）
     pub danger: Hsla,
+    /// 成功浅底（涨 delta 徽章背景，`success` 的低透明度派生）
+    pub success_soft: Hsla,
+    /// 危险浅底（跌 delta 徽章背景，`danger` 的低透明度派生）
+    pub danger_soft: Hsla,
 }
 
 impl AppTheme {
@@ -165,6 +171,7 @@ impl AppTheme {
             card_bg: c(0xffffff),
             muted_fill: c(0xf5f5f5),
             separator: c(0xe5e5e5),
+            card_shadow: c(0x000000).alpha(0.06),
 
             // 侧栏（浅色：macOS 浅侧栏，选中白胶囊 + 轻投影）
             sidebar_bg: c(0xececec),
@@ -192,6 +199,8 @@ impl AppTheme {
             success: c(0x22c55e),     // green-500（涨）
             warning: c(0xd97706),     // amber-600
             danger: c(0xef4444),      // red-500（跌）
+            success_soft: c(0x22c55e).alpha(0.12),
+            danger_soft: c(0xef4444).alpha(0.12),
         }
     }
 
@@ -209,6 +218,7 @@ impl AppTheme {
             card_bg: c(0x18181b),
             muted_fill: c(0x171717),
             separator: c(0x27272a),
+            card_shadow: c(0x000000).alpha(0.40),
 
             // 侧栏（深色：zinc-900，对齐 frontend 深侧栏）
             sidebar_bg: c(0x18181b),
@@ -236,6 +246,18 @@ impl AppTheme {
             success: c(0x4ade80),     // green-400
             warning: c(0xfbbf24),     // amber-400
             danger: c(0xf87171),      // red-400
+            success_soft: c(0x4ade80).alpha(0.16),
+            danger_soft: c(0xf87171).alpha(0.16),
+        }
+    }
+
+    /// 卡片轻投影（macOS 原生卡片：柔和低透明度、1px 下沉、8px 羽化）
+    pub fn card_shadow_box(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.card_shadow,
+            offset: point(px(0.0), px(1.0)),
+            blur_radius: px(8.0),
+            spread_radius: px(0.0),
         }
     }
 
@@ -261,6 +283,7 @@ fn c(hex: u32) -> Hsla {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui_component::PixelsExt;
 
     #[test]
     fn theme_pref_default_is_follow_system() {
@@ -314,6 +337,29 @@ mod tests {
         }
         // 亮暗两态涨跌色语义不同（可见且可区分）
         assert_ne!(AppTheme::light().success, AppTheme::dark().success);
+    }
+
+    /// P2-4 回归锁：卡片轻投影与 delta 徽章浅底在亮暗两态都可用（有可见度、成组），
+    /// 且 delta 徽章底是语义色的低透明度派生（半透明、非透明黑）。
+    #[test]
+    fn card_shadow_and_delta_soft_tokens_are_usable_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            // 投影色非完全透明（亮态偏弱、暗态偏强，但都必须可见）
+            assert!(theme.card_shadow.a > 0.0, "卡片投影色不可全透明");
+            let shadow = theme.card_shadow_box();
+            assert!(shadow.blur_radius.as_f64() > 0.0, "投影必须有羽化");
+            // delta 徽章底：半透明、非透明黑（a 在 (0,1) 区间内）
+            assert!(theme.success_soft.a > 0.0 && theme.success_soft.a < 1.0);
+            assert!(theme.danger_soft.a > 0.0 && theme.danger_soft.a < 1.0);
+            // 软底与主色色相一致（同为纯色，仅透明度不同——Hsla 下 hue 相同）
+            assert_eq!(theme.success_soft.h, theme.success.h);
+            assert_eq!(theme.danger_soft.h, theme.danger.h);
+            // 主色不透明，软底半透明（alpha 已在上方断言）
+            assert_eq!(theme.success.a, 1.0);
+            assert_eq!(theme.danger.a, 1.0);
+        }
+        // 亮暗两态的投影强度不同（暗态投影更强以在深底上可见）
+        assert_ne!(AppTheme::light().card_shadow, AppTheme::dark().card_shadow);
     }
 
     /// P2-2 核心契约：`AppTheme::current` 跟随全局主题模式（亮/暗），
