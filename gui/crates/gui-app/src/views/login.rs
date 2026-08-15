@@ -11,9 +11,18 @@
 //! 去掉「白卡片」改为窗口画布直接承载表单（System Settings 式扁平原生），顶部
 //! 应用图标图块（`icons/logo.svg` 复刻 AppIcon.icns 身份）+ 排版层级 + 输入框
 //! 语义图标前缀/密码显隐（`mask_toggle`）/邮箱可清空 + 底部版本页脚 + 表单淡入。
+//!
+//! P4-4 修正（BLF-712 收尾）：gpui 0.2.2 的 `svg()` 只渲染单色 alpha 蒙版（多色
+//! SVG 不可行），且 svg 未设 `text_color` 时完全不绘制——原实现直接 `svg()` 渲染
+//! 带渐变/白色的 logo.svg 会导致图块不可见。修正为：蓝色渐变圆角方块底用
+//! `linear_gradient` 绘制 + `logo.svg`（纯白柱状图几何）以白色叠加；并补 `eye.svg`
+//! （`mask_toggle` 的 `IconName::Eye` 解析路径，缺了密码显隐按钮图标空白）。
 
 use gpui::prelude::*;
-use gpui::{div, px, svg, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Render, Window};
+use gpui::{
+    div, linear_color_stop, linear_gradient, px, rgb, svg, App, Context, Entity, EventEmitter,
+    FocusHandle, Focusable, Render, Window,
+};
 use gpui_component::alert::Alert;
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -80,8 +89,11 @@ impl LoginView {
             return;
         }
         let email = cx.new(|cx| InputState::new(window, cx).placeholder("you@example.com"));
-        let password = cx
-            .new(|cx| InputState::new(window, cx).placeholder("请输入密码").masked(true));
+        let password = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("请输入密码")
+                .masked(true)
+        });
 
         // 回车提交 / 输入变化清除错误（任一字段）
         let sub_email = cx.subscribe(&email, |this, _e, event: &InputEvent, cx| match event {
@@ -94,16 +106,17 @@ impl LoginView {
             }
             _ => {}
         });
-        let sub_password = cx.subscribe(&password, |this, _e, event: &InputEvent, cx| match event {
-            InputEvent::PressEnter { .. } => this.submit_login(cx),
-            InputEvent::Change => {
-                if matches!(this.status, LoginStatus::Error(_)) {
-                    this.status = LoginStatus::Idle;
-                    cx.notify();
+        let sub_password =
+            cx.subscribe(&password, |this, _e, event: &InputEvent, cx| match event {
+                InputEvent::PressEnter { .. } => this.submit_login(cx),
+                InputEvent::Change => {
+                    if matches!(this.status, LoginStatus::Error(_)) {
+                        this.status = LoginStatus::Idle;
+                        cx.notify();
+                    }
                 }
-            }
-            _ => {}
-        });
+                _ => {}
+            });
 
         self.email = Some(email.clone());
         self.password = Some(password);
@@ -162,6 +175,35 @@ impl LoginView {
 
 impl EventEmitter<LoginViewEvent> for LoginView {}
 
+/// AppIcon 图块（BLF-712）：蓝渐变圆角方块 + 白色上升柱状图。
+///
+/// 色值与几何与 `gui/scripts/make-icon.py` / `AppIcon.icns` 一致：TOP #0D6EC7 →
+/// BOTTOM #06488C 垂直渐变（gpui `linear_gradient` 角度 180° = 自顶向下）。
+/// gpui 0.2.2 的 `svg()` 只能单色渲染（alpha 蒙版 + text_color 着色），因此渐变底用
+/// `linear_gradient` 绘制、白色柱状图/箭头几何放 `icons/logo.svg` 以白色叠加——
+/// 亮暗两态都与打包图标一致（纯 `svg()` 渲染多色 SVG 会不可见或单色失真）。
+fn login_logo_tile() -> impl gpui::IntoElement {
+    const ICON_TOP: u32 = 0x0d6ec7; // make-icon.py TOP（亮蓝）
+    const ICON_BOTTOM: u32 = 0x06488c; // make-icon.py BOTTOM（深蓝）
+    const TILE_SIZE: f32 = 72.0; // 登录窗顶部图块边长（px）
+    const TILE_RADIUS: f32 = 13.0; // ≈ make-icon RADIUS 比例（185/1024 ≈ 18%）
+
+    div()
+        .size(px(TILE_SIZE))
+        .rounded(px(TILE_RADIUS))
+        .bg(linear_gradient(
+            180.0,
+            linear_color_stop(rgb(ICON_TOP), 0.0),
+            linear_color_stop(rgb(ICON_BOTTOM), 1.0),
+        ))
+        .child(
+            svg()
+                .path("icons/logo.svg")
+                .size_full()
+                .text_color(rgb(0xffffff)),
+        )
+}
+
 impl Render for LoginView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
@@ -191,14 +233,7 @@ impl Render for LoginView {
             .flex_col()
             .w(px(360.))
             .gap_4()
-            .child(
-                // 应用图标（复刻 AppIcon.icns：蓝渐变圆角方块 + 白色上升柱状图）
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(svg().path("icons/logo.svg").size(px(72.))),
-            )
+            .child(login_logo_tile())
             .child(
                 div()
                     .flex()
@@ -290,18 +325,9 @@ impl Render for LoginView {
             .flex_col()
             .bg(theme.window_bg)
             // 表单整体首次出现淡入（复用 P4-2 动效系统，自动尊重「减弱动态效果」）
-            .child(
-                div()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(motion::enter_fade_in(
-                        "login-panel-fade".into(),
-                        form,
-                        motion::reduce_motion(cx),
-                    )),
-            )
+            .child(div().flex_1().flex().items_center().justify_center().child(
+                motion::enter_fade_in("login-panel-fade".into(), form, motion::reduce_motion(cx)),
+            ))
             // 底部版本页脚（macOS 应用惯例：muted 小字）
             .child(
                 div()
@@ -334,8 +360,8 @@ mod tests {
     use super::*;
     use gpui::Entity;
     use gpui_component::Root;
-    use std::{cell::RefCell, rc::Rc};
     use gui_api_client::Client;
+    use std::{cell::RefCell, rc::Rc};
 
     /// 建窗：首层必须是 gpui-component `Root`（Input 聚焦时经 `Root::read` 跟踪
     /// focused_input）。返回 LoginView 实体句柄。
@@ -391,5 +417,29 @@ mod tests {
                 assert!(matches!(this.status, LoginStatus::Error(_)));
             });
         });
+    }
+
+    /// 全帧绘制冒烟（BLF-712 收尾）：layout → prepaint → paint 一条龙执行——渐变
+    /// 图块、白色柱状图 overlay（已设 text_color，gpui 才会绘制 svg）、前缀图标与
+    /// 原生 Input/Button/Alert 的绘制路径都跑一遍，paint 阶段不 panic 即渲染结构
+    /// 无错误。此测试覆盖了「svg 未设 text_color → 不绘制」缺陷的修正路径。
+    ///
+    /// 注：gpui 测试环境的 AssetSource 为空，logo.svg 的栅格化不在测试内发生；
+    /// 资源解析由 `assets::tests` 直接验证，几何正确性由 resvg 离屏渲染比对确认。
+    #[gpui::test]
+    async fn login_draws_full_frame(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, vcx) = cx.add_window_view(|window, cx| {
+            let view = cx.new(|cx| LoginView::new(cx, Client::new("http://127.0.0.1:1"), None));
+            Root::new(view.clone(), window, cx)
+        });
+        vcx.draw(
+            gpui::point(px(0.0), px(0.0)),
+            gpui::Size::new(
+                gpui::AvailableSpace::MaxContent,
+                gpui::AvailableSpace::MaxContent,
+            ),
+            |_, _| view.clone(),
+        );
     }
 }
