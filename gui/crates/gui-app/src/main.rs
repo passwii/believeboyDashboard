@@ -16,14 +16,14 @@ mod theme;
 mod views;
 mod widgets;
 
-use std::env;
+use std::{cell::RefCell, env, rc::Rc};
 
 use gpui::prelude::*;
 use gpui::{
-    actions, px, size, App, Application, Bounds, Focusable, KeyBinding, TitlebarOptions,
+    actions, px, size, App, Application, Bounds, Entity, Focusable, KeyBinding, TitlebarOptions,
     WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions,
 };
-use gpui_component::TitleBar;
+use gpui_component::{Root, TitleBar};
 use tracing_subscriber::EnvFilter;
 
 use assets::AppAssets;
@@ -65,8 +65,6 @@ fn main() -> anyhow::Result<()> {
     Application::new()
         .with_assets(AppAssets)
         .run(move |cx: &mut App| {
-            use crate::widgets::text_input as ti;
-
             // 初始化 gpui-component（主题系统 + 全局状态；GUI-6 起 Dashboard 视图的
             // Skeleton / Spinner / Alert / Icon 依赖其语义色板与全局单例）
             gpui_component::init(cx);
@@ -76,24 +74,10 @@ fn main() -> anyhow::Result<()> {
             // 无感跟随。显式浅色/深色由标题栏外观菜单写入本全局。
             set_theme_pref(ThemePreference::FollowSystem, None, cx);
 
-            // 文本输入 / 登录提交 / 退出所需的全局按键绑定
-            cx.bind_keys([
-                KeyBinding::new("backspace", ti::Backspace, None),
-                KeyBinding::new("delete", ti::Delete, None),
-                KeyBinding::new("left", ti::Left, None),
-                KeyBinding::new("right", ti::Right, None),
-                KeyBinding::new("shift-left", ti::SelectLeft, None),
-                KeyBinding::new("shift-right", ti::SelectRight, None),
-                KeyBinding::new("cmd-a", ti::SelectAll, None),
-                KeyBinding::new("cmd-v", ti::Paste, None),
-                KeyBinding::new("cmd-c", ti::Copy, None),
-                KeyBinding::new("cmd-x", ti::Cut, None),
-                KeyBinding::new("home", ti::Home, None),
-                KeyBinding::new("end", ti::End, None),
-                KeyBinding::new("ctrl-cmd-space", ti::ShowCharacterPalette, None),
-                KeyBinding::new("enter", ti::Enter, None),
-                KeyBinding::new("cmd-q", Quit, None),
-            ]);
+            // 登录窗 / 主窗口的文本输入、菜单、窗口级按键绑定：
+            // - 文本输入（gpui-component Input，上下文 "Input"）由 gpui_component::init 注册
+            // - 全局退出：cmd-q
+            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
             cx.on_action(|_: &Quit, cx| cx.quit());
 
             // 启动：有会话 → 主窗口；无 → 登录窗口
@@ -120,8 +104,15 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// 打开登录小窗口（440×560）。登录成功 → 存 Keychain → 关本窗开主窗。
+///
+/// P2-5（BLF-692）：窗口首层改为 gpui-component `Root`（`Root::new`）——登录表单的
+/// `Input` 组件在聚焦时通过 `Root::read` 跟踪 focused_input，窗口根必须是 Root；
+/// Root 在 macOS 下只是透明包装（server decorations，无额外绘制），视觉不变。
+/// 主窗口不加 Root：其 `RootView` 根容器不画不透明背景以透出 P2-3 的系统模糊材质，
+/// 而 Root 会铺一层不透明 theme.background，两者冲突。
 fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>) {
     let bounds = Bounds::centered(None, size(px(440.0), px(560.0)), cx);
+    let login_view: Rc<RefCell<Option<Entity<LoginView>>>> = Default::default();
     let window = cx
         .open_window(
             WindowOptions {
@@ -135,21 +126,26 @@ fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>
                 is_resizable: false,
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| LoginView::new(cx, client, initial_error)),
+            |window, cx| {
+                let view = cx.new(|cx| LoginView::new(cx, client, initial_error));
+                *login_view.borrow_mut() = Some(view.clone());
+                cx.new(|cx| Root::new(view, window, cx))
+            },
         )
         .expect("打开登录窗口失败");
 
+    let login = login_view.borrow().clone().expect("登录窗口根视图");
+
     // P2-2：监听登录窗口外观变化（跟随系统时同步全局外观并重绘）
     window
-        .update(cx, |login, window, _cx| {
-            login.theme_appearance_sub =
-                Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+        .update(cx, |_, window, cx| {
+            login.update(cx, |login, _cx| {
+                login.theme_appearance_sub =
+                    Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+            });
         })
         .ok();
 
-    let login = window
-        .update(cx, |_, _, cx| cx.entity())
-        .expect("登录窗口根视图");
     let login_window = window;
 
     // 登录成功 → 持久化会话 → 关登录窗 → 开主窗
@@ -164,10 +160,10 @@ fn open_login_window(cx: &mut App, client: Client, initial_error: Option<String>
     })
     .detach();
 
-    // 初始焦点邮箱框 + 置前
+    // 初始焦点邮箱框 + 置前（首个渲染内 ensure_inputs 会把焦点交给邮箱 Input）
     window
-        .update(cx, |view, window, cx| {
-            window.focus(&view.focus_handle(cx));
+        .update(cx, |_, window, cx| {
+            window.focus(&login.focus_handle(cx));
             cx.activate(true);
         })
         .ok();
@@ -195,6 +191,9 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 // 12+；旧系统回退到 CGS 窗口背景模糊）。RootView 根容器不画不透明背景，
                 // 侧栏以半透明 sidebar_bg 覆盖其上——透出模糊，实现 Finder 式侧栏材质。
                 window_background: WindowBackgroundAppearance::Blurred,
+                // P2-5（BLF-692）：主窗口最小尺寸，避免内容被压到不可用（侧栏折叠态
+                // 也保证右侧内容区至少有可读宽度）。
+                window_min_size: Some(size(px(960.0), px(640.0))),
                 ..Default::default()
             },
             |_, cx| cx.new(|cx| RootView::new(cx, Some(session))),
