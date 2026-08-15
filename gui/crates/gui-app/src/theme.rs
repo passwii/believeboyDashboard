@@ -102,6 +102,8 @@ pub struct AppTheme {
     pub window_bg: Hsla,
     /// 卡片表面
     pub card_bg: Hsla,
+    /// 中性浅填充（图表占位区 / 徽标底 / hover 反馈）
+    pub muted_fill: Hsla,
     /// 分隔线（separator）
     pub separator: Hsla,
 
@@ -159,6 +161,7 @@ impl AppTheme {
             // 背景层级（macOS light：画布 neutral-100、卡片白、分隔 neutral-200）
             window_bg: c(0xf5f5f5),
             card_bg: c(0xffffff),
+            muted_fill: c(0xf5f5f5),
             separator: c(0xe5e5e5),
 
             // 侧栏（浅色：macOS 浅侧栏，选中白胶囊）
@@ -201,6 +204,7 @@ impl AppTheme {
             // 背景层级（对齐 gpui-component 默认深色：画布 #0a0a0a、卡片 zinc-900）
             window_bg: c(0x0a0a0a),
             card_bg: c(0x18181b),
+            muted_fill: c(0x171717),
             separator: c(0x27272a),
 
             // 侧栏（深色：zinc-900，对齐 frontend 深侧栏）
@@ -280,6 +284,30 @@ mod tests {
         assert_ne!(light.success, dark.success);
         // 品牌蓝两态保持一致（frontend 品牌色恒 blue-500）
         assert_eq!(light.brand, dark.brand);
+    }
+
+    /// P2-2 回归锁：语义状态色（accent/success/danger/warning）在亮暗两态都必须
+    /// 完全不透明——gpui-component 默认主题的基色（blue/green/red）未定义时是
+    /// 透明黑（不可见），本测试防止回退到该 bug。
+    #[test]
+    fn semantic_status_colors_are_opaque_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            for color in [
+                theme.accent,
+                theme.success,
+                theme.danger,
+                theme.warning,
+                theme.text_primary,
+            ] {
+                assert_eq!(
+                    color.a, 1.0,
+                    "语义色必须不透明（防透明黑回归）：{:?}",
+                    color
+                );
+            }
+        }
+        // 亮暗两态涨跌色语义不同（可见且可区分）
+        assert_ne!(AppTheme::light().success, AppTheme::dark().success);
     }
 
     /// P2-2 核心契约：`AppTheme::current` 跟随全局主题模式（亮/暗），

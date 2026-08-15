@@ -12,7 +12,9 @@
 //! 数据源 = GUI-5 返回（gui-api-client）+ GUI-4 类型（gui-domain）。占位卡 id 作为替换锚点。
 
 use gpui::{div, px, FontWeight, InteractiveElement, IntoElement, ParentElement, Styled};
-use gpui_component::{Theme, v_flex};
+use gpui_component::v_flex;
+
+use crate::theme::AppTheme;
 
 /// 单个图表占位卡规格（与 frontend 图表卡一致，纯数据便于契约测试）
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -73,18 +75,15 @@ pub const DASHBOARD_CHART_PLACEHOLDERS: [ChartPlaceholderSpec; 6] = [
     },
 ];
 
-/// 渲染单张图表占位卡：白底卡片（标题 + 描述）+ 灰底虚线框图表区（中央「图表 v1.1 接入」）
-pub fn chart_placeholder_card(
-    spec: &ChartPlaceholderSpec,
-    theme: &Theme,
-) -> impl IntoElement {
+/// 渲染单张图表占位卡：卡片底（标题 + 描述）+ 浅填充虚线框图表区（中央「图表 v1.1 接入」）
+pub fn chart_placeholder_card(spec: &ChartPlaceholderSpec, theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id(spec.id)
         .w_full()
         .rounded(px(8.))
         .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
         .p_4()
         .gap_3()
         .child(
@@ -95,40 +94,40 @@ pub fn chart_placeholder_card(
                     div()
                         .text_size(px(14.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.foreground)
+                        .text_color(theme.text_primary)
                         .child(spec.title),
                 )
                 .child(
                     div()
                         .text_size(px(12.))
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.text_muted)
                         .child(spec.description),
                 ),
         )
         .child(
-            // 图表占位区：灰底 + 虚线边框 + 中央文案（v1.1 被真图表替换）
+            // 图表占位区：浅填充 + 虚线边框 + 中央文案（v1.1 被真图表替换）
             div()
                 .w_full()
                 .h(px(spec.chart_height_px))
                 .rounded(px(6.))
                 .border_1()
                 .border_dashed()
-                .border_color(theme.border)
-                .bg(theme.secondary)
+                .border_color(theme.separator)
+                .bg(theme.muted_fill)
                 .flex()
                 .items_center()
                 .justify_center()
                 .child(
                     div()
                         .text_size(px(13.))
-                        .text_color(theme.muted_foreground)
+                        .text_color(theme.text_muted)
                         .child("图表 v1.1 接入"),
                 ),
         )
 }
 
 /// 渲染 6 卡网格：2 列（对齐 frontend `lg:grid-cols-4` + 每卡 `col-span-2` → 每行 2 张）
-pub fn render_chart_placeholder_grid(theme: &Theme) -> impl IntoElement {
+pub fn render_chart_placeholder_grid(theme: &AppTheme) -> impl IntoElement {
     div()
         .id("dashboard-chart-placeholders")
         .grid()
@@ -201,6 +200,34 @@ mod tests {
         // 其余四张为 h-52 md:h-64 → 取 md 档 256px
         for spec in &DASHBOARD_CHART_PLACEHOLDERS[2..] {
             assert_eq!(spec.chart_height_px, 256.0);
+        }
+    }
+
+    /// P2-2 回归锁：6 卡网格在亮/暗两态都用 AppTheme 语义色渲染（不依赖
+    /// gpui-component Theme 形参；卡片底=card_bg、占位区=muted_fill）。
+    #[gpui::test]
+    async fn grid_renders_with_app_theme_in_dark_mode(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
+        });
+        cx.add_window_view(|_window, cx| GridHost {
+            theme: crate::theme::AppTheme::current(cx),
+        });
+    }
+
+    /// 测试宿主：仅渲染 6 卡网格（AppTheme 参数版）
+    struct GridHost {
+        theme: crate::theme::AppTheme,
+    }
+
+    impl gpui::Render for GridHost {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
+            render_chart_placeholder_grid(&self.theme)
         }
     }
 }

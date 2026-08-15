@@ -17,13 +17,16 @@
 
 use std::collections::HashMap;
 
-use gpui::{prelude::*, App, Context, CursorStyle, Entity, FontWeight, Render, Window, div, px};
+use gpui::{div, prelude::*, px, App, Context, CursorStyle, Entity, FontWeight, Render, Window};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Sizable, Theme,
-    h_flex, table::{Column, ColumnSort, Table, TableDelegate, TableState}, v_flex,
+    h_flex,
+    table::{Column, ColumnSort, Table, TableDelegate, TableState},
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_domain::common::ManagedProject;
 use gui_domain::dashboard::ProjectBreakdownEntry;
+
+use crate::theme::AppTheme;
 
 /// Top N 行数（对齐 frontend `v2-top-projects.tsx` 的 `MAX_ROWS = 6`）
 pub const MAX_ROWS: usize = 6;
@@ -212,12 +215,18 @@ impl TopProjectsDelegate {
                 .resizable(false)
                 .movable(false)
                 .selectable(false),
-            Column::new("sales", "销售额").width(px(120.)).text_right().sortable(),
+            Column::new("sales", "销售额")
+                .width(px(120.))
+                .text_right()
+                .sortable(),
             Column::new("ad_spend", "广告花费")
                 .width(px(120.))
                 .text_right()
                 .sortable(),
-            Column::new("orders", "订单量").width(px(90.)).text_right().sortable(),
+            Column::new("orders", "订单量")
+                .width(px(90.))
+                .text_right()
+                .sortable(),
             Column::new("change", "环比")
                 .width(px(110.))
                 .text_right()
@@ -234,9 +243,9 @@ impl TopProjectsDelegate {
     /// 按当前排序列 / 方向重排行
     fn apply_sort(&mut self) {
         match (self.sort_col, self.sort_dir) {
-            (COL_SALES, ColumnSort::Ascending) => {
-                self.rows.sort_by(|a, b| a.total_sales.total_cmp(&b.total_sales))
-            }
+            (COL_SALES, ColumnSort::Ascending) => self
+                .rows
+                .sort_by(|a, b| a.total_sales.total_cmp(&b.total_sales)),
             (COL_SALES, _) => self
                 .rows
                 .sort_by(|a, b| b.total_sales.total_cmp(&a.total_sales)),
@@ -246,12 +255,8 @@ impl TopProjectsDelegate {
             (COL_AD_SPEND, _) => self
                 .rows
                 .sort_by(|a, b| b.total_ad_spend.total_cmp(&a.total_ad_spend)),
-            (COL_ORDERS, ColumnSort::Ascending) => {
-                self.rows.sort_by_key(|r| r.total_orders)
-            }
-            (COL_ORDERS, _) => {
-                self.rows.sort_by_key(|r| std::cmp::Reverse(r.total_orders))
-            }
+            (COL_ORDERS, ColumnSort::Ascending) => self.rows.sort_by_key(|r| r.total_orders),
+            (COL_ORDERS, _) => self.rows.sort_by_key(|r| std::cmp::Reverse(r.total_orders)),
             _ => self
                 .rows
                 .sort_by(|a, b| b.total_sales.total_cmp(&a.total_sales)),
@@ -282,7 +287,11 @@ impl TopProjectsDelegate {
         // 列反射：点击列取新状态，其余可排序列回到未排序（Default）；不可排序列保持 None
         for (ix, col) in self.columns.iter_mut().enumerate() {
             if is_sortable_col(ix) {
-                col.sort = Some(if ix == col_ix { sort } else { ColumnSort::Default });
+                col.sort = Some(if ix == col_ix {
+                    sort
+                } else {
+                    ColumnSort::Default
+                });
             }
         }
         match sort {
@@ -334,15 +343,15 @@ impl TableDelegate for TopProjectsDelegate {
     ) -> impl IntoElement {
         let name = self.columns[col_ix].name.clone();
         let sortable = is_sortable_col(col_ix);
-        let theme = cx.theme().clone();
+        let theme = AppTheme::current(cx);
         h_flex()
             .id(("th", col_ix))
             .items_center()
             .gap_1()
-            .text_color(theme.muted_foreground)
+            .text_color(theme.text_muted)
             .when(sortable, |this| {
                 this.cursor(CursorStyle::PointingHand)
-                    .text_color(theme.foreground)
+                    .text_color(theme.text_primary)
                     .on_click(cx.listener(move |table, _, _, cx| {
                         table.delegate_mut().toggle_sort(col_ix);
                         // 重新读取 column() 反射出的排序状态 → 表头排序图标同步
@@ -361,7 +370,7 @@ impl TableDelegate for TopProjectsDelegate {
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
         let row = &self.rows[row_ix];
-        let theme = cx.theme().clone();
+        let theme = AppTheme::current(cx);
         match col_ix {
             COL_PROJECT => div()
                 .text_size(px(14.))
@@ -377,13 +386,13 @@ impl TableDelegate for TopProjectsDelegate {
             COL_AD_SPEND => div()
                 .text_right()
                 .text_size(px(14.))
-                .text_color(theme.muted_foreground)
+                .text_color(theme.text_muted)
                 .child(fmt_money_precise(row.total_ad_spend))
                 .into_any_element(),
             COL_ORDERS => div()
                 .text_right()
                 .text_size(px(14.))
-                .text_color(theme.muted_foreground)
+                .text_color(theme.text_muted)
                 .child(fmt_num_precise(row.total_orders))
                 .into_any_element(),
             COL_CHANGE => render_change_cell(row.change, &theme).into_any_element(),
@@ -397,37 +406,42 @@ impl TableDelegate for TopProjectsDelegate {
         _: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
+        let theme = AppTheme::current(cx);
         v_flex()
             .size_full()
             .items_center()
             .justify_center()
             .gap_2()
-            .text_color(cx.theme().muted_foreground)
-            .child(Icon::new(Icon::empty()).path("icons/store.svg").with_size(px(24.)))
+            .text_color(theme.text_muted)
+            .child(
+                Icon::new(Icon::empty())
+                    .path("icons/store.svg")
+                    .with_size(px(24.)),
+            )
             .child(div().text_size(px(13.)).child("暂无项目数据"))
             .into_any_element()
     }
 }
 
 /// 环比单元格：图标 + 数值（绿 ↑ / 红 ↓ / 灰 — / 无数据 —）
-fn render_change_cell(change: Option<f64>, theme: &Theme) -> impl IntoElement {
+fn render_change_cell(change: Option<f64>, theme: &AppTheme) -> impl IntoElement {
     let (icon, color, text) = match change_trend(change) {
         ChangeTrend::Up => (
             IconName::ArrowUp,
-            theme.green,
+            theme.success,
             format!("{:.1}%", change.unwrap_or(0.0)),
         ),
         ChangeTrend::Down => (
             IconName::ArrowDown,
-            theme.red,
+            theme.danger,
             format!("{:.1}%", change.unwrap_or(0.0)),
         ),
         ChangeTrend::Flat => (
             IconName::Minus,
-            theme.muted_foreground,
+            theme.text_muted,
             format!("{:.1}%", change.unwrap_or(0.0)),
         ),
-        ChangeTrend::NoData => (IconName::Minus, theme.muted_foreground, "—".to_string()),
+        ChangeTrend::NoData => (IconName::Minus, theme.text_muted, "—".to_string()),
     };
     h_flex()
         .w_full()
@@ -498,7 +512,7 @@ impl Render for TopProjectsWidget {
             let delegate = TopProjectsDelegate::new(self.rows.clone());
             cx.new(|cx| TableState::new(delegate, window, cx))
         });
-        let theme = cx.theme().clone();
+        let theme = AppTheme::current(cx);
         v_flex()
             .id("top-projects")
             .size_full()
@@ -508,18 +522,18 @@ impl Render for TopProjectsWidget {
                     .gap_1()
                     .pb_3()
                     .border_b_1()
-                    .border_color(theme.border)
+                    .border_color(theme.separator)
                     .child(
                         div()
                             .text_lg()
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.foreground)
+                            .text_color(theme.text_primary)
                             .child("项目排行"),
                     )
                     .child(
                         div()
                             .text_sm()
-                            .text_color(theme.muted_foreground)
+                            .text_color(theme.text_muted)
                             .child("各项目销售额与广告花费对比（近 7 天）"),
                     ),
             )
@@ -624,15 +638,15 @@ mod tests {
             1,
             entry(
                 "项目 A",
-                vec![row("2026-08-12", 10, 1000.0, 50.0), row("2026-08-13", 20, 2000.0, 100.0)],
+                vec![
+                    row("2026-08-12", 10, 1000.0, 50.0),
+                    row("2026-08-13", 20, 2000.0, 100.0),
+                ],
             ),
         );
         breakdown.insert(
             2,
-            entry(
-                "项目 B",
-                vec![row("2026-08-13", 50, 5000.0, 250.0)],
-            ),
+            entry("项目 B", vec![row("2026-08-13", 50, 5000.0, 250.0)]),
         );
         let projects = vec![project(1, "A"), project(2, "B")];
 
@@ -704,7 +718,10 @@ mod tests {
         for i in 1..=10 {
             breakdown.insert(
                 i,
-                entry(&format!("项目 {i}"), vec![row("2026-08-13", 1, i as f64 * 100.0, 0.0)]),
+                entry(
+                    &format!("项目 {i}"),
+                    vec![row("2026-08-13", 1, i as f64 * 100.0, 0.0)],
+                ),
             );
             projects.push(project(i, &format!("项目 {i}")));
         }
@@ -873,5 +890,31 @@ mod tests {
                 .unwrap_or(0)
         });
         assert_eq!(count, 0);
+    }
+
+    /// P2-2 回归锁：深色模式下表格完整渲染（含环比单元格 Up/Down/NoData 三种颜色
+    /// 路径走 AppTheme.success/danger/text_muted，不依赖 gpui-component 未定义基色）。
+    #[gpui::test]
+    async fn widget_renders_change_cells_in_dark_mode(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
+        });
+        let rows = sample_rows(); // 含 Up(10.5%) / NoData(None) / Down(-3.2%)
+        let (view, cx) = cx.add_window_view(|_window, cx| {
+            let mut widget = TopProjectsWidget::new();
+            widget.set_data(rows.clone(), cx);
+            widget
+        });
+        let count = cx.read(|app| {
+            view.read(app)
+                .table
+                .as_ref()
+                .map(|t| t.read(app).delegate().rows_count(app))
+                .unwrap_or(0)
+        });
+        assert_eq!(count, rows.len());
+        // 深色偏好生效
+        cx.read(|app| assert!(crate::theme::AppTheme::current(app).is_dark()));
     }
 }

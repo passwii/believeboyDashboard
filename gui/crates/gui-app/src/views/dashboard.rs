@@ -33,7 +33,7 @@ use gpui::{
     div, prelude::*, px, App, AsyncApp, Context, Entity, MouseButton, Render, WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, ActiveTheme, Icon, Sizable,
+    alert::Alert, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, Icon, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -301,35 +301,38 @@ async fn load_dashboard(
 
 impl Render for DashboardView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
         let app_theme = AppTheme::current(cx);
         // 克隆状态机（1.0-a 直接克隆；GUI-7+ 若帧率高可改为借用判别字段）
         let state = self.state.read(cx).clone();
         let top_projects = self.top_projects.clone();
         match state {
-            DashboardState::Loading => render_loading(&theme, &app_theme).into_any_element(),
-            DashboardState::Error(msg) => render_error(cx, &theme, &msg).into_any_element(),
-            DashboardState::Empty => render_empty(cx, &theme).into_any_element(),
+            DashboardState::Loading => render_loading(&app_theme).into_any_element(),
+            DashboardState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
+            DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),
             DashboardState::Loaded(data) => {
-                render_loaded(cx, &theme, &data, top_projects, &app_theme).into_any_element()
+                render_loaded(cx, &app_theme, &data, top_projects).into_any_element()
             }
         }
     }
 }
 
 /// Loading：骨架屏（顶部选择器占位 + KPI 卡占位 + 主体占位）
-fn render_loading(theme: &gpui_component::Theme, app_theme: &AppTheme) -> impl IntoElement {
+fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("dashboard-loading")
         .size_full()
         .gap_4()
         .p_6()
-        .bg(theme.background)
+        .bg(app_theme.window_bg)
         .child(
             h_flex()
                 .gap_2()
-                .child(Spinner::new().small().color(theme.foreground.opacity(0.6)))
-                .child(div().text_color(theme.muted_foreground).child("加载中…")),
+                .child(
+                    Spinner::new()
+                        .small()
+                        .color(app_theme.text_primary.opacity(0.6)),
+                )
+                .child(div().text_color(app_theme.text_muted).child("加载中…")),
         )
         .child(
             // 顶部项目选择器占位
@@ -348,7 +351,7 @@ fn render_loading(theme: &gpui_component::Theme, app_theme: &AppTheme) -> impl I
 /// Error：内联 Alert + 重试按钮（重试 = reload）
 fn render_error(
     cx: &mut Context<DashboardView>,
-    theme: &gpui_component::Theme,
+    app_theme: &AppTheme,
     msg: &str,
 ) -> impl IntoElement {
     v_flex()
@@ -356,7 +359,7 @@ fn render_error(
         .size_full()
         .gap_3()
         .p_6()
-        .bg(theme.background)
+        .bg(app_theme.window_bg)
         .child(
             Alert::error("dashboard-error", msg)
                 .title("数据加载失败")
@@ -368,11 +371,11 @@ fn render_error(
                 .py_1()
                 .rounded(px(6.))
                 .border_1()
-                .border_color(theme.border)
+                .border_color(app_theme.separator)
                 .text_size(px(13.))
-                .text_color(theme.foreground)
+                .text_color(app_theme.text_primary)
                 .cursor(gpui::CursorStyle::PointingHand)
-                .hover(|style| style.bg(theme.secondary))
+                .hover(|style| style.bg(app_theme.muted_fill))
                 .on_mouse_up(
                     MouseButton::Left,
                     cx.listener(|this, _, _, cx| this.reload(cx)),
@@ -382,27 +385,24 @@ fn render_error(
 }
 
 /// Empty：Icon + 文案 + 刷新按钮（暂无销售数据）
-fn render_empty(
-    cx: &mut Context<DashboardView>,
-    theme: &gpui_component::Theme,
-) -> impl IntoElement {
+fn render_empty(cx: &mut Context<DashboardView>, app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("dashboard-empty")
         .size_full()
         .items_center()
         .justify_center()
         .gap_3()
-        .bg(theme.background)
+        .bg(app_theme.window_bg)
         .child(
             Icon::new(Icon::empty())
                 .path("icons/package.svg")
                 .with_size(px(48.))
-                .text_color(theme.muted_foreground),
+                .text_color(app_theme.text_muted),
         )
         .child(
             div()
                 .text_size(px(14.))
-                .text_color(theme.muted_foreground)
+                .text_color(app_theme.text_muted)
                 .child("暂无销售数据"),
         )
         .child(
@@ -411,11 +411,11 @@ fn render_empty(
                 .py_1()
                 .rounded(px(6.))
                 .border_1()
-                .border_color(theme.border)
+                .border_color(app_theme.separator)
                 .text_size(px(13.))
-                .text_color(theme.foreground)
+                .text_color(app_theme.text_primary)
                 .cursor(gpui::CursorStyle::PointingHand)
-                .hover(|style| style.bg(theme.secondary))
+                .hover(|style| style.bg(app_theme.muted_fill))
                 .on_mouse_up(
                     MouseButton::Left,
                     cx.listener(|this, _, _, cx| this.reload(cx)),
@@ -427,10 +427,9 @@ fn render_empty(
 /// Loaded：标题 + 6 张图表占位卡（GUI-8 / 1.0-c）+ Top 项目列表（GUI-9 / 1.0-d）
 fn render_loaded(
     _cx: &mut Context<DashboardView>,
-    theme: &gpui_component::Theme,
+    app_theme: &AppTheme,
     data: &DashboardData,
     top_projects: Entity<TopProjectsWidget>,
-    app_theme: &AppTheme,
 ) -> impl IntoElement {
     let daily = data.daily.as_ref();
     let kpi = daily.map_or_else(KpiSummary::default, |d| {
@@ -445,17 +444,17 @@ fn render_loaded(
         .size_full()
         .gap_3()
         .p_6()
-        .bg(theme.background)
+        .bg(app_theme.window_bg)
         .child(
             div()
                 .text_lg()
-                .text_color(theme.foreground)
+                .text_color(app_theme.text_primary)
                 .child("数据看板"),
         )
         .child(
             div()
                 .text_sm()
-                .text_color(theme.muted_foreground)
+                .text_color(app_theme.text_muted)
                 .child(format!(
                     "已加载：{} 个项目 · 近 7 天 {} 天聚合数据",
                     data.projects.len(),
@@ -465,7 +464,7 @@ fn render_loaded(
         // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
         .child(stat_band(&kpi, &comparison, app_theme))
         // GUI-8：6 个图表位置占位卡（v1.1 接 gpui-component Chart 真图表）
-        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(theme))
+        .child(crate::widgets::chart_placeholder::render_chart_placeholder_grid(app_theme))
         // Top 项目列表（GUI-9 / 1.0-d）
         .child(div().flex_1().min_h(px(240.)).child(top_projects))
 }
