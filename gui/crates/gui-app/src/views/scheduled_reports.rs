@@ -40,7 +40,7 @@ use gpui_component::{
     menu::{DropdownMenu, PopupMenuItem},
     skeleton::Skeleton,
     spinner::Spinner,
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -48,6 +48,8 @@ use gui_domain::scheduled_reports::{LedgerItem, LedgerListResponse, Subscription
 
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的定时报告条目一致）
 pub const SCHEDULED_REPORTS_URL: &str = "/dashboard/reports/scheduled-reports";
@@ -544,25 +546,11 @@ impl Render for ScheduledReportsView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区（对齐 P3-1 页面层级）
+            // 页面头部（P4-5：共享 PageHeader）
             .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("定时报告"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child("订阅管理 · 调度台账（只读查看）"),
-                    ),
+                PageHeader::new("定时报告").subtitle("订阅管理 · 调度台账（只读查看）"),
             )
-            .child(render_tab_bar(&view, tab, &theme))
+            .child(content_guard().child(render_tab_bar(&view, tab, &theme)))
             .child(match tab {
                 ReportTab::Subscriptions => {
                     render_subs_panel(self, cx, &view, &theme).into_any_element()
@@ -739,8 +727,8 @@ fn render_loading(theme: &AppTheme) -> impl IntoElement {
                 )
                 .child(div().text_color(theme.text_muted).child("加载中…")),
         )
-        .child(div().w_full().h(px(48.)).child(Skeleton::new()))
-        .child(div().w_full().h(px(160.)).child(Skeleton::new()))
+        .child(div().w_full().h_12().child(Skeleton::new()))
+        .child(div().w_full().h_40().child(Skeleton::new()))
 }
 
 /// Error：内联 Alert + 重试按钮（对齐 P3-1）
@@ -886,7 +874,8 @@ fn render_subs_loaded(
             .id("scheduled-reports-subs-loaded")
             .w_full()
             .gap_3()
-            .child(render_subs_filter_bar(view, sub_frequency, sub_status))
+            // 过滤栏受宽窗上限；订阅表保留全宽
+            .child(content_guard().child(render_subs_filter_bar(view, sub_frequency, sub_status)))
             .child(render_subs_table(filtered, projects, theme))
             .child(
                 div()
@@ -1046,7 +1035,7 @@ fn subs_table_header(theme: &AppTheme) -> impl IntoElement {
         .text_xs()
         .font_weight(FontWeight::MEDIUM)
         .text_color(theme.text_muted)
-        .child(div().w(px(64.)).child("状态"))
+        .child(div().w_16().child("状态"))
         .child(div().w(px(140.)).child("项目"))
         .child(div().w(px(72.)).child("国家"))
         .child(div().w(px(56.)).child("频率"))
@@ -1080,7 +1069,7 @@ fn subs_table_row(
         .bg(bg)
         .text_sm()
         .text_color(theme.text_secondary)
-        .child(div().w(px(64.)).child(enabled_badge(sub.enabled, theme)))
+        .child(div().w_16().child(enabled_badge(sub.enabled, theme)))
         .child(
             div()
                 .w(px(140.))
@@ -1141,8 +1130,9 @@ fn render_ledger_loaded(
             .id("scheduled-reports-ledger-loaded")
             .w_full()
             .gap_3()
-            .child(render_ledger_filter_bar(view, theme, frequency, status_filter))
-            .child(render_ledger_summary(&resp.summary, theme))
+            // 过滤栏 + 汇总卡受宽窗上限；台账列表保留全宽
+            .child(content_guard().child(render_ledger_filter_bar(view, theme, frequency, status_filter)))
+            .child(content_guard().child(render_ledger_summary(&resp.summary, theme)))
             .when(resp.total as usize > resp.items.len(), |this| {
                 this.child(
                     div()

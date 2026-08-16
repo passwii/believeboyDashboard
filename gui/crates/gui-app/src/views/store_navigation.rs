@@ -32,6 +32,8 @@ use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
 use crate::views::site_navigation::grid_columns;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的店铺导航条目一致）
@@ -236,6 +238,7 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
+        .child(page_header())
         .child(state_views::loading_state(app_theme, "加载中…"))
         .child(
             div()
@@ -250,9 +253,9 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                         .border_1()
                         .border_color(app_theme.separator)
                         .bg(app_theme.card_bg)
-                        .child(div().w(px(96.)).h(px(18.)).child(Skeleton::new()))
-                        .child(div().w(px(64.)).h(px(16.)).child(Skeleton::new()))
-                        .child(div().w_full().h(px(40.)).child(Skeleton::new()))
+                        .child(div().w_24().h(px(18.)).child(Skeleton::new()))
+                        .child(div().w_16().h_4().child(Skeleton::new()))
+                        .child(div().w_full().h_10().child(Skeleton::new()))
                 })),
         )
 }
@@ -271,6 +274,7 @@ fn render_error(
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
+        .child(page_header())
         .child(state_views::error_state(
             &view,
             app_theme,
@@ -291,6 +295,7 @@ fn render_empty(cx: &mut Context<StoreNavigationView>, app_theme: &AppTheme) -> 
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
+        .child(page_header())
         .child(state_views::empty_state_with_action(
             &view,
             app_theme,
@@ -302,7 +307,7 @@ fn render_empty(cx: &mut Context<StoreNavigationView>, app_theme: &AppTheme) -> 
         ))
 }
 
-/// Loaded：PageHeader 等价（eyebrow + 描述 + 3 统计卡）+ 全部店铺卡片网格
+/// Loaded：页面头部 + PageHeader 等价（eyebrow + 描述 + 3 统计卡）+ 全部店铺卡片网格
 fn render_loaded(
     cx: &mut Context<StoreNavigationView>,
     app_theme: &AppTheme,
@@ -319,10 +324,17 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            .child(header_card(app_theme, stores))
+            .child(page_header())
+            .child(content_guard().child(header_card(app_theme, stores)))
             .child(section(app_theme, stores, columns, cx)),
         reduce,
     )
+}
+
+/// 页面头部（P4-5：共享 PageHeader；四态统一接入，消除无头部页面）
+fn page_header() -> PageHeader {
+    PageHeader::new("店铺导航")
+        .subtitle("聚合团队所有店铺入口 · 一键直达各店铺后台与前台页面")
 }
 
 // ---------------------------------------------------------------------------
@@ -600,7 +612,7 @@ fn store_card(
                 .child(
                     // 描述（min-h + flex-1，对齐 frontend 保证底部对齐）
                     div()
-                        .min_h(px(40.))
+                        .min_h_10()
                         .flex_1()
                         .text_sm()
                         .text_color(app_theme.text_muted)

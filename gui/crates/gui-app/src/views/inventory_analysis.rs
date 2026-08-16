@@ -48,7 +48,7 @@ use gpui_component::{
     h_flex,
     menu::PopupMenuItem,
     skeleton::Skeleton,
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -59,6 +59,8 @@ use gui_domain::operations::inventory::{
 
 use crate::theme::AppTheme;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, state_views};
 use crate::widgets::top_projects::fmt_num_precise;
 
@@ -405,13 +407,13 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .child(
             v_flex()
                 .gap_2()
-                .child(div().w(px(120.)).h(px(24.)).child(Skeleton::new())),
+                .child(div().w(px(120.)).h_6().child(Skeleton::new())),
         )
         .child(
             h_flex()
                 .gap_3()
                 .children((0..3).map(|_| {
-                    div().w(px(140.)).h(px(32.)).child(Skeleton::new())
+                    div().w(px(140.)).h_8().child(Skeleton::new())
                 })),
         )
         .child(
@@ -424,12 +426,12 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                         .p_4()
                         .rounded(px(app_theme.radius_lg))
                         .bg(app_theme.card_bg)
-                        .child(div().w(px(24.)).h(px(16.)).child(Skeleton::new()))
-                        .child(div().w(px(64.)).h(px(28.)).child(Skeleton::new()))
-                        .child(div().w(px(80.)).child(Skeleton::new()))
+                        .child(div().w_6().h_4().child(Skeleton::new()))
+                        .child(div().w_16().h_7().child(Skeleton::new()))
+                        .child(div().w_20().child(Skeleton::new()))
                 })),
         )
-        .child(div().w_full().h(px(320.)).child(Skeleton::new()))
+        .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
 /// Error：内联 Alert + 重试按钮（Stage 0 `state_views::error_state`）
@@ -502,8 +504,14 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            .child(page_header(app_theme, resp))
-            .child(render_filter_bar(
+            .child(PageHeader::new("库存分析").subtitle(format!(
+                "{} · {} · 业务日期 {}",
+                resp.project_name,
+                country_label(&resp.country),
+                format_business_date(resp.report_date)
+            )))
+            // 筛选栏 + 统计卡：宽窗受内容上限约束；主表保留全宽
+            .child(content_guard().child(render_filter_bar(
                 view,
                 app_theme,
                 &payload.projects,
@@ -512,35 +520,11 @@ fn render_loaded(
                 selected_snapshot,
                 &payload.snapshot_options,
                 resp.report_date,
-            ))
-            .child(stat_band(app_theme, &resp.summary))
+            )))
+            .child(content_guard().child(stat_band(app_theme, &resp.summary)))
             .child(table_card(app_theme, table, resp)),
         reduce,
     )
-}
-
-/// 页面头：标题 + 副标题（项目 · 站点 · 业务日期）
-fn page_header(app_theme: &AppTheme, resp: &InventoryAnalysisResponse) -> impl IntoElement {
-    v_flex()
-        .gap_1()
-        .child(
-            div()
-                .text_2xl()
-                .font_semibold()
-                .text_color(app_theme.text_primary)
-                .child("库存分析"),
-        )
-        .child(
-            div()
-                .text_sm()
-                .text_color(app_theme.text_muted)
-                .child(format!(
-                    "{} · {} · 业务日期 {}",
-                    resp.project_name,
-                    country_label(&resp.country),
-                    format_business_date(resp.report_date)
-                )),
-        )
 }
 
 // ---------------------------------------------------------------------------

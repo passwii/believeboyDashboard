@@ -371,7 +371,7 @@ impl Render for ReportEditForm {
                     .child(
                         div()
                             .w_full()
-                            .h(px(320.))
+                            .h_80()
                             .child(gpui_component::skeleton::Skeleton::new()),
                     ),
             );

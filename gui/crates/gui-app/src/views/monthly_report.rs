@@ -35,13 +35,15 @@ use gpui_component::{
     skeleton::Skeleton,
     spinner::Spinner,
     table::{Column, Table, TableDelegate, TableState},
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::reports::{FinancialSeriesResponse, FinancialSeriesRow};
 
 use crate::theme::AppTheme;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::fmt_money_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的财务月报条目一致）
@@ -476,10 +478,10 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .child(
             h_flex()
                 .gap_2()
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(80.)).h(px(32.)).child(Skeleton::new())),
+                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                .child(div().w_20().h_8().child(Skeleton::new())),
         )
         .child(
             div()
@@ -489,7 +491,7 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                 .children((0..4).map(|_| div().h(px(88.)).child(Skeleton::new()))),
         )
         .child(div().w_full().h(px(280.)).child(Skeleton::new()))
-        .child(div().w_full().h(px(320.)).child(Skeleton::new()))
+        .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
 /// Error：内联 Alert + 重试按钮（对齐 daily_analysis.rs）
@@ -506,27 +508,29 @@ fn render_error(
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(
-            v_flex()
-                .w_full()
-                .gap_3()
-                .p_4()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Alert::error("monthly-report-error", msg)
-                        .title("财务数据加载失败")
-                        .w_full(),
-                )
-                .child(
-                    div().w_full().flex().justify_end().child(
-                        Button::new("monthly-report-error-retry")
-                            .outline()
-                            .small()
-                            .label("重试")
-                            .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+            content_guard().child(
+                v_flex()
+                    .w_full()
+                    .gap_3()
+                    .p_4()
+                    .rounded(px(app_theme.radius_lg))
+                    .bg(app_theme.card_bg)
+                    .shadow(vec![app_theme.card_shadow_box()])
+                    .child(
+                        Alert::error("monthly-report-error", msg)
+                            .title("财务数据加载失败")
+                            .w_full(),
+                    )
+                    .child(
+                        div().w_full().flex().justify_end().child(
+                            Button::new("monthly-report-error-retry")
+                                .outline()
+                                .small()
+                                .label("重试")
+                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+                        ),
                     ),
-                ),
+            ),
         )
 }
 
@@ -571,7 +575,7 @@ fn render_empty(cx: &mut Context<MonthlyReportView>, app_theme: &AppTheme) -> im
         )
 }
 
-/// Loaded：大标题区 + 筛选栏 + 汇总指标 + 月度趋势 + 月度明细表
+/// Loaded：页面头部 + 筛选栏 + 汇总指标 + 月度趋势 + 月度明细表
 #[allow(clippy::too_many_arguments)]
 fn render_loaded(
     cx: &mut Context<MonthlyReportView>,
@@ -599,45 +603,29 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            // 大标题区：标题 + 副标题（页面层级最上层）
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(app_theme.text_primary)
-                            .child("财务月报"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(app_theme.text_muted)
-                            .child(format!(
-                                "{} · {} · {} 至 {} · {} 个月",
-                                resp.project_name,
-                                country_label(country),
-                                format_month(&resp.start_month),
-                                format_month(&resp.end_month),
-                                months_back
-                            )),
-                    ),
-            )
-            // 筛选栏：项目 + 站点 + 月份窗口 + 刷新
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("财务月报").subtitle(format!(
+                "{} · {} · {} 至 {} · {} 个月",
+                resp.project_name,
+                country_label(country),
+                format_month(&resp.start_month),
+                format_month(&resp.end_month),
+                months_back
+            )))
+            // 筛选栏：项目 + 站点 + 月份窗口 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 app_theme,
                 &projects,
                 selected_project_id,
                 country,
                 months_back,
-            ))
+            )))
             // 汇总指标卡（trend 聚合）
-            .child(summary_cards(trend, country, app_theme))
+            .child(content_guard().child(summary_cards(trend, country, app_theme)))
             // 月度趋势（AreaChart 双序列：销售额 vs 退款）
-            .child(trend_card(&resp.rows, country, app_theme))
-            // 月度明细表
+            .child(content_guard().child(trend_card(&resp.rows, country, app_theme)))
+            // 月度明细表（P4-5：数据表格保留全宽）
             .child(detail_table)
             .when(show_vat, |page| {
                 page.child(

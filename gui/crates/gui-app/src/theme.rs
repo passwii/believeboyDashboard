@@ -10,7 +10,8 @@
 //! 3. **度量层**：间距以 gpui 内建 4px 尺度工具（`.px_1/2/4`、`.gap_1/2/…`）与
 //!    [`SPACE_*`]（仅自定义大间距）为准；圆角/字号沿用 gpui-component
 //!    `Theme::radius / radius_lg / font_size` 与 gpui 的 `text_xs/sm/base/...`
-//!    系统字体层级（macOS HIG 系统排版，不另造轮子）。
+//!    系统字体层级（macOS HIG 系统排版，不另造轮子）。宽窗度量（内容上限
+//!    宽度）见 [`CONTENT_MAX_WIDTH`] + [`crate::widgets::layout::content_guard`]。
 //!
 //! 迁移说明：此前 `Theme::dark_sidebar_light_content()`（深侧栏+浅内容区混合外观）
 //! 已废弃——跟随系统后侧栏与内容区同亮同暗，语义字段全部收敛到 [`AppTheme`]。
@@ -22,6 +23,16 @@ use gpui_component::{ActiveTheme, ThemeMode};
 /// 4px 工具类，语义一致，不重复定义）
 pub const SPACE_10: f32 = 40.0;
 pub const SPACE_12: f32 = 48.0;
+
+/// 宽窗度量：卡片 / 表单 / 图表 / 页面头部内容的上限宽度（P4-5，BLF-760）。
+///
+/// 依据：超宽显示器（≥2K）上内容区若一路拉伸，卡片文案行宽、表单控件跨度过大，
+/// 可读性与可操作性显著下降。参考 frontend 的 `max-w-7xl`（1280px）与主流
+/// dashboard 的阅读宽度区间（1200–1440px），取 **1440px** 作为统一内容上限并
+/// 居中显示（见 [`crate::widgets::layout::content_guard`]）。
+///
+/// 例外：数据表格（DataTable）需承载多列 + 横向滚动，保留全宽不受此上限约束。
+pub const CONTENT_MAX_WIDTH: f32 = 1440.0;
 
 /// 主题偏好：跟随系统（默认）/ 浅色 / 深色
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -479,6 +490,18 @@ mod tests {
         }
         // 亮暗两态的投影强度不同（暗态投影更强以在深底上可见）
         assert_ne!(AppTheme::light().card_shadow, AppTheme::dark().card_shadow);
+    }
+
+    /// P4-5 回归锁：宽窗度量常量落在合理阅读宽度区间（1200–1440px，
+    /// 对齐 frontend max-w-7xl 与主流 dashboard 上限），且卡片内容上限
+    /// 大于侧栏展开宽度（保证宽窗下内容确实会被收拢而非恒全宽）。
+    #[test]
+    fn wide_window_measurement_contract() {
+        assert!(
+            (1200.0..=1440.0).contains(&CONTENT_MAX_WIDTH),
+            "内容上限应在 1200–1440px 阅读宽度区间"
+        );
+        assert_eq!(CONTENT_MAX_WIDTH % 4.0, 0.0, "必须落在 4px 尺度网格上");
     }
 
     /// P2-2 核心契约：`AppTheme::current` 跟随全局主题模式（亮/暗），
