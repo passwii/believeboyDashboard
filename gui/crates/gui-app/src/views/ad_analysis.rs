@@ -23,12 +23,9 @@ use gpui::{
     WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
     v_flex, Icon, IconName, Sizable, StyledExt,
 };
 use gui_api_client::Client;
@@ -43,6 +40,7 @@ use crate::views::dashboard::last_7_days_window;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
@@ -390,14 +388,41 @@ impl Render for AdAnalysisView {
             // 状态区
             .child(match state {
                 AdAnalysisState::Loading => content_guard()
-                    .child(render_loading(&theme))
+                    .child(state_views::skeleton_loading(
+                        &theme,
+                        &[
+                            SkeletonBlock::Kpi(4),
+                            SkeletonBlock::Chart(160.0),
+                            SkeletonBlock::Table(240.0),
+                        ],
+                    ))
                     .into_any_element(),
-                AdAnalysisState::Error(msg) => content_guard()
-                    .child(render_error(cx, &theme, &msg))
-                    .into_any_element(),
-                AdAnalysisState::Empty => content_guard()
-                    .child(render_empty(cx, &theme, self.selected_project_id.is_none()))
-                    .into_any_element(),
+                AdAnalysisState::Error(msg) => state_views::error_state(
+                    &cx.entity(),
+                    &theme,
+                    "ad-analysis-error",
+                    "广告分析加载失败",
+                    msg,
+                    |this, cx| this.reload(cx),
+                )
+                .into_any_element(),
+                AdAnalysisState::Empty => {
+                    let needs_project = self.selected_project_id.is_none();
+                    state_views::empty_state_with_action(
+                        &cx.entity(),
+                        &theme,
+                        "ad-analysis-empty",
+                        "icons/package.svg",
+                        if needs_project {
+                            "请先选择项目以加载广告分析数据"
+                        } else {
+                            "当前没有可展示的广告分析数据"
+                        },
+                        "刷新",
+                        |this, cx| this.reload(cx),
+                    )
+                    .into_any_element()
+                }
                 AdAnalysisState::Loaded(data) => {
                     self.sync_top_tables(&data, cx);
                     let campaigns = self.top_campaigns_table.clone().expect("已同步");
@@ -407,117 +432,6 @@ impl Render for AdAnalysisView {
                 }
             })
     }
-}
-
-// ---------------------------------------------------------------------------
-// 四态渲染
-// ---------------------------------------------------------------------------
-
-/// Loading：筛选下方骨架占位
-fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("ad-analysis-loading")
-        .gap_4()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
-        )
-        // 指标卡骨架
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..4).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .shadow(vec![app_theme.card_shadow_box()])
-                        .child(div().w_16().child(Skeleton::new()))
-                        .child(div().w_24().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
-        .child(div().w_full().h_40().child(Skeleton::new()))
-        .child(div().w_full().h(px(240.)).child(Skeleton::new()))
-}
-
-/// Error：内联 Alert + 重试按钮（对齐 daily_analysis.rs）
-fn render_error(
-    cx: &mut Context<AdAnalysisView>,
-    app_theme: &AppTheme,
-    msg: &str,
-) -> impl IntoElement {
-    v_flex()
-        .id("ad-analysis-error")
-        .gap_3()
-        .p_4()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            Alert::error("ad-analysis-error", msg)
-                .title("广告分析加载失败")
-                .w_full(),
-        )
-        .child(
-            div().w_full().flex().justify_end().child(
-                Button::new("ad-analysis-error-retry")
-                    .outline()
-                    .small()
-                    .label("重试")
-                    .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-            ),
-        )
-}
-
-/// Empty：Icon + 文案 + 刷新按钮（未选项目 / 无广告数据）
-fn render_empty(
-    cx: &mut Context<AdAnalysisView>,
-    app_theme: &AppTheme,
-    needs_project: bool,
-) -> impl IntoElement {
-    v_flex()
-        .id("ad-analysis-empty")
-        .items_center()
-        .justify_center()
-        .gap_3()
-        .px_8()
-        .py_10()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            Icon::new(Icon::empty())
-                .path("icons/package.svg")
-                .with_size(px(40.))
-                .text_color(app_theme.text_muted.opacity(0.7)),
-        )
-        .child(
-            div()
-                .text_size(px(14.))
-                .text_color(app_theme.text_muted)
-                .child(if needs_project {
-                    "请先选择项目以加载广告分析数据"
-                } else {
-                    "当前没有可展示的广告分析数据"
-                }),
-        )
-        .child(
-            Button::new("ad-analysis-empty-refresh")
-                .outline()
-                .small()
-                .label("刷新")
-                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-        )
 }
 
 /// Loaded：指标卡 + 周期对比 + 近 7 日趋势 + Top 表 + 分析/风险
@@ -1582,6 +1496,25 @@ mod tests {
             view.update(cx, |this, cx| {
                 this.latest_request_id = 1;
                 this.apply_result(1, Err("接口 500".to_string()), cx);
+            });
+        });
+        let (_host, _cx2) =
+            cx.add_window_view(|_window, _cx| AdAnalysisHost { view: view.clone() });
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Empty 态可渲染不 panic。
+    #[gpui::test]
+    async fn ad_analysis_empty_state_renders(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+        });
+        let view = create_view(cx);
+        // 直接注入 Empty 态（不走网络；渲染冒烟目标 = 统一空态卡片不 panic）
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                let state = this.state.clone();
+                state.update(cx, |s, _| *s = AdAnalysisState::Empty);
+                cx.notify();
             });
         });
         let (_host, _cx2) =

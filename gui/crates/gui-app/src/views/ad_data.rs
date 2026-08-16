@@ -43,6 +43,7 @@ use crate::views::ad_analysis::ad_country_label;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, pagination, state_views};
+use crate::widgets::state_views::SkeletonBlock;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告数据条目一致）
 pub const AD_DATA_URL: &str = "/dashboard/advertising/ad-data";
@@ -395,18 +396,10 @@ impl Render for AdDataView {
             // 状态区（加载/错误/空态受上限约束；原始数据表格保留全宽）
             .child(match state {
                 AdDataState::Loading => content_guard()
-                    .child(
-                        v_flex()
-                            .id("ad-data-loading")
-                            .gap_4()
-                            .child(state_views::loading_state(&theme, "加载中…"))
-                            .child(
-                                div()
-                                    .w_full()
-                                    .h_80()
-                                    .child(gpui_component::skeleton::Skeleton::new()),
-                            ),
-                    )
+                    .child(state_views::skeleton_loading(
+                        &theme,
+                        &[SkeletonBlock::Table(320.0)],
+                    ))
                     .into_any_element(),
                 AdDataState::Error(msg) => state_views::error_state(
                     &view,
@@ -1511,6 +1504,31 @@ mod tests {
             view.update(cx, |this, cx| {
                 this.latest_request_id = 1;
                 this.apply_result(1, Err("接口 500".to_string()), cx);
+            });
+        });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| AdDataHost { view: view.clone() });
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Empty 态（空载荷 → 统一空态卡片）可渲染不 panic。
+    #[gpui::test]
+    async fn ad_data_empty_state_renders(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+        });
+        let view = create_view(cx);
+        // 空载荷（无项目 / 无类型 / 无行）→ Empty
+        let empty = AdDataPayload {
+            projects: Vec::new(),
+            available_types: Vec::new(),
+            selected_type: None,
+            rows: Vec::new(),
+            total_rows: 0,
+            period: None,
+        };
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(1, Ok(empty), cx);
             });
         });
         let (_host, _cx2) = cx.add_window_view(|_window, _cx| AdDataHost { view: view.clone() });

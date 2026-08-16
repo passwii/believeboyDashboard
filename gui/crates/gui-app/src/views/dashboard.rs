@@ -30,20 +30,18 @@
 //!   （`widgets::charts`，gpui-component Line/Area/Pie/Bar）。
 
 use chrono::{Days, NaiveDate};
-use gpui::{div, prelude::*, px, App, AsyncApp, Context, Entity, Render, WeakEntity, Window};
-use gpui_component::{
-    alert::Alert, button::Button, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, Icon,
-    Sizable,
-};
+use gpui::{div, prelude::*, App, AsyncApp, Context, Entity, Render, WeakEntity, Window};
+use gpui_component::v_flex;
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::dashboard::{CountryBreakdownEntry, DailyAnalysisResponse, KpiSummary};
 use std::collections::HashMap;
 
 use crate::theme::AppTheme;
-use crate::views::stat_band::{stat_band, stat_band_skeleton};
+use crate::views::stat_band::stat_band;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::top_projects::{TopProjectRow, TopProjectsWidget};
 
 /// 项目 ID（对齐 `ManagedProject.id`，i64）
@@ -350,18 +348,17 @@ impl Render for DashboardView {
         match state {
             DashboardState::Loading => render_loading(&app_theme).into_any_element(),
             DashboardState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
-            DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),
-            DashboardState::Loaded(data) => {
+            DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),            DashboardState::Loaded(data) => {
                 render_loaded(window, cx, &app_theme, &data, top_projects).into_any_element()
             }
         }
     }
 }
 
-/// Loading：骨架屏（顶部选择器占位 + KPI 卡占位 + 主体占位）
+/// Loading：Spinner 行 + 声明式骨架块（标题 / 项目选择器 / 数字带 / 图表卡网格 / 主体）
 ///
 /// P2-4：骨架结构与正式布局同构（大标题骨架 + KPI 骨架卡 + 图表卡骨架），
-/// 对齐 frontend `DashboardPageLoading` 与图表卡骨架。
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("dashboard-loading")
@@ -370,72 +367,33 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
-        )
-        .child(
-            // 大标题骨架
-            v_flex()
-                .gap_2()
-                .child(div().w(px(120.)).h_6().child(Skeleton::new())),
-        )
-        .child(
-            // 顶部项目选择器占位
-            div().w(px(180.)).h_9().child(Skeleton::new()),
-        )
-        .child(
-            // KPI 数字带占位（GUI-7：6 张骨架卡，数字位置放 Skeleton）
-            stat_band_skeleton(app_theme),
-        )
-        .child(
-            // 图表占位卡骨架（2 列 × 3 行，与正式布局同构）
-            div()
-                .grid()
-                .grid_cols(2)
-                .gap_3()
-                .children((0..6).map(|_| chart_card_skeleton(app_theme))),
-        )
-        .child(
-            // 主体内容占位（Top 项目列表）
-            div().h(px(280.)).child(Skeleton::new().secondary()),
-        )
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[
+                SkeletonBlock::Title,
+                // 顶部项目选择器占位
+                SkeletonBlock::Filter(1),
+                // KPI 数字带占位（GUI-7：6 张骨架卡，数字位置放 Skeleton）
+                SkeletonBlock::Kpi(6),
+                // 图表占位卡骨架（2 列 × 3 行，与正式布局同构）
+                SkeletonBlock::ChartGrid {
+                    count: 6,
+                    columns: 2,
+                    height: 220.0,
+                },
+                // 主体内容占位（Top 项目列表）
+                SkeletonBlock::Table(280.0),
+            ],
+        ))
 }
 
-/// 图表占位卡骨架（标题骨架 + 描述骨架 + 图表区骨架），与 `chart_card` 同构
-fn chart_card_skeleton(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .w_full()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .p_4()
-        .gap_3()
-        .child(
-            v_flex()
-                .gap_1()
-                .child(div().w_24().child(Skeleton::new()))
-                .child(div().w_40().child(Skeleton::new())),
-        )
-        .child(div().w_full().h(px(220.)).child(Skeleton::new()))
-}
-
-/// Error：内联 Alert + 重试按钮（重试 = reload）
-///
-/// P2-4：统一为 token 卡片容器（radius_lg + 轻投影），重试按钮用 gpui-component Button
-/// （outline 变体，原生按压反馈），与空态一致。
+/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
     cx: &mut Context<DashboardView>,
     app_theme: &AppTheme,
     msg: &str,
 ) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("dashboard-error")
         .size_full()
@@ -443,37 +401,19 @@ fn render_error(
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            content_guard().child(
-                v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(app_theme.radius_lg))
-                    .bg(app_theme.card_bg)
-                    .shadow(vec![app_theme.card_shadow_box()])
-                    .child(
-                        Alert::error("dashboard-error", msg)
-                            .title("数据加载失败")
-                            .w_full(),
-                    )
-                    .child(
-                        div().w_full().flex().justify_end().child(
-                            Button::new("dashboard-error-retry")
-                                .outline()
-                                .small()
-                                .label("重试")
-                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                        ),
-                    ),
-            ),
-        )
+        .child(state_views::error_state(
+            &view,
+            app_theme,
+            "dashboard-error",
+            "数据加载失败",
+            msg.to_string(),
+            |this, cx| this.reload(cx),
+        ))
 }
 
-/// Empty：Icon + 文案 + 刷新按钮（暂无销售数据）
-///
-/// P2-4：居中卡片容器（icon + 文案 + Button），对齐 frontend 空态（col-span-full 卡）。
+/// Empty：Icon + 文案 + 刷新按钮（State 0 公共组件 `empty_state_with_action`）
 fn render_empty(cx: &mut Context<DashboardView>, app_theme: &AppTheme) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("dashboard-empty")
         .size_full()
@@ -482,35 +422,15 @@ fn render_empty(cx: &mut Context<DashboardView>, app_theme: &AppTheme) -> impl I
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            v_flex()
-                .items_center()
-                .gap_3()
-                .px_8()
-                .py_10()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Icon::new(Icon::empty())
-                        .path("icons/package.svg")
-                        .with_size(px(40.))
-                        .text_color(app_theme.text_muted.opacity(0.7)),
-                )
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .text_color(app_theme.text_muted)
-                        .child("暂无销售数据"),
-                )
-                .child(
-                    Button::new("dashboard-empty-refresh")
-                        .outline()
-                        .small()
-                        .label("刷新")
-                        .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                ),
-        )
+        .child(state_views::empty_state_with_action(
+            &view,
+            app_theme,
+            "dashboard-empty",
+            "icons/package.svg",
+            "暂无销售数据",
+            "刷新",
+            |this, cx| this.reload(cx),
+        ))
 }
 
 /// Loaded：页面头部 + 数字带 + 图表网格 + Top 项目列表
@@ -1022,6 +942,49 @@ mod tests {
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, app);
         });
         cx2.read(|app| assert!(crate::theme::AppTheme::current(app).is_dark()));
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Empty 态（无项目 → 统一空态卡片）可渲染不 panic。
+    #[gpui::test]
+    async fn dashboard_empty_state_renders(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
+        });
+        let view = create_view(cx);
+        // 驱动到 Empty（无项目）
+        let no_projects = DashboardData {
+            projects: Vec::new(),
+            daily: None,
+            compare: None,
+            country: None,
+        };
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(1, Ok(no_projects), cx);
+            });
+        });
+        let (_host, _cx2) =
+            cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Error 态（拉取失败 → 统一错误卡片）可渲染不 panic。
+    #[gpui::test]
+    async fn dashboard_error_state_renders(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
+        });
+        let view = create_view(cx);
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(1, Err("连接超时".to_string()), cx);
+            });
+        });
+        let (_host, _cx2) =
+            cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
     }
 
     /// 测试宿主：仅渲染 DashboardView（亮/暗渲染冒烟用）

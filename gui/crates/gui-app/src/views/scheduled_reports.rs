@@ -34,12 +34,9 @@ use gpui::{
     Render, SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
     v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
@@ -49,6 +46,7 @@ use gui_domain::scheduled_reports::{LedgerItem, LedgerListResponse, Subscription
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::layout::content_guard;
+use crate::widgets::state_views::{self, EmptyIcon, SkeletonBlock};
 use crate::widgets::page_header::PageHeader;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的定时报告条目一致）
@@ -710,28 +708,20 @@ fn render_ledger_panel(
     }
 }
 
-/// Loading：顶部骨架（与正式布局同构）
+/// Loading：顶部骨架（P4-6：`state_views::skeleton_loading` 声明式组合）
 fn render_loading(theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("scheduled-reports-loading")
         .w_full()
         .gap_3()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(theme.text_muted).child("加载中…")),
-        )
-        .child(div().w_full().h_12().child(Skeleton::new()))
-        .child(div().w_full().h_40().child(Skeleton::new()))
+        .child(state_views::skeleton_loading(
+            theme,
+            &[SkeletonBlock::Table(48.0), SkeletonBlock::Table(160.0)],
+        ))
 }
 
-/// Error：内联 Alert + 重试按钮（对齐 P3-1）
+/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`，
+/// 重试按 tab 分别回连 reload_subscriptions / reload_ledger）
 fn render_error(
     view: &Entity<ScheduledReportsView>,
     theme: &AppTheme,
@@ -739,116 +729,51 @@ fn render_error(
     msg: &str,
     kind: ReportTab,
 ) -> impl IntoElement {
-    let view_for_retry = view.clone();
-    v_flex()
-        .id("scheduled-reports-error")
-        .w_full()
-        .gap_3()
-        .p_4()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            Alert::error("scheduled-reports-error-alert", msg)
-                .title(title.to_string())
-                .w_full(),
-        )
-        .child(
-            div().w_full().flex().justify_end().child(
-                Button::new("scheduled-reports-error-retry")
-                    .outline()
-                    .small()
-                    .label("重试")
-                    .on_click(move |_, _window, cx| {
-                        view_for_retry.update(cx, |this, cx| match kind {
-                            ReportTab::Subscriptions => this.reload_subscriptions(cx),
-                            ReportTab::Ledger => this.reload_ledger(cx),
-                        });
-                    }),
-            ),
-        )
+    state_views::error_state(
+        view,
+        theme,
+        "scheduled-reports-error",
+        title.to_string(),
+        msg.to_string(),
+        move |this, cx| match kind {
+            ReportTab::Subscriptions => this.reload_subscriptions(cx),
+            ReportTab::Ledger => this.reload_ledger(cx),
+        },
+    )
 }
 
-/// 订阅空态：Icon + 文案 + 刷新
+/// 订阅空态：Icon + 文案 + 刷新（State 0 公共组件 `empty_state_with_action`）
 fn render_subs_empty(
     view: &Entity<ScheduledReportsView>,
     theme: &AppTheme,
 ) -> impl IntoElement {
-    let view_for_refresh = view.clone();
-    v_flex()
-        .id("scheduled-reports-subs-empty")
-        .w_full()
-        .items_center()
-        .gap_3()
-        .px_8()
-        .py_10()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            Icon::new(IconName::Inbox)
-                .with_size(px(36.))
-                .text_color(theme.text_muted.opacity(0.7)),
-        )
-        .child(
-            div()
-                .text_size(px(14.))
-                .text_color(theme.text_muted)
-                .child("暂无订阅配置"),
-        )
-        .child(
-            Button::new("scheduled-reports-subs-empty-refresh")
-                .outline()
-                .small()
-                .label("刷新")
-                .on_click(move |_, _window, cx| {
-                    view_for_refresh.update(cx, |this, cx| this.reload_subscriptions(cx));
-                }),
-        )
+    state_views::empty_state_with_action(
+        view,
+        theme,
+        "scheduled-reports-subs-empty",
+        EmptyIcon::Name(IconName::Inbox),
+        "暂无订阅配置",
+        "刷新",
+        |this, cx| this.reload_subscriptions(cx),
+    )
 }
 
-/// 台账空态：Icon + 文案 + 刷新
+/// 台账空态：Icon + 文案 + 说明 + 刷新（State 0 公共组件
+/// `empty_state_with_action_desc`，保留「调整筛选条件」说明行）
 fn render_ledger_empty(
     view: &Entity<ScheduledReportsView>,
     theme: &AppTheme,
 ) -> impl IntoElement {
-    let view_for_refresh = view.clone();
-    v_flex()
-        .id("scheduled-reports-ledger-empty")
-        .w_full()
-        .items_center()
-        .gap_3()
-        .px_8()
-        .py_10()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            Icon::new(IconName::Inbox)
-                .with_size(px(36.))
-                .text_color(theme.text_muted.opacity(0.7)),
-        )
-        .child(
-            div()
-                .text_size(px(14.))
-                .text_color(theme.text_muted)
-                .child("暂无台账记录"),
-        )
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme.text_muted.opacity(0.7))
-                .child("调整筛选条件或点击「刷新」"),
-        )
-        .child(
-            Button::new("scheduled-reports-ledger-empty-refresh")
-                .outline()
-                .small()
-                .label("刷新")
-                .on_click(move |_, _window, cx| {
-                    view_for_refresh.update(cx, |this, cx| this.reload_ledger(cx));
-                }),
-        )
+    state_views::empty_state_with_action_desc(
+        view,
+        theme,
+        "scheduled-reports-ledger-empty",
+        EmptyIcon::Name(IconName::Inbox),
+        "暂无台账记录",
+        Some("调整筛选条件或点击「刷新」"),
+        "刷新",
+        |this, cx| this.reload_ledger(cx),
+    )
 }
 
 // ---------------------------------------------------------------------------

@@ -27,13 +27,10 @@ use gpui::{
     WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     chart::AreaChart,
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
     table::{Column, Table, TableDelegate, TableState},
     v_flex, Icon, IconName, Sizable,
 };
@@ -43,6 +40,7 @@ use gui_domain::reports::{FinancialSeriesResponse, FinancialSeriesRow};
 
 use crate::theme::AppTheme;
 use crate::widgets::layout::content_guard;
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::fmt_money_precise;
 
@@ -455,7 +453,10 @@ impl Render for MonthlyReportView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：顶部筛选占位 + 汇总骨架 + 趋势/明细卡骨架（与正式布局同构）
+/// Loading：筛选骨架 + 汇总条 + 趋势/明细表骨架
+///
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合，
+/// 汇总用 `BarRow(4, 88)`（对齐原 4 张等高汇总卡）。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("monthly-report-loading")
@@ -464,42 +465,24 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
-        )
-        .child(
-            h_flex()
-                .gap_2()
-                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
-                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
-                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
-                .child(div().w_20().h_8().child(Skeleton::new())),
-        )
-        .child(
-            div()
-                .grid()
-                .grid_cols(4)
-                .gap_2()
-                .children((0..4).map(|_| div().h(px(88.)).child(Skeleton::new()))),
-        )
-        .child(div().w_full().h(px(280.)).child(Skeleton::new()))
-        .child(div().w_full().h_80().child(Skeleton::new()))
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[
+                SkeletonBlock::Filter(4),
+                SkeletonBlock::BarRow(4, 88.0),
+                SkeletonBlock::Chart(280.0),
+                SkeletonBlock::Table(320.0),
+            ],
+        ))
 }
 
-/// Error：内联 Alert + 重试按钮（对齐 daily_analysis.rs）
+/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
     cx: &mut Context<MonthlyReportView>,
     app_theme: &AppTheme,
     msg: &str,
 ) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("monthly-report-error")
         .size_full()
@@ -507,35 +490,19 @@ fn render_error(
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            content_guard().child(
-                v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(app_theme.radius_lg))
-                    .bg(app_theme.card_bg)
-                    .shadow(vec![app_theme.card_shadow_box()])
-                    .child(
-                        Alert::error("monthly-report-error", msg)
-                            .title("财务数据加载失败")
-                            .w_full(),
-                    )
-                    .child(
-                        div().w_full().flex().justify_end().child(
-                            Button::new("monthly-report-error-retry")
-                                .outline()
-                                .small()
-                                .label("重试")
-                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                        ),
-                    ),
-            ),
-        )
+        .child(state_views::error_state(
+            &view,
+            app_theme,
+            "monthly-report-error",
+            "财务数据加载失败",
+            msg.to_string(),
+            |this, cx| this.reload(cx),
+        ))
 }
 
-/// Empty：Icon + 文案 + 刷新按钮（暂无财务数据）
+/// Empty：Icon + 文案 + 刷新按钮（State 0 公共组件 `empty_state_with_action`）
 fn render_empty(cx: &mut Context<MonthlyReportView>, app_theme: &AppTheme) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("monthly-report-empty")
         .size_full()
@@ -544,35 +511,15 @@ fn render_empty(cx: &mut Context<MonthlyReportView>, app_theme: &AppTheme) -> im
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            v_flex()
-                .items_center()
-                .gap_3()
-                .px_8()
-                .py_10()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Icon::empty()
-                        .path("icons/file-bar-chart.svg")
-                        .with_size(px(40.))
-                        .text_color(app_theme.text_muted.opacity(0.7)),
-                )
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .text_color(app_theme.text_muted)
-                        .child("暂无财务月报数据"),
-                )
-                .child(
-                    Button::new("monthly-report-empty-refresh")
-                        .outline()
-                        .small()
-                        .label("刷新")
-                        .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                ),
-        )
+        .child(state_views::empty_state_with_action(
+            &view,
+            app_theme,
+            "monthly-report-empty",
+            "icons/file-bar-chart.svg",
+            "暂无财务数据",
+            "刷新",
+            |this, cx| this.reload(cx),
+        ))
 }
 
 /// Loaded：页面头部 + 筛选栏 + 汇总指标 + 月度趋势 + 月度明细表
@@ -1469,6 +1416,26 @@ mod tests {
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 assert_eq!(this.current_state(cx), MonthlyReportState::Loading);
+            });
+        });
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Empty 态可渲染不 panic。
+    #[gpui::test]
+    async fn monthly_report_renders_empty(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let client = Client::new("http://127.0.0.1:1");
+        let (view, _window_cx) = cx.add_window_view(|_window, cx| {
+            let view = MonthlyReportView::new(cx, client);
+            // 直接注入 Empty 态（不走网络）
+            view.state.update(cx, |state, _| {
+                *state = MonthlyReportState::Empty;
+            });
+            view
+        });
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                assert_eq!(this.current_state(cx), MonthlyReportState::Empty);
             });
         });
     }
