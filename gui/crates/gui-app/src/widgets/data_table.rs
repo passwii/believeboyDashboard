@@ -9,8 +9,13 @@
 //! 能力：
 //! - 列定义：id / 标题 / 宽度（None = 弹性）/ 对齐 / 排序 / 格式化；
 //! - 表头排序：可排序列点击循环 `升序 → 降序 → 默认`，箭头图标反射；
-//! - hover 行态（`.hover` 背景）与选中行态（点击选中，强调色浅底）；
-//! - 斑马纹（可选）、空态（图标 + 文案）、固定最大高度滚动（可选）。
+//! - hover 行态（全部数据行通用，P4-7 起不再限可选中表格）与选中行态；
+//! - 斑马纹（可选；亮暗两态均可见，P4-7 暗态修复）、空态（图标 + 文案）、
+//!   固定最大高度滚动（可选）；
+//! - **排版 token（P4-7，BLF-762）**：表头 / 行共享度量 token
+//!   （[`CELL_PX`] / [`COL_GAP`] / [`ROW_PY`] / [`HEADER_PY`]，单一来源防
+//!   表头与行列错位）；全表数字启用等宽数字 tabular-nums
+//!   （[`TabularNumsExt`]）保证金额 / 数值列纵向数位对齐。
 //!
 //! 使用（宿主视图持有 `Entity<DataTable<Row>>`，懒建 + `set_rows` 注入）：
 //! ```ignore
@@ -24,12 +29,53 @@
 //! ```
 
 use gpui::{
-    div, prelude::*, px, AnyElement, Context, CursorStyle, FontWeight, IntoElement,
+    div, prelude::*, px, AnyElement, Context, CursorStyle, FontFeatures, FontWeight, IntoElement,
     ParentElement, SharedString, Styled, Window,
 };
 use gpui_component::{h_flex, v_flex, Sizable};
 
 use crate::theme::AppTheme;
+
+/// 表格布局度量 token（P4-7，BLF-762）
+///
+/// 表头行与数据行共享，保证列纵向对齐：表头 / 行的水平内边距与列间距一律
+/// 取自本组常量（经 [`table_row_metrics`] 单一应用；回归锁见测试
+/// `header_and_rows_share_row_metrics_contract`）。
+pub const CELL_PX: f32 = 16.0; // 表头 / 行水平内边距（4px 尺度）
+pub const COL_GAP: f32 = 12.0; // 列间距（4px 尺度）
+pub const ROW_PY: f32 = 6.0; // 数据行垂直内边距（高密度行）
+pub const HEADER_PY: f32 = 8.0; // 表头行垂直内边距（略高，容纳排序图标）
+
+/// 表格共享度量应用：表头 / 行容器的水平内边距 + 列间距单一来源
+///（防表头与行度量漂移导致列错位）
+fn table_row_metrics<E: Styled>(el: E) -> E {
+    el.px(px(CELL_PX)).gap(px(COL_GAP))
+}
+
+/// 等宽数字（tabular-nums）扩展（P4-7，BLF-762）
+///
+/// gpui 0.2 无现成 `tabular_nums` 样式助手，用 OpenType `tnum` 特性实现：
+/// 应用于表头 / 行容器后级联到内部全部文字，数字等宽 → 纵向数位对齐
+///（金额 / 数值列对齐的前提；系统字体 SF Pro 支持 tnum）。
+pub trait TabularNumsExt: Styled + Sized {
+    /// 启用等宽数字（覆盖已存在的 tnum 设置）
+    fn tabular_nums(mut self) -> Self {
+        let style = self.text_style().get_or_insert_with(Default::default);
+        style.font_features = Some(tnum_features(style.font_features.as_ref()));
+        self
+    }
+}
+
+impl<E: Styled> TabularNumsExt for E {}
+
+/// 构造等宽数字的 OpenType 特性集（纯函数，便于单测）：
+/// 保留既有其他特性，`tnum` 一律覆盖为启用
+fn tnum_features(existing: Option<&FontFeatures>) -> FontFeatures {
+    let mut feats: Vec<(String, u32)> = existing.map(|f| f.0.as_ref().clone()).unwrap_or_default();
+    feats.retain(|(tag, _)| tag != "tnum");
+    feats.push(("tnum".to_string(), 1));
+    FontFeatures(std::sync::Arc::new(feats))
+}
 
 /// 单元格对齐方式
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -291,108 +337,111 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
         let display = self.sorted_rows();
         let empty = display.is_empty();
 
-        // 表头
-        let header = h_flex()
-            .id(SharedString::from(format!("{}-header", self.id)))
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.separator)
-            .text_xs()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(theme.text_muted)
-            .children(self.columns.iter().enumerate().map(|(col_ix, col)| {
-                let align = col.align;
-                let sortable = col.sortable;
-                let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
-                let header_cell = div()
-                    .id(SharedString::from(col.id.clone()))
-                    .when(sortable, |this| {
-                        this.cursor(CursorStyle::PointingHand)
-                    })
-                    .when_align(align, col.width, &theme)
-                    .when(sortable && active, |this| {
-                        this.text_color(theme.text_primary)
-                    });
-                let arrow = if sortable {
-                    let (icon, color) = match (active, self.sort) {
-                        (true, Some((_, SortDir::Ascending))) => {
-                            (gpui_component::IconName::ArrowUp, theme.accent)
-                        }
-                        (true, Some((_, SortDir::Descending))) => {
-                            (gpui_component::IconName::ArrowDown, theme.accent)
-                        }
-                        _ => (gpui_component::IconName::Minus, theme.text_muted),
+        // 表头（度量与数据行共享：table_row_metrics 单一来源）
+        let header = table_row_metrics(
+            h_flex()
+                .id(SharedString::from(format!("{}-header", self.id)))
+                .py(px(HEADER_PY))
+                .border_b_1()
+                .border_color(theme.separator)
+                .text_xs()
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(theme.text_muted)
+                .children(self.columns.iter().enumerate().map(|(col_ix, col)| {
+                    let align = col.align;
+                    let sortable = col.sortable;
+                    let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
+                    let header_cell = div()
+                        .id(SharedString::from(col.id.clone()))
+                        .when(sortable, |this| {
+                            this.cursor(CursorStyle::PointingHand)
+                        })
+                        .when_align(align, col.width, &theme)
+                        .when(sortable && active, |this| {
+                            this.text_color(theme.text_primary)
+                        });
+                    let arrow = if sortable {
+                        let (icon, color) = match (active, self.sort) {
+                            (true, Some((_, SortDir::Ascending))) => {
+                                (gpui_component::IconName::ArrowUp, theme.accent)
+                            }
+                            (true, Some((_, SortDir::Descending))) => {
+                                (gpui_component::IconName::ArrowDown, theme.accent)
+                            }
+                            _ => (gpui_component::IconName::Minus, theme.text_muted),
+                        };
+                        Some(
+                            h_flex()
+                                .gap_1()
+                                .items_center()
+                                .child(div().child(col.title.clone()))
+                                .child(
+                                    gpui_component::Icon::new(icon)
+                                        .with_size(px(12.))
+                                        .text_color(color),
+                                ),
+                        )
+                    } else {
+                        None
                     };
-                    Some(
-                        h_flex()
-                            .gap_1()
-                            .items_center()
-                            .child(div().child(col.title.clone()))
-                            .child(
-                                gpui_component::Icon::new(icon)
-                                    .with_size(px(12.))
-                                    .text_color(color),
-                            ),
-                    )
-                } else {
-                    None
-                };
-                header_cell
-                    .child(arrow.unwrap_or_else(|| div().child(col.title.clone())))
-                    .when(sortable, |this| {
-                        let sort_col_ix = col_ix;
-                        this.on_click(cx.listener(move |table, _, _, cx| {
-                            table.toggle_sort(sort_col_ix, cx);
-                        }))
-                    })
-            }));
+                    header_cell
+                        .child(arrow.unwrap_or_else(|| div().child(col.title.clone())))
+                        .when(sortable, |this| {
+                            let sort_col_ix = col_ix;
+                            this.on_click(cx.listener(move |table, _, _, cx| {
+                                table.toggle_sort(sort_col_ix, cx);
+                            }))
+                        })
+                })),
+        );
 
-        // 行
+        // 行（P4-7：hover 行态全行通用；斑马纹取暗态可见的 table_row_stripe；
+        // 度量与表头共享；全表数字 tabular-nums）
         let rows = display
             .iter()
             .enumerate()
             .map(|(row_ix, row)| {
-                let bg = if self.selected == Some(row_ix) {
+                let selected = self.selected == Some(row_ix);
+                let bg = if selected {
                     if theme.is_dark() {
                         theme.muted_fill
                     } else {
                         theme.accent_soft
                     }
                 } else if self.striped && row_ix % 2 == 1 {
-                    theme.muted_fill.opacity(0.5)
+                    theme.table_row_stripe
                 } else {
                     theme.card_bg
                 };
-                h_flex()
-                    .id(SharedString::from(format!("{}-{row_ix}", self.id)))
-                    .px_4()
-                    .py_1p5()
-                    .gap_3()
-                    .bg(bg)
-                    .when(self.selectable, |this| {
-                        this.cursor(CursorStyle::PointingHand)
-                            .hover(|this| {
-                                if self.selected != Some(row_ix) {
-                                    this.bg(theme.muted_fill.opacity(0.35))
-                                } else {
-                                    this
-                                }
-                            })
-                            .on_click(cx.listener(move |table, _, _, cx| {
-                                table.select_row(row_ix, cx);
-                            }))
-                    })
-                    .text_sm()
-                    .text_color(theme.text_secondary)
-                    .children(self.columns.iter().map(|col| {
-                        let cell = div().when_align(col.align, col.width, &theme);
-                        match &col.render_element {
-                            Some(render) => cell.child(render(row, &theme)),
-                            None => cell.child((col.render)(row, &theme)),
-                        }
-                    }))
+                table_row_metrics(
+                    h_flex()
+                        .id(SharedString::from(format!("{}-{row_ix}", self.id)))
+                        .py(px(ROW_PY))
+                        .bg(bg)
+                        .hover(move |this| {
+                            if selected {
+                                this
+                            } else {
+                                this.bg(theme.table_row_hover)
+                            }
+                        })
+                        .when(self.selectable, |this| {
+                            this.cursor(CursorStyle::PointingHand)
+                                .on_click(cx.listener(move |table, _, _, cx| {
+                                    table.select_row(row_ix, cx);
+                                }))
+                        })
+                        .tabular_nums()
+                        .text_sm()
+                        .text_color(theme.text_secondary)
+                        .children(self.columns.iter().map(|col| {
+                            let cell = div().when_align(col.align, col.width, &theme);
+                            match &col.render_element {
+                                Some(render) => cell.child(render(row, &theme)),
+                                None => cell.child((col.render)(row, &theme)),
+                            }
+                        })),
+                )
             });
 
         // 空态
@@ -408,7 +457,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                     .path(self.empty_icon)
                     .with_size(px(24.)),
             )
-            .child(div().text_size(px(13.)).child(self.empty_text.clone()));
+            .child(div().text_sm().child(self.empty_text.clone()));
 
         crate::motion::enter_fade_in(
             SharedString::from(format!("{}-fade", self.id)),
@@ -589,5 +638,59 @@ mod tests {
                 assert_eq!(crate::theme::AppTheme::current(app).is_dark(), dark);
             });
         }
+    }
+
+    // ---------- P4-7 排版 / 度量契约 ----------
+
+    /// 等宽数字必须落 OpenType `tnum=1` 特性（数字纵向数位对齐的唯一机制；
+    /// gpui 0.2 无内建 tabular-nums 助手）；既有其他特性保留，tnum 覆盖为启用
+    #[test]
+    fn tabular_nums_sets_tnum_font_feature() {
+        // 纯函数层：无既有特性
+        let feats = tnum_features(None);
+        assert!(
+            feats
+                .tag_value_list()
+                .iter()
+                .any(|(tag, v)| tag == "tnum" && *v == 1),
+            "必须启用 tnum 特性"
+        );
+        // 纯函数层：既有 liga + tnum=0 → 保留 liga，tnum 覆盖为 1
+        let base = FontFeatures(std::sync::Arc::new(vec![
+            ("liga".to_string(), 0),
+            ("tnum".to_string(), 0),
+        ]));
+        let feats = tnum_features(Some(&base));
+        assert!(feats.tag_value_list().iter().any(|(t, v)| t == "tnum" && *v == 1));
+        assert!(feats.tag_value_list().iter().any(|(t, v)| t == "liga" && *v == 0));
+
+        // 元素层：tabular_nums 必须写入元素 text style
+        let mut el = div().tabular_nums();
+        assert!(
+            el.style().text_style().is_some(),
+            "tabular_nums 必须写入元素 text style"
+        );
+    }
+
+    /// 表头与数据行必须共享同一布局度量函数（列纵向对齐契约）；
+    /// 渲染路径不得残留裸尺度字面量（防度量漂移回退）
+    #[test]
+    fn header_and_rows_share_row_metrics_contract() {
+        let src = include_str!("data_table.rs");
+        // 定义 1 处 + 表头 1 处 + 数据行 1 处 ≥ 3
+        let shared_calls = src.matches("table_row_metrics(").count();
+        assert!(
+            shared_calls >= 3,
+            "表头与数据行必须都经 table_row_metrics（实际 {shared_calls} 处）"
+        );
+        // 模式用拼接构造，避免断言字面量自匹配（本测试源码也在 include_str! 范围内）
+        let px4 = ".px_".to_string() + "4()";
+        let gap3 = ".gap_".to_string() + "3()";
+        assert!(!src.contains(&px4), "水平内边距必须取自 CELL_PX");
+        assert!(!src.contains(&gap3), "列间距必须取自 COL_GAP");
+        // 数据行必须带 hover 行态（不再限可选中表格）与 tabular-nums
+        assert!(src.contains(".tabular_nums()"), "数据行必须启用等宽数字");
+        assert!(src.contains("table_row_hover"), "行 hover 必须走语义 token");
+        assert!(src.contains("table_row_stripe"), "斑马纹必须走语义 token（暗态可见）");
     }
 }

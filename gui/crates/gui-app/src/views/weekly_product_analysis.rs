@@ -1711,7 +1711,7 @@ fn trend_card(
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(13.))
+            .text_sm()
             .text_color(app_theme.text_muted)
             .child("暂无趋势数据")
             .into_any_element()
@@ -1993,7 +1993,7 @@ fn summary_tab_body(
             .items_center()
             .justify_center()
             .py_10()
-            .text_size(px(13.))
+            .text_sm()
             .text_color(app_theme.text_muted)
             .child("当前筛选条件暂无产品分析周汇总数据")
             .into_any_element();

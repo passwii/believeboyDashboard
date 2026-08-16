@@ -983,12 +983,12 @@ impl TableDelegate for RevenueTableDelegate {
         let theme = AppTheme::current(cx);
         match col_ix {
             COL_DATE => div()
-                .text_size(px(13.))
+                .text_sm()
                 .text_color(theme.text_primary)
                 .child(format_date(&row.received_date))
                 .into_any_element(),
             COL_PROJECT => div()
-                .text_size(px(13.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .truncate()
                 .child(row.project_name.clone())
@@ -996,7 +996,7 @@ impl TableDelegate for RevenueTableDelegate {
             COL_COUNTRY => country_badge(&row.country, &theme).into_any_element(),
             COL_AMOUNT => div()
                 .text_right()
-                .text_size(px(13.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.text_primary)
                 .child(format_amount(parse_amount(&row.amount), &row.currency))
@@ -1016,7 +1016,7 @@ impl TableDelegate for RevenueTableDelegate {
                             .px_2()
                             .py_0p5()
                             .rounded_full()
-                            .text_size(px(11.))
+                            .text_xs()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(if is_b2b {
                                 theme.accent
@@ -1039,7 +1039,7 @@ impl TableDelegate for RevenueTableDelegate {
                     .filter(|n| !n.is_empty())
                     .unwrap_or_else(|| "-".to_string());
                 div()
-                    .text_size(px(13.))
+                    .text_sm()
                     .text_color(theme.text_muted)
                     .truncate()
                     .child(note)
@@ -1063,7 +1063,7 @@ impl TableDelegate for RevenueTableDelegate {
             .gap_2()
             .text_color(theme.text_muted)
             .child(Icon::new(IconName::Inbox).with_size(px(24.)))
-            .child(div().text_size(px(13.)).child("暂无回款数据"))
+            .child(div().text_sm().child("暂无回款数据"))
             .into_any_element()
     }
 }
@@ -1091,7 +1091,7 @@ fn country_badge(country: &str, theme: &AppTheme) -> impl IntoElement {
                 .border_1()
                 .border_color(accent.opacity(0.35))
                 .bg(accent.opacity(0.12))
-                .text_size(px(11.))
+                .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(accent)
                 .child(code.to_string()),
@@ -1124,7 +1124,7 @@ fn currency_badge(currency: &str, theme: &AppTheme) -> impl IntoElement {
                 .border_1()
                 .border_color(accent.opacity(0.35))
                 .bg(accent.opacity(0.12))
-                .text_size(px(11.))
+                .text_xs()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(accent)
                 .child(currency_symbol(code).to_string()),

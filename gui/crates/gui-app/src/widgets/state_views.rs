@@ -349,7 +349,7 @@ fn empty_card(
         .child(icon_el)
         .child(
             div()
-                .text_size(px(14.))
+                .text_sm()
                 .text_color(theme.text_muted)
                 .child(text),
         )

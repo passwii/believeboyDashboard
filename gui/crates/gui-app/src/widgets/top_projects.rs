@@ -373,25 +373,25 @@ impl TableDelegate for TopProjectsDelegate {
         let theme = AppTheme::current(cx);
         match col_ix {
             COL_PROJECT => div()
-                .text_size(px(14.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .truncate()
                 .child(row.project_name.clone())
                 .into_any_element(),
             COL_SALES => div()
                 .text_right()
-                .text_size(px(14.))
+                .text_sm()
                 .child(fmt_money_precise(row.total_sales))
                 .into_any_element(),
             COL_AD_SPEND => div()
                 .text_right()
-                .text_size(px(14.))
+                .text_sm()
                 .text_color(theme.text_muted)
                 .child(fmt_money_precise(row.total_ad_spend))
                 .into_any_element(),
             COL_ORDERS => div()
                 .text_right()
-                .text_size(px(14.))
+                .text_sm()
                 .text_color(theme.text_muted)
                 .child(fmt_num_precise(row.total_orders))
                 .into_any_element(),
@@ -418,7 +418,7 @@ impl TableDelegate for TopProjectsDelegate {
                     .path("icons/store.svg")
                     .with_size(px(24.)),
             )
-            .child(div().text_size(px(13.)).child("暂无项目数据"))
+            .child(div().text_sm().child("暂无项目数据"))
             .into_any_element()
     }
 }
@@ -448,7 +448,7 @@ fn render_change_cell(change: Option<f64>, theme: &AppTheme) -> impl IntoElement
         .justify_end()
         .items_center()
         .gap_1()
-        .text_size(px(12.))
+        .text_xs()
         .text_color(color)
         .child(Icon::new(icon).with_size(px(12.)).text_color(color))
         .child(div().child(text))

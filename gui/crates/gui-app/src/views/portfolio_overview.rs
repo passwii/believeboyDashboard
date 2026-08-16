@@ -1531,14 +1531,14 @@ fn contribution_legend(
                 .child(
                     div()
                         .flex_1()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_secondary)
                         .truncate()
                         .child(row.name.clone()),
                 )
                 .child(
                     div()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_muted)
                         .child(metric.fmt(row.sales, country)),
                 )
@@ -1546,7 +1546,7 @@ fn contribution_legend(
                     div()
                         .w_12()
                         .text_right()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_primary)
                         .child(format!("({share:.1}%)")),
                 )

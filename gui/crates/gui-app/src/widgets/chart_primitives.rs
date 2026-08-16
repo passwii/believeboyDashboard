@@ -145,14 +145,14 @@ pub fn share_legend(rows: &[ShareRow], total: f64, theme: &AppTheme) -> impl Int
                 .child(
                     div()
                         .flex_1()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_secondary)
                         .truncate()
                         .child(row.name),
                 )
                 .child(
                     div()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_muted)
                         .child(fmt_money_precise(row.sales)),
                 )
@@ -160,7 +160,7 @@ pub fn share_legend(rows: &[ShareRow], total: f64, theme: &AppTheme) -> impl Int
                     div()
                         .w_11()
                         .text_right()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_primary)
                         .child(format!("{share:.1}%")),
                 )
@@ -225,7 +225,7 @@ pub fn chart_card(
                         )
                         .child(
                             div()
-                                .text_size(px(14.))
+                                .text_sm()
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(theme.text_primary)
                                 .child(title),
@@ -237,7 +237,7 @@ pub fn chart_card(
                 )
                 .child(
                     div()
-                        .text_size(px(12.))
+                        .text_xs()
                         .text_color(theme.text_muted)
                         .child(description.into()),
                 ),
@@ -259,7 +259,7 @@ pub fn chart_empty(text: &'static str, chart_height_px: f32, theme: &AppTheme) -
         .flex()
         .items_center()
         .justify_center()
-        .text_size(px(13.))
+        .text_sm()
         .text_color(theme.text_muted)
         .child(text)
 }

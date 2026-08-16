@@ -1219,7 +1219,7 @@ fn summary_card(label: &str, value: i64, color: gpui::Hsla, theme: &AppTheme) ->
         .shadow(vec![theme.card_shadow_box()])
         .child(
             div()
-                .text_size(px(20.))
+                .text_xl()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(color)
                 .child(value.to_string()),
