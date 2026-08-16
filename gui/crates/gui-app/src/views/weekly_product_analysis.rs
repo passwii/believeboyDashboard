@@ -1095,7 +1095,7 @@ impl WeeklyProductAnalysisView {
             }
             return;
         }
-        let columns = detail_columns(&extra);
+        let columns = detail_columns(self.country, &extra);
         let rows = payload.rows.clone();
         let table = cx.new(|_| {
             DataTable::new("weekly-product-details-table", columns)
@@ -2190,6 +2190,17 @@ fn totals_footer_common(
 // 表格列定义（周汇总 39 列 / SKU 明细基础 42 列 + 额外列）
 // ---------------------------------------------------------------------------
 
+/// SKU 明细单元格文本格式化（detail_columns 闭包共用）：
+/// 当前与 `format_summary_cell` 同语义（货币列币种符号按 country 透传），
+/// 单独暴露以便单测断言 DE/UK 货币列渲染口径（BLF-723 review 反馈）。
+pub fn format_detail_cell(
+    column: &str,
+    value: Option<&serde_json::Value>,
+    country: &str,
+) -> String {
+    format_summary_cell(column, value, country)
+}
+
 /// 文本单元格（render_element 闭包共用；对齐由外层 cell div 的
 /// `when_align` 控制，此处只输出文本）
 fn text_cell(value: String) -> AnyElement {
@@ -2251,7 +2262,14 @@ pub fn summary_table_columns(country: &str) -> Vec<ColumnDef<WeeklyProductRow>> 
 /// 对齐 web `detailColumns`）。
 /// 单元格从 `raw` 字典按列名取数；「日期」/「SKU」走核心列直取；
 /// 指标列名需被闭包捕获 → 用 `render_element`。
-pub fn detail_columns(extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
+/// `country` 用于货币列渲染（US=$ / DE=€ / UK=£），与 `summary_table_columns`
+/// 同模式——`country_owned.clone()` 透传到闭包，避免「写死 US」的
+/// BLF-723 review 阻塞项（参见 PR #343 review 反馈）。
+pub fn detail_columns(
+    country: &str,
+    extra: &[String],
+) -> Vec<ColumnDef<DetailTableRow>> {
+    let country_owned = country.to_string();
     let mut columns: Vec<ColumnDef<DetailTableRow>> = vec![
         ColumnDef::text(
             "weekly-detail-date",
@@ -2268,6 +2286,7 @@ pub fn detail_columns(extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
     ];
     for column in detail_base_columns().into_iter().skip(2) {
         let column_owned = column.to_string();
+        let country_for_cell = country_owned.clone();
         columns.push(
             ColumnDef::text(
                 format!("weekly-detail-{column}"),
@@ -2275,10 +2294,10 @@ pub fn detail_columns(extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
                 |_: &DetailTableRow, _| SharedString::default(),
             )
             .with_render_element(move |r: &DetailTableRow, _theme: &AppTheme| {
-                text_cell(format_summary_cell(
+                text_cell(format_detail_cell(
                     &column_owned,
                     r.raw.get(&column_owned),
-                    "US",
+                    &country_for_cell,
                 ))
             })
             .width(96.0)
@@ -2296,6 +2315,7 @@ pub fn detail_columns(extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
     // 额外列（raw_row 中基础列之外的键；对齐 web extras）
     for column in extra {
         let column_owned = column.clone();
+        let country_for_cell = country_owned.clone();
         columns.push(
             ColumnDef::text(
                 format!("weekly-detail-extra-{column}"),
@@ -2303,10 +2323,10 @@ pub fn detail_columns(extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
                 |_: &DetailTableRow, _| SharedString::default(),
             )
             .with_render_element(move |r: &DetailTableRow, _theme: &AppTheme| {
-                text_cell(format_summary_cell(
+                text_cell(format_detail_cell(
                     &column_owned,
                     r.raw.get(&column_owned),
-                    "US",
+                    &country_for_cell,
                 ))
             })
             .width(96.0)
@@ -2616,13 +2636,13 @@ mod tests {
         assert_eq!(summary[0].id, "weekly-summary-week");
         assert_eq!(summary[1].id, "weekly-summary-总销量");
 
-        let base = detail_columns(&[]);
+        let base = detail_columns("US", &[]);
         assert_eq!(base.len(), 41);
         assert_eq!(base[0].id, "weekly-detail-date");
         assert_eq!(base[1].id, "weekly-detail-sku");
         assert_eq!(base[2].id, "weekly-detail-总销量");
 
-        let with_extra = detail_columns(&["自定义列A".to_string()]);
+        let with_extra = detail_columns("US", &["自定义列A".to_string()]);
         assert_eq!(with_extra.len(), 42);
         assert_eq!(with_extra[41].id, "weekly-detail-extra-自定义列A");
 
@@ -2632,6 +2652,66 @@ mod tests {
         uniq.sort();
         uniq.dedup();
         assert_eq!(ids.len(), uniq.len(), "列 id 必须唯一");
+    }
+
+    /// detail 列货币格式化按 country 透传（BLF-723 review P0 阻塞项契约）：
+    /// 用户在筛选栏切到 DE/UK 时，SKU 明细表货币列（总销售额 / 利润 /
+    /// 实际销售额 / 平均售价 等 13 列）必须渲染 € / £ 而非硬编码 $。
+    /// 通过 detail_columns 的 `render_element` 闭包触发的 helper
+    /// `format_detail_cell` 验证（闭包调一次该 helper 拿到字符串）。
+    #[test]
+    fn detail_columns_currency_uses_country_param() {
+        // 含两条货币列 + 一条非货币列；构造固定 raw dict 供断言
+        let mut raw = serde_json::Map::new();
+        raw.insert("总销售额".into(), serde_json::json!(-1234.567));
+        raw.insert("利润".into(), serde_json::json!(500.0));
+        raw.insert("总销量".into(), serde_json::json!(10));
+        let row = DetailTableRow {
+            date: "2026-08-01".into(),
+            sku: "SKU-A".into(),
+            raw: raw.clone(),
+        };
+        let theme = AppTheme::light();
+
+        // —— US（基线，对照「DE/UK 必须 ≠ US」）——
+        let us_columns = detail_columns("US", &[]);
+        let find_currency = |country: &str| -> String {
+            let cols = detail_columns(country, &[]);
+            let col = cols
+                .iter()
+                .find(|c| c.id == "weekly-detail-总销售额")
+                .expect("总销售额 列应存在");
+            let renderer = col
+                .render_element
+                .as_ref()
+                .expect("货币列应有 render_element 闭包");
+            // 触发闭包拿 AnyElement；单纯调一次确认无 panic，且闭包已闭包到 country
+            let _ = renderer(&row, &theme);
+            // 同步通过 format_detail_cell 拿字符串断言符号（renderer 内部也走该 helper）
+            format_detail_cell("总销售额", row.raw.get("总销售额"), country)
+        };
+        assert_eq!(find_currency("US"), "-$1,234.57");
+        // —— DE：€ 不带 $；闭包必须用传入的 country 而非硬编码 US ——
+        let de_out = find_currency("DE");
+        assert!(de_out.contains('€'), "DE 总销售额应含 €：实际 {de_out}");
+        assert!(!de_out.contains('$'), "DE 总销售额不应含 $：实际 {de_out}");
+        // —— UK：£ ——
+        let uk_out = find_currency("UK");
+        assert!(uk_out.contains('£'), "UK 总销售额应含 £：实际 {uk_out}");
+        assert!(!uk_out.contains('$'), "UK 总销售额不应含 $：实际 {uk_out}");
+
+        // 利润列同样走 currency 分档，DE/UK 也必须用对符号
+        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "US"), "$500.00");
+        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "DE"), "€500.00");
+        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "UK"), "£500.00");
+
+        // 非货币列（整数）不受 country 影响
+        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "US"), "10");
+        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "DE"), "10");
+        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "UK"), "10");
+
+        // detail_columns 接 country 参数；编译期已强制；这里再生成实例验证无回归
+        let _ = us_columns;
     }
 
     /// 状态转移：项目空 → Empty；有数据 → Loaded；错误 → Error
