@@ -12,7 +12,8 @@
 //! - **选中态**：中性色圆角胶囊（浅色=白胶囊+柔和投影 / 深色=高亮灰胶囊），
 //!   hover 轻微灰底反馈；macOS 侧栏选中不用品牌蓝（那是 iOS 风格），靠明度区分
 //! - **分组标题（section header）**：小字号/灰色/上留白，纯文字无图标（原生语义）
-//! - **间距体系**：行高 32px、圆角 6px、图标 16px 定宽对齐、8px 内边距与图标间距、
+//! - **间距体系**：行高 32px、圆角 6px、图标 16px 定宽对齐；选中胶囊内缩 8px
+//!   （Finder 风格）+ 内边距 4px，内容列（12px）与分组标题（px_3）纵向对齐；
 //!   文字超长省略号截断
 //! - **折叠/展开（P4-1）**：切换按钮在**侧栏头部右上角**（Mail/Notes 风格）；
 //!   折叠后为 56px 图标轨道（icon rail），折叠按钮迁往右侧内容区头部（root.rs），
@@ -387,7 +388,7 @@ fn attach_window_drag(
 fn brand_mark(theme: &AppTheme) -> impl IntoElement {
     div()
         .size(px(22.0))
-        .rounded(px(6.0))
+        .rounded(px(theme.radius))
         .flex()
         .items_center()
         .justify_center()
@@ -542,8 +543,10 @@ fn render_item(
         .w_full()
         .h_8()
         .gap_2()
-        .px_2()
-        .mx_1()
+        // P4-7：胶囊内缩 8px（mx_2，Finder 风格）+ 内边距 4px（px_1）——
+        // 内容列 = 8+4 = 12px，与分组标题（px_3）纵向对齐
+        .px_1()
+        .mx_2()
         .rounded(px(theme.radius))
         .cursor_pointer()
         .text_sm()
@@ -638,10 +641,12 @@ impl SidebarTooltip {
 
 impl Render for SidebarTooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // 圆角取 AppTheme 圆角 token（与侧栏胶囊 / brand 方块同源，P4-7 收敛）
+        let radius = AppTheme::current(cx).radius;
         div()
             .px_2()
             .py_1()
-            .rounded(px(6.0))
+            .rounded(px(radius))
             .bg(cx.theme().popover)
             .border_1()
             .border_color(cx.theme().border)

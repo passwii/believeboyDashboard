@@ -12,6 +12,17 @@
 //!    `Theme::radius / radius_lg / font_size` 与 gpui 的 `text_xs/sm/base/...`
 //!    系统字体层级（macOS HIG 系统排版，不另造轮子）。宽窗度量（内容上限
 //!    宽度）见 [`CONTENT_MAX_WIDTH`] + [`crate::widgets::layout::content_guard`]。
+//! 4. **排版层级（P4-7，BLF-762）**：文字一律走 gpui `text_*` 字阶（rem 基准
+//!    16px：xs=12 / sm=14 / base=16 / lg=18 / xl=20 / 2xl=24），**禁止裸
+//!    `text_size(px(...))`**（源码级回归锁见 widgets/page_header.rs 测试）：
+//!    - **标题级**：`text_2xl` + `font_semibold` + `text_primary`——页面大标题
+//!      （[`crate::widgets::page_header::PageHeader`]）与 KPI 数值（stat_band）；
+//!    - **说明级**：`text_sm` + `text_secondary`（正文 / 表格行）或
+//!      `text_muted`（筛选 label / 空态 / 辅助说明）；
+//!    - **辅助级**：`text_xs` + `text_muted`（图表轴标签 / 时间戳 / 徽标）。
+//!
+//!    表格数字列另加等宽数字（tabular-nums）保证纵向数位对齐，见
+//!    [`crate::widgets::data_table::TabularNumsExt`]。
 //!
 //! 迁移说明：此前 `Theme::dark_sidebar_light_content()`（深侧栏+浅内容区混合外观）
 //! 已废弃——跟随系统后侧栏与内容区同亮同暗，语义字段全部收敛到 [`AppTheme`]。
@@ -138,6 +149,12 @@ pub struct AppTheme {
     pub text_secondary: Hsla,
     pub text_muted: Hsla,
 
+    // ---- 表格行态（P4-7，BLF-762）----
+    /// 表格行 hover 底（全部数据行通用；非选中行的指针反馈）
+    pub table_row_hover: Hsla,
+    /// 表格斑马纹行底（striped 表格的隔行底色；暗态必须与卡底区分）
+    pub table_row_stripe: Hsla,
+
     // ---- 强调 / 状态 ----
     /// 强调色（controlAccent，品牌蓝）
     pub accent: Hsla,
@@ -189,6 +206,10 @@ impl AppTheme {
             muted_fill: c(0xebebf0),
             separator: c(0xe5e5e5),
             card_shadow: c(0x000000).alpha(0.06),
+
+            // 表格行态（浅色：白底上的中性浅填充透明度梯度——hover 强于斑马纹）
+            table_row_hover: c(0xebebf0).alpha(0.65),
+            table_row_stripe: c(0xebebf0).alpha(0.5),
 
             // 侧栏（浅色：不透明显实色 #ECECEC——macOS 系统设置/Finder 浅侧栏观感，
             // 选中白胶囊 + 极轻投影；无品牌色块）
@@ -242,6 +263,11 @@ impl AppTheme {
             muted_fill: c(0x323232),
             separator: c(0x3a3a3c),
             card_shadow: c(0x000000).alpha(0.25),
+
+            // 表格行态（深色：白色叠加提亮——muted_fill 与卡底同色导致 hover/斑马纹
+            // 不可见的旧 bug 修复；hover 8% 白强于斑马纹 4% 白，反馈层次分明）
+            table_row_hover: c(0xffffff).alpha(0.08),
+            table_row_stripe: c(0xffffff).alpha(0.04),
 
             // 侧栏（深色：与窗口同底 #282828——macOS 暗色侧栏与内容同色，靠选中
             // 灰胶囊 #3A3A3C 区分；选中项无投影，扁平原生）
@@ -490,6 +516,31 @@ mod tests {
         }
         // 亮暗两态的投影强度不同（暗态投影更强以在深底上可见）
         assert_ne!(AppTheme::light().card_shadow, AppTheme::dark().card_shadow);
+    }
+
+    /// P4-7（BLF-762）回归锁：表格行 hover / 斑马纹 token 在亮暗两态都必须
+    /// 与行底（card_bg）可区分且非全透明——修复暗态 muted_fill == card_bg
+    /// 导致 hover / 斑马纹不可见的旧问题；hover 强度必须大于斑马纹（反馈层次）。
+    #[test]
+    fn table_row_tokens_visible_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            assert_ne!(theme.table_row_hover, theme.card_bg, "hover 必须与行底区分");
+            assert_ne!(
+                theme.table_row_stripe, theme.card_bg,
+                "斑马纹必须与行底区分"
+            );
+            assert!(theme.table_row_hover.a > 0.0, "hover 色不可全透明");
+            assert!(theme.table_row_stripe.a > 0.0, "斑马纹色不可全透明");
+            assert!(
+                theme.table_row_hover.a > theme.table_row_stripe.a,
+                "hover 反馈应强于斑马纹"
+            );
+        }
+        // 亮暗两态实现方式不同（浅色中性填充 / 深色白色叠加），值必须不同
+        assert_ne!(
+            AppTheme::light().table_row_hover,
+            AppTheme::dark().table_row_hover
+        );
     }
 
     /// P4-5 回归锁：宽窗度量常量落在合理阅读宽度区间（1200–1440px，

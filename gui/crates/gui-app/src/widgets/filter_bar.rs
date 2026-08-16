@@ -6,8 +6,10 @@
 //!
 //! 组成：
 //! - [`filter_bar_layout`]：容器（label + 控件 + 弹性空隙 + 尾部操作位）；
+//!   控件间距统一 12px（gap_3 节奏，回归锁见测试），控件高度基线统一
+//!   `.small()` 尺寸（与 date_range / pagination 一致，P4-7）；
 //! - [`filter_select`]：带 label 的下拉按钮构建块（项目 / 国家 / 报表类型等
-//!   单选下拉共用；与 ad_data.rs 既有 `filter_select` 语义一致）。
+//!   单选下拉共用）；label 走说明级色阶 `text_secondary`（P4-7 排版层级）。
 //!
 //! 视图组装示例：
 //! ```ignore
@@ -22,8 +24,8 @@ use gpui_component::{button::Button, h_flex, menu::DropdownMenu, Icon, IconName,
 
 use crate::theme::AppTheme;
 
-/// 筛选栏容器：`h_flex`（可换行）+ 12px 间距，尾部自动弹性空隙
-/// （右侧刷新按钮等操作位用 `child(...)` 追加到最末）。
+/// 筛选栏容器：`h_flex`（可换行）+ 12px 间距（gap_3 节奏，控件间统一），
+/// 尾部自动弹性空隙（右侧刷新按钮等操作位用 `child(...)` 追加到最末）。
 ///
 /// 返回具体 `h_flex` 类型以便调用方链式 `.child(...)` 追加控件。
 pub fn filter_bar_layout(theme: &AppTheme) -> gpui::Div {
@@ -55,7 +57,7 @@ pub fn filter_select(
         .child(
             div()
                 .text_sm()
-                .text_color(theme.text_muted)
+                .text_color(theme.text_secondary)
                 .child(label.to_string()),
         )
         .child(
@@ -123,5 +125,29 @@ mod tests {
                 );
             });
         }
+    }
+
+    /// P4-7（BLF-762）节奏契约：筛选栏控件间距统一 12px（gap_3）——
+    /// 跨视图垂直 / 水平节奏单一来源，防散落间距回退。
+    #[test]
+    fn filter_bar_layout_gap_rhythm_contract() {
+        let theme = AppTheme::light();
+        let mut el = filter_bar_layout(&theme);
+        let gap_px = match el.style().gap.width {
+            Some(gpui::DefiniteLength::Absolute(abs)) => f32::from(abs.to_pixels(gpui::px(16.0))),
+            other => panic!("筛选栏间距必须是定长：{other:?}"),
+        };
+        assert_eq!(gap_px, 12.0, "控件间距必须统一 12px（gap_3 节奏）");
+    }
+
+    /// P4-7（BLF-762）排版层级契约：筛选 label 走说明级色阶（text_secondary，
+    /// 非弱化四级的 text_muted）——label 是字段说明而非元信息。
+    #[test]
+    fn filter_select_label_uses_secondary_tier() {
+        let src = include_str!("filter_bar.rs");
+        assert!(
+            src.contains("text_color(theme.text_secondary)"),
+            "筛选 label 必须用 text_secondary 说明级色阶"
+        );
     }
 }

@@ -242,14 +242,14 @@ impl Render for LoginView {
                     .gap_1()
                     .child(
                         div()
-                            .text_size(px(22.))
+                            .text_2xl()
                             .text_color(theme.text_primary)
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child("登录"),
                     )
                     .child(
                         div()
-                            .text_size(px(13.))
+                            .text_sm()
                             .text_color(theme.text_secondary)
                             .child("使用你的 BelieveBoy 账号继续"),
                     ),
@@ -261,7 +261,7 @@ impl Render for LoginView {
                     .gap_1()
                     .child(
                         div()
-                            .text_size(px(13.))
+                            .text_sm()
                             .text_color(theme.text_secondary)
                             .child("邮箱"),
                     )
@@ -285,7 +285,7 @@ impl Render for LoginView {
                     .gap_1()
                     .child(
                         div()
-                            .text_size(px(13.))
+                            .text_sm()
                             .text_color(theme.text_secondary)
                             .child("密码"),
                     )
@@ -338,7 +338,7 @@ impl Render for LoginView {
                     .pb(px(16.))
                     .child(
                         div()
-                            .text_size(px(11.))
+                            .text_xs()
                             .text_color(theme.text_muted)
                             .child(format!(
                                 "BelieveBoy 桌面端 · v{}",

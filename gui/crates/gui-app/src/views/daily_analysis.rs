@@ -1035,12 +1035,12 @@ impl TableDelegate for DetailTableDelegate {
         let theme = AppTheme::current(cx);
         match col_ix {
             COL_DATE => div()
-                .text_size(px(13.))
+                .text_sm()
                 .text_color(theme.text_primary)
                 .child(row.date.to_string())
                 .into_any_element(),
             COL_SKU => div()
-                .text_size(px(13.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .truncate()
                 .child(row.sku.clone())
@@ -1081,7 +1081,7 @@ impl TableDelegate for DetailTableDelegate {
             .gap_2()
             .text_color(theme.text_muted)
             .child(Icon::new(IconName::Inbox).with_size(px(24.)))
-            .child(div().text_size(px(13.)).child("暂无 SKU 明细数据"))
+            .child(div().text_sm().child("暂无 SKU 明细数据"))
             .into_any_element()
     }
 }
@@ -1090,7 +1090,7 @@ impl TableDelegate for DetailTableDelegate {
 fn right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
     div()
         .text_right()
-        .text_size(px(13.))
+        .text_sm()
         .text_color(theme.text_secondary)
         .child(text)
 }
@@ -1099,7 +1099,7 @@ fn right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
 fn muted_right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
     div()
         .text_right()
-        .text_size(px(13.))
+        .text_sm()
         .text_color(theme.text_muted)
         .child(text)
 }
@@ -1258,7 +1258,7 @@ impl TableDelegate for BreakdownTableDelegate {
         let theme = AppTheme::current(cx);
         match col_ix {
             COL_NAME => div()
-                .text_size(px(14.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .truncate()
                 .child(row.name.clone())
@@ -1291,7 +1291,7 @@ fn render_change_cell(change: Option<f64>, theme: &AppTheme) -> impl IntoElement
         .justify_end()
         .items_center()
         .gap_1()
-        .text_size(px(12.))
+        .text_xs()
         .text_color(color)
         .cursor(CursorStyle::PointingHand)
         .child(Icon::new(icon).with_size(px(12.)).text_color(color))

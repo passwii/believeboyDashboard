@@ -972,7 +972,7 @@ impl TableDelegate for AdRawDelegate {
         let text = format_ad_value(row.get(col.key).unwrap_or(&serde_json::Value::Null), col.format);
         let numeric = is_numeric_format(col.format);
         div()
-            .text_size(px(13.))
+            .text_sm()
             .text_color(if numeric { theme.text_secondary } else { theme.text_primary })
             .when(numeric, |this| this.text_right())
             .child(text)
@@ -992,7 +992,7 @@ impl TableDelegate for AdRawDelegate {
             .gap_2()
             .text_color(theme.text_muted)
             .child(Icon::new(IconName::Inbox).with_size(px(24.)))
-            .child(div().text_size(px(13.)).child("当前筛选条件下没有广告原始数据"))
+            .child(div().text_sm().child("当前筛选条件下没有广告原始数据"))
     }
 }
 

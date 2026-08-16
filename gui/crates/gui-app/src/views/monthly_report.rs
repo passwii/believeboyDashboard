@@ -881,7 +881,7 @@ fn trend_card(rows: &[FinancialSeriesRow], country: &str, theme: &AppTheme) -> i
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_size(px(13.))
+                    .text_sm()
                     .text_color(theme.text_muted)
                     .child("暂无趋势数据")
             } else {
@@ -1045,7 +1045,7 @@ impl TableDelegate for MonthlyTableDelegate {
                     .items_center()
                     .child(
                         div()
-                            .text_size(px(13.))
+                            .text_sm()
                             .text_color(if tinted {
                                 theme.text_muted
                             } else {
@@ -1062,7 +1062,7 @@ impl TableDelegate for MonthlyTableDelegate {
                                 .border_1()
                                 .border_color(theme.warning.opacity(0.4))
                                 .bg(theme.warning.opacity(0.12))
-                                .text_size(px(10.))
+                                .text_xs()
                                 .text_color(theme.warning)
                                 .child("无"),
                         )
@@ -1127,7 +1127,7 @@ impl TableDelegate for MonthlyTableDelegate {
                 muted_right_cell(format_rmb(row.first_leg_cost_rmb), &theme).into_any_element()
             }
             COL_SOURCE => div()
-                .text_size(px(12.))
+                .text_xs()
                 .text_color(if row.has_source_report {
                     theme.success
                 } else {
@@ -1153,7 +1153,7 @@ impl TableDelegate for MonthlyTableDelegate {
             .gap_2()
             .text_color(theme.text_muted)
             .child(Icon::new(IconName::Inbox).with_size(px(24.)))
-            .child(div().text_size(px(13.)).child("暂无财务明细数据"))
+            .child(div().text_sm().child("暂无财务明细数据"))
             .into_any_element()
     }
 }
@@ -1162,7 +1162,7 @@ impl TableDelegate for MonthlyTableDelegate {
 fn right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
     div()
         .text_right()
-        .text_size(px(13.))
+        .text_sm()
         .text_color(theme.text_secondary)
         .child(text)
 }
@@ -1171,7 +1171,7 @@ fn right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
 fn muted_right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
     div()
         .text_right()
-        .text_size(px(13.))
+        .text_sm()
         .text_color(theme.text_muted)
         .child(text)
 }
@@ -1180,7 +1180,7 @@ fn muted_right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
 fn strong_right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
     div()
         .text_right()
-        .text_size(px(13.))
+        .text_sm()
         .font_weight(FontWeight::MEDIUM)
         .text_color(theme.text_primary)
         .child(text)

@@ -1101,7 +1101,7 @@ fn no_data_card(app_theme: &AppTheme) -> impl IntoElement {
         )
         .child(
             div()
-                .text_size(px(14.))
+                .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(app_theme.text_secondary)
                 .child("暂无库存分类账数据"),
@@ -1447,7 +1447,7 @@ fn overview_card(
         .shadow(vec![app_theme.card_shadow_box()])
         .child(
             div()
-                .text_size(px(14.))
+                .text_sm()
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(app_theme.text_primary)
                 .child(title.to_string()),

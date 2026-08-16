@@ -218,4 +218,62 @@ mod tests {
             );
         }
     }
+
+    // ---------- 排版层级契约（P4-7，BLF-762） ----------
+
+    /// 全部视图与组件的字号必须走 gpui `text_*` 字阶（theme.rs 排版层级
+    /// 章节：xs=12 / sm=14 / base=16 / lg=18 / xl=20 / 2xl=24），禁止裸
+    /// 像素字面量字号——消除散落临时字号（P4-7 审计一次性收敛 13 文件
+    /// 52 处；新代码回退会被本测试拦下）。
+    #[test]
+    fn no_raw_text_size_px_in_views_and_widgets() {
+        let files: &[(&str, &str)] = &[
+            // 视图层
+            (include_str!("../views/ad_analysis.rs"), "views/ad_analysis.rs"),
+            (include_str!("../views/ad_data.rs"), "views/ad_data.rs"),
+            (include_str!("../views/daily_analysis.rs"), "views/daily_analysis.rs"),
+            (include_str!("../views/dashboard.rs"), "views/dashboard.rs"),
+            (include_str!("../views/inventory_analysis.rs"), "views/inventory_analysis.rs"),
+            (include_str!("../views/inventory_ledger.rs"), "views/inventory_ledger.rs"),
+            (include_str!("../views/login.rs"), "views/login.rs"),
+            (include_str!("../views/mod.rs"), "views/mod.rs"),
+            (include_str!("../views/monthly_report.rs"), "views/monthly_report.rs"),
+            (include_str!("../views/placeholder.rs"), "views/placeholder.rs"),
+            (include_str!("../views/platform_inspection.rs"), "views/platform_inspection.rs"),
+            (include_str!("../views/platform_inspection_edit.rs"), "views/platform_inspection_edit.rs"),
+            (include_str!("../views/platform_revenue.rs"), "views/platform_revenue.rs"),
+            (include_str!("../views/portfolio_overview.rs"), "views/portfolio_overview.rs"),
+            (include_str!("../views/project_goals.rs"), "views/project_goals.rs"),
+            (include_str!("../views/replenishment.rs"), "views/replenishment.rs"),
+            (include_str!("../views/return_analysis.rs"), "views/return_analysis.rs"),
+            (include_str!("../views/root.rs"), "views/root.rs"),
+            (include_str!("../views/scheduled_reports.rs"), "views/scheduled_reports.rs"),
+            (include_str!("../views/seasonal_replenishment.rs"), "views/seasonal_replenishment.rs"),
+            (include_str!("../views/sidebar.rs"), "views/sidebar.rs"),
+            (include_str!("../views/site_navigation.rs"), "views/site_navigation.rs"),
+            (include_str!("../views/stat_band.rs"), "views/stat_band.rs"),
+            (include_str!("../views/store_navigation.rs"), "views/store_navigation.rs"),
+            (include_str!("../views/weekly_product_analysis.rs"), "views/weekly_product_analysis.rs"),
+            // 组件层
+            (include_str!("chart_primitives.rs"), "widgets/chart_primitives.rs"),
+            (include_str!("charts.rs"), "widgets/charts.rs"),
+            (include_str!("data_table.rs"), "widgets/data_table.rs"),
+            (include_str!("date_range.rs"), "widgets/date_range.rs"),
+            (include_str!("filter_bar.rs"), "widgets/filter_bar.rs"),
+            (include_str!("layout.rs"), "widgets/layout.rs"),
+            (include_str!("mod.rs"), "widgets/mod.rs"),
+            (include_str!("page_header.rs"), "widgets/page_header.rs"),
+            (include_str!("pagination.rs"), "widgets/pagination.rs"),
+            (include_str!("state_views.rs"), "widgets/state_views.rs"),
+            (include_str!("top_projects.rs"), "widgets/top_projects.rs"),
+        ];
+        // 模式用拼接构造，避免断言文案里的字面量自匹配（本测试源码也在 include_str! 范围内）
+        let raw_size_pat = "text_size(".to_string() + "px(";
+        for (src, path) in files {
+            assert!(
+                !src.contains(&raw_size_pat),
+                "「{path}」存在裸字号字面量：必须改走 gpui text_* 字阶（theme.rs 排版层级）"
+            );
+        }
+    }
 }
