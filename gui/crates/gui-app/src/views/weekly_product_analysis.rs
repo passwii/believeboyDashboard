@@ -1953,6 +1953,7 @@ fn details_card(
             WeeklyTab::Summary => summary_tab_body(app_theme, country, sorted_rows, summary_table),
             WeeklyTab::Details => details_tab_body(
                 app_theme,
+                country,
                 details_loading,
                 details_error,
                 details,
@@ -2019,9 +2020,12 @@ fn summary_tab_body(
         .into_any_element()
 }
 
-/// SKU 明细 tab：加载骨架 / 错误提示 / 明细表（含库存覆盖副标题）+ 合计条
+/// SKU 明细 tab：加载骨架 / 错误提示 / 明细表（含库存覆盖副标题）+ 合计条。
+/// `country` 透传到明细合计条的货币列格式化（US=$ / DE=€ / UK=£，
+/// 与明细表列同口径；BLF-723 review P0 同类修复）
 fn details_tab_body(
     app_theme: &AppTheme,
+    country: &str,
     details_loading: bool,
     details_error: Option<String>,
     details: Option<DetailsPayload>,
@@ -2113,7 +2117,7 @@ fn details_tab_body(
                         .when_some(details_table, |this, table| this.child(table)),
                 ),
         )
-        .child(detail_totals_footer(app_theme, &totals))
+        .child(detail_totals_footer(app_theme, country, &totals))
         .into_any_element()
 }
 
@@ -2127,12 +2131,30 @@ fn summary_totals_footer(
     totals_footer_common(app_theme, "weekly-product-summary-totals", totals, country)
 }
 
-/// SKU 明细合计条（同口径；「库存」列也参与求和——web sumAnyNumericColumn）
+/// SKU 明细合计条（同口径；「库存」列也参与求和——web sumAnyNumericColumn）。
+/// `country` 透传货币列币种符号——原实现硬编码 `"US"`，DE/UK 下合计条
+/// 会错显 `$`（BLF-723 review P0 同类问题，与明细表列一并修复）。
 fn detail_totals_footer(
     app_theme: &AppTheme,
+    country: &str,
     totals: &serde_json::Map<String, serde_json::Value>,
 ) -> impl IntoElement {
-    totals_footer_common(app_theme, "weekly-product-details-totals", totals, "US")
+    totals_footer_common(app_theme, "weekly-product-details-totals", totals, country)
+}
+
+/// 合计条条目序列（列名 + 格式化值；周汇总 / 明细合计条共用，
+/// 单独暴露便于单测断言货币列按 country 透传币种符号的口径）
+fn totals_footer_items(
+    totals: &serde_json::Map<String, serde_json::Value>,
+    country: &str,
+) -> Vec<(String, String)> {
+    summary_columns()
+        .into_iter()
+        .map(|column| {
+            let value = totals.get(column);
+            (column.to_string(), format_summary_cell(column, value, country))
+        })
+        .collect()
 }
 
 /// 合计条公共实现：「合计」标签 + 各指标列格式化值（比率列 ×100%；
@@ -2143,13 +2165,7 @@ fn totals_footer_common(
     totals: &serde_json::Map<String, serde_json::Value>,
     country: &str,
 ) -> impl IntoElement {
-    let items: Vec<(String, String)> = summary_columns()
-        .into_iter()
-        .map(|column| {
-            let value = totals.get(column);
-            (column.to_string(), format_summary_cell(column, value, country))
-        })
-        .collect();
+    let items = totals_footer_items(totals, country);
     h_flex()
         .id(id)
         .gap_3()
@@ -2202,9 +2218,13 @@ pub fn format_detail_cell(
 }
 
 /// 文本单元格（render_element 闭包共用；对齐由外层 cell div 的
-/// `when_align` 控制，此处只输出文本）
+/// `when_align` 控制，此处只输出文本）。
+/// 返回裸文本元素——与 DataTable 默认 render 路径同形
+/// （`cell.child((col.render)(row, &theme))` 直接放 `SharedString`），
+/// `text_align` 经 cell div 的样式栈继承；同时便于单测对闭包输出
+/// `downcast_mut::<SharedString>` 直接断言渲染文本。
 fn text_cell(value: String) -> AnyElement {
-    div().child(value).into_any_element()
+    SharedString::from(value).into_any_element()
 }
 
 /// 周汇总宽表列（周次 + 38 指标列 = 39；对齐 web 表头顺序）。
@@ -2657,8 +2677,9 @@ mod tests {
     /// detail 列货币格式化按 country 透传（BLF-723 review P0 阻塞项契约）：
     /// 用户在筛选栏切到 DE/UK 时，SKU 明细表货币列（总销售额 / 利润 /
     /// 实际销售额 / 平均售价 等 13 列）必须渲染 € / £ 而非硬编码 $。
-    /// 通过 detail_columns 的 `render_element` 闭包触发的 helper
-    /// `format_detail_cell` 验证（闭包调一次该 helper 拿到字符串）。
+    /// 直接调用 `detail_columns` 的 `render_element` 闭包，对输出元素
+    /// `downcast_mut::<SharedString>` 断言渲染文本（`text_cell` 输出裸文本
+    /// 元素）——若闭包重新硬编码 `"US"`，本测试立即失败。
     #[test]
     fn detail_columns_currency_uses_country_param() {
         // 含两条货币列 + 一条非货币列；构造固定 raw dict 供断言
@@ -2673,45 +2694,104 @@ mod tests {
         };
         let theme = AppTheme::light();
 
-        // —— US（基线，对照「DE/UK 必须 ≠ US」）——
-        let us_columns = detail_columns("US", &[]);
-        let find_currency = |country: &str| -> String {
-            let cols = detail_columns(country, &[]);
+        /// 调用指定列的 render_element 闭包并提取渲染文本
+        fn render_cell(
+            cols: &[ColumnDef<DetailTableRow>],
+            id: &str,
+            row: &DetailTableRow,
+            theme: &AppTheme,
+        ) -> String {
             let col = cols
                 .iter()
-                .find(|c| c.id == "weekly-detail-总销售额")
-                .expect("总销售额 列应存在");
+                .find(|c| c.id == id)
+                .unwrap_or_else(|| panic!("{id} 列应存在"));
             let renderer = col
                 .render_element
                 .as_ref()
-                .expect("货币列应有 render_element 闭包");
-            // 触发闭包拿 AnyElement；单纯调一次确认无 panic，且闭包已闭包到 country
-            let _ = renderer(&row, &theme);
-            // 同步通过 format_detail_cell 拿字符串断言符号（renderer 内部也走该 helper）
-            format_detail_cell("总销售额", row.raw.get("总销售额"), country)
-        };
-        assert_eq!(find_currency("US"), "-$1,234.57");
-        // —— DE：€ 不带 $；闭包必须用传入的 country 而非硬编码 US ——
-        let de_out = find_currency("DE");
-        assert!(de_out.contains('€'), "DE 总销售额应含 €：实际 {de_out}");
-        assert!(!de_out.contains('$'), "DE 总销售额不应含 $：实际 {de_out}");
-        // —— UK：£ ——
-        let uk_out = find_currency("UK");
-        assert!(uk_out.contains('£'), "UK 总销售额应含 £：实际 {uk_out}");
-        assert!(!uk_out.contains('$'), "UK 总销售额不应含 $：实际 {uk_out}");
+                .expect("指标列应有 render_element 闭包");
+            let mut element = renderer(row, theme);
+            element
+                .downcast_mut::<SharedString>()
+                .map(|s| s.as_str().to_string())
+                .expect("text_cell 应输出裸 SharedString 元素")
+        }
 
-        // 利润列同样走 currency 分档，DE/UK 也必须用对符号
-        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "US"), "$500.00");
-        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "DE"), "€500.00");
-        assert_eq!(format_detail_cell("利润", row.raw.get("利润"), "UK"), "£500.00");
+        // —— US 基线 ——
+        let us = detail_columns("US", &[]);
+        assert_eq!(
+            render_cell(&us, "weekly-detail-总销售额", &row, &theme),
+            "-$1,234.57"
+        );
+        assert_eq!(
+            render_cell(&us, "weekly-detail-利润", &row, &theme),
+            "$500.00"
+        );
+        // —— DE：闭包必须用传入的 country 而非硬编码 US ——
+        let de = detail_columns("DE", &[]);
+        assert_eq!(
+            render_cell(&de, "weekly-detail-总销售额", &row, &theme),
+            "-€1,234.57"
+        );
+        assert_eq!(
+            render_cell(&de, "weekly-detail-利润", &row, &theme),
+            "€500.00"
+        );
+        // —— UK ——
+        let uk = detail_columns("UK", &[]);
+        assert_eq!(
+            render_cell(&uk, "weekly-detail-总销售额", &row, &theme),
+            "-£1,234.57"
+        );
+        assert_eq!(
+            render_cell(&uk, "weekly-detail-利润", &row, &theme),
+            "£500.00"
+        );
 
         // 非货币列（整数）不受 country 影响
-        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "US"), "10");
-        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "DE"), "10");
-        assert_eq!(format_detail_cell("总销量", row.raw.get("总销量"), "UK"), "10");
+        assert_eq!(render_cell(&us, "weekly-detail-总销量", &row, &theme), "10");
+        assert_eq!(render_cell(&de, "weekly-detail-总销量", &row, &theme), "10");
+        assert_eq!(render_cell(&uk, "weekly-detail-总销量", &row, &theme), "10");
 
-        // detail_columns 接 country 参数；编译期已强制；这里再生成实例验证无回归
-        let _ = us_columns;
+        // 额外列同一闭包路径：渲染正常且 country 已透传（额外列为基础列
+        // 之外的键，正常不会命中货币分档，按通用数字口径渲染）
+        let mut raw_extra = raw.clone();
+        raw_extra.insert("自定义指标".into(), serde_json::json!(1234.5678));
+        let row_extra = DetailTableRow {
+            date: "2026-08-01".into(),
+            sku: "SKU-A".into(),
+            raw: raw_extra,
+        };
+        let de_extra = detail_columns("DE", &["自定义指标".to_string()]);
+        assert_eq!(
+            render_cell(&de_extra, "weekly-detail-extra-自定义指标", &row_extra, &theme),
+            "1,234.5678"
+        );
+    }
+
+    /// 合计条货币列按 country 透传（BLF-723 review P0 同类修复契约）：
+    /// 原 `detail_totals_footer` 硬编码 `"US"`，DE/UK 下明细合计条会错显 `$`；
+    /// 现 `totals_footer_items` 接 country 参数，周汇总 / 明细合计条共用同口径
+    #[test]
+    fn totals_footer_items_currency_follows_country() {
+        let mut totals = serde_json::Map::new();
+        totals.insert("总销售额".into(), serde_json::json!(1234.5));
+        totals.insert("总销量".into(), serde_json::json!(100));
+        let get = |items: &[(String, String)], label: &str| -> String {
+            items
+                .iter()
+                .find(|(l, _)| l == label)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_else(|| panic!("{label} 列应存在"))
+        };
+        let us = totals_footer_items(&totals, "US");
+        let de = totals_footer_items(&totals, "DE");
+        let uk = totals_footer_items(&totals, "UK");
+        assert_eq!(get(&us, "总销售额"), "$1,234.50");
+        assert_eq!(get(&de, "总销售额"), "€1,234.50");
+        assert_eq!(get(&uk, "总销售额"), "£1,234.50");
+        // 整数列不受 country 影响
+        assert_eq!(get(&us, "总销量"), "100");
+        assert_eq!(get(&de, "总销量"), "100");
     }
 
     /// 状态转移：项目空 → Empty；有数据 → Loaded；错误 → Error
