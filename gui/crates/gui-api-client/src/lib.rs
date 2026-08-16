@@ -24,6 +24,7 @@ pub mod platform_revenues;
 pub mod portfolio;
 pub mod project_goals;
 pub mod query;
+pub mod replenishment;
 pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod store_navigation;

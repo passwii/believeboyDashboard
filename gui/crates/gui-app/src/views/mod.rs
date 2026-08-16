@@ -28,6 +28,7 @@ pub mod platform_inspection_edit;
 pub mod platform_revenue;
 pub mod portfolio_overview;
 pub mod project_goals;
+pub mod replenishment;
 pub mod return_analysis;
 pub mod root;
 pub mod scheduled_reports;
