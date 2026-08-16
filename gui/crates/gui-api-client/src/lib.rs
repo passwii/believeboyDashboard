@@ -18,6 +18,7 @@ pub mod dashboard;
 pub mod error;
 pub mod inspections;
 pub mod inventory;
+pub mod inventory_ledger;
 pub mod monthly_reports;
 pub mod platform_revenues;
 pub mod portfolio;
