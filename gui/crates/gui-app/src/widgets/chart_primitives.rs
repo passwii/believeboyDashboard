@@ -158,7 +158,7 @@ pub fn share_legend(rows: &[ShareRow], total: f64, theme: &AppTheme) -> impl Int
                 )
                 .child(
                     div()
-                        .w(px(44.))
+                        .w_11()
                         .text_right()
                         .text_size(px(12.))
                         .text_color(theme.text_primary)

@@ -5,6 +5,8 @@ pub mod charts;
 pub mod data_table;
 pub mod date_range;
 pub mod filter_bar;
+pub mod layout;
+pub mod page_header;
 pub mod pagination;
 pub mod state_views;
 pub mod top_projects;

@@ -21,6 +21,8 @@ use gpui::{
 use gpui_component::{h_flex, v_flex, Icon, IconName, Sizable};
 
 use crate::theme::AppTheme;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use gui_domain::operations::site_navigation::{
     forum_count, forum_items, platform_count, platform_items, SiteNavigationItem, TYPE_LABEL,
 };
@@ -74,7 +76,12 @@ impl Render for SiteNavigationView {
             .p_6()
             .bg(theme.window_bg)
             .overflow_y_scroll()
-            .child(header_card(&theme, accent))
+            // 页面头部（P4-5：共享 PageHeader；此前本站点无头部）
+            .child(
+                PageHeader::new("站点导航")
+                    .subtitle("聚合主流跨境电商平台与运营入口 · 团队一键直达高频站点"),
+            )
+            .child(content_guard().child(header_card(&theme, accent)))
             .child(section(
                 "平台",
                 "核心运营入口",
@@ -344,7 +351,7 @@ fn platform_card(
                 .child(
                     // 品类描述（min-h-12 + flex-1，对齐 frontend 保证底部对齐）
                     div()
-                        .min_h(px(48.))
+                        .min_h_12()
                         .flex_1()
                         .text_sm()
                         .text_color(theme.text_muted)

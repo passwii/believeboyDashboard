@@ -42,6 +42,8 @@ use gui_domain::operations::platform_inspection::{
 use crate::theme::AppTheme;
 use crate::views::platform_inspection_edit::{ReportEditEvent, ReportEditForm};
 use crate::widgets::data_table::{ColumnDef, DataTable};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的平台巡检条目一致）
@@ -544,26 +546,13 @@ impl Render for PlatformInspectionView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区
+            // 页面头部（P4-5：共享 PageHeader 统一结构）
             .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("平台巡检"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child("定期记录账户健康状态、截图和状态说明"),
-                    ),
+                PageHeader::new("平台巡检")
+                    .subtitle("定期记录账户健康状态、截图和状态说明"),
             )
-            // tab 栏：概览 / 历史记录
-            .child(render_tab_bar(&view, self.active_tab, &theme))
+            // tab 栏：概览 / 历史记录（宽窗受内容上限约束）
+            .child(content_guard().child(render_tab_bar(&view, self.active_tab, &theme)))
             // tab 内容
             .child(match self.active_tab {
                 InspectionTab::Overview => {
@@ -849,7 +838,7 @@ fn period_summary_card(
         )
         .child(
             div()
-                .h(px(6.))
+                .h_1p5()
                 .w_full()
                 .rounded_full()
                 .bg(theme.muted_fill)

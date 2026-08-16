@@ -55,6 +55,8 @@ use crate::views::dashboard::last_7_days_window;
 use crate::widgets::chart_primitives::{donut_share_chart, share_legend, ShareRow};
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::fmt_num_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的退货分析条目一致）
@@ -539,51 +541,37 @@ impl Render for ReturnAnalysisView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区（页面层级最上层）
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("退货分析"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child(match &state {
-                                ReturnAnalysisState::Loaded(data) => format!(
-                                    "{} · {} · {} ~ {}",
-                                    project_name,
-                                    return_country_label(&data.response.country),
-                                    data.response.start_date,
-                                    data.response.end_date
-                                ),
-                                _ => "退货分析（排行 / 原因 / 趋势 / 状态 / 反馈）".to_string(),
-                            }),
-                    ),
-            )
-            // 筛选栏：项目 + 站点 + 日期区间 + 刷新（四种状态下都可见）
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("退货分析").subtitle(match &state {
+                ReturnAnalysisState::Loaded(data) => format!(
+                    "{} · {} · {} ~ {}",
+                    project_name,
+                    return_country_label(&data.response.country),
+                    data.response.start_date,
+                    data.response.end_date
+                ),
+                _ => "退货分析（排行 / 原因 / 趋势 / 状态 / 反馈）".to_string(),
+            }))
+            // 筛选栏：项目 + 站点 + 日期区间 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 &theme,
                 &self.projects,
                 self.selected_project_id,
                 self.country,
                 self.date_picker.clone(),
-            ))
-            // 状态区
+            )))
+            // 状态区（加载/错误/空态受上限约束；表格内容保留全宽）
             .child(match state {
-                ReturnAnalysisState::Loading => render_loading(&theme).into_any_element(),
-                ReturnAnalysisState::Error(msg) => {
-                    render_error(cx, &theme, &msg).into_any_element()
-                }
-                ReturnAnalysisState::Empty => {
-                    render_empty(cx, &theme, self.projects.is_empty()).into_any_element()
-                }
+                ReturnAnalysisState::Loading => content_guard()
+                    .child(render_loading(&theme))
+                    .into_any_element(),
+                ReturnAnalysisState::Error(msg) => content_guard()
+                    .child(render_error(cx, &theme, &msg))
+                    .into_any_element(),
+                ReturnAnalysisState::Empty => content_guard()
+                    .child(render_empty(cx, &theme, self.projects.is_empty()))
+                    .into_any_element(),
                 ReturnAnalysisState::Loaded(data) => {
                     self.sync_tables(&data, cx);
                     let rankings = self.rankings_table.clone().expect("已同步");
@@ -757,11 +745,11 @@ fn render_loaded(
             .size_full()
             .gap_4()
             .overflow_y_scroll()
-            // 汇总数字带（7 卡；对齐 frontend Summary Stats）
-            .child(summary_stat_cards(response, app_theme))
+            // 汇总数字带（7 卡；对齐 frontend Summary Stats；宽窗受上限约束）
+            .child(content_guard().child(summary_stat_cards(response, app_theme)))
             // tab 栏
-            .child(render_tab_bar(&view, active_tab, app_theme))
-            // 当前 tab 内容
+            .child(content_guard().child(render_tab_bar(&view, active_tab, app_theme)))
+            // 当前 tab 内容（数据表格保留全宽）
             .child(match active_tab {
                 ReturnAnalysisTab::Rankings => {
                     render_rankings_tab(response, rankings, app_theme).into_any_element()
@@ -977,7 +965,7 @@ fn summary_stat_cards(response: &ReturnAnalysisResponse, app_theme: &AppTheme) -
             v_flex()
                 .id(SharedString::from(format!("return-stat-{label}")))
                 .flex_1()
-                .min_w(px(128.))
+                .min_w_32()
                 .gap_1p5()
                 .p_3()
                 .rounded(px(app_theme.radius_lg))

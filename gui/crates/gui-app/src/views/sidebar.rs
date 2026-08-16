@@ -412,7 +412,7 @@ fn sidebar_footer(theme: &AppTheme, collapsed: bool) -> impl IntoElement {
         .flex()
         .items_center()
         .w_full()
-        .h(px(36.0))
+        .h_9()
         .px_3()
         .child(
             div()
@@ -540,7 +540,7 @@ fn render_item(
         .flex()
         .items_center()
         .w_full()
-        .h(px(32.0))
+        .h_8()
         .gap_2()
         .px_2()
         .mx_1()
@@ -576,7 +576,7 @@ fn render_item(
             move |el: Stateful<gpui::Div>, t| {
                 use gpui::Styled;
                 el.bg(lerp_hsla(bg_normal, bg_hover, t)).child(
-                    svg().path(icon_path).size(px(16.0)).text_color(lerp_hsla(
+                    svg().path(icon_path).size_4().text_color(lerp_hsla(
                         icon_normal,
                         icon_hover,
                         t,
@@ -596,7 +596,7 @@ fn render_item(
             use gpui::Styled;
             el.bg(lerp_hsla(bg_normal, bg_hover, t))
                 .text_color(lerp_hsla(text_normal, text_hover, t))
-                .child(svg().path(icon_path).size(px(16.0)).text_color(lerp_hsla(
+                .child(svg().path(icon_path).size_4().text_color(lerp_hsla(
                     icon_normal,
                     icon_hover,
                     t,

@@ -36,7 +36,7 @@ use gpui_component::{
     skeleton::Skeleton,
     spinner::Spinner,
     table::{Column, Table, TableDelegate, TableState},
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -48,6 +48,8 @@ use gui_domain::dashboard::{
 use crate::theme::AppTheme;
 use crate::views::dashboard::{last_7_days_window, previous_7_days_window};
 use crate::views::stat_band::{stat_band, stat_band_skeleton};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的销售数据条目一致）
@@ -508,29 +510,36 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
+            content_guard().child(
+                v_flex()
+                    .gap_4()
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(
+                                Spinner::new()
+                                    .small()
+                                    .color(app_theme.text_primary.opacity(0.6)),
+                            )
+                            .child(div().text_color(app_theme.text_muted).child("加载中…")),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_2()
+                            .child(div().w(px(120.)).h_6().child(Skeleton::new())),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                            .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                            .child(div().w_20().h_8().child(Skeleton::new())),
+                    )
+                    .child(stat_band_skeleton(app_theme)),
+            ),
         )
-        .child(
-            v_flex()
-                .gap_2()
-                .child(div().w(px(120.)).h(px(24.)).child(Skeleton::new())),
-        )
-        .child(
-            h_flex()
-                .gap_2()
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(80.)).h(px(32.)).child(Skeleton::new())),
-        )
-        .child(stat_band_skeleton(app_theme))
+        // 明细骨架（模拟全宽表格，不受上限约束）
         .child(div().w_full().h(px(300.)).child(Skeleton::new()))
         .child(div().w_full().h(px(300.)).child(Skeleton::new()))
 }
@@ -549,27 +558,29 @@ fn render_error(
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(
-            v_flex()
-                .w_full()
-                .gap_3()
-                .p_4()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Alert::error("daily-analysis-error", msg)
-                        .title("销售数据加载失败")
-                        .w_full(),
-                )
-                .child(
-                    div().w_full().flex().justify_end().child(
-                        Button::new("daily-analysis-error-retry")
-                            .outline()
-                            .small()
-                            .label("重试")
-                            .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+            content_guard().child(
+                v_flex()
+                    .w_full()
+                    .gap_3()
+                    .p_4()
+                    .rounded(px(app_theme.radius_lg))
+                    .bg(app_theme.card_bg)
+                    .shadow(vec![app_theme.card_shadow_box()])
+                    .child(
+                        Alert::error("daily-analysis-error", msg)
+                            .title("销售数据加载失败")
+                            .w_full(),
+                    )
+                    .child(
+                        div().w_full().flex().justify_end().child(
+                            Button::new("daily-analysis-error-retry")
+                                .outline()
+                                .small()
+                                .label("重试")
+                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+                        ),
                     ),
-                ),
+            ),
         )
 }
 
@@ -614,7 +625,7 @@ fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> im
         )
 }
 
-/// Loaded：大标题区 + 筛选栏 + 数字带 + 销售趋势 + 维度下钻 + SKU 明细表
+/// Loaded：页面头部 + 筛选栏 + 数字带 + 销售趋势 + 维度下钻 + SKU 明细表
 #[allow(clippy::too_many_arguments)]
 fn render_loaded(
     window: &mut Window,
@@ -646,48 +657,33 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            // 大标题区：标题 + 副标题（页面层级最上层）
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(app_theme.text_primary)
-                            .child("销售数据"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(app_theme.text_muted)
-                            .child(format!(
-                                "{} · {} · {} ~ {} · {} 天汇总",
-                                data.console.project_name,
-                                country_label(&data.console.country),
-                                data.console.start_date,
-                                data.console.end_date,
-                                data.console.summary_days
-                            )),
-                    ),
-            )
-            // 筛选栏：项目 + 站点 + 刷新
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("销售数据").subtitle(format!(
+                "{} · {} · {} ~ {} · {} 天汇总",
+                data.console.project_name,
+                country_label(&data.console.country),
+                data.console.start_date,
+                data.console.end_date,
+                data.console.summary_days
+            )))
+            // 筛选栏：项目 + 站点 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 app_theme,
                 &projects,
                 selected_project_id,
                 country,
-            ))
+            )))
             // 数字带（复用 stat_band；当前期 vs 对比期环比）
-            .child(stat_band(&kpi, &compare_kpi, app_theme, window, cx))
+            .child(content_guard().child(stat_band(&kpi, &compare_kpi, app_theme, window, cx)))
             // 销售趋势：图表 v1.1（P3-2）接入前用「占位说明 + 每日列表」呈现
-            .child(trend_card(&data.summary_rows, app_theme))
+            .child(content_guard().child(trend_card(&data.summary_rows, app_theme)))
             // 维度下钻（全部项目 → 项目维度；跨站点 → 国家维度；单项目单站点 → 隐藏）
+            // P4-5：数据表格保留全宽
             .when(!data.breakdown.is_empty(), |page| {
                 page.child(breakdown_card(breakdown_title, breakdown_table, app_theme))
             })
-            // SKU 明细表
+            // SKU 明细表（全宽）
             .child(detail_table),
         reduce,
     )
@@ -1002,7 +998,7 @@ fn breakdown_card(
                         .child("各维度销售额 / 订单量 / 广告花费与环比（近 7 天）"),
                 ),
         )
-        .child(div().flex_1().min_h(px(160.)).child(table))
+        .child(div().flex_1().min_h_40().child(table))
 }
 
 // ---------------------------------------------------------------------------

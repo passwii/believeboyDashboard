@@ -30,7 +30,7 @@ use gpui_component::{
     input::{Input, InputEvent, InputState},
     menu::PopupMenuItem,
     table::{Column, ColumnSort, Table, TableDelegate, TableState},
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::advertising::{
@@ -40,6 +40,8 @@ use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
 use crate::views::ad_analysis::ad_country_label;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, pagination, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告数据条目一致）
@@ -366,37 +368,21 @@ impl Render for AdDataView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("广告数据"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child(match &state {
-                                AdDataState::Loaded(data) => format!(
-                                    "{} · {} · {}",
-                                    project_name,
-                                    ad_country_label(self.country),
-                                    data.selected_type
-                                        .as_ref()
-                                        .and_then(|t| ad_report_type(t))
-                                        .map_or_else(|| "—".to_string(), |c| c.label.to_string())
-                                ),
-                                _ => "按报表类型查看广告原始数据（搜索 / 排序 / 分页）".to_string(),
-                            }),
-                    ),
-            )
-            // 筛选栏：项目 + 站点 + 报表类型 + 搜索 + 刷新
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("广告数据").subtitle(match &state {
+                AdDataState::Loaded(data) => format!(
+                    "{} · {} · {}",
+                    project_name,
+                    ad_country_label(self.country),
+                    data.selected_type
+                        .as_ref()
+                        .and_then(|t| ad_report_type(t))
+                        .map_or_else(|| "—".to_string(), |c| c.label.to_string())
+                ),
+                _ => "按报表类型查看广告原始数据（搜索 / 排序 / 分页）".to_string(),
+            }))
+            // 筛选栏：项目 + 站点 + 报表类型 + 搜索 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 &theme,
                 &self.projects,
@@ -405,22 +391,23 @@ impl Render for AdDataView {
                 &self.available_types,
                 self.selected_report_type.as_deref(),
                 self.search_input.clone(),
-            ))
-            // 状态区
+            )))
+            // 状态区（加载/错误/空态受上限约束；原始数据表格保留全宽）
             .child(match state {
-                AdDataState::Loading => {
-                    v_flex()
-                        .id("ad-data-loading")
-                        .gap_4()
-                        .child(state_views::loading_state(&theme, "加载中…"))
-                        .child(
-                            div()
-                                .w_full()
-                                .h(px(320.))
-                                .child(gpui_component::skeleton::Skeleton::new()),
-                        )
-                        .into_any_element()
-                }
+                AdDataState::Loading => content_guard()
+                    .child(
+                        v_flex()
+                            .id("ad-data-loading")
+                            .gap_4()
+                            .child(state_views::loading_state(&theme, "加载中…"))
+                            .child(
+                                div()
+                                    .w_full()
+                                    .h_80()
+                                    .child(gpui_component::skeleton::Skeleton::new()),
+                            ),
+                    )
+                    .into_any_element(),
                 AdDataState::Error(msg) => state_views::error_state(
                     &view,
                     &theme,
@@ -1184,7 +1171,7 @@ impl Render for AdRawTable {
             return v_flex()
                 .id("ad-data-table-empty")
                 .w_full()
-                .h(px(320.))
+                .h_80()
                 .items_center()
                 .justify_center()
                 .text_color(AppTheme::current(cx).text_muted)

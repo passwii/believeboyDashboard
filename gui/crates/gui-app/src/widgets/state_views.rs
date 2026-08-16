@@ -23,6 +23,7 @@ use gpui_component::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::layout::content_guard;
 
 /// Loading：Spinner + 文案（默认「加载中…」）
 pub fn loading_state(
@@ -58,12 +59,12 @@ pub fn loading_state_with_skeleton(theme: &AppTheme) -> impl IntoElement {
                         .rounded(px(theme.radius_lg))
                         .bg(theme.card_bg)
                         .shadow(vec![theme.card_shadow_box()])
-                        .child(div().w(px(64.)).child(Skeleton::new()))
-                        .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
-                        .child(div().w(px(80.)).child(Skeleton::new()))
+                        .child(div().w_16().child(Skeleton::new()))
+                        .child(div().w_24().h_7().child(Skeleton::new()))
+                        .child(div().w_20().child(Skeleton::new()))
                 })),
         )
-        .child(div().w_full().h(px(160.)).child(Skeleton::new()))
+        .child(div().w_full().h_40().child(Skeleton::new()))
         .child(div().w_full().h(px(240.)).child(Skeleton::new()))
 }
 
@@ -72,6 +73,8 @@ pub fn loading_state_with_skeleton(theme: &AppTheme) -> impl IntoElement {
 /// `view` 是宿主视图实体，`on_retry` 是「重试」点击时在视图上执行的动作
 /// （如 `|this, cx| this.reload(cx)`）——闭包捕获方式与既有视图一致，
 /// 由组件内部完成 `view.update` 接线。
+///
+/// P4-5：卡片随 [`content_guard`] 受内容上限约束（宽窗不拉伸）。
 pub fn error_state<V: 'static>(
     view: &Entity<V>,
     theme: &AppTheme,
@@ -82,25 +85,27 @@ pub fn error_state<V: 'static>(
     on_retry: impl Fn(&mut V, &mut gpui::Context<V>) + 'static + Copy,
 ) -> impl IntoElement {
     let view_for_retry = view.clone();
-    v_flex()
-        .id(id)
-        .gap_3()
-        .p_4()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(Alert::error(id, message.into()).title(title).w_full())
-        .child(
-            div().w_full().flex().justify_end().child(
-                Button::new(SharedString::from(format!("{id}-retry")))
-                    .outline()
-                    .small()
-                    .label("重试")
-                    .on_click(move |_, _, cx| {
-                        view_for_retry.update(cx, |this, cx| on_retry(this, cx));
-                    }),
+    content_guard().child(
+        v_flex()
+            .id(id)
+            .gap_3()
+            .p_4()
+            .rounded(px(theme.radius_lg))
+            .bg(theme.card_bg)
+            .shadow(vec![theme.card_shadow_box()])
+            .child(Alert::error(id, message.into()).title(title).w_full())
+            .child(
+                div().w_full().flex().justify_end().child(
+                    Button::new(SharedString::from(format!("{id}-retry")))
+                        .outline()
+                        .small()
+                        .label("重试")
+                        .on_click(move |_, _, cx| {
+                            view_for_retry.update(cx, |this, cx| on_retry(this, cx));
+                        }),
+                ),
             ),
-        )
+    )
 }
 
 /// Empty：Icon + 文案（无按钮），包在卡片外壳里（公共 API 面）
@@ -146,7 +151,7 @@ pub fn empty_state_with_action<V: 'static>(
     )
 }
 
-/// Empty 卡片外壳（icon + 文案 + 可选按钮）
+/// Empty 卡片外壳（icon + 文案 + 可选按钮；P4-5：随 [`content_guard`] 受宽窗上限）
 fn empty_card(
     id: &'static str,
     theme: &AppTheme,
@@ -154,29 +159,31 @@ fn empty_card(
     text: SharedString,
     action: Option<gpui::AnyElement>,
 ) -> impl IntoElement {
-    v_flex()
-        .id(id)
-        .items_center()
-        .justify_center()
-        .gap_3()
-        .px_8()
-        .py_10()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            Icon::new(Icon::empty())
-                .path(icon_path)
-                .with_size(px(40.))
-                .text_color(theme.text_muted.opacity(0.7)),
-        )
-        .child(
-            div()
-                .text_size(px(14.))
-                .text_color(theme.text_muted)
-                .child(text),
-        )
-        .when(action.is_some(), |this| this.child(action.expect("已判 Some")))
+    content_guard().child(
+        v_flex()
+            .id(id)
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .px_8()
+            .py_10()
+            .rounded(px(theme.radius_lg))
+            .bg(theme.card_bg)
+            .shadow(vec![theme.card_shadow_box()])
+            .child(
+                Icon::new(Icon::empty())
+                    .path(icon_path)
+                    .with_size(px(40.))
+                    .text_color(theme.text_muted.opacity(0.7)),
+            )
+            .child(
+                div()
+                    .text_size(px(14.))
+                    .text_color(theme.text_muted)
+                    .child(text),
+            )
+            .when(action.is_some(), |this| this.child(action.expect("已判 Some"))),
+    )
 }
 
 /// 空态文案图标（业务视图默认用 `icons/package.svg`；`empty_state` 可自由指定；

@@ -53,6 +53,8 @@ use crate::theme::AppTheme;
 use crate::widgets::chart_primitives::{ShareRow, chart_area, chart_empty, donut_share_chart};
 use crate::widgets::data_table::{ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的组合分析条目一致）
@@ -744,33 +746,17 @@ impl Render for PortfolioOverviewView {
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            // 大标题区：标题 + 副标题（页面层级最上层）
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(app_theme.text_primary)
-                            .child("组合分析"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(app_theme.text_muted)
-                            .child(subtitle),
-                    ),
-            )
-            // 筛选栏：项目多选 + 站点 + 日期区间 + 刷新
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("组合分析").subtitle(subtitle))
+            // 筛选栏：项目多选 + 站点 + 日期区间 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 &app_theme,
                 &self.projects,
                 &self.selected_project_ids,
                 self.country,
                 self.picker.clone(),
-            ))
+            )))
             // 状态区
             .child(match state {
                 PortfolioState::Loading => render_loading(&app_theme).into_any_element(),
@@ -839,8 +825,8 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                         .rounded(px(app_theme.radius_lg))
                         .bg(app_theme.card_bg)
                         .shadow(vec![app_theme.card_shadow_box()])
-                        .child(div().w(px(64.)).child(Skeleton::new()))
-                        .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
+                        .child(div().w_16().child(Skeleton::new()))
+                        .child(div().w_24().h_7().child(Skeleton::new()))
                 })),
         )
         .child(div().w_full().h(px(300.)).child(Skeleton::new()))
@@ -866,31 +852,33 @@ fn render_loaded(
         v_flex()
             .id("portfolio-overview-loaded")
             .gap_4()
-            // KPI 卡（5 张）
-            .child(kpi_cards(&data.summary, data.country.as_str(), app_theme))
+            // KPI 卡（5 张；宽窗受内容上限约束）
+            .child(content_guard().child(kpi_cards(&data.summary, data.country.as_str(), app_theme)))
             // tab 栏
-            .child(render_tab_bar(view, active_tab, app_theme))
-            // tab 内容
+            .child(content_guard().child(render_tab_bar(view, active_tab, app_theme)))
+            // tab 内容（对比表 = 数据表格保留全宽；趋势/贡献为图表内容受上限约束）
             .child(match active_tab {
                 PortfolioTab::Comparison => {
                     comparison_card(comparison_table, app_theme).into_any_element()
                 }
-                PortfolioTab::Trend => trend_panel(
-                    view,
-                    &data.summary,
-                    trend_metric,
-                    &data.country,
-                    app_theme,
-                )
-                .into_any_element(),
-                PortfolioTab::Contribution => contribution_panel(
-                    view,
-                    &data.summary,
-                    pie_metric,
-                    &data.country,
-                    app_theme,
-                )
-                .into_any_element(),
+                PortfolioTab::Trend => content_guard()
+                    .child(trend_panel(
+                        view,
+                        &data.summary,
+                        trend_metric,
+                        &data.country,
+                        app_theme,
+                    ))
+                    .into_any_element(),
+                PortfolioTab::Contribution => content_guard()
+                    .child(contribution_panel(
+                        view,
+                        &data.summary,
+                        pie_metric,
+                        &data.country,
+                        app_theme,
+                    ))
+                    .into_any_element(),
             }),
         reduce,
     )
@@ -1567,7 +1555,7 @@ fn contribution_legend(
                 )
                 .child(
                     div()
-                        .w(px(48.))
+                        .w_12()
                         .text_right()
                         .text_size(px(12.))
                         .text_color(theme.text_primary)

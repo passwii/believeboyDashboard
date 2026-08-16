@@ -29,13 +29,15 @@ use gpui_component::{
     skeleton::Skeleton,
     spinner::Spinner,
     table::{Column, Table, TableDelegate, TableState},
-    v_flex, Icon, IconName, Sizable, StyledExt,
+    v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::finance::PlatformRevenueItem;
 
 use crate::theme::AppTheme;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的平台回款条目一致）
 pub const PLATFORM_REVENUE_URL: &str = "/dashboard/finance/platform-revenue";
@@ -529,11 +531,11 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .child(
             h_flex()
                 .gap_2()
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(120.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(112.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(140.)).h(px(32.)).child(Skeleton::new()))
-                .child(div().w(px(80.)).h(px(32.)).child(Skeleton::new())),
+                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                .child(div().w(px(120.)).h_8().child(Skeleton::new()))
+                .child(div().w(px(112.)).h_8().child(Skeleton::new()))
+                .child(div().w(px(140.)).h_8().child(Skeleton::new()))
+                .child(div().w_20().h_8().child(Skeleton::new())),
         )
         .child(div().w_full().h(px(360.)).child(Skeleton::new()))
 }
@@ -617,7 +619,7 @@ fn render_empty(cx: &mut Context<PlatformRevenueView>, app_theme: &AppTheme) -> 
         )
 }
 
-/// Loaded：大标题区 + 筛选栏 + 回款列表表（合计行 + 分页）
+/// Loaded：页面头部 + 筛选栏 + 回款列表表（合计行 + 分页）
 #[allow(clippy::too_many_arguments)]
 fn render_loaded(
     cx: &mut Context<PlatformRevenueView>,
@@ -644,42 +646,26 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            // 大标题区
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(app_theme.text_primary)
-                            .child("平台回款"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(app_theme.text_muted)
-                            .child(format!(
-                                "共 {} 条 · 第 {} / {} 页 · 合计 {}",
-                                data.total,
-                                data.page,
-                                data.total_pages,
-                                if totals_text.is_empty() {
-                                    "—".to_string()
-                                } else {
-                                    totals_text
-                                }
-                            )),
-                    ),
-            )
-            // 筛选栏
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("平台回款").subtitle(format!(
+                "共 {} 条 · 第 {} / {} 页 · 合计 {}",
+                data.total,
+                data.page,
+                data.total_pages,
+                if totals_text.is_empty() {
+                    "—".to_string()
+                } else {
+                    totals_text
+                }
+            )))
+            // 筛选栏（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 app_theme,
                 &projects,
                 &filters,
-            ))
-            // 回款列表表（含合计行）
+            )))
+            // 回款列表表（含合计行；P4-5：数据表格保留全宽）
             .child(table)
             // 分页条
             .child(pagination_bar(

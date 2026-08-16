@@ -33,7 +33,7 @@ use chrono::{Days, NaiveDate};
 use gpui::{div, prelude::*, px, App, AsyncApp, Context, Entity, Render, WeakEntity, Window};
 use gpui_component::{
     alert::Alert, button::Button, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, Icon,
-    Sizable, StyledExt,
+    Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -42,6 +42,8 @@ use std::collections::HashMap;
 
 use crate::theme::AppTheme;
 use crate::views::stat_band::{stat_band, stat_band_skeleton};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::{TopProjectRow, TopProjectsWidget};
 
 /// 项目 ID（对齐 `ManagedProject.id`，i64）
@@ -383,11 +385,11 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
             // 大标题骨架
             v_flex()
                 .gap_2()
-                .child(div().w(px(120.)).h(px(24.)).child(Skeleton::new())),
+                .child(div().w(px(120.)).h_6().child(Skeleton::new())),
         )
         .child(
             // 顶部项目选择器占位
-            div().w(px(180.)).h(px(36.)).child(Skeleton::new()),
+            div().w(px(180.)).h_9().child(Skeleton::new()),
         )
         .child(
             // KPI 数字带占位（GUI-7：6 张骨架卡，数字位置放 Skeleton）
@@ -419,8 +421,8 @@ fn chart_card_skeleton(app_theme: &AppTheme) -> impl IntoElement {
         .child(
             v_flex()
                 .gap_1()
-                .child(div().w(px(96.)).child(Skeleton::new()))
-                .child(div().w(px(160.)).child(Skeleton::new())),
+                .child(div().w_24().child(Skeleton::new()))
+                .child(div().w_40().child(Skeleton::new())),
         )
         .child(div().w_full().h(px(220.)).child(Skeleton::new()))
 }
@@ -442,27 +444,29 @@ fn render_error(
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(
-            v_flex()
-                .w_full()
-                .gap_3()
-                .p_4()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Alert::error("dashboard-error", msg)
-                        .title("数据加载失败")
-                        .w_full(),
-                )
-                .child(
-                    div().w_full().flex().justify_end().child(
-                        Button::new("dashboard-error-retry")
-                            .outline()
-                            .small()
-                            .label("重试")
-                            .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+            content_guard().child(
+                v_flex()
+                    .w_full()
+                    .gap_3()
+                    .p_4()
+                    .rounded(px(app_theme.radius_lg))
+                    .bg(app_theme.card_bg)
+                    .shadow(vec![app_theme.card_shadow_box()])
+                    .child(
+                        Alert::error("dashboard-error", msg)
+                            .title("数据加载失败")
+                            .w_full(),
+                    )
+                    .child(
+                        div().w_full().flex().justify_end().child(
+                            Button::new("dashboard-error-retry")
+                                .outline()
+                                .small()
+                                .label("重试")
+                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
+                        ),
                     ),
-                ),
+            ),
         )
 }
 
@@ -509,9 +513,9 @@ fn render_empty(cx: &mut Context<DashboardView>, app_theme: &AppTheme) -> impl I
         )
 }
 
-/// Loaded：大标题区 + 数字带 + 图表占位网格 + Top 项目列表
+/// Loaded：页面头部 + 数字带 + 图表网格 + Top 项目列表
 ///
-/// P2-4（BLF-691）页面级层级：大标题 + 副标题（对齐 frontend page 头部）、
+/// P2-4（BLF-691）页面级层级：头部（P4-5 起为共享 PageHeader）、
 /// `gap_4` 分组间距、`overflow_y_scroll` 页面滚动（内容超出 800px 窗口时可滚，
 /// 不再裁切）。卡片语言统一（KPI / 图表 / Top 列表都是 radius_lg + 轻投影）。
 fn render_loaded(
@@ -539,34 +543,18 @@ fn render_loaded(
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            .child(
-                // 大标题区：标题 + 副标题（页面层级最上层）
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(app_theme.text_primary)
-                            .child("数据看板"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(app_theme.text_muted)
-                            .child(format!(
-                                "已加载：{} 个项目 · 近 7 天 {} 天聚合数据",
-                                data.projects.len(),
-                                day_count
-                            )),
-                    ),
-            )
-            // GUI-7：数字带（6 张 KPI 卡 + 环比 delta，数据口径复用 gui-domain KpiSummary）
-            .child(stat_band(&kpi, &comparison, app_theme, window, cx))
-            // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar，数据源 = daily-analysis 管线）
-            .child(crate::widgets::charts::render_chart_grid(data, app_theme))
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("数据看板").subtitle(format!(
+                "已加载：{} 个项目 · 近 7 天 {} 天聚合数据",
+                data.projects.len(),
+                day_count
+            )))
+            // GUI-7：数字带（6 张 KPI 卡 + 环比 delta；宽窗受内容上限约束）
+            .child(content_guard().child(stat_band(&kpi, &comparison, app_theme, window, cx)))
+            // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar）
+            .child(content_guard().child(crate::widgets::charts::render_chart_grid(data, app_theme)))
             // Top 项目列表（GUI-9 / 1.0-d）
-            .child(div().w_full().child(top_projects)),
+            .child(content_guard().child(div().w_full().child(top_projects))),
         reduce,
     )
 }

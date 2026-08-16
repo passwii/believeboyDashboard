@@ -407,9 +407,9 @@ fn skeleton_card(theme: &AppTheme) -> impl IntoElement {
         .rounded(px(theme.radius_lg))
         .bg(theme.card_bg)
         .shadow(vec![theme.card_shadow_box()])
-        .child(div().w(px(64.)).child(Skeleton::new()))
-        .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
-        .child(div().w(px(80.)).child(Skeleton::new()))
+        .child(div().w_16().child(Skeleton::new()))
+        .child(div().w_24().h_7().child(Skeleton::new()))
+        .child(div().w_20().child(Skeleton::new()))
 }
 
 #[cfg(test)]

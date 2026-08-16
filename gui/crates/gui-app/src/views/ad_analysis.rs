@@ -42,6 +42,8 @@ use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告分析条目一致）
@@ -365,51 +367,37 @@ impl Render for AdAnalysisView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区（页面层级最上层）
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("广告分析"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child(match &state {
-                                AdAnalysisState::Loaded(data) => format!(
-                                    "{} · {} · {} ~ {}",
-                                    project_name,
-                                    ad_country_label(&data.overview.country),
-                                    data.date_from,
-                                    data.date_to
-                                ),
-                                _ => "广告分析概览（指标卡 / 周期对比 / 趋势）".to_string(),
-                            }),
-                    ),
-            )
-            // 筛选栏：项目 + 站点 + 刷新（四种状态下都可见）
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader 统一结构；副标题随筛选上下文）
+            .child(PageHeader::new("广告分析").subtitle(match &state {
+                AdAnalysisState::Loaded(data) => format!(
+                    "{} · {} · {} ~ {}",
+                    project_name,
+                    ad_country_label(&data.overview.country),
+                    data.date_from,
+                    data.date_to
+                ),
+                _ => "广告分析概览（指标卡 / 周期对比 / 趋势）".to_string(),
+            }))
+            // 筛选栏：项目 + 站点 + 刷新（四种状态下都可见；宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 &theme,
                 &self.projects,
                 self.selected_project_id,
                 self.country,
                 self.date_picker.clone(),
-            ))
+            )))
             // 状态区
             .child(match state {
-                AdAnalysisState::Loading => render_loading(&theme).into_any_element(),
-                AdAnalysisState::Error(msg) => {
-                    render_error(cx, &theme, &msg).into_any_element()
-                }
-                AdAnalysisState::Empty => {
-                    render_empty(cx, &theme, self.selected_project_id.is_none()).into_any_element()
-                }
+                AdAnalysisState::Loading => content_guard()
+                    .child(render_loading(&theme))
+                    .into_any_element(),
+                AdAnalysisState::Error(msg) => content_guard()
+                    .child(render_error(cx, &theme, &msg))
+                    .into_any_element(),
+                AdAnalysisState::Empty => content_guard()
+                    .child(render_empty(cx, &theme, self.selected_project_id.is_none()))
+                    .into_any_element(),
                 AdAnalysisState::Loaded(data) => {
                     self.sync_top_tables(&data, cx);
                     let campaigns = self.top_campaigns_table.clone().expect("已同步");
@@ -453,12 +441,12 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                         .rounded(px(app_theme.radius_lg))
                         .bg(app_theme.card_bg)
                         .shadow(vec![app_theme.card_shadow_box()])
-                        .child(div().w(px(64.)).child(Skeleton::new()))
-                        .child(div().w(px(96.)).h(px(28.)).child(Skeleton::new()))
-                        .child(div().w(px(80.)).child(Skeleton::new()))
+                        .child(div().w_16().child(Skeleton::new()))
+                        .child(div().w_24().h_7().child(Skeleton::new()))
+                        .child(div().w_20().child(Skeleton::new()))
                 })),
         )
-        .child(div().w_full().h(px(160.)).child(Skeleton::new()))
+        .child(div().w_full().h_40().child(Skeleton::new()))
         .child(div().w_full().h(px(240.)).child(Skeleton::new()))
 }
 
@@ -544,18 +532,19 @@ fn render_loaded(
     v_flex()
         .id("ad-analysis-loaded")
         .gap_4()
-        // 指标卡（display_value 已由后端格式化）
-        .child(metric_cards(&overview.metrics, app_theme))
+        // 指标卡（display_value 已由后端格式化；宽窗受内容上限约束）
+        .child(content_guard().child(metric_cards(&overview.metrics, app_theme)))
         // 周期对比（有对比数据时）
         .when(overview.comparison.is_some(), |page| {
-            page.child(comparison_card(
+            page.child(content_guard().child(comparison_card(
                 overview.comparison.as_ref().expect("已判 Some"),
                 app_theme,
-            ))
+            )))
         })
         // 近 7 日趋势
-        .child(trend_card(&overview.trend_summary, app_theme))
+        .child(content_guard().child(trend_card(&overview.trend_summary, app_theme)))
         // Top 表：高消耗活动 / 高消耗 SKU / 浪费搜索词
+        // （P4-5：数据表格保留全宽，不受内容上限约束）
         .child(
             h_flex()
                 .id("ad-analysis-top-grid")
@@ -565,15 +554,17 @@ fn render_loaded(
                 .child(top_products_card(app_theme, products))
                 .child(top_waste_terms_card(app_theme, waste)),
         )
-        // 结构化分析 + 风险提醒
+        // 结构化分析 + 风险提醒（卡片内容，宽窗受上限约束）
         .child(
-            h_flex()
-                .id("ad-analysis-insight-grid")
-                .gap_4()
-                .items_start()
-                .flex_wrap()
-                .child(narrative_card(&overview.narrative_sections, app_theme))
-                .child(issue_card(&overview.issue_cards, app_theme)),
+            content_guard().child(
+                h_flex()
+                    .id("ad-analysis-insight-grid")
+                    .gap_4()
+                    .items_start()
+                    .flex_wrap()
+                    .child(narrative_card(&overview.narrative_sections, app_theme))
+                    .child(issue_card(&overview.issue_cards, app_theme)),
+            ),
         )
 }
 
@@ -901,7 +892,7 @@ fn trend_card(rows: &[AdTrendRow], app_theme: &AppTheme) -> impl IntoElement {
         .child(
             div()
                 .id("ad-analysis-trend-scroll")
-                .max_h(px(320.))
+                .max_h_80()
                 .overflow_y_scroll()
                 .child(trend_table(rows, app_theme)),
         )

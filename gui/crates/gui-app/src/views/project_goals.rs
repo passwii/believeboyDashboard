@@ -34,7 +34,7 @@ use gpui_component::{
     h_flex,
     input::{Input, InputEvent, InputState},
     menu::PopupMenuItem,
-    v_flex, Disableable, Icon, IconName, Sizable, StyledExt,
+    v_flex, Disableable, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -45,6 +45,8 @@ use gui_domain::operations::project_goals::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::{
     data_table::{ColumnDef, DataTable},
     filter_bar, state_views,
@@ -640,7 +642,7 @@ fn progress_bar(value: f64, is_past_incomplete: bool, theme: &AppTheme) -> impl 
     };
     div()
         .w_full()
-        .h(px(8.0))
+        .h_2()
         .rounded_full()
         .bg(theme.muted_fill)
         .relative()
@@ -697,41 +699,25 @@ impl Render for ProjectGoalsView {
             .p_6()
             .overflow_y_scroll()
             .bg(theme.window_bg)
-            // 大标题区
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_semibold()
-                            .text_color(theme.text_primary)
-                            .child("项目目标"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child(match &state {
-                                ProjectGoalsState::Loaded(data) => format!(
-                                    "{} · {} · {} 年 · 月度/年度销售目标设定与进度",
-                                    project_label,
-                                    country_label(self.country),
-                                    data.progress.year
-                                ),
-                                _ => "月度/年度销售目标设定与完成进度（写操作即时生效）".to_string(),
-                            }),
-                    ),
-            )
-            // 筛选栏：项目 + 国家 + 年份 + 刷新
-            .child(render_filter_bar(
+            // 页面头部（P4-5：共享 PageHeader）
+            .child(PageHeader::new("项目目标").subtitle(match &state {
+                ProjectGoalsState::Loaded(data) => format!(
+                    "{} · {} · {} 年 · 月度/年度销售目标设定与进度",
+                    project_label,
+                    country_label(self.country),
+                    data.progress.year
+                ),
+                _ => "月度/年度销售目标设定与完成进度（写操作即时生效）".to_string(),
+            }))
+            // 筛选栏：项目 + 国家 + 年份 + 刷新（宽窗受内容上限约束）
+            .child(content_guard().child(render_filter_bar(
                 &view,
                 &theme,
                 &self.projects,
                 self.selected_project_id,
                 self.country,
                 self.year,
-            ))
+            )))
             // 状态区
             .child(match state {
                 ProjectGoalsState::Loading => {
@@ -742,7 +728,7 @@ impl Render for ProjectGoalsView {
                         .child(
                             div()
                                 .w_full()
-                                .h(px(320.))
+                                .h_80()
                                 .child(gpui_component::skeleton::Skeleton::new()),
                         )
                         .into_any_element()
@@ -984,53 +970,55 @@ fn render_loaded(
         v_flex()
             .id("project-goals-loaded")
             .gap_4()
-            // ── 本月进度（三环 + 指标块）──
+            // ── 本月进度（三环 + 指标块；卡片内容受宽窗上限约束）──
             .when(current_month_progress.is_some(), |this| {
                 let m = current_month_progress.as_ref().expect("已判 Some");
                 this.child(
-                    v_flex()
-                        .gap_3()
-                        .child(
-                            h_flex()
-                                .gap_2()
-                                .items_center()
-                                .child(
-                                    Icon::empty()
-                                        .path("icons/bar-chart-3.svg")
-                                        .with_size(px(14.))
-                                        .text_color(app_theme.accent),
-                                )
-                                .child(
-                                    div()
-                                        .text_sm()
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(app_theme.text_muted)
-                                        .child(format!("本月进度 · {}", m.month_label)),
-                                ),
-                        )
-                        .child(
-                            v_flex()
-                                .rounded(px(app_theme.radius_lg))
-                                .bg(app_theme.card_bg)
-                                .shadow(vec![app_theme.card_shadow_box()])
-                                .p_5()
-                                .gap_5()
-                                .child(concentric_rings_section(
-                                    m, symbol, app_theme, reduce,
-                                ))
-                                .child(div().h_px().bg(app_theme.separator))
-                                .child(detail_cards(
-                                    m,
-                                    &data.progress,
-                                    symbol,
-                                    view,
-                                    app_theme,
-                                )),
-                        ),
+                    content_guard().child(
+                        v_flex()
+                            .gap_3()
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .items_center()
+                                    .child(
+                                        Icon::empty()
+                                            .path("icons/bar-chart-3.svg")
+                                            .with_size(px(14.))
+                                            .text_color(app_theme.accent),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(app_theme.text_muted)
+                                            .child(format!("本月进度 · {}", m.month_label)),
+                                    ),
+                            )
+                            .child(
+                                v_flex()
+                                    .rounded(px(app_theme.radius_lg))
+                                    .bg(app_theme.card_bg)
+                                    .shadow(vec![app_theme.card_shadow_box()])
+                                    .p_5()
+                                    .gap_5()
+                                    .child(concentric_rings_section(
+                                        m, symbol, app_theme, reduce,
+                                    ))
+                                    .child(div().h_px().bg(app_theme.separator))
+                                    .child(detail_cards(
+                                        m,
+                                        &data.progress,
+                                        symbol,
+                                        view,
+                                        app_theme,
+                                    )),
+                            ),
+                    ),
                 )
             })
-            // ── Tabs：进度概览 / 目标管理 ──
-            .child(render_tab_bar(view, active_tab, app_theme))
+            // ── Tabs：进度概览 / 目标管理（表格 tab 保留全宽）──
+            .child(content_guard().child(render_tab_bar(view, active_tab, app_theme)))
             .child(match active_tab {
                 GoalsTab::Progress => {
                     v_flex()

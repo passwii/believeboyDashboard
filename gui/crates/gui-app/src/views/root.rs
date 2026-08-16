@@ -11,13 +11,16 @@
 //! （跟随系统亮/暗），「外观」菜单（跟随系统/浅色/深色三态切换）迁入内容区头部。
 //! P4-1（BLF-707）窗口 Chrome 重构：**移除跨全宽 gpui-component `TitleBar`**——主窗口
 //! 改为经典左右结构，侧栏全高从窗口顶部开始（系统 traffic lights 悬于侧栏头部之上，
-//! 头部顶部留避让区）；右侧内容区头部 = 业务标题 + 面包屑路径 + 外观菜单 + 用户/退出；
+//! 头部顶部留避让区）；右侧内容区头部 = 面包屑路径 + 外观菜单 + 用户/退出；
+//! P4-5（BLF-760）标题去重：chrome 头部不再重复渲染业务标题（此前 text_base 标题 +
+//! 面包屑末项 + 页面 text_2xl 大标题三层重复），仅保留面包屑路径作导航上下文；
+//! 页面标题唯一来源 = 各视图 [`crate::widgets::page_header::PageHeader`] 大标题。
 //! 折叠态下展开按钮位于内容区头部最左，侧栏只剩 56px 图标轨道。
 
 use gpui::prelude::*;
 use gpui::{
     div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
-    FontWeight, MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
+    MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
@@ -122,7 +125,8 @@ pub struct RootView {
     show_inventory_analysis: bool,
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
-    /// TitleBar 左侧显示的当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）
+    /// 内容区当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）。
+    /// P4-5 起 chrome 头部不再渲染该标题（去重），仅用于面包屑兜底与测试断言。
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
     breadcrumb: Vec<String>,
@@ -759,9 +763,9 @@ impl Render for RootView {
                     .h_full()
                     .flex_col()
                     .bg(theme.window_bg)
-                    // P4-1：内容区头部 = 业务标题 + 面包屑 + 外观菜单 + 用户/退出
+                    // P4-1：内容区头部 = 面包屑 + 外观菜单 + 用户/退出
+                    // P4-5：业务标题去重——头部只留面包屑，标题由页面 PageHeader 承载
                     .child(content_header(
-                        &self.current_title,
                         &self.breadcrumb,
                         self.sidebar_collapsed,
                         &self.session,
@@ -791,12 +795,13 @@ impl Focusable for RootView {
     }
 }
 
-/// 右侧内容区头部（P4-1）：左侧 = 业务标题 + 面包屑路径（折叠态下最左还有
+/// 右侧内容区头部（P4-1；P4-5 标题去重）：左侧 = 面包屑路径（折叠态下最左还有
 /// 「展开侧栏」按钮），右侧 = 外观菜单 + 已登录用户 + 退出登录。
+/// 业务标题不在头部渲染——chrome 标题与页面 PageHeader 大标题重复，
+/// 去重后头部仅保留面包屑导航上下文（决策见 BLF-760 完成评论）。
 /// 原跨全宽 `TitleBar`（P2-1）的职责迁入此处——主窗口不再有顶部工具栏，
 /// 侧栏全高从窗口顶部开始，系统 traffic lights 悬于侧栏头部之上。
 fn content_header(
-    title: &str,
     breadcrumb: &[String],
     collapsed: bool,
     session: &Option<SessionInfo>,
@@ -823,20 +828,7 @@ fn content_header(
                 .flex_1()
                 .min_w_0()
                 .when(collapsed, |this| this.child(expand_sidebar_button(cx)))
-                .child(
-                    div()
-                        .flex_col()
-                        .min_w_0()
-                        .child(
-                            div()
-                                .text_base()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(theme.text_primary)
-                                .truncate()
-                                .child(title.to_string()),
-                        )
-                        .child(breadcrumb_row(breadcrumb)),
-                ),
+                .child(breadcrumb_row(breadcrumb)),
         )
         .child(theme_switcher(cx))
         .child(session_cluster(session, theme, cx))
@@ -877,7 +869,6 @@ fn breadcrumb_row(path: &[String]) -> impl IntoElement {
     }
     div()
         .id("content-breadcrumb")
-        .mt_0p5()
         .text_xs()
         .child(Breadcrumb::new().children(path.iter().map(|s| BreadcrumbItem::new(s.clone()))))
 }
@@ -1706,4 +1697,72 @@ mod tests {
         sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
         cx.read(|app| assert!(view.read(app).sidebar_collapsed));
     }
+
+    /// P4-5（BLF-760）渲染冒烟：侧栏展开/折叠 × 亮/暗 四态交叉——每态都渲染
+    /// 完整根视图（chrome 头部 + 站点导航内容视图，后者经共享 PageHeader 渲染
+    /// 页面头部），断言折叠状态与主题态跟随。标题去重后 chrome 头部仅面包屑，
+    /// 四态下都不得 panic。
+    #[gpui::test]
+    async fn root_render_smoke_collapse_cross_theme(cx: &mut gpui::TestAppContext) {
+        for dark in [false, true] {
+            for collapsed in [false, true] {
+                cx.update(|cx| {
+                    gpui_component::init(cx);
+                    set_theme_pref(
+                        if dark {
+                            ThemePreference::Dark
+                        } else {
+                            ThemePreference::Light
+                        },
+                        None,
+                        cx,
+                    );
+                });
+                let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
+                let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+                // 切到站点导航（真实视图，含共享 PageHeader 页面头部）
+                sidebar.update(cx, |this, cx| this.select(SITE_NAV_URL, "站点导航", cx));
+                cx.read(|app| {
+                    let root = view.read(app);
+                    assert!(root.show_site_navigation, "应显示站点导航视图");
+                    assert_eq!(root.breadcrumb.last().map(String::as_str), Some("站点导航"));
+                });
+
+                // 折叠态切换
+                if collapsed {
+                    sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
+                }
+                cx.read(|app| {
+                    assert_eq!(view.read(app).sidebar_collapsed, collapsed);
+                    assert_eq!(AppTheme::current(app).is_dark(), dark);
+                });
+
+                // 再展开回弹（覆盖同窗口内二次切换路径）
+                if collapsed {
+                    sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
+                    cx.read(|app| assert!(!view.read(app).sidebar_collapsed));
+                }
+            }
+        }
+    }
+
+    /// P4-5 标题去重回归锁：chrome 头部（content_header）不再渲染业务标题——
+    /// root.rs 源码中不得再出现字重加粗标记（此前业务标题用 SEMIBOLD 渲染），
+    /// 且头部注释声明「头部仅面包屑」。页面标题唯一来源 = 各视图 PageHeader。
+    #[test]
+    fn chrome_header_has_no_business_title() {
+        let root_src = include_str!("root.rs");
+        // 拆分字面量避免 include_str! 自引用（本测试源码也含该词）
+        let font_weight = ["Font", "Weight"].concat();
+        assert!(
+            !root_src.contains(&font_weight),
+            "chrome 头部不得再渲染业务标题（字重加粗标记应已从 root.rs 移除）"
+        );
+        assert!(
+            root_src.contains("仅保留面包屑"),
+            "content_header 文档应声明仅保留面包屑"
+        );
+    }
+
 }
