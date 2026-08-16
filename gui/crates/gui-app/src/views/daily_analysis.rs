@@ -29,12 +29,9 @@ use gpui::{
     SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
     table::{Column, Table, TableDelegate, TableState},
     v_flex, Icon, IconName, Sizable,
 };
@@ -47,9 +44,10 @@ use gui_domain::dashboard::{
 
 use crate::theme::AppTheme;
 use crate::views::dashboard::{last_7_days_window, previous_7_days_window};
-use crate::views::stat_band::{stat_band, stat_band_skeleton};
+use crate::views::stat_band::stat_band;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的销售数据条目一致）
@@ -500,7 +498,10 @@ impl Render for DailyAnalysisView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：顶部筛选占位 + 数字带骨架 + 趋势/明细卡骨架（与正式布局同构）
+/// Loading：Spinner 行 + 声明式骨架块（标题 / 筛选 / 数字带 / 明细表）
+///
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合，
+/// 数字带用 `Kpi(6)`（对齐原 stat_band_skeleton 的 6 卡观感）。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("daily-analysis-loading")
@@ -510,46 +511,27 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(
-            content_guard().child(
-                v_flex()
-                    .gap_4()
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(
-                                Spinner::new()
-                                    .small()
-                                    .color(app_theme.text_primary.opacity(0.6)),
-                            )
-                            .child(div().text_color(app_theme.text_muted).child("加载中…")),
-                    )
-                    .child(
-                        v_flex()
-                            .gap_2()
-                            .child(div().w(px(120.)).h_6().child(Skeleton::new())),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(div().w(px(140.)).h_8().child(Skeleton::new()))
-                            .child(div().w(px(140.)).h_8().child(Skeleton::new()))
-                            .child(div().w_20().h_8().child(Skeleton::new())),
-                    )
-                    .child(stat_band_skeleton(app_theme)),
-            ),
+            content_guard().child(state_views::skeleton_loading(
+                app_theme,
+                &[
+                    SkeletonBlock::Title,
+                    SkeletonBlock::Filter(3),
+                    SkeletonBlock::Kpi(6),
+                ],
+            )),
         )
         // 明细骨架（模拟全宽表格，不受上限约束）
-        .child(div().w_full().h(px(300.)).child(Skeleton::new()))
-        .child(div().w_full().h(px(300.)).child(Skeleton::new()))
+        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
+        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
 }
 
-/// Error：内联 Alert + 重试按钮（对齐 dashboard.rs）
+/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
     cx: &mut Context<DailyAnalysisView>,
     app_theme: &AppTheme,
     msg: &str,
 ) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("daily-analysis-error")
         .size_full()
@@ -557,35 +539,19 @@ fn render_error(
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            content_guard().child(
-                v_flex()
-                    .w_full()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(app_theme.radius_lg))
-                    .bg(app_theme.card_bg)
-                    .shadow(vec![app_theme.card_shadow_box()])
-                    .child(
-                        Alert::error("daily-analysis-error", msg)
-                            .title("销售数据加载失败")
-                            .w_full(),
-                    )
-                    .child(
-                        div().w_full().flex().justify_end().child(
-                            Button::new("daily-analysis-error-retry")
-                                .outline()
-                                .small()
-                                .label("重试")
-                                .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                        ),
-                    ),
-            ),
-        )
+        .child(state_views::error_state(
+            &view,
+            app_theme,
+            "daily-analysis-error",
+            "销售数据加载失败",
+            msg.to_string(),
+            |this, cx| this.reload(cx),
+        ))
 }
 
-/// Empty：Icon + 文案 + 刷新按钮（暂无销售数据）
+/// Empty：Icon + 文案 + 刷新按钮（State 0 公共组件 `empty_state_with_action`）
 fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("daily-analysis-empty")
         .size_full()
@@ -594,35 +560,15 @@ fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> im
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(
-            v_flex()
-                .items_center()
-                .gap_3()
-                .px_8()
-                .py_10()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Icon::new(Icon::empty())
-                        .path("icons/package.svg")
-                        .with_size(px(40.))
-                        .text_color(app_theme.text_muted.opacity(0.7)),
-                )
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .text_color(app_theme.text_muted)
-                        .child("暂无销售数据"),
-                )
-                .child(
-                    Button::new("daily-analysis-empty-refresh")
-                        .outline()
-                        .small()
-                        .label("刷新")
-                        .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                ),
-        )
+        .child(state_views::empty_state_with_action(
+            &view,
+            app_theme,
+            "daily-analysis-empty",
+            "icons/package.svg",
+            "暂无销售数据",
+            "刷新",
+            |this, cx| this.reload(cx),
+        ))
 }
 
 /// Loaded：页面头部 + 筛选栏 + 数字带 + 销售趋势 + 维度下钻 + SKU 明细表
@@ -1932,6 +1878,30 @@ mod tests {
             gpui_component::init(cx);
         });
         let view = create_view(cx);
+        let (_host, _cx2) =
+            cx.add_window_view(|_window, _cx| DailyAnalysisHost { view: view.clone() });
+    }
+
+    /// P4-6（BLF-761）三态统一冒烟：Empty 态（无项目 → 统一空态卡片）可渲染不 panic。
+    #[gpui::test]
+    async fn daily_analysis_empty_state_renders(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+        });
+        let view = create_view(cx);
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(
+                    1,
+                    Ok(DailyAnalysisData {
+                        projects: Vec::new(),
+                        ..sample_data()
+                    }),
+                    cx,
+                );
+            });
+        });
         let (_host, _cx2) =
             cx.add_window_view(|_window, _cx| DailyAnalysisHost { view: view.clone() });
     }

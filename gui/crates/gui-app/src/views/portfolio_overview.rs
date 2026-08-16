@@ -42,7 +42,6 @@ use gpui_component::{
     chart::AreaChart,
     h_flex,
     menu::PopupMenuItem,
-    skeleton::Skeleton,
     v_flex, Icon, Sizable, StyledExt,
 };
 use gui_api_client::Client;
@@ -55,7 +54,8 @@ use crate::widgets::data_table::{ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::{filter_bar, state_views};
+use crate::widgets::state_views::{self, SkeletonBlock};
+use crate::widgets::{filter_bar};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的组合分析条目一致）
 pub const PORTFOLIO_URL: &str = "/dashboard/operations/portfolio-overview";
@@ -808,29 +808,18 @@ fn empty_message(view: &PortfolioOverviewView) -> String {
     }
 }
 
-/// Loading：Spinner + 骨架占位（KPI 卡 + 图表）
+/// Loading：Spinner + 声明式骨架块（KPI 卡 + 图表）
+///
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("portfolio-overview-loading")
-        .gap_4()
-        .child(state_views::loading_state(app_theme, "加载中…"))
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..5).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .shadow(vec![app_theme.card_shadow_box()])
-                        .child(div().w_16().child(Skeleton::new()))
-                        .child(div().w_24().h_7().child(Skeleton::new()))
-                })),
-        )
-        .child(div().w_full().h(px(300.)).child(Skeleton::new()))
-        .child(div().w_full().h(px(220.)).child(Skeleton::new()))
+    state_views::skeleton_loading(
+        app_theme,
+        &[
+            SkeletonBlock::Kpi(5),
+            SkeletonBlock::Chart(300.0),
+            SkeletonBlock::Chart(220.0),
+        ],
+    )
 }
 
 /// Loaded：KPI 卡 + tab 栏 + 对应内容

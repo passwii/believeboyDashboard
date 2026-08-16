@@ -21,7 +21,7 @@
 
 use gpui::{div, prelude::*, px, App, AnimationExt, Div, Hsla, IntoElement, ParentElement, SharedString, Stateful, Styled, Window};
 use gpui_component::{
-    h_flex, skeleton::Skeleton, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt,
+    h_flex, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt,
 };
 use gui_domain::dashboard::KpiSummary;
 
@@ -224,14 +224,6 @@ pub fn stat_band(
         )
 }
 
-/// 加载态：6 张骨架卡（数字位置放 Skeleton，对齐 frontend loading 骨架结构）
-pub fn stat_band_skeleton(theme: &AppTheme) -> impl IntoElement {
-    h_flex()
-        .id("stat-band-skeleton")
-        .gap_3()
-        .children((0..6).map(|_| skeleton_card(theme)))
-}
-
 /// 单张 KPI 卡：label + 环比 delta（右上）+ 大数字
 ///
 /// P2-4（BLF-691）原生卡片质感：`radius_lg` 圆角 + 柔和轻投影 + hover 浅底反馈
@@ -396,20 +388,6 @@ fn delta_row(abs_delta: f64, color: Hsla, icon: IconName, label: &'static str) -
         .tooltip(move |window, cx| Tooltip::new(DELTA_TOOLTIP).build(window, cx))
         .child(Icon::new(icon).with_size(px(12.)).text_color(color))
         .child(div().child(format!("{abs_delta:.1}%")))
-}
-
-/// 骨架卡：label / 数字 / delta 三档占位（对齐 frontend V2Stats loading 结构）
-fn skeleton_card(theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .flex_1()
-        .gap_2()
-        .p_4()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(div().w_16().child(Skeleton::new()))
-        .child(div().w_24().h_7().child(Skeleton::new()))
-        .child(div().w_20().child(Skeleton::new()))
 }
 
 #[cfg(test)]

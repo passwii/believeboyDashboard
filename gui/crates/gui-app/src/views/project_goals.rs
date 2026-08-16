@@ -51,6 +51,7 @@ use crate::widgets::{
     data_table::{ColumnDef, DataTable},
     filter_bar, state_views,
 };
+use crate::widgets::state_views::SkeletonBlock;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的项目目标条目一致）
 pub const PROJECT_GOALS_URL: &str = "/dashboard/operations/project-goals";
@@ -721,16 +722,7 @@ impl Render for ProjectGoalsView {
             // 状态区
             .child(match state {
                 ProjectGoalsState::Loading => {
-                    v_flex()
-                        .id("project-goals-loading")
-                        .gap_4()
-                        .child(state_views::loading_state(&theme, "加载中…"))
-                        .child(
-                            div()
-                                .w_full()
-                                .h_80()
-                                .child(gpui_component::skeleton::Skeleton::new()),
-                        )
+                    state_views::skeleton_loading(&theme, &[SkeletonBlock::Table(320.0)])
                         .into_any_element()
                 }
                 ProjectGoalsState::Error(msg) => state_views::error_state(

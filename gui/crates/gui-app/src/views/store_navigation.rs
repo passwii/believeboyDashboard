@@ -26,7 +26,7 @@ use gpui::{
     div, prelude::*, px, rgb, ClickEvent, Context, Entity, FontWeight, Hsla, Render, SharedString,
     Window,
 };
-use gpui_component::{skeleton::Skeleton, h_flex, v_flex, Icon, IconName, Sizable};
+use gpui_component::{h_flex, v_flex, Icon, IconName, Sizable};
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 
@@ -34,7 +34,7 @@ use crate::theme::AppTheme;
 use crate::views::site_navigation::grid_columns;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::state_views;
+use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的店铺导航条目一致）
 pub const STORE_NAV_URL: &str = "/dashboard/operations/store-navigation";
@@ -229,7 +229,8 @@ impl Render for StoreNavigationView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：Spinner + 6 张卡片骨架（对齐 frontend `CardListSkeleton count={6}`）
+/// Loading：Spinner + 卡片网格骨架（对齐 frontend `CardListSkeleton count={6}`；
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合）
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("store-nav-loading")
@@ -239,25 +240,13 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(page_header())
-        .child(state_views::loading_state(app_theme, "加载中…"))
-        .child(
-            div()
-                .grid()
-                .grid_cols(2)
-                .gap_2()
-                .children((0..6).map(|_| {
-                    v_flex()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .border_1()
-                        .border_color(app_theme.separator)
-                        .bg(app_theme.card_bg)
-                        .child(div().w_24().h(px(18.)).child(Skeleton::new()))
-                        .child(div().w_16().h_4().child(Skeleton::new()))
-                        .child(div().w_full().h_10().child(Skeleton::new()))
-                })),
-        )
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[SkeletonBlock::CardGrid {
+                count: 6,
+                columns: 2,
+            }],
+        ))
 }
 
 /// Error：内联 Alert + 重试按钮（Stage 0 `state_views::error_state`）

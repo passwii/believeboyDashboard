@@ -33,13 +33,10 @@ use gpui::{
     SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    alert::Alert,
     button::Button,
     chart::AreaChart,
     h_flex,
     menu::{DropdownMenu, PopupMenuItem},
-    skeleton::Skeleton,
-    spinner::Spinner,
     v_flex, Icon, IconName, Sizable, StyledExt,
 };
 use gui_api_client::Client;
@@ -53,6 +50,7 @@ use gui_domain::operations::return_analysis::{
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::chart_primitives::{donut_share_chart, share_legend, ShareRow};
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
@@ -604,119 +602,71 @@ impl Render for ReturnAnalysisView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：顶部筛选占位 + 数字带骨架 + 卡片骨架（与正式布局同构）
+/// Loading：顶部筛选占位 + 数字带骨架 + 卡片骨架
+///
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合
+/// （隔离条用 `BarRow`，卡片带用 `BarRow` 高卡近似）。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("return-analysis-loading")
         .size_full()
         .gap_4()
         .overflow_y_scroll()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    Spinner::new()
-                        .small()
-                        .color(app_theme.text_primary.opacity(0.6)),
-                )
-                .child(div().text_color(app_theme.text_muted).child("加载中…")),
-        )
-        .child(
-            h_flex()
-                .gap_2()
-                .children((0..7).map(|_| div().h(px(72.)).flex_1().child(Skeleton::new()))),
-        )
-        .child(h_flex().gap_2().children((0..7).map(|_| {
-            div()
-                .h(px(180.))
-                .flex_1()
-                .min_w(px(120.))
-                .child(Skeleton::new())
-        })))
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[
+                // 隔离条（原 7 个 72px 等宽条）
+                SkeletonBlock::BarRow(7, 72.0),
+                // 卡片带（原 7 张 180px 等宽卡）
+                SkeletonBlock::BarRow(7, 180.0),
+            ],
+        ))
 }
 
-/// Error：内联 Alert + 重试按钮（对齐 ad_analysis.rs）
+/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
     cx: &mut Context<ReturnAnalysisView>,
     app_theme: &AppTheme,
     msg: &str,
 ) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("return-analysis-error")
         .size_full()
         .gap_4()
         .overflow_y_scroll()
-        .child(
-            v_flex()
-                .w_full()
-                .gap_3()
-                .p_4()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Alert::error("return-analysis-error", msg)
-                        .title("退货分析加载失败")
-                        .w_full(),
-                )
-                .child(
-                    div().w_full().flex().justify_end().child(
-                        Button::new("return-analysis-error-retry")
-                            .outline()
-                            .small()
-                            .label("重试")
-                            .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                    ),
-                ),
-        )
+        .child(state_views::error_state(
+            &view,
+            app_theme,
+            "return-analysis-error",
+            "退货分析加载失败",
+            msg.to_string(),
+            |this, cx| this.reload(cx),
+        ))
 }
 
-/// Empty：Icon + 文案 + 刷新按钮（无项目或无退货数据）
+/// Empty：Icon + 文案 + 刷新按钮（State 0 公共组件 `empty_state_with_action`）
 fn render_empty(
     cx: &mut Context<ReturnAnalysisView>,
     app_theme: &AppTheme,
     no_projects: bool,
 ) -> impl IntoElement {
+    let view = cx.entity();
     v_flex()
         .id("return-analysis-empty")
         .size_full()
         .items_center()
         .justify_center()
         .overflow_y_scroll()
-        .child(
-            v_flex()
-                .items_center()
-                .gap_3()
-                .px_8()
-                .py_10()
-                .rounded(px(app_theme.radius_lg))
-                .bg(app_theme.card_bg)
-                .shadow(vec![app_theme.card_shadow_box()])
-                .child(
-                    Icon::new(Icon::empty())
-                        .path("icons/package.svg")
-                        .with_size(px(40.))
-                        .text_color(app_theme.text_muted.opacity(0.7)),
-                )
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .text_color(app_theme.text_muted)
-                        .child(if no_projects {
-                            "暂无可用项目"
-                        } else {
-                            "暂无退货数据"
-                        }),
-                )
-                .child(
-                    Button::new("return-analysis-empty-refresh")
-                        .outline()
-                        .small()
-                        .label("刷新")
-                        .on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                ),
-        )
+        .child(state_views::empty_state_with_action(
+            &view,
+            app_theme,
+            "return-analysis-empty",
+            "icons/package.svg",
+            if no_projects { "暂无可用项目" } else { "暂无退货数据" },
+            "刷新",
+            |this, cx| this.reload(cx),
+        ))
 }
 
 /// Loaded：汇总数字带 + tab 栏 + 当前 tab 内容

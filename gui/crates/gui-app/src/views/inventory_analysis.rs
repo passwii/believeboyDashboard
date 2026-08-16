@@ -47,7 +47,6 @@ use gpui_component::{
     button::Button,
     h_flex,
     menu::PopupMenuItem,
-    skeleton::Skeleton,
     v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
@@ -61,7 +60,8 @@ use crate::theme::AppTheme;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::{filter_bar, state_views};
+use crate::widgets::state_views::{self, SkeletonBlock};
+use crate::widgets::{filter_bar};
 use crate::widgets::top_projects::fmt_num_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
@@ -394,7 +394,9 @@ impl Render for InventoryAnalysisView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：Spinner + 筛选骨架 + 统计卡骨架 + 表格骨架（与正式布局同构）
+/// Loading：Spinner + 声明式骨架块（标题 / 筛选 / 统计卡 / 表格）
+///
+/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合。
 fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("inventory-analysis-loading")
@@ -403,35 +405,15 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .p_6()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
-        .child(state_views::loading_state(app_theme, "加载中…"))
-        .child(
-            v_flex()
-                .gap_2()
-                .child(div().w(px(120.)).h_6().child(Skeleton::new())),
-        )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..3).map(|_| {
-                    div().w(px(140.)).h_8().child(Skeleton::new())
-                })),
-        )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..4).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .child(div().w_6().h_4().child(Skeleton::new()))
-                        .child(div().w_16().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
-        .child(div().w_full().h_80().child(Skeleton::new()))
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[
+                SkeletonBlock::Title,
+                SkeletonBlock::Filter(3),
+                SkeletonBlock::Kpi(4),
+                SkeletonBlock::Table(320.0),
+            ],
+        ))
 }
 
 /// Error：内联 Alert + 重试按钮（Stage 0 `state_views::error_state`）
