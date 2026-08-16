@@ -52,6 +52,9 @@ use crate::views::seasonal_replenishment::{
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
+use crate::views::weekly_product_analysis::{
+    WeeklyProductAnalysisView, WEEKLY_PRODUCT_URL,
+};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -106,6 +109,8 @@ pub struct RootView {
     replenishment: Option<Entity<ReplenishmentView>>,
     /// 运营 → 季节性补货分析真实视图（P5-2；点击「运营 → 季节性补货分析」懒创建）
     seasonal_replenishment: Option<Entity<SeasonalReplenishmentView>>,
+    /// 运营 → 按周产品分析真实视图（P5-2；点击「运营 → 按周产品分析」懒创建）
+    weekly_product: Option<Entity<WeeklyProductAnalysisView>>,
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
     platform_inspection: Option<Entity<PlatformInspectionView>>,
     /// 内容区当前是否显示 Dashboard 着陆页（侧栏选中任意项后切换为占位视图）
@@ -140,6 +145,8 @@ pub struct RootView {
     show_replenishment: bool,
     /// 内容区当前是否显示季节性补货分析视图（sidebar Select 命中 SEASONAL_REPLENISHMENT_URL 时置真）
     show_seasonal_replenishment: bool,
+    /// 内容区当前是否显示按周产品分析视图（sidebar Select 命中 WEEKLY_PRODUCT_URL 时置真）
+    show_weekly_product: bool,
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
     /// 内容区当前视图标题（着陆页为 "Dashboard"，选中侧栏项后跟随）。
@@ -207,6 +214,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.store_navigation.get_or_insert_with(|| {
@@ -236,6 +244,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.daily_analysis.get_or_insert_with(|| {
@@ -265,6 +274,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.portfolio_overview.get_or_insert_with(|| {
@@ -294,6 +304,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -325,6 +336,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ad_data.get_or_insert_with(|| {
@@ -352,6 +364,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.monthly_report.get_or_insert_with(|| {
@@ -381,6 +394,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.platform_revenue.get_or_insert_with(|| {
@@ -410,6 +424,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
                         // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -440,6 +455,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == PROJECT_GOALS_URL {
                         // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.project_goals.get_or_insert_with(|| {
@@ -469,6 +485,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.return_analysis.get_or_insert_with(|| {
@@ -498,6 +515,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_analysis.get_or_insert_with(|| {
@@ -527,6 +545,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_ledger.get_or_insert_with(|| {
@@ -556,6 +575,7 @@ impl RootView {
                         this.show_inventory_ledger = true;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.replenishment.get_or_insert_with(|| {
@@ -585,6 +605,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = true;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
                     {
@@ -615,6 +636,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                         this.show_platform_inspection = true;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -645,6 +667,37 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = true;
+                        this.show_weekly_product = false;
+                    } else if url == WEEKLY_PRODUCT_URL {
+                        // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.weekly_product.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = WeeklyProductAnalysisView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -662,6 +715,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
                             content.url = url.clone();
@@ -693,6 +747,7 @@ impl RootView {
             inventory_ledger: None,
             replenishment: None,
             seasonal_replenishment: None,
+            weekly_product: None,
             platform_inspection: None,
             show_dashboard,
             show_site_navigation: false,
@@ -710,6 +765,7 @@ impl RootView {
             show_inventory_ledger: false,
             show_replenishment: false,
             show_seasonal_replenishment: false,
+            show_weekly_product: false,
             show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
@@ -764,6 +820,8 @@ impl RootView {
             "replenishment"
         } else if self.show_seasonal_replenishment {
             "seasonal-replenishment"
+        } else if self.show_weekly_product {
+            "weekly-product-analysis"
         } else if self.show_platform_inspection {
             "platform-inspection"
         } else {
@@ -855,6 +913,11 @@ impl RootView {
             )
         } else if self.show_seasonal_replenishment {
             self.seasonal_replenishment.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_weekly_product {
+            self.weekly_product.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -1438,6 +1501,11 @@ mod tests {
                 "seasonal-replenishment",
             ),
             (
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "weekly-product-analysis",
+            ),
+            (
                 "/dashboard/operations/platform-inspection",
                 "平台巡检",
                 "platform-inspection",
@@ -1697,6 +1765,57 @@ mod tests {
                 "/dashboard/operations/seasonal-replenishment",
                 "季节性补货分析",
                 "seasonal-replenishment",
+            ),
+            // P5-2：按周产品分析 ↔ 相邻业务视图两步切换（锁 WEEKLY_PRODUCT_URL
+            // 分支与既有分支的 show_weekly_product 复位完整）
+            (
+                "/dashboard/operations/seasonal-replenishment",
+                "季节性补货分析",
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "weekly-product-analysis",
+            ),
+            (
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "/dashboard/operations/seasonal-replenishment",
+                "季节性补货分析",
+                "seasonal-replenishment",
+            ),
+            (
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "platform-inspection",
+            ),
+            (
+                "/dashboard/operations/platform-inspection",
+                "平台巡检",
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "weekly-product-analysis",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "weekly-product-analysis",
+            ),
+            (
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "inventory-analysis",
+            ),
+            (
+                "/dashboard/operations/inventory-analysis",
+                "库存分析",
+                "/dashboard/operations/weekly-product-analysis",
+                "按周产品分析",
+                "weekly-product-analysis",
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {

@@ -8,3 +8,4 @@ pub mod replenishment;
 pub mod return_analysis;
 pub mod seasonal_replenishment;
 pub mod site_navigation;
+pub mod weekly_product_analysis;

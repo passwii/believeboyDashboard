@@ -29,6 +29,7 @@ pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
 pub mod store_navigation;
+pub mod weekly_product_analysis;
 
 // 常用类型在 crate 根暴露，避免 `gui_api_client::client::Client` 这种深路径
 pub use client::{Client, ClientConfig};
