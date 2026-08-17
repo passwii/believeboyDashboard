@@ -25,6 +25,7 @@ pub mod portfolio;
 pub mod project_goals;
 pub mod query;
 pub mod replenishment;
+pub mod research_analysis;
 pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
