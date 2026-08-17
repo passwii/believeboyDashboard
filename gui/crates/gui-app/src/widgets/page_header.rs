@@ -199,6 +199,7 @@ mod tests {
             (include_str!("../views/platform_revenue.rs"), "平台回款"),
             (include_str!("../views/portfolio_overview.rs"), "组合分析"),
             (include_str!("../views/project_goals.rs"), "项目目标"),
+            (include_str!("../views/research_analysis.rs"), "调研分析"),
             (include_str!("../views/return_analysis.rs"), "退货分析"),
             (include_str!("../views/scheduled_reports.rs"), "定时报告"),
             (include_str!("../views/site_navigation.rs"), "站点导航"),
