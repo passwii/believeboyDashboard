@@ -27,6 +27,7 @@ pub mod platform_inspection;
 pub mod platform_inspection_edit;
 pub mod platform_revenue;
 pub mod portfolio_overview;
+pub mod product_analysis;
 pub mod project_goals;
 pub mod replenishment;
 pub mod research_analysis;
