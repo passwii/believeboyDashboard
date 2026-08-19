@@ -22,6 +22,7 @@ pub mod inventory_analysis;
 pub mod inventory_ledger;
 pub mod login;
 pub mod monthly_report;
+pub mod new_product_calculation;
 pub mod placeholder;
 pub mod platform_inspection;
 pub mod platform_inspection_edit;
