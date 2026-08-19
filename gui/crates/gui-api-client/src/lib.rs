@@ -31,6 +31,7 @@ pub mod research_analysis;
 pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
+pub mod shipment_schedules;
 pub mod store_navigation;
 pub mod weekly_product_analysis;
 

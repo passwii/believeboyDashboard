@@ -36,6 +36,7 @@ pub mod return_analysis;
 pub mod root;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
+pub mod shipment_management;
 pub mod sidebar;
 pub mod site_navigation;
 pub mod stat_band;
