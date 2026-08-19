@@ -2,6 +2,7 @@
 
 pub mod inventory;
 pub mod inventory_ledger;
+pub mod new_product_calculation;
 pub mod platform_inspection;
 pub mod product_analysis;
 pub mod project_goals;

@@ -22,6 +22,7 @@ pub mod inventory_ledger;
 pub mod monthly_reports;
 pub mod platform_revenues;
 pub mod portfolio;
+pub mod pricing_calculation;
 pub mod product_analysis;
 pub mod project_goals;
 pub mod query;
