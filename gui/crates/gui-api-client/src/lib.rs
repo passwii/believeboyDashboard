@@ -13,6 +13,7 @@
 
 pub mod advertising;
 pub mod auth;
+pub mod auto_upload;
 pub mod client;
 pub mod dashboard;
 pub mod error;

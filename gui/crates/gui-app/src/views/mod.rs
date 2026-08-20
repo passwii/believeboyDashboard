@@ -5,6 +5,7 @@
 //! - `sidebar`    侧栏（8 大分类 52 子项，数据权威在 gui-domain::sidebar）
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
+//! - `auto_upload` 报表中心 → 报表自动化（P5-4，RPA 自动上传状态矩阵，只读查看）
 //! - `stat_band`  Dashboard 数字带（GUI-7 / 1.0-b，frontend v2-stats 的 GPUI 等价）
 //! - `site_navigation` 站点导航（GUI-12 / 2.0，静态数据，点击卡片默认浏览器打开）
 //! - `daily_analysis` 运营 → 销售数据（P3-1，四态状态机 + 项目/国家筛选 + 明细/下钻表）
@@ -16,6 +17,7 @@
 //! > 显示（对齐 Web /dashboard 首页），侧栏选中任意项后切换到对应占位视图。
 pub mod ad_analysis;
 pub mod ad_data;
+pub mod auto_upload;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod inventory_analysis;

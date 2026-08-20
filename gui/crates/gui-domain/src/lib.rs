@@ -19,6 +19,7 @@
 
 pub mod auth;
 pub mod advertising;
+pub mod auto_upload;
 pub mod common;
 pub mod filter;
 pub mod dashboard;

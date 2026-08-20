@@ -33,6 +33,7 @@ use gui_domain::sidebar::breadcrumb_for;
 use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
 use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
+use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
@@ -103,6 +104,8 @@ pub struct RootView {
     platform_revenue: Option<Entity<PlatformRevenueView>>,
     /// 报表中心 → 定时报告真实视图（P3-5；点击「报表中心 → 定时报告」懒创建）
     scheduled_reports: Option<Entity<ScheduledReportsView>>,
+    /// 报表中心 → 报表自动化真实视图（P5-4；点击「报表中心 → 报表自动化」懒创建）
+    auto_upload: Option<Entity<AutoUploadView>>,
     /// 运营 → 组合分析真实视图（P5-1；点击「运营 → 组合分析」懒创建）
     portfolio_overview: Option<Entity<PortfolioOverviewView>>,
     /// 运营 → 项目目标真实视图（P5-1；点击「运营 → 项目目标」懒创建）
@@ -149,6 +152,8 @@ pub struct RootView {
     show_platform_revenue: bool,
     /// 内容区当前是否显示定时报告视图（sidebar Select 命中 SCHEDULED_REPORTS_URL 时置真）
     show_scheduled_reports: bool,
+    /// 内容区当前是否显示报表自动化视图（sidebar Select 命中 AUTO_UPLOAD_URL 时置真）
+    show_auto_upload: bool,
     /// 内容区当前是否显示组合分析视图（sidebar Select 命中 PORTFOLIO_URL 时置真）
     show_portfolio_overview: bool,
     /// 内容区当前是否显示项目目标视图（sidebar Select 命中 PROJECT_GOALS_URL 时置真）
@@ -528,6 +533,42 @@ impl RootView {
                         this.show_product_analysis = false;
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
+
+                    } else if url == AUTO_UPLOAD_URL {
+                        // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.auto_upload.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = AutoUploadView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_new_product_calculation = false;
+                        this.show_shipment_management = false;
+                        this.show_auto_upload = true;
 
                     } else if url == PROJECT_GOALS_URL {
                         // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -992,6 +1033,7 @@ impl RootView {
             monthly_report: None,
             platform_revenue: None,
             scheduled_reports: None,
+        auto_upload: None,
             portfolio_overview: None,
             project_goals: None,
             return_analysis: None,
@@ -1027,6 +1069,7 @@ impl RootView {
             show_product_analysis: false,
             show_new_product_calculation: false,
             show_shipment_management: false,
+        show_auto_upload: false,
 
             show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
@@ -1094,6 +1137,8 @@ impl RootView {
             "shipment-management"
         } else if self.show_platform_inspection {
             "platform-inspection"
+        } else if self.show_auto_upload {
+            "auto-upload"
         } else {
             "placeholder"
         }
@@ -1213,6 +1258,11 @@ impl RootView {
             )
         } else if self.show_platform_inspection {
             self.platform_inspection.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_auto_upload {
+            self.auto_upload.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )

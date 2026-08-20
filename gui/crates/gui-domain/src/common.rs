@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// 字段对齐 frontend `frontend/types/api-generated/api.d.ts` 的 `ProjectItem` schema；
 /// 带 `#[serde(default)]` 的字段对应 Pydantic 默认值（is_active=true /
 /// has_context=false / vat_enabled=false），缺省时也能反序列化。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ManagedProject {
     pub id: i64,
     pub name: String,
