@@ -202,6 +202,7 @@ mod tests {
             (include_str!("../views/research_analysis.rs"), "调研分析"),
             (include_str!("../views/return_analysis.rs"), "退货分析"),
             (include_str!("../views/scheduled_reports.rs"), "定时报告"),
+            (include_str!("../views/auto_upload.rs"), "报表自动化"),
             (include_str!("../views/site_navigation.rs"), "站点导航"),
             (include_str!("../views/store_navigation.rs"), "店铺导航"),
         ];
@@ -249,6 +250,7 @@ mod tests {
             (include_str!("../views/return_analysis.rs"), "views/return_analysis.rs"),
             (include_str!("../views/root.rs"), "views/root.rs"),
             (include_str!("../views/scheduled_reports.rs"), "views/scheduled_reports.rs"),
+            (include_str!("../views/auto_upload.rs"), "views/auto_upload.rs"),
             (include_str!("../views/seasonal_replenishment.rs"), "views/seasonal_replenishment.rs"),
             (include_str!("../views/sidebar.rs"), "views/sidebar.rs"),
             (include_str!("../views/site_navigation.rs"), "views/site_navigation.rs"),
