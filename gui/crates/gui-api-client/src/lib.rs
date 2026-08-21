@@ -21,6 +21,7 @@ pub mod inspections;
 pub mod inventory;
 pub mod inventory_ledger;
 pub mod monthly_reports;
+pub mod order_info;
 pub mod platform_revenues;
 pub mod portfolio;
 pub mod pricing_calculation;
