@@ -1,7 +1,8 @@
-//! CRM 客户与合作伙伴领域类型（P5-7，BLF-742）
+//! CRM 客户与合作伙伴领域类型（P5-7，BLF-742 / BLF-743）
 //!
 //! 字段对齐 backend `backend/app/schemas/crm.py` 的 `DashboardStats` /
-//! `LifecycleBoard` 系列模型，与 web 端 `frontend/lib/crm/types/dashboard.ts`
+//! `LifecycleBoard` / `FollowUpItem` / `FollowUpGroups` 系列模型，与 web 端
+//! `frontend/lib/crm/types/dashboard.ts`、`frontend/lib/crm/types/follow-up.ts`
 //! 及 `frontend/lib/crm/api/dto-mappers.ts` 的 DTO 声明同口径。
 //!
 //! 口径说明：
@@ -16,6 +17,7 @@
 
 use std::collections::BTreeMap;
 
+use chrono::{DateTime, Datelike, Local, Utc};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -260,6 +262,124 @@ fn fmt_bucket_days(days: f64) -> String {
 }
 
 #[cfg(test)]
+mod follow_up_tests {
+    use super::*;
+
+    /// 反序列化：snake_case 直通 + 缺字段 serde default 兜底（对齐后端 Pydantic 全默认值）
+    #[test]
+    fn follow_up_groups_deserializes_snake_case() {
+        let groups: FollowUpGroups = serde_json::from_str(
+            r#"{
+                "overdue": [
+                    {"entity_type": "customer", "entity_id": 3, "name": "客户甲",
+                     "subtitle": "制造业", "owner_id": "u-1", "owner_name": "张三",
+                     "next_follow_at": "2026-08-10T09:30:00+08:00",
+                     "last_follow_content": "电话沟通报价",
+                     "last_follow_at": "2026-08-01T14:00:00+08:00",
+                     "rating": "A", "status": "active", "intent": null}
+                ],
+                "today": [],
+                "this_week": [
+                    {"entity_type": "lead", "entity_id": 7, "name": "线索乙",
+                     "next_follow_at": "2026-08-22T15:00:00+08:00"}
+                ],
+                "overdue_count": 1,
+                "total_count": 2
+            }"#,
+        )
+        .expect("反序列化失败");
+        assert_eq!(groups.overdue.len(), 1);
+        assert_eq!(groups.today.len(), 0);
+        assert_eq!(groups.this_week.len(), 1);
+        assert_eq!(groups.overdue_count, 1);
+        assert_eq!(groups.total_count, 2);
+
+        let c = &groups.overdue[0];
+        assert!(c.is_customer());
+        assert_eq!(c.entity_label(), "客户");
+        assert_eq!(c.rating.as_deref(), Some("A"));
+        assert_eq!(c.last_follow_content.as_deref(), Some("电话沟通报价"));
+        // timezone-aware ISO 带偏移量 → UTC 承载
+        assert_eq!(
+            c.next_follow_at,
+            DateTime::parse_from_rfc3339("2026-08-10T09:30:00+08:00")
+                .unwrap()
+                .with_timezone(&Utc)
+        );
+
+        let lead = &groups.this_week[0];
+        assert!(!lead.is_customer());
+        assert_eq!(lead.entity_label(), "线索");
+        assert!(lead.subtitle.is_none());
+    }
+
+    /// 空对象全 default 兜底（后端空分组返回 `{}` 形状也安全）
+    #[test]
+    fn follow_up_groups_defaults_on_missing_fields() {
+        let groups: FollowUpGroups = serde_json::from_str("{}").expect("空对象应可解析");
+        assert!(groups.overdue.is_empty());
+        assert_eq!(groups.total_count, 0);
+    }
+
+    /// 等级徽标短文案（对齐 web CUSTOMER_RATING_LABELS 的列表行口径）
+    #[test]
+    fn rating_label_maps_known_grades() {
+        assert_eq!(rating_label("A"), "A 级");
+        assert_eq!(rating_label("D"), "D 级");
+        assert_eq!(rating_label("unknown"), "unknown");
+    }
+
+    /// 展示文案：逾期 N 天 / 今天 HH:mm / 周X HH:mm（本机时区；注入固定 now）
+    #[test]
+    fn format_next_follow_matches_web_copy() {
+        use chrono::TimeZone;
+
+        // 固定「现在」：2026-08-21（周五）15:00 本机时区
+        let now = Local.with_ymd_and_hms(2026, 8, 21, 15, 0, 0).unwrap();
+
+        // 逾期：三天前 09:30 → 「逾期 3 天」
+        let overdue_at = Local
+            .with_ymd_and_hms(2026, 8, 18, 9, 30, 0)
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(
+            format_next_follow(overdue_at, FollowUpGroup::Overdue, now),
+            "逾期 3 天"
+        );
+
+        // 今日：今天 09:05 → 「今天 09:05」
+        let today_at = Local
+            .with_ymd_and_hms(2026, 8, 21, 9, 5, 0)
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(
+            format_next_follow(today_at, FollowUpGroup::Today, now),
+            "今天 09:05"
+        );
+
+        // 本周：周六 15:30 → 「周六 15:30」（2026-08-22 是周六）
+        let week_at = Local
+            .with_ymd_and_hms(2026, 8, 22, 15, 30, 0)
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(
+            format_next_follow(week_at, FollowUpGroup::ThisWeek, now),
+            "周六 15:30"
+        );
+
+        // 当天内逾期（零点差 0 天）→ 「逾期」不带天数（对齐 web days > 0 判断）
+        let earlier_today = Local
+            .with_ymd_and_hms(2026, 8, 21, 0, 30, 0)
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(
+            format_next_follow(earlier_today, FollowUpGroup::Overdue, now),
+            "逾期"
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -327,7 +447,10 @@ mod tests {
         let rates = step_rates(&stages);
         assert_eq!(rates.len(), 3);
         assert!((rates[0].unwrap() - 0.5).abs() < 1e-9);
-        assert!(rates[1].is_some_and(|r| r == 0.0), "后档为 0 是合法值 Some(0.0)");
+        assert!(
+            rates[1].is_some_and(|r| r == 0.0),
+            "后档为 0 是合法值 Some(0.0)"
+        );
         assert!(rates[2].is_none(), "前档 0 应为 None");
     }
 
@@ -434,6 +557,131 @@ mod tests {
             count: 0,
             pct: 0.0,
             cumulative_pct,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 待跟进视图（P2b，P5-7 GUI 接入）
+// ---------------------------------------------------------------------------
+
+/// 待跟进记录归属分组（后端按 Asia/Shanghai 时区把 `next_follow_at` 归桶）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FollowUpGroup {
+    /// 逾期未跟进（next_follow_at 早于今天 0 点）
+    Overdue,
+    /// 今日待跟进（落在今天内）
+    Today,
+    /// 本周待跟进（明天 → 本周日 23:59:59）
+    ThisWeek,
+}
+
+/// 一条待跟进记录（客户或线索），字段对齐 backend
+/// `backend/app/schemas/crm.py` 的 `FollowUpItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FollowUpItem {
+    /// `"customer"` | `"lead"`
+    pub entity_type: String,
+    pub entity_id: i64,
+    pub name: String,
+    /// 线索 = 公司名；客户 = 行业
+    #[serde(default)]
+    pub subtitle: Option<String>,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub owner_name: Option<String>,
+    /// 下次跟进时间（后端 timezone-aware ISO 8601，反序列化为 UTC）
+    pub next_follow_at: DateTime<Utc>,
+    #[serde(default)]
+    pub last_follow_content: Option<String>,
+    #[serde(default)]
+    pub last_follow_at: Option<DateTime<Utc>>,
+    /// 客户等级（A/B/C/D；线索为 None）
+    #[serde(default)]
+    pub rating: Option<String>,
+    /// 客户状态 / 线索状态
+    #[serde(default)]
+    pub status: Option<String>,
+    /// 线索意向
+    #[serde(default)]
+    pub intent: Option<String>,
+}
+
+impl FollowUpItem {
+    /// 实体类型徽标文本（对齐 web FollowUpRow：客户 / 线索）
+    pub fn entity_label(&self) -> &'static str {
+        if self.entity_type == "customer" {
+            "客户"
+        } else {
+            "线索"
+        }
+    }
+
+    /// 是否客户实体
+    pub fn is_customer(&self) -> bool {
+        self.entity_type == "customer"
+    }
+}
+
+/// 待跟进分组结果，对齐 backend `FollowUpGroups`（`this_week` 蛇形键由
+/// serde 默认命名承载——字段名即 JSON 键）
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct FollowUpGroups {
+    #[serde(default)]
+    pub overdue: Vec<FollowUpItem>,
+    #[serde(default)]
+    pub today: Vec<FollowUpItem>,
+    #[serde(default)]
+    pub this_week: Vec<FollowUpItem>,
+    #[serde(default)]
+    pub overdue_count: i64,
+    #[serde(default)]
+    pub total_count: i64,
+}
+
+/// 客户等级徽标文本（对齐 web `CUSTOMER_RATING_LABELS`，列表行取短文案）
+pub fn rating_label(rating: &str) -> String {
+    match rating {
+        "A" => "A 级".to_string(),
+        "B" => "B 级".to_string(),
+        "C" => "C 级".to_string(),
+        "D" => "D 级".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// 下次跟进时间的展示文案（对齐 web `formatNextFollow`：逾期 N 天 /
+/// 今天 HH:mm / 周X HH:mm）。分桶由后端完成（Asia/Shanghai），展示时刻用
+/// **本机时区**换算——与 web 用浏览器本地时间同口径。
+///
+/// `now_local` 由调用方传入（测试可注入固定时刻）。
+pub fn format_next_follow(
+    next_follow_at: DateTime<Utc>,
+    group: FollowUpGroup,
+    now_local: DateTime<Local>,
+) -> String {
+    let local = next_follow_at.with_timezone(&Local);
+    let hm = local.format("%H:%M").to_string();
+    match group {
+        FollowUpGroup::Overdue => {
+            // 对齐 web：本地零点差取整日数；当天内逾期显示「逾期」
+            let today_start = now_local.date_naive();
+            let due_date = local.date_naive();
+            let days = (today_start - due_date).num_days();
+            if days > 0 {
+                format!("逾期 {days} 天")
+            } else {
+                "逾期".to_string()
+            }
+        }
+        FollowUpGroup::Today => format!("今天 {hm}"),
+        FollowUpGroup::ThisWeek => {
+            const WEEKDAYS: [&str; 7] = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+            format!(
+                "{} {hm}",
+                WEEKDAYS[local.weekday().num_days_from_sunday() as usize]
+            )
         }
     }
 }

@@ -21,6 +21,7 @@ pub mod ai_chat;
 pub mod auto_upload;
 pub mod commission;
 pub mod crm_dashboard;
+pub mod crm_follow_ups;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;

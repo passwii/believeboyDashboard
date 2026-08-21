@@ -1,13 +1,15 @@
-//! CRM → 数据看板 API（P5-7，BLF-742）
+//! CRM → 数据看板 / 待跟进 API（P5-7，BLF-742 / BLF-743）
 //!
 //! 端点对齐 backend `backend/app/api/v1/endpoints/crm.py` 的 Dashboard 数据
-//! 看板路由（P3c / P8，均仅管理员），与 web 端
-//! `frontend/lib/crm/api/http-crm-client.ts` 的 `getDashboardStats` /
-//! `getLifecycleBoard` 口径一致：
+//! 看板路由（P3c / P8，均仅管理员）与待跟进视图路由（P2b，登录用户可用），
+//! 与 web 端 `frontend/lib/crm/api/http-crm-client.ts` 的 `getDashboardStats`
+//! / `getLifecycleBoard` / `listFollowUps` 口径一致：
 //! - `GET /api/v1/crm/dashboard/stats` → 看板聚合（线索漏斗 / 本月新增 /
 //!   跟进活跃度 / 每销售业绩）；
 //! - `GET /api/v1/crm/dashboard/lifecycle` → 生命周期看板（创建到首次跟进/
-//!   转化/流失 的时间分布 + 当前公海数）。
+//!   转化/流失 的时间分布 + 当前公海数）；
+//! - `GET /api/v1/crm/follow-ups?scope=mine|all` → 待跟进三组（逾期/今日/
+//!   本周；非管理员请求 `all` 后端静默降级为 `mine`）。
 //!
 //! 未接入（对齐既有「写入/二层面板走 web 端」取舍，见视图模块头说明）：
 //! - `GET /api/v1/crm/dashboard/funnel/stage/{stage}`（漏斗二层复盘明细，
@@ -24,13 +26,16 @@
 
 use crate::client::Client;
 use crate::error::ApiError;
-use gui_domain::crm::{DashboardStats, LifecycleBoard};
+use gui_domain::crm::{DashboardStats, FollowUpGroups, LifecycleBoard};
 
 /// `GET …/crm/dashboard/stats`
 pub(crate) const DASHBOARD_STATS_PATH: &str = "/api/v1/crm/dashboard/stats";
 
 /// `GET …/crm/dashboard/lifecycle`
 pub(crate) const LIFECYCLE_PATH: &str = "/api/v1/crm/dashboard/lifecycle";
+
+/// `GET …/crm/follow-ups`
+pub(crate) const FOLLOW_UPS_PATH: &str = "/api/v1/crm/follow-ups";
 
 impl Client {
     /// CRM 数据看板聚合（对齐 web `getDashboardStats`）
@@ -41,6 +46,13 @@ impl Client {
     /// 生命周期看板（对齐 web `getLifecycleBoard`）
     pub async fn crm_lifecycle_board(&self) -> Result<LifecycleBoard, ApiError> {
         self.get_json(LIFECYCLE_PATH, &[]).await
+    }
+
+    /// 待跟进三组（对齐 web `listFollowUps(scope)`；scope 取 `mine` | `all`，
+    /// 非管理员请求 `all` 后端静默降级为 `mine`）
+    pub async fn crm_follow_ups(&self, scope: &str) -> Result<FollowUpGroups, ApiError> {
+        self.get_json(FOLLOW_UPS_PATH, &[("scope", scope.to_string())])
+            .await
     }
 }
 
@@ -160,12 +172,81 @@ mod tests {
             .create();
 
         let client = Client::new(server.url());
-        let err = client
-            .crm_dashboard_stats()
-            .await
-            .expect_err("应返回错误");
+        let err = client.crm_dashboard_stats().await.expect_err("应返回错误");
         m.assert();
         assert_eq!(err.status(), Some(403));
         assert_eq!(err.user_message(), "仅管理员可访问");
+    }
+
+    /// 契约测试：follow-ups 路径锁定 backend 实际路由（防端点漂移）
+    #[test]
+    fn follow_ups_path_matches_backend_route() {
+        assert_eq!(FOLLOW_UPS_PATH, "/api/v1/crm/follow-ups");
+    }
+
+    /// mock HTTP：follow-ups 携带 scope query + 会话头；snake_case 三组解析
+    #[tokio::test]
+    async fn follow_ups_sends_scope_and_session_and_parses_groups() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", FOLLOW_UPS_PATH)
+            .match_query(mockito::Matcher::UrlEncoded("scope".into(), "all".into()))
+            .match_header("X-User-Id", "u_1")
+            .match_header("X-Session-Id", "sess_1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "overdue": [
+                        {"entity_type": "customer", "entity_id": 3, "name": "客户甲",
+                         "subtitle": "制造业", "owner_name": "张三",
+                         "next_follow_at": "2026-08-10T09:30:00+08:00",
+                         "last_follow_content": "电话沟通报价",
+                         "rating": "A", "status": "active"}
+                    ],
+                    "today": [
+                        {"entity_type": "lead", "entity_id": 7, "name": "线索乙",
+                         "next_follow_at": "2026-08-21T15:00:00+08:00"}
+                    ],
+                    "this_week": [],
+                    "overdue_count": 1,
+                    "total_count": 2
+                }"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client.crm_follow_ups("all").await.expect("请求失败");
+        m.assert();
+        assert_eq!(resp.overdue.len(), 1);
+        assert_eq!(resp.today.len(), 1);
+        assert!(resp.this_week.is_empty());
+        assert_eq!(resp.overdue_count, 1);
+        assert_eq!(resp.total_count, 2);
+        assert_eq!(resp.overdue[0].rating.as_deref(), Some("A"));
+        assert!(resp.overdue[0].is_customer());
+        assert!(!resp.today[0].is_customer());
+    }
+
+    /// mock HTTP：空分组（全 default 字段）解析不炸
+    #[tokio::test]
+    async fn follow_ups_parses_empty_groups() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", FOLLOW_UPS_PATH)
+            .match_query(mockito::Matcher::UrlEncoded(
+                "scope".into(),
+                "mine".into(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"overdue": [], "today": [], "this_week": [], "overdue_count": 0, "total_count": 0}"#)
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client.crm_follow_ups("mine").await.expect("请求失败");
+        m.assert();
+        assert_eq!(resp.total_count, 0);
+        assert!(resp.overdue.is_empty() && resp.today.is_empty() && resp.this_week.is_empty());
     }
 }

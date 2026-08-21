@@ -37,8 +37,10 @@ use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
+use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
+use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
 use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
@@ -47,30 +49,23 @@ use crate::views::new_product_calculation::{
     NewProductCalculationView, NEW_PRODUCT_CALCULATION_URL,
 };
 use crate::views::order_info::{OrderInfoView, ORDER_INFO_URL};
-use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
-use crate::views::vat_invoice::{VatInvoiceView, VAT_INVOICE_URL};
 use crate::views::placeholder::PlaceholderView;
-use crate::views::platform_inspection::{PLATFORM_INSPECTION_URL, PlatformInspectionView};
-use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
-use crate::views::portfolio_overview::{PORTFOLIO_URL, PortfolioOverviewView};
-use crate::views::product_analysis::{PRODUCT_ANALYSIS_URL, ProductAnalysisView};
-use crate::views::project_goals::{PROJECT_GOALS_URL, ProjectGoalsView};
-use crate::views::replenishment::{REPLENISHMENT_URL, ReplenishmentView};
-use crate::views::research_analysis::{
-    ResearchAnalysisView, RESEARCH_ANALYSIS_URL,
-};
+use crate::views::platform_inspection::{PlatformInspectionView, PLATFORM_INSPECTION_URL};
+use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
+use crate::views::portfolio_overview::{PortfolioOverviewView, PORTFOLIO_URL};
+use crate::views::product_analysis::{ProductAnalysisView, PRODUCT_ANALYSIS_URL};
+use crate::views::project_goals::{ProjectGoalsView, PROJECT_GOALS_URL};
+use crate::views::replenishment::{ReplenishmentView, REPLENISHMENT_URL};
+use crate::views::research_analysis::{ResearchAnalysisView, RESEARCH_ANALYSIS_URL};
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
-use crate::views::seasonal_replenishment::{
-    SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL,
-};
+use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
 use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
-use crate::views::weekly_product_analysis::{
-    WeeklyProductAnalysisView, WEEKLY_PRODUCT_URL,
-};
+use crate::views::vat_invoice::{VatInvoiceView, VAT_INVOICE_URL};
+use crate::views::weekly_product_analysis::{WeeklyProductAnalysisView, WEEKLY_PRODUCT_URL};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -148,9 +143,10 @@ pub struct RootView {
     model_selection: Option<Entity<ModelSelectionView>>,
     /// CRM → 数据看板真实视图（P5-7 BLF-742；点击「CRM → 数据看板」懒创建）
     crm_dashboard: Option<Entity<CrmDashboardView>>,
+    /// CRM → 待跟进真实视图（P5-7 BLF-743；点击「CRM → 待跟进」懒创建）
+    crm_follow_ups: Option<Entity<CrmFollowUpsView>>,
     /// AI 智能 → AI Chat 真实视图（P5-6 BLF-737；点击「AI 智能 → AI Chat」懒创建，SSE 流式对话）
     ai_chat: Option<Entity<AiChatView>>,
-
 
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
     platform_inspection: Option<Entity<PlatformInspectionView>>,
@@ -210,9 +206,10 @@ pub struct RootView {
     show_model_selection: bool,
     /// 内容区当前是否显示 CRM 数据看板视图（sidebar Select 命中 CRM_DASHBOARD_URL 时置真）
     show_crm_dashboard: bool,
+    /// 内容区当前是否显示 CRM 待跟进视图（sidebar Select 命中 CRM_FOLLOW_UPS_URL 时置真）
+    show_crm_follow_ups: bool,
     /// 内容区当前是否显示 AI Chat 视图（sidebar Select 命中 AI_CHAT_URL 时置真）
     show_ai_chat: bool,
-
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
@@ -293,7 +290,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.store_navigation.get_or_insert_with(|| {
@@ -335,7 +332,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.daily_analysis.get_or_insert_with(|| {
@@ -377,7 +374,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.portfolio_overview.get_or_insert_with(|| {
@@ -419,7 +416,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -463,7 +460,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ad_data.get_or_insert_with(|| {
@@ -503,7 +500,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.monthly_report.get_or_insert_with(|| {
@@ -545,7 +542,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.platform_revenue.get_or_insert_with(|| {
@@ -587,7 +584,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
                         // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -630,7 +627,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == AUTO_UPLOAD_URL {
                         // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.auto_upload.get_or_insert_with(|| {
@@ -672,8 +669,8 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_auto_upload = true;
-
                     } else if url == PROJECT_GOALS_URL {
                         // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.project_goals.get_or_insert_with(|| {
@@ -715,7 +712,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.return_analysis.get_or_insert_with(|| {
@@ -757,7 +754,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_analysis.get_or_insert_with(|| {
@@ -799,7 +796,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_ledger.get_or_insert_with(|| {
@@ -841,7 +838,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.replenishment.get_or_insert_with(|| {
@@ -883,7 +880,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
                     {
@@ -927,6 +924,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.seasonal_replenishment.get_or_insert_with(|| {
@@ -968,7 +966,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == WEEKLY_PRODUCT_URL {
                         // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.weekly_product.get_or_insert_with(|| {
@@ -1009,7 +1007,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
-
+                        this.show_crm_follow_ups = false;
                     } else if url == RESEARCH_ANALYSIS_URL {
                         // P5-3：调研分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.research_analysis.get_or_insert_with(|| {
@@ -1052,6 +1050,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                     } else if url == PRODUCT_ANALYSIS_URL {
                         // P5-4：产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.product_analysis.get_or_insert_with(|| {
@@ -1087,6 +1086,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_product_analysis = true;
                     } else if url == SHIPMENT_MANAGEMENT_URL {
                         // P5-3：发货管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1129,6 +1129,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                     } else if url == NEW_PRODUCT_CALCULATION_URL {
                         // P5-4：新品核算视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.new_product_calculation.get_or_insert_with(|| {
@@ -1169,6 +1170,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_new_product_calculation = true;
                     } else if url == ORDER_INFO_URL {
                         // P5-4：订单信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1208,6 +1210,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_order_info = true;
                     } else if url == EXCHANGE_RATE_URL {
                         // P5-5：汇率信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1248,6 +1251,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_exchange_rate = true;
                     } else if url == VAT_INVOICE_URL {
                         // P5-5：VAT 发票视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1289,6 +1293,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_vat_invoice = true;
                     } else if url == COMMISSION_URL {
                         // P5-5 BLF-734：佣金管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1331,6 +1336,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_commission = true;
                     } else if url == MODEL_SELECTION_URL {
                         // P5-6 BLF-739：模型选型视图懒创建（纯静态文档，编译期内嵌
@@ -1365,6 +1371,7 @@ impl RootView {
                         this.show_commission = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_model_selection = true;
                     } else if url == CRM_DASHBOARD_URL {
                         // P5-7 BLF-742：CRM 数据看板视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1407,13 +1414,14 @@ impl RootView {
                         this.show_commission = false;
                         this.show_model_selection = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
                         this.show_crm_dashboard = true;
-                    } else if url == AI_CHAT_URL {
-                        // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取
-                        this.ai_chat.get_or_insert_with(|| {
+                    } else if url == CRM_FOLLOW_UPS_URL {
+                        // P5-7 BLF-743：CRM 待跟进视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.crm_follow_ups.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
-                                let mut view = AiChatView::new(
+                                let mut view = CrmFollowUpsView::new(
                                     cx,
                                     client.unwrap_or_else(|| Client::new("")),
                                 );
@@ -1449,6 +1457,48 @@ impl RootView {
                         this.show_commission = false;
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
+                        this.show_ai_chat = false;
+                        this.show_crm_follow_ups = true;
+                    } else if url == AI_CHAT_URL {
+                        // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.ai_chat.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view =
+                                    AiChatView::new(cx, client.unwrap_or_else(|| Client::new("")));
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_shipment_management = false;
+                        this.show_auto_upload = false;
+                        this.show_new_product_calculation = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
+                        this.show_crm_follow_ups = false;
                         this.show_ai_chat = true;
                     } else {
                         this.show_site_navigation = false;
@@ -1483,6 +1533,7 @@ impl RootView {
                         // content_view 链误命中 auto-upload 视图
                         this.show_auto_upload = false;
                         this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
 
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -1508,7 +1559,7 @@ impl RootView {
             monthly_report: None,
             platform_revenue: None,
             scheduled_reports: None,
-        auto_upload: None,
+            auto_upload: None,
             portfolio_overview: None,
             project_goals: None,
             return_analysis: None,
@@ -1527,6 +1578,7 @@ impl RootView {
             commission: None,
             model_selection: None,
             crm_dashboard: None,
+            crm_follow_ups: None,
             ai_chat: None,
 
             platform_inspection: None,
@@ -1557,8 +1609,9 @@ impl RootView {
             show_commission: false,
             show_model_selection: false,
             show_crm_dashboard: false,
+            show_crm_follow_ups: false,
             show_ai_chat: false,
-        show_auto_upload: false,
+            show_auto_upload: false,
 
             show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
@@ -1636,6 +1689,8 @@ impl RootView {
             "model-selection"
         } else if self.show_crm_dashboard {
             "crm-dashboard"
+        } else if self.show_crm_follow_ups {
+            "crm-follow-ups"
         } else if self.show_ai_chat {
             "ai-chat"
         } else if self.show_platform_inspection {
@@ -1786,6 +1841,11 @@ impl RootView {
             )
         } else if self.show_crm_dashboard {
             self.crm_dashboard.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_follow_ups {
+            self.crm_follow_ups.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -2408,11 +2468,7 @@ mod tests {
                 "模型选型",
                 "model-selection",
             ),
-            (
-                "/dashboard/crm/dashboard",
-                "数据看板",
-                "crm-dashboard",
-            ),
+            ("/dashboard/crm/dashboard", "数据看板", "crm-dashboard"),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
@@ -3474,15 +3530,16 @@ mod tests {
                 "数据看板",
                 "crm-dashboard",
             ),
-            // 报表自动化 → 占位页（待跟进）：回归锁 else 分支补复位 show_auto_upload
+            // 报表自动化 → 待跟进（P5-7 起为真实视图）：回归锁 else 分支补复位
+            // show_auto_upload（待跟进分支自身对 show_auto_upload 的复位也在此链路覆盖）
             (
                 "/dashboard/reports/auto-upload",
                 "报表自动化",
                 "/dashboard/crm/follow-ups",
                 "待跟进",
-                "placeholder",
+                "crm-follow-ups",
             ),
-            // 占位页 → 报表自动化 → CRM 看板：真实视图链路仍正常
+            // 待跟进 → 报表自动化 → CRM 看板：真实视图链路仍正常
             (
                 "/dashboard/crm/follow-ups",
                 "待跟进",
@@ -3499,6 +3556,106 @@ mod tests {
                     view.read(app).view_key(),
                     expected_key,
                     "CRM 看板两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+    /// P5-7（BLF-743）：CRM 待跟进 ↔ 各业务视图的两步切换契约——锁每个既有
+    /// 分支的 reset 列表都补了 `show_crm_follow_ups = false`（以及
+    /// CRM_FOLLOW_UPS_URL 分支自身对全部既有 show_* 的复位），避免既有分支漏
+    /// reset show_crm_follow_ups 触发 view_key/content_view 链末位误命中。
+    #[gpui::test]
+    async fn view_key_crm_follow_ups_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-crmfu2step".into(),
+                name: "CRM 待跟进两步切换".into(),
+                email: "crmfu2step@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-crmfu2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 待跟进 ↔ 各业务视图双向矩阵：A → 待跟进 与 待跟进 → B 都必须落在最后
+        // 选中视图；末行锁占位页分支对 show_crm_follow_ups 的复位。
+        let transitions = [
+            (
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "commission",
+            ),
+            (
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "crm-follow-ups",
+            ),
+            (
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "crm-follow-ups",
+            ),
+            // 同组互切：数据看板 ↔ 待跟进（owner 互复位）
+            (
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "crm-follow-ups",
+            ),
+            // 报表自动化 → 待跟进：锁待跟进分支对 show_auto_upload 的复位
+            (
+                "/dashboard/reports/auto-upload",
+                "报表自动化",
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "crm-follow-ups",
+            ),
+            // 待跟进 → 任意占位页：锁 else 分支对 show_crm_follow_ups 的复位
+            (
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "/dashboard/other/nonexistent-placeholder",
+                "占位页",
+                "placeholder",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "CRM 待跟进两步切换 {title_a} → {title_b}"
                 )
             });
         }
@@ -3662,15 +3819,16 @@ mod tests {
                 "AI Chat",
                 "ai-chat",
             ),
-            // 报表自动化 → 占位页（待跟进）：回归锁 else 分支补复位 show_auto_upload
+            // 报表自动化 → 待跟进（P5-7 起为真实视图）：回归锁 else 分支补复位
+            // show_auto_upload（待跟进分支自身对 show_auto_upload 的复位也在此链路覆盖）
             (
                 "/dashboard/reports/auto-upload",
                 "报表自动化",
                 "/dashboard/crm/follow-ups",
                 "待跟进",
-                "placeholder",
+                "crm-follow-ups",
             ),
-            // 占位页 → 报表自动化 → AI Chat：真实视图链路仍正常
+            // 待跟进 → 报表自动化 → AI Chat：真实视图链路仍正常
             (
                 "/dashboard/crm/follow-ups",
                 "待跟进",
@@ -3791,5 +3949,4 @@ mod tests {
             "content_header 文档应声明仅保留面包屑"
         );
     }
-
 }
