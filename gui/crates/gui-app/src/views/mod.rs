@@ -20,6 +20,7 @@ pub mod ad_data;
 pub mod ai_chat;
 pub mod auto_upload;
 pub mod commission;
+pub mod crm_audit;
 pub mod crm_dashboard;
 pub mod crm_follow_ups;
 pub mod daily_analysis;

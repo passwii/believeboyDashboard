@@ -685,3 +685,183 @@ pub fn format_next_follow(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// 操作审计日志（P4，P5-7 GUI 接入 BLF-747）
+// ---------------------------------------------------------------------------
+
+/// 一条 CRM 操作审计日志，字段对齐 backend `backend/app/schemas/crm.py` 的
+/// `AuditLogItem`（snake_case 直通；与 web 端 `frontend/lib/crm/types/audit.ts`
+/// 的 `AuditLog` 同口径）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AuditLogItem {
+    pub id: i64,
+    /// `"customer"` | `"lead"` | `"contact"` | `"task"`
+    pub entity_type: String,
+    pub entity_id: i64,
+    /// 动作 key（create/update/delete/transfer/move_sea/claim/convert/
+    /// complete/cancel/status；未知值原样透传展示）
+    pub action: String,
+    #[serde(default)]
+    pub actor_id: Option<String>,
+    #[serde(default)]
+    pub actor_name: Option<String>,
+    /// 变更摘要（后端 audit_service.summarize 生成；可为空）
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// 操作时间（后端 timezone-aware ISO 8601，反序列化为 UTC）
+    pub created_at: DateTime<Utc>,
+}
+
+/// 审计日志分页结果，字段对齐 backend `AuditLogListResponse`
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AuditLogPage {
+    #[serde(default)]
+    pub items: Vec<AuditLogItem>,
+    #[serde(default)]
+    pub total: i64,
+    #[serde(default)]
+    pub page: i64,
+    #[serde(default)]
+    pub page_size: i64,
+}
+
+/// 实体类型筛选选项（key + 中文标签；对齐 web `ENTITY_LABELS`，
+/// 菜单顺序即数组顺序）
+pub const AUDIT_ENTITY_TYPES: [(&str, &str); 4] = [
+    ("customer", "客户"),
+    ("lead", "线索"),
+    ("contact", "联系人"),
+    ("task", "任务"),
+];
+
+/// 审计动作选项（key + 中文标签；对齐 web `AUDIT_ACTION_LABELS` 键序）
+pub const AUDIT_ACTIONS: [(&str, &str); 10] = [
+    ("create", "新建"),
+    ("update", "编辑"),
+    ("delete", "删除"),
+    ("transfer", "指派负责人"),
+    ("move_sea", "释放公海"),
+    ("claim", "领取"),
+    ("convert", "转化"),
+    ("complete", "完成"),
+    ("cancel", "取消"),
+    ("status", "状态变更"),
+];
+
+/// 实体类型 → 中文标签（行内展示用；已知类型查表，未知原样返回）
+pub fn audit_entity_label(entity_type: &str) -> String {
+    AUDIT_ENTITY_TYPES
+        .iter()
+        .find(|(key, _)| *key == entity_type)
+        .map(|(_, label)| label.to_string())
+        .unwrap_or_else(|| entity_type.to_string())
+}
+
+/// 动作 → 中文标签（行内展示用；已知动作查表，未知原样返回——对齐 web
+/// `AUDIT_ACTION_LABELS[action] ?? action` 兜底口径）
+pub fn audit_action_label(action: &str) -> String {
+    AUDIT_ACTIONS
+        .iter()
+        .find(|(key, _)| *key == action)
+        .map(|(_, label)| label.to_string())
+        .unwrap_or_else(|| action.to_string())
+}
+
+/// 操作时间展示文案：UTC → 本机时区 `YYYY-MM-DD HH:MM`（对齐 web
+/// `toLocaleString('zh-CN')` 的浏览器本地时区口径；GUI 取固定格式保证列宽稳定）
+pub fn format_audit_time(created_at: DateTime<Utc>) -> String {
+    created_at
+        .with_timezone(&Local)
+        .format("%Y-%m-%d %H:%M")
+        .to_string()
+}
+
+#[cfg(test)]
+mod audit_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    /// 反序列化：snake_case 直通 + 可空字段 default 兜底
+    #[test]
+    fn audit_page_deserializes_snake_case() {
+        let page: AuditLogPage = serde_json::from_str(
+            r#"{
+                "items": [
+                    {"id": 1, "entity_type": "customer", "entity_id": 3,
+                     "action": "create", "actor_id": "u-1", "actor_name": "张三",
+                     "summary": "创建客户「客户甲」",
+                     "created_at": "2026-08-21T10:30:00+08:00"},
+                    {"id": 2, "entity_type": "lead", "entity_id": 7,
+                     "action": "move_sea", "actor_id": null, "actor_name": null,
+                     "summary": null, "created_at": "2026-08-20T09:00:00Z"}
+                ],
+                "total": 42, "page": 2, "page_size": 30
+            }"#,
+        )
+        .expect("反序列化失败");
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.total, 42);
+        assert_eq!(page.page, 2);
+        assert_eq!(page.page_size, 30);
+
+        let first = &page.items[0];
+        assert_eq!(first.entity_type, "customer");
+        assert_eq!(first.actor_name.as_deref(), Some("张三"));
+        assert_eq!(first.summary.as_deref(), Some("创建客户「客户甲」"));
+        assert_eq!(
+            first.created_at,
+            DateTime::parse_from_rfc3339("2026-08-21T10:30:00+08:00")
+                .unwrap()
+                .with_timezone(&Utc)
+        );
+        assert!(page.items[1].actor_name.is_none());
+    }
+
+    /// 空对象全 default 兜底（后端空列表返回 `{}` 形状也安全）
+    #[test]
+    fn audit_page_defaults_on_missing_fields() {
+        let page: AuditLogPage = serde_json::from_str("{}").expect("空对象应可解析");
+        assert!(page.items.is_empty());
+        assert_eq!(page.total, 0);
+    }
+
+    /// 实体类型 / 动作标签：已知查表、未知原样透传
+    #[test]
+    fn audit_labels_map_known_and_pass_through_unknown() {
+        assert_eq!(audit_entity_label("customer"), "客户");
+        assert_eq!(audit_entity_label("lead"), "线索");
+        assert_eq!(audit_entity_label("contact"), "联系人");
+        assert_eq!(audit_entity_label("task"), "任务");
+        assert_eq!(audit_entity_label("unknown_kind"), "unknown_kind");
+
+        assert_eq!(audit_action_label("create"), "新建");
+        assert_eq!(audit_action_label("move_sea"), "释放公海");
+        assert_eq!(audit_action_label("status"), "状态变更");
+        assert_eq!(audit_action_label("weird_action"), "weird_action");
+    }
+
+    /// 筛选选项表完整性：动作 10 项、实体 4 项（对齐 web 常量表键序）
+    #[test]
+    fn audit_filter_option_tables_are_complete() {
+        assert_eq!(AUDIT_ENTITY_TYPES.len(), 4);
+        assert_eq!(AUDIT_ACTIONS.len(), 10);
+        assert_eq!(AUDIT_ACTIONS[0], ("create", "新建"));
+        assert_eq!(AUDIT_ACTIONS[9], ("status", "状态变更"));
+    }
+
+    /// 时间文案：UTC → 本机时区 `YYYY-MM-DD HH:MM`
+    #[test]
+    fn format_audit_time_uses_local_timezone() {
+        // 本机时区 2026-08-21 15:30 → UTC 随偏移换算，格式化后回到同一本地时刻
+        let local = Local.with_ymd_and_hms(2026, 8, 21, 15, 30, 0).unwrap();
+        assert_eq!(format_audit_time(local.with_timezone(&Utc)), "2026-08-21 15:30");
+
+        // 固定 UTC 时刻换算本机时区后仅锁格式形状（日期可能随偏移跨日界，不锁值）
+        let utc = Utc.with_ymd_and_hms(2026, 8, 21, 15, 30, 0).unwrap();
+        let formatted = format_audit_time(utc);
+        assert_eq!(formatted.len(), 16, "格式固定 YYYY-MM-DD HH:MM：{formatted}");
+        assert_eq!(formatted.as_bytes()[4], b'-');
+        assert_eq!(formatted.as_bytes()[10], b' ');
+    }
+}
