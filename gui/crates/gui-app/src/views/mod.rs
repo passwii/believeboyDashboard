@@ -45,4 +45,5 @@ pub mod sidebar;
 pub mod site_navigation;
 pub mod stat_band;
 pub mod store_navigation;
+pub mod vat_invoice;
 pub mod weekly_product_analysis;
