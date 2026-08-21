@@ -22,6 +22,7 @@ pub mod advertising;
 pub mod auto_upload;
 pub mod commission;
 pub mod common;
+pub mod crm;
 pub mod filter;
 pub mod dashboard;
 pub mod exchange_rate;

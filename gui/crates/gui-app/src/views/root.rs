@@ -35,11 +35,12 @@ use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
-use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
+use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
+use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
 use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::new_product_calculation::{
     NewProductCalculationView, NEW_PRODUCT_CALCULATION_URL,
@@ -144,7 +145,8 @@ pub struct RootView {
     commission: Option<Entity<CommissionView>>,
     /// AI 智能 → 模型选型真实视图（P5-6 BLF-739；点击「AI 智能 → 模型选型」懒创建）
     model_selection: Option<Entity<ModelSelectionView>>,
-
+    /// CRM → 数据看板真实视图（P5-7 BLF-742；点击「CRM → 数据看板」懒创建）
+    crm_dashboard: Option<Entity<CrmDashboardView>>,
 
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
     platform_inspection: Option<Entity<PlatformInspectionView>>,
@@ -202,7 +204,8 @@ pub struct RootView {
     show_commission: bool,
     /// 内容区当前是否显示模型选型视图（sidebar Select 命中 MODEL_SELECTION_URL 时置真）
     show_model_selection: bool,
-
+    /// 内容区当前是否显示 CRM 数据看板视图（sidebar Select 命中 CRM_DASHBOARD_URL 时置真）
+    show_crm_dashboard: bool,
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
@@ -281,6 +284,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -321,6 +325,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -361,6 +366,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -401,6 +407,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
@@ -443,6 +450,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -481,6 +489,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -521,6 +530,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -561,6 +571,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
@@ -602,6 +613,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == AUTO_UPLOAD_URL {
                         // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -642,6 +654,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_auto_upload = true;
 
                     } else if url == PROJECT_GOALS_URL {
@@ -683,6 +696,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -723,6 +737,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -763,6 +778,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -803,6 +819,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -843,6 +860,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
@@ -885,6 +903,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.seasonal_replenishment.get_or_insert_with(|| {
@@ -924,6 +943,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == WEEKLY_PRODUCT_URL {
                         // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -963,6 +983,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
 
                     } else if url == RESEARCH_ANALYSIS_URL {
                         // P5-3：调研分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1004,6 +1025,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                     } else if url == PRODUCT_ANALYSIS_URL {
                         // P5-4：产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.product_analysis.get_or_insert_with(|| {
@@ -1036,6 +1058,8 @@ impl RootView {
                         this.show_weekly_product = false;
                         this.show_research_analysis = false;
                         this.show_new_product_calculation = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_product_analysis = true;
                     } else if url == SHIPMENT_MANAGEMENT_URL {
                         // P5-3：发货管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1076,6 +1100,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                     } else if url == NEW_PRODUCT_CALCULATION_URL {
                         // P5-4：新品核算视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.new_product_calculation.get_or_insert_with(|| {
@@ -1114,6 +1139,7 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_new_product_calculation = true;
                     } else if url == ORDER_INFO_URL {
                         // P5-4：订单信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1150,6 +1176,8 @@ impl RootView {
                         this.show_shipment_management = false;
                         this.show_auto_upload = false;
                         this.show_new_product_calculation = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_order_info = true;
                     } else if url == EXCHANGE_RATE_URL {
                         // P5-5：汇率信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1187,6 +1215,8 @@ impl RootView {
                         this.show_auto_upload = false;
                         this.show_new_product_calculation = false;
                         this.show_order_info = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_exchange_rate = true;
                     } else if url == VAT_INVOICE_URL {
                         // P5-5：VAT 发票视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1225,6 +1255,8 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_order_info = false;
                         this.show_exchange_rate = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_vat_invoice = true;
                     } else if url == COMMISSION_URL {
                         // P5-5 BLF-734：佣金管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1264,6 +1296,8 @@ impl RootView {
                         this.show_order_info = false;
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
                         this.show_commission = true;
                     } else if url == MODEL_SELECTION_URL {
                         // P5-6 BLF-739：模型选型视图懒创建（纯静态文档，编译期内嵌
@@ -1296,7 +1330,49 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_crm_dashboard = false;
                         this.show_model_selection = true;
+                    } else if url == CRM_DASHBOARD_URL {
+                        // P5-7 BLF-742：CRM 数据看板视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.crm_dashboard.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CrmDashboardView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_shipment_management = false;
+                        this.show_auto_upload = false;
+                        this.show_new_product_calculation = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -1324,6 +1400,11 @@ impl RootView {
                         this.show_vat_invoice = false;
                         this.show_commission = false;
                         this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
+                        // 修复：else（占位页）分支此前漏复位 show_auto_upload——
+                        // 从报表自动化切到任意占位页会残留 true，view_key/
+                        // content_view 链误命中 auto-upload 视图
+                        this.show_auto_upload = false;
 
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -1367,6 +1448,7 @@ impl RootView {
             vat_invoice: None,
             commission: None,
             model_selection: None,
+            crm_dashboard: None,
 
             platform_inspection: None,
             show_dashboard,
@@ -1395,6 +1477,7 @@ impl RootView {
             show_vat_invoice: false,
             show_commission: false,
             show_model_selection: false,
+            show_crm_dashboard: false,
         show_auto_upload: false,
 
             show_platform_inspection: false,
@@ -1471,6 +1554,8 @@ impl RootView {
             "commission"
         } else if self.show_model_selection {
             "model-selection"
+        } else if self.show_crm_dashboard {
+            "crm-dashboard"
         } else if self.show_platform_inspection {
             "platform-inspection"
         } else if self.show_auto_upload {
@@ -1614,6 +1699,11 @@ impl RootView {
             )
         } else if self.show_model_selection {
             self.model_selection.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_dashboard {
+            self.crm_dashboard.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -2230,6 +2320,11 @@ mod tests {
                 "/dashboard/ai/believeboy-models",
                 "模型选型",
                 "model-selection",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
             ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
@@ -3158,6 +3253,165 @@ mod tests {
                     view.read(app).view_key(),
                     expected_key,
                     "库存分析两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+    /// P5-7（BLF-742）：CRM 数据看板 ↔ 各业务视图的两步切换契约——锁每个既有
+    /// 分支的 reset 列表都补了 `show_crm_dashboard = false`（以及
+    /// CRM_DASHBOARD_URL 分支自身对全部既有 show_* 的复位）；另锁占位页分支
+    /// 补复位 show_auto_upload 的回归（此前从报表自动化切任意占位页会残留
+    /// true，view_key 链误命中 auto-upload）。
+    #[gpui::test]
+    async fn view_key_crm_dashboard_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-crm2step".into(),
+                name: "CRM 看板两步切换".into(),
+                email: "crm2step@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-crm2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // CRM 数据看板 ↔ 各业务视图双向矩阵：A → CRM 看板 与 CRM 看板 → B 都必须
+        // 落在最后选中视图；末两行锁占位页分支对 show_auto_upload 的复位。
+        let transitions = [
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "commission",
+            ),
+            (
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "scheduled-reports",
+            ),
+            (
+                "/dashboard/reports/scheduled-reports",
+                "定时报告",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            // P5-7 补强：产品分析/订单信息/汇率信息/VAT 发票四分支在双方父版本
+            // 就漏了对方标志复位（被 view_key 链序遮蔽未暴露），rebase 合并时按
+            // 「每个既有分支同时复位两个新视图标志」规范补齐，此处锁契约。
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/reports/product-analysis",
+                "产品分析",
+                "product-analysis",
+            ),
+            (
+                "/dashboard/reports/product-analysis",
+                "产品分析",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/reports/order-info",
+                "订单信息",
+                "order-info",
+            ),
+            (
+                "/dashboard/reports/order-info",
+                "订单信息",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/finance/exchange-rate",
+                "汇率信息",
+                "exchange-rate",
+            ),
+            (
+                "/dashboard/finance/exchange-rate",
+                "汇率信息",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            (
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "/dashboard/finance/vat-invoice",
+                "VAT 发票",
+                "vat-invoice",
+            ),
+            (
+                "/dashboard/finance/vat-invoice",
+                "VAT 发票",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+            // 报表自动化 → 占位页（待跟进）：回归锁 else 分支补复位 show_auto_upload
+            (
+                "/dashboard/reports/auto-upload",
+                "报表自动化",
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "placeholder",
+            ),
+            // 占位页 → 报表自动化 → CRM 看板：真实视图链路仍正常
+            (
+                "/dashboard/crm/follow-ups",
+                "待跟进",
+                "/dashboard/crm/dashboard",
+                "数据看板",
+                "crm-dashboard",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "CRM 看板两步切换 {title_a} → {title_b}"
                 )
             });
         }
