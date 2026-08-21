@@ -19,6 +19,7 @@ pub mod ad_analysis;
 pub mod ad_data;
 pub mod auto_upload;
 pub mod commission;
+pub mod crm_dashboard;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;

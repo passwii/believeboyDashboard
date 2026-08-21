@@ -16,6 +16,7 @@ pub mod auth;
 pub mod auto_upload;
 pub mod client;
 pub mod commission;
+pub mod crm;
 pub mod dashboard;
 pub mod error;
 pub mod exchange_rate;
