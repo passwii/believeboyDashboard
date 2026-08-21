@@ -17,6 +17,7 @@ pub mod auto_upload;
 pub mod client;
 pub mod dashboard;
 pub mod error;
+pub mod exchange_rate;
 pub mod inspections;
 pub mod inventory;
 pub mod inventory_ledger;

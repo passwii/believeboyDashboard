@@ -20,6 +20,7 @@ pub mod ad_data;
 pub mod auto_upload;
 pub mod daily_analysis;
 pub mod dashboard;
+pub mod exchange_rate;
 pub mod inventory_analysis;
 pub mod inventory_ledger;
 pub mod login;
