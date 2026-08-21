@@ -20,6 +20,7 @@
 pub mod auth;
 pub mod advertising;
 pub mod auto_upload;
+pub mod commission;
 pub mod common;
 pub mod filter;
 pub mod dashboard;
