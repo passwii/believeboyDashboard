@@ -210,6 +210,66 @@ impl Client {
         serde_json::from_slice(&bytes).map_err(|e| ApiError::Deserialize(e.to_string()))
     }
 
+    /// 发起请求并返回原始响应（流式消费用，BLF-737 AI Chat SSE）。
+    ///
+    /// 与 [`Self::request_json`] 同一鉴权 / query / body 管线，但：
+    /// - 不读响应体——调用方用 `Response::chunk()` 逐块消费（SSE 流式）；
+    /// - `timeout` 覆盖 client 级 30s 总超时（流式对话可持续数分钟，
+    ///   reqwest 的 per-request timeout 从建连到响应体读完整体计时）。
+    ///
+    /// 非 2xx 时读尽响应体转 [`ApiError::from_response`]。
+    pub(crate) async fn request_stream<B: serde::Serialize>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<&B>,
+        accept: &str,
+        timeout: std::time::Duration,
+    ) -> Result<reqwest::Response, ApiError> {
+        let url = format!("{}{}", self.config.base_url, path);
+        let mut req = self
+            .http
+            .request(method, &url)
+            .timeout(timeout)
+            .header(reqwest::header::ACCEPT, accept);
+        if let Some(api_key) = &self.config.api_key {
+            req = req.bearer_auth(api_key);
+        }
+        if let Some(session) = &self.config.session {
+            req = req
+                .header("X-User-Id", &session.user_id)
+                .header("X-User-Email", &session.email)
+                .header("X-Session-Id", &session.session_id);
+            if let Some(name) = &session.user_name {
+                req = req.header("X-User-Name", percent_encode(name));
+            }
+            if let Some(op) = &session.operator_name_zh {
+                req = req.header("X-Operator", percent_encode(op));
+            }
+            req = req.header("X-Role-Type", session.role_type.as_str());
+            if session.is_admin {
+                req = req.header("X-Is-Admin", "true");
+            }
+        }
+        if !query.is_empty() {
+            req = req.query(query);
+        }
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+
+        let resp = req.send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            // 流式端点失败时返回普通 JSON/文本错误体——读尽后走统一错误解析
+            let bytes = resp.bytes().await?;
+            let body = String::from_utf8_lossy(&bytes).to_string();
+            return Err(ApiError::from_response(status.as_u16(), &body));
+        }
+        Ok(resp)
+    }
+
     /// 发起请求并丢弃响应体（DELETE 204 No Content 等无内容成功响应）。
     ///
     /// 与 [`Self::request_json`] 同一鉴权 / query / body 管线，仅成功时不要求

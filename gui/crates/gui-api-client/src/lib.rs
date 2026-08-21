@@ -12,6 +12,7 @@
 //! - 其余一级分类对应同名模块
 
 pub mod advertising;
+pub mod ai_chat;
 pub mod auth;
 pub mod auto_upload;
 pub mod client;
