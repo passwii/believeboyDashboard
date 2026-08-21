@@ -111,11 +111,17 @@ fn default_web_search_max_results() -> i64 {
 // ---------------------------------------------------------------------------
 
 /// 流式用量（backend `message_delta.usage` / `done.token_usage`）
+///
+/// 后端两种载荷字段名不同：`message_delta.usage` 发 Anthropic 形
+/// `input_tokens`/`output_tokens`（events.py Usage），`done.token_usage` 发
+/// OpenAI 形 `prompt_tokens`/`completion_tokens`（schemas/ai_chat.py TokenUsage）。
+/// 与 web 端 normalizeV2Usage（ai-chat-stream-v2.ts）对齐，此处用 serde alias
+/// 统一接收两种命名。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct StreamUsage {
-    #[serde(default)]
+    #[serde(default, alias = "input_tokens")]
     pub prompt_tokens: i64,
-    #[serde(default)]
+    #[serde(default, alias = "output_tokens")]
     pub completion_tokens: i64,
     #[serde(default)]
     pub total_tokens: i64,
@@ -403,6 +409,32 @@ mod tests {
             }
             other => panic!("应解析为 Done：{other:?}"),
         }
+    }
+
+    #[test]
+    fn stream_usage_accepts_both_backend_field_namings() {
+        // message_delta.usage 发 Anthropic 形 input_tokens/output_tokens（events.py）
+        let delta = serde_json::json!({
+            "type": "message_delta",
+            "usage": {"input_tokens": 3, "output_tokens": 6, "total_tokens": 9}
+        });
+        match StreamEvent::from_json(&delta) {
+            Some(StreamEvent::MessageDelta { usage }) => {
+                let u = usage.expect("usage 应解析");
+                assert_eq!(
+                    (u.prompt_tokens, u.completion_tokens, u.total_tokens),
+                    (3, 6, 9)
+                );
+            }
+            other => panic!("应解析为 MessageDelta：{other:?}"),
+        }
+
+        // done.token_usage 发 OpenAI 形 prompt_tokens/completion_tokens（schemas TokenUsage）
+        let openai: StreamUsage = serde_json::from_value(serde_json::json!(
+            {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+        ))
+        .expect("OpenAI 形应解析");
+        assert_eq!((openai.prompt_tokens, openai.completion_tokens), (1, 2));
     }
 
     #[test]
