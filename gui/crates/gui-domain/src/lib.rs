@@ -23,6 +23,7 @@ pub mod auto_upload;
 pub mod common;
 pub mod filter;
 pub mod dashboard;
+pub mod exchange_rate;
 pub mod finance;
 pub mod operations;
 pub mod order_info;

@@ -43,6 +43,7 @@ use crate::views::new_product_calculation::{
     NewProductCalculationView, NEW_PRODUCT_CALCULATION_URL,
 };
 use crate::views::order_info::{OrderInfoView, ORDER_INFO_URL};
+use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::placeholder::PlaceholderView;
 use crate::views::platform_inspection::{PLATFORM_INSPECTION_URL, PlatformInspectionView};
 use crate::views::platform_revenue::{PLATFORM_REVENUE_URL, PlatformRevenueView};
@@ -133,6 +134,7 @@ pub struct RootView {
     shipment_management: Option<Entity<ShipmentManagementView>>,
     /// 报表中心 → 订单信息真实视图（P5-4；点击「报表中心 → 订单信息」懒创建）
     order_info: Option<Entity<OrderInfoView>>,
+    exchange_rate: Option<Entity<ExchangeRateView>>,
 
 
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
@@ -183,6 +185,8 @@ pub struct RootView {
     show_shipment_management: bool,
     /// 内容区当前是否显示订单信息视图（sidebar Select 命中 ORDER_INFO_URL 时置真）
     show_order_info: bool,
+    /// 内容区当前是否显示汇率信息视图（sidebar Select 命中 EXCHANGE_RATE_URL 时置真）
+    show_exchange_rate: bool,
 
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
@@ -258,6 +262,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -294,6 +299,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -330,6 +336,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -366,6 +373,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
@@ -404,6 +412,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -438,6 +447,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -474,6 +484,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -510,6 +521,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
@@ -547,6 +559,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == AUTO_UPLOAD_URL {
                         // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -583,6 +596,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
                         this.show_auto_upload = true;
 
                     } else if url == PROJECT_GOALS_URL {
@@ -620,6 +634,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -656,6 +671,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -692,6 +708,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -728,6 +745,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -764,6 +782,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
@@ -802,6 +821,7 @@ impl RootView {
                         this.show_platform_inspection = true;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.seasonal_replenishment.get_or_insert_with(|| {
@@ -837,6 +857,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == WEEKLY_PRODUCT_URL {
                         // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -872,6 +893,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                     } else if url == RESEARCH_ANALYSIS_URL {
                         // P5-3：调研分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -909,6 +931,7 @@ impl RootView {
                         this.show_research_analysis = true;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
                     } else if url == PRODUCT_ANALYSIS_URL {
                         // P5-4：产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.product_analysis.get_or_insert_with(|| {
@@ -977,6 +1000,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = true;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
                     } else if url == NEW_PRODUCT_CALCULATION_URL {
                         // P5-4：新品核算视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.new_product_calculation.get_or_insert_with(|| {
@@ -1011,6 +1035,7 @@ impl RootView {
                         this.show_product_analysis = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
                         this.show_new_product_calculation = true;
                     } else if url == ORDER_INFO_URL {
                         // P5-4：订单信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1048,6 +1073,43 @@ impl RootView {
                         this.show_auto_upload = false;
                         this.show_new_product_calculation = false;
                         this.show_order_info = true;
+                    } else if url == EXCHANGE_RATE_URL {
+                        // P5-5：汇率信息视图懒创建（带会话 client），首帧即触发首屏拉取
+                        this.exchange_rate.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = ExchangeRateView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_shipment_management = false;
+                        this.show_auto_upload = false;
+                        this.show_new_product_calculation = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -1071,6 +1133,7 @@ impl RootView {
                         this.show_new_product_calculation = false;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
+                        this.show_exchange_rate = false;
 
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -1110,6 +1173,7 @@ impl RootView {
             new_product_calculation: None,
             shipment_management: None,
             order_info: None,
+            exchange_rate: None,
 
             platform_inspection: None,
             show_dashboard,
@@ -1134,6 +1198,7 @@ impl RootView {
             show_new_product_calculation: false,
             show_shipment_management: false,
             show_order_info: false,
+            show_exchange_rate: false,
         show_auto_upload: false,
 
             show_platform_inspection: false,
@@ -1202,6 +1267,8 @@ impl RootView {
             "shipment-management"
         } else if self.show_order_info {
             "order-info"
+        } else if self.show_exchange_rate {
+            "exchange-rate"
         } else if self.show_platform_inspection {
             "platform-inspection"
         } else if self.show_auto_upload {
@@ -1325,6 +1392,11 @@ impl RootView {
             )
         } else if self.show_order_info {
             self.order_info.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_exchange_rate {
+            self.exchange_rate.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
