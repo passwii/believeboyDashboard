@@ -26,7 +26,7 @@
 
 use crate::client::Client;
 use crate::error::ApiError;
-use gui_domain::crm::{DashboardStats, FollowUpGroups, LifecycleBoard};
+use gui_domain::crm::{AuditLogPage, DashboardStats, FollowUpGroups, LifecycleBoard};
 
 /// `GET …/crm/dashboard/stats`
 pub(crate) const DASHBOARD_STATS_PATH: &str = "/api/v1/crm/dashboard/stats";
@@ -248,5 +248,174 @@ mod tests {
         m.assert();
         assert_eq!(resp.total_count, 0);
         assert!(resp.overdue.is_empty() && resp.today.is_empty() && resp.this_week.is_empty());
+    }
+}
+
+/// `GET …/crm/audit-logs`
+pub(crate) const AUDIT_LOGS_PATH: &str = "/api/v1/crm/audit-logs";
+
+impl Client {
+    /// CRM 操作审计日志分页查询（对齐 web `listAuditLogs`；仅管理员——
+    /// 非管理员请求返回 403，由视图落 Forbidden 态）
+    ///
+    /// - `entity_type` / `action`：`None` = 不过滤（对齐 web「全部对象/全部操作」）
+    /// - `page` 1 起；`page_size` 上限 100（后端 Query 校验）
+    pub async fn crm_audit_logs(
+        &self,
+        entity_type: Option<&str>,
+        action: Option<&str>,
+        page: usize,
+        page_size: usize,
+    ) -> Result<AuditLogPage, ApiError> {
+        let mut query: Vec<(&str, String)> = Vec::with_capacity(4);
+        if let Some(entity) = entity_type {
+            query.push(("entity_type", entity.to_string()));
+        }
+        if let Some(action) = action {
+            query.push(("action", action.to_string()));
+        }
+        query.push(("page", page.to_string()));
+        query.push(("page_size", page_size.to_string()));
+        let page: AuditLogPage = self.get_json(AUDIT_LOGS_PATH, &query).await?;
+        Ok(page)
+    }
+}
+
+#[cfg(test)]
+mod audit_tests {
+    use super::*;
+
+    /// 构造一个带会话的 client（与主测试模块同款）
+    fn session_client(base_url: &str) -> Client {
+        let session = crate::client::AuthSession {
+            user_id: "u_1".into(),
+            email: "demo@believeboy.com".into(),
+            session_id: "sess_1".into(),
+            user_name: Some("测试".into()),
+            operator_name_zh: Some("测试运营".into()),
+            role_type: gui_domain::auth::UserRoleType::Operator,
+            is_admin: false,
+        };
+        Client::new(base_url).with_session(session)
+    }
+
+    /// 契约测试：路径锁定 backend 实际路由（防端点漂移）
+    #[test]
+    fn audit_logs_path_matches_backend_route() {
+        assert_eq!(AUDIT_LOGS_PATH, "/api/v1/crm/audit-logs");
+    }
+
+    /// mock HTTP：筛选 + 分页 query 携带；snake_case 响应解析
+    #[tokio::test]
+    async fn audit_logs_sends_filters_and_parses_response() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", AUDIT_LOGS_PATH)
+            .match_query(mockito::Matcher::UrlEncoded(
+                "entity_type".into(),
+                "customer".into(),
+            ))
+            .match_query(mockito::Matcher::UrlEncoded("action".into(), "create".into()))
+            .match_query(mockito::Matcher::UrlEncoded("page".into(), "2".into()))
+            .match_query(mockito::Matcher::UrlEncoded(
+                "page_size".into(),
+                "30".into(),
+            ))
+            .match_header("X-User-Id", "u_1")
+            .match_header("X-Session-Id", "sess_1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "items": [
+                        {"id": 11, "entity_type": "customer", "entity_id": 3,
+                         "action": "create", "actor_id": "u-9",
+                         "actor_name": "张三", "summary": "创建客户「客户甲」",
+                         "created_at": "2026-08-21T10:30:00+08:00"},
+                        {"id": 12, "entity_type": "task", "entity_id": 5,
+                         "action": "complete", "actor_id": null, "actor_name": null,
+                         "summary": null, "created_at": "2026-08-20T02:00:00Z"}
+                    ],
+                    "total": 42, "page": 2, "page_size": 30
+                }"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client
+            .crm_audit_logs(Some("customer"), Some("create"), 2, 30)
+            .await
+            .expect("请求失败");
+        m.assert();
+        assert_eq!(resp.items.len(), 2);
+        assert_eq!(resp.total, 42);
+        assert_eq!(resp.page, 2);
+        assert_eq!(resp.page_size, 30);
+        assert_eq!(resp.items[0].entity_type, "customer");
+        assert_eq!(resp.items[0].actor_name.as_deref(), Some("张三"));
+        assert!(resp.items[1].summary.is_none());
+    }
+
+    /// mock HTTP：筛选为 None 时不带 entity_type/action 参数（仅分页）
+    #[tokio::test]
+    async fn audit_logs_omits_unset_filters() {
+        let mut server = mockito::Server::new_async().await;
+        // 用 match_request 记录完整 path+query（mockito 1.x 无公开 matched_requests），
+        // 断言未设置筛选时请求不带 entity_type / action
+        let seen: std::sync::Arc<std::sync::Mutex<String>> =
+            std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let seen_for_matcher = seen.clone();
+        let m = server
+            .mock("GET", AUDIT_LOGS_PATH)
+            // 路径匹配含 query；这里用 Any 放行，由 match_request 记录断言
+            .match_query(mockito::Matcher::Any)
+            .match_request(move |request| {
+                if let Ok(mut guard) = seen_for_matcher.lock() {
+                    *guard = request.path_and_query().to_string();
+                }
+                true
+            })
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"items": [], "total": 0, "page": 1, "page_size": 30}"#)
+            .create_async()
+            .await;
+
+        let client = session_client(&server.url());
+        let resp = client
+            .crm_audit_logs(None, None, 1, 30)
+            .await
+            .expect("请求失败");
+        m.assert();
+        assert!(resp.items.is_empty());
+        let url = seen.lock().expect("锁不 panic").clone();
+        assert!(
+            !url.contains("entity_type") && !url.contains("action="),
+            "未设置筛选不应带过滤参数：{url}"
+        );
+        assert!(url.contains("page=1"), "分页参数保留：{url}");
+        assert!(url.contains("page_size=30"), "每页行数保留：{url}");
+    }
+
+    /// 服务端 403（非管理员）→ 错误状态码透传，供视图落 Forbidden 态
+    #[tokio::test]
+    async fn audit_logs_propagates_403_status() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", AUDIT_LOGS_PATH)
+            .match_query(mockito::Matcher::Any)
+            .with_status(403)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"detail":"仅管理员可访问"}"#)
+            .create();
+
+        let client = session_client(&server.url());
+        let err = client
+            .crm_audit_logs(None, None, 1, 30)
+            .await
+            .expect_err("应返回错误");
+        m.assert();
+        assert_eq!(err.status(), Some(403));
+        assert_eq!(err.user_message(), "仅管理员可访问");
     }
 }
