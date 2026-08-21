@@ -35,6 +35,7 @@ use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
+use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
@@ -141,6 +142,8 @@ pub struct RootView {
     vat_invoice: Option<Entity<VatInvoiceView>>,
     /// 财务资金 → 佣金管理真实视图（P5-5 BLF-734；点击「财务资金 → 佣金管理」懒创建）
     commission: Option<Entity<CommissionView>>,
+    /// AI 智能 → 模型选型真实视图（P5-6 BLF-739；点击「AI 智能 → 模型选型」懒创建）
+    model_selection: Option<Entity<ModelSelectionView>>,
 
 
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
@@ -197,6 +200,8 @@ pub struct RootView {
     show_vat_invoice: bool,
     /// 内容区当前是否显示佣金管理视图（sidebar Select 命中 COMMISSION_URL 时置真）
     show_commission: bool,
+    /// 内容区当前是否显示模型选型视图（sidebar Select 命中 MODEL_SELECTION_URL 时置真）
+    show_model_selection: bool,
 
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
@@ -275,6 +280,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -314,6 +320,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -353,6 +360,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -392,6 +400,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
@@ -433,6 +442,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -470,6 +480,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -509,6 +520,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -548,6 +560,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
@@ -588,6 +601,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == AUTO_UPLOAD_URL {
                         // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -627,6 +641,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
                         this.show_auto_upload = true;
 
                     } else if url == PROJECT_GOALS_URL {
@@ -667,6 +682,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -706,6 +722,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -745,6 +762,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -784,6 +802,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -823,6 +842,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
@@ -864,6 +884,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.seasonal_replenishment.get_or_insert_with(|| {
@@ -902,6 +923,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == WEEKLY_PRODUCT_URL {
                         // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -940,6 +962,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                     } else if url == RESEARCH_ANALYSIS_URL {
                         // P5-3：调研分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -980,6 +1003,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
                     } else if url == PRODUCT_ANALYSIS_URL {
                         // P5-4：产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.product_analysis.get_or_insert_with(|| {
@@ -1051,6 +1075,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
                     } else if url == NEW_PRODUCT_CALCULATION_URL {
                         // P5-4：新品核算视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.new_product_calculation.get_or_insert_with(|| {
@@ -1088,6 +1113,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
                         this.show_new_product_calculation = true;
                     } else if url == ORDER_INFO_URL {
                         // P5-4：订单信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1239,6 +1265,38 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = true;
+                    } else if url == MODEL_SELECTION_URL {
+                        // P5-6 BLF-739：模型选型视图懒创建（纯静态文档，编译期内嵌
+                        // frontend/docs/believeboy-models.md，无网络请求、无首屏拉取）
+                        this.model_selection
+                            .get_or_insert_with(|| cx.new(|_| ModelSelectionView::new()));
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_shipment_management = false;
+                        this.show_auto_upload = false;
+                        this.show_new_product_calculation = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -1265,6 +1323,7 @@ impl RootView {
                         this.show_exchange_rate = false;
                         this.show_vat_invoice = false;
                         this.show_commission = false;
+                        this.show_model_selection = false;
 
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -1307,6 +1366,7 @@ impl RootView {
             exchange_rate: None,
             vat_invoice: None,
             commission: None,
+            model_selection: None,
 
             platform_inspection: None,
             show_dashboard,
@@ -1334,6 +1394,7 @@ impl RootView {
             show_exchange_rate: false,
             show_vat_invoice: false,
             show_commission: false,
+            show_model_selection: false,
         show_auto_upload: false,
 
             show_platform_inspection: false,
@@ -1408,6 +1469,8 @@ impl RootView {
             "vat-invoice"
         } else if self.show_commission {
             "commission"
+        } else if self.show_model_selection {
+            "model-selection"
         } else if self.show_platform_inspection {
             "platform-inspection"
         } else if self.show_auto_upload {
@@ -1546,6 +1609,11 @@ impl RootView {
             )
         } else if self.show_commission {
             self.commission.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_model_selection {
+            self.model_selection.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -2158,6 +2226,11 @@ mod tests {
                 "平台巡检",
                 "platform-inspection",
             ),
+            (
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "model-selection",
+            ),
         ] {
             sidebar.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
@@ -2664,6 +2737,100 @@ mod tests {
     /// 分支的 reset 列表都补了 `show_project_goals = false`（以及项目目标分支自身
     /// 对全部既有 show_* 的复位），避免 PROJECT_GOALS_URL 分支漏 reset 既有视图
     /// 或既有分支漏 reset show_project_goals。
+    /// P5-6（BLF-739）：模型选型双向 cross-reset——A → 模型选型 与 模型选型 → B
+    /// 都必须落在最后选中视图（覆盖 MODEL_SELECTION_URL 分支 reset 完整性与
+    /// 既有分支对 show_model_selection 的复位）。
+    #[gpui::test]
+    async fn view_key_model_selection_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-ms2step".into(),
+                name: "模型选型两步切换".into(),
+                email: "ms2step@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-ms2step".into(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        let transitions = [
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "model-selection",
+            ),
+            (
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "model-selection",
+            ),
+            (
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "/dashboard/finance/commission-management",
+                "佣金管理",
+                "commission",
+            ),
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "model-selection",
+            ),
+            (
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
+            ),
+            (
+                "/dashboard/finance/exchange-rate",
+                "汇率信息",
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "model-selection",
+            ),
+            (
+                "/dashboard/ai/believeboy-models",
+                "模型选型",
+                "/dashboard/finance/exchange-rate",
+                "汇率信息",
+                "exchange-rate",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "模型选型两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
     #[gpui::test]
     async fn view_key_project_goals_cross_resets(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
