@@ -455,7 +455,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 现有 `external_security.py` 用 **slowapi `Limiter`（内存存储）**，key_func 取凭据/IP。Agent 通道沿用同一模式：
 
 - 新建 `Limiter(key_func=get_agent_id_or_ip)`，挂 `/api/v1/agent/*` 命名空间
-- 默认限额：读 300 req/min，写 30 req/min（按 agent_id 维度）；两个默认值走 `Settings`（`agent_api_read_rate_limit` / `agent_api_write_rate_limit`），可不改代码调整
+- 默认限额：读 300 req/min，写 120 req/min（按 agent_id 维度；写桶原 30 req/min，BLF-782 因 agent 批量录入场景易触顶放宽至 120）；两个默认值走 `Settings`（`agent_api_read_rate_limit` / `agent_api_write_rate_limit`），可不改代码调整
 - 超额返回 429 + `Retry-After` + `X-RateLimit-*` 头，body 走统一响应壳（`AGENT_RATE_LIMIT_EXCEEDED`）
 
 > **已知限制**：内存存储 = 限额按 worker 进程独立计算（与现有 external limiter 同样的取舍）。当前部署规模下可接受；若未来多 worker 需要全局限额，再接 Redis 存储——不在 P0 范围。
