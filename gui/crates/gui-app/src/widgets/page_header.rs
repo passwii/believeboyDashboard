@@ -191,6 +191,7 @@ mod tests {
         let views: &[(&str, &str)] = &[
             (include_str!("../views/ad_analysis.rs"), "广告分析"),
             (include_str!("../views/ad_data.rs"), "广告数据"),
+            (include_str!("../views/crm_follow_ups.rs"), "CRM 待跟进"),
             (include_str!("../views/daily_analysis.rs"), "销售数据"),
             (include_str!("../views/dashboard.rs"), "数据看板"),
             (include_str!("../views/inventory_analysis.rs"), "库存分析"),
