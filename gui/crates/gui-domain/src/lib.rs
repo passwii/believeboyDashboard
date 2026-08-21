@@ -17,6 +17,7 @@
 //! - `tools`       工具箱
 //! - `system`      系统管理
 
+pub mod ai_chat;
 pub mod auth;
 pub mod advertising;
 pub mod auto_upload;
