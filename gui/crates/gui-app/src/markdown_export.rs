@@ -146,18 +146,14 @@ fn try_match_linkish(line: &str, at: usize) -> Option<(bool, String, String, usi
         let tail = &paren[end_in_paren..];
         let trimmed = tail.trim_start();
         let lead_ws = tail.len() - trimmed.len();
-        if trimmed.starts_with('"') {
-            if let Some(close_q) = trimmed[1..].find('"') {
-                let consumed = lead_ws + 1 + close_q + 1;
-                // 消耗完必须恰好落在 ')' 上（漏加 end_in_paren 会错位）
-                if paren[end_in_paren + consumed..].starts_with(')') {
-                    end_in_paren += consumed;
-                } else {
-                    return None;
-                }
-            } else {
-                return None;
-            }
+        // 可选 ` "title"`（引号内不含 `"`）；消耗完必须恰好落在 ')' 上
+        let close_q = trimmed
+            .strip_prefix('"')
+            .and_then(|after| after.find('"'))?;
+        let consumed = lead_ws + 1 + close_q + 1;
+        // 漏加 end_in_paren 会错位
+        if paren[end_in_paren + consumed..].starts_with(')') {
+            end_in_paren += consumed;
         } else {
             return None;
         }
@@ -681,8 +677,8 @@ fn table_borders() -> TableBorders {
 
 /// 行内 token → Run / Hyperlink（对齐 web `renderInlineToRuns`）
 enum InlinePiece {
-    Run(Run),
-    Hyperlink(Hyperlink),
+    Run(Box<Run>),
+    Hyperlink(Box<Hyperlink>),
 }
 
 fn render_inline(tokens: &[InlineToken]) -> Vec<InlinePiece> {
@@ -694,7 +690,9 @@ fn render_inline(tokens: &[InlineToken]) -> Vec<InlinePiece> {
                     .add_text(token.text.clone())
                     .color(LINK_COLOR)
                     .underline("single");
-                InlinePiece::Hyperlink(Hyperlink::new(url.clone(), HyperlinkType::External).add_run(run))
+                InlinePiece::Hyperlink(Box::new(
+                    Hyperlink::new(url.clone(), HyperlinkType::External).add_run(run),
+                ))
             }
             None => {
                 let mut run = Run::new().add_text(token.text.clone());
@@ -711,7 +709,7 @@ fn render_inline(tokens: &[InlineToken]) -> Vec<InlinePiece> {
                     // web font: 'Courier New'
                     run = run.fonts(RunFonts::new().ascii("Courier New").east_asia("Courier New"));
                 }
-                InlinePiece::Run(run)
+                InlinePiece::Run(Box::new(run))
             }
         })
         .collect()
@@ -721,8 +719,8 @@ fn paragraph_from(tokens: &[InlineToken], spacing_after: u32) -> Paragraph {
     let mut para = Paragraph::new().line_spacing(LineSpacing::new().after(spacing_after));
     for piece in render_inline(tokens) {
         para = match piece {
-            InlinePiece::Run(run) => para.add_run(run),
-            InlinePiece::Hyperlink(link) => para.add_hyperlink(link),
+            InlinePiece::Run(run) => para.add_run(*run),
+            InlinePiece::Hyperlink(link) => para.add_hyperlink(*link),
         };
     }
     para
@@ -1076,8 +1074,9 @@ mod tests {
         let tokens = parse_inline("[彼励扶](https://example.com) 和 ![截图](pic.png) 尾部");
         assert_eq!(tokens[0].link.as_deref(), Some("https://example.com"));
         assert_eq!(tokens[0].text, "彼励扶");
-        assert_eq!(tokens[1].text, "[图片：截图]");
-        assert_eq!(tokens.last().unwrap().text, "尾部");
+        assert_eq!(tokens[1].text, " 和 ", "链接与图片之间的普通文本保留");
+        assert_eq!(tokens[2].text, "[图片：截图]");
+        assert_eq!(tokens.last().unwrap().text, " 尾部");
     }
 
     #[test]
@@ -1364,19 +1363,22 @@ mod tests {
                 .document,
         )
         .into_owned();
-        assert!(xml.contains("<w:b/>"), "加粗 run");
-        assert!(xml.contains("<w:i/>"), "斜体 run");
-        assert!(xml.contains("<w:strike/>"), "删除线 run");
+        // docx-rs 序列化在 `/>` 前带空格（`<w:b />`）；超链接 URL 进 rels
+        // 不在 document.xml，此处锁 `<w:hyperlink>` + 下划线 + 链接色
+        assert!(xml.contains("<w:b "), "加粗 run");
+        assert!(xml.contains("<w:i "), "斜体 run");
+        assert!(xml.contains("<w:strike "), "删除线 run");
         assert!(xml.contains("Courier New"), "行内代码等宽字体");
+        assert!(xml.contains("<w:hyperlink "), "超链接元素");
+        assert!(xml.contains("<w:u w:val=\"single\""), "链接下划线");
         assert!(xml.contains(LINK_COLOR), "链接色 0563C1");
-        assert!(xml.contains("https://e.co"), "超链接 URL");
     }
 
     #[test]
     fn docx_code_block_keeps_line_breaks() {
         let xml = String::from_utf8_lossy(&build_docx_document("```\nline1\nline2\n```").build().document)
             .into_owned();
-        assert!(xml.contains("<w:br/>"), "代码块行间显式换行（修正 web 裸 \\n 问题）");
+        assert!(xml.contains("<w:br w:type=\"textWrapping\""), "代码块行间显式换行（修正 web 裸 \\n 问题）");
         assert!(xml.contains(SOFT_FILL), "代码块底纹 F8FAFC");
     }
 }
