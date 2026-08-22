@@ -71,3 +71,10 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+# 本地补丁（BLF-786）：gpui 0.2.2 的 Windows 着色器原本要求在 Windows 主机上用
+# fxc.exe 构建期预编译；补丁后改为运行期由 d3dcompiler_47.dll 从内嵌 HLSL 源码
+# 编译（Win8.1+ 系统自带），使 Windows 产物可从 macOS/Linux 交叉构建，CI 亦适用。
+# 补丁仅触碰 windows 后端的 build.rs 与 directx_renderer.rs，macOS 路径零改动。
+[patch.crates-io]
+gpui = { path = "third-party/gpui" }
