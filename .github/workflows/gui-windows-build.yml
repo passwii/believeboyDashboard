@@ -1,0 +1,84 @@
+name: GUI Windows Build
+
+# BLF-786：GUI（Rust + gpui）Windows x64 打包。
+# 产出单个绿色版 exe（资源已 include_bytes! 内嵌，无需安装器），
+# 打包为 zip 并附 SHA256 校验和，通过 Actions artifact 提供下载。
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      - "gui/**"
+      - ".github/workflows/gui-windows-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: windows x64 release exe
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: gui
+    steps:
+      - uses: actions/checkout@v4
+
+      # 工具链由 gui/rust-toolchain.toml 锁定（1.97.1），rustup 会自动读取安装；
+      # 此步仅显式触发安装并打印版本，避免首次 cargo 调用时才下载造成日志困惑。
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          rustc --version
+          cargo --version
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gui
+
+      - name: Build release exe
+        run: cargo build --release --locked -p gui-app
+
+      - name: Package portable zip + SHA256
+        shell: pwsh
+        run: |
+          $stage = "dist/believeboy-gui-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/believeboy-gui.exe "$stage/"
+
+          $readme = @"
+          BelieveBoy Dashboard GUI - Windows x64 绿色版
+          =============================================
+
+          运行要求：Windows 10 1809+ / Windows 11（需 DirectX 11 支持）
+
+          双击 believeboy-gui.exe 即可运行，无需安装。
+          首次运行如遇 SmartScreen「未知发布者」提示，点「更多信息 → 仍要运行」
+          （未做 Authenticode 代码签名，属预期现象）。
+
+          校验完整性：
+            certutil -hashfile believeboy-gui.exe SHA256
+          与同目录 .sha256 文件中的值比对。
+          "@
+          Set-Content -Path "$stage/README.txt" -Value $readme -Encoding UTF8
+
+          $hash = (Get-FileHash "$stage/believeboy-gui.exe" -Algorithm SHA256).Hash
+          Set-Content -Path "$stage/believeboy-gui.exe.sha256" -Value "$hash  believeboy-gui.exe" -Encoding ASCII
+
+          Compress-Archive -Path "$stage/*" -DestinationPath "dist/believeboy-gui-windows-x64.zip" -Force
+          Write-Host "exe SHA256: $hash"
+          Get-ChildItem dist -Recurse | Select-Object FullName, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: believeboy-gui-windows-x64
+          path: |
+            gui/dist/believeboy-gui-windows-x64.zip
+            gui/dist/believeboy-gui-windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
