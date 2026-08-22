@@ -31,6 +31,12 @@ chrono = { workspace = true }
 keyring = { workspace = true }
 dotenvy = { workspace = true }
 unicode-segmentation = "1.12"
+# BLF-749：Markdown 转换导出 Word——docx 生成（纯 Rust OOXML writer）。
+# default-features = false 去掉 image feature（本视图不嵌入图片，web 端图片也只
+# 渲染 `[图片：alt]` 占位文本）；zip/xml 为其传递依赖。
+docx-rs = { version = "0.4", default-features = false }
+# BLF-749：打开 .md / 导出 docx 的原生文件对话框（macOS NSOpenPanel/NSSavePanel）。
+rfd = "0.15"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # 读取系统「减弱动态效果」（prefers-reduced-motion）：gpui 0.2.2 无 reduce-motion API，
