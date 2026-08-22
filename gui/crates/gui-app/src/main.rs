@@ -11,6 +11,7 @@
 mod assets;
 mod icon;
 mod keychain;
+mod markdown_export;
 mod motion;
 mod runtime;
 mod theme;
