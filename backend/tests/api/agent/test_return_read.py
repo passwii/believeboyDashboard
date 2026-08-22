@@ -29,12 +29,8 @@ def _no_redis_cache(monkeypatch):
     """
     from app.api.v1.endpoints.agent import return_analysis as ra_module
 
-    monkeypatch.setattr(
-        ra_module, "get_return_analysis_v2_cache", lambda *a, **k: None
-    )
-    monkeypatch.setattr(
-        ra_module, "set_return_analysis_v2_cache", lambda *a, **k: None
-    )
+    monkeypatch.setattr(ra_module, "get_return_analysis_v2_cache", lambda *a, **k: None)
+    monkeypatch.setattr(ra_module, "set_return_analysis_v2_cache", lambda *a, **k: None)
 
 
 def _today() -> date:
@@ -131,8 +127,7 @@ class TestR1Overview:
     def test_invalid_date_400(self, client, shipment_env):
         _seed_overview(shipment_env)
         resp = client.get(
-            _url(shipment_env, "/overview")
-            + _qs(start="2026-13-99", end="2026-14-01"),
+            _url(shipment_env, "/overview") + _qs(start="2026-13-99", end="2026-14-01"),
             headers=shipment_env["headers"],
         )
         assert resp.status_code == 400, resp.text
@@ -160,9 +155,11 @@ class TestR1Overview:
         )
         assert resp.status_code == 200, resp.text
         rows = resp.json()["data"]["feedback_rows"]
-        comments = [r["customer_comment"] for r in rows]
-        assert "Bad quality" in comments
-        assert "Too small" in comments
+        # BLF-788：O-1 单元格 "Bad quality|Too small" 按事件聚合为一行，
+        # 多段文本去重后以「 | 」合并，不再拆成两行重复计数。
+        assert len(rows) == 1
+        assert rows[0]["order_id"] == "O-1"
+        assert rows[0]["customer_comment"] == "Bad quality | Too small"
 
     def test_cache_hit_returns_cached_payload(self, client, shipment_env, monkeypatch):
         """缓存命中路径：直接返回缓存 payload（与内部端点共享 v2 缓存）。"""
