@@ -8,6 +8,10 @@
 //! 3. 登录成功 → 存 Keychain → 关登录窗、开主窗口
 //! 4. 主窗口点「退出登录」→ 清 Keychain → 关主窗、回登录窗
 
+// Windows 下 release 构建用 GUI 子系统：双击 exe 不再弹出黑色控制台窗口。
+// debug 构建保留 console 以便看日志；非 Windows 目标该属性无效果。
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+
 mod assets;
 mod icon;
 mod keychain;
