@@ -1403,6 +1403,10 @@ pub(crate) mod shader_resources {
     // 主机上构建），改为把 HLSL 源码内嵌进二进制，运行期用系统自带的
     // d3dcompiler_47.dll 以 /O3 等价优化编译。alpha_correction.hlsl 在编译期
     // 拼接到源码头部，替代 #include 预处理器指令。
+    // 注意：内嵌源码必须自包含（不得残留任何 #include 指令）——D3DCompile 的
+    // 文件 include 处理器会按 pSourceName 相对路径读磁盘，分发后的用户机器上
+    // 并无这些文件，残留 #include 会导致启动期编译失败（BLF-786 跟进修复）。
+    // 两个 .hlsl 文件首行的 `#include "alpha_correction.hlsl"` 已移除。
     const SHADER_SOURCE: &str = concat!(
         include_str!("alpha_correction.hlsl"),
         "\n",
@@ -1453,7 +1457,8 @@ pub(crate) mod shader_resources {
             }
         }
 
-        /// pSourceName 仅用于诊断信息；此 windows 绑定版本中 D3DCompile 为 ANSI 签名。
+        /// pSourceName 仅作为错误信息里的诊断名（内嵌源码不含 #include，
+        /// 不再传文件 include 处理器）；此 windows 绑定版本中 D3DCompile 为 ANSI 签名。
         fn source_name(self) -> &'static [u8] {
             match self {
                 ShaderModule::EmojiRasterization => b"color_text_raster.hlsl\0",
@@ -1486,10 +1491,6 @@ pub(crate) mod shader_resources {
 
     fn build_shader_blob(entry: ShaderModule, target: ShaderTarget) -> Result<ID3DBlob> {
         unsafe {
-            use windows::Win32::Graphics::{
-                Direct3D::ID3DInclude, Hlsl::D3D_COMPILE_STANDARD_FILE_INCLUDE,
-            };
-
             let source = entry.source();
             let source_name = entry.source_name();
 
@@ -1508,17 +1509,15 @@ pub(crate) mod shader_resources {
 
             let mut compile_blob = None;
             let mut error_blob = None;
-            // really dirty trick because winapi bindings are unhappy otherwise
-            let include_handler = &std::mem::transmute::<usize, ID3DInclude>(
-                D3D_COMPILE_STANDARD_FILE_INCLUDE as usize,
-            );
+            // 内嵌源码自包含、无任何 #include（见上方模块注释），因此不传文件
+            // include 处理器——彻底消除对进程工作目录/磁盘文件的运行期依赖。
 
             let ret = D3DCompile(
                 source.as_ptr() as *const std::ffi::c_void,
                 source.len(),
                 PCSTR::from_raw(source_name.as_ptr()),
                 None,
-                Some(include_handler),
+                None,
                 PCSTR::from_raw(entry_point.as_ptr()),
                 PCSTR::from_raw(shader_target.as_ptr()),
                 D3DCOMPILE_OPTIMIZATION_LEVEL3,

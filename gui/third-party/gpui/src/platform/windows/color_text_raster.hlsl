@@ -1,9 +1,7 @@
-#include "alpha_correction.hlsl"
-
 struct RasterVertexOutput {
     float4 position : SV_Position;
     float2 texcoord : TEXCOORD0;
-};
+}
 
 RasterVertexOutput emoji_rasterization_vertex(uint vertexID : SV_VERTEXID)
 {

@@ -155,7 +155,12 @@ pub fn guess_compositor() -> &'static str {
 pub(crate) fn current_platform(_headless: bool) -> Rc<dyn Platform> {
     Rc::new(
         WindowsPlatform::new()
-            .inspect_err(|err| show_error("Failed to launch", err.to_string()))
+            .inspect_err(|err| {
+                // 本地补丁（BLF-786 跟进）：`{:#}` 输出完整 anyhow 错误链
+                // （context: source: source…），否则弹窗只见最外层 context，
+                // 真正的底层 HRESULT/编译错误不可见，远程排障无从下手。
+                show_error("Failed to launch", format!("{:#}", err))
+            })
             .unwrap(),
     )
 }
