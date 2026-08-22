@@ -70,7 +70,8 @@ pub struct ClientConfig {
     pub base_url: String,
     pub session: Option<AuthSession>,
     /// 生产后端 dashboard 路由要求 API key（`require_api_key`，与 Web 端 Vercel
-    /// 代理 `?api_key=` 同源；GUI 直连后端需自带，见 README `BELIEVEBOY_TOKEN`）
+    /// 代理 `?api_key=` 同源）。来源优先级：登录下发的专属 key（BLF-711，BLF-787
+    /// 起 login()/Keychain 恢复自动挂载）> 环境变量 `BELIEVEBOY_TOKEN` > 无。
     pub api_key: Option<String>,
 }
 
@@ -338,6 +339,7 @@ mod tests {
             is_active: true,
             role_type: gui_domain::auth::UserRoleType::Operator,
             session_id: "sess_1".into(),
+            api_key: String::new(),
         };
         let session = AuthSession::from_login(&resp);
         assert_eq!(session.user_id, "u_1");
