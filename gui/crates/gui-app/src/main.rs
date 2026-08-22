@@ -94,6 +94,13 @@ fn main() -> anyhow::Result<()> {
             };
             match keychain::load_session() {
                 Ok(Some(resp)) => {
+                    // BLF-787：恢复会话时同步恢复登录下发的专属 API key——业务路由
+                    // `require_api_key` 需要 Bearer 凭据，否则重启后业务模块全 401。
+                    let client = if resp.api_key.is_empty() {
+                        client
+                    } else {
+                        client.with_api_key(resp.api_key.clone())
+                    };
                     let authed = client.with_session(AuthSession::from_login(&resp));
                     open_main_window(cx, authed, resp, None);
                 }

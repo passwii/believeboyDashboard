@@ -69,6 +69,7 @@ mod tests {
             is_active: true,
             role_type: UserRoleType::Admin,
             session_id: "sess_abc".into(),
+            api_key: String::new(),
         };
         let json = serde_json::to_string(&resp).unwrap();
         let back: LoginResponse = serde_json::from_str(&json).unwrap();

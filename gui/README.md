@@ -82,8 +82,9 @@ xcrun notarytool store-credentials believeboy-gui \
 `gui-app` 启动时按以下顺序读取（当前仅实现环境变量；`config.toml` 为预留）：
 
 1. 环境变量：`BELIEVEBOY_API_BASE`（API 地址，默认 `https://dash-api.believeboy.com`）、
-   `BELIEVEBOY_TOKEN`（API key，可选——生产后端 dashboard 路由要求，同 Web 端 Vercel 代理
-   `?api_key=` 的 key；桌面端直连后端，请求带 `Authorization: Bearer <key>`）
+   `BELIEVEBOY_TOKEN`（API key，**可选**——生产后端 dashboard 路由要求 API key；
+   BLF-787 起登录响应自动下发专属 key 并随会话存入 Keychain，正常使用无需设置本变量；
+   留作主 key 兜底/覆盖用，请求带 `Authorization: Bearer <key>`）
 2. `~/.config/believeboy-gui/config.toml`（macOS 实际路径 `~/Library/Application Support/believeboy-gui/config.toml`，未实现，预留）
 
 预留配置项：
@@ -97,8 +98,12 @@ api_key = ""
 
 ## 鉴权模型（与 Web 端共用同一组 FastAPI 端点）
 
-- `POST /api/v1/auth/login`：`{ email, password }` → `LoginResponse`（含 `session_id`）
-- 后续请求带 `X-User-Id` / `X-User-Email` / `X-Session-Id` 三个 header（非 JWT）
+- `POST /api/v1/auth/login`：`{ email, password }` → `LoginResponse`（含 `session_id`
+  与 BLF-711 下发的专属 `api_key`，每次登录轮换、旧 key 立即失效）
+- 后续请求带 `X-User-Id` / `X-User-Email` / `X-Session-Id` 三个 header（非 JWT）；
+  生产 dashboard 业务路由另需 `Authorization: Bearer <api_key>`（BLF-787：登录下发的
+  专属 key 自动挂到 client 并随 Keychain 会话持久化，重启后仍有效；若账号在别处重新
+  登录轮换了 key，本机会话需重新登录获取新 key）
 - 会话由后端 Redis 滑动窗口续期，`GET /api/v1/auth/me` 每次调用即续期；**无 refresh token 端点**
 - 登录成功后把 `LoginResponse` JSON 存入 macOS Keychain（service=`believeboy-gui`, account=`default`），
   重启自动恢复会话跳过登录；退出登录 / 会话失效时清除 Keychain 条目

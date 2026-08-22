@@ -2305,6 +2305,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Admin,
                 session_id: "s-test".into(),
+                api_key: String::new(),
             },
             warning: Some("无法连接服务器：test".into()),
         };
@@ -2397,6 +2398,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-dark".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -2444,6 +2446,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-key".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -2582,6 +2585,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3080,6 +3084,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-ms2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3171,6 +3176,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-pg2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3284,6 +3290,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-npc2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3381,6 +3388,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-inv2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3508,6 +3516,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-crm2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3667,6 +3676,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-crmfu2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3767,6 +3777,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-crmaudit2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -3882,6 +3893,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-aichat2step".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
@@ -4071,6 +4083,7 @@ mod tests {
                 is_active: true,
                 role_type: UserRoleType::Operator,
                 session_id: "s-reduce".into(),
+                api_key: String::new(),
             },
             warning: None,
         };
