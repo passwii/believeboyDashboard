@@ -626,6 +626,60 @@ def _build_summary_text(
     return "\n".join(parts)
 
 
+def _build_feedback_rows(records: list) -> list:
+    """顾客反馈行：一条退货事件（order_id, sku, return_date）至多一行（BLF-788）。
+
+    Amazon return report 的 ``customer-comments`` 是「每退货事件一个单元格」，
+    单元格内可能含多段以 ``|`` 分隔的文本片段。此前实现按片段拆成多行，导致
+    同一事件的反馈被重复计数：feedback_rows 行数与 summary_text 的
+    「共 N 条有评论」及原因占比按片段放大（PII 剥离后 N 行逐字相同，看似
+    跨快照复制）。现按事件键聚合：同事件多段文本去重后以「 | 」合并为一行，
+    条数 = 有评论的退货事件数。
+
+    同一 (order_id, sku, return_date) 存在多物理行的场景（license_plate 不同、
+    分属多份 is_current 快照）同样收敛到一行——这正是「跨快照重复」在存储层
+    唯一可能的形态；片段级文本去重避免「X | X」式拼接。fallback 与 snapshot
+    两条构建路径共用本函数，保证口径一致。
+    """
+    from app.constants.return_translations import translate_return_field
+    from app.schemas.return_analysis import CustomerFeedbackItem
+
+    merged: dict[tuple[str, str, str], dict] = {}
+    order: list[tuple[str, str, str]] = []
+    for r in records:
+        if not r.customer_comments:
+            continue
+        cleaned = str(r.customer_comments).replace("&#39;", "'").replace("&amp;", "&")
+        segments = [p.strip() for p in cleaned.split("|") if p.strip()]
+        if not segments:
+            continue
+        key = (r.order_id, r.sku, r.return_date)
+        entry = merged.get(key)
+        if entry is None:
+            entry = {"reason": r.reason, "segments": []}
+            merged[key] = entry
+            order.append(key)
+        for seg in segments:
+            if seg not in entry["segments"]:
+                entry["segments"].append(seg)
+
+    feedback_rows: list[CustomerFeedbackItem] = []
+    for key in order:
+        order_id, sku, return_date = key
+        entry = merged[key]
+        feedback_rows.append(
+            CustomerFeedbackItem(
+                sku=sku,
+                order_id=order_id,
+                reason=entry["reason"],
+                reason_display=translate_return_field("reason", entry["reason"]),
+                customer_comment=" | ".join(entry["segments"]),
+                return_date=return_date,
+            )
+        )
+    return feedback_rows
+
+
 def build_return_analysis(
     db: Session,
     *,
@@ -914,22 +968,7 @@ def build_return_analysis(
         reverse=True,
     )
 
-    feedback_rows: list[CustomerFeedbackItem] = []
-    for r in records:
-        if not r.customer_comments:
-            continue
-        parts = [c.strip() for c in r.customer_comments.split("|") if c.strip()]
-        for comment in parts:
-            feedback_rows.append(
-                CustomerFeedbackItem(
-                    sku=r.sku,
-                    order_id=r.order_id,
-                    reason=r.reason,
-                    reason_display=translate_return_field("reason", r.reason),
-                    customer_comment=comment,
-                    return_date=r.return_date,
-                )
-            )
+    feedback_rows: list[CustomerFeedbackItem] = _build_feedback_rows(records)
 
     # ── weekday-level unique return counts ───────────────────────────────────
     from collections import Counter
@@ -1178,7 +1217,6 @@ def build_return_analysis_from_snapshot(
         translate_return_field,
     )
     from app.schemas.return_analysis import (
-        CustomerFeedbackItem,
         DispositionItem,
         FulfillmentCenterItem,
         ReturnAnalysisResponse,
@@ -1456,22 +1494,8 @@ def build_return_analysis_from_snapshot(
         reverse=True,
     )
 
-    # 10) Feedback rows
-    feedback_rows = []
-    for r in records:
-        if not r.customer_comments:
-            continue
-        for comment in (c.strip() for c in r.customer_comments.split("|") if c.strip()):
-            feedback_rows.append(
-                CustomerFeedbackItem(
-                    sku=r.sku,
-                    order_id=r.order_id,
-                    reason=r.reason,
-                    reason_display=translate_return_field("reason", r.reason),
-                    customer_comment=comment,
-                    return_date=r.return_date,
-                )
-            )
+    # 10) Feedback rows（BLF-788：按退货事件去重，见 _build_feedback_rows）
+    feedback_rows = _build_feedback_rows(records)
 
     # 11) Weekday rows
     from collections import Counter

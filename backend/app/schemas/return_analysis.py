@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class ReturnRankingItem(BaseModel):
     """高退货排行项"""
+
     sku: str
     asin: str | None
     product_name: str | None
@@ -20,6 +21,7 @@ class ReturnRankingItem(BaseModel):
 
 class ReturnReasonItem(BaseModel):
     """退货原因分析项"""
+
     reason: str
     reason_display: str  # 翻译后的中文显示
     total_quantity: int
@@ -29,6 +31,7 @@ class ReturnReasonItem(BaseModel):
 
 class ReturnTrendItem(BaseModel):
     """退货时间趋势项"""
+
     date: str
     total_quantity: int
     return_count: int
@@ -39,6 +42,7 @@ class ReturnTrendItem(BaseModel):
 
 class DispositionItem(BaseModel):
     """商品状态项"""
+
     detailed_disposition: str
     disposition_display: str  # 翻译后的中文显示
     total_quantity: int
@@ -48,6 +52,7 @@ class DispositionItem(BaseModel):
 
 class StatusItem(BaseModel):
     """库存状态项"""
+
     status: str
     status_display: str  # 翻译后的中文显示
     total_quantity: int
@@ -57,6 +62,7 @@ class StatusItem(BaseModel):
 
 class WeekdayItem(BaseModel):
     """星期分布项"""
+
     weekday: int  # 0=Monday, 6=Sunday
     weekday_display: str  # 中文星期名
     return_count: int
@@ -65,6 +71,7 @@ class WeekdayItem(BaseModel):
 
 class FulfillmentCenterItem(BaseModel):
     """仓库分布项"""
+
     fulfillment_center_id: str
     return_count: int
     quantity: int
@@ -72,7 +79,8 @@ class FulfillmentCenterItem(BaseModel):
 
 
 class CustomerFeedbackItem(BaseModel):
-    """顾客反馈项"""
+    """顾客反馈项（BLF-788：一条退货事件至多一行，多段评论去重后以「 | 」合并）"""
+
     sku: str
     order_id: str
     reason: str
@@ -83,6 +91,7 @@ class CustomerFeedbackItem(BaseModel):
 
 class ReturnAnalysisSummary(BaseModel):
     """退货分析汇总"""
+
     total_returns: int
     total_quantity: int
     unique_skus: int
@@ -96,6 +105,7 @@ class ReturnAnalysisSummary(BaseModel):
 
 class ReturnAnalysisResponse(BaseModel):
     """退货分析响应"""
+
     project_id: int
     project_name: str
     country: str
