@@ -6,6 +6,11 @@ name: GUI Windows Build
 
 on:
   workflow_dispatch: {}
+  push:
+    # 本分支专用触发：新工作流文件的 pull_request 事件在默认分支收录前可能不触发，
+    # push 触发是确定性的；分支合并后此分支触发自然失效。
+    branches:
+      - "agent/seth/blf-786-gui-windows-build"
   pull_request:
     branches: [main]
     paths:
