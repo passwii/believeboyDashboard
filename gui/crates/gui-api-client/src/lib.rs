@@ -38,6 +38,7 @@ pub mod return_analysis;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
 pub mod shipment_schedules;
+pub mod shop_calculation;
 pub mod store_navigation;
 pub mod vat_invoice;
 pub mod weekly_product_analysis;

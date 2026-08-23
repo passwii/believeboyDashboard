@@ -235,6 +235,15 @@ pub struct PricingQuoteRequest {
     pub inbound_placement_mode: InboundPlacementMode,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usd_to_rmb_rate: Option<f64>,
+    /// 关联项目 id（BLF-729 店铺测算 US 站携带，落库归属；新品核算不传）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<i64>,
+    /// SKU（BLF-729 店铺测算按 SKU 落快照；新品核算不传）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sku: Option<String>,
+    /// 使用历史运费口径（BLF-729 店铺测算固定 true；backend 默认 False）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_historical_shipping_cost: Option<bool>,
 }
 
 /// 利润倒算请求（backend `PricingCalculationReverseRequest` →
@@ -496,10 +505,16 @@ mod tests {
             storage_months: 1.0,
             inbound_placement_mode: InboundPlacementMode::SingleDestination,
             usd_to_rmb_rate: None,
+            project_id: None,
+            sku: None,
+            use_historical_shipping_cost: None,
         };
         let value = serde_json::to_value(&req).expect("序列化失败");
         assert!(value.get("competitor_url").is_none());
         assert!(value.get("usd_to_rmb_rate").is_none());
+        assert!(value.get("project_id").is_none());
+        assert!(value.get("sku").is_none());
+        assert!(value.get("use_historical_shipping_cost").is_none());
         assert_eq!(value["first_leg_unit_price_rmb"], 5.0);
         assert_eq!(value["inbound_placement_mode"], "single_destination");
     }
