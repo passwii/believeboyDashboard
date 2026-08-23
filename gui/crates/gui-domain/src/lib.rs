@@ -33,4 +33,5 @@ pub mod order_info;
 pub mod reports;
 pub mod scheduled_reports;
 pub mod sidebar;
+pub mod system_management;
 pub mod vat_invoice;

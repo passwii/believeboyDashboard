@@ -61,5 +61,6 @@ pub mod site_navigation;
 pub mod stat_band;
 pub mod store_navigation;
 pub mod sub_nav;
+pub mod system_logs;
 pub mod vat_invoice;
 pub mod weekly_product_analysis;
