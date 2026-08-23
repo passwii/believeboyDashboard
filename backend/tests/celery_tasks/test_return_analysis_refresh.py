@@ -1,10 +1,13 @@
 """CELERY task refresh_return_aggregates — 单测。
 
-覆盖（不依赖 DB）:
-- target_date 默认走昨天
+覆盖（不依赖 DB 的窗口/缺口机制用 mock；真实写入走 BLF_test 集成测试）:
+- 默认回看近 DEFAULT_LOOKBACK_DAYS 天（止于昨天）
+- 显式 target_date → 窗口止于该日
+- lookback_days 覆盖 / 缺口日期合并进重算列表
 - upsert 冲突时 update (project, country, sku, date)
 - 重跑同一天幂等（count 不变）
 - 错误抛异常由 Celery 重试
+- 缺口补齐：raw 有而快照缺的旧日期被自动补算（BLF-805 根治回归）
 """
 
 from __future__ import annotations
@@ -15,46 +18,119 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-def test_refresh_default_target_is_yesterday() -> None:
-    """不传 target_date → 跑昨天."""
+def _run_task(**kwargs):
+    """统一入口：patch 掉真实 DB 依赖后跑任务，返回 (result, captured_dates)."""
     from app.celery_tasks.return_analysis_refresh import refresh_return_aggregates
 
-    captured: dict = {}
+    captured: dict = {"dates": []}
 
     def fake_refresh(db, target_date):
-        captured["target_date"] = target_date
+        captured["dates"].append(target_date)
         return {"rows_written": 0, "projects": 0}
 
-    with patch(
-        "app.celery_tasks.return_analysis_refresh._refresh_one_day",
-        side_effect=fake_refresh,
-    ):
-        # 传 None → 内部用 yesterday
-        result = refresh_return_aggregates.run(target_date=None)
+    def fake_no_gaps(db, *, window_start):
+        return []
 
-    assert captured["target_date"] == date.today() - timedelta(days=1)
-    assert result == {"rows_written": 0, "projects": 0}
+    patches = [
+        patch(
+            "app.celery_tasks.return_analysis_refresh._refresh_one_day",
+            side_effect=fake_refresh,
+        ),
+        patch(
+            "app.celery_tasks.return_analysis_refresh._find_gap_dates",
+            side_effect=fake_no_gaps,
+        ),
+    ]
+    with patches[0], patches[1]:
+        result = refresh_return_aggregates.run(**kwargs)
+    return result, captured["dates"]
 
 
-def test_refresh_explicit_target_date() -> None:
-    """显式传 target_date → 用该日期."""
+def test_refresh_default_lookback_window_ends_yesterday() -> None:
+    """不传参数 → 回看近 7 天，止于昨天."""
+    yesterday = date.today() - timedelta(days=1)
+    expected = [yesterday - timedelta(days=i) for i in range(6, -1, -1)]
+
+    result, dates = _run_task()
+
+    assert dates == expected
+    assert result["range_start"] == expected[0].isoformat()
+    assert result["range_end"] == yesterday.isoformat()
+    assert result["days_processed"] == 7
+    assert result["backfilled_dates"] == []
+
+
+def test_refresh_explicit_target_date_ends_window_there() -> None:
+    """显式传 target_date → 窗口止于该日（手动补跑场景）."""
+    end = date(2026, 7, 31)
+    expected = [end - timedelta(days=i) for i in range(6, -1, -1)]
+
+    result, dates = _run_task(target_date=end)
+
+    assert dates == expected
+    assert result["target_date"] == end.isoformat()
+
+
+def test_refresh_accepts_iso_string_target_date() -> None:
+    """target_date 也接受 ISO 字符串."""
+    _, dates = _run_task(target_date="2026-07-31")
+
+    assert dates[-1] == date(2026, 7, 31)
+
+
+def test_refresh_lookback_days_override() -> None:
+    """lookback_days=1 → 只重算窗口末日一天."""
+    end = date(2026, 7, 31)
+
+    result, dates = _run_task(target_date=end, lookback_days=1)
+
+    assert dates == [end]
+    assert result["days_processed"] == 1
+
+
+def test_refresh_clamps_out_of_range_lookback() -> None:
+    """lookback_days 越界被夹到 [1, 90]."""
+    _, dates_small = _run_task(target_date=date(2026, 7, 31), lookback_days=-5)
+    _, dates_big = _run_task(target_date=date(2026, 7, 31), lookback_days=999)
+
+    assert len(dates_small) == 1
+    assert len(dates_big) == 90
+
+
+def test_refresh_merges_and_sorts_gap_dates() -> None:
+    """缺口日期（早于窗口）应并入重算列表且整体升序去重."""
+    end = date(2026, 7, 31)
+    gaps = [date(2026, 7, 10), date(2026, 7, 12)]
+
     from app.celery_tasks.return_analysis_refresh import refresh_return_aggregates
 
-    captured: dict = {}
+    captured: dict = {"dates": []}
 
     def fake_refresh(db, target_date):
-        captured["target_date"] = target_date
-        return {"rows_written": 5, "projects": 1}
+        captured["dates"].append(target_date)
+        return {"rows_written": 0, "projects": 0}
 
-    with patch(
-        "app.celery_tasks.return_analysis_refresh._refresh_one_day",
-        side_effect=fake_refresh,
+    with (
+        patch(
+            "app.celery_tasks.return_analysis_refresh._refresh_one_day",
+            side_effect=fake_refresh,
+        ),
+        patch(
+            "app.celery_tasks.return_analysis_refresh._find_gap_dates",
+            return_value=gaps,
+        ),
     ):
-        result = refresh_return_aggregates.run(target_date=date(2026, 7, 31))
+        result = refresh_return_aggregates.run(target_date=end, lookback_days=2)
 
-    assert captured["target_date"] == date(2026, 7, 31)
-    assert result["rows_written"] == 5
-    assert result["projects"] == 1
+    # 窗口 = [7-30, 7-31]；缺口 = [7-10, 7-12] → 合并升序
+    assert captured["dates"] == [
+        date(2026, 7, 10),
+        date(2026, 7, 12),
+        date(2026, 7, 30),
+        date(2026, 7, 31),
+    ]
+    assert result["days_processed"] == 4
+    assert result["backfilled_dates"] == ["2026-07-10", "2026-07-12"]
 
 
 def test_refresh_propagates_db_error_for_retry() -> None:
@@ -64,9 +140,15 @@ def test_refresh_propagates_db_error_for_retry() -> None:
     def fake_refresh_boom(db, target_date):
         raise RuntimeError("db connection lost")
 
-    with patch(
-        "app.celery_tasks.return_analysis_refresh._refresh_one_day",
-        side_effect=fake_refresh_boom,
+    with (
+        patch(
+            "app.celery_tasks.return_analysis_refresh._refresh_one_day",
+            side_effect=fake_refresh_boom,
+        ),
+        patch(
+            "app.celery_tasks.return_analysis_refresh._find_gap_dates",
+            return_value=[],
+        ),
     ):
         with pytest.raises(RuntimeError, match="db connection lost"):
             refresh_return_aggregates.run(target_date=date(2026, 7, 31))
@@ -433,3 +515,149 @@ def test_refresh_one_day_excludes_cancelled_sales(cumulative_test_project, db_se
     assert row.sales_quantity == 150, (
         f"cancelled/pending should be excluded; got sales_quantity={row.sales_quantity}"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# BLF-805: 缺口补齐 integration test (real DB) — 根治回归
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def gap_test_project(db_session):
+    """Create a project whose only return row sits on an OLD date with NO
+    aggregate row — simulating the frozen-snapshot state BLF-805 found."""
+    from app.models import AnalysisReturnRow, AnalysisSourceFile, Project
+
+    pid_marker = date.today().isoformat()
+    project = Project(
+        project_name=f"BLF-805 gap test {pid_marker}",
+        sort_order=0,
+        is_active=False,
+    )
+    db_session.add(project)
+    db_session.flush()
+    pid = project.id
+
+    old_date = date.today() - timedelta(days=40)
+
+    sf = AnalysisSourceFile(
+        report_type="return_report",
+        is_current=True,
+        project_id=pid,
+        country="US",
+        upload_file_id=f"BLF805-test-{pid}",
+        upload_file_path=f"return_report/{pid}/test.csv",
+        original_filename=f"return_report_{pid}.csv",
+        stored_filename=f"return_report_{pid}.csv",
+        logical_filename=f"return_report_{pid}.csv",
+        storage_key=f"return_report/{pid}/test.csv",
+        file_size_bytes=1024,
+        file_sha256="deadbeef",
+        period_start_date=old_date,
+        period_end_date=old_date,
+        snapshot_at=None,
+        version=1,
+        ingestion_status="success",
+    )
+    db_session.add(sf)
+    db_session.flush()
+
+    db_session.add(
+        AnalysisReturnRow(
+            project_id=pid,
+            country="US",
+            source_file_id=sf.id,
+            source_row_no=1,
+            return_date=old_date,
+            sku="SKU-GAP",
+            order_id="ORDER-GAP",
+            quantity=3,
+            detailed_disposition="SELLABLE",
+            reason="OTHER",
+            status="Unit returned to inventory",
+            original_return_datetime=f"{old_date.isoformat()}T00:00:00",
+        )
+    )
+    db_session.commit()
+
+    try:
+        yield pid, old_date
+    finally:
+        from sqlalchemy import text
+
+        db_session.expire_all()
+        db_session.execute(
+            text("DELETE FROM analysis_return_aggregates WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(
+            text("DELETE FROM analysis_return_rows WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(
+            text("DELETE FROM analysis_source_files WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": pid})
+        db_session.commit()
+
+
+def test_gap_backfill_recovers_missing_old_date(gap_test_project, db_session):
+    """BLF-805 根治回归：raw 有退货而快照缺行的旧日期，每日任务自动补算.
+
+    场景复刻事故形态：40 天前有一笔退货，但快照表没有该日聚合行（当年
+    单日增量扑空且无补算机制）。窗口止于 old_date+5（不含缺口日），任务
+    应靠缺口检测把 old_date 补出来。
+    """
+    from app.celery_tasks.return_analysis_refresh import refresh_return_aggregates
+    from app.models import AnalysisReturnAggregate
+
+    pid, old_date = gap_test_project
+    window_end = old_date + timedelta(days=5)  # 窗口本身不覆盖 old_date
+
+    result = refresh_return_aggregates.run(
+        target_date=window_end.isoformat(), lookback_days=1
+    )
+
+    assert result["backfilled_dates"] == [old_date.isoformat()], result
+    assert result["days_processed"] == 2  # 窗口 1 天 + 缺口 1 天
+
+    row = (
+        db_session.query(AnalysisReturnAggregate)
+        .filter_by(project_id=pid, sku="SKU-GAP", data_date=old_date)
+        .first()
+    )
+    assert row is not None, "gap date should be backfilled into snapshot"
+    assert row.return_quantity == 3
+
+
+def test_gap_backfill_is_idempotent_on_rerun(gap_test_project, db_session):
+    """补算完成后重跑：缺口消失、行数不变（自愈后不再重复处理）."""
+    from sqlalchemy import text
+
+    from app.celery_tasks.return_analysis_refresh import refresh_return_aggregates
+
+    pid, old_date = gap_test_project
+    window_end = old_date + timedelta(days=5)
+
+    refresh_return_aggregates.run(target_date=window_end.isoformat(), lookback_days=1)
+
+    def _count() -> int:
+        return db_session.execute(
+            text(
+                "SELECT COUNT(*) FROM analysis_return_aggregates WHERE project_id = :pid"
+            ),
+            {"pid": pid},
+        ).scalar()
+
+    cnt_before = _count()
+    assert cnt_before == 1
+
+    result2 = refresh_return_aggregates.run(
+        target_date=window_end.isoformat(), lookback_days=1
+    )
+
+    assert result2["backfilled_dates"] == [], (
+        "second run must no longer treat the backfilled date as a gap"
+    )
+    assert _count() == cnt_before

@@ -1,7 +1,10 @@
-"""Return analysis aggregate refresh task (BEL-373 数据层).
+"""Return analysis aggregate refresh task (BEL-373 数据层, BLF-805 根治).
 
-每日 03:00 UTC 跑近 90 天增量：
-- 对每个 (project, country) 跑近 90 天
+每日 03:00 CST（beat 时区 Asia/Shanghai）跑「回看窗口 + 缺口补齐」：
+- 回看近 DEFAULT_LOOKBACK_DAYS 天（含昨天）逐日重算，UPSERT 幂等覆盖
+  退货报表 ~08:11 才入库（内容截至前一天）导致的入库延迟；
+- 缺口补齐：raw 层存在但快照缺行的更早日期一并重算（自愈长时停机/漏跑，
+  上限 MAX_GAP_BACKFILL_DAYS 天，更早的走 return-analysis-rebuild 全量重建）；
 - 按 (project, country, sku, data_date) 写一行 aggregate
 - 含 Wilson 95% 下界 + risk_level（销量门槛 15 + Wilson 判定）
 
@@ -31,6 +34,47 @@ from app.utils.stats import compute_risk_level
 
 logger = logging.getLogger(__name__)
 
+# BLF-805: 每日回看窗口。退货报表 ~08:11 CST 入库（内容截至前一天），而 beat 在
+# 03:00 跑——单日增量永远跑在数据到达之前且无补算机制，导致快照表自 2026-08-03
+# 起冻结。7 天窗口覆盖最大入库延迟与短时漏跑；更长的缺口由缺口补齐 + rebuild 兜底。
+DEFAULT_LOOKBACK_DAYS = 7
+
+# 缺口补齐扫描下界（天）：只自动补近一年的缺口，更早的走全量重建端点。
+MAX_GAP_BACKFILL_DAYS = 366
+
+
+def _find_gap_dates(db: Session, *, window_start: date) -> list[date]:
+    """找「raw 有退货事件但快照缺行」的日期（早于回看窗口的部分）.
+
+    判定粒度：(project_id, country, return_date) 三元组在快照表无对应行。
+    返回去重后的日期列表（升序）。扫描范围限制在 MAX_GAP_BACKFILL_DAYS 内，
+    避免极端情况（如整表被清）下单次任务静默跑出一次全量重建的耗时。
+    """
+    from sqlalchemy import text
+
+    scan_floor = date.today() - timedelta(days=MAX_GAP_BACKFILL_DAYS)
+    rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT r.return_date
+            FROM analysis_return_rows r
+            JOIN analysis_source_files f ON f.id = r.source_file_id
+            LEFT JOIN analysis_return_aggregates a
+                ON a.project_id = r.project_id
+               AND a.country = r.country
+               AND a.data_date = r.return_date
+            WHERE f.report_type = 'return_report'
+              AND f.is_current = TRUE
+              AND r.return_date < :window_start
+              AND r.return_date >= :scan_floor
+              AND a.id IS NULL
+            ORDER BY r.return_date
+            """
+        ),
+        {"window_start": window_start, "scan_floor": scan_floor},
+    ).all()
+    return [row[0] for row in rows]
+
 
 @shared_task(
     name="return_analysis.refresh_daily",
@@ -46,37 +90,72 @@ logger = logging.getLogger(__name__)
     on_error="log",
 )
 def refresh_return_aggregates(
-    self, target_date: str | date | None = None
+    self,
+    target_date: str | date | None = None,
+    lookback_days: int | None = None,
 ) -> dict[str, Any]:
-    """每日刷新 return aggregates 物化表.
+    """每日刷新 return aggregates 物化表（BLF-805：回看窗口 + 缺口补齐）.
 
     Args:
-        target_date: ISO date string (YYYY-MM-DD) 或 date 对象. None = 跑昨天.
+        target_date: ISO date string (YYYY-MM-DD) 或 date 对象. None = 窗口止于昨天.
+            显式传入时窗口止于该日（手动补跑/测试用）。
+        lookback_days: 回看天数（含 target_date），默认 DEFAULT_LOOKBACK_DAYS=7。
 
     Returns:
-        dict with rows_written / projects / target_date
+        dict with rows_written / projects / target_date / range_start /
+        range_end / days_processed / backfilled_dates
     """
     if isinstance(target_date, str):
-        run_date = date.fromisoformat(target_date)
+        window_end = date.fromisoformat(target_date)
     elif isinstance(target_date, date):
-        run_date = target_date
+        window_end = target_date
     else:
-        run_date = date.today() - timedelta(days=1)
+        window_end = date.today() - timedelta(days=1)
+
+    days = lookback_days if lookback_days is not None else DEFAULT_LOOKBACK_DAYS
+    days = max(1, min(days, 90))
+    window_start = window_end - timedelta(days=days - 1)
 
     db = SessionLocal()
     try:
-        result = _refresh_one_day(db, target_date=run_date)
+        # 1) 缺口补齐：raw 有而快照缺的更早日期（自愈停机/漏跑）
+        gap_dates = _find_gap_dates(db, window_start=window_start)
+        window_dates = {window_start + timedelta(days=i) for i in range(days)}
+        all_dates = sorted(set(gap_dates) | window_dates)
+
+        # 2) 逐日重算（_refresh_one_day 幂等 UPSERT + 单日 commit）
+        rows_written = 0
+        max_projects = 0
+        for run_date in all_dates:
+            result = _refresh_one_day(db, target_date=run_date)
+            rows_written += result["rows_written"]
+            max_projects = max(max_projects, result["projects"])
+
         mark_committed()  # BLF-668: _refresh_one_day 内部已 commit，按协议标记
         logger.info(
-            "return_analysis.refresh_daily 完成：date=%s rows=%d projects=%d",
-            run_date.isoformat(),
-            result["rows_written"],
-            result["projects"],
+            "return_analysis.refresh_daily 完成：range=%s..%s rows=%d projects=%d "
+            "days=%d backfilled=%s",
+            window_start.isoformat(),
+            window_end.isoformat(),
+            rows_written,
+            max_projects,
+            len(all_dates),
+            [d.isoformat() for d in gap_dates] or "[]",
         )
-        return result
+        return {
+            "rows_written": rows_written,
+            "projects": max_projects,
+            "target_date": window_end.isoformat(),
+            "range_start": window_start.isoformat(),
+            "range_end": window_end.isoformat(),
+            "days_processed": len(all_dates),
+            "backfilled_dates": [d.isoformat() for d in gap_dates],
+        }
     except Exception as exc:
         logger.exception(
-            "return_analysis.refresh_daily 失败：date=%s", run_date.isoformat()
+            "return_analysis.refresh_daily 失败：range=%s..%s",
+            window_start.isoformat(),
+            window_end.isoformat(),
         )
         # 让 Celery 重试（max_retries=3, retry_backoff=True）
         raise self.retry(exc=exc)
