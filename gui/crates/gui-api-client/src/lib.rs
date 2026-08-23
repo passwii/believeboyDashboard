@@ -43,6 +43,7 @@ pub mod scheduled_reports;
 pub mod seasonal_replenishment;
 pub mod shipment_schedules;
 pub mod shop_calculation;
+pub mod sku_info;
 pub mod store_navigation;
 pub mod system_management;
 pub mod vat_invoice;

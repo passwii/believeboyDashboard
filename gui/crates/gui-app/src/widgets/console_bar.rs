@@ -36,6 +36,7 @@ use crate::views::ad_analysis::AD_ANALYSIS_URL;
 use crate::views::daily_analysis::DAILY_ANALYSIS_URL;
 use crate::views::dashboard::last_7_days_window;
 use crate::views::monthly_report::MONTHLY_REPORT_URL;
+use crate::views::sku_info::SKU_INFO_URL;
 use crate::views::stat_band::{format_compact_currency, format_compact_number};
 use crate::widgets::data_table::TabularNumsExt;
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
@@ -84,6 +85,15 @@ pub fn console_config_for_url(url: &str) -> ConsoleBarConfig {
             project: true,
             country: true,
             date: true,
+            stat: false,
+        };
+    }
+    // SKU 信息（BLF-798）：项目 + 站点（服务端分页档案查询；无日期维度与统计位）
+    if url == SKU_INFO_URL {
+        return ConsoleBarConfig {
+            project: true,
+            country: true,
+            date: false,
             stat: false,
         };
     }

@@ -210,6 +210,7 @@ mod tests {
             (include_str!("../views/return_analysis.rs"), "退货分析"),
             (include_str!("../views/scheduled_reports.rs"), "定时报告"),
             (include_str!("../views/auto_upload.rs"), "报表自动化"),
+            (include_str!("../views/sku_info.rs"), "SKU 信息"),
             (include_str!("../views/site_navigation.rs"), "站点导航"),
             (include_str!("../views/store_navigation.rs"), "店铺导航"),
         ];

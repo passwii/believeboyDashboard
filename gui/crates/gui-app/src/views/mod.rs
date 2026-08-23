@@ -17,7 +17,10 @@
 //! - `auto_upload` 报表中心 → 报表自动化（P5-4，RPA 自动上传状态矩阵，只读查看）
 //! - `stat_band`  Dashboard 数字带（GUI-7 / 1.0-b，frontend v2-stats 的 GPUI 等价）
 //! - `site_navigation` 站点导航（GUI-12 / 2.0，静态数据，点击卡片默认浏览器打开）
-//! - `daily_analysis` 运营 → 销售数据（P3-1，四态状态机 + 项目/国家筛选 + 明细/下钻表）
+//! - `daily_analysis` 运营 → 销售数据（P3-1；BLF-798 起 Pattern A 模板原型页：
+//!   FilterToolbar + 虚拟化大表 + pinned 聚合分页条）
+//! - `sku_info` 运营 → SKU 信息（BLF-798，Pattern A 第二原型页：服务端分页 +
+//!   关键词搜索 + 启用状态筛选）
 //! - `placeholder`占位内容视图
 //!
 //! 后续每个 sidebar 子项对应一个真实 View，按 frontend sidebar 顺序推进。
@@ -66,6 +69,7 @@ pub mod shell;
 pub mod shipment_management;
 pub mod shop_calculation;
 pub mod site_navigation;
+pub mod sku_info;
 pub mod stat_band;
 pub mod store_navigation;
 pub mod sub_nav;

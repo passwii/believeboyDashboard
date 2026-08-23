@@ -1,7 +1,10 @@
-//! 运营 → 销售数据视图（P3-1，BLF-701）
+//! 运营 → 销售数据视图（P3-1，BLF-701；BLF-798 起 Pattern A 模板套版）
 //!
 //! frontend `app/dashboard/operations/daily-analysis/page.tsx` 的 GPUI 等价：
-//! 销售趋势 / SKU 明细表 / 项目维度下钻（全部项目时）或国家维度下钻（跨站点时）。
+//! **Pattern A「控制台工具栏 + 超密度数据网格」原型页**——顶部 FilterToolbar
+//! （数据维度切换 + SKU 关键词搜索 + 广告状态筛选 + 刷新），中部虚拟化大表
+//! （[`DataGrid`]：粘性表头 / 列宽拖拽 / 横向滚动 / 斑马纹），底部 pinned
+//! 分页聚合条（聚合摘要数字 mono；含 **Pending 口径标注**）。
 //!
 //! 架构（复用 Phase 1/2 基建）：
 //! - **四态状态机**：`Loading / Loaded / Empty / Error`（沿用 `dashboard.rs` 模式），
@@ -12,29 +15,29 @@
 //!   - 单项目 + 全部站点 → `daily_analysis_all_countries`（`country_breakdown` 国家维度下钻）
 //!   - 单项目 + 指定站点 → `daily_analysis`（主端点，带 `console` 请求诊断）
 //!   - 全部项目 + 全部站点 → 后端不支持聚合矩阵，报错（对齐 frontend 提示）
-//! - **数字带**：复用 `stat_band`（KpiSummary 从 summary_rows 聚合 + 对比期环比）；
-//! - **明细表 / 下钻表**：gpui-component `Table`（沿用 `widgets::top_projects.rs` 的
-//!   TableDelegate 范式，懒建 TableState）；
-//! - **图表边界**：图表真渲染属 P3-2，本棒销售趋势用「占位说明 + 每日列表」呈现。
+//! - **KPI**：Loaded 后推送 Console Bar 统计 pill（GMV / 订单数；Pending 数据源
+//!   未接入，恒为 None 不出位）；页内聚合条同步给出合计与 Pending 口径标注。
 //!
-//! 已知差异（有意保留，GPUI 0.2 能力边界 / P3-1 范围）：
-//! - 日期范围固定「近 7 天」（与 Dashboard 一致），日期范围选择器留后续增强；
-//! - SKU 筛选 / Excel 导出未接入（frontend 有，P3-1 不做）；
-//! - 全部项目模式的 console 由客户端合成（backend `/all` 无 console，对齐 frontend）。
+//! 已知差异（有意保留，GPUI 0.2 能力边界 / 本阶段范围）：
+//! - 项目 / 站点 / 日期筛选由 Stage4 Console Bar 唯一权威承载（BLF-795），
+//!   页内不再重复渲染三维筛选；
+//! - Pending 订单数后端无现成端点：聚合条以「—」占位并标注统计口径缺口；
+//! - 图表真渲染属 Stage8（Pattern B 双轴分析画布），本页「每日汇总」以数据
+//!   网格呈现每日聚合行。
 
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
 
 use gpui::{
-    div, prelude::*, px, App, AsyncApp, Context, CursorStyle, Entity, EventEmitter, FontWeight,
-    Render, SharedString, WeakEntity, Window,
+    div, prelude::*, px, App, AsyncApp, Context, Entity, EventEmitter, SharedString, WeakEntity,
+    Window,
 };
 use gpui_component::{
     button::Button,
     h_flex,
+    input::{InputEvent, InputState},
     menu::{DropdownMenu, PopupMenuItem},
-    table::{Column, Table, TableDelegate, TableState},
     v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
@@ -46,11 +49,15 @@ use gui_domain::dashboard::{
 
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
-use crate::views::stat_band::stat_band;
 use crate::widgets::console_bar::{ConsoleStats, ConsoleStatsEvent};
+use crate::widgets::data_grid::{
+    change_indicator, grid_footer_bar, pattern_a_shell, AggregateItem, AggregateTone, DataGrid,
+};
+use crate::widgets::data_table::ColumnDef;
 use crate::widgets::date_range::DateRange;
-use crate::widgets::layout::content_guard;
+use crate::widgets::filter_bar::{toolbar_search_input, toolbar_spacer};
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pagination::PageState;
 use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::top_projects::{fmt_money_precise, fmt_num_precise};
 
@@ -96,6 +103,127 @@ pub fn mode_for(project_id: Option<i64>, country: &str) -> Option<AnalysisMode> 
         (Some(_), _) => Some(AnalysisMode::SingleProject),
     }
 }
+
+// ---------------------------------------------------------------------------
+// 工具栏筛选模型（纯函数，可单测）
+// ---------------------------------------------------------------------------
+
+/// 广告投放状态筛选（状态下拉；语义 = 该行是否有广告活动发生）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AdFilter {
+    /// 全部
+    #[default]
+    All,
+    /// 仅广告投放（有广告订单 / 花费）
+    WithAds,
+    /// 无广告投放
+    WithoutAds,
+}
+
+impl AdFilter {
+    /// 下拉选项（label 顺序即菜单顺序）
+    pub const OPTIONS: [(&'static str, AdFilter); 3] = [
+        ("全部", AdFilter::All),
+        ("仅广告投放", AdFilter::WithAds),
+        ("无广告投放", AdFilter::WithoutAds),
+    ];
+
+    /// 是否命中该行（has_ads 由各数据集定义：明细看广告订单，汇总/下钻看花费）
+    pub fn matches(self, has_ads: bool) -> bool {
+        match self {
+            Self::All => true,
+            Self::WithAds => has_ads,
+            Self::WithoutAds => !has_ads,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        Self::OPTIONS
+            .iter()
+            .find(|(_, f)| *f == self)
+            .map(|(label, _)| *label)
+            .unwrap_or("全部")
+    }
+}
+
+/// 关键词命中（大小写不敏感的包含匹配；任一字段命中即可）
+pub fn text_matches(query: &str, haystacks: &[&str]) -> bool {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return true;
+    }
+    haystacks.iter().any(|h| h.to_lowercase().contains(&q))
+}
+
+/// 明细行筛选（SKU 关键词 × 广告状态；纯函数）
+pub fn filter_detail_rows(
+    rows: &[DailyAnalysisDetailRow],
+    query: &str,
+    ad_filter: AdFilter,
+) -> Vec<DailyAnalysisDetailRow> {
+    rows.iter()
+        .filter(|r| {
+            text_matches(query, &[&r.sku, r.asin.as_deref().unwrap_or("")])
+                && ad_filter.matches(r.ad_orders > 0)
+        })
+        .cloned()
+        .collect()
+}
+
+/// 每日汇总行筛选（日期关键词 × 广告状态；纯函数）
+pub fn filter_daily_rows(
+    rows: &[DailyAnalysisRow],
+    query: &str,
+    ad_filter: AdFilter,
+) -> Vec<DailyAnalysisRow> {
+    rows.iter()
+        .filter(|r| {
+            text_matches(query, &[&r.date.to_string()]) && ad_filter.matches(r.ad_spend > 0.0)
+        })
+        .cloned()
+        .collect()
+}
+
+/// 下钻行筛选（名称关键词 × 广告状态；纯函数）
+pub fn filter_breakdown_rows(
+    rows: &[BreakdownRow],
+    query: &str,
+    ad_filter: AdFilter,
+) -> Vec<BreakdownRow> {
+    rows.iter()
+        .filter(|r| {
+            text_matches(query, &[&r.name]) && ad_filter.matches(r.ad_spend > 0.0)
+        })
+        .cloned()
+        .collect()
+}
+
+/// 页面数据集切换（工具栏「数据维度」下拉）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GridDataset {
+    /// SKU 明细（默认）
+    #[default]
+    Detail,
+    /// 每日汇总（图表 Stage8 接入前的数据形态）
+    Daily,
+    /// 维度下钻（项目 / 国家）
+    Breakdown,
+}
+
+impl GridDataset {
+    /// 下拉选项 label
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Detail => "SKU 明细",
+            Self::Daily => "每日汇总",
+            Self::Breakdown => "维度下钻",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 维度下钻（纯派生，可单测）
+// ---------------------------------------------------------------------------
 
 /// 下钻行（项目维度 或 国家维度；纯展示派生，可单测）
 #[derive(Debug, Clone, PartialEq)]
@@ -193,6 +321,10 @@ pub fn compute_country_breakdown(
     rows
 }
 
+// ---------------------------------------------------------------------------
+// 数据载荷与状态机
+// ---------------------------------------------------------------------------
+
 /// 销售数据载荷（Loaded 持有）
 #[derive(Debug, Clone, PartialEq)]
 pub struct DailyAnalysisData {
@@ -200,13 +332,13 @@ pub struct DailyAnalysisData {
     pub mode: AnalysisMode,
     /// 请求诊断（mode A 由客户端合成；B/C 来自后端 console）
     pub console: DailyAnalysisConsoleResponse,
-    /// 每日聚合行（销售趋势 / KPI 数字带数据源）
+    /// 每日聚合行（每日汇总网格 / KPI 数字带数据源）
     pub summary_rows: Vec<DailyAnalysisRow>,
-    /// SKU 明细行（明细表数据源）
+    /// SKU 明细行（明细网格数据源）
     pub detail_rows: Vec<DailyAnalysisDetailRow>,
     /// 项目维度（mode A）/ 国家维度（mode B）下钻；mode C 为空
     pub breakdown: Vec<BreakdownRow>,
-    /// 对比期（前一 7 天窗口）聚合行（数字带环比用）；拉取失败时为空（显示「—」）
+    /// 对比期（前一 7 天窗口）聚合行（环比用）；拉取失败时为空（显示「—」）
     pub compare_summary_rows: Vec<DailyAnalysisRow>,
 }
 
@@ -236,14 +368,26 @@ impl DailyAnalysisState {
             Err(msg) => Self::Error(msg),
         }
     }
+
+    /// Loaded 态的下钻行数（其余态为 `None`；工具栏据此决定是否出「维度下钻」项）
+    pub fn loaded_breakdown_len(&self) -> Option<usize> {
+        match self {
+            Self::Loaded(data) => Some(data.breakdown.len()),
+            _ => None,
+        }
+    }
 }
 
-/// 销售数据视图（状态机 + 项目/站点/日期筛选 + 竞态保护）
+// ---------------------------------------------------------------------------
+// 视图
+// ---------------------------------------------------------------------------
+
+/// 销售数据视图（Pattern A 骨架：FilterToolbar + 虚拟化大表 + pinned 底条）
 pub struct DailyAnalysisView {
     state: Entity<DailyAnalysisState>,
     /// 带会话的 API client
     client: Client,
-    /// 项目列表（reload 刷新；筛选菜单数据源）
+    /// 项目列表（reload 刷新；Console Bar 菜单数据源由根视图维护）
     projects: Vec<ManagedProject>,
     /// 当前选中项目；`None` = 全部项目
     selected_project_id: Option<i64>,
@@ -253,18 +397,47 @@ pub struct DailyAnalysisView {
     date_range: DateRange,
     /// 请求竞态保护：只有等于最新值的响应才被应用
     latest_request_id: u64,
-    /// SKU 明细表（懒建 TableState）
-    detail_table: Entity<DailyDetailTable>,
-    /// 项目/国家维度下钻表（懒建）
-    breakdown_table: Entity<BreakdownTable>,
+
+    // ---- Pattern A 工具栏状态 ----
+    /// 当前数据集（SKU 明细 / 每日汇总 / 维度下钻）
+    dataset: GridDataset,
+    /// SKU 关键词（客户端过滤当前数据集）
+    search_query: String,
+    /// 广告投放状态筛选
+    ad_filter: AdFilter,
+    /// 搜索输入框（懒建 InputState，render 首帧创建；见 ad_data.rs 范式）
+    search_input: Option<Entity<InputState>>,
+    search_sub: Option<gpui::Subscription>,
+
+    // ---- Pattern A 网格与底条状态 ----
+    /// SKU 明细网格
+    detail_grid: Entity<DataGrid<DailyAnalysisDetailRow>>,
+    /// 每日汇总网格
+    daily_grid: Entity<DataGrid<DailyAnalysisRow>>,
+    /// 维度下钻网格
+    breakdown_grid: Entity<DataGrid<BreakdownRow>>,
+    /// 当前页（1-based；refresh_grids 经 PageState 收敛到安全范围）
+    page: usize,
+    /// 每页行数覆盖（None = DEFAULT_PAGE_SIZE）
+    page_size_override: Option<usize>,
+    /// 分页状态快照（refresh_grids 重算；底部分页器渲染源）
+    page_state: PageState,
+    /// 底部聚合条目（随数据集 / 筛选联动刷新；数字一律 mono 渲染）
+    aggregates: Vec<AggregateItem>,
 }
+
+/// 每页行数选项（对齐 pagination 默认档位）
+const PAGE_SIZE_OPTIONS: [usize; 4] = [50, 100, 200, 500];
 
 impl DailyAnalysisView {
     /// 新建视图：初始 `Loading`，由 root.rs 懒创建后触发 `reload()`
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let state = cx.new(|_| DailyAnalysisState::Loading);
-        let detail_table = cx.new(|_| DailyDetailTable::new());
-        let breakdown_table = cx.new(|_| BreakdownTable::new());
+        let detail_grid =
+            cx.new(|_| DataGrid::new("daily-detail-grid", detail_columns()).striped(true));
+        let daily_grid =
+            cx.new(|_| DataGrid::new("daily-daily-grid", daily_columns()).striped(true));
+        let breakdown_grid = cx.new(|_| DataGrid::new("daily-breakdown-grid", breakdown_columns()));
         let (from, to) = last_7_days_window(chrono::Local::now().date_naive());
         Self {
             state,
@@ -274,8 +447,18 @@ impl DailyAnalysisView {
             country: DEFAULT_COUNTRY,
             date_range: DateRange::new(Some(from), Some(to)),
             latest_request_id: 0,
-            detail_table,
-            breakdown_table,
+            dataset: GridDataset::default(),
+            search_query: String::new(),
+            ad_filter: AdFilter::default(),
+            search_input: None,
+            search_sub: None,
+            detail_grid,
+            daily_grid,
+            breakdown_grid,
+            page: 1,
+            page_size_override: None,
+            page_state: PageState::new(1, DEFAULT_PAGE_SIZE, 0),
+            aggregates: Vec::new(),
         }
     }
 
@@ -328,24 +511,6 @@ impl DailyAnalysisView {
         .detach();
     }
 
-    /// 切换选中项目 → reload（`None` = 全部项目；同一项目为 no-op）
-    pub fn select_project(&mut self, project_id: Option<i64>, cx: &mut Context<Self>) {
-        if project_id == self.selected_project_id {
-            return;
-        }
-        self.selected_project_id = project_id;
-        self.reload(cx);
-    }
-
-    /// 切换站点 → reload（同一站点为 no-op）
-    pub fn select_country(&mut self, country: &'static str, cx: &mut Context<Self>) {
-        if country == self.country {
-            return;
-        }
-        self.country = country;
-        self.reload(cx);
-    }
-
     /// BLF-795：Console Bar 筛选一键应用——对比当前三维，只对变化维度落值，
     /// 任一变化仅触发一次 reload（避免逐控件切换造成的多次拉取）。
     /// 返回是否有实际变化。
@@ -377,7 +542,64 @@ impl DailyAnalysisView {
         true
     }
 
-    /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前把明细/下钻行喂给表格组件。
+    // ---- Pattern A 工具栏动作 ----
+
+    /// 切换数据集 → 重算网格切片与聚合
+    pub fn select_dataset(&mut self, dataset: GridDataset, cx: &mut Context<Self>) {
+        if dataset == self.dataset {
+            return;
+        }
+        self.dataset = dataset;
+        self.refresh_grids(cx);
+    }
+
+    /// 搜索关键词变更 → 回到第 1 页重算（实时过滤）
+    pub fn set_search_query(&mut self, query: String, cx: &mut Context<Self>) {
+        if query == self.search_query {
+            return;
+        }
+        self.search_query = query;
+        self.page = 1;
+        self.refresh_grids(cx);
+    }
+
+    /// 广告状态筛选变更 → 回到第 1 页重算
+    pub fn set_ad_filter(&mut self, filter: AdFilter, cx: &mut Context<Self>) {
+        if filter == self.ad_filter {
+            return;
+        }
+        self.ad_filter = filter;
+        self.page = 1;
+        self.refresh_grids(cx);
+    }
+
+    /// 翻页（底部分页器回调；页码越界由 PageState 收敛）
+    pub fn set_page(&mut self, page: usize, cx: &mut Context<Self>) {
+        let target = page.max(1);
+        if target == self.page {
+            return;
+        }
+        self.page = target;
+        self.refresh_grids(cx);
+    }
+
+    /// 改每页行数（回到第 1 页）
+    pub fn set_page_size(&mut self, size: usize, cx: &mut Context<Self>) {
+        let size = size.max(1);
+        if size == self.page_size() {
+            return;
+        }
+        self.page = 1;
+        self.page_size_override = Some(size);
+        self.refresh_grids(cx);
+    }
+
+    fn page_size(&self) -> usize {
+        self.page_size_override.unwrap_or(DEFAULT_PAGE_SIZE)
+    }
+
+    /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前刷新网格与聚合，
+    /// 并把 KPI 推送给 Console Bar 统计 pill。
     fn apply_result(
         &mut self,
         request_id: u64,
@@ -390,12 +612,6 @@ impl DailyAnalysisView {
         if let Ok(data) = &result {
             if !data.is_empty() {
                 self.projects = data.projects.clone();
-                let detail_rows = data.detail_rows.clone();
-                self.detail_table
-                    .update(cx, |widget, cx| widget.set_data(detail_rows, cx));
-                let breakdown = data.breakdown.clone();
-                self.breakdown_table
-                    .update(cx, |widget, cx| widget.set_data(breakdown, cx));
                 // BLF-795：KPI 推送给 Console Bar 统计 pill（GMV / 订单数；
                 // Pending 数据源未接入，恒为 None 不出位）
                 let kpi = KpiSummary::from_rows(&data.summary_rows);
@@ -410,13 +626,544 @@ impl DailyAnalysisView {
             *state = DailyAnalysisState::from_fetch_result(result);
             cx.notify();
         });
+        self.refresh_grids(cx);
+    }
+
+    /// Pattern A 中枢刷新：对当前数据集做 关键词 × 广告状态 过滤 →
+    /// 重算分页收敛 → 注入当前页切片到对应网格 → 重算聚合条目。
+    /// 数据落点 / 数据集切换 / 搜索 / 状态筛选 / 翻页共用（单一事实来源）。
+    fn refresh_grids(&mut self, cx: &mut Context<Self>) {
+        let DailyAnalysisState::Loaded(data) = self.state.read(cx).clone() else {
+            self.aggregates.clear();
+            self.page_state = PageState::new(1, self.page_size(), 0);
+            cx.notify();
+            return;
+        };
+        let (query, ad_filter) = (self.search_query.as_str(), self.ad_filter);
+
+        // 三数据集全部按当前筛选刷新（切数据集即见数据）；底条只反映当前数据集
+        let detail_rows = filter_detail_rows(&data.detail_rows, query, ad_filter);
+        let daily_rows = filter_daily_rows(&data.summary_rows, query, ad_filter);
+        let breakdown_rows = filter_breakdown_rows(&data.breakdown, query, ad_filter);
+
+        let detail_slice = {
+            let state = PageState::new(self.page, self.page_size(), detail_rows.len());
+            page_slice(&detail_rows, &state)
+        };
+        let daily_slice = {
+            let state = PageState::new(self.page, self.page_size(), daily_rows.len());
+            page_slice(&daily_rows, &state)
+        };
+        let breakdown_slice = {
+            let state = PageState::new(self.page, self.page_size(), breakdown_rows.len());
+            page_slice(&breakdown_rows, &state)
+        };
+
+        self.detail_grid
+            .update(cx, |g, cx| g.set_rows(detail_slice, cx));
+        self.daily_grid
+            .update(cx, |g, cx| g.set_rows(daily_slice, cx));
+        self.breakdown_grid
+            .update(cx, |g, cx| g.set_rows(breakdown_slice, cx));
+
+        self.page_state = PageState::new(
+            self.page,
+            self.page_size(),
+            match self.dataset {
+                GridDataset::Detail => detail_rows.len(),
+                GridDataset::Daily => daily_rows.len(),
+                GridDataset::Breakdown => breakdown_rows.len(),
+            },
+        );
+        self.aggregates = match self.dataset {
+            GridDataset::Detail => detail_aggregates(&detail_rows),
+            GridDataset::Daily => daily_aggregates(&daily_rows),
+            GridDataset::Breakdown => breakdown_aggregates(&breakdown_rows),
+        };
+        cx.notify();
     }
 }
 
 /// BLF-795：Loaded 后向 Console Bar 推送统计 pill 数据
 impl EventEmitter<ConsoleStatsEvent> for DailyAnalysisView {}
 
-/// 拉取销售数据（项目列表 + 按「项目 × 国家」模式拉主数据与对比期），与视图解耦便于测试。
+/// 每页默认行数（Pattern A 高密度档位）
+pub const DEFAULT_PAGE_SIZE: usize = 50;
+
+/// 取当前页切片（PageState 收敛后的安全区间）
+fn page_slice<T: Clone>(rows: &[T], state: &PageState) -> Vec<T> {
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    rows[state.first_index()..=state.last_index()].to_vec()
+}
+
+// ---------------------------------------------------------------------------
+// 聚合条目（数字一律 mono 渲染于 grid_footer_bar；Pending 含口径标注）
+// ---------------------------------------------------------------------------
+
+/// 明细数据集聚合：总销售额（GMV）/ 总订单数 / 总广告花费 / Pending 口径占位
+pub fn detail_aggregates(rows: &[DailyAnalysisDetailRow]) -> Vec<AggregateItem> {
+    vec![
+        AggregateItem::new(
+            "总销售额",
+            fmt_money_precise(rows.iter().map(|r| r.sales_amount).sum()),
+        ),
+        AggregateItem::new(
+            "总订单数",
+            fmt_num_precise(rows.iter().map(|r| r.order_qty).sum()),
+        ),
+        AggregateItem::new(
+            "广告花费",
+            fmt_money_precise(rows.iter().map(|r| r.ad_spend).sum()),
+        ),
+        pending_placeholder_item(rows.len()),
+    ]
+}
+
+/// 每日汇总聚合：同明细四项
+pub fn daily_aggregates(rows: &[DailyAnalysisRow]) -> Vec<AggregateItem> {
+    vec![
+        AggregateItem::new(
+            "总销售额",
+            fmt_money_precise(rows.iter().map(|r| r.sales_amount).sum()),
+        ),
+        AggregateItem::new(
+            "总订单数",
+            fmt_num_precise(rows.iter().map(|r| r.order_qty).sum()),
+        ),
+        AggregateItem::new(
+            "广告花费",
+            fmt_money_precise(rows.iter().map(|r| r.ad_spend).sum()),
+        ),
+        pending_placeholder_item(rows.len()),
+    ]
+}
+
+/// 维度下钻聚合：三项合计（无 Pending 维度）
+pub fn breakdown_aggregates(rows: &[BreakdownRow]) -> Vec<AggregateItem> {
+    vec![
+        AggregateItem::new(
+            "总销售额",
+            fmt_money_precise(rows.iter().map(|r| r.sales).sum()),
+        ),
+        AggregateItem::new(
+            "总订单数",
+            fmt_num_precise(rows.iter().map(|r| r.orders).sum()),
+        ),
+        AggregateItem::new(
+            "广告花费",
+            fmt_money_precise(rows.iter().map(|r| r.ad_spend).sum()),
+        ),
+    ]
+}
+
+/// Pending 占位条目：数值「—」警示色 + 口径标注（BLF-798 验收项：
+/// 「销售数据含 Pending 口径标注」；后端无现成端点，缺口在完成评论列出）
+fn pending_placeholder_item(_rows: usize) -> AggregateItem {
+    AggregateItem::new("Pending", "—")
+        .tone(AggregateTone::Warning)
+        .note("口径：窗口内待发货订单 · 后端待接入")
+}
+
+// ---------------------------------------------------------------------------
+// 列定义（数值列走 number 构造器 → JetBrains Mono + tnum 右对齐可排序）
+// ---------------------------------------------------------------------------
+
+/// 明细网格 12 列（列宽沿用旧 gpui-component Table 版；数值列全部 mono）
+fn detail_columns() -> Vec<ColumnDef<DailyAnalysisDetailRow>> {
+    vec![
+        ColumnDef::text("date", "日期", |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(r.date.to_string())
+        })
+        .width(96.0)
+        .numeric(true),
+        ColumnDef::text("sku", "SKU", |_r: &DailyAnalysisDetailRow, _| SharedString::from(""))
+            .with_render_element(|r: &DailyAnalysisDetailRow, theme| sku_cell(&r.sku, theme))
+            .width(150.0),
+        ColumnDef::number("orders", "订单量", |r: &DailyAnalysisDetailRow| r.order_qty as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.order_qty))
+        })
+        .width(76.0),
+        ColumnDef::number("sales", "销售额", |r: &DailyAnalysisDetailRow| r.sales_amount, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_money_precise(r.sales_amount))
+        })
+        .width(104.0),
+        ColumnDef::number("ad_spend", "广告花费", |r: &DailyAnalysisDetailRow| r.ad_spend, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_money_precise(r.ad_spend))
+        })
+        .width(104.0),
+        ColumnDef::number("impressions", "曝光量", |r: &DailyAnalysisDetailRow| r.impressions as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.impressions))
+        })
+        .width(92.0),
+        ColumnDef::number("clicks", "点击量", |r: &DailyAnalysisDetailRow| r.clicks as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.clicks))
+        })
+        .width(76.0),
+        ColumnDef::number("cpc", "CPC", |r: &DailyAnalysisDetailRow| r.cpc, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(format!("{:.2}", r.cpc))
+        })
+        .width(72.0),
+        ColumnDef::number("ad_orders", "广告订单", |r: &DailyAnalysisDetailRow| r.ad_orders as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.ad_orders))
+        })
+        .width(84.0),
+        ColumnDef::number("available", "可售库存", |r: &DailyAnalysisDetailRow| r.available_qty as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.available_qty))
+        })
+        .width(88.0),
+        ColumnDef::number("units", "销量", |r: &DailyAnalysisDetailRow| r.units_ordered as f64, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(fmt_num_precise(r.units_ordered))
+        })
+        .width(72.0),
+        ColumnDef::number("conversion", "转化率", |r: &DailyAnalysisDetailRow| r.conversion_rate, |r: &DailyAnalysisDetailRow, _| {
+            SharedString::from(format!("{:.2}%", r.conversion_rate))
+        })
+        .width(84.0),
+    ]
+}
+
+/// 每日汇总网格列（日期 + 当日聚合指标）
+fn daily_columns() -> Vec<ColumnDef<DailyAnalysisRow>> {
+    vec![
+        ColumnDef::text("date", "日期", |r: &DailyAnalysisRow, _| {
+            SharedString::from(r.date.to_string())
+        })
+        .width(96.0)
+        .numeric(true),
+        ColumnDef::number("orders", "订单量", |r: &DailyAnalysisRow| r.order_qty as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.order_qty))
+        })
+        .width(76.0),
+        ColumnDef::number("sales", "销售额", |r: &DailyAnalysisRow| r.sales_amount, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_money_precise(r.sales_amount))
+        })
+        .width(104.0),
+        ColumnDef::number("ad_spend", "广告花费", |r: &DailyAnalysisRow| r.ad_spend, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_money_precise(r.ad_spend))
+        })
+        .width(104.0),
+        ColumnDef::number("impressions", "曝光量", |r: &DailyAnalysisRow| r.impressions as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.impressions))
+        })
+        .width(92.0),
+        ColumnDef::number("clicks", "点击量", |r: &DailyAnalysisRow| r.clicks as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.clicks))
+        })
+        .width(76.0),
+        ColumnDef::number("cpc", "CPC", |r: &DailyAnalysisRow| r.cpc, |r: &DailyAnalysisRow, _| {
+            SharedString::from(format!("{:.2}", r.cpc))
+        })
+        .width(72.0),
+        ColumnDef::number("ad_orders", "广告订单", |r: &DailyAnalysisRow| r.ad_orders as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.ad_orders))
+        })
+        .width(84.0),
+        ColumnDef::number("available", "可售库存", |r: &DailyAnalysisRow| r.available_qty as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.available_qty))
+        })
+        .width(88.0),
+        ColumnDef::number("units", "销量", |r: &DailyAnalysisRow| r.units_ordered as f64, |r: &DailyAnalysisRow, _| {
+            SharedString::from(fmt_num_precise(r.units_ordered))
+        })
+        .width(72.0),
+        ColumnDef::number("conversion", "转化率", |r: &DailyAnalysisRow| r.conversion_rate, |r: &DailyAnalysisRow, _| {
+            SharedString::from(format!("{:.2}%", r.conversion_rate))
+        })
+        .width(84.0),
+    ]
+}
+
+/// 维度下钻网格列（名称 + 合计指标 + 环比语义色）
+fn breakdown_columns() -> Vec<ColumnDef<BreakdownRow>> {
+    vec![
+        ColumnDef::text("name", "名称", |_r: &BreakdownRow, _| SharedString::from(""))
+            .with_render_element(|r: &BreakdownRow, theme| sku_cell(&r.name, theme))
+            .width(200.0),
+        ColumnDef::number("sales", "销售额", |r: &BreakdownRow| r.sales, |r: &BreakdownRow, _| {
+            SharedString::from(fmt_money_precise(r.sales))
+        })
+        .width(120.0),
+        ColumnDef::number("orders", "订单量", |r: &BreakdownRow| r.orders as f64, |r: &BreakdownRow, _| {
+            SharedString::from(fmt_num_precise(r.orders))
+        })
+        .width(90.0),
+        ColumnDef::number("ad_spend", "广告花费", |r: &BreakdownRow| r.ad_spend, |r: &BreakdownRow, _| {
+            SharedString::from(fmt_money_precise(r.ad_spend))
+        })
+        .width(120.0),
+        ColumnDef::number("change", "环比", |r: &BreakdownRow| r.change.unwrap_or(f64::MIN), |_r, _| {
+            SharedString::from("")
+        })
+        .width(110.0)
+        .with_render_element(|r: &BreakdownRow, theme| change_indicator(r.change, theme)),
+    ]
+}
+
+/// 主键文本单元格（primary 色 + 截断）
+fn sku_cell(text: &str, theme: &AppTheme) -> gpui::AnyElement {
+    div()
+        .truncate()
+        .text_color(theme.text_primary)
+        .child(SharedString::from(text.to_string()))
+        .into_any_element()
+}
+
+// ---------------------------------------------------------------------------
+// 渲染（Pattern A 骨架：四态外壳 + 工具栏 + 网格 + pinned 底条）
+// ---------------------------------------------------------------------------
+
+impl Render for DailyAnalysisView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_theme = AppTheme::current(cx);
+        let state = self.state.read(cx).clone();
+
+        // 搜索输入框懒建（首帧；InputState::new 需要 window）
+        if self.search_input.is_none() {
+            let input =
+                cx.new(|cx| InputState::new(window, cx).placeholder("搜索 SKU / ASIN…"));
+            self.search_sub =
+                Some(cx.subscribe(&input, |this, _e, event: &InputEvent, cx| {
+                    if let InputEvent::Change = event {
+                        let query = this
+                            .search_input
+                            .as_ref()
+                            .map(|input| input.read(cx).value().to_string())
+                            .unwrap_or_default();
+                        this.set_search_query(query, cx);
+                    }
+                }));
+            self.search_input = Some(input);
+        }
+
+        match state {
+            DailyAnalysisState::Loading => render_loading(&app_theme).into_any_element(),
+            DailyAnalysisState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
+            DailyAnalysisState::Empty => render_empty(cx, &app_theme).into_any_element(),
+            DailyAnalysisState::Loaded(_) => self.render_loaded(&app_theme, window, cx).into_any_element(),
+        }
+    }
+}
+
+impl DailyAnalysisView {
+    /// Loaded：Pattern A 骨架——FilterToolbar 行 + 虚拟化大表 + pinned 聚合分页条
+    fn render_loaded(
+        &mut self,
+        app_theme: &AppTheme,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let view = cx.entity();
+        let reduce = crate::motion::reduce_motion(cx);
+
+        // 工具栏内容：数据维度下拉 + 搜索输入 + 广告状态下拉 + 弹性位 + 刷新
+        let dataset = self.dataset;
+        let ad_filter = self.ad_filter;
+        let breakdown_available = self
+            .state
+            .read(cx)
+            .loaded_breakdown_len()
+            .map(|len| len > 0)
+            .unwrap_or(false);
+        let toolbar = h_flex()
+            .gap_2()
+            .items_center()
+            // 数据维度切换（下拉；下钻维度无数据时菜单项禁用置灰）
+            .child(dataset_menu(&view, dataset, breakdown_available))
+            .child(toolbar_search_input(
+                app_theme,
+                self.search_input.as_ref().expect("搜索框已懒建"),
+                "daily-analysis-search",
+                200.0,
+            ))
+            .child(ad_filter_menu(view.clone(), ad_filter))
+            .child(toolbar_spacer())
+            .child(
+                Button::new("daily-analysis-refresh")
+                    .outline()
+                    .small()
+                    .label("刷新")
+                    .on_click({
+                        let view = view.clone();
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.reload(cx));
+                        }
+                    }),
+            );
+
+        // 当前数据集网格
+        let grid: gpui::AnyElement = match self.dataset {
+            GridDataset::Detail => self.detail_grid.clone().into_any_element(),
+            GridDataset::Daily => self.daily_grid.clone().into_any_element(),
+            GridDataset::Breakdown => self.breakdown_grid.clone().into_any_element(),
+        };
+
+        // 页面头部（全仓库业务视图一致性契约；副标题 = 项目/站点/窗口口径）
+        let console = match self.state.read(cx).clone() {
+            DailyAnalysisState::Loaded(data) => data.console,
+            _ => unreachable!("render_loaded 仅在 Loaded 态进入"),
+        };
+        let header = PageHeader::new("销售数据").subtitle(format!(
+            "{} · {} · {} ~ {} · {} 天汇总",
+            console.project_name,
+            country_label(&console.country),
+            console.start_date,
+            console.end_date,
+            console.summary_days
+        ));
+
+        // pinned 底部聚合分页条（聚合数字 mono；分页器复用公共构建块）
+        let aggregates = self.aggregates.clone();
+        let page_state = self.page_state;
+        let footer = grid_footer_bar(
+            &view,
+            app_theme,
+            "daily-analysis",
+            &aggregates,
+            &page_state,
+            &PAGE_SIZE_OPTIONS,
+            |this, page, cx| this.set_page(page, cx),
+            |this, size, cx| this.set_page_size(size, cx),
+        );
+
+        crate::motion::enter_fade_in(
+            gpui::SharedString::from("daily-analysis-loaded-fade"),
+            pattern_a_shell(app_theme, "daily-analysis", header, toolbar, grid, footer),
+            reduce,
+        )
+    }
+}
+
+/// 数据维度下拉（Pattern A 工具栏「数据集」选择器）
+fn dataset_menu(
+    view: &Entity<DailyAnalysisView>,
+    current: GridDataset,
+    breakdown_available: bool,
+) -> impl IntoElement {
+    let view = view.clone();
+    Button::new("daily-analysis-dataset")
+        .outline()
+        .small()
+        .label(SharedString::from(current.label()))
+        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+        .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+            let mut menu = menu;
+            for dataset in [GridDataset::Detail, GridDataset::Daily, GridDataset::Breakdown] {
+                if dataset == GridDataset::Breakdown && !breakdown_available {
+                    continue; // 单项目 × 单站点模式下无下钻数据 → 不出项
+                }
+                let checked = current == dataset;
+                let label = dataset.label();
+                let view = view.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(label)
+                        .checked(checked)
+                        .on_click(move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_dataset(dataset, cx));
+                        }),
+                );
+            }
+            menu
+        })
+}
+
+/// 广告状态筛选下拉（Pattern A 工具栏「状态下拉」）
+fn ad_filter_menu(view: Entity<DailyAnalysisView>, current: AdFilter) -> impl IntoElement {
+    h_flex()
+        .gap_1p5()
+        .items_center()
+        .child(
+            Button::new("daily-analysis-ad-filter")
+                .outline()
+                .small()
+                .label(SharedString::from(format!("广告：{}", current.label())))
+                .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for (label, filter) in AdFilter::OPTIONS {
+                        let checked = current == filter;
+                        let view = view.clone();
+                        menu = menu.item(
+                            PopupMenuItem::new(label)
+                                .checked(checked)
+                                .on_click(move |_, _window, cx| {
+                                    view.update(cx, |this, cx| this.set_ad_filter(filter, cx));
+                                }),
+                        );
+                    }
+                    menu
+                }),
+        )
+}
+
+// ---------------------------------------------------------------------------
+// 四态渲染（Loading / Error / Empty 复用公共 state_views）
+// ---------------------------------------------------------------------------
+
+/// Loading：声明式骨架块（筛选行 / 数字带 / 明细表）
+fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
+    v_flex()
+        .id("daily-analysis-loading")
+        .size_full()
+        .bg(app_theme.window_bg)
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[SkeletonBlock::Title, SkeletonBlock::Filter(3), SkeletonBlock::Kpi(6)],
+        ))
+        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
+}
+
+/// Error：卡片内 Alert + 重试按钮（公共组件 `state_views::error_state`）
+fn render_error(
+    cx: &mut Context<DailyAnalysisView>,
+    app_theme: &AppTheme,
+    msg: &str,
+) -> impl IntoElement {
+    let view = cx.entity();
+    v_flex()
+        .id("daily-analysis-error")
+        .size_full()
+        .p_6()
+        .overflow_y_scroll()
+        .bg(app_theme.window_bg)
+        .child(state_views::error_state(
+            &view,
+            app_theme,
+            "daily-analysis-error",
+            "销售数据加载失败",
+            msg.to_string(),
+            |this, cx| this.reload(cx),
+        ))
+}
+
+/// Empty：Icon + 文案 + 刷新按钮（公共组件 `empty_state_with_action`）
+fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> impl IntoElement {
+    let view = cx.entity();
+    v_flex()
+        .id("daily-analysis-empty")
+        .size_full()
+        .items_center()
+        .justify_center()
+        .p_6()
+        .overflow_y_scroll()
+        .bg(app_theme.window_bg)
+        .child(state_views::empty_state_with_action(
+            &view,
+            app_theme,
+            "daily-analysis-empty",
+            "icons/package.svg",
+            "暂无销售数据",
+            "刷新",
+            |this, cx| this.reload(cx),
+        ))
+}
+
+// ---------------------------------------------------------------------------
+// 数据管线（与视图解耦便于测试）
+// ---------------------------------------------------------------------------
+
+/// 拉取销售数据（项目列表 + 按「项目 × 国家」模式拉主数据与对比期）。
 ///
 /// 对齐 frontend `loadData`：
 /// - 项目列表为空 → 返回空载荷（`summary_rows` 空），由 `is_empty` 归入 Empty 态；
@@ -539,896 +1286,9 @@ async fn load_daily_analysis(
     Ok(data)
 }
 
-impl Render for DailyAnalysisView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let app_theme = AppTheme::current(cx);
-        let state = self.state.read(cx).clone();
-        let detail_table = self.detail_table.clone();
-        let breakdown_table = self.breakdown_table.clone();
-        match state {
-            DailyAnalysisState::Loading => render_loading(&app_theme).into_any_element(),
-            DailyAnalysisState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
-            DailyAnalysisState::Empty => render_empty(cx, &app_theme).into_any_element(),
-            DailyAnalysisState::Loaded(data) => render_loaded(
-                window,
-                cx,
-                &app_theme,
-                &data,
-                self.selected_project_id,
-                self.country,
-                self.projects.clone(),
-                detail_table,
-                breakdown_table,
-            )
-            .into_any_element(),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 四态渲染
-// ---------------------------------------------------------------------------
-
-/// Loading：Spinner 行 + 声明式骨架块（标题 / 筛选 / 数字带 / 明细表）
-///
-/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合，
-/// 数字带用 `Kpi(6)`（对齐原 stat_band_skeleton 的 6 卡观感）。
-fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("daily-analysis-loading")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        .child(
-            content_guard().child(state_views::skeleton_loading(
-                app_theme,
-                &[
-                    SkeletonBlock::Title,
-                    SkeletonBlock::Filter(3),
-                    SkeletonBlock::Kpi(6),
-                ],
-            )),
-        )
-        // 明细骨架（模拟全宽表格，不受上限约束）
-        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
-        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
-}
-
-/// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
-fn render_error(
-    cx: &mut Context<DailyAnalysisView>,
-    app_theme: &AppTheme,
-    msg: &str,
-) -> impl IntoElement {
-    let view = cx.entity();
-    v_flex()
-        .id("daily-analysis-error")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        .child(state_views::error_state(
-            &view,
-            app_theme,
-            "daily-analysis-error",
-            "销售数据加载失败",
-            msg.to_string(),
-            |this, cx| this.reload(cx),
-        ))
-}
-
-/// Empty：Icon + 文案 + 刷新按钮（State 0 公共组件 `empty_state_with_action`）
-fn render_empty(cx: &mut Context<DailyAnalysisView>, app_theme: &AppTheme) -> impl IntoElement {
-    let view = cx.entity();
-    v_flex()
-        .id("daily-analysis-empty")
-        .size_full()
-        .items_center()
-        .justify_center()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        .child(state_views::empty_state_with_action(
-            &view,
-            app_theme,
-            "daily-analysis-empty",
-            "icons/package.svg",
-            "暂无销售数据",
-            "刷新",
-            |this, cx| this.reload(cx),
-        ))
-}
-
-/// Loaded：页面头部 + 筛选栏 + 数字带 + 销售趋势 + 维度下钻 + SKU 明细表
-#[allow(clippy::too_many_arguments)]
-fn render_loaded(
-    window: &mut Window,
-    cx: &mut Context<DailyAnalysisView>,
-    app_theme: &AppTheme,
-    data: &DailyAnalysisData,
-    selected_project_id: Option<i64>,
-    country: &'static str,
-    projects: Vec<ManagedProject>,
-    detail_table: Entity<DailyDetailTable>,
-    breakdown_table: Entity<BreakdownTable>,
-) -> impl IntoElement {
-    let kpi = KpiSummary::from_rows(&data.summary_rows);
-    let compare_kpi = KpiSummary::from_rows(&data.compare_summary_rows);
-    let breakdown_title = match data.mode {
-        AnalysisMode::AllProjects => "项目维度",
-        AnalysisMode::SingleCountry => "国家维度",
-        AnalysisMode::SingleProject => "维度下钻",
-    };
-    let view = cx.entity();
-    let reduce = crate::motion::reduce_motion(cx);
-
-    crate::motion::enter_fade_in(
-        gpui::SharedString::from("daily-analysis-loaded-fade"),
-        v_flex()
-            .id("daily-analysis-loaded")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            // 页面头部（P4-5：共享 PageHeader）
-            .child(PageHeader::new("销售数据").subtitle(format!(
-                "{} · {} · {} ~ {} · {} 天汇总",
-                data.console.project_name,
-                country_label(&data.console.country),
-                data.console.start_date,
-                data.console.end_date,
-                data.console.summary_days
-            )))
-            // 筛选栏：项目 + 站点 + 刷新（宽窗受内容上限约束）
-            .child(content_guard().child(render_filter_bar(
-                &view,
-                app_theme,
-                &projects,
-                selected_project_id,
-                country,
-            )))
-            // 数字带（复用 stat_band；当前期 vs 对比期环比）
-            .child(content_guard().child(stat_band(&kpi, &compare_kpi, app_theme, window, cx)))
-            // 销售趋势：图表 v1.1（P3-2）接入前用「占位说明 + 每日列表」呈现
-            .child(content_guard().child(trend_card(&data.summary_rows, app_theme)))
-            // 维度下钻（全部项目 → 项目维度；跨站点 → 国家维度；单项目单站点 → 隐藏）
-            // P4-5：数据表格保留全宽
-            .when(!data.breakdown.is_empty(), |page| {
-                page.child(breakdown_card(breakdown_title, breakdown_table, app_theme))
-            })
-            // SKU 明细表（全宽）
-            .child(detail_table),
-        reduce,
-    )
-}
-
-// ---------------------------------------------------------------------------
-// 筛选栏（项目 / 站点 / 刷新）
-// ---------------------------------------------------------------------------
-
-/// 筛选栏：项目选择 + 站点选择（gpui-component DropdownMenu）+ 刷新按钮。
-///
-/// on_click 是静态闭包（`&mut App`），通过捕获 `Entity<DailyAnalysisView>` 更新视图
-/// （BLF-692 沉淀的「Button on_click 捕获 cx.entity()」范式）。
-fn render_filter_bar(
-    view: &Entity<DailyAnalysisView>,
-    app_theme: &AppTheme,
-    projects: &[ManagedProject],
-    selected_project_id: Option<i64>,
-    country: &'static str,
-) -> impl IntoElement {
-    // 菜单 builder 是 `Fn + 'static`（每次打开菜单重新执行）→ 项目列表必须转 owned
-    // 才能被 move 捕获；选中项 label 在 builder 外算一次。
-    let projects_owned = projects.to_vec();
-    let project_label: SharedString = match selected_project_id {
-        Some(id) => projects
-            .iter()
-            .find(|p| p.id == id)
-            .map(|p| SharedString::from(p.name.clone()))
-            .unwrap_or_else(|| SharedString::from("全部项目")),
-        None => SharedString::from("全部项目"),
-    };
-    let view_for_project = view.clone();
-    let view_for_country = view.clone();
-    let view_for_refresh = view.clone();
-
-    h_flex()
-        .id("daily-analysis-filters")
-        .gap_3()
-        .items_center()
-        .flex_wrap()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("项目"),
-                )
-                .child(
-                    Button::new("daily-analysis-project-filter")
-                        .outline()
-                        .small()
-                        .label(project_label)
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(
-                            gpui::Corner::BottomLeft,
-                            move |menu, _window, _cx| {
-                                // 每次打开菜单、每个 menu item 各克隆一次 Entity
-                                // （on_click 是 move 闭包；Entity 非 Copy，不能共享捕获）。
-                                let mut menu = menu.item(
-                                    PopupMenuItem::new("全部项目")
-                                        .checked(selected_project_id.is_none())
-                                        .on_click({
-                                            let view = view_for_project.clone();
-                                            move |_, _window, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_project(None, cx)
-                                                });
-                                            }
-                                        }),
-                                );
-                                for project in &projects_owned {
-                                    let checked = selected_project_id == Some(project.id);
-                                    let id = project.id;
-                                    let name = project.name.clone();
-                                    let view = view_for_project.clone();
-                                    menu = menu.item(
-                                        PopupMenuItem::new(name).checked(checked).on_click(
-                                            move |_, _window, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_project(Some(id), cx)
-                                                });
-                                            },
-                                        ),
-                                    );
-                                }
-                                menu
-                            },
-                        ),
-                ),
-        )
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("站点"),
-                )
-                .child(
-                    Button::new("daily-analysis-country-filter")
-                        .outline()
-                        .small()
-                        .label(country_label(country))
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(
-                            gpui::Corner::BottomLeft,
-                            move |menu, _window, _cx| {
-                                let mut menu = menu;
-                                for (value, label) in COUNTRY_OPTIONS {
-                                    let checked = country == value;
-                                    let view = view_for_country.clone();
-                                    menu = menu.item(
-                                        PopupMenuItem::new(label).checked(checked).on_click(
-                                            move |_, _window, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_country(value, cx)
-                                                });
-                                            },
-                                        ),
-                                    );
-                                }
-                                menu
-                            },
-                        ),
-                ),
-        )
-        .child(
-            div().flex_1(), // spacer
-        )
-        .child(
-            Button::new("daily-analysis-refresh")
-                .outline()
-                .small()
-                .label("刷新")
-                .on_click(move |_, _window, cx| {
-                    let view = view_for_refresh.clone();
-                    view.update(cx, |this, cx| this.reload(cx));
-                }),
-        )
-}
-
-// ---------------------------------------------------------------------------
-// 销售趋势卡（图表 v1.1 接入前：占位说明 + 每日列表）
-// ---------------------------------------------------------------------------
-
-/// 销售趋势卡：标题 + 说明 + 每日列表（日期 / 销售额 / 订单量 / 广告花费 / 转化率）。
-/// 图表真渲染属 P3-2（gpui-component Chart），本棒按范围边界用列表呈现。
-fn trend_card(rows: &[DailyAnalysisRow], app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("daily-analysis-trend")
-        .w_full()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            v_flex()
-                .gap_1()
-                .px_4()
-                .py_3()
-                .border_b_1()
-                .border_color(app_theme.separator)
-                .child(
-                    div()
-                        .text_base()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(app_theme.text_primary)
-                        .child("销售趋势"),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("每日销售额 / 订单量 / 广告花费 / 转化率（图表渲染 v1.1 接入 P3-2，当前列表呈现）"),
-                ),
-        )
-        .child(
-            div()
-                .id("daily-analysis-trend-scroll")
-                .max_h(px(360.))
-                .overflow_y_scroll()
-                .child(trend_table(rows, app_theme)),
-        )
-}
-
-/// 趋势表（div 自绘：页内小型列表，无需 TableState 虚拟化）
-fn trend_table(rows: &[DailyAnalysisRow], app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("daily-analysis-trend-rows")
-        .gap_0()
-        .child(trend_header(app_theme))
-        .children(
-            rows.iter()
-                .enumerate()
-                .map(|(ix, row)| trend_row(row, ix % 2 == 1, app_theme)),
-        )
-        .when(rows.is_empty(), |this| {
-            this.child(
-                div()
-                    .px_4()
-                    .py_8()
-                    .text_center()
-                    .text_sm()
-                    .text_color(app_theme.text_muted)
-                    .child("暂无每日数据"),
-            )
-        })
-}
-
-fn trend_header(app_theme: &AppTheme) -> impl IntoElement {
-    h_flex()
-        .id("trend-header")
-        .px_4()
-        .py_2()
-        .gap_3()
-        .border_b_1()
-        .border_color(app_theme.separator)
-        .text_xs()
-        .font_weight(FontWeight::MEDIUM)
-        .text_color(app_theme.text_muted)
-        .child(div().w(px(104.)).child("日期"))
-        .child(div().w(px(120.)).text_right().child("销售额"))
-        .child(div().w(px(88.)).text_right().child("订单量"))
-        .child(div().w(px(120.)).text_right().child("广告花费"))
-        .child(div().flex_1().text_right().child("转化率"))
-}
-
-fn trend_row(row: &DailyAnalysisRow, tinted: bool, app_theme: &AppTheme) -> impl IntoElement {
-    let bg = if tinted {
-        app_theme.muted_fill.opacity(0.5)
-    } else {
-        app_theme.card_bg
-    };
-    h_flex()
-        .id(SharedString::from(format!("trend-row-{}", row.date)))
-        .px_4()
-        .py_1p5()
-        .gap_3()
-        .bg(bg)
-        .text_sm()
-        .text_color(app_theme.text_secondary)
-        .child(
-            div()
-                .w(px(104.))
-                .text_color(app_theme.text_primary)
-                .child(row.date.to_string()),
-        )
-        .child(
-            div()
-                .w(px(120.))
-                .text_right()
-                .child(fmt_money_precise(row.sales_amount)),
-        )
-        .child(
-            div()
-                .w(px(88.))
-                .text_right()
-                .child(fmt_num_precise(row.order_qty)),
-        )
-        .child(
-            div()
-                .w(px(120.))
-                .text_right()
-                .child(fmt_money_precise(row.ad_spend)),
-        )
-        .child(
-            div()
-                .flex_1()
-                .text_right()
-                .child(format!("{:.2}%", row.conversion_rate)),
-        )
-}
-
-// ---------------------------------------------------------------------------
-// 维度下钻表（项目 / 国家）
-// ---------------------------------------------------------------------------
-
-/// 维度下钻卡：标题 + 说明 + BreakdownTable
-fn breakdown_card(
-    title: &str,
-    table: Entity<BreakdownTable>,
-    app_theme: &AppTheme,
-) -> impl IntoElement {
-    v_flex()
-        .id("daily-analysis-breakdown")
-        .w_full()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            v_flex()
-                .gap_1()
-                .px_4()
-                .py_3()
-                .border_b_1()
-                .border_color(app_theme.separator)
-                .child(
-                    div()
-                        .text_base()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(app_theme.text_primary)
-                        .child(SharedString::from(title.to_string())),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(app_theme.text_muted)
-                        .child("各维度销售额 / 订单量 / 广告花费与环比（近 7 天）"),
-                ),
-        )
-        .child(div().flex_1().min_h_40().child(table))
-}
-
-// ---------------------------------------------------------------------------
-// SKU 明细表（gpui-component Table）
-// ---------------------------------------------------------------------------
-
-/// 明细列索引（与 `DetailTableDelegate::columns()` 顺序一致）
-const COL_DATE: usize = 0;
-const COL_SKU: usize = 1;
-const COL_ORDERS: usize = 2;
-const COL_SALES: usize = 3;
-const COL_AD_SPEND: usize = 4;
-const COL_IMPRESSIONS: usize = 5;
-const COL_CLICKS: usize = 6;
-const COL_CPC: usize = 7;
-const COL_AD_ORDERS: usize = 8;
-const COL_AVAILABLE: usize = 9;
-const COL_UNITS: usize = 10;
-const COL_CONVERSION: usize = 11;
-
-/// SKU 明细表数据委托（非排序；按后端日期升序）
-struct DetailTableDelegate {
-    rows: Vec<DailyAnalysisDetailRow>,
-    columns: Vec<Column>,
-}
-
-impl DetailTableDelegate {
-    fn new(rows: Vec<DailyAnalysisDetailRow>) -> Self {
-        Self {
-            rows,
-            columns: Self::columns(),
-        }
-    }
-
-    fn columns() -> Vec<Column> {
-        vec![
-            Column::new("date", "日期").width(px(96.)).selectable(false),
-            Column::new("sku", "SKU").width(px(150.)),
-            Column::new("orders", "订单量").width(px(76.)).text_right(),
-            Column::new("sales", "销售额").width(px(104.)).text_right(),
-            Column::new("ad_spend", "广告花费")
-                .width(px(104.))
-                .text_right(),
-            Column::new("impressions", "曝光量")
-                .width(px(92.))
-                .text_right(),
-            Column::new("clicks", "点击量").width(px(76.)).text_right(),
-            Column::new("cpc", "CPC").width(px(72.)).text_right(),
-            Column::new("ad_orders", "广告订单")
-                .width(px(84.))
-                .text_right(),
-            Column::new("available", "可售库存")
-                .width(px(88.))
-                .text_right(),
-            Column::new("units", "销量").width(px(72.)).text_right(),
-            Column::new("conversion", "转化率")
-                .width(px(84.))
-                .text_right(),
-        ]
-    }
-
-    fn set_rows(&mut self, rows: Vec<DailyAnalysisDetailRow>) {
-        self.rows = rows;
-    }
-}
-
-impl TableDelegate for DetailTableDelegate {
-    fn columns_count(&self, _: &App) -> usize {
-        self.columns.len()
-    }
-
-    fn rows_count(&self, _: &App) -> usize {
-        self.rows.len()
-    }
-
-    fn column(&self, col_ix: usize, _: &App) -> &Column {
-        &self.columns[col_ix]
-    }
-
-    fn render_td(
-        &mut self,
-        row_ix: usize,
-        col_ix: usize,
-        _: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let row = &self.rows[row_ix];
-        let theme = AppTheme::current(cx);
-        match col_ix {
-            COL_DATE => div()
-                .text_sm()
-                .text_color(theme.text_primary)
-                .child(row.date.to_string())
-                .into_any_element(),
-            COL_SKU => div()
-                .text_sm()
-                .font_weight(FontWeight::MEDIUM)
-                .truncate()
-                .child(row.sku.clone())
-                .into_any_element(),
-            COL_ORDERS => right_cell(fmt_num_precise(row.order_qty), &theme).into_any_element(),
-            COL_SALES => right_cell(fmt_money_precise(row.sales_amount), &theme).into_any_element(),
-            COL_AD_SPEND => {
-                muted_right_cell(fmt_money_precise(row.ad_spend), &theme).into_any_element()
-            }
-            COL_IMPRESSIONS => {
-                right_cell(fmt_num_precise(row.impressions), &theme).into_any_element()
-            }
-            COL_CLICKS => right_cell(fmt_num_precise(row.clicks), &theme).into_any_element(),
-            COL_CPC => right_cell(format!("{:.2}", row.cpc), &theme).into_any_element(),
-            COL_AD_ORDERS => right_cell(fmt_num_precise(row.ad_orders), &theme).into_any_element(),
-            COL_AVAILABLE => {
-                right_cell(fmt_num_precise(row.available_qty), &theme).into_any_element()
-            }
-            COL_UNITS => right_cell(fmt_num_precise(row.units_ordered), &theme).into_any_element(),
-            COL_CONVERSION => {
-                right_cell(format!("{:.2}%", row.conversion_rate), &theme).into_any_element()
-            }
-            _ => div().into_any_element(),
-        }
-    }
-
-    /// 空态：Inbox 图标 + 文案
-    fn render_empty(
-        &mut self,
-        _: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let theme = AppTheme::current(cx);
-        v_flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .gap_2()
-            .text_color(theme.text_muted)
-            .child(Icon::new(IconName::Inbox).with_size(px(24.)))
-            .child(div().text_sm().child("暂无 SKU 明细数据"))
-            .into_any_element()
-    }
-}
-
-/// 右对齐数值单元格（主色）
-fn right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
-    div()
-        .text_right()
-        .text_sm()
-        .text_color(theme.text_secondary)
-        .child(text)
-}
-
-/// 右对齐数值单元格（弱化色：广告花费等次级指标）
-fn muted_right_cell(text: String, theme: &AppTheme) -> impl IntoElement {
-    div()
-        .text_right()
-        .text_sm()
-        .text_color(theme.text_muted)
-        .child(text)
-}
-
-/// SKU 明细表 Widget（懒建 TableState；`set_data` 注入行，幂等）
-struct DailyDetailTable {
-    table: Option<Entity<TableState<DetailTableDelegate>>>,
-    rows: Vec<DailyAnalysisDetailRow>,
-}
-
-impl DailyDetailTable {
-    fn new() -> Self {
-        Self {
-            table: None,
-            rows: Vec::new(),
-        }
-    }
-
-    /// 注入明细行（无变化时跳过）
-    fn set_data(&mut self, rows: Vec<DailyAnalysisDetailRow>, cx: &mut Context<Self>) {
-        if rows == self.rows {
-            return;
-        }
-        self.rows = rows;
-        if let Some(table) = &self.table {
-            let rows = self.rows.clone();
-            table.update(cx, |state, cx| {
-                state.delegate_mut().set_rows(rows);
-                state.refresh(cx);
-                cx.notify();
-            });
-        }
-    }
-
-    #[allow(dead_code)]
-    fn rows(&self) -> &[DailyAnalysisDetailRow] {
-        &self.rows
-    }
-}
-
-impl Default for DailyDetailTable {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Render for DailyDetailTable {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let table = self.table.get_or_insert_with(|| {
-            let delegate = DetailTableDelegate::new(self.rows.clone());
-            cx.new(|cx| TableState::new(delegate, window, cx))
-        });
-        let theme = AppTheme::current(cx);
-        v_flex()
-            .id("daily-analysis-detail")
-            .w_full()
-            .rounded(px(theme.radius_lg))
-            .bg(theme.card_bg)
-            .shadow(vec![theme.card_shadow_box()])
-            .overflow_y_scroll()
-            .child(
-                v_flex()
-                    .gap_1()
-                    .px_4()
-                    .py_3()
-                    .border_b_1()
-                    .border_color(theme.separator)
-                    .child(
-                        div()
-                            .text_base()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(theme.text_primary)
-                            .child("SKU 明细"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child(format!("{} 行 SKU 粒度明细", self.rows.len())),
-                    ),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_h(px(220.))
-                    .child(Table::new(table).bordered(false).large()),
-            )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 维度下钻表（gpui-component Table）
-// ---------------------------------------------------------------------------
-
-/// 下钻列索引（与 `BreakdownTableDelegate::columns()` 顺序一致）
-const COL_NAME: usize = 0;
-const COL_BREAK_SALES: usize = 1;
-const COL_BREAK_ORDERS: usize = 2;
-const COL_BREAK_AD_SPEND: usize = 3;
-const COL_BREAK_CHANGE: usize = 4;
-
-/// 维度下钻数据委托（非排序；销售额降序 / 站点顺序已在上游排好）
-struct BreakdownTableDelegate {
-    rows: Vec<BreakdownRow>,
-    columns: Vec<Column>,
-}
-
-impl BreakdownTableDelegate {
-    fn new(rows: Vec<BreakdownRow>) -> Self {
-        Self {
-            rows,
-            columns: Self::columns(),
-        }
-    }
-
-    fn columns() -> Vec<Column> {
-        vec![
-            Column::new("name", "名称")
-                .width(px(200.))
-                .selectable(false),
-            Column::new("sales", "销售额").width(px(120.)).text_right(),
-            Column::new("orders", "订单量").width(px(90.)).text_right(),
-            Column::new("ad_spend", "广告花费")
-                .width(px(120.))
-                .text_right(),
-            Column::new("change", "环比").width(px(110.)).text_right(),
-        ]
-    }
-
-    fn set_rows(&mut self, rows: Vec<BreakdownRow>) {
-        self.rows = rows;
-    }
-}
-
-impl TableDelegate for BreakdownTableDelegate {
-    fn columns_count(&self, _: &App) -> usize {
-        self.columns.len()
-    }
-
-    fn rows_count(&self, _: &App) -> usize {
-        self.rows.len()
-    }
-
-    fn column(&self, col_ix: usize, _: &App) -> &Column {
-        &self.columns[col_ix]
-    }
-
-    fn render_td(
-        &mut self,
-        row_ix: usize,
-        col_ix: usize,
-        _: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let row = &self.rows[row_ix];
-        let theme = AppTheme::current(cx);
-        match col_ix {
-            COL_NAME => div()
-                .text_sm()
-                .font_weight(FontWeight::MEDIUM)
-                .truncate()
-                .child(row.name.clone())
-                .into_any_element(),
-            COL_BREAK_SALES => right_cell(fmt_money_precise(row.sales), &theme).into_any_element(),
-            COL_BREAK_ORDERS => right_cell(fmt_num_precise(row.orders), &theme).into_any_element(),
-            COL_BREAK_AD_SPEND => {
-                muted_right_cell(fmt_money_precise(row.ad_spend), &theme).into_any_element()
-            }
-            COL_BREAK_CHANGE => render_change_cell(row.change, &theme).into_any_element(),
-            _ => div().into_any_element(),
-        }
-    }
-}
-
-/// 环比单元格：图标 + 数值（绿 ↑ / 红 ↓ / 灰 — / 无数据 —）
-fn render_change_cell(change: Option<f64>, theme: &AppTheme) -> impl IntoElement {
-    let (icon, color, text) = match change {
-        None => (IconName::Minus, theme.text_muted, "—".to_string()),
-        Some(v) if v > 0.5 => (IconName::ArrowUp, theme.success, format!("{v:.1}%")),
-        Some(v) if v < -0.5 => (
-            IconName::ArrowDown,
-            theme.danger,
-            format!("{:.1}%", v.abs()),
-        ),
-        Some(v) => (IconName::Minus, theme.text_muted, format!("{v:.1}%")),
-    };
-    h_flex()
-        .w_full()
-        .justify_end()
-        .items_center()
-        .gap_1()
-        .text_xs()
-        .text_color(color)
-        .cursor(CursorStyle::PointingHand)
-        .child(Icon::new(icon).with_size(px(12.)).text_color(color))
-        .child(div().child(text))
-}
-
-/// 维度下钻表 Widget（懒建 TableState；`set_data` 注入行，幂等）
-struct BreakdownTable {
-    table: Option<Entity<TableState<BreakdownTableDelegate>>>,
-    rows: Vec<BreakdownRow>,
-}
-
-impl BreakdownTable {
-    fn new() -> Self {
-        Self {
-            table: None,
-            rows: Vec::new(),
-        }
-    }
-
-    /// 注入下钻行（无变化时跳过）
-    fn set_data(&mut self, rows: Vec<BreakdownRow>, cx: &mut Context<Self>) {
-        if rows == self.rows {
-            return;
-        }
-        self.rows = rows;
-        if let Some(table) = &self.table {
-            let rows = self.rows.clone();
-            table.update(cx, |state, cx| {
-                state.delegate_mut().set_rows(rows);
-                state.refresh(cx);
-                cx.notify();
-            });
-        }
-    }
-
-    #[allow(dead_code)]
-    fn rows(&self) -> &[BreakdownRow] {
-        &self.rows
-    }
-}
-
-impl Default for BreakdownTable {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Render for BreakdownTable {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let table = self.table.get_or_insert_with(|| {
-            let delegate = BreakdownTableDelegate::new(self.rows.clone());
-            cx.new(|cx| TableState::new(delegate, window, cx))
-        });
-        div()
-            .id("daily-analysis-breakdown-table")
-            .w_full()
-            .h_full()
-            .child(Table::new(table).bordered(false).large())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
     use std::collections::HashMap;
 
     // ---------- 纯函数：模式推导 ----------
@@ -1450,6 +1310,91 @@ mod tests {
         assert_eq!(country_label("UK"), "英国站 (UK)");
         assert_eq!(country_label("ALL"), "全部站点");
         assert_eq!(country_label("XX"), "XX");
+    }
+
+    // ---------- 纯函数：工具栏筛选（关键词 × 广告状态） ----------
+
+    #[test]
+    fn text_matches_is_case_insensitive_contains() {
+        assert!(text_matches("", &["anything"]));
+        assert!(text_matches("  ", &["anything"]));
+        assert!(text_matches("b0-a", &["B0-A-001"]));
+        assert!(!text_matches("zzz", &["B0-A-001", "2026-08-13"]));
+    }
+
+    #[test]
+    fn ad_filter_semantics() {
+        assert!(AdFilter::All.matches(true) && AdFilter::All.matches(false));
+        assert!(AdFilter::WithAds.matches(true) && !AdFilter::WithAds.matches(false));
+        assert!(!AdFilter::WithoutAds.matches(true) && AdFilter::WithoutAds.matches(false));
+        assert_eq!(AdFilter::WithAds.label(), "仅广告投放");
+    }
+
+    fn detail_row(sku: &str, ad_orders: i64) -> DailyAnalysisDetailRow {
+        DailyAnalysisDetailRow {
+            date: NaiveDate::parse_from_str("2026-08-13", "%Y-%m-%d").unwrap(),
+            sku: sku.to_string(),
+            asin: Some("B0TEST01".to_string()),
+            order_qty: 4,
+            sales_amount: 360.0,
+            impressions: 1800,
+            clicks: 60,
+            cpc: 0.48,
+            ad_spend: 28.8,
+            ad_orders,
+            available_qty: 30,
+            in_transit_qty: 12,
+            page_views: 96,
+            units_ordered: 3,
+            sessions: 80,
+            ordered_sales_amount: 350.0,
+            conversion_rate: 3.12,
+        }
+    }
+
+    #[test]
+    fn filter_detail_rows_by_keyword_and_ads() {
+        let rows = vec![detail_row("B0-A-001", 1), detail_row("B0-B-002", 0)];
+        // 全部
+        assert_eq!(filter_detail_rows(&rows, "", AdFilter::All).len(), 2);
+        // 仅广告投放（ad_orders > 0）
+        assert_eq!(
+            filter_detail_rows(&rows, "", AdFilter::WithAds)[0].sku,
+            "B0-A-001"
+        );
+        // 无广告投放
+        assert_eq!(
+            filter_detail_rows(&rows, "", AdFilter::WithoutAds)[0].sku,
+            "B0-B-002"
+        );
+        // 关键词命中 ASIN（大小写不敏感）
+        assert_eq!(filter_detail_rows(&rows, "b0test01", AdFilter::All).len(), 2);
+        // 关键词 + 状态组合
+        assert!(filter_detail_rows(&rows, "A-001", AdFilter::WithoutAds).is_empty());
+    }
+
+    #[test]
+    fn filter_daily_and_breakdown_rows_by_spend() {
+        let daily = vec![row("2026-08-12", 100.0, 1, 20.0), row("2026-08-13", 50.0, 1, 0.0)];
+        assert_eq!(filter_daily_rows(&daily, "", AdFilter::WithAds).len(), 1);
+        assert_eq!(filter_daily_rows(&daily, "08-13", AdFilter::WithoutAds).len(), 1);
+
+        let breakdown = vec![
+            BreakdownRow { name: "项目 A".into(), sales: 100.0, orders: 1, ad_spend: 10.0, change: None },
+            BreakdownRow { name: "项目 B".into(), sales: 50.0, orders: 1, ad_spend: 0.0, change: None },
+        ];
+        assert_eq!(filter_breakdown_rows(&breakdown, "", AdFilter::WithAds).len(), 1);
+        assert_eq!(filter_breakdown_rows(&breakdown, "项目 b", AdFilter::All).len(), 1);
+    }
+
+    #[test]
+    fn page_slice_returns_safe_window() {
+        let rows: Vec<usize> = (0..120).collect();
+        let s = PageState::new(3, 50, rows.len());
+        assert_eq!(page_slice(&rows, &s), (100..120).collect::<Vec<_>>());
+        // 越界页被 PageState 收敛到末页
+        let s = PageState::new(99, 50, rows.len());
+        assert_eq!(page_slice(&rows, &s), (100..120).collect::<Vec<_>>());
     }
 
     // ---------- 纯函数：维度下钻 ----------
@@ -1536,11 +1481,7 @@ mod tests {
         let rows = compute_project_breakdown(
             &breakdown,
             Some(&compare),
-            &[
-                project(1, "项目 A"),
-                project(2, "项目 B"),
-                project(3, "项目 C"),
-            ],
+            &[project(1, "项目 A"), project(2, "项目 B"), project(3, "项目 C")],
         );
         // 销售额降序：A(3000) > B(300)；C 无数据被过滤
         assert_eq!(rows.len(), 2);
@@ -1593,6 +1534,33 @@ mod tests {
         assert_eq!(rows[0].sales, 900.0);
         assert_eq!(rows[1].name, "英国站 (UK)");
         assert_eq!(rows[1].change, None);
+    }
+
+    // ---------- 聚合条目（Pending 口径标注契约） ----------
+
+    #[test]
+    fn aggregates_sum_and_pending_note_present() {
+        let details = vec![detail_row("A", 1), detail_row("B", 0)];
+        let items = detail_aggregates(&details);
+        assert_eq!(items.len(), 4);
+        assert_eq!(items[0].value, "$720.00");
+        assert_eq!(items[1].value, "8");
+        assert_eq!(items[2].value, "$57.60");
+        // Pending 占位必须带口径标注与警示色（BLF-798 验收项）
+        assert_eq!(items[3].value, "—");
+        assert_eq!(items[3].tone, AggregateTone::Warning);
+        assert!(items[3].note.is_some());
+
+        let breakdown = vec![BreakdownRow {
+            name: "X".into(),
+            sales: 100.0,
+            orders: 2,
+            ad_spend: 5.0,
+            change: None,
+        }];
+        let items = breakdown_aggregates(&breakdown);
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[1].value, "2");
     }
 
     // ---------- 纯状态机转移 ----------
@@ -1678,21 +1646,19 @@ mod tests {
         assert!(!sample_data().is_empty());
     }
 
-    // ---------- 视图级状态转移 / 竞态保护（TestAppContext，无真实网络） ----------
+    // ---------- 视图级状态转移 / 竞态保护 / Pattern A 刷新链（TestAppContext） ----------
 
     /// 构造视图。client 指向不可达地址（127.0.0.1:1 立即 connection refused），
     /// 测试只驱动同步的 apply_result / select_project / select_country。
     fn create_view(cx: &mut gpui::TestAppContext) -> Entity<DailyAnalysisView> {
         cx.update(|cx| {
+            gpui_component::init(cx);
             let client = Client::new("http://127.0.0.1:1");
             cx.new(|cx| DailyAnalysisView::new(cx, client))
         })
     }
 
-    fn read_state(
-        cx: &mut gpui::TestAppContext,
-        view: &Entity<DailyAnalysisView>,
-    ) -> DailyAnalysisState {
+    fn read_state(cx: &mut gpui::TestAppContext, view: &Entity<DailyAnalysisView>) -> DailyAnalysisState {
         cx.read(|app| view.read(app).state.read(app).clone())
     }
 
@@ -1758,63 +1724,45 @@ mod tests {
         assert_eq!(read_state(cx, &view), DailyAnalysisState::Empty);
     }
 
+    /// BLF-795/798：Console Bar 是项目/站点/日期的唯一权威——
+    /// apply_console_filter 任一维度变化触发一次 reload，同值回放 no-op。
     #[gpui::test]
-    async fn select_project_and_country_trigger_reload(cx: &mut gpui::TestAppContext) {
+    async fn console_filter_changes_trigger_reload(cx: &mut gpui::TestAppContext) {
         let view = create_view(cx);
         cx.update(|cx| {
             view.update(cx, |this, cx| {
-                assert_eq!(this.selected_project_id, None);
-                assert_eq!(this.country, "US");
-                assert_eq!(this.latest_request_id, 0);
+                let (p, c, r) = this.console_filter_state();
+                assert_eq!((p, c), (None, "US"));
 
-                // 切换到项目 3：更新选中 + 递增请求序号 + 进入 Loading
-                this.select_project(Some(3), cx);
-                assert_eq!(this.selected_project_id, Some(3));
+                // 切到项目 3 → 变化触发 reload
+                assert!(this.apply_console_filter(Some(3), c, r, cx));
                 assert_eq!(this.latest_request_id, 1);
                 assert_eq!(this.current_state(cx), DailyAnalysisState::Loading);
 
-                // 重复选择同一项目：no-op（不递增序号）
-                this.select_project(Some(3), cx);
+                // 同值回放（二次进入页面回放快照）：no-op 不重复拉取
+                let (p, c, r) = this.console_filter_state();
+                assert!(!this.apply_console_filter(p, c, r, cx));
                 assert_eq!(this.latest_request_id, 1);
 
                 // 切回全部项目：再次触发
-                this.select_project(None, cx);
-                assert_eq!(this.selected_project_id, None);
+                assert!(this.apply_console_filter(None, c, r, cx));
                 assert_eq!(this.latest_request_id, 2);
 
-                // 切换站点 → reload；同一站点 no-op
-                this.select_country("ALL", cx);
-                assert_eq!(this.country, "ALL");
-                assert_eq!(this.latest_request_id, 3);
-                this.select_country("ALL", cx);
+                // 切站点 → 触发
+                let (_, _, r) = this.console_filter_state();
+                assert!(this.apply_console_filter(None, "ALL", r, cx));
                 assert_eq!(this.latest_request_id, 3);
             });
         });
     }
 
+    /// BLF-798 核心刷新链：apply_result → 明细/下钻网格收到当前页切片；
+    /// 过期响应不触碰网格。
     #[gpui::test]
-    async fn apply_result_feeds_detail_and_breakdown_tables(cx: &mut gpui::TestAppContext) {
+    async fn apply_result_feeds_grids(cx: &mut gpui::TestAppContext) {
         let view = create_view(cx);
         let mut data = sample_data();
-        data.detail_rows = vec![DailyAnalysisDetailRow {
-            date: NaiveDate::parse_from_str("2026-08-13", "%Y-%m-%d").unwrap(),
-            sku: "B0-A-001".to_string(),
-            asin: None,
-            order_qty: 4,
-            sales_amount: 360.0,
-            impressions: 1800,
-            clicks: 60,
-            cpc: 0.48,
-            ad_spend: 28.8,
-            ad_orders: 1,
-            available_qty: 30,
-            in_transit_qty: 12,
-            page_views: 96,
-            units_ordered: 3,
-            sessions: 80,
-            ordered_sales_amount: 350.0,
-            conversion_rate: 3.12,
-        }];
+        data.detail_rows = vec![detail_row("B0-A-001", 1)];
         data.breakdown = vec![BreakdownRow {
             name: "测试项目".to_string(),
             sales: 1000.0,
@@ -1833,15 +1781,18 @@ mod tests {
             let state = view.read(app).state.read(app).clone();
             assert_eq!(state, DailyAnalysisState::Loaded(data));
             assert_eq!(
-                view.read(app).detail_table.read(app).rows().len(),
+                view.read(app).detail_grid.read(app).rows().len(),
                 1,
-                "明细表应收到 1 行"
+                "明细网格应收到 1 行"
             );
+            // 下钻网格未选中时也随数据落点同步（切数据集即有数据）
             assert_eq!(
-                view.read(app).breakdown_table.read(app).rows().len(),
+                view.read(app).breakdown_grid.read(app).rows().len(),
                 1,
-                "下钻表应收到 1 行"
+                "下钻网格应收到 1 行"
             );
+            // 底条聚合同步生成（含 Pending 口径标注项）
+            assert_eq!(view.read(app).aggregates.len(), 4);
         });
 
         // 失败结果不喂表格（保持原有行）
@@ -1852,8 +1803,101 @@ mod tests {
             });
         });
         cx.read(|app| {
-            assert_eq!(view.read(app).detail_table.read(app).rows().len(), 1);
-            assert_eq!(view.read(app).breakdown_table.read(app).rows().len(), 1);
+            assert_eq!(view.read(app).detail_grid.read(app).rows().len(), 1);
+        });
+    }
+
+    /// BLF-798 工具栏筛选联动：搜索 / 广告状态过滤即时反映到网格切片，
+    /// 数据集切换切换数据源，翻页切片正确。
+    #[gpui::test]
+    async fn toolbar_filters_dataset_switch_and_paging(cx: &mut gpui::TestAppContext) {
+        let view = create_view(cx);
+        let mut data = sample_data();
+        data.detail_rows = (0..120)
+            .map(|i| {
+                let mut r = detail_row(&format!("SKU-{i:03}"), i64::from(i % 2));
+                r.sales_amount = f64::from(i);
+                r
+            })
+            .collect();
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.latest_request_id = 1;
+                this.apply_result(1, Ok(data), cx);
+            });
+        });
+
+        // 默认：明细数据集，120 行全量 → 第 1 页 50 行
+        cx.read(|app| {
+            let v = view.read(app);
+            assert_eq!(v.detail_grid.read(app).rows().len(), 50);
+            assert_eq!(v.page_state.total, 120);
+            assert_eq!(v.page_state.page_count(), 3);
+        });
+
+        // 广告状态筛选：仅广告投放（一半行）→ 回第 1 页，60 行总量
+        cx.update(|cx| {
+            view.update(cx, |this, cx| this.set_ad_filter(AdFilter::WithAds, cx));
+        });
+        cx.read(|app| {
+            let v = view.read(app);
+            assert_eq!(v.page_state.total, 60);
+            assert!(v.detail_grid.read(app).rows()[0].ad_orders > 0);
+        });
+
+        // 搜索命中单行
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.set_search_query("SKU-007".to_string(), cx)
+            });
+        });
+        cx.read(|app| {
+            let v = view.read(app);
+            assert_eq!(v.page_state.total, 1);
+            assert_eq!(v.detail_grid.read(app).rows().len(), 1);
+        });
+
+        // 清空搜索回到 60 行（广告筛选仍在）；翻到第 2 页 → 剩余切片 10 行，
+        // 首行为过滤序第 51 个奇数行 SKU-101
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.set_search_query(String::new(), cx);
+                this.set_page(2, cx);
+            });
+        });
+        cx.read(|app| {
+            let v = view.read(app);
+            let slice = v.detail_grid.read(app).rows();
+            assert_eq!(slice.len(), 10);
+            assert!(
+                slice[0].sku.ends_with("-101"),
+                "过滤后第 2 页首行应为 SKU-101，实际 {}",
+                slice[0].sku
+            );
+        });
+
+        // 切换每日汇总数据集 → 网格换源（summary_rows 1 行）
+        cx.update(|cx| {
+            view.update(cx, |this, cx| this.select_dataset(GridDataset::Daily, cx));
+        });
+        cx.read(|app| {
+            let v = view.read(app);
+            assert_eq!(v.daily_grid.read(app).rows().len(), 1);
+            assert_eq!(v.aggregates.len(), 4, "每日汇总同样带 Pending 口径项");
+        });
+
+        // 改每页行数 → 回第 1 页并按新页宽切片
+        cx.update(|cx| {
+            view.update(cx, |this, cx| {
+                this.select_dataset(GridDataset::Detail, cx);
+                this.set_ad_filter(AdFilter::All, cx);
+                this.set_page_size(100, cx);
+            });
+        });
+        cx.read(|app| {
+            let v = view.read(app);
+            assert_eq!(v.detail_grid.read(app).rows().len(), 100);
+            assert_eq!(v.page_state.page_count(), 2);
         });
     }
 
@@ -1874,34 +1918,9 @@ mod tests {
         }
     }
 
-    #[gpui::test]
-    async fn daily_analysis_renders_in_both_modes(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| {
-            gpui_component::init(cx);
-            crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
-        });
-        let view = create_view(cx);
-        // 驱动到 Loaded（1 个项目 + 1 行聚合 + 明细 + 下钻）
+    fn loaded_sample() -> DailyAnalysisData {
         let mut data = sample_data();
-        data.detail_rows = vec![DailyAnalysisDetailRow {
-            date: NaiveDate::parse_from_str("2026-08-13", "%Y-%m-%d").unwrap(),
-            sku: "B0-A-001".to_string(),
-            asin: None,
-            order_qty: 4,
-            sales_amount: 360.0,
-            impressions: 1800,
-            clicks: 60,
-            cpc: 0.48,
-            ad_spend: 28.8,
-            ad_orders: 1,
-            available_qty: 30,
-            in_transit_qty: 12,
-            page_views: 96,
-            units_ordered: 3,
-            sessions: 80,
-            ordered_sales_amount: 350.0,
-            conversion_rate: 3.12,
-        }];
+        data.detail_rows = vec![detail_row("B0-A-001", 1)];
         data.breakdown = vec![BreakdownRow {
             name: "测试项目".to_string(),
             sales: 1000.0,
@@ -1909,13 +1928,25 @@ mod tests {
             ad_spend: 50.0,
             change: Some(20.0),
         }];
+        data
+    }
+
+    #[gpui::test]
+    async fn daily_analysis_renders_in_both_modes(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        cx.update(|cx| {
+            crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
+        });
+        let view = create_view(cx);
+        let data = loaded_sample();
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 this.latest_request_id = 1;
                 this.apply_result(1, Ok(data), cx);
             });
         });
-        // 窗口宿主包装 Entity → 首帧渲染完整路径（筛选栏 + 数字带 + 趋势 + 下钻 + 明细表）
+        // 窗口宿主包装 Entity → 首帧渲染完整路径（工具栏 + 虚拟化大表 + pinned 底条；
+        // 含懒建 InputState 首帧创建路径与 uniform_list 可见行实例化）
         let (_host, cx2) =
             cx.add_window_view(|_window, _cx| DailyAnalysisHost { view: view.clone() });
         cx2.read(|app| assert!(!crate::theme::AppTheme::current(app).is_dark()));
@@ -1929,9 +1960,6 @@ mod tests {
 
     #[gpui::test]
     async fn daily_analysis_error_state_renders(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| {
-            gpui_component::init(cx);
-        });
         let view = create_view(cx);
         cx.update(|cx| {
             view.update(cx, |this, cx| {
@@ -1945,9 +1973,6 @@ mod tests {
 
     #[gpui::test]
     async fn daily_analysis_loading_state_renders(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| {
-            gpui_component::init(cx);
-        });
         let view = create_view(cx);
         let (_host, _cx2) =
             cx.add_window_view(|_window, _cx| DailyAnalysisHost { view: view.clone() });
@@ -1956,9 +1981,6 @@ mod tests {
     /// P4-6（BLF-761）三态统一冒烟：Empty 态（无项目 → 统一空态卡片）可渲染不 panic。
     #[gpui::test]
     async fn daily_analysis_empty_state_renders(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| {
-            gpui_component::init(cx);
-        });
         let view = create_view(cx);
         cx.update(|cx| {
             view.update(cx, |this, cx| {

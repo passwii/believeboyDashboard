@@ -1,8 +1,11 @@
-//! 通用分页（P5-0 公共基建，BLF-759）
+//! 通用分页（P5-0 公共基建，BLF-759；BLF-798 起拆出可组合构建块）
 //!
 //! - [`PageState`]：纯分页状态（当前页 / 每页行数 / 总数），不依赖 GPUI，
 //!   可单测；提供页数计算、页号窗口、首末条索引等派生逻辑；
-//! - [`pagination_bar`]：渲染「每页行数选择 + 上一页 / 页码 / 下一页 + 总数」，
+//! - [`page_size_select`] / [`pagination_controls`]：两个**无布局约束**的
+//!   构建块（每页行数下拉；上一页/页码/下一页/总数），供 Pattern A 底部
+//!   pinned 分页聚合条（`data_grid::grid_footer_bar`）等自定义容器组合；
+//! - [`pagination_bar`]：整条渲染（构建块 + justify_between 容器），
 //!   与 DataTable / 任意列表组合；翻页与改每页行数通过宿主视图实体回连
 //!   （`on_page` / `on_page_size` 闭包，如 `|this, page, cx| this.set_page(page, cx)`）。
 //!
@@ -18,6 +21,7 @@ use gpui_component::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::data_table::TabularNumsExt;
 
 /// 纯分页状态（page 为 1-based）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,11 +119,137 @@ impl PageState {
     }
 }
 
-/// 分页栏：每页行数 + 上一页 / 页码 / 下一页 + 总数
-///
-/// - `id_prefix`：容器 element id（如 `"ad-data-pagination"`，测试定位用）；
-/// - `page_size_options`：每页行数下拉选项（如 `&[50, 100, 200, 500]`）；
-/// - `on_page(page)` / `on_page_size(size)`：宿主视图的动作（闭包捕获实体）。
+/// 「每页 N 行」下拉构建块（无外层布局约束，供 Pattern A 底条等组合）
+pub fn page_size_select<V: 'static>(
+    view: &Entity<V>,
+    theme: &AppTheme,
+    id_prefix: &'static str,
+    state: &PageState,
+    page_size_options: &[usize],
+    on_page_size: impl Fn(&mut V, usize, &mut gpui::Context<V>) + 'static + Copy,
+) -> gpui::Stateful<gpui::Div> {
+    let options: Vec<usize> = page_size_options.to_vec();
+    let page_size = state.page_size;
+    let view_for_size = view.clone();
+
+    h_flex()
+        .id(SharedString::from(format!("{id_prefix}-page-size-group")))
+        .gap_1p5()
+        .items_center()
+        .text_xs()
+        .text_color(theme.text_muted)
+        .child(div().child("每页"))
+        .child(
+            Button::new(SharedString::from(format!("{id_prefix}-page-size")))
+                .outline()
+                .small()
+                .label(SharedString::from(format!("{page_size}")))
+                .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+                .dropdown_menu_with_anchor(
+                    gpui::Corner::TopLeft,
+                    move |menu, _window, _cx| {
+                        let mut menu = menu;
+                        for size in &options {
+                            let checked = page_size == *size;
+                            let view = view_for_size.clone();
+                            let size = *size;
+                            menu = menu.item(
+                                PopupMenuItem::new(SharedString::from(format!("{size}")))
+                                    .checked(checked)
+                                    .on_click(move |_, _window, cx| {
+                                        view.update(cx, |this, cx| {
+                                            on_page_size(this, size, cx)
+                                        });
+                                    }),
+                            );
+                        }
+                        menu
+                    },
+                ),
+        )
+        .child(div().child("行"))
+}
+
+/// 页码导航构建块（上一页 / 页码窗口 / 下一页 / 第 x/y 页 · 共 n 条；
+/// 无外层布局约束，供 Pattern A 底条等组合）
+pub fn pagination_controls<V: 'static>(
+    view: &Entity<V>,
+    theme: &AppTheme,
+    id_prefix: &'static str,
+    state: &PageState,
+    on_page: impl Fn(&mut V, usize, &mut gpui::Context<V>) + 'static + Copy,
+) -> gpui::Stateful<gpui::Div> {
+    let (page, total, page_count) = (state.page, state.total, state.page_count());
+    let view_for_prev = view.clone();
+    let view_for_next = view.clone();
+    let view_for_jump = view.clone();
+
+    h_flex()
+        .id(SharedString::from(format!("{id_prefix}-pages")))
+        .gap_1()
+        .items_center()
+        .child(
+            Button::new(SharedString::from(format!("{id_prefix}-prev")))
+                .outline()
+                .small()
+                .label("上一页")
+                .disabled(!state.can_prev())
+                .on_click(move |_, _, cx| {
+                    let view = view_for_prev.clone();
+                    view.update(cx, |this, cx| {
+                        on_page(this, page.saturating_sub(1).max(1), cx)
+                    });
+                }),
+        )
+        .children(state.windowed_pages(2).into_iter().map(|p| {
+            if p == 0 {
+                // 省略号占位
+                div()
+                    .px_1()
+                    .text_sm()
+                    .text_color(theme.text_muted)
+                    .child("…")
+                    .into_any_element()
+            } else {
+                let is_current = p == page;
+                let view = view_for_jump.clone();
+                Button::new(SharedString::from(format!("{id_prefix}-page-{p}")))
+                    .outline()
+                    .small()
+                    .label(SharedString::from(format!("{p}")))
+                    .when(is_current, |b| b.primary())
+                    .when(!is_current, |b| b)
+                    .on_click(move |_, _, cx| {
+                        let view = view.clone();
+                        view.update(cx, |this, cx| on_page(this, p, cx));
+                    })
+                    .into_any_element()
+            }
+        }))
+        .child(
+            Button::new(SharedString::from(format!("{id_prefix}-next")))
+                .outline()
+                .small()
+                .label("下一页")
+                .disabled(!state.can_next())
+                .on_click(move |_, _, cx| {
+                    let view = view_for_next.clone();
+                    view.update(cx, |this, cx| {
+                        on_page(this, (page + 1).min(page_count), cx)
+                    });
+                }),
+        )
+        .child(
+            div()
+                .text_xs()
+                .mono_tabular_nums()
+                .text_color(theme.text_muted)
+                .child(format!("第 {page} / {page_count} 页 · 共 {total} 条")),
+        )
+}
+
+/// 分页栏：每页行数 + 上一页 / 页码 / 下一页 + 总数（整条容器版，
+/// 内部由 [`page_size_select`] + [`pagination_controls`] 组合）
 #[allow(clippy::too_many_arguments)]
 pub fn pagination_bar<V: 'static>(
     view: &Entity<V>,
@@ -130,121 +260,14 @@ pub fn pagination_bar<V: 'static>(
     on_page: impl Fn(&mut V, usize, &mut gpui::Context<V>) + 'static + Copy,
     on_page_size: impl Fn(&mut V, usize, &mut gpui::Context<V>) + 'static + Copy,
 ) -> impl IntoElement {
-    let options: Vec<usize> = page_size_options.to_vec();
-    let (page, page_size, total, page_count) =
-        (state.page, state.page_size, state.total, state.page_count());
-    let view_for_size = view.clone();
-    let view_for_prev = view.clone();
-    let view_for_next = view.clone();
-    let view_for_jump = view.clone();
-
     h_flex()
         .id(id_prefix)
         .w_full()
         .items_center()
         .justify_between()
         .gap_3()
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .text_sm()
-                .text_color(theme.text_muted)
-                .child(div().child("每页"))
-                .child(
-                    Button::new(SharedString::from(format!("{id_prefix}-page-size")))
-                        .outline()
-                        .small()
-                        .label(SharedString::from(format!("{page_size}")))
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(
-                            gpui::Corner::TopLeft,
-                            move |menu, _window, _cx| {
-                                let mut menu = menu;
-                                for size in &options {
-                                    let checked = page_size == *size;
-                                    let view = view_for_size.clone();
-                                    let size = *size;
-                                    menu = menu.item(
-                                        PopupMenuItem::new(SharedString::from(format!("{size}")))
-                                            .checked(checked)
-                                            .on_click(move |_, _window, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    on_page_size(this, size, cx)
-                                                });
-                                            }),
-                                    );
-                                }
-                                menu
-                            },
-                        ),
-                )
-                .child(div().child("行")),
-        )
-        .child(
-            h_flex()
-                .gap_1()
-                .items_center()
-                .child(
-                    Button::new(SharedString::from(format!("{id_prefix}-prev")))
-                        .outline()
-                        .small()
-                        .label("上一页")
-                        .disabled(!state.can_prev())
-                        .on_click(move |_, _, cx| {
-                            let view = view_for_prev.clone();
-                            view.update(cx, |this, cx| {
-                                on_page(this, page.saturating_sub(1).max(1), cx)
-                            });
-                        }),
-                )
-                .children(state.windowed_pages(2).into_iter().map(|p| {
-                    if p == 0 {
-                        // 省略号占位
-                        div()
-                            .px_1()
-                            .text_sm()
-                            .text_color(theme.text_muted)
-                            .child("…")
-                            .into_any_element()
-                    } else {
-                        let is_current = p == page;
-                        let view = view_for_jump.clone();
-                        Button::new(SharedString::from(format!("{id_prefix}-page-{p}")))
-                            .outline()
-                            .small()
-                            .label(SharedString::from(format!("{p}")))
-                            .when(is_current, |b| b.primary())
-                            .when(!is_current, |b| b)
-                            .on_click(move |_, _, cx| {
-                                let view = view.clone();
-                                view.update(cx, |this, cx| on_page(this, p, cx));
-                            })
-                            .into_any_element()
-                    }
-                }))
-                .child(
-                    Button::new(SharedString::from(format!("{id_prefix}-next")))
-                        .outline()
-                        .small()
-                        .label("下一页")
-                        .disabled(!state.can_next())
-                        .on_click(move |_, _, cx| {
-                            let view = view_for_next.clone();
-                            view.update(cx, |this, cx| {
-                                on_page(this, (page + 1).min(page_count), cx)
-                            });
-                        }),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.text_muted)
-                        .child(format!(
-                            "第 {page} / {page_count} 页 · 共 {total} 条",
-                        )),
-                ),
-        )
+        .child(page_size_select(view, theme, id_prefix, state, page_size_options, on_page_size))
+        .child(pagination_controls(view, theme, id_prefix, state, on_page))
 }
 
 #[cfg(test)]
