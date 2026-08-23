@@ -9,8 +9,8 @@ express the semantic shift without a column swap), we wipe the table and
 re-run the fixed ``_refresh_one_day`` from scratch over the full raw-return
 date range.
 
-Idempotent: deletes all rows then writes new ones (data_version=3,
-BLF-806). Safe to re-run; each run replaces the prior snapshot wholesale.
+Idempotent: deletes all rows then writes new ones (data_version=2). Safe
+to re-run; each run replaces the prior snapshot wholesale.
 """
 
 from __future__ import annotations

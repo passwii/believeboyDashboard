@@ -389,11 +389,6 @@ def seed_return_analysis(
                     return_count=a.get("return_count", 1),
                     return_quantity=a.get("return_quantity", 1),
                     sales_quantity=a.get("sales_quantity", 10),
-                    # BLF-806: 缺省与 sales_quantity 同值，代表新格式行
-                    # （读侧窗口折叠按当日销量 SUM）；显式传 None 可造旧行。
-                    daily_sales_quantity=a.get(
-                        "daily_sales_quantity", a.get("sales_quantity", 10)
-                    ),
                     return_rate=a.get("return_rate", 0),
                     cycle_avg_days=a.get("cycle_avg_days"),
                     cycle_min_days=a.get("cycle_min_days"),

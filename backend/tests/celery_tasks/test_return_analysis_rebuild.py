@@ -31,17 +31,13 @@ def test_rebuild_full_snapshot_runs_and_returns_shape(db_session):
         assert key in r1, f"missing key: {key}"
     assert r1["range_start"] <= r1["range_end"]
 
-    # New rows have data_version=3 (BLF-806 mark; was 2 = BEL-376 cumulative-only)
+    # New rows have data_version=2 (BEL-376 mark)
     from app.models import AnalysisReturnAggregate
 
     sample = db_session.query(AnalysisReturnAggregate).limit(5).all()
     for row in sample:
-        assert row.data_version == 3, (
-            f"expected data_version=3, got {row.data_version} for {row.sku}"
-        )
-        # BLF-806: 新写入行必须带当日销量（非 NULL）
-        assert row.daily_sales_quantity is not None, (
-            f"expected non-null daily_sales_quantity for {row.sku}"
+        assert row.data_version == 2, (
+            f"expected data_version=2, got {row.data_version} for {row.sku}"
         )
 
     # Second run — should produce same row count (idempotent)

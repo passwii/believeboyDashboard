@@ -44,11 +44,9 @@ MAX_GAP_BACKFILL_DAYS = 366
 
 
 def _find_gap_dates(db: Session, *, window_start: date) -> list[date]:
-    """找「raw 有退货事件但快照缺行/旧行」的日期（早于回看窗口的部分）.
+    """找「raw 有退货事件但快照缺行」的日期（早于回看窗口的部分）.
 
-    判定粒度：(project_id, country, return_date) 三元组在快照表无对应行，
-    或对应行还是没写 daily_sales_quantity 的迁移前旧行（BLF-806：NULL 视为
-    待重算，靠每日任务自愈补齐，无需手工数据迁移）。
+    判定粒度：(project_id, country, return_date) 三元组在快照表无对应行。
     返回去重后的日期列表（升序）。扫描范围限制在 MAX_GAP_BACKFILL_DAYS 内，
     避免极端情况（如整表被清）下单次任务静默跑出一次全量重建的耗时。
     """
@@ -65,7 +63,6 @@ def _find_gap_dates(db: Session, *, window_start: date) -> list[date]:
                 ON a.project_id = r.project_id
                AND a.country = r.country
                AND a.data_date = r.return_date
-               AND a.daily_sales_quantity IS NOT NULL
             WHERE f.report_type = 'return_report'
               AND f.is_current = TRUE
               AND r.return_date < :window_start
@@ -226,16 +223,14 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
         if not raw_rows:
             continue
 
-        # 3) 拉截至当日 sales rows（一次查询同时算累计与当日两个口径）
-        # BEL-376: sales_quantity = "截至 target_date 累计销量"（cumulative，
-        # audit 用）；BLF-806: daily_sales_quantity = 当日销量，供读侧按窗口
-        # SUM 出与 R1 counted-sales 同口径的销量。
+        # 3) 拉同日 sales rows
+        # BEL-376: sales_quantity 改为"截至 target_date 累计销量"（cumulative）。
+        # 原错误使用 == 当日，导致 snapshot 系统性低估销量、退货率虚高。
         # 与 counted_sales_where 一致：排除 Cancelled/Pending + is_counted_sales=true。
         sales_rows = (
             db.query(
                 AnalysisSalesOrderRow.sku,
                 AnalysisSalesOrderRow.quantity,
-                AnalysisSalesOrderRow.purchase_date_pt,
             )
             .filter(
                 AnalysisSalesOrderRow.project_id == project_id,
@@ -247,15 +242,11 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
             )
             .all()
         )
-        # SKU → 截至当日累计 / 当日 销量
-        cumulative_by_sku: dict[str, int] = Counter()
-        daily_by_sku: dict[str, int] = Counter()
+        # SKU → 当日 sales 总量
+        sales_by_sku: dict[str, int] = Counter()
         for r in sales_rows:
-            if not r.sku:
-                continue
-            cumulative_by_sku[r.sku] += r.quantity
-            if r.purchase_date_pt == target_date:
-                daily_by_sku[r.sku] += r.quantity
+            if r.sku:
+                sales_by_sku[r.sku] += r.quantity
 
         # 4) 按 SKU 聚合
         sku_data: dict[str, dict] = {}
@@ -286,8 +277,7 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
         for sku, v in sku_data.items():
             return_count = len(v["unique_keys"])
             return_quantity = v["return_quantity"]
-            sales_quantity = cumulative_by_sku.get(sku, 0)
-            daily_sales_quantity = daily_by_sku.get(sku, 0)
+            sales_quantity = sales_by_sku.get(sku, 0)
             return_rate = (
                 round(return_quantity / sales_quantity * 100, 3)
                 if sales_quantity > 0
@@ -322,7 +312,6 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
                     "return_count": return_count,
                     "return_quantity": return_quantity,
                     "sales_quantity": sales_quantity,
-                    "daily_sales_quantity": daily_sales_quantity,
                     "return_rate": return_rate,
                     "cycle_avg_days": None,
                     "cycle_min_days": None,
@@ -335,7 +324,7 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
                     "dominant_fc_id": dominant_fc_id,
                     "risk_level": risk_level,
                     "wilson_lower": round(wilson_lower, 3) if wilson_lower else None,
-                    "data_version": 3,  # BLF-806: +daily_sales_quantity（2 = BEL-376 cumulative-only）
+                    "data_version": 2,  # BEL-376: cumulative-sales semantics (was 1 = same-day)
                     "computed_at": datetime.now(timezone.utc),
                 }
             )
@@ -353,7 +342,6 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
                         "return_count": stmt.excluded.return_count,
                         "return_quantity": stmt.excluded.return_quantity,
                         "sales_quantity": stmt.excluded.sales_quantity,
-                        "daily_sales_quantity": stmt.excluded.daily_sales_quantity,
                         "return_rate": stmt.excluded.return_rate,
                         "reason_top1": stmt.excluded.reason_top1,
                         "reason_top1_pct": stmt.excluded.reason_top1_pct,
@@ -375,7 +363,6 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
                         "return_count": stmt.excluded.return_count,
                         "return_quantity": stmt.excluded.return_quantity,
                         "sales_quantity": stmt.excluded.sales_quantity,
-                        "daily_sales_quantity": stmt.excluded.daily_sales_quantity,
                         "return_rate": stmt.excluded.return_rate,
                         "reason_top1": stmt.excluded.reason_top1,
                         "reason_top1_pct": stmt.excluded.reason_top1_pct,
