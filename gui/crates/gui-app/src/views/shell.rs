@@ -34,8 +34,15 @@ pub const CONSOLE_BAR_HEIGHT: f32 = 36.0;
 
 /// 右侧 Inspector 插槽宽度（规格 280~340px 可调，默认值）。
 ///
-/// 本期为空面板占位；Stage5 实装 Cmd+B 自适应抽屉与拖拽调宽。
+/// BLF-796 起实装 Cmd+B 自适应抽屉：实际宽度可拖拽（[`INSPECTOR_WIDTH_MIN`]
+/// ~ [`INSPECTOR_WIDTH_MAX`] 区间）并持久化，本常量保留为默认宽度锚点。
 pub const INSPECTOR_WIDTH: f32 = 300.0;
+
+/// Inspector 拖拽调宽下限（父 issue「空间栅格」规格）
+pub const INSPECTOR_WIDTH_MIN: f32 = 280.0;
+
+/// Inspector 拖拽调宽上限
+pub const INSPECTOR_WIDTH_MAX: f32 = 340.0;
 
 /// 全局 Footer 状态栏高度（规格固定 24px）。
 ///
@@ -62,6 +69,8 @@ mod tests {
             (280.0..=340.0).contains(&INSPECTOR_WIDTH),
             "Inspector 宽度必须在 280~340px，实际 {INSPECTOR_WIDTH}"
         );
+        assert_eq!(INSPECTOR_WIDTH_MIN, 280.0, "Inspector 调宽下限 280px");
+        assert_eq!(INSPECTOR_WIDTH_MAX, 340.0, "Inspector 调宽上限 340px");
         assert_eq!(FOOTER_HEIGHT, 24.0, "Footer 固定 24px");
     }
 }
