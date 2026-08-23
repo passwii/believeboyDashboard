@@ -2,15 +2,17 @@
 //!
 //! **BLF-793 外壳重构**：布局改为父 issue「空间栅格」的零外边距六区栅格——
 //! 左 Master Rail（[`crate::views::shell::RAIL_WIDTH`] 图标栏）/ 左二 Sub-Nav 列
-//! （本期挂遗留全功能侧栏，Stage3 重造）/ 顶 Console Bar 36px 插槽（本期由
-//! 面包屑 + 用户 chrome 占位，Stage4 换四件套筛选条）/ 中央 Canvas / 右
-//! Inspector 插槽（本期空面板，Stage5 实装）/ 底 Footer 24px 插槽（本期空面板，
-//! Stage6 实装）。容器外 padding 0，区间一律 1px 分隔线；尺寸常量集中在
-//! [`crate::views::shell`]。
+//! （BLF-794 起实装可折叠模块选择器 [`crate::views::sub_nav::SubNavView`] + ⌘K
+//! 命令面板 [`crate::views::command_palette::CommandPaletteView`]）/ 顶 Console
+//! Bar 36px 插槽（本期由面包屑 + 用户 chrome 占位，Stage4 换四件套筛选条）/
+//! 中央 Canvas / 右 Inspector 插槽（本期空面板，Stage5 实装）/ 底 Footer 24px
+//! 插槽（本期空面板，Stage6 实装）。容器外 padding 0，区间一律 1px 分隔线；
+//! 尺寸常量集中在 [`crate::views::shell`]。
 //!
-//! Rail ↔ 导航绑定：Rail 选中分类 → 默认视图路由（该组第一项）；Sub-Nav
-//! 侧栏选中子项 → 反写 Rail 高亮所属分类。两侧状态唯一权威 =
-//! `gui_domain::sidebar` 的 8 组 52 项。
+//! Rail ↔ 导航绑定：Rail 选中分类 → 默认视图路由（该组第一项，同时把 Sub-Nav
+//! 列表切到该分类）；Sub-Nav / ⌘K 面板选中子项 → 反写 Rail 高亮所属分类。
+//! 两侧状态唯一权威 = `gui_domain::sidebar` 的 8 组 52 项。Sub-Nav 折叠状态经
+//! [`crate::prefs`] 持久化（重启保留）。
 //!
 //! 历史能力保留：继承 GUI-3（BLF-675）侧栏渲染 / 键盘导航 / 占位内容区，
 //! GUI-2（BLF-674）已登录用户信息栏 + 退出登录（emit `RootViewEvent::Logout`，
@@ -37,6 +39,7 @@ use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
+use crate::views::command_palette::{CommandPaletteEvent, CommandPaletteView};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
 use crate::views::crm_audit::{CrmAuditView, CRM_AUDIT_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
@@ -68,9 +71,9 @@ use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_R
 use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT, INSPECTOR_WIDTH};
 use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::shop_calculation::{ShopCalculationView, SHOP_CALCULATION_URL};
-use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
+use crate::views::sub_nav::{SubNavEvent, SubNavView};
 use crate::views::vat_invoice::{VatInvoiceView, VAT_INVOICE_URL};
 use crate::views::weekly_product_analysis::{WeeklyProductAnalysisView, WEEKLY_PRODUCT_URL};
 
@@ -89,11 +92,16 @@ pub struct SessionInfo {
 pub enum RootViewEvent {
     /// 用户点了退出登录（coordinator 负责清 Keychain + 切窗口）
     Logout,
+    /// BLF-794：Sub-Nav 折叠态变化（组合根据此持久化 UI 偏好）
+    SubNavCollapsed { collapsed: bool },
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
 pub struct RootView {
-    pub sidebar: Entity<SidebarView>,
+    /// BLF-794：Sub-Nav 子导航列（可折叠模块选择器，绑定 gui-domain 8 组 52 项）
+    pub sub_nav: Entity<SubNavView>,
+    /// BLF-794：⌘K 命令面板（打开时才存在；None = 关闭）
+    command_palette: Option<Entity<CommandPaletteView>>,
     /// BLF-793：Master Rail 主图标栏（六区最左列，绑定 gui-domain 8 分类）
     pub rail: Entity<MasterRailView>,
     /// BLF-793：当前激活一级分类 id（Rail 选中态与侧栏子项双向绑定的中枢；
@@ -242,9 +250,9 @@ pub struct RootView {
     current_title: String,
     /// P4-1：当前面包屑路径（一级分类 → 二级标题；Dashboard 着陆页为单段）
     breadcrumb: Vec<String>,
-    /// P4-1：侧栏当前是否折叠（订阅 `SidebarEvent::Collapsed` 同步；折叠态下
+    /// P4-1：侧栏当前是否折叠（订阅 `SubNavEvent::Collapsed` 同步；折叠态下
     /// 内容区头部最左渲染「展开侧栏」按钮）
-    sidebar_collapsed: bool,
+    sub_nav_collapsed: bool,
     /// P4-1 修复：窗口拖拽武装标志——鼠标在内容区头部按下后置真，移动时触发
     /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
     should_move: bool,
@@ -269,7 +277,9 @@ impl RootView {
             })
         });
 
-        let sidebar = cx.new(|cx| SidebarView::new(None, cx));
+        // BLF-794：Sub-Nav 子导航列（折叠态从 UI 偏好恢复，重启保留）
+        let initial_collapsed = crate::prefs::load_ui_prefs().sub_nav_collapsed;
+        let sub_nav = cx.new(|cx| SubNavView::new(initial_collapsed, cx));
         let rail_user = session
             .as_ref()
             .map(|s| s.user.name.clone())
@@ -279,7 +289,7 @@ impl RootView {
 
         // BLF-793：Rail 选中分类 → 默认视图路由（该组第一项；已在该分类内则
         // 保留当前子视图不重路由）。emit 经 pending_effects 异步冲刷，此处
-        // 再驱动 sidebar 不会与 rail 实体借用嵌套。
+        // 再驱动 sub_nav 不会与 rail 实体借用嵌套。
         cx.subscribe(
             &rail,
             |this, _rail, event: &MasterRailEvent, cx| match event {
@@ -290,14 +300,18 @@ impl RootView {
         )
         .detach();
 
-        // 侧栏选中变化 → 内容区切换 + 标题/面包屑跟随（GUI-12：命中站点导航
-        // URL 显示真实视图，其余仍为占位）；折叠变化 → 同步内容区头部布局（P4-1）
-        cx.subscribe(&sidebar, |this, _sidebar, event, cx| {
+        // Sub-Nav 选中变化 → 内容区切换 + 标题/面包屑跟随（复用既有分发链）；
+        // 折叠变化 → 同步内容区头部布局（持久化由组合根 main.rs 统一处理，
+        // 视图层不碰文件系统——保证测试确定性）
+        cx.subscribe(&sub_nav, |this, _sub_nav, event: &SubNavEvent, cx| {
             match event {
-                SidebarEvent::Collapsed { collapsed } => {
-                    this.sidebar_collapsed = *collapsed;
+                SubNavEvent::Collapsed { collapsed } => {
+                    this.sub_nav_collapsed = *collapsed;
+                    cx.emit(RootViewEvent::SubNavCollapsed {
+                        collapsed: *collapsed,
+                    });
                 }
-                SidebarEvent::Select { url, title } => {
+                SubNavEvent::Select { url, title } => {
                     this.show_dashboard = false;
                     this.current_title = title.clone();
                     this.breadcrumb = breadcrumb_for(url).unwrap_or_else(|| vec![title.clone()]);
@@ -1817,7 +1831,8 @@ impl RootView {
         .detach();
 
         Self {
-            sidebar,
+            sub_nav,
+            command_palette: None,
             rail,
             content,
             active_category: None,
@@ -1893,7 +1908,7 @@ impl RootView {
             show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
             breadcrumb: vec!["Dashboard".to_string()],
-            sidebar_collapsed: false,
+            sub_nav_collapsed: initial_collapsed,
             should_move: false,
             session,
             focus_handle: cx.focus_handle(),
@@ -1909,13 +1924,26 @@ impl RootView {
         cx.notify();
     }
 
+    /// BLF-794：恢复持久化的 Sub-Nav 折叠态（仅组合根 main.rs 打开主窗口时
+    /// 调用一次；直接置态不发事件——折叠动画起点与初始态一致，启动不回放）。
+    pub fn restore_sub_nav_collapsed(&mut self, collapsed: bool, cx: &mut Context<Self>) {
+        if !collapsed {
+            return; // 默认即展开，无需处理
+        }
+        self.sub_nav_collapsed = true;
+        self.sub_nav.update(cx, |sub_nav, cx| {
+            sub_nav.restore_collapsed(true, cx);
+        });
+        cx.notify();
+    }
+
     /// BLF-793：Rail 选中分类 → 默认视图路由。
     ///
-    /// 路由实现 = 驱动既有侧栏选中该分类的**第一项**（默认视图），复用现
+    /// 路由实现 = 驱动 Sub-Nav 选中该分类的**第一项**（默认视图），复用现
     /// root.rs 视图分发链（懒创建 + show_* 标志 + 面包屑跟随），~30 视图
     /// 无需逐个改版。已在该分类内时不重路由——保留用户当前打开的子视图
     /// （如「财务资金」内从平台回款切到汇率信息后，再点 Rail 的财务资金
-    /// 图标不会跳回平台回款）。
+    /// 图标不会跳回平台回款）。同时把 Sub-Nav 列表切到该分类。
     fn on_rail_category_selected(&mut self, group_id: &str, cx: &mut Context<Self>) {
         if self.active_category.as_deref() == Some(group_id) {
             return;
@@ -1928,9 +1956,49 @@ impl RootView {
             return;
         };
         self.active_category = Some(group_id.to_string());
-        self.sidebar.update(cx, |sidebar, cx| {
-            sidebar.select(&first.url, &first.title, cx)
+        self.sub_nav.update(cx, |sub_nav, cx| {
+            sub_nav.set_active(Some(group_id.to_string()), cx);
+            sub_nav.select(&first.url, &first.title, cx)
         });
+    }
+
+    /// BLF-794：⌘K 打开 / 再按关闭命令面板。打开即创建面板实体、聚焦检索框
+    /// （承接输入法），订阅其事件（Navigate → 驱动导航并关闭；Dismissed → 关闭）。
+    pub(crate) fn toggle_command_palette(
+        &mut self,
+        _: &crate::ToggleCommandPalette,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.command_palette.is_some() {
+            self.close_command_palette(cx);
+            return;
+        }
+        let palette = cx.new(CommandPaletteView::new);
+        cx.subscribe(&palette, |this, _palette, event: &CommandPaletteEvent, cx| {
+            match event {
+                CommandPaletteEvent::Navigate { url, title } => {
+                    // ⌘K 命中跳转与侧栏点击走同一条分发链（Sub-Nav select →
+                    // 视图切换 + 面包屑 + Rail 回写）
+                    this.sub_nav.update(cx, |sub_nav, cx| {
+                        sub_nav.select(url, title, cx);
+                    });
+                    this.close_command_palette(cx);
+                }
+                CommandPaletteEvent::Dismissed => this.close_command_palette(cx),
+            }
+        })
+        .detach();
+        palette.update(cx, |palette, cx| palette.ensure_input_focused(window, cx));
+        self.command_palette = Some(palette);
+        cx.notify();
+    }
+
+    /// 关闭命令面板（摘除实体；Esc / 失焦 / 选中跳转共用）。
+    pub(crate) fn close_command_palette(&mut self, cx: &mut Context<Self>) {
+        if self.command_palette.take().is_some() {
+            cx.notify();
+        }
     }
 
     /// P4-2：当前内容区视图身份（视图切换过渡动画 id 用）——视图变化时该键变化，
@@ -2256,6 +2324,7 @@ impl Render for RootView {
             .flex()
             .flex_col()
             .size_full()
+            .relative()
             // BLF-793 键盘可达：tab / shift-tab 在窗口内 tab stop 间前后遍历
             // （Master Rail 的分类图标与底部入口均为 tab stop；动作绑定见
             // main.rs，此处为全窗口唯一处理点——任意焦点下都会冒泡到根容器）
@@ -2265,6 +2334,28 @@ impl Render for RootView {
             .on_action(cx.listener(|_, _: &crate::TabPrev, window, _| {
                 window.focus_prev();
             }))
+            // BLF-794：⌘K / Ctrl+K 命令面板 + ⌘\ 折叠 Sub-Nav（全局快捷键，
+            // 绑定注册见 main.rs；此处为全窗口唯一处理点）
+            .on_action(cx.listener(Self::toggle_command_palette))
+            .on_action(cx.listener(|this, _: &crate::ToggleSubNav, _, cx| {
+                this.sub_nav.update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
+            }))
+            // BLF-794：命令面板 ↑↓ 选择（无 key context 全局绑定，面板未打开时
+            // 本监听器不存在于渲染树 → 按键继续传播到原绑定）
+            .on_action(
+                cx.listener(|this, _: &crate::PaletteSelectPrev, _, cx| {
+                    if let Some(palette) = &this.command_palette {
+                        palette.update(cx, |p, cx| p.move_cursor(-1, cx));
+                    }
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::PaletteSelectNext, _, cx| {
+                    if let Some(palette) = &this.command_palette {
+                        palette.update(cx, |p, cx| p.move_cursor(1, cx));
+                    }
+                }),
+            )
             // P4-3（BLF-709）材质收敛：主窗口背景改用不透明（main.rs 移除
             // `WindowBackgroundAppearance::Blurred`）——GPUI 0.2.2 无 NSVisualEffectView
             // 接入，整窗模糊 + 半透明叠加观感粗糙且禁用亚像素文字渲染（apple-glass.md
@@ -2281,16 +2372,15 @@ impl Render for RootView {
                     .w_full()
                     .overflow_hidden()
                     .child(self.rail.clone())
-                    // Sub-Nav 插槽：本期挂遗留全功能侧栏（自管 240/56px 宽度与
-                    // 折叠动画，回归不破）；Stage3 重造为 180~220px 分组列表 + ⌘K。
-                    // 右分隔线由侧栏自绘（sidebar_border），插槽不再叠加。
+                    // Sub-Nav 插槽：BLF-794 可折叠模块选择器（180~220px 自适应 +
+                    // 折叠至 0 + ⌘K 入口），宽度/分隔线由视图自管
                     .child(
                         div()
                             .id("sub-nav-slot")
                             .h_full()
                             .flex_none()
                             .bg(theme.panel_bg)
-                            .child(self.sidebar.clone()),
+                            .child(self.sub_nav.clone()),
                     )
                     // 中央列：Console Bar 插槽 + Canvas
                     .child(
@@ -2305,7 +2395,7 @@ impl Render for RootView {
                             // 占位并承担窗口拖拽区，Stage4 换四件套筛选条组件
                             .child(content_header(
                                 &self.breadcrumb,
-                                self.sidebar_collapsed,
+                                self.sub_nav_collapsed,
                                 &self.session,
                                 cx,
                             ))
@@ -2350,6 +2440,11 @@ impl Render for RootView {
                     .bg(theme.window_bg)
                     .border_t_1()
                     .border_color(theme.separator),
+            )
+            // BLF-794：⌘K 命令面板 overlay（最后 child = 最顶层；absolute 铺满全窗）
+            .when_some(
+                self.command_palette.clone(),
+                |root, palette| root.child(palette),
             )
     }
 }
@@ -2439,17 +2534,17 @@ fn breadcrumb_row(path: &[String]) -> impl IntoElement {
         .child(Breadcrumb::new().children(path.iter().map(|s| BreadcrumbItem::new(s.clone()))))
 }
 
-/// 折叠态内容区头部最左的「展开侧栏」按钮（P4-1：折叠按钮从侧栏头迁移到此处，
-/// 侧栏折叠后仅剩 56px 图标轨道，右侧顶部整行让给业务内容）。
+/// 折叠态内容区头部最左的「展开侧栏」按钮（BLF-794：Sub-Nav 整列折叠至 0 后，
+/// 从这里恢复——也可按 ⌘\ 或点 Rail 分类图标区域外的快捷键切换）。
 fn expand_sidebar_button(cx: &mut Context<RootView>) -> impl IntoElement {
     Button::new("sidebar-expand-button")
         .ghost()
         .small()
         .icon(Icon::new(IconName::PanelLeftOpen).with_size(px(14.0)))
-        .tooltip("展开侧栏")
+        .tooltip("展开侧栏（⌘\\）")
         .on_click(cx.listener(|this, _, _, cx| {
-            this.sidebar
-                .update(cx, |sidebar, cx| sidebar.toggle_collapsed(cx));
+            this.sub_nav
+                .update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
         }))
 }
 
@@ -2617,10 +2712,10 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
         let rail = cx.read(|app| view.read(app).rail.clone());
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 侧栏选「运营 → 销售数据」→ Rail 高亮运营
-        sidebar.update(cx, |this, cx| {
+        sub_nav.update(cx, |this, cx| {
             this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
         });
         cx.read(|app| {
@@ -2638,7 +2733,7 @@ mod tests {
         });
 
         // 同分类内切到「定时报告」→ 再点 Rail「报表中心」不跳回默认视图
-        sidebar.update(cx, |this, cx| {
+        sub_nav.update(cx, |this, cx| {
             this.select("/dashboard/reports/scheduled-reports", "定时报告", cx)
         });
         rail.update(cx, |rail_view, cx| rail_view.select_category("reports", cx));
@@ -2660,22 +2755,22 @@ mod tests {
     async fn root_follows_sidebar_collapsed(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 初始展开
         cx.read(|app| {
             let root = view.read(app);
-            assert!(!root.sidebar_collapsed, "初始应展开");
+            assert!(!root.sub_nav_collapsed, "初始应展开");
             assert_eq!(root.breadcrumb, vec!["Dashboard"]);
         });
 
         // 折叠：SidebarView emit Collapsed → RootView 同步（同步 emit，单帧内生效）
-        sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
-        cx.read(|app| assert!(view.read(app).sidebar_collapsed, "应同步折叠"));
+        sub_nav.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| assert!(view.read(app).sub_nav_collapsed, "应同步折叠"));
 
         // 再展开：状态回弹
-        sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
-        cx.read(|app| assert!(!view.read(app).sidebar_collapsed, "应同步回展开"));
+        sub_nav.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| assert!(!view.read(app).sub_nav_collapsed, "应同步回展开"));
     }
 
     /// P4-1：面包屑解析——侧栏选中「销售数据」后内容区头部面包屑 = [运营, 销售数据]，
@@ -2684,9 +2779,9 @@ mod tests {
     async fn root_breadcrumb_follows_sidebar_select(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
-        sidebar.update(cx, |this, cx| {
+        sub_nav.update(cx, |this, cx| {
             this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
         });
         cx.read(|app| {
@@ -2696,7 +2791,7 @@ mod tests {
         });
 
         // 广告分析深层子路径经 match_prefixes 命中同一面包屑
-        sidebar.update(cx, |this, cx| {
+        sub_nav.update(cx, |this, cx| {
             this.select(
                 "/dashboard/advertising/ad-analysis/overview",
                 "广告分析",
@@ -2791,7 +2886,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 初始：Dashboard 着陆页
         cx.read(|app| assert_eq!(view.read(app).view_key(), "dashboard"));
@@ -2906,7 +3001,7 @@ mod tests {
                 "markdown-to-word",
             ),
         ] {
-            sidebar.update(cx, |this, cx| this.select(url, title, cx));
+            sub_nav.update(cx, |this, cx| this.select(url, title, cx));
             cx.read(|app| assert_eq!(view.read(app).view_key(), key, "选中 {title}"));
         }
     }
@@ -2935,7 +3030,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 两步切换矩阵：先 A 后 B → view_key 必须为 B（覆盖每一对相邻业务视图）
         let transitions = [
@@ -3396,8 +3491,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -3434,7 +3529,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         let transitions = [
             (
@@ -3495,8 +3590,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -3526,7 +3621,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 项目目标 ↔ 各业务视图双向矩阵：A → 项目目标 与 项目目标 → B 都必须
         // 落在最后选中视图（覆盖 PROJECT_GOALS_URL 分支 reset 完整性与既有分支
@@ -3604,8 +3699,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -3640,7 +3735,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 新品核算 ↔ 报表中心相邻视图 + 跨板块视图双向切换（含店铺测算占位分支，
         // 覆盖 placeholder else 分支对 show_new_product_calculation 的复位）。
@@ -3703,8 +3798,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -3738,7 +3833,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 库存分析 ↔ 各业务视图双向矩阵：A → 库存分析 与 库存分析 → B 都必须
         // 落在最后选中视图（覆盖 INVENTORY_ANALYSIS_URL 分支 reset 完整性与既有
@@ -3830,8 +3925,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -3866,7 +3961,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // CRM 数据看板 ↔ 各业务视图双向矩阵：A → CRM 看板 与 CRM 看板 → B 都必须
         // 落在最后选中视图；末两行锁占位页分支对 show_auto_upload 的复位。
@@ -3991,8 +4086,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -4026,7 +4121,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 待跟进 ↔ 各业务视图双向矩阵：A → 待跟进 与 待跟进 → B 都必须落在最后
         // 选中视图；末行锁占位页分支对 show_crm_follow_ups 的复位。
@@ -4092,8 +4187,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -4127,7 +4222,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // 操作日志 ↔ 各业务视图双向矩阵：A → 操作日志 与 操作日志 → B 都必须
         // 落在最后选中视图；末行锁占位页分支对 show_crm_audit 的复位。
@@ -4207,8 +4302,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -4243,7 +4338,7 @@ mod tests {
             warning: None,
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
         // AI Chat ↔ 各业务视图双向矩阵：A → AI Chat 与 AI Chat → B 都必须
         // 落在最后选中视图（覆盖 AI_CHAT_URL 分支 reset 完整性与既有分支对
@@ -4397,8 +4492,8 @@ mod tests {
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {
-            sidebar.update(cx, |this, cx| this.select(url_a, title_a, cx));
-            sidebar.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
             cx.read(|app| {
                 assert_eq!(
                     view.read(app).view_key(),
@@ -4434,13 +4529,13 @@ mod tests {
         };
         let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
         // 减弱动态下切换到业务视图仍可渲染（无动画路径）
-        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
-        sidebar.update(cx, |this, cx| {
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+        sub_nav.update(cx, |this, cx| {
             this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
         });
         // 折叠也瞬时切换
-        sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
-        cx.read(|app| assert!(view.read(app).sidebar_collapsed));
+        sub_nav.update(cx, |this, cx| this.toggle_collapsed(cx));
+        cx.read(|app| assert!(view.read(app).sub_nav_collapsed));
     }
 
     /// P4-5（BLF-760）渲染冒烟：侧栏展开/折叠 × 亮/暗 四态交叉——每态都渲染
@@ -4464,10 +4559,10 @@ mod tests {
                     );
                 });
                 let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
-                let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+                let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
 
                 // 切到站点导航（真实视图，含共享 PageHeader 页面头部）
-                sidebar.update(cx, |this, cx| this.select(SITE_NAV_URL, "站点导航", cx));
+                sub_nav.update(cx, |this, cx| this.select(SITE_NAV_URL, "站点导航", cx));
                 cx.read(|app| {
                     let root = view.read(app);
                     assert!(root.show_site_navigation, "应显示站点导航视图");
@@ -4476,17 +4571,17 @@ mod tests {
 
                 // 折叠态切换
                 if collapsed {
-                    sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
+                    sub_nav.update(cx, |this, cx| this.toggle_collapsed(cx));
                 }
                 cx.read(|app| {
-                    assert_eq!(view.read(app).sidebar_collapsed, collapsed);
+                    assert_eq!(view.read(app).sub_nav_collapsed, collapsed);
                     assert_eq!(AppTheme::current(app).is_dark(), dark);
                 });
 
                 // 再展开回弹（覆盖同窗口内二次切换路径）
                 if collapsed {
-                    sidebar.update(cx, |this, cx| this.toggle_collapsed(cx));
-                    cx.read(|app| assert!(!view.read(app).sidebar_collapsed));
+                    sub_nav.update(cx, |this, cx| this.toggle_collapsed(cx));
+                    cx.read(|app| assert!(!view.read(app).sub_nav_collapsed));
                 }
             }
         }

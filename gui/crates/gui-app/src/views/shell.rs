@@ -19,11 +19,11 @@
 /// Master Rail 主图标栏宽度（规格 48~52px）
 pub const RAIL_WIDTH: f32 = 48.0;
 
-/// Sub-Nav 子导航列目标宽度（规格 180~220px）。
+/// Sub-Nav 子导航列基准宽度（规格 180~220px）。
 ///
-/// 本期（Stage2）该插槽挂遗留全功能侧栏（自管 240/56px 折叠宽度，回归不破）；
-/// Stage3 重造子导航列时收敛到本常量。
-#[allow(dead_code)]
+/// BLF-794 起 Sub-Nav 实装为可折叠模块选择器：实际展开宽度按内容自适应
+/// （`sub_nav::fit_width`，以本常量为缺省基准），折叠至 0；本常量保留为
+/// 布局契约锚点（shell 尺寸回归锁 + 动画起点初值）。
 pub const SUB_NAV_WIDTH: f32 = 200.0;
 
 /// 顶部 Console Bar 控制条高度（规格固定 36px）。

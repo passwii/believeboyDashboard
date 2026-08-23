@@ -315,7 +315,14 @@ mod tests {
                 include_str!("../views/seasonal_replenishment.rs"),
                 "views/seasonal_replenishment.rs",
             ),
-            (include_str!("../views/sidebar.rs"), "views/sidebar.rs"),
+            (
+                include_str!("../views/sub_nav.rs"),
+                "views/sub_nav.rs",
+            ),
+            (
+                include_str!("../views/command_palette.rs"),
+                "views/command_palette.rs",
+            ),
             (
                 include_str!("../views/site_navigation.rs"),
                 "views/site_navigation.rs",

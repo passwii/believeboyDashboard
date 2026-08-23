@@ -541,4 +541,272 @@ mod tests {
         assert_eq!(group_id_for_url("/dashboard"), None);
         assert_eq!(group_id_for_url(""), None);
     }
+
+    // -----------------------------------------------------------------------
+    // BLF-794：与 frontend `lib/sidebar-config.ts` 的全量契约测试
+    //
+    // 直接解析 monorepo 内的 TS 权威文件，逐组逐项比对 label / url /
+    // matchPrefixes / 图标名 / 顺序。任何一侧改动未同步另一侧时本测试立即失败。
+    // -----------------------------------------------------------------------
+
+    /// frontend sidebar-config.ts 的绝对路径（monorepo 根 = crate 的上三级）
+    fn frontend_sidebar_config_path() -> std::path::PathBuf {
+        let manifest = env!("CARGO_MANIFEST_DIR");
+        std::path::Path::new(manifest)
+            .join("../../../frontend/lib/sidebar-config.ts")
+            .canonicalize()
+            .expect("frontend/lib/sidebar-config.ts 必须存在于 monorepo 中")
+    }
+
+    /// 取 `marker` 之后的第一个单引号字符串字面量（TS 行内提取）
+    fn quoted_after<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
+        let start = line.find(marker)? + marker.len();
+        let rest = &line[start..];
+        let open = rest.find('\'')? + 1;
+        let close = rest[open..].find('\'')? + open;
+        Some(&rest[open..close])
+    }
+
+    /// 取 `IconMap.` 之后的标识符（图标名）
+    fn icon_after(line: &str) -> Option<String> {
+        let idx = line.find("IconMap.")? + "IconMap.".len();
+        let ident: String = line[idx..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        (!ident.is_empty()).then_some(ident)
+    }
+
+    /// 解析器自身契约：单行子项 / 多行子项 / matchPrefixes / 分组 icon 四种形态
+    #[test]
+    fn ts_parser_handles_all_item_shapes() {
+        let src = r#"
+export type SidebarSubItem = { title: string; url: string }
+const IconMap = { Store, Bell }
+export const SIDEBAR_TOP_GROUPS = [
+  {
+    id: 'operations',
+    label: '运营',
+    icon: IconMap.LayoutDashboard,
+    items: [
+      { title: '站点导航', url: '/a', icon: IconMap.Store },
+      {
+        title: '财务月报',
+        url: '/b/display',
+        matchPrefixes: ['/b'],
+        icon: IconMap.FileBarChart,
+      },
+      {
+        title: '客户',
+        url: '/c',
+        matchPrefixes: ['/c', '/sea'],
+        icon: IconMap.Users,
+      },
+    ],
+  },
+]
+"#;
+        let groups = parse_ts_groups(src);
+        assert_eq!(groups.len(), 1);
+        let g = &groups[0];
+        assert_eq!((g.id.as_str(), g.label.as_str(), g.icon.as_str()), ("operations", "运营", "LayoutDashboard"));
+        assert_eq!(g.items.len(), 3);
+        assert_eq!(
+            g.items[0],
+            TsItem { title: "站点导航".into(), url: "/a".into(), match_prefixes: vec![], icon: "Store".into() }
+        );
+        assert_eq!(
+            g.items[1].match_prefixes,
+            vec!["/b".to_string()]
+        );
+        assert_eq!(g.items[2].match_prefixes, vec!["/c", "/sea"]);
+    }
+
+    /// 从 TS 源码提取的分组 / 子项原始条目
+    #[derive(Debug, PartialEq, Eq)]
+    struct TsGroup {
+        id: String,
+        label: String,
+        icon: String,
+        items: Vec<TsItem>,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct TsItem {
+        title: String,
+        url: String,
+        match_prefixes: Vec<String>,
+        icon: String,
+    }
+
+    /// 顺序扫描 TS 文件的行流状态机（无正则依赖，纯字符串提取）：
+    /// - `id: 'x'` → 新分组开始（冲刷上一个）
+    /// - `label: 'x'` / `icon: IconMap.X` → 归属当前分组或当前子项
+    /// - `title:` 行 → 当前分组内新子项（冲刷上一个；url 可同行或下一行）
+    /// - `matchPrefixes: ['a', 'b']` → 归属当前子项
+    ///
+    /// 类型定义区（`title: string` 等）无引号字面量，不会误命中。
+    fn parse_ts_groups(source: &str) -> Vec<TsGroup> {
+        fn flush_item(group: &mut Option<TsGroup>, item: &mut Option<TsItem>) {
+            if let (Some(g), Some(it)) = (group.as_mut(), item.take()) {
+                g.items.push(it);
+            }
+        }
+
+        /// 单行数组 `['a', 'b']` 内的字符串字面量
+        fn quoted_list(line: &str) -> Vec<String> {
+            let mut out = Vec::new();
+            let Some(rest) = line.split("matchPrefixes:").nth(1) else {
+                return out;
+            };
+            if let (Some(open), Some(close)) = (rest.find('['), rest.find(']')) {
+                if open < close {
+                    for part in rest[open + 1..close].split(',') {
+                        let p = part.trim().trim_matches('\'');
+                        if !p.is_empty() {
+                            out.push(p.to_string());
+                        }
+                    }
+                }
+            }
+            out
+        }
+
+        let mut groups: Vec<TsGroup> = Vec::new();
+        let mut current_group: Option<TsGroup> = None;
+        let mut current_item: Option<TsItem> = None;
+
+        for raw_line in source.lines() {
+            // 行首 `{` / 行尾 `,` 归一化（单行子项对象与多行对象统一处理）
+            let line = raw_line
+                .trim()
+                .trim_start_matches('{')
+                .trim_end_matches(',')
+                .trim();
+            if line.starts_with("//") || line.is_empty() {
+                continue;
+            }
+
+            if line.starts_with("id:") {
+                let Some(id) = quoted_after(line, "id:") else {
+                    continue; // 类型定义区的 `id: string` 无字面量，跳过
+                };
+                flush_item(&mut current_group, &mut current_item);
+                if let Some(prev) = current_group.take() {
+                    groups.push(prev);
+                }
+                current_group = Some(TsGroup {
+                    id: id.to_string(),
+                    label: String::new(),
+                    icon: String::new(),
+                    items: Vec::new(),
+                });
+                continue;
+            }
+            if line.starts_with("label:") {
+                if let Some(label) = quoted_after(line, "label:") {
+                    if let Some(g) = current_group.as_mut() {
+                        g.label = label.to_string();
+                    }
+                }
+                continue;
+            }
+            if line.contains("matchPrefixes:") {
+                let prefixes = quoted_list(line);
+                if let Some(it) = current_item.as_mut() {
+                    it.match_prefixes = prefixes;
+                }
+                continue;
+            }
+            if line.starts_with("title:") {
+                let Some(title) = quoted_after(line, "title:") else {
+                    continue; // `title: string` 类型定义行
+                };
+                flush_item(&mut current_group, &mut current_item);
+                let mut item = TsItem {
+                    title: title.to_string(),
+                    url: String::new(),
+                    match_prefixes: Vec::new(),
+                    icon: String::new(),
+                };
+                // 单行子项：url / icon 与标题同行
+                if let Some(url) = quoted_after(line, "url:") {
+                    item.url = url.to_string();
+                }
+                if let Some(icon) = icon_after(line) {
+                    item.icon = icon;
+                }
+                current_item = Some(item);
+                continue;
+            }
+            if line.starts_with("url:") {
+                if let Some(it) = current_item.as_mut() {
+                    it.url = quoted_after(line, "url:")
+                        .unwrap_or_default()
+                        .to_string();
+                }
+                continue;
+            }
+            if line.contains("IconMap.") {
+                if let Some(icon) = icon_after(line) {
+                    if let Some(it) = current_item.as_mut() {
+                        it.icon = icon;
+                    } else if let Some(g) = current_group.as_mut() {
+                        g.icon = icon;
+                    }
+                }
+                continue;
+            }
+        }
+        flush_item(&mut current_group, &mut current_item);
+        if let Some(prev) = current_group.take() {
+            groups.push(prev);
+        }
+        groups
+    }
+
+    /// BLF-794 全量契约：gui-domain 清单必须与 frontend sidebar-config.ts
+    /// **一字不差**——8 组顺序一致、每组 label/icon 一致、全部 52 个子项
+    /// title/url/matchPrefixes/icon 一致且顺序相同。
+    #[test]
+    fn matches_frontend_sidebar_config_contract() {
+        let path = frontend_sidebar_config_path();
+        let source =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败：{e}"));
+        let ts_groups = parse_ts_groups(&source);
+        let rust_groups = sidebar_groups();
+
+        assert_eq!(
+            ts_groups.len(),
+            8,
+            "TS 文件应解析出 8 个一级分类（解析器漂移？）"
+        );
+        assert_eq!(ts_groups.len(), rust_groups.len(), "一级分类数不一致");
+
+        for (ts, rs) in ts_groups.iter().zip(rust_groups.iter()) {
+            assert_eq!(
+                ts.id, rs.id,
+                "分类 id 顺序不一致：TS={} Rust={}",
+                ts.id, rs.id
+            );
+            assert_eq!(ts.label, rs.label, "分类 {} label 不一致", ts.id);
+            assert_eq!(ts.icon, rs.icon, "分类 {} 图标不一致", ts.id);
+            assert_eq!(
+                ts.items.len(),
+                rs.items.len(),
+                "分类 {} 子项数不一致",
+                ts.id
+            );
+            for (tsi, rsi) in ts.items.iter().zip(rs.items.iter()) {
+                assert_eq!(tsi.title, rsi.title, "{}: 标题不一致", ts.id);
+                assert_eq!(tsi.url, rsi.url, "{}: url 不一致", tsi.title);
+                assert_eq!(
+                    tsi.match_prefixes, rsi.match_prefixes,
+                    "{}: matchPrefixes 不一致",
+                    tsi.title
+                );
+                assert_eq!(tsi.icon, rsi.icon, "{}: 图标不一致", tsi.title);
+            }
+        }
+    }
 }
