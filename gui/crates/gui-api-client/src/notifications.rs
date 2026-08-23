@@ -59,7 +59,7 @@ mod tests {
             role_type: gui_domain::auth::UserRoleType::Operator,
             is_admin: false,
         };
-        let client = Client::new(&server.url()).with_session(session);
+        let client = Client::new(server.url()).with_session(session);
         let resp = client.notifications_unread_count().await.expect("请求失败");
         m.assert();
         assert_eq!(resp.count, 12);
@@ -76,7 +76,7 @@ mod tests {
             .with_body(r#"{"detail":"boom"}"#)
             .create();
 
-        let client = Client::new(&server.url());
+        let client = Client::new(server.url());
         let err = client
             .notifications_unread_count()
             .await

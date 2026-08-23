@@ -683,6 +683,21 @@ mod tests {
         assert!(picked.iter().all(|slot| slot.is_none()));
     }
 
+    /// 降级判定：未知 / 不可达算降级，健康 / 明确故障不算（告警挂点语义锁定）
+    #[test]
+    fn db_sync_state_is_degraded_covers_unknown_and_unreachable() {
+        assert!(DbSyncState::Unknown.is_degraded());
+        assert!(DbSyncState::Unreachable.is_degraded());
+        assert!(!DbSyncState::Healthy {
+            checked_label: String::new()
+        }
+        .is_degraded());
+        assert!(!DbSyncState::Unhealthy {
+            checked_label: String::new()
+        }
+        .is_degraded());
+    }
+
     /// 汇率固定 4 位小数
     #[test]
     fn format_rate_four_decimals() {

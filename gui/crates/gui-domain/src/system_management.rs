@@ -520,7 +520,7 @@ mod tests {
             "data_status_updated_by": null
         }"#;
         let parsed: DataManagementStatus = serde_json::from_str(payload).expect("解析失败");
-        assert_eq!(parsed.database.healthy, true);
+        assert!(parsed.database.healthy);
         assert_eq!(parsed.database.engine, "postgresql");
         assert_eq!(parsed.database.source.as_deref(), Some("10.0.0.8/BLF"));
         assert_eq!(parsed.server_time, "2026-08-23T12:00:00+08:00");
