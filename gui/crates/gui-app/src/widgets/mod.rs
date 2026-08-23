@@ -10,5 +10,6 @@ pub mod filter_bar;
 pub mod layout;
 pub mod page_header;
 pub mod pagination;
+pub mod pattern_b;
 pub mod state_views;
 pub mod top_projects;

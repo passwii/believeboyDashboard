@@ -351,6 +351,12 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 prefs.inspector_width = Some(width.round().clamp(280.0, 340.0) as u16);
                 prefs::save_ui_prefs(&prefs);
             }
+            // BLF-799：Pattern B 分割比例提交 → 持久化（per-mille 400..=500）
+            RootViewEvent::AdChartRatioChanged(per_mille) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.analysis_chart_ratio = Some(*per_mille);
+                prefs::save_ui_prefs(&prefs);
+            }
         }
     })
     .detach();

@@ -30,6 +30,10 @@ pub struct UiPrefs {
     pub inspector_visible: bool,
     /// BLF-796：Inspector 拖拽调宽记忆（整数 px，280~340；None = 默认 300）
     pub inspector_width: Option<u16>,
+    /// BLF-799：Pattern B 双轴画布分割比例（per-mille，400~500 = 图表区占
+    /// 40%~50%；None = 默认 450）。广告分析页为首个消费方，后续 Pattern B
+    /// 页面如需独立比例再按页面 key 扩展。
+    pub analysis_chart_ratio: Option<u16>,
 }
 
 impl Default for UiPrefs {
@@ -40,6 +44,7 @@ impl Default for UiPrefs {
             // Inspector 默认展开（交易终端风格：常驻上下文面板）
             inspector_visible: true,
             inspector_width: None,
+            analysis_chart_ratio: None,
         }
     }
 }
@@ -153,6 +158,8 @@ mod tests {
             // BLF-796：Inspector 开合与宽度记忆一并持久化
             inspector_visible: false,
             inspector_width: Some(320),
+            // BLF-799：Pattern B 分割比例记忆一并持久化（per-mille 400~500）
+            analysis_chart_ratio: Some(470),
         };
         let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
@@ -177,6 +184,8 @@ mod tests {
         // BLF-796：Inspector 默认展开、默认宽（None = 300 锚点）
         assert!(prefs.inspector_visible);
         assert!(prefs.inspector_width.is_none());
+        // BLF-799：Pattern B 分割比例缺省（None = 模板默认 45%）
+        assert!(prefs.analysis_chart_ratio.is_none());
     }
 
     /// 文件级往返：写入后再读取应得到同一份偏好（临时目录，不碰真实用户目录）。

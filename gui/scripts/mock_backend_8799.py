@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""BLF-798 截图验证用本地 mock 后端（只读 GET；端口 8799）。
+"""BLF-798/BLF-799 截图验证用本地 mock 后端（只读 GET；端口 8799）。
 
 端点形态与 gui-api-client 契约一一对应：
 - /api/v1/projects/manage
 - /api/v1/daily-analysis/all（全部项目模式）
 - /api/v1/sku-info（5000 行，展示虚拟化滚动）
+- /api/v1/ad-analysis/overview（BLF-799：Pattern B 上半区图表 + 总览 Tab）
+- /api/v1/ad-analysis/{tab}（BLF-799：9 个明细 Tab，items 字段与
+  gui_domain::advertising::ad_analysis_tabs 列配置一一对应）
 """
 import json
 import random
@@ -106,6 +109,350 @@ for i in range(5000):
     )
 
 
+# ---------------------------------------------------------------------------
+# BLF-799：广告分析 mock（overview + 9 个明细 Tab；字段与 gui-domain 列配置一致）
+# ---------------------------------------------------------------------------
+
+AD_CAMPAIGNS = [
+    "BB-US-Automatic-Broad",
+    "BB-US-SponsoredBrand-Exact",
+    "BB-DE-Auto-Research",
+    "BB-US-PT-Competitor",
+    "BB-UK-SB-Video",
+    "BB-US-Exact-WaterBottle",
+]
+
+
+def ad_overview() -> dict:
+    trend = []
+    for i, d in enumerate(DAYS):
+        spend = round(random.uniform(60, 220), 2)
+        clicks = random.randint(180, 520)
+        trend.append(
+            {
+                "report_date": d,
+                "spend": spend,
+                "clicks": clicks,
+                "cpc": round(spend / max(clicks, 1), 2),
+                "spend_change_ratio": round(random.uniform(-0.3, 0.4), 3),
+            }
+        )
+    top_campaigns = [
+        {
+            "campaign_name": name,
+            "spend": round(random.uniform(120, 620), 2),
+            "sales_7d": round(random.uniform(900, 5200), 2),
+            "orders_7d": random.randint(12, 96),
+            "acos": round(random.uniform(0.08, 0.42), 4),
+        }
+        for name in AD_CAMPAIGNS
+    ]
+    return {
+        "project_id": 1,
+        "country": "US",
+        "metrics": [
+            {"label": "花费", "value": 3186.4, "display_value": "$3,186.40", "helper": "近 7 天"},
+            {"label": "销售", "value": 24810.0, "display_value": "$24,810.00", "helper": None},
+            {"label": "ACOS", "value": 0.1284, "display_value": "12.84%", "helper": None},
+            {"label": "ROAS", "value": 7.79, "display_value": "7.79", "helper": None},
+        ],
+        "issue_cards": [
+            {
+                "title": "高 ACOS 活动",
+                "level": "warning",
+                "summary": "BB-US-PT-Competitor ACOS 42%，高于目标阈值",
+                "drill_to": "campaigns",
+                "next_step": "检查竞品投放出价",
+            }
+        ],
+        "narrative_sections": [
+            {
+                "title": "花费趋势",
+                "summary": "花费环比上升 12%，销售增长更快，整体健康",
+                "evidence": ["花费 +12%", "销售 +21%"],
+                "action": None,
+                "drill_to": "time-trend",
+            }
+        ],
+        "comparison": {
+            "current_start": DAYS[0],
+            "current_end": DAYS[-1],
+            "previous_start": str(date.fromisoformat(DAYS[0]) - timedelta(days=7)),
+            "previous_end": str(date.fromisoformat(DAYS[-1]) - timedelta(days=7)),
+            "spend_change_ratio": 0.12,
+            "clicks_change_ratio": 0.06,
+            "sales_change_ratio": 0.21,
+            "orders_change_ratio": 0.15,
+            "cpc_change_ratio": 0.05,
+            "acos_change_ratio": -0.07,
+            "summary": "花费上升但销售增长更快",
+        },
+        "top_campaigns": top_campaigns,
+        "top_products": [
+            {
+                "ad_sku": f"BB-US-{i:04d}",
+                "spend": round(random.uniform(40, 320), 2),
+                "sales_7d": round(random.uniform(300, 2600), 2),
+                "orders_7d": random.randint(5, 48),
+                "acos": round(random.uniform(0.07, 0.38), 4),
+            }
+            for i in range(6)
+        ],
+        "top_waste_terms": [
+            {
+                "search_term": term,
+                "campaign_name": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "clicks": random.randint(20, 90),
+                "spend": round(random.uniform(8, 46), 2),
+                "orders_7d": 0,
+            }
+            for i, term in enumerate(["water bottle lid", "bpa free jug", "insulated cup 32oz"])
+        ],
+        "trend_summary": trend,
+    }
+
+
+def _campaign_row(i: int) -> dict:
+    spend = round(random.uniform(40, 620), 2)
+    sales = round(spend * random.uniform(2.4, 9.0), 2)
+    orders = random.randint(3, 96)
+    impressions = random.randint(2400, 42000)
+    clicks = random.randint(60, 1400)
+    return {
+        "campaign_name": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+        "status": random.choice(["ENABLED", "ENABLED", "PAUSED"]),
+        "targeting_type": random.choice(["AUTO", "MANUAL", "SPONSORED_BRAND"]),
+        "bidding_strategy": random.choice(["DOWN_ONLY", "UP_AND_DOWN"]),
+        "budget": round(random.uniform(30, 300), 2),
+        "impressions": impressions,
+        "clicks": clicks,
+        "ctr": round(clicks / max(impressions, 1), 4),
+        "cpc": round(spend / max(clicks, 1), 2),
+        "spend": spend,
+        "sales_7d": sales,
+        "orders_7d": orders,
+        "acos": round(spend / max(sales, 1), 4),
+        "roas": round(sales / max(spend, 1), 2),
+        "grade": random.choice(["A", "A", "B", "C"]),
+        "budget_gap": round(random.uniform(0, 80), 2),
+        "budget_utilization_rate": round(random.uniform(0.3, 1.0), 4),
+        "cross_sell_orders_7d": random.randint(0, 12),
+        "cross_sell_sales_7d": round(random.uniform(0, 420), 2),
+        "cross_sell_action": random.choice(["暂无关联转化", "关联转化健康"]),
+        "next_action": random.choice(["维持预算", "加预算候选", "否词降价"]),
+    }
+
+
+AD_TAB_ITEMS = {
+    "time-trend": {
+        "project_id": 1,
+        "country": "US",
+        "summary": [],  # AD_OVERVIEW 生成后回填（见文件尾部）
+        "comparison": None,
+    },
+    "campaigns": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [
+            {"label": "活动数", "value": "6", "helper": None},
+            {"label": "总花费", "value": "$1,864.20", "helper": "近 7 天"},
+        ],
+        "narrative_sections": [],
+        "items": [_campaign_row(i) for i in range(6)] + [_campaign_row(i) for i in range(6)],
+    },
+    "products": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [{"label": "推广 SKU 数", "value": "24", "helper": None}],
+        "narrative_sections": [],
+        "items": [
+            {
+                "ad_sku": f"BB-US-{i:04d}",
+                "ad_asin": f"B0{random.randint(10**6, 10**7-1)}",
+                "grade": random.choice(["A", "B", "B", "C"]),
+                "primary_campaign": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "impressions": random.randint(900, 26000),
+                "clicks": random.randint(30, 860),
+                "ctr": round(random.uniform(0.0012, 0.048), 4),
+                "cpc": round(random.uniform(0.28, 0.96), 2),
+                "spend": round(random.uniform(18, 420), 2),
+                "sales_7d": round(random.uniform(120, 4200), 2),
+                "orders_7d": random.randint(2, 66),
+                "units_7d": random.randint(2, 80),
+                "cvr_7d": round(random.uniform(0.04, 0.22), 4),
+                "acos": round(random.uniform(0.06, 0.44), 4),
+                "cross_sell_orders_7d": random.randint(0, 9),
+                "cross_sell_sales_7d": round(random.uniform(0, 380), 2),
+                "next_action": random.choice(["维持", "放量", "查落地页"]),
+            }
+            for i in range(24)
+        ],
+    },
+    "purchased-products": {
+        "project_id": 1,
+        "country": "US",
+        "items": [
+            {
+                "purchased_asin": f"B0{random.randint(10**6, 10**7-1)}",
+                "ad_sku": f"BB-US-{i:04d}",
+                "campaign_count": random.randint(1, 4),
+                "other_sku_units_7d": random.randint(0, 26),
+                "other_sku_orders_7d": random.randint(0, 14),
+                "other_sku_sales_7d": round(random.uniform(0, 620), 2),
+                "action": random.choice(["关联转化健康", "暂无关联转化"]),
+            }
+            for i in range(12)
+        ],
+    },
+    "search-terms": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [{"label": "搜索词数", "value": "48", "helper": "近 7 天"}],
+        "narrative_sections": [],
+        "items": [
+            {
+                "search_term": random.choice(
+                    ["water bottle", "insulated jug", "gym flask 32oz", "steel tumbler", "bpa free bottle"]
+                )
+                + f" {i}",
+                "match_type": random.choice(["EXACT", "PHRASE", "BROAD"]),
+                "primary_campaign": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "impressions": random.randint(400, 12000),
+                "clicks": random.randint(8, 420),
+                "ctr": round(random.uniform(0.001, 0.06), 4),
+                "cpc": round(random.uniform(0.24, 1.1), 2),
+                "spend": round(random.uniform(4, 260), 2),
+                "sales_7d": round(random.uniform(0, 2400), 2),
+                "orders_7d": random.randint(0, 38),
+                "cvr_7d": round(random.uniform(0.0, 0.24), 4),
+                "acos": round(random.uniform(0.05, 0.6), 4),
+                "impression_share": round(random.uniform(0.02, 0.6), 4),
+                "impression_rank": random.randint(1, 40),
+                "action": random.choice(["保留", "否词候选", "提竞价"]),
+            }
+            for i in range(48)
+        ],
+    },
+    "targets": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [{"label": "投放对象数", "value": "32", "helper": None}],
+        "narrative_sections": [],
+        "items": [
+            {
+                "target_text": random.choice(
+                    ["close-match", "loose-match", "substitutes", "complements", f"asin-{i}"]
+                ),
+                "match_type": random.choice(["CLOSE_MATCH", "SUBSTITUTES", "EXACT"]),
+                "primary_campaign": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "impressions": random.randint(500, 15000),
+                "clicks": random.randint(10, 460),
+                "ctr": round(random.uniform(0.001, 0.05), 4),
+                "cpc": round(random.uniform(0.26, 1.05), 2),
+                "spend": round(random.uniform(5, 300), 2),
+                "sales_7d": round(random.uniform(0, 2800), 2),
+                "orders_7d": random.randint(0, 42),
+                "cvr_7d": round(random.uniform(0.0, 0.2), 4),
+                "acos": round(random.uniform(0.06, 0.55), 4),
+                "top_of_search_impression_share": round(random.uniform(0.05, 0.8), 4),
+                "action": random.choice(["维持", "隔离降价", "精细化承接"]),
+            }
+            for i in range(32)
+        ],
+    },
+    "placements": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [{"label": "广告位记录", "value": "18", "helper": None}],
+        "narrative_sections": [],
+        "items": [
+            {
+                "placement": random.choice(
+                    ["Top of Search on-Amazon", "Rest of Search on-Amazon", "Product pages on-Amazon"]
+                ),
+                "campaign_name": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "impressions": random.randint(600, 18000),
+                "clicks": random.randint(12, 520),
+                "ctr": round(random.uniform(0.001, 0.055), 4),
+                "cpc": round(random.uniform(0.3, 1.2), 2),
+                "spend": round(random.uniform(6, 340), 2),
+                "sales_7d": round(random.uniform(0, 3200), 2),
+                "orders_7d": random.randint(0, 46),
+                "units_7d": random.randint(0, 52),
+                "cvr_7d": round(random.uniform(0.02, 0.2), 4),
+                "acos": round(random.uniform(0.07, 0.5), 4),
+                "roas": round(random.uniform(1.8, 12.0), 2),
+                "action": random.choice(["可提高系数", "谨慎降价", "流量偏弱"]),
+            }
+            for i in range(18)
+        ],
+    },
+    "budget": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [
+            {"label": "预算受限活动", "value": "3", "helper": None},
+            {"label": "预计错失销售", "value": "$1,240", "helper": "近 7 天"},
+        ],
+        "narrative_sections": [],
+        "items": [
+            {
+                "campaign_name": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "status": "ENABLED",
+                "budget": round(random.uniform(30, 200), 2),
+                "suggested_budget": round(random.uniform(60, 420), 2),
+                "budget_gap": round(random.uniform(0, 120), 2),
+                "budget_utilization_rate": round(random.uniform(0.4, 1.0), 4),
+                "missed_sales_min": round(random.uniform(0, 180), 2),
+                "missed_sales_max": round(random.uniform(180, 620), 2),
+                "spend": round(random.uniform(20, 380), 2),
+                "sales_7d": round(random.uniform(100, 3600), 2),
+                "orders_7d": random.randint(4, 60),
+                "acos": round(random.uniform(0.07, 0.4), 4),
+                "next_step": random.choice(["加预算候选", "先优化词路", "维持"]),
+            }
+            for i in range(6)
+        ],
+    },
+    "traffic-quality": {
+        "project_id": 1,
+        "country": "US",
+        "summary_cards": [{"label": "无效点击率", "value": "1.82%", "helper": "近 7 天"}],
+        "narrative_sections": [],
+        "items": [
+            {
+                "campaign_name": AD_CAMPAIGNS[i % len(AD_CAMPAIGNS)],
+                "status": "ENABLED",
+                "risk_level": random.choice(["正常", "正常", "观察", "高风险"]),
+                "total_impressions": random.randint(2000, 40000),
+                "invalid_impressions": random.randint(10, 400),
+                "invalid_impression_rate": round(random.uniform(0.001, 0.03), 4),
+                "total_clicks": random.randint(60, 1500),
+                "invalid_clicks": random.randint(0, 30),
+                "invalid_click_rate": round(random.uniform(0.0, 0.04), 4),
+                "next_step": random.choice(["持续观察", "排查入口结构", "暂停排查"]),
+            }
+            for i in range(6)
+        ],
+    },
+}
+
+AD_OVERVIEW = ad_overview()
+_running = 0.0
+for _t in AD_OVERVIEW["trend_summary"]:
+    _running += _t["spend"]
+    AD_TAB_ITEMS["time-trend"]["summary"].append(
+        {
+            "report_date": _t["report_date"],
+            "clicks": _t["clicks"],
+            "spend": _t["spend"],
+            "cpc": _t["cpc"],
+            "running_spend": round(_running, 2),
+            "spend_change_ratio": _t["spend_change_ratio"],
+        }
+    )
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, payload):
         body = json.dumps(payload).encode()
@@ -119,6 +466,13 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/v1/projects/manage":
             return self._send(PROJECTS)
+        if path == "/api/v1/ad-analysis/overview":
+            return self._send(AD_OVERVIEW)
+        if path.startswith("/api/v1/ad-analysis/"):
+            tab = path.rsplit("/", 1)[-1]
+            if tab in AD_TAB_ITEMS:
+                return self._send(AD_TAB_ITEMS[tab])
+            return self._send({"project_id": 1, "country": "US", "items": []})
         if path == "/api/v1/daily-analysis/all":
             return self._send(
                 {

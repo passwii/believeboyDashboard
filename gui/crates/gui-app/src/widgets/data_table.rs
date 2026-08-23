@@ -113,6 +113,10 @@ pub enum SortDir {
 /// 自定义单元格渲染器（闭包捕获视图实体或纯 fn 指针；P5-1 起支持闭包）
 pub type CellRenderer<T> = Box<dyn Fn(&T, &AppTheme) -> AnyElement>;
 
+/// 动态列排序取值（闭包版；BLF-799 Pattern B 的 `serde_json::Value` 行按
+/// 列 key 提取数值，key 无法进 fn 指针 → 闭包兜底。仅 data_grid 消费）
+pub type DynSortValue<T> = std::rc::Rc<dyn Fn(&T) -> f64>;
+
 /// 列定义（通用行类型的渲染 / 排序约定）
 pub struct ColumnDef<T> {
     /// 列 id（表头 element id 用；如 `"stock-sku"`）。
@@ -125,10 +129,14 @@ pub struct ColumnDef<T> {
     pub width: Option<f32>,
     /// 对齐（表头 + 单元格）
     pub align: CellAlign,
-    /// 是否可排序（配合 `sort_value`）
+    /// 是否可排序（配合 `sort_value` / `sort_value_dyn`）
     pub sortable: bool,
-    /// 排序取值函数（仅 sortable 列需要）
+    /// 排序取值函数（仅 sortable 列需要；fn 指针优先，
+    /// 为 None 时 data_grid 回落 [`Self::sort_value_dyn`]）
     pub sort_value: Option<fn(&T) -> f64>,
+    /// 排序取值·闭包版（BLF-799 新增：动态行类型按列 key 取值；
+    /// data_table 保持 fn 指针语义不受影响）
+    pub sort_value_dyn: Option<DynSortValue<T>>,
     /// 单元格文本格式化（默认渲染；`render_element` 存在时忽略）
     pub render: fn(&T, &AppTheme) -> SharedString,
     /// 自定义单元格渲染（图标 / 彩色 badge / 行内按钮等；优先于 `render`）。
@@ -154,6 +162,7 @@ impl<T> ColumnDef<T> {
             align: CellAlign::Left,
             sortable: false,
             sort_value: None,
+            sort_value_dyn: None,
             render,
             render_element: None,
             numeric: false,
@@ -174,6 +183,7 @@ impl<T> ColumnDef<T> {
             align: CellAlign::Right,
             sortable: true,
             sort_value: Some(sort_value),
+            sort_value_dyn: None,
             render,
             render_element: None,
             numeric: true,
