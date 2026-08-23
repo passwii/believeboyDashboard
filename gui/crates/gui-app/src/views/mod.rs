@@ -7,6 +7,8 @@
 //! - `master_rail` 左侧 Master Rail 主图标栏（BLF-793，绑定 gui-domain::sidebar 8 组）
 //! - `sub_nav`     Sub-Nav 子导航列：可折叠 180~220px 模块选择器（BLF-794，
 //!   数据权威在 gui-domain::sidebar，替换 Stage2 遗留 sidebar）
+//! - `inspector`   右侧 Inspector 上下文抽屉：Cmd+B 自适应三态内容（BLF-796，
+//!   280~340px 拖拽调宽；运营/广告/Copilot 三态经 mode_for_view 注册表声明）
 //! - `command_palette` ⌘K 全局命令面板（BLF-794，检索全部 52 个子模块）
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
@@ -34,6 +36,7 @@ pub mod crm_follow_ups;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;
+pub mod inspector;
 pub mod inventory_analysis;
 pub mod inventory_ledger;
 pub mod login;

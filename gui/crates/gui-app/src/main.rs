@@ -52,9 +52,10 @@ use views::root::{RootView, RootViewEvent, SessionInfo};
 // 借此抢在 gpui-component Input 的 MoveUp/MoveDown（Input 上下文会静默消费
 // 单行 ↑↓）之前驱动面板列表；面板未打开时 RootView 的 on_action 监听器不在
 // 渲染树上 → 无监听命中 → 按键继续传播回 Input，其余输入框行为不变。
+// BLF-796：⌘B 切换右侧 Inspector 抽屉（同套无 key context 全局动作）。
 actions!(
     gui_app,
-    [Quit, TabNext, TabPrev, ToggleCommandPalette, ToggleSubNav, PaletteSelectPrev, PaletteSelectNext]
+    [Quit, TabNext, TabPrev, ToggleCommandPalette, ToggleSubNav, ToggleInspector, PaletteSelectPrev, PaletteSelectNext]
 );
 
 fn main() -> anyhow::Result<()> {
@@ -117,6 +118,9 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("ctrl-k", ToggleCommandPalette, None),
                 KeyBinding::new("cmd-\\", ToggleSubNav, None),
                 KeyBinding::new("ctrl-\\", ToggleSubNav, None),
+                // BLF-796：⌘B 切换右侧 Inspector 抽屉
+                KeyBinding::new("cmd-b", ToggleInspector, None),
+                KeyBinding::new("ctrl-b", ToggleInspector, None),
             ]);
             // BLF-794：命令面板 ↑↓ 选择——必须在 gpui_component::init 之后注册
             // 才能以「同深度、后注册」优先级压过 Input 的 MoveUp/MoveDown
@@ -334,6 +338,17 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 let mut prefs = prefs::load_ui_prefs();
                 prefs.console_filter =
                     Some(crate::widgets::console_bar::console_filter_prefs(*filter));
+                prefs::save_ui_prefs(&prefs);
+            }
+            // BLF-796：Inspector 开合 / 宽度变化 → 持久化（读改写保留其他字段）
+            RootViewEvent::InspectorVisibleChanged(visible) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.inspector_visible = *visible;
+                prefs::save_ui_prefs(&prefs);
+            }
+            RootViewEvent::InspectorWidthChanged(width) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.inspector_width = Some(width.round().clamp(280.0, 340.0) as u16);
                 prefs::save_ui_prefs(&prefs);
             }
         }

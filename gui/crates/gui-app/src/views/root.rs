@@ -4,10 +4,10 @@
 //! 左 Master Rail（[`crate::views::shell::RAIL_WIDTH`] 图标栏）/ 左二 Sub-Nav 列
 //! （BLF-794 起实装可折叠模块选择器 [`crate::views::sub_nav::SubNavView`] + ⌘K
 //! 命令面板 [`crate::views::command_palette::CommandPaletteView`]）/ 顶 Console
-//! Bar 36px 插槽（本期由面包屑 + 用户 chrome 占位，Stage4 换四件套筛选条）/
-//! 中央 Canvas / 右 Inspector 插槽（本期空面板，Stage5 实装）/ 底 Footer 24px
-//! 插槽（本期空面板，Stage6 实装）。容器外 padding 0，区间一律 1px 分隔线；
-//! 尺寸常量集中在 [`crate::views::shell`]。
+//! Bar 36px 插槽（BLF-795 四件套筛选条）/ 中央 Canvas / 右 Inspector 抽屉
+//! （BLF-796 起实装 Cmd+B 自适应三态内容，见 [`crate::views::inspector`]）/
+//! 底 Footer 24px 插槽（本期空面板，Stage6 实装）。容器外 padding 0，区间
+//! 一律 1px 分隔线；尺寸常量集中在 [`crate::views::shell`]。
 //!
 //! Rail ↔ 导航绑定：Rail 选中分类 → 默认视图路由（该组第一项，同时把 Sub-Nav
 //! 列表切到该分类）；Sub-Nav / ⌘K 面板选中子项 → 反写 Rail 高亮所属分类。
@@ -54,6 +54,7 @@ use crate::views::dashboard::DashboardView;
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
+use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
 use crate::views::markdown_to_word::{MarkdownToWordView, MARKDOWN_TO_WORD_URL};
 use crate::views::master_rail::{MasterRailEvent, MasterRailView};
 use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
@@ -73,8 +74,7 @@ use crate::views::research_analysis::{ResearchAnalysisView, RESEARCH_ANALYSIS_UR
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
-use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT, INSPECTOR_WIDTH};
-use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
+use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT};use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::shop_calculation::{ShopCalculationView, SHOP_CALCULATION_URL};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
@@ -93,8 +93,8 @@ pub struct SessionInfo {
     pub warning: Option<String>,
 }
 
-/// 主窗口根视图事件
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 主窗口根视图事件（BLF-796 起含 f32 宽度载荷，故不再派生 Eq；匹配用）
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RootViewEvent {
     /// 用户点了退出登录（coordinator 负责清 Keychain + 切窗口）
     Logout,
@@ -102,12 +102,20 @@ pub enum RootViewEvent {
     SubNavCollapsed { collapsed: bool },
     /// BLF-795：Console Bar 筛选变化（组合根据此持久化，重启还原）
     ConsoleFilterChanged(ConsoleFilter),
+    /// BLF-796：Inspector 开合变化（组合根据此持久化 visible 偏好）
+    InspectorVisibleChanged(bool),
+    /// BLF-796：Inspector 拖拽调宽结束（组合根据此持久化宽度偏好）
+    InspectorWidthChanged(f32),
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
 pub struct RootView {
     /// BLF-794：Sub-Nav 子导航列（可折叠模块选择器，绑定 gui-domain 8 组 52 项）
     pub sub_nav: Entity<SubNavView>,
+    /// BLF-796：右侧 Inspector 上下文抽屉（Cmd+B 自适应三态内容）
+    pub inspector: Entity<InspectorView>,
+    /// BLF-796：Inspector 事件订阅（开合/调宽上抛组合根持久化；必须持有）
+    _inspector_event_sub: gpui::Subscription,
     /// BLF-795：顶部通用控制条（四件套；无会话时为 None）
     pub console_bar: Option<Entity<ConsoleBarView>>,
     /// BLF-795：业务视图统计推送订阅（每个接入视图懒创建时挂一条；必须持有）
@@ -325,6 +333,33 @@ impl RootView {
             .unwrap_or_default();
         let rail = cx.new(|cx| MasterRailView::new(&rail_user, cx));
         let content = cx.new(|_| PlaceholderView::new("", ""));
+
+        // BLF-796：右侧 Inspector 抽屉——可见性/宽度自 UI 偏好恢复；事件上抛
+        // 组合根持久化（视图层不碰文件系统，延续 BLF-794/795 纪律）
+        let ui_prefs = crate::prefs::load_ui_prefs();
+        let inspector_client = session
+            .as_ref()
+            .map(|s| s.client.clone())
+            .unwrap_or_else(|| Client::new(""));
+        let inspector = cx.new(|cx| {
+            InspectorView::new(
+                inspector_client,
+                ui_prefs.inspector_visible,
+                ui_prefs.inspector_width,
+                cx,
+            )
+        });
+        let inspector_event_sub =
+            cx.subscribe(&inspector, |_this, _inspector, event: &InspectorEvent, cx| {
+                match event {
+                    InspectorEvent::VisibleChanged(visible) => {
+                        cx.emit(RootViewEvent::InspectorVisibleChanged(*visible));
+                    }
+                    InspectorEvent::WidthCommitted(width) => {
+                        cx.emit(RootViewEvent::InspectorWidthChanged(*width));
+                    }
+                }
+            });
 
         // BLF-793：Rail 选中分类 → 默认视图路由（该组第一项；已在该分类内则
         // 保留当前子视图不重路由）。emit 经 pending_effects 异步冲刷，此处
@@ -2172,6 +2207,9 @@ impl RootView {
                             cx.notify();
                         });
                     }
+                    // BLF-796：路由落地后按新 view_key 声明 Inspector 形态
+                    //（未注册形态 → None → 抽屉零宽隐藏入口）
+                    this.sync_inspector(cx);
                 }
             }
             cx.notify();
@@ -2180,6 +2218,8 @@ impl RootView {
 
         Self {
             sub_nav,
+            inspector,
+            _inspector_event_sub: inspector_event_sub,
             console_bar,
             console_stats_subs: Vec::new(),
             _console_bar_changed_sub: console_bar_changed_sub,
@@ -2295,6 +2335,32 @@ impl RootView {
     }
 
     // ------------------------------------------------------------------
+    // BLF-796：Inspector 联动
+    // ------------------------------------------------------------------
+
+    /// 按当前内容区 view_key 声明 Inspector 形态，并同步 Console Bar 筛选
+    /// 快照作为 Ads 数据上下文（未注册形态 → None → 零宽隐藏入口）。
+    fn sync_inspector(&mut self, cx: &mut Context<Self>) {
+        let mode = mode_for_view(self.view_key());
+        let (project_id, country, date_from, date_to) = self
+            .console_bar
+            .as_ref()
+            .map(|bar| {
+                let filter = bar.read(cx).snapshot();
+                (
+                    filter.project_id,
+                    filter.country,
+                    filter.range.from,
+                    filter.range.to,
+                )
+            })
+            .unwrap_or((None, "US", None, None));
+        self.inspector.update(cx, |inspector, cx| {
+            inspector.set_mode(mode, project_id, country, date_from, date_to, cx);
+        });
+    }
+
+    // ------------------------------------------------------------------
     // BLF-795：Console Bar 联动
     // ------------------------------------------------------------------
 
@@ -2320,6 +2386,16 @@ impl RootView {
                 });
             }
         }
+        // BLF-796：筛选快照同步给 Inspector（仅广告态消费；同值 no-op）
+        self.inspector.update(cx, |inspector, cx| {
+            inspector.set_console_context(
+                filter.project_id,
+                filter.country,
+                filter.range.from,
+                filter.range.to,
+                cx,
+            )
+        });
     }
 
     /// 页面路由变化 → 按新页面声明式配置换装控制条（保留用户已有筛选值）。
@@ -2770,6 +2846,11 @@ impl Render for RootView {
             .on_action(cx.listener(|this, _: &crate::ToggleSubNav, _, cx| {
                 this.sub_nav.update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
             }))
+            // BLF-796：⌘B 切换右侧 Inspector 抽屉（绑定见 main.rs；未注册形态
+            // 页面内 toggle_visible 自身 no-op——无入口亦不响应快捷键）
+            .on_action(cx.listener(|this, _: &crate::ToggleInspector, _, cx| {
+                this.inspector.update(cx, |inspector, cx| inspector.toggle_visible(cx));
+            }))
             // BLF-794：命令面板 ↑↓ 选择（无 key context 全局绑定，面板未打开时
             // 本监听器不存在于渲染树 → 按键继续传播到原绑定）
             .on_action(
@@ -2848,17 +2929,11 @@ impl Render for RootView {
                                     .child(self.content_view(cx)),
                             ),
                     )
-                    // Inspector 插槽（300px）：空面板占位，Stage5 实装 Cmd+B 自适应抽屉
-                    .child(
-                        div()
-                            .id("inspector-slot")
-                            .h_full()
-                            .flex_none()
-                            .w(px(INSPECTOR_WIDTH))
-                            .bg(theme.card_bg)
-                            .border_l_1()
-                            .border_color(theme.separator),
-                    ),
+                    // Inspector 抽屉（BLF-796）：Cmd+B 自适应三态内容 + 280~340
+                    // 拖拽调宽；宽度/开合过渡与未注册页零宽隐藏由视图自管
+                    //（对齐 Sub-Nav 插槽「宽度和分隔线自管」惯例），Canvas 随
+                    // flex 布局在开合动画中平滑扩展
+                    .child(self.inspector.clone()),
             )
             // Footer 插槽（24px）：空面板占位，Stage6 实装汇率 ticker / 同步状态 /
             // 通知徽标 / 延迟指标
@@ -5395,5 +5470,85 @@ mod tests {
             root_src.contains("仅保留面包屑"),
             "content_header 文档应声明仅保留面包屑"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // BLF-796：Inspector 联动
+    // ------------------------------------------------------------------
+
+    /// BLF-796 验收契约①：页面路由 → Inspector 形态自适应——销售数据=运营态、
+    /// 广告分析=广告态、AI Chat=AI 态；未注册页面（站点导航）隐藏入口；
+    /// 开合事件经 RootView 上抛组合根（持久化链路契约）。
+    #[gpui::test]
+    async fn inspector_mode_follows_active_view(cx: &mut gpui::TestAppContext) {
+        use crate::views::inspector::InspectorMode;
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        cx.update(gpui_component::init);
+        let events: Rc<RefCell<Vec<RootViewEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let (view, cx) = cx.add_window_view(|_window, cx| {
+            // 自订阅自身事件（对齐 master_rail 测试惯例：cx.entity() 取自身句柄）
+            let root_for_sub = cx.entity();
+            let events = events.clone();
+            cx.subscribe(&root_for_sub, move |_, _, event: &RootViewEvent, _| {
+                events.borrow_mut().push(*event);
+            })
+            .detach();
+            RootView::new(cx, None)
+        });
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+
+        // 启动着陆页：Dashboard 未注册 → 无形态
+        cx.read(|app| assert_eq!(view.read(app).inspector.read(app).mode(), None));
+
+        // 销售数据 → 运营态
+        sub_nav.update(cx, |this, cx| this.select(DAILY_ANALYSIS_URL, "销售数据", cx));
+        cx.read(|app| {
+            assert_eq!(
+                view.read(app).inspector.read(app).mode(),
+                Some(InspectorMode::Operations),
+                "销售数据页必须显示运营态（验收基准）"
+            );
+        });
+
+        // 广告分析 → 广告态
+        sub_nav.update(cx, |this, cx| {
+            this.select(AD_ANALYSIS_URL, "广告分析", cx)
+        });
+        cx.read(|app| {
+            assert_eq!(
+                view.read(app).inspector.read(app).mode(),
+                Some(InspectorMode::Ads),
+                "广告分析页必须显示广告态（验收基准）"
+            );
+        });
+
+        // AI Chat → AI 态
+        sub_nav.update(cx, |this, cx| this.select(AI_CHAT_URL, "AI Chat", cx));
+        cx.read(|app| {
+            assert_eq!(
+                view.read(app).inspector.read(app).mode(),
+                Some(InspectorMode::Copilot),
+                "AI Chat 页必须显示 AI 态（验收基准）"
+            );
+        });
+
+        // 未注册页 → 隐藏入口
+        sub_nav.update(cx, |this, cx| this.select(SITE_NAV_URL, "站点导航", cx));
+        cx.read(|app| assert_eq!(view.read(app).inspector.read(app).mode(), None));
+
+        // 回到已注册页后 Cmd+B 语义：toggle 经实体句柄驱动，事件上抛 RootView 层
+        sub_nav.update(cx, |this, cx| this.select(DAILY_ANALYSIS_URL, "销售数据", cx));
+        let before = events.borrow().len();
+        view.update(cx, |root, cx| {
+            root.inspector.update(cx, |inspector, cx| inspector.toggle_visible(cx))
+        });
+        cx.read(|app| assert!(!view.read(app).inspector.read(app).visible(), "应收起"));
+        assert_eq!(events.borrow().len(), before + 1, "开合必须上抛持久化事件");
+        assert!(matches!(
+            events.borrow().last(),
+            Some(RootViewEvent::InspectorVisibleChanged(false))
+        ));
     }
 }

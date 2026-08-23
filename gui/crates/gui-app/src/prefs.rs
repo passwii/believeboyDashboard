@@ -13,8 +13,10 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-/// UI 偏好（JSON 持久化；新增字段必须带 `#[serde(default)]` 以兼容旧文件）
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// UI 偏好（JSON 持久化；容器级 `#[serde(default)]`——缺字段按 [`UiPrefs::default`]
+/// 回填，新增字段自动兼容旧文件）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct UiPrefs {
     /// BLF-794：Sub-Nav 子导航列是否折叠（重启后保留）
     #[serde(default)]
@@ -23,6 +25,23 @@ pub struct UiPrefs {
     /// 「筛选写 URL query 刷新还原」的桌面等价物）
     #[serde(default)]
     pub console_filter: Option<ConsoleFilterPrefs>,
+    /// BLF-796：右侧 Inspector 抽屉可见性（默认展开；未注册形态页面自动隐藏
+    /// 入口，该偏好仅记录用户显式开合意图）
+    pub inspector_visible: bool,
+    /// BLF-796：Inspector 拖拽调宽记忆（整数 px，280~340；None = 默认 300）
+    pub inspector_width: Option<u16>,
+}
+
+impl Default for UiPrefs {
+    fn default() -> Self {
+        Self {
+            sub_nav_collapsed: false,
+            console_filter: None,
+            // Inspector 默认展开（交易终端风格：常驻上下文面板）
+            inspector_visible: true,
+            inspector_width: None,
+        }
+    }
 }
 
 /// BLF-795：Console Bar 筛选持久化值（日期存 ISO `YYYY-MM-DD` 字符串，
@@ -131,6 +150,9 @@ mod tests {
                 date_from: Some("2026-08-01".into()),
                 date_to: Some("2026-08-15".into()),
             }),
+            // BLF-796：Inspector 开合与宽度记忆一并持久化
+            inspector_visible: false,
+            inspector_width: Some(320),
         };
         let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
@@ -147,11 +169,14 @@ mod tests {
         assert!(prefs.console_filter.is_none());
     }
 
-    /// 旧版本偏好文件缺字段时用 `#[serde(default)]` 兼容（空对象 → 默认值）。
+    /// 旧版本偏好文件缺字段时按 `Default::default()` 兼容（空对象 → 默认值）。
     #[test]
     fn ui_prefs_missing_fields_fall_back_to_defaults() {
         let prefs: UiPrefs = serde_json::from_str("{}").expect("空对象应可解析");
         assert!(!prefs.sub_nav_collapsed);
+        // BLF-796：Inspector 默认展开、默认宽（None = 300 锚点）
+        assert!(prefs.inspector_visible);
+        assert!(prefs.inspector_width.is_none());
     }
 
     /// 文件级往返：写入后再读取应得到同一份偏好（临时目录，不碰真实用户目录）。
