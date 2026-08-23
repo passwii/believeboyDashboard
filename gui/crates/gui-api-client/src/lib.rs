@@ -26,7 +26,9 @@ pub mod exchange_rate;
 pub mod inspections;
 pub mod inventory;
 pub mod inventory_ledger;
+pub mod metrics;
 pub mod monthly_reports;
+pub mod notifications;
 pub mod order_info;
 pub mod platform_revenues;
 pub mod portfolio;
@@ -48,3 +50,4 @@ pub mod weekly_product_analysis;
 
 // 常用类型在 crate 根暴露，避免 `gui_api_client::client::Client` 这种深路径
 pub use client::{Client, ClientConfig};
+pub use metrics::{latency_snapshot, record_latency, LatencySnapshot};

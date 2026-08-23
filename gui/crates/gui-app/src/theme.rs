@@ -87,6 +87,9 @@ pub const FONT_XS: f32 = 11.0;
 /// 次级说明（介于辅助与正文之间）
 #[allow(dead_code)]
 pub const FONT_SM: f32 = 12.0;
+/// Footer 全局状态栏专用字号（BLF-797；辅助级 text_xs 口径 11px——独立 token
+/// 与表头/筛选 label 的 [`FONT_XS`] 解耦，Footer 密度调优不牵连共享 chrome）
+pub const FONT_FOOTER: f32 = 11.0;
 /// 正文 / 数据基准（10pt = 13px）
 pub const FONT_BASE: f32 = 13.0;
 /// 小标题 / 卡片标题（11pt bold 下限）
@@ -695,6 +698,8 @@ mod tests {
         assert!(FONT_SM < FONT_BASE);
         assert!(FONT_BASE < FONT_TITLE);
         assert!(FONT_TITLE < FONT_TITLE_LG);
+        // BLF-797：Footer 专用字号落在辅助级区间（≥ 徽标级、≤ 次级说明）
+        assert!((10.0..=12.0).contains(&FONT_FOOTER), "Footer 字号必须为辅助级 text_xs 口径，实际 {FONT_FOOTER}");
     }
 
     /// BLF-792 回归锁：控件度量与最小间距 token——输入/按钮两档 24~28px、

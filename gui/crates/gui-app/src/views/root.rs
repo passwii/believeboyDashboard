@@ -6,7 +6,8 @@
 //! 命令面板 [`crate::views::command_palette::CommandPaletteView`]）/ 顶 Console
 //! Bar 36px 插槽（BLF-795 四件套筛选条）/ 中央 Canvas / 右 Inspector 抽屉
 //! （BLF-796 起实装 Cmd+B 自适应三态内容，见 [`crate::views::inspector`]）/
-//! 底 Footer 24px 插槽（本期空面板，Stage6 实装）。容器外 padding 0，区间
+//! 底 Footer 24px 系统状态栏（BLF-797 起：汇率 ticker / DB 同步 / 未读徽标 /
+//! 延迟指标，见 [`crate::views::footer`]）。容器外 padding 0，区间
 //! 一律 1px 分隔线；尺寸常量集中在 [`crate::views::shell`]。
 //!
 //! Rail ↔ 导航绑定：Rail 选中分类 → 默认视图路由（该组第一项，同时把 Sub-Nav
@@ -52,6 +53,7 @@ use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
+use crate::views::footer::FooterView;
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
 use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
@@ -118,6 +120,9 @@ pub struct RootView {
     _inspector_event_sub: gpui::Subscription,
     /// BLF-795：顶部通用控制条（四件套；无会话时为 None）
     pub console_bar: Option<Entity<ConsoleBarView>>,
+    /// BLF-797：全局 Footer 系统状态栏（24px 汇率 ticker / DB 同步 / 未读 /
+    /// 延迟；无会话时为 None，插槽回落空面板）
+    pub footer: Option<Entity<FooterView>>,
     /// BLF-795：业务视图统计推送订阅（每个接入视图懒创建时挂一条；必须持有）
     console_stats_subs: Vec<gpui::Subscription>,
     /// BLF-795：控制条 Changed 事件订阅（必须持有，否则筛选变更不转发）
@@ -319,6 +324,11 @@ impl RootView {
         let console_bar = session.as_ref().map(|s| {
             let client = s.client.clone();
             cx.new(|cx| ConsoleBarView::new(client, cx))
+        });
+        // BLF-797：全局 Footer 状态栏（登录后创建；创建即首拉三段数据）
+        let footer = session.as_ref().map(|s| {
+            let client = s.client.clone();
+            cx.new(|cx| FooterView::new(client, cx))
         });
         let console_bar_changed_sub = console_bar.as_ref().map(|bar| {
             cx.subscribe(bar, |this, _bar, event: &ConsoleBarEvent, cx| {
@@ -2221,6 +2231,7 @@ impl RootView {
             inspector,
             _inspector_event_sub: inspector_event_sub,
             console_bar,
+            footer,
             console_stats_subs: Vec::new(),
             _console_bar_changed_sub: console_bar_changed_sub,
             command_palette: None,
@@ -2935,8 +2946,9 @@ impl Render for RootView {
                     // flex 布局在开合动画中平滑扩展
                     .child(self.inspector.clone()),
             )
-            // Footer 插槽（24px）：空面板占位，Stage6 实装汇率 ticker / 同步状态 /
-            // 通知徽标 / 延迟指标
+            // Footer 插槽（24px）：BLF-797 起实装全局系统状态栏——24px 汇率
+            // ticker / 同步引擎 DB 状态 / 未读通知徽标 / 延迟指标（登录态创建；
+            // 无会话回落空面板，高度与顶部分隔不变）
             .child(
                 div()
                     .id("footer-slot")
@@ -2945,7 +2957,8 @@ impl Render for RootView {
                     .h(px(FOOTER_HEIGHT))
                     .bg(theme.window_bg)
                     .border_t_1()
-                    .border_color(theme.separator),
+                    .border_color(theme.separator)
+                    .when_some(self.footer.clone(), |slot, footer| slot.child(footer)),
             )
             // BLF-794：⌘K 命令面板 overlay（最后 child = 最顶层；absolute 铺满全窗）
             .when_some(
