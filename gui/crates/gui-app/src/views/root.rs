@@ -451,21 +451,27 @@ impl RootView {
                                 view
                             })
                         });
-                        // BLF-795：Console Bar 联动——统计订阅 + 当前筛选快照应用
+                        // BLF-795：Console Bar 联动——统计订阅仅首次创建挂一次；
+                        // 筛选快照每次进入都回放（review 阻塞项修复：视图是常驻
+                        // 缓存、无销毁路径，二次进入也必须对齐控制条——条是唯一
+                        // 权威状态；apply_console_filter 同值 no-op，重复回放
+                        // 零额外拉取）
                         if daily_new {
                             if let Some(view) = this.daily_analysis.clone() {
                                 this.subscribe_view_stats(&view, cx);
-                                if let Some(bar) = &this.console_bar {
-                                    let snapshot = bar.read(cx).snapshot();
-                                    view.update(cx, |v, cx| {
-                                        v.apply_console_filter(
-                                            snapshot.project_id,
-                                            snapshot.country,
-                                            snapshot.range,
-                                            cx,
-                                        )
-                                    });
-                                }
+                            }
+                        }
+                        if let Some(view) = this.daily_analysis.clone() {
+                            if let Some(bar) = &this.console_bar {
+                                let snapshot = bar.read(cx).snapshot();
+                                view.update(cx, |v, cx| {
+                                    v.apply_console_filter(
+                                        snapshot.project_id,
+                                        snapshot.country,
+                                        snapshot.range,
+                                        cx,
+                                    )
+                                });
                             }
                         }
                         this.show_site_navigation = false;
@@ -551,7 +557,6 @@ impl RootView {
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
                         // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取
-                        let ad_new = this.ad_analysis.is_none();
                         this.ad_analysis.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
@@ -563,21 +568,21 @@ impl RootView {
                                 view
                             })
                         });
-                        // BLF-795：Console Bar 联动——当前筛选快照应用
-                        // （广告分析不开统计位，无需统计订阅）
-                        if ad_new {
-                            if let Some(view) = this.ad_analysis.clone() {
-                                if let Some(bar) = &this.console_bar {
-                                    let snapshot = bar.read(cx).snapshot();
-                                    view.update(cx, |v, cx| {
-                                        v.apply_console_filter(
-                                            snapshot.project_id,
-                                            snapshot.country,
-                                            snapshot.range,
-                                            cx,
-                                        )
-                                    });
-                                }
+                        // BLF-795：Console Bar 联动——筛选快照每次进入都回放
+                        // （review 阻塞项修复：视图常驻缓存，二次进入也必须对齐
+                        // 控制条；同值 no-op 零额外拉取。广告分析不开统计位，
+                        // 无需统计订阅）
+                        if let Some(view) = this.ad_analysis.clone() {
+                            if let Some(bar) = &this.console_bar {
+                                let snapshot = bar.read(cx).snapshot();
+                                view.update(cx, |v, cx| {
+                                    v.apply_console_filter(
+                                        snapshot.project_id,
+                                        snapshot.country,
+                                        snapshot.range,
+                                        cx,
+                                    )
+                                });
                             }
                         }
                         this.show_site_navigation = false;
@@ -659,7 +664,6 @@ impl RootView {
                         this.show_system_logs = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
-                        let monthly_new = this.monthly_report.is_none();
                         this.monthly_report.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
@@ -671,20 +675,20 @@ impl RootView {
                                 view
                             })
                         });
-                        // BLF-795：Console Bar 联动——当前筛选快照应用
-                        // （财务月报不开统计位，无需统计订阅）
-                        if monthly_new {
-                            if let Some(view) = this.monthly_report.clone() {
-                                if let Some(bar) = &this.console_bar {
-                                    let snapshot = bar.read(cx).snapshot();
-                                    view.update(cx, |v, cx| {
-                                        v.apply_console_filter(
-                                            snapshot.project_id,
-                                            snapshot.country,
-                                            cx,
-                                        )
-                                    });
-                                }
+                        // BLF-795：Console Bar 联动——筛选快照每次进入都回放
+                        // （review 阻塞项修复：视图常驻缓存，二次进入也必须对齐
+                        // 控制条；同值 no-op 零额外拉取。财务月报不开统计位，
+                        // 无需统计订阅）
+                        if let Some(view) = this.monthly_report.clone() {
+                            if let Some(bar) = &this.console_bar {
+                                let snapshot = bar.read(cx).snapshot();
+                                view.update(cx, |v, cx| {
+                                    v.apply_console_filter(
+                                        snapshot.project_id,
+                                        snapshot.country,
+                                        cx,
+                                    )
+                                });
                             }
                         }
                         this.show_site_navigation = false;
@@ -2977,6 +2981,92 @@ mod tests {
                 "同分类重复点击应保留当前子视图"
             );
             assert!(!root.show_monthly_report, "不应重路由回财务月报");
+        });
+    }
+
+    /// BLF-795 review 阻塞项回归：返回已存在视图时控制条快照必须回放——
+    /// 进入销售数据页（快照 F1=默认）→ 切广告分析页 → 控制条切 P2/DE（转发
+    /// 广告视图并持久化）→ 返回销售数据页：常驻缓存（无销毁路径）的日销售
+    /// 视图必须对齐 F2——条是唯一权威状态，条变页不变即破坏契约。
+    #[gpui::test]
+    async fn console_filter_snapshot_replays_when_reentering_cached_view(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-replay".into(),
+                name: "回放测试".into(),
+                email: "replay@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-replay".into(),
+                api_key: String::new(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+
+        // ① 进入销售数据页：懒创建 + 快照 F1（默认 US / 全部项目 / 近 7 天）
+        sub_nav.update(cx, |this, cx| {
+            this.select(DAILY_ANALYSIS_URL, "销售数据", cx)
+        });
+        cx.read(|app| {
+            let daily = view
+                .read(app)
+                .daily_analysis
+                .clone()
+                .expect("首次进入应创建销售数据视图");
+            let (project, country, _) = daily.read(app).console_filter_state();
+            assert_eq!(project, None);
+            assert_eq!(country, "US", "首建应与控制条默认快照一致");
+        });
+
+        // ② 切到广告分析页 → 控制条切项目 P2 + 站点 DE（经 Changed 转发当页视图；
+        //    bar 句柄顶层驱动，避免 root re-entrant borrow）
+        sub_nav.update(cx, |this, cx| {
+            this.select(AD_ANALYSIS_URL, "广告分析", cx)
+        });
+        let bar = cx
+            .read(|app| view.read(app).console_bar.clone())
+            .expect("有会话必有控制条");
+        // apply_filter = 恢复/测试用公开入口（菜单回调 select_* 为私有）
+        bar.update(cx, |bar, cx| {
+            let mut next = bar.snapshot();
+            next.project_id = Some(42);
+            next.country = "DE";
+            bar.apply_filter(next, cx);
+        });
+        cx.read(|app| {
+            let root = view.read(app);
+            let ad = root.ad_analysis.clone().expect("应已创建广告分析视图");
+            let (project, country, _) = ad.read(app).console_filter_state();
+            assert_eq!(project, Some(42), "改条当页应即时生效");
+            assert_eq!(country, "DE");
+            assert_eq!(root.console_bar.as_ref().unwrap().read(app).snapshot().project_id, Some(42));
+        });
+
+        // ③ 返回销售数据页（视图已缓存，不再走首建分支）：快照必须回放对齐
+        sub_nav.update(cx, |this, cx| {
+            this.select(DAILY_ANALYSIS_URL, "销售数据", cx)
+        });
+        cx.read(|app| {
+            let daily = view.read(app).daily_analysis.clone().unwrap();
+            let (project, country, range) = daily.read(app).console_filter_state();
+            assert_eq!(
+                project,
+                Some(42),
+                "返回已存在视图必须回放控制条快照（阻塞项回归）"
+            );
+            assert_eq!(country, "DE", "站点维度同样必须回放");
+            assert!(
+                range.from.is_some() && range.to.is_some(),
+                "日期区间维度保持两端齐全"
+            );
         });
     }
 

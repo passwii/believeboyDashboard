@@ -429,7 +429,8 @@ impl ConsoleBarView {
     }
 
     /// 懒加载项目列表（`GET /projects/manage`，服务端按 X-Operator 过滤；
-    /// 失败静默——菜单仍提供「全部项目」，下次进入带 project 的页面重试）
+    /// 失败静默——菜单仍提供「全部项目」，复位请求标志后下次进入带 project
+    /// 的页面会重试）
     fn load_projects(&mut self, cx: &mut Context<Self>) {
         self.projects_requested = true;
         let client = self.client.clone();
@@ -442,8 +443,10 @@ impl ConsoleBarView {
                 })
                 .await;
             this.update(cx, |this, cx| {
-                if let Ok(list) = projects {
-                    this.projects = list;
+                match projects {
+                    Ok(list) => this.projects = list,
+                    // 失败复位请求标志：否则下拉永远只有「全部项目」直到重启
+                    Err(_) => this.projects_requested = false,
                 }
                 cx.notify();
             })
@@ -827,6 +830,57 @@ mod tests {
         });
         cx2.read(|app| {
             assert_eq!(host.read(app).bar.read(app).current_stats(), Some(stats));
+        });
+    }
+
+    /// review 顺手项回归：项目列表拉取**失败**后必须复位 `projects_requested`，
+    /// 否则下拉永远只有「全部项目」直到重启。client 指向不可达地址
+    /// （127.0.0.1:1 本地立即拒绝连接，无外部网络依赖）；真实失败回调经
+    /// allow_parking + run_until_parked 冲刷。
+    #[gpui::test]
+    async fn projects_requested_resets_on_load_failure_allowing_retry(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(gpui_component::init);
+        let bar = cx.update(|cx| {
+            let client = Client::new("http://127.0.0.1:1");
+            cx.new(|cx| {
+                ConsoleBarView::with_initial_filter(
+                    client,
+                    ConsoleFilter::today_default(d(2026, 8, 15)),
+                    cx,
+                )
+            })
+        });
+
+        // 首次进入带 project 的页面：发起拉取并置位防重复标志
+        bar.update(cx, |bar, cx| {
+            bar.set_config(console_config_for_url(DAILY_ANALYSIS_URL), cx)
+        });
+        cx.read(|app| assert!(bar.read(app).projects_requested));
+
+        // 冲刷真实失败回调（connection refused 即刻返回）
+        cx.executor().allow_parking();
+        cx.run_until_parked();
+        cx.read(|app| {
+            let bar = bar.read(app);
+            assert!(
+                !bar.projects_requested,
+                "拉取失败必须复位请求标志（否则永不重试）"
+            );
+            assert!(bar.projects.is_empty(), "失败不应写入任何项目");
+        });
+
+        // 复位后再次进入带 project 的页面（配置经空页往返）应重新发起请求
+        bar.update(cx, |bar, cx| bar.set_config(ConsoleBarConfig::default(), cx));
+        bar.update(cx, |bar, cx| {
+            bar.set_config(console_config_for_url(DAILY_ANALYSIS_URL), cx)
+        });
+        cx.read(|app| {
+            assert!(
+                bar.read(app).projects_requested,
+                "失败复位后再次进入带 project 的页面应重试拉取"
+            );
         });
     }
 
