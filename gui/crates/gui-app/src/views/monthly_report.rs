@@ -334,6 +334,32 @@ impl MonthlyReportView {
         self.reload(cx);
     }
 
+    /// BLF-795：Console Bar 筛选一键应用（项目 + 站点两维；月粒度窗口仍归页内
+    /// 月份选择器）——只对变化维度落值，任一变化仅触发一次 reload。
+    pub fn apply_console_filter(
+        &mut self,
+        project_id: Option<i64>,
+        country: &'static str,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let project_changed = project_id != self.selected_project_id;
+        let country_changed = country != self.country;
+        if !project_changed && !country_changed {
+            return false;
+        }
+        if project_changed {
+            self.selected_project_id = project_id;
+        }
+        if country_changed {
+            self.country = country;
+            // 明细表币种符号跟随站点（行数据不变，仅符号变化）
+            self.detail_table
+                .update(cx, |widget, cx| widget.set_country(country, cx));
+        }
+        self.reload(cx);
+        true
+    }
+
     /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前把明细行喂给表格组件。
     fn apply_result(
         &mut self,

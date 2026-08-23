@@ -323,9 +323,18 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 open_login_window(cx, base_client.without_session(), None);
             }
             RootViewEvent::SubNavCollapsed { collapsed } => {
-                prefs::save_ui_prefs(&prefs::UiPrefs {
-                    sub_nav_collapsed: *collapsed,
-                });
+                // BLF-795：读改写——只更新折叠位，保留 Console Bar 筛选等其他字段
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.sub_nav_collapsed = *collapsed;
+                prefs::save_ui_prefs(&prefs);
+            }
+            // BLF-795：Console Bar 筛选变化 → 持久化（重启还原，对齐 web 端
+            // 筛选写 URL query 的桌面等价物；组合根负责文件读写）
+            RootViewEvent::ConsoleFilterChanged(filter) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.console_filter =
+                    Some(crate::widgets::console_bar::console_filter_prefs(*filter));
+                prefs::save_ui_prefs(&prefs);
             }
         }
     })

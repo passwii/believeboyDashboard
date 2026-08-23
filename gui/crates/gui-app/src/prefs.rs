@@ -14,11 +14,29 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// UI 偏好（JSON 持久化；新增字段必须带 `#[serde(default)]` 以兼容旧文件）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct UiPrefs {
     /// BLF-794：Sub-Nav 子导航列是否折叠（重启后保留）
     #[serde(default)]
     pub sub_nav_collapsed: bool,
+    /// BLF-795：Console Bar 筛选状态（项目/站点/日期；重启后还原，对齐 web 端
+    /// 「筛选写 URL query 刷新还原」的桌面等价物）
+    #[serde(default)]
+    pub console_filter: Option<ConsoleFilterPrefs>,
+}
+
+/// BLF-795：Console Bar 筛选持久化值（日期存 ISO `YYYY-MM-DD` 字符串，
+/// 避免为偏好文件引入 chrono serde 依赖；解析失败按缺省处理）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ConsoleFilterPrefs {
+    #[serde(default)]
+    pub project_id: Option<i64>,
+    #[serde(default)]
+    pub country: Option<String>,
+    #[serde(default)]
+    pub date_from: Option<String>,
+    #[serde(default)]
+    pub date_to: Option<String>,
 }
 
 /// 偏好文件完整路径（环境变量缺失时返回 None → 读写静默跳过）
@@ -103,13 +121,30 @@ mod tests {
     fn ui_prefs_serde_roundtrip() {
         let default_prefs = UiPrefs::default();
         assert!(!default_prefs.sub_nav_collapsed);
+        assert!(default_prefs.console_filter.is_none());
 
-        let collapsed = UiPrefs {
+        let prefs = UiPrefs {
             sub_nav_collapsed: true,
+            console_filter: Some(ConsoleFilterPrefs {
+                project_id: Some(7),
+                country: Some("US".into()),
+                date_from: Some("2026-08-01".into()),
+                date_to: Some("2026-08-15".into()),
+            }),
         };
-        let json = serde_json::to_string(&collapsed).expect("序列化失败");
+        let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
-        assert_eq!(back, collapsed);
+        assert_eq!(back, prefs);
+    }
+
+    /// BLF-795：旧版本偏好文件（只有 sub_nav_collapsed）解析后 console_filter 为
+    /// None，不破坏向后兼容。
+    #[test]
+    fn ui_prefs_legacy_file_without_console_filter() {
+        let prefs: UiPrefs =
+            serde_json::from_str(r#"{"sub_nav_collapsed": true}"#).expect("旧格式应可解析");
+        assert!(prefs.sub_nav_collapsed);
+        assert!(prefs.console_filter.is_none());
     }
 
     /// 旧版本偏好文件缺字段时用 `#[serde(default)]` 兼容（空对象 → 默认值）。
@@ -128,6 +163,7 @@ mod tests {
         ));
         let prefs = UiPrefs {
             sub_nav_collapsed: true,
+            ..UiPrefs::default()
         };
         save_ui_prefs_to(&path, &prefs);
         let loaded = load_ui_prefs_from(&path).expect("刚写出的文件应可读");

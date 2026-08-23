@@ -24,9 +24,11 @@
 
 use std::collections::HashMap;
 
+use chrono::NaiveDate;
+
 use gpui::{
-    div, prelude::*, px, App, AsyncApp, Context, CursorStyle, Entity, FontWeight, Render,
-    SharedString, WeakEntity, Window,
+    div, prelude::*, px, App, AsyncApp, Context, CursorStyle, Entity, EventEmitter, FontWeight,
+    Render, SharedString, WeakEntity, Window,
 };
 use gpui_component::{
     button::Button,
@@ -43,8 +45,10 @@ use gui_domain::dashboard::{
 };
 
 use crate::theme::AppTheme;
-use crate::views::dashboard::{last_7_days_window, previous_7_days_window};
+use crate::views::dashboard::last_7_days_window;
 use crate::views::stat_band::stat_band;
+use crate::widgets::console_bar::{ConsoleStats, ConsoleStatsEvent};
+use crate::widgets::date_range::DateRange;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
@@ -234,7 +238,7 @@ impl DailyAnalysisState {
     }
 }
 
-/// 销售数据视图（状态机 + 项目/国家筛选 + 竞态保护）
+/// 销售数据视图（状态机 + 项目/站点/日期筛选 + 竞态保护）
 pub struct DailyAnalysisView {
     state: Entity<DailyAnalysisState>,
     /// 带会话的 API client
@@ -245,6 +249,8 @@ pub struct DailyAnalysisView {
     selected_project_id: Option<i64>,
     /// 当前站点（"US" / "DE" / "UK" / "ALL"）
     country: &'static str,
+    /// 日期区间（BLF-795：Console Bar 可驱动；默认近 7 天对齐旧行为）
+    date_range: DateRange,
     /// 请求竞态保护：只有等于最新值的响应才被应用
     latest_request_id: u64,
     /// SKU 明细表（懒建 TableState）
@@ -259,12 +265,14 @@ impl DailyAnalysisView {
         let state = cx.new(|_| DailyAnalysisState::Loading);
         let detail_table = cx.new(|_| DailyDetailTable::new());
         let breakdown_table = cx.new(|_| BreakdownTable::new());
+        let (from, to) = last_7_days_window(chrono::Local::now().date_naive());
         Self {
             state,
             client,
             projects: Vec::new(),
             selected_project_id: None,
             country: DEFAULT_COUNTRY,
+            date_range: DateRange::new(Some(from), Some(to)),
             latest_request_id: 0,
             detail_table,
             breakdown_table,
@@ -277,6 +285,12 @@ impl DailyAnalysisView {
         self.state.read(cx).clone()
     }
 
+    /// 当前筛选三元组（项目/站点/日期，只读；根视图回归测试断言用）
+    #[allow(dead_code)] // 根视图级测试消费（对齐 current_state 惯例）
+    pub fn console_filter_state(&self) -> (Option<i64>, &'static str, DateRange) {
+        (self.selected_project_id, self.country, self.date_range)
+    }
+
     /// 重新拉取数据：项目/国家切换、错误重试、空态刷新共用入口。
     ///
     /// 每次调用递增 `latest_request_id` 并进入 Loading；响应回来时
@@ -286,6 +300,11 @@ impl DailyAnalysisView {
         let request_id = self.latest_request_id;
         let selected = self.selected_project_id;
         let country = self.country;
+        // BLF-795：区间缺端时回退近 7 天（防御：外部清空等）
+        let (from, to) = match (self.date_range.from, self.date_range.to) {
+            (Some(f), Some(t)) => (f, t),
+            _ => last_7_days_window(chrono::Local::now().date_naive()),
+        };
 
         self.state.update(cx, |state, cx| {
             *state = DailyAnalysisState::Loading;
@@ -298,7 +317,7 @@ impl DailyAnalysisView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime()
-                        .block_on(load_daily_analysis(&client, selected, country))
+                        .block_on(load_daily_analysis(&client, selected, country, from, to))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -327,6 +346,37 @@ impl DailyAnalysisView {
         self.reload(cx);
     }
 
+    /// BLF-795：Console Bar 筛选一键应用——对比当前三维，只对变化维度落值，
+    /// 任一变化仅触发一次 reload（避免逐控件切换造成的多次拉取）。
+    /// 返回是否有实际变化。
+    pub fn apply_console_filter(
+        &mut self,
+        project_id: Option<i64>,
+        country: &'static str,
+        range: DateRange,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let project_changed = project_id != self.selected_project_id;
+        let country_changed = country != self.country;
+        // 区间只在两端齐全时才应用（与 reload 的回退口径一致）
+        let range_changed =
+            range.from.is_some() && range.to.is_some() && range != self.date_range;
+        if !project_changed && !country_changed && !range_changed {
+            return false;
+        }
+        if project_changed {
+            self.selected_project_id = project_id;
+        }
+        if country_changed {
+            self.country = country;
+        }
+        if range_changed {
+            self.date_range = range;
+        }
+        self.reload(cx);
+        true
+    }
+
     /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前把明细/下钻行喂给表格组件。
     fn apply_result(
         &mut self,
@@ -346,6 +396,14 @@ impl DailyAnalysisView {
                 let breakdown = data.breakdown.clone();
                 self.breakdown_table
                     .update(cx, |widget, cx| widget.set_data(breakdown, cx));
+                // BLF-795：KPI 推送给 Console Bar 统计 pill（GMV / 订单数；
+                // Pending 数据源未接入，恒为 None 不出位）
+                let kpi = KpiSummary::from_rows(&data.summary_rows);
+                cx.emit(ConsoleStatsEvent(ConsoleStats {
+                    gmv: Some(kpi.sales_amount),
+                    orders: Some(kpi.order_qty),
+                    pending: None,
+                }));
             }
         }
         self.state.update(cx, |state, cx| {
@@ -355,6 +413,9 @@ impl DailyAnalysisView {
     }
 }
 
+/// BLF-795：Loaded 后向 Console Bar 推送统计 pill 数据
+impl EventEmitter<ConsoleStatsEvent> for DailyAnalysisView {}
+
 /// 拉取销售数据（项目列表 + 按「项目 × 国家」模式拉主数据与对比期），与视图解耦便于测试。
 ///
 /// 对齐 frontend `loadData`：
@@ -362,10 +423,15 @@ impl DailyAnalysisView {
 /// - 主数据 + 对比期并行拉取（`Promise.all` 等价）；对比期失败不阻塞主数据
 ///   （环比显示「—」）；
 /// - 全部项目 + 全部站点 → Err（后端不支持聚合矩阵，与 frontend 提示一致）。
+///
+/// BLF-795：日期区间由调用方给定（Console Bar 驱动）；对比期 = 紧邻其前、
+/// 等长的窗口（近 7 天默认口径时与原 `previous_7_days_window` 一致）。
 async fn load_daily_analysis(
     client: &Client,
     selected_project_id: Option<i64>,
     country: &str,
+    from: NaiveDate,
+    to: NaiveDate,
 ) -> Result<DailyAnalysisData, String> {
     let projects = client
         .list_managed_projects()
@@ -376,9 +442,14 @@ async fn load_daily_analysis(
             .to_string()
     })?;
 
-    let today = chrono::Local::now().date_naive();
-    let (from, to) = last_7_days_window(today);
-    let (compare_from, compare_to) = previous_7_days_window((from, to));
+    // 对比期：紧邻主窗口之前的等长区间
+    let span = (to - from).num_days().max(0) as u64 + 1;
+    let compare_to = from
+        .checked_sub_days(chrono::Days::new(1))
+        .unwrap_or(from);
+    let compare_from = compare_to
+        .checked_sub_days(chrono::Days::new(span - 1))
+        .unwrap_or(compare_to);
 
     let data = match mode {
         AnalysisMode::AllProjects => {

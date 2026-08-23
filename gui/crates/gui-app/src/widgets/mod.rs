@@ -2,6 +2,7 @@
 
 pub mod chart_primitives;
 pub mod charts;
+pub mod console_bar;
 pub mod data_table;
 pub mod date_range;
 pub mod filter_bar;

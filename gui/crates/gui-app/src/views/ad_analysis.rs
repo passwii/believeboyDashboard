@@ -168,6 +168,12 @@ impl AdAnalysisView {
         self.state.read(cx).clone()
     }
 
+    /// 当前筛选三元组（项目/站点/日期，只读；根视图回归测试断言用）
+    #[allow(dead_code)] // 根视图级测试消费（对齐 current_state 惯例）
+    pub fn console_filter_state(&self) -> (Option<i64>, &'static str, DateRange) {
+        (self.selected_project_id, self.country, self.date_range)
+    }
+
     /// 重新拉取数据：项目/站点切换、错误重试、空态刷新共用入口。
     ///
     /// 每次调用递增 `latest_request_id` 并进入 Loading；响应回来时
@@ -230,6 +236,35 @@ impl AdAnalysisView {
         }
         self.date_range = range;
         self.reload(cx);
+    }
+
+    /// BLF-795：Console Bar 筛选一键应用——对比当前三维，只对变化维度落值，
+    /// 任一变化仅触发一次 reload。返回是否有实际变化。
+    pub fn apply_console_filter(
+        &mut self,
+        project_id: Option<i64>,
+        country: &'static str,
+        range: DateRange,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let project_changed = project_id != self.selected_project_id;
+        let country_changed = country != self.country;
+        let range_changed =
+            range.from.is_some() && range.to.is_some() && range != self.date_range;
+        if !project_changed && !country_changed && !range_changed {
+            return false;
+        }
+        if project_changed {
+            self.selected_project_id = project_id;
+        }
+        if country_changed {
+            self.country = country;
+        }
+        if range_changed {
+            self.date_range = range;
+        }
+        self.reload(cx);
+        true
     }
 
     /// 把概览 Top 行同步进三张 DataTable（懒建 + 幂等注入；render 期调用）
