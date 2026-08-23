@@ -22,6 +22,7 @@
 //! > 显示（对齐 Web /dashboard 首页），侧栏选中任意项后切换到对应占位视图。
 pub mod ad_analysis;
 pub mod ad_data;
+pub mod agent_management;
 pub mod ai_chat;
 pub mod auto_upload;
 pub mod command_palette;
