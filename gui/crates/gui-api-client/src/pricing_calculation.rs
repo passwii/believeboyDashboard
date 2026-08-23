@@ -27,6 +27,7 @@ use gui_domain::operations::new_product_calculation::{
     PricingCostReverseRequest, PricingFbmQuoteRequest, PricingQuoteRequest,
     PricingReverseQuoteRequest, PricingRunItem, PricingRunListResponse,
 };
+use gui_domain::operations::shop_calculation::PricingEuQuoteRequest;
 
 use crate::client::Client;
 use crate::error::ApiError;
@@ -45,6 +46,10 @@ pub(crate) const REVERSE_COST_PATH: &str = "/api/v1/pricing-calculation/reverse-
 
 /// `POST /api/v1/pricing-calculation/fbm-quote` —— FBM 测算
 pub(crate) const FBM_QUOTE_PATH: &str = "/api/v1/pricing-calculation/fbm-quote";
+
+/// `POST /api/v1/pricing-calculation/eu-quote` —— 欧洲（DE/UK）店铺 SKU 核算
+/// （BLF-729 店铺测算板块；新品核算不接）
+pub(crate) const EU_QUOTE_PATH: &str = "/api/v1/pricing-calculation/eu-quote";
 
 /// `DELETE /api/v1/pricing-calculation/runs/{run_id}` —— 删除测算记录
 pub(crate) fn run_delete_path(run_id: i64) -> String {
@@ -122,6 +127,16 @@ impl Client {
         body: &PricingFbmQuoteRequest,
     ) -> Result<PricingRunItem, ApiError> {
         self.request_json(reqwest::Method::POST, FBM_QUOTE_PATH, &[], Some(body))
+            .await
+    }
+
+    /// 欧洲店铺 SKU 核算（BLF-729：DE/UK 站；配送 / 配置 / 仓储三费手动
+    /// 填写口径，响应与 quote 同为 PricingRunItem）
+    pub async fn pricing_eu_quote(
+        &self,
+        body: &PricingEuQuoteRequest,
+    ) -> Result<PricingRunItem, ApiError> {
+        self.request_json(reqwest::Method::POST, EU_QUOTE_PATH, &[], Some(body))
             .await
     }
 }
@@ -215,6 +230,10 @@ mod tests {
         assert_eq!(
             run_delete_path(42),
             "/api/v1/pricing-calculation/runs/42"
+        );
+        assert_eq!(
+            EU_QUOTE_PATH,
+            "/api/v1/pricing-calculation/eu-quote"
         );
     }
 
@@ -348,6 +367,9 @@ mod tests {
             storage_months: 1.0,
             inbound_placement_mode: InboundPlacementMode::SingleDestination,
             usd_to_rmb_rate: None,
+            project_id: None,
+            sku: None,
+            use_historical_shipping_cost: None,
         }
     }
 
@@ -553,6 +575,64 @@ mod tests {
         let run = client.pricing_fbm_quote(&body).await.expect("请求失败");
         m.assert();
         assert_eq!(run.calculation_type, CalculationType::FbmCalc);
+    }
+
+    /// mock HTTP：eu-quote（BLF-729 店铺测算 DE/UK 站）——手动三费 + 项目归属
+    /// 字段携带；响应与 quote 同构（PricingRunItem）
+    #[tokio::test]
+    async fn eu_quote_posts_manual_fees_and_project_fields() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("POST", EU_QUOTE_PATH)
+            .match_body(Matcher::Json(serde_json::json!({
+                "country": "DE",
+                "product_name": "测试项目 / SKU-1",
+                "package_length_cm": 30.0,
+                "package_width_cm": 20.0,
+                "package_height_cm": 10.0,
+                "weight_kg": 1.2,
+                "fob_product_cost_rmb": 45.0,
+                "first_leg_cost_rmb": 8.5,
+                "project_id": 3,
+                "sku": "SKU-1",
+                "sale_price_usd": 29.99,
+                "delivery_fee_usd": 3.2,
+                "inbound_config_fee_usd": 0.3,
+                "storage_fee_usd": 0.1,
+                "commission_rate": 0.15,
+                "advertising_rate": 0.12,
+                "return_loss_rate": 0.04
+            })))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(run_response_body(105, "eu_accounting"))
+            .create();
+
+        let client = Client::new(server.url());
+        let body = PricingEuQuoteRequest {
+            country: "DE".into(),
+            product_name: "测试项目 / SKU-1".into(),
+            package_length_cm: 30.0,
+            package_width_cm: 20.0,
+            package_height_cm: 10.0,
+            weight_kg: 1.2,
+            fob_product_cost_rmb: 45.0,
+            first_leg_cost_rmb: 8.5,
+            project_id: Some(3),
+            sku: Some("SKU-1".into()),
+            sale_price_usd: 29.99,
+            delivery_fee_usd: 3.2,
+            inbound_config_fee_usd: 0.3,
+            storage_fee_usd: 0.1,
+            commission_rate: 0.15,
+            advertising_rate: 0.12,
+            return_loss_rate: 0.04,
+            usd_to_rmb_rate: None,
+        };
+        let run = client.pricing_eu_quote(&body).await.expect("请求失败");
+        m.assert();
+        assert_eq!(run.calculation_type, CalculationType::EuAccounting);
+        assert_eq!(run.calculation_type.label(), "欧洲核算");
     }
 
     /// mock HTTP：quote 422（backend pydantic 校验失败）→ detail 透传

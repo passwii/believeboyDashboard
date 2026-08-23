@@ -67,6 +67,7 @@ use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_UR
 use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
 use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT, INSPECTOR_WIDTH};
 use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
+use crate::views::shop_calculation::{ShopCalculationView, SHOP_CALCULATION_URL};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
@@ -141,6 +142,8 @@ pub struct RootView {
     product_analysis: Option<Entity<ProductAnalysisView>>,
     /// 报表中心 → 新品核算真实视图（P5-4；点击「报表中心 → 新品核算」懒创建）
     new_product_calculation: Option<Entity<NewProductCalculationView>>,
+    /// 报表中心 → 店铺测算真实视图（P5-4 BLF-729；点击「报表中心 → 店铺测算」懒创建）
+    shop_calculation: Option<Entity<ShopCalculationView>>,
     /// 运营 → 发货管理真实视图（P5-3；点击「运营 → 发货管理」懒创建）
     shipment_management: Option<Entity<ShipmentManagementView>>,
     /// 报表中心 → 订单信息真实视图（P5-4；点击「报表中心 → 订单信息」懒创建）
@@ -207,6 +210,8 @@ pub struct RootView {
     show_product_analysis: bool,
     /// 内容区当前是否显示新品核算视图（sidebar Select 命中 NEW_PRODUCT_CALCULATION_URL 时置真）
     show_new_product_calculation: bool,
+    /// 内容区当前是否显示店铺测算视图（sidebar Select 命中 SHOP_CALCULATION_URL 时置真）
+    show_shop_calculation: bool,
     /// 内容区当前是否显示发货管理视图（sidebar Select 命中 SHIPMENT_MANAGEMENT_URL 时置真）
     show_shipment_management: bool,
     /// 内容区当前是否显示订单信息视图（sidebar Select 命中 ORDER_INFO_URL 时置真）
@@ -307,6 +312,7 @@ impl RootView {
                     if url == SITE_NAV_URL {
                         this.site_navigation
                             .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
+                        this.show_shop_calculation = false;
                         this.show_site_navigation = true;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
@@ -352,6 +358,7 @@ impl RootView {
                             })
                         });
                         this.show_site_navigation = false;
+                        this.show_shop_calculation = false;
                         this.show_store_navigation = true;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
@@ -398,6 +405,7 @@ impl RootView {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
+                        this.show_shop_calculation = false;
                         this.show_daily_analysis = true;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
@@ -448,6 +456,7 @@ impl RootView {
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
+                        this.show_shop_calculation = false;
                         this.show_portfolio_overview = true;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
@@ -489,6 +498,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_shop_calculation = false;
                         this.show_ad_analysis = true;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -532,6 +542,7 @@ impl RootView {
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
+                        this.show_shop_calculation = false;
                         this.show_ad_data = true;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
@@ -577,6 +588,7 @@ impl RootView {
                         this.show_daily_analysis = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
+                        this.show_shop_calculation = false;
                         this.show_monthly_report = true;
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
@@ -622,6 +634,7 @@ impl RootView {
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
+                        this.show_shop_calculation = false;
                         this.show_platform_revenue = true;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
@@ -668,6 +681,7 @@ impl RootView {
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
                         this.show_platform_revenue = false;
+                        this.show_shop_calculation = false;
                         this.show_scheduled_reports = true;
                         this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
@@ -735,6 +749,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_auto_upload = true;
                     } else if url == PROJECT_GOALS_URL {
                         // P5-1：项目目标视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -760,6 +775,7 @@ impl RootView {
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
+                        this.show_shop_calculation = false;
                         this.show_project_goals = true;
                         this.show_inventory_analysis = false;
                         this.show_inventory_ledger = false;
@@ -803,6 +819,7 @@ impl RootView {
                         this.show_platform_revenue = false;
                         this.show_scheduled_reports = false;
                         this.show_portfolio_overview = false;
+                        this.show_shop_calculation = false;
                         this.show_return_analysis = true;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
@@ -849,6 +866,7 @@ impl RootView {
                         this.show_portfolio_overview = false;
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
+                        this.show_shop_calculation = false;
                         this.show_inventory_analysis = true;
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
@@ -894,6 +912,7 @@ impl RootView {
                         this.show_return_analysis = false;
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
+                        this.show_shop_calculation = false;
                         this.show_inventory_ledger = true;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
@@ -939,6 +958,7 @@ impl RootView {
                         this.show_project_goals = false;
                         this.show_inventory_analysis = false;
                         this.show_inventory_ledger = false;
+                        this.show_shop_calculation = false;
                         this.show_replenishment = true;
                         this.show_seasonal_replenishment = false;
                         this.show_weekly_product = false;
@@ -990,6 +1010,7 @@ impl RootView {
                         this.show_research_analysis = false;
                         this.show_product_analysis = false;
                         this.show_new_product_calculation = false;
+                        this.show_shop_calculation = false;
                         this.show_platform_inspection = true;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
@@ -1030,6 +1051,7 @@ impl RootView {
                         this.show_inventory_analysis = false;
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
+                        this.show_shop_calculation = false;
                         this.show_seasonal_replenishment = true;
                         this.show_weekly_product = false;
                         this.show_research_analysis = false;
@@ -1075,6 +1097,7 @@ impl RootView {
                         this.show_inventory_ledger = false;
                         this.show_replenishment = false;
                         this.show_seasonal_replenishment = false;
+                        this.show_shop_calculation = false;
                         this.show_weekly_product = true;
                         this.show_product_analysis = false;
                         this.show_new_product_calculation = false;
@@ -1122,6 +1145,7 @@ impl RootView {
                         this.show_research_analysis = false;
                         this.show_product_analysis = false;
                         this.show_new_product_calculation = false;
+                        this.show_shop_calculation = false;
                         this.show_research_analysis = true;
                         this.show_shipment_management = false;
                         this.show_order_info = false;
@@ -1172,6 +1196,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_product_analysis = true;
                     } else if url == SHIPMENT_MANAGEMENT_URL {
                         // P5-3：发货管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1206,6 +1231,7 @@ impl RootView {
                         this.show_research_analysis = false;
                         this.show_product_analysis = false;
                         this.show_new_product_calculation = false;
+                        this.show_shop_calculation = false;
                         this.show_shipment_management = true;
                         this.show_order_info = false;
                         this.show_exchange_rate = false;
@@ -1260,7 +1286,53 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_new_product_calculation = true;
+                    } else if url == SHOP_CALCULATION_URL {
+                        // P5-4：店铺测算视图懒创建（带会话 client），首帧即触发项目列表拉取
+                        this.shop_calculation.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = ShopCalculationView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_shipment_management = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
+                        this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
+                        this.show_crm_audit = false;
+                        this.show_new_product_calculation = false;
+                        this.show_auto_upload = false;
+                        this.show_shop_calculation = true;
                     } else if url == ORDER_INFO_URL {
                         // P5-4：订单信息视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.order_info.get_or_insert_with(|| {
@@ -1302,6 +1374,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_order_info = true;
                     } else if url == EXCHANGE_RATE_URL {
                         // P5-5：汇率信息视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1345,6 +1418,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_exchange_rate = true;
                     } else if url == VAT_INVOICE_URL {
                         // P5-5：VAT 发票视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1389,6 +1463,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_vat_invoice = true;
                     } else if url == COMMISSION_URL {
                         // P5-5 BLF-734：佣金管理视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1434,6 +1509,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_commission = true;
                     } else if url == MODEL_SELECTION_URL {
                         // P5-6 BLF-739：模型选型视图懒创建（纯静态文档，编译期内嵌
@@ -1471,6 +1547,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_model_selection = true;
                     } else if url == CRM_DASHBOARD_URL {
                         // P5-7 BLF-742：CRM 数据看板视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1516,6 +1593,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_crm_dashboard = true;
                     } else if url == CRM_FOLLOW_UPS_URL {
                         // P5-7 BLF-743：CRM 待跟进视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -1559,6 +1637,7 @@ impl RootView {
                         this.show_model_selection = false;
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
+                        this.show_shop_calculation = false;
                         this.show_crm_follow_ups = true;
                         this.show_markdown_to_word = false;
                     } else if url == CRM_AUDIT_URL {
@@ -1604,6 +1683,7 @@ impl RootView {
                         this.show_crm_dashboard = false;
                         this.show_ai_chat = false;
                         this.show_crm_follow_ups = false;
+                        this.show_shop_calculation = false;
                         this.show_crm_audit = true;
                         this.show_markdown_to_word = false;
                     } else if url == AI_CHAT_URL {
@@ -1648,6 +1728,7 @@ impl RootView {
                         this.show_crm_follow_ups = false;
                         this.show_crm_audit = false;
                         this.show_markdown_to_word = false;
+                        this.show_shop_calculation = false;
                         this.show_ai_chat = true;
                     } else if url == MARKDOWN_TO_WORD_URL {
                         // P5-8 BLF-749：工具箱 → Markdown 转换视图懒创建
@@ -1761,6 +1842,7 @@ impl RootView {
             research_analysis: None,
             product_analysis: None,
             new_product_calculation: None,
+            shop_calculation: None,
             shipment_management: None,
             order_info: None,
             exchange_rate: None,
@@ -1794,6 +1876,7 @@ impl RootView {
             show_research_analysis: false,
             show_product_analysis: false,
             show_new_product_calculation: false,
+            show_shop_calculation: false,
             show_shipment_management: false,
             show_order_info: false,
             show_exchange_rate: false,
@@ -1893,6 +1976,8 @@ impl RootView {
             "product-analysis"
         } else if self.show_new_product_calculation {
             "new-product-calculation"
+        } else if self.show_shop_calculation {
+            "shop-calculation"
         } else if self.show_shipment_management {
             "shipment-management"
         } else if self.show_order_info {
@@ -2028,6 +2113,11 @@ impl RootView {
             )
         } else if self.show_new_product_calculation {
             self.new_product_calculation.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_shop_calculation {
+            self.shop_calculation.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -3595,7 +3685,7 @@ mod tests {
                 "新品核算",
                 "/dashboard/reports/pricing-calculation/shop-calculation",
                 "店铺测算",
-                "placeholder",
+                "shop-calculation",
             ),
             (
                 "/dashboard/reports/pricing-calculation/shop-calculation",

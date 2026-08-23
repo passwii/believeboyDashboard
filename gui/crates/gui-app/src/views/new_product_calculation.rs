@@ -854,6 +854,9 @@ impl NewProductCalculationView {
                         storage_months,
                         inbound_placement_mode: inbound,
                         usd_to_rmb_rate: None,
+                        project_id: None,
+                        sku: None,
+                        use_historical_shipping_cost: None,
                     }))
                 } else {
                     let target = self.require_target_rate(cx)?;

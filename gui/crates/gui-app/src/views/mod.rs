@@ -54,6 +54,7 @@ pub mod scheduled_reports;
 pub mod seasonal_replenishment;
 pub mod shell;
 pub mod shipment_management;
+pub mod shop_calculation;
 pub mod sidebar;
 pub mod site_navigation;
 pub mod stat_band;
