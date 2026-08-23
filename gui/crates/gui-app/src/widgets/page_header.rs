@@ -1,18 +1,20 @@
-//! 共享页面头部组件（P4-5，BLF-760）
+//! 共享页面头部组件（P4-5，BLF-760；BLF-792 紧凑化）
 //!
-//! 统一全部业务视图的页面头部结构：**大标题（text_2xl semibold）+
-//! 副标题（text_sm muted）+ 可选操作区（右侧）**。此前各视图手写
-//! 「text_2xl + text_sm」头部块，口径不一且 site/store navigation 缺失；
+//! 统一全部业务视图的页面头部结构：**大标题（FONT_TITLE_LG semibold）+
+//! 副标题（FONT_XS muted）+ 可选操作区（右侧）**。此前各视图手写
+//! 头部块，口径不一且 site/store navigation 缺失；
 //! 收敛为本组件后，chrome 头部（root content_header）只保留面包屑路径，
 //! 页面标题唯一来源即本组件（标题去重决策见 BLF-760 完成评论）。
 //!
-//! 宽窗度量：头部随 [`crate::widgets::layout::content_guard`] 受
-//! [`crate::theme::CONTENT_MAX_WIDTH`] 上限约束并居中，与卡片 / 图表内容对齐。
+//! BLF-792：标题字号从 rem 系 text_2xl（24px）切换到紧凑字阶
+//! [`crate::theme::FONT_TITLE_LG`]（17px ≈ 13pt bold 上限）；副标题
+//! text_sm → [`crate::theme::FONT_XS`]。头部随主工作区全幅平铺
+//! （高密度模式取消内容居中上限）。
 
-use gpui::{prelude::*, AnyElement, App, SharedString, Window};
+use gpui::{prelude::*, px, AnyElement, App, SharedString, Window};
 use gpui_component::{h_flex, v_flex, StyledExt};
 
-use crate::theme::AppTheme;
+use crate::theme::{AppTheme, FONT_TITLE_LG, FONT_XS};
 use crate::widgets::layout::content_guard;
 
 /// 页面头部：大标题 + 副标题 + 可选操作区
@@ -85,7 +87,7 @@ impl RenderOnce for PageHeader {
                     .child(
                         gpui::div()
                             .id("page-header-title")
-                            .text_2xl()
+                            .text_size(px(FONT_TITLE_LG))
                             .font_semibold()
                             .text_color(theme.text_primary)
                             .child(self.title),
@@ -94,7 +96,7 @@ impl RenderOnce for PageHeader {
                         col.child(
                             gpui::div()
                                 .id("page-header-subtitle")
-                                .text_sm()
+                                .text_size(px(FONT_XS))
                                 .text_color(theme.text_muted)
                                 .child(sub),
                         )
@@ -145,7 +147,11 @@ mod tests {
     struct HeaderHost;
 
     impl Render for HeaderHost {
-        fn render(&mut self, _window: &mut Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
             v_flex()
                 .gap_4()
                 .child(PageHeader::new("纯标题"))
@@ -222,44 +228,108 @@ mod tests {
         }
     }
 
-    // ---------- 排版层级契约（P4-7，BLF-762） ----------
+    // ---------- 排版层级契约（P4-7，BLF-762；BLF-792 紧凑字阶） ----------
 
-    /// 全部视图与组件的字号必须走 gpui `text_*` 字阶（theme.rs 排版层级
-    /// 章节：xs=12 / sm=14 / base=16 / lg=18 / xl=20 / 2xl=24），禁止裸
-    /// 像素字面量字号——消除散落临时字号（P4-7 审计一次性收敛 13 文件
-    /// 52 处；新代码回退会被本测试拦下）。
+    /// 全部视图与组件的字号必须走显式来源，禁止裸像素字面量字号：
+    /// - **活跃契约（BLF-792 紧凑字阶）**：theme.rs 字号 token
+    ///   （`FONT_2XS/XS/SM/BASE/TITLE/TITLE_LG`），即 `text_size(px(FONT_*))`；
+    /// - **过渡兼容**：gpui rem 系 `text_xs/sm/base/...` 字阶（存量视图迁移期
+    ///   保留，由各视图迁移批次切换到 token）。
+    ///
+    /// 本测试拦下 `text_size(px(<数字字面量>))` 形式的散落临时字号
+    /// （P4-7 审计一次性收敛 13 文件 52 处；新代码回退会被本测试拦下）。
     #[test]
     fn no_raw_text_size_px_in_views_and_widgets() {
         let files: &[(&str, &str)] = &[
             // 视图层
-            (include_str!("../views/ad_analysis.rs"), "views/ad_analysis.rs"),
+            (
+                include_str!("../views/ad_analysis.rs"),
+                "views/ad_analysis.rs",
+            ),
             (include_str!("../views/ad_data.rs"), "views/ad_data.rs"),
-            (include_str!("../views/daily_analysis.rs"), "views/daily_analysis.rs"),
+            (
+                include_str!("../views/daily_analysis.rs"),
+                "views/daily_analysis.rs",
+            ),
             (include_str!("../views/dashboard.rs"), "views/dashboard.rs"),
-            (include_str!("../views/inventory_analysis.rs"), "views/inventory_analysis.rs"),
-            (include_str!("../views/inventory_ledger.rs"), "views/inventory_ledger.rs"),
+            (
+                include_str!("../views/inventory_analysis.rs"),
+                "views/inventory_analysis.rs",
+            ),
+            (
+                include_str!("../views/inventory_ledger.rs"),
+                "views/inventory_ledger.rs",
+            ),
             (include_str!("../views/login.rs"), "views/login.rs"),
             (include_str!("../views/mod.rs"), "views/mod.rs"),
-            (include_str!("../views/monthly_report.rs"), "views/monthly_report.rs"),
-            (include_str!("../views/placeholder.rs"), "views/placeholder.rs"),
-            (include_str!("../views/platform_inspection.rs"), "views/platform_inspection.rs"),
-            (include_str!("../views/platform_inspection_edit.rs"), "views/platform_inspection_edit.rs"),
-            (include_str!("../views/platform_revenue.rs"), "views/platform_revenue.rs"),
-            (include_str!("../views/portfolio_overview.rs"), "views/portfolio_overview.rs"),
-            (include_str!("../views/project_goals.rs"), "views/project_goals.rs"),
-            (include_str!("../views/replenishment.rs"), "views/replenishment.rs"),
-            (include_str!("../views/return_analysis.rs"), "views/return_analysis.rs"),
+            (
+                include_str!("../views/monthly_report.rs"),
+                "views/monthly_report.rs",
+            ),
+            (
+                include_str!("../views/placeholder.rs"),
+                "views/placeholder.rs",
+            ),
+            (
+                include_str!("../views/platform_inspection.rs"),
+                "views/platform_inspection.rs",
+            ),
+            (
+                include_str!("../views/platform_inspection_edit.rs"),
+                "views/platform_inspection_edit.rs",
+            ),
+            (
+                include_str!("../views/platform_revenue.rs"),
+                "views/platform_revenue.rs",
+            ),
+            (
+                include_str!("../views/portfolio_overview.rs"),
+                "views/portfolio_overview.rs",
+            ),
+            (
+                include_str!("../views/project_goals.rs"),
+                "views/project_goals.rs",
+            ),
+            (
+                include_str!("../views/replenishment.rs"),
+                "views/replenishment.rs",
+            ),
+            (
+                include_str!("../views/return_analysis.rs"),
+                "views/return_analysis.rs",
+            ),
             (include_str!("../views/root.rs"), "views/root.rs"),
-            (include_str!("../views/scheduled_reports.rs"), "views/scheduled_reports.rs"),
-            (include_str!("../views/auto_upload.rs"), "views/auto_upload.rs"),
-            (include_str!("../views/seasonal_replenishment.rs"), "views/seasonal_replenishment.rs"),
+            (
+                include_str!("../views/scheduled_reports.rs"),
+                "views/scheduled_reports.rs",
+            ),
+            (
+                include_str!("../views/auto_upload.rs"),
+                "views/auto_upload.rs",
+            ),
+            (
+                include_str!("../views/seasonal_replenishment.rs"),
+                "views/seasonal_replenishment.rs",
+            ),
             (include_str!("../views/sidebar.rs"), "views/sidebar.rs"),
-            (include_str!("../views/site_navigation.rs"), "views/site_navigation.rs"),
+            (
+                include_str!("../views/site_navigation.rs"),
+                "views/site_navigation.rs",
+            ),
             (include_str!("../views/stat_band.rs"), "views/stat_band.rs"),
-            (include_str!("../views/store_navigation.rs"), "views/store_navigation.rs"),
-            (include_str!("../views/weekly_product_analysis.rs"), "views/weekly_product_analysis.rs"),
+            (
+                include_str!("../views/store_navigation.rs"),
+                "views/store_navigation.rs",
+            ),
+            (
+                include_str!("../views/weekly_product_analysis.rs"),
+                "views/weekly_product_analysis.rs",
+            ),
             // 组件层
-            (include_str!("chart_primitives.rs"), "widgets/chart_primitives.rs"),
+            (
+                include_str!("chart_primitives.rs"),
+                "widgets/chart_primitives.rs",
+            ),
             (include_str!("charts.rs"), "widgets/charts.rs"),
             (include_str!("data_table.rs"), "widgets/data_table.rs"),
             (include_str!("date_range.rs"), "widgets/date_range.rs"),
@@ -271,13 +341,58 @@ mod tests {
             (include_str!("state_views.rs"), "widgets/state_views.rs"),
             (include_str!("top_projects.rs"), "widgets/top_projects.rs"),
         ];
-        // 模式用拼接构造，避免断言文案里的字面量自匹配（本测试源码也在 include_str! 范围内）
-        let raw_size_pat = "text_size(".to_string() + "px(";
         for (src, path) in files {
             assert!(
-                !src.contains(&raw_size_pat),
-                "「{path}」存在裸字号字面量：必须改走 gpui text_* 字阶（theme.rs 排版层级）"
+                !contains_raw_px_font_size(src),
+                "「{path}」存在裸像素字号字面量：必须改走 theme 字号 token（BLF-792 紧凑字阶）\
+                 或 gpui text_* 过渡字阶"
             );
         }
+    }
+
+    /// 检测裸像素字号：`text_size(px(<数字字面量>))`。
+    ///
+    /// theme 字号 token 调用（如 `text_size(px(FONT_BASE))`）放行——token 值
+    /// 统一在 theme.rs 收口并有独立回归锁；rem 系 `text_*` 助手不经过
+    /// `text_size(`，天然放行。检测器自身源码不含完整危险形态，可安全扫描
+    /// 包含本文件的清单。
+    fn contains_raw_px_font_size(src: &str) -> bool {
+        const NEEDLE: &str = concat!("text_size", "(");
+        let mut rest = src;
+        while let Some(pos) = rest.find(NEEDLE) {
+            let after = &rest[pos + NEEDLE.len()..];
+            if let Some(stripped) = after.trim_start().strip_prefix(concat!("px", "(")) {
+                if let Some(first) = stripped.trim_start().chars().next() {
+                    if first.is_ascii_digit() || first == '.' || first == '-' || first == '+' {
+                        return true;
+                    }
+                }
+            }
+            rest = after;
+        }
+        false
+    }
+
+    #[test]
+    fn raw_px_font_size_detector_contract() {
+        let call = |inner: &str| format!(".child(el.text_size(px({inner})))");
+        assert!(
+            contains_raw_px_font_size(&call("13.0")),
+            "裸数字字面量必须命中"
+        );
+        assert!(
+            contains_raw_px_font_size(&call("14")),
+            "整数裸字面量必须命中"
+        );
+        assert!(contains_raw_px_font_size(&call(" 12.5 ")), "带空白仍须命中");
+        assert!(
+            !contains_raw_px_font_size(&call("FONT_BASE")),
+            "theme 字号 token 必须放行"
+        );
+        assert!(
+            !contains_raw_px_font_size(".text_sm().text_base()"),
+            "rem 系助手不经过 text_size(，放行"
+        );
+        assert!(!contains_raw_px_font_size("plain source without sizes"));
     }
 }

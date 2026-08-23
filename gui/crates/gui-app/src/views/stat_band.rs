@@ -17,15 +17,19 @@
 //! 与 frontend 的已知差异（有意保留）：
 //! - `format_compact_currency` 在 ≥1000 档取整（Intl `maximumFractionDigits: 0`），
 //!   如 3100 → "$3K"（前端同行为）；不追求 0.5 边界的舍入位级一致；
-//! - GPUI 无 tabular-nums 字体特性支持，数字用等宽性较弱的比例数字（视觉差异极小）。
+//! - BLF-792 起 KPI 数值统一 JetBrains Mono 等宽 + tabular-nums
+//!   （此前注释「GPUI 无 tabular-nums 支持」已过时：data_table 的
+//!   FontFeatures tnum 方案可复用）。
 
-use gpui::{div, prelude::*, px, App, AnimationExt, Div, Hsla, IntoElement, ParentElement, SharedString, Stateful, Styled, Window};
-use gpui_component::{
-    h_flex, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt,
+use gpui::{
+    div, prelude::*, px, AnimationExt, App, Div, Hsla, IntoElement, ParentElement, SharedString,
+    Stateful, Styled, Window,
 };
+use gpui_component::{h_flex, tooltip::Tooltip, v_flex, Icon, IconName, Sizable, StyledExt};
 use gui_domain::dashboard::KpiSummary;
 
-use crate::theme::AppTheme;
+use crate::theme::{AppTheme, FONT_TITLE_LG};
+use crate::widgets::data_table::TabularNumsExt;
 
 /// 环比说明文案（Tooltip 悬停展示）
 const DELTA_TOOLTIP: &str = "环比上一周期（近 7 天 vs 前一 7 天）";
@@ -214,14 +218,11 @@ pub fn stat_band(
 ) -> impl IntoElement {
     let stats = compute_stats(current, comparison);
     let reduce = crate::motion::reduce_motion(cx);
-    h_flex()
-        .id("stat-band")
-        .gap_3()
-        .children(
-            stats
-                .iter()
-                .map(|stat| render_card(stat, theme, window, cx, reduce)),
-        )
+    h_flex().id("stat-band").gap_3().children(
+        stats
+            .iter()
+            .map(|stat| render_card(stat, theme, window, cx, reduce)),
+    )
 }
 
 /// 单张 KPI 卡：label + 环比 delta（右上）+ 大数字
@@ -282,8 +283,9 @@ fn render_card(
     let value_el = if let (Some(raw), false) = (raw, reduce) {
         // count-up：动画 id 编码 label，元素首次出现时从 0 计数到目标
         div()
-            .text_2xl()
+            .text_size(px(FONT_TITLE_LG))
             .font_semibold()
+            .mono_tabular_nums()
             .text_color(value_color)
             .with_animation(
                 SharedString::from(format!("kpi-count-{label}")),
@@ -296,8 +298,9 @@ fn render_card(
             .into_any_element()
     } else {
         div()
-            .text_2xl()
+            .text_size(px(FONT_TITLE_LG))
             .font_semibold()
+            .mono_tabular_nums()
             .text_color(value_color)
             .child(value_text)
             .into_any_element()
@@ -524,7 +527,10 @@ mod tests {
     /// P4-2：KpiKind::format 对齐各展示层函数（count-up 每帧格式化路径）
     #[test]
     fn kpi_kind_format_matches_display_functions() {
-        assert_eq!(KpiKind::Currency.format(3100.0), format_compact_currency(3100.0));
+        assert_eq!(
+            KpiKind::Currency.format(3100.0),
+            format_compact_currency(3100.0)
+        );
         assert_eq!(KpiKind::Number.format(1234.0), format_compact_number(1234));
         assert_eq!(KpiKind::Percent.format(5.0), format_percent(5.0));
         // 插值中间值也能格式化（count-up 每帧调用，不能 panic）
