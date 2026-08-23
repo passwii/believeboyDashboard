@@ -11,6 +11,7 @@
 //! - `auth`        登录 / 会话校验（domain crate 不涉及，所以放这里）
 //! - 其余一级分类对应同名模块
 
+pub mod admin_users;
 pub mod advertising;
 pub mod agent_management;
 pub mod ai_chat;

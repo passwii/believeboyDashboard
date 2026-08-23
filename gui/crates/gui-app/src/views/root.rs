@@ -37,6 +37,7 @@ use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 use crate::theme::AppTheme;
 use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
+use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
 use crate::views::agent_management::{AgentManagementView, AGENT_MANAGEMENT_URL};
 use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
@@ -179,6 +180,8 @@ pub struct RootView {
     system_logs: Option<Entity<SystemLogsView>>,
     /// 系统管理 → Agent 接入管理真实视图（P5-8 BLF-758；点击「系统管理 → Agent 接入管理」懒创建）
     agent_management: Option<Entity<AgentManagementView>>,
+    /// 系统管理 → 账号管理真实视图（P5-8 BLF-754；点击「系统管理 → 账号管理」懒创建）
+    account_management: Option<Entity<AccountManagementView>>,
 
     /// 运营 → 平台巡检真实视图（P5-1；点击「运营 → 平台巡检」懒创建）
     platform_inspection: Option<Entity<PlatformInspectionView>>,
@@ -252,6 +255,8 @@ pub struct RootView {
     show_system_logs: bool,
     /// 内容区当前是否显示 Agent 接入管理视图（sidebar Select 命中 AGENT_MANAGEMENT_URL 时置真）
     show_agent_management: bool,
+    /// 内容区当前是否显示账号管理视图（sidebar Select 命中 ACCOUNT_MANAGEMENT_URL 时置真）
+    show_account_management: bool,
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
@@ -370,6 +375,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == STORE_NAV_URL {
                         // P5-1：店铺导航视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.store_navigation.get_or_insert_with(|| {
@@ -417,6 +423,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.daily_analysis.get_or_insert_with(|| {
@@ -464,6 +471,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == PORTFOLIO_URL {
                         // P5-1：组合分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.portfolio_overview.get_or_insert_with(|| {
@@ -511,6 +519,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
@@ -560,6 +569,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == AD_DATA_URL {
                         // P3-3：广告数据视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ad_data.get_or_insert_with(|| {
@@ -605,6 +615,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.monthly_report.get_or_insert_with(|| {
@@ -652,6 +663,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == PLATFORM_REVENUE_URL {
                         // P3-4：平台回款视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.platform_revenue.get_or_insert_with(|| {
@@ -699,6 +711,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == SCHEDULED_REPORTS_URL || url.starts_with(SCHEDULED_REPORTS_URL)
                     {
                         // P3-5：定时报告视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -747,6 +760,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == AUTO_UPLOAD_URL {
                         // P5-4：报表自动化视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.auto_upload.get_or_insert_with(|| {
@@ -793,6 +807,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_auto_upload = true;
                     } else if url == PROJECT_GOALS_URL {
@@ -842,6 +857,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == RETURN_ANALYSIS_URL {
                         // P5-1：退货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.return_analysis.get_or_insert_with(|| {
@@ -889,6 +905,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == INVENTORY_ANALYSIS_URL {
                         // P5-2：库存分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_analysis.get_or_insert_with(|| {
@@ -936,6 +953,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == INVENTORY_LEDGER_URL {
                         // P5-2：库存分类账视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.inventory_ledger.get_or_insert_with(|| {
@@ -983,6 +1001,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == REPLENISHMENT_URL {
                         // P5-2：补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.replenishment.get_or_insert_with(|| {
@@ -1030,6 +1049,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == PLATFORM_INSPECTION_URL
                         || url.starts_with(PLATFORM_INSPECTION_URL)
                     {
@@ -1079,6 +1099,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == SEASONAL_REPLENISHMENT_URL {
                         // P5-2：季节性补货分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.seasonal_replenishment.get_or_insert_with(|| {
@@ -1126,6 +1147,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == WEEKLY_PRODUCT_URL {
                         // P5-2：按周产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.weekly_product.get_or_insert_with(|| {
@@ -1172,6 +1194,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == RESEARCH_ANALYSIS_URL {
                         // P5-3：调研分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.research_analysis.get_or_insert_with(|| {
@@ -1220,6 +1243,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == PRODUCT_ANALYSIS_URL {
                         // P5-4：产品分析视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.product_analysis.get_or_insert_with(|| {
@@ -1260,6 +1284,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_product_analysis = true;
                     } else if url == SHIPMENT_MANAGEMENT_URL {
@@ -1309,6 +1334,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == NEW_PRODUCT_CALCULATION_URL {
                         // P5-4：新品核算视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.new_product_calculation.get_or_insert_with(|| {
@@ -1354,6 +1380,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_new_product_calculation = true;
                     } else if url == SHOP_CALCULATION_URL {
@@ -1444,6 +1471,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_order_info = true;
                     } else if url == EXCHANGE_RATE_URL {
@@ -1490,6 +1518,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_exchange_rate = true;
                     } else if url == VAT_INVOICE_URL {
@@ -1537,6 +1566,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_vat_invoice = true;
                     } else if url == COMMISSION_URL {
@@ -1585,6 +1615,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_commission = true;
                     } else if url == MODEL_SELECTION_URL {
@@ -1625,6 +1656,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_model_selection = true;
                     } else if url == CRM_DASHBOARD_URL {
@@ -1673,6 +1705,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_crm_dashboard = true;
                     } else if url == CRM_FOLLOW_UPS_URL {
@@ -1722,6 +1755,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == CRM_AUDIT_URL {
                         // P5-7 BLF-747：CRM 操作日志视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.crm_audit.get_or_insert_with(|| {
@@ -1770,6 +1804,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == AI_CHAT_URL {
                         // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.ai_chat.get_or_insert_with(|| {
@@ -1814,6 +1849,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_ai_chat = true;
                     } else if url == MARKDOWN_TO_WORD_URL {
@@ -1855,6 +1891,7 @@ impl RootView {
                         this.show_markdown_to_word = true;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == SYSTEM_LOGS_URL {
                         // P5-8 BLF-757：日志查看视图懒创建（带会话 client），首帧即触发首屏拉取
                         this.system_logs.get_or_insert_with(|| {
@@ -1901,6 +1938,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = true;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
                     } else if url == AGENT_MANAGEMENT_URL {
                         // P5-8 BLF-758：系统管理 → Agent 接入管理视图懒创建
                         //（带会话 client），首帧即触发凭据列表拉取
@@ -1950,6 +1988,60 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = true;
+                    } else if url == ACCOUNT_MANAGEMENT_URL {
+                        // P5-8 BLF-754：系统管理 → 账号管理视图懒创建
+                        //（带会话 client），首帧即触发账号列表拉取
+                        this.account_management.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = AccountManagementView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload_users(cx);
+                                view
+                            })
+                        });
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_daily_analysis = false;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_new_product_calculation = false;
+                        this.show_shipment_management = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
+                        // 修复：else（占位页）分支此前漏复位 show_auto_upload——
+                        // 从报表自动化切到任意占位页会残留 true，view_key/
+                        // content_view 链误命中 auto-upload 视图
+                        this.show_auto_upload = false;
+                        this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
+                        this.show_crm_audit = false;
+                        this.show_shop_calculation = false;
+                        this.show_markdown_to_word = false;
+                        this.show_system_logs = false;
+                        this.show_agent_management = false;
+                        // P5-8 BLF-754：账号管理分支置真（上方 reset 列表覆盖全部既有视图）
+                        this.show_account_management = true;
                     } else {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
@@ -1988,6 +2080,7 @@ impl RootView {
                         this.show_markdown_to_word = false;
                         this.show_system_logs = false;
                         this.show_agent_management = false;
+                        this.show_account_management = false;
 
                         this.content.update(cx, |content, cx| {
                             content.title = title.clone();
@@ -2042,6 +2135,7 @@ impl RootView {
             markdown_to_word: None,
             system_logs: None,
             agent_management: None,
+            account_management: None,
 
             platform_inspection: None,
             show_dashboard,
@@ -2078,6 +2172,7 @@ impl RootView {
             show_markdown_to_word: false,
             show_system_logs: false,
             show_agent_management: false,
+            show_account_management: false,
             show_auto_upload: false,
 
             show_platform_inspection: false,
@@ -2247,6 +2342,8 @@ impl RootView {
             "system-logs"
         } else if self.show_agent_management {
             "agent-management"
+        } else if self.show_account_management {
+            "account-management"
         } else if self.show_platform_inspection {
             "platform-inspection"
         } else if self.show_auto_upload {
@@ -2430,6 +2527,11 @@ impl RootView {
             )
         } else if self.show_agent_management {
             self.agent_management.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_account_management {
+            self.account_management.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -4051,7 +4153,7 @@ mod tests {
                 "Agent 接入管理",
                 "/dashboard/system/account-management",
                 "账号管理",
-                "placeholder",
+                "account-management",
             ),
             (
                 "/dashboard/system/account-management",
@@ -4076,6 +4178,88 @@ mod tests {
                     view.read(app).view_key(),
                     expected_key,
                     "Agent 接入管理两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+    /// P5-8（BLF-754）：账号管理 ↔ 相邻 / 跨板块视图两步切换契约——
+    /// 锁每个既有分支的 reset 列表都补了 `show_account_management = false`
+    /// （含 system_logs / markdown_to_word 分支与 placeholder else 分支），避免漏
+    /// reset 触发 view_key/content_view 链误命中。
+    #[gpui::test]
+    async fn view_key_account_management_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-accountmgmt".into(),
+                name: "账号管理切换".into(),
+                email: "accountmgmt@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-accountmgmt".into(),
+                api_key: String::new(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+
+        let transitions = [
+            (
+                "/dashboard/system/logs",
+                "日志查看",
+                "/dashboard/system/account-management",
+                "账号管理",
+                "account-management",
+            ),
+            (
+                "/dashboard/system/account-management",
+                "账号管理",
+                "/dashboard/tools/markdown-to-word",
+                "Markdown 转换",
+                "markdown-to-word",
+            ),
+            (
+                "/dashboard/tools/markdown-to-word",
+                "Markdown 转换",
+                "/dashboard/system/account-management",
+                "账号管理",
+                "account-management",
+            ),
+            (
+                "/dashboard/system/account-management",
+                "账号管理",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/system/account-management",
+                "账号管理",
+                "account-management",
+            ),
+            (
+                "/dashboard/system/account-management",
+                "账号管理",
+                "/dashboard/nonexistent/url",
+                "占位页",
+                "placeholder",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "账号管理两步切换 {title_a} → {title_b}"
                 )
             });
         }
