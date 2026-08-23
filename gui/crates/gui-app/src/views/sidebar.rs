@@ -24,14 +24,14 @@
 //!   `start_window_move()` + 双击 `titlebar_double_click()`），traffic lights 旁即拖拽区
 
 use gpui::{
-    AnimationExt, App, BoxShadow, Context, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
-    MouseButton, MouseMoveEvent, SharedString, Stateful, Window, WindowControlArea, div,
-    prelude::*, px, svg,
+    div, prelude::*, px, svg, AnimationExt, App, BoxShadow, Context, EventEmitter, FocusHandle,
+    Focusable, KeyDownEvent, MouseButton, MouseMoveEvent, SharedString, Stateful, Window,
+    WindowControlArea,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 
-use gui_domain::sidebar::{SidebarGroup, SidebarItem, sidebar_groups};
+use gui_domain::sidebar::{sidebar_groups, SidebarGroup, SidebarItem};
 
 use crate::icon::icon_path;
 use crate::motion::{hover_transition, lerp_hsla, reduce_motion};
@@ -626,13 +626,14 @@ fn active_item_shadow(theme: &AppTheme) -> BoxShadow {
     }
 }
 
-/// 折叠态悬停的原生 tooltip 视图（跟随主题 popover 语义色）
-struct SidebarTooltip {
+/// 折叠态悬停的原生 tooltip 视图（跟随主题 popover 语义色；BLF-793 起
+/// Master Rail 图标悬停提示复用同一实现）
+pub(crate) struct SidebarTooltip {
     title: SharedString,
 }
 
 impl SidebarTooltip {
-    fn new(title: impl Into<SharedString>) -> Self {
+    pub(crate) fn new(title: impl Into<SharedString>) -> Self {
         Self {
             title: title.into(),
         }

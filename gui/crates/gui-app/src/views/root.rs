@@ -1,22 +1,24 @@
-//! 主窗口根视图：左侧全高侧栏 + 右侧内容区（P4-1 macOS 原生左右结构）
+//! 主窗口根视图：六区平铺外壳（BLF-793）+ 视图分发
 //!
-//! 继承 GUI-3（BLF-675）的侧栏渲染 / 键盘导航 / 占位内容区，
-//! GUI-2（BLF-674）叠加：已登录用户信息栏 + 退出登录（emit `RootViewEvent::Logout`，
-//! 由 main.rs 清 Keychain 并切回登录窗口）。
-//! GUI-7（BLF-679）叠加：Dashboard 首页作为「sidebar 之外的着陆页」启动即显示
-//! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
-//! GUI-12（BLF-684）叠加：侧栏命中「运营 → 站点导航」URL 时显示真实站点导航视图
-//! （懒创建），其余子项仍为占位视图。
-//! P2-2（BLF-689）叠加：主题系统基线——全视图消费 [`AppTheme`] 语义 token；
-//! （历史）「外观」三态切换菜单曾迁入内容区头部，BLF-792 起下线：
-//! 应用默认锁定深色（高密度暗色工具主题），休眠路径见 theme.rs。
-//! P4-1（BLF-707）窗口 Chrome 重构：**移除跨全宽 gpui-component `TitleBar`**——主窗口
-//! 改为经典左右结构，侧栏全高从窗口顶部开始（系统 traffic lights 悬于侧栏头部之上，
-//! 头部顶部留避让区）；右侧内容区头部 = 面包屑路径 + 用户/退出；
-//! P4-5（BLF-760）标题去重：chrome 头部不再重复渲染业务标题（此前 text_base 标题 +
-//! 面包屑末项 + 页面 text_2xl 大标题三层重复），仅保留面包屑路径作导航上下文；
-//! 页面标题唯一来源 = 各视图 [`crate::widgets::page_header::PageHeader`] 大标题。
-//! 折叠态下展开按钮位于内容区头部最左，侧栏只剩 56px 图标轨道。
+//! **BLF-793 外壳重构**：布局改为父 issue「空间栅格」的零外边距六区栅格——
+//! 左 Master Rail（[`crate::views::shell::RAIL_WIDTH`] 图标栏）/ 左二 Sub-Nav 列
+//! （本期挂遗留全功能侧栏，Stage3 重造）/ 顶 Console Bar 36px 插槽（本期由
+//! 面包屑 + 用户 chrome 占位，Stage4 换四件套筛选条）/ 中央 Canvas / 右
+//! Inspector 插槽（本期空面板，Stage5 实装）/ 底 Footer 24px 插槽（本期空面板，
+//! Stage6 实装）。容器外 padding 0，区间一律 1px 分隔线；尺寸常量集中在
+//! [`crate::views::shell`]。
+//!
+//! Rail ↔ 导航绑定：Rail 选中分类 → 默认视图路由（该组第一项）；Sub-Nav
+//! 侧栏选中子项 → 反写 Rail 高亮所属分类。两侧状态唯一权威 =
+//! `gui_domain::sidebar` 的 8 组 52 项。
+//!
+//! 历史能力保留：继承 GUI-3（BLF-675）侧栏渲染 / 键盘导航 / 占位内容区，
+//! GUI-2（BLF-674）已登录用户信息栏 + 退出登录（emit `RootViewEvent::Logout`，
+//! 由 main.rs 清 Keychain 并切回登录窗口），GUI-7（BLF-679）Dashboard 着陆页，
+//! GUI-12（BLF-684）起各真实视图懒创建分发（~30 视图整体挂进 Canvas 区）。
+//! P2-2（BLF-689）：全视图消费 [`AppTheme`] 语义 token；BLF-792 起应用默认锁定
+//! 深色（高密度暗色工具主题）。P4-1（BLF-707）窗口 Chrome 契约保持——透明标题栏
+//! + traffic lights(9,9) 悬于最左列之上，头部承担窗口拖拽区。
 
 use gpui::prelude::*;
 use gpui::{
@@ -28,7 +30,7 @@ use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
-use gui_domain::sidebar::breadcrumb_for;
+use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
 use crate::theme::AppTheme;
 use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
@@ -45,6 +47,7 @@ use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
 use crate::views::markdown_to_word::{MarkdownToWordView, MARKDOWN_TO_WORD_URL};
+use crate::views::master_rail::{MasterRailEvent, MasterRailView};
 use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
 use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::new_product_calculation::{
@@ -62,6 +65,7 @@ use crate::views::research_analysis::{ResearchAnalysisView, RESEARCH_ANALYSIS_UR
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
+use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT, INSPECTOR_WIDTH};
 use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::sidebar::{SidebarEvent, SidebarView};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
@@ -86,9 +90,14 @@ pub enum RootViewEvent {
     Logout,
 }
 
-/// 根视图：TitleBar + 侧栏 + 内容区
+/// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
 pub struct RootView {
     pub sidebar: Entity<SidebarView>,
+    /// BLF-793：Master Rail 主图标栏（六区最左列，绑定 gui-domain 8 分类）
+    pub rail: Entity<MasterRailView>,
+    /// BLF-793：当前激活一级分类 id（Rail 选中态与侧栏子项双向绑定的中枢；
+    /// None = Dashboard 着陆页）
+    active_category: Option<String>,
     pub content: Entity<PlaceholderView>,
     /// Dashboard 着陆页（sidebar 之外的首页，对齐 Web /dashboard）；启动即显示
     dashboard: Option<Entity<DashboardView>>,
@@ -256,7 +265,25 @@ impl RootView {
         });
 
         let sidebar = cx.new(|cx| SidebarView::new(None, cx));
+        let rail_user = session
+            .as_ref()
+            .map(|s| s.user.name.clone())
+            .unwrap_or_default();
+        let rail = cx.new(|cx| MasterRailView::new(&rail_user, cx));
         let content = cx.new(|_| PlaceholderView::new("", ""));
+
+        // BLF-793：Rail 选中分类 → 默认视图路由（该组第一项；已在该分类内则
+        // 保留当前子视图不重路由）。emit 经 pending_effects 异步冲刷，此处
+        // 再驱动 sidebar 不会与 rail 实体借用嵌套。
+        cx.subscribe(
+            &rail,
+            |this, _rail, event: &MasterRailEvent, cx| match event {
+                MasterRailEvent::CategorySelected { group_id } => {
+                    this.on_rail_category_selected(group_id, cx);
+                }
+            },
+        )
+        .detach();
 
         // 侧栏选中变化 → 内容区切换 + 标题/面包屑跟随（GUI-12：命中站点导航
         // URL 显示真实视图，其余仍为占位）；折叠变化 → 同步内容区头部布局（P4-1）
@@ -269,6 +296,14 @@ impl RootView {
                     this.show_dashboard = false;
                     this.current_title = title.clone();
                     this.breadcrumb = breadcrumb_for(url).unwrap_or_else(|| vec![title.clone()]);
+                    // BLF-793：Rail 选中态与 gui-domain 8 组严格绑定——子项选中
+                    // 回写所属分类高亮（Dashboard 着陆页等侧栏外 url → None）
+                    let category = group_id_for_url(url);
+                    if this.active_category != category {
+                        this.active_category = category.clone();
+                        this.rail
+                            .update(cx, |rail_view, cx| rail_view.set_active(category, cx));
+                    }
                     if url == SITE_NAV_URL {
                         this.site_navigation
                             .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
@@ -1702,7 +1737,9 @@ impl RootView {
 
         Self {
             sidebar,
+            rail,
             content,
+            active_category: None,
             dashboard,
             site_navigation: None,
             store_navigation: None,
@@ -1787,6 +1824,30 @@ impl RootView {
             s.warning = Some(warning);
         }
         cx.notify();
+    }
+
+    /// BLF-793：Rail 选中分类 → 默认视图路由。
+    ///
+    /// 路由实现 = 驱动既有侧栏选中该分类的**第一项**（默认视图），复用现
+    /// root.rs 视图分发链（懒创建 + show_* 标志 + 面包屑跟随），~30 视图
+    /// 无需逐个改版。已在该分类内时不重路由——保留用户当前打开的子视图
+    /// （如「财务资金」内从平台回款切到汇率信息后，再点 Rail 的财务资金
+    /// 图标不会跳回平台回款）。
+    fn on_rail_category_selected(&mut self, group_id: &str, cx: &mut Context<Self>) {
+        if self.active_category.as_deref() == Some(group_id) {
+            return;
+        }
+        let groups = sidebar_groups();
+        let Some(group) = groups.iter().find(|g| g.id == group_id) else {
+            return;
+        };
+        let Some(first) = group.items.first() else {
+            return;
+        };
+        self.active_category = Some(group_id.to_string());
+        self.sidebar.update(cx, |sidebar, cx| {
+            sidebar.select(&first.url, &first.title, cx)
+        });
     }
 
     /// P4-2：当前内容区视图身份（视图切换过渡动画 id 用）——视图变化时该键变化，
@@ -2089,47 +2150,116 @@ impl Render for RootView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
 
+        // BLF-793 六区外壳（尺寸常量见 views::shell）：
+        //
+        // ┌────┬──────────┬────────────────────┬───────────┐
+        // │Rail│ Sub-Nav  │ Console Bar (36px) │ Inspector │
+        // │48px│          ├────────────────────┤  (300)    │
+        // │    │          │ Canvas (flex-1)    │           │
+        // ├────┴──────────┴────────────────────┴───────────┤
+        // │ Footer (24px)                                   │
+        // └─────────────────────────────────────────────────┘
+        //
+        // 容器外 padding 0；区间层级一律 1px 分隔线表达（无重投影）。
         div()
             .id("root")
             .flex()
+            .flex_col()
             .size_full()
+            // BLF-793 键盘可达：tab / shift-tab 在窗口内 tab stop 间前后遍历
+            // （Master Rail 的分类图标与底部入口均为 tab stop；动作绑定见
+            // main.rs，此处为全窗口唯一处理点——任意焦点下都会冒泡到根容器）
+            .on_action(cx.listener(|_, _: &crate::TabNext, window, _| {
+                window.focus_next();
+            }))
+            .on_action(cx.listener(|_, _: &crate::TabPrev, window, _| {
+                window.focus_prev();
+            }))
             // P4-3（BLF-709）材质收敛：主窗口背景改用不透明（main.rs 移除
             // `WindowBackgroundAppearance::Blurred`）——GPUI 0.2.2 无 NSVisualEffectView
             // 接入，整窗模糊 + 半透明叠加观感粗糙且禁用亚像素文字渲染（apple-glass.md
-            // Tier 4/6）。根容器画不透明 window_bg 兜底（侧栏折叠动画期间无透底/间隙），
-            // 侧栏与内容列均为不透明实色（macOS 原生标准窗口观感）。
+            // Tier 4/6）。根容器画不透明 window_bg 兜底（分区切换期间无透底/间隙）。
             .bg(theme.window_bg)
-            .child(self.sidebar.clone())
             .child(
+                // 上区行：Rail | Sub-Nav | 中央列 | Inspector
                 div()
-                    .id("content-col")
+                    .id("shell-upper")
+                    .flex()
+                    .flex_row()
                     .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .flex_col()
-                    .bg(theme.window_bg)
-                    // P4-1：内容区头部 = 面包屑 + 外观菜单 + 用户/退出
-                    // P4-5：业务标题去重——头部只留面包屑，标题由页面 PageHeader 承载
-                    .child(content_header(
-                        &self.breadcrumb,
-                        self.sidebar_collapsed,
-                        &self.session,
-                        cx,
-                    ))
-                    .when(
-                        self.session
-                            .as_ref()
-                            .and_then(|s| s.warning.as_ref())
-                            .is_some(),
-                        |col| col.child(warning_banner(&self.session, &theme)),
-                    )
+                    .min_h_0()
+                    .w_full()
+                    .overflow_hidden()
+                    .child(self.rail.clone())
+                    // Sub-Nav 插槽：本期挂遗留全功能侧栏（自管 240/56px 宽度与
+                    // 折叠动画，回归不破）；Stage3 重造为 180~220px 分组列表 + ⌘K。
+                    // 右分隔线由侧栏自绘（sidebar_border），插槽不再叠加。
                     .child(
                         div()
-                            .id("content")
-                            .flex_1()
+                            .id("sub-nav-slot")
                             .h_full()
-                            .child(self.content_view(cx)),
+                            .flex_none()
+                            .bg(theme.panel_bg)
+                            .child(self.sidebar.clone()),
+                    )
+                    // 中央列：Console Bar 插槽 + Canvas
+                    .child(
+                        div()
+                            .id("center-col")
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .bg(theme.window_bg)
+                            // Console Bar 插槽（36px）：本期由面包屑 + 用户 chrome
+                            // 占位并承担窗口拖拽区，Stage4 换四件套筛选条组件
+                            .child(content_header(
+                                &self.breadcrumb,
+                                self.sidebar_collapsed,
+                                &self.session,
+                                cx,
+                            ))
+                            .when(
+                                self.session
+                                    .as_ref()
+                                    .and_then(|s| s.warning.as_ref())
+                                    .is_some(),
+                                |col| col.child(warning_banner(&self.session, &theme)),
+                            )
+                            .child(
+                                div()
+                                    .id("canvas")
+                                    .flex_1()
+                                    .min_h_0()
+                                    .w_full()
+                                    .overflow_hidden()
+                                    .bg(theme.window_bg)
+                                    .child(self.content_view(cx)),
+                            ),
+                    )
+                    // Inspector 插槽（300px）：空面板占位，Stage5 实装 Cmd+B 自适应抽屉
+                    .child(
+                        div()
+                            .id("inspector-slot")
+                            .h_full()
+                            .flex_none()
+                            .w(px(INSPECTOR_WIDTH))
+                            .bg(theme.card_bg)
+                            .border_l_1()
+                            .border_color(theme.separator),
                     ),
+            )
+            // Footer 插槽（24px）：空面板占位，Stage6 实装汇率 ticker / 同步状态 /
+            // 通知徽标 / 延迟指标
+            .child(
+                div()
+                    .id("footer-slot")
+                    .w_full()
+                    .flex_none()
+                    .h(px(FOOTER_HEIGHT))
+                    .bg(theme.window_bg)
+                    .border_t_1()
+                    .border_color(theme.separator),
             )
     }
 }
@@ -2140,14 +2270,13 @@ impl Focusable for RootView {
     }
 }
 
-/// 右侧内容区头部（P4-1；P4-5 标题去重）：左侧 = 面包屑路径（折叠态下最左还有
-/// 「展开侧栏」按钮），右侧 = 已登录用户 + 退出登录。
+/// Console Bar 插槽占位内容（BLF-793）：左侧 = 面包屑路径（折叠态下最左还有
+/// 「展开侧栏」按钮），右侧 = 已登录用户 + 退出登录；高 36px 固定（插槽契约）。
 /// 业务标题不在头部渲染——chrome 标题与页面 PageHeader 大标题重复，
 /// 去重后头部仅保留面包屑导航上下文（决策见 BLF-760 完成评论）。
-/// 原跨全宽 `TitleBar`（P2-1）的职责迁入此处——主窗口不再有顶部工具栏，
-/// 侧栏全高从窗口顶部开始，系统 traffic lights 悬于侧栏头部之上。
-/// BLF-792：外观切换菜单已下线——应用默认锁定深色（高密度暗色工具主题），
-/// 浅色/跟随系统路径休眠保留在 theme.rs，不在 UI 暴露。
+/// 原 `TitleBar` 的窗口拖拽职责由本条承担（`WindowControlArea::Drag`），
+/// traffic lights 现悬于最左 Master Rail 之上。Stage4 本插槽将换装
+/// ProjectSelect / CountrySelect / DateRangePicker / ConsoleStatBar 四件套。
 fn content_header(
     breadcrumb: &[String],
     collapsed: bool,
@@ -2161,8 +2290,9 @@ fn content_header(
         .flex()
         .items_center()
         .w_full()
-        .h(px(56.0))
-        .px_4()
+        .flex_none()
+        .h(px(CONSOLE_BAR_HEIGHT))
+        .px_3()
         .gap_3()
         .border_b_1()
         .border_color(theme.separator)
@@ -2355,6 +2485,81 @@ mod tests {
         };
         let (_view, _window_cx) =
             cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+    }
+
+    /// BLF-793：Rail 分类选中 → 默认视图路由——点「财务资金」应打开该组第一项
+    /// （平台回款），面包屑/标题跟随，active_category 同步。
+    #[gpui::test]
+    async fn rail_category_select_routes_default_view(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
+        let rail = cx.read(|app| view.read(app).rail.clone());
+
+        // 初始：无会话 → 无着陆页，无激活分类
+        cx.read(|app| {
+            let root = view.read(app);
+            assert_eq!(root.active_category, None);
+            assert!(!root.show_dashboard, "无会话时不应显示 Dashboard 着陆页");
+            assert!(!root.show_platform_revenue, "路由前不应显示任何业务视图");
+        });
+
+        rail.update(cx, |rail_view, cx| rail_view.select_category("finance", cx));
+        cx.read(|app| {
+            let root = view.read(app);
+            assert!(
+                root.show_platform_revenue,
+                "应路由到财务资金组默认视图（平台回款）"
+            );
+            assert!(!root.show_dashboard, "着陆页应让位");
+            assert_eq!(root.current_title, "平台回款");
+            assert_eq!(
+                root.breadcrumb,
+                vec!["财务资金".to_string(), "平台回款".to_string()]
+            );
+            assert_eq!(root.active_category.as_deref(), Some("finance"));
+        });
+    }
+
+    /// BLF-793：反向绑定——Sub-Nav 侧栏选中子项后 Rail 高亮跟随所属分类；
+    /// 同分类内切换子视图后再点 Rail 图标不重路由（保留当前子视图）。
+    #[gpui::test]
+    async fn rail_binding_follows_and_preserves_sub_view(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, None));
+        let rail = cx.read(|app| view.read(app).rail.clone());
+        let sidebar = cx.read(|app| view.read(app).sidebar.clone());
+
+        // 侧栏选「运营 → 销售数据」→ Rail 高亮运营
+        sidebar.update(cx, |this, cx| {
+            this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
+        });
+        cx.read(|app| {
+            let root = view.read(app);
+            assert_eq!(root.active_category.as_deref(), Some("operations"));
+            assert!(root.show_daily_analysis);
+        });
+
+        // 点 Rail「报表中心」→ 路由到该组默认视图（财务月报）
+        rail.update(cx, |rail_view, cx| rail_view.select_category("reports", cx));
+        cx.read(|app| {
+            let root = view.read(app);
+            assert!(root.show_monthly_report);
+            assert_eq!(root.active_category.as_deref(), Some("reports"));
+        });
+
+        // 同分类内切到「定时报告」→ 再点 Rail「报表中心」不跳回默认视图
+        sidebar.update(cx, |this, cx| {
+            this.select("/dashboard/reports/scheduled-reports", "定时报告", cx)
+        });
+        rail.update(cx, |rail_view, cx| rail_view.select_category("reports", cx));
+        cx.read(|app| {
+            let root = view.read(app);
+            assert!(
+                root.show_scheduled_reports,
+                "同分类重复点击应保留当前子视图"
+            );
+            assert!(!root.show_monthly_report, "不应重路由回财务月报");
+        });
     }
 
     /// P4-1：折叠状态同步契约——侧栏 toggle 后 RootView 的 sidebar_collapsed 跟随

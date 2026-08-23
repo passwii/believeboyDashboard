@@ -1,8 +1,12 @@
 //! GUI 视图层
 //!
 //! - `login`      登录小窗口（GUI-2 / 0.2）
-//! - `root`       主窗口根视图：会话栏 + 侧栏 + 内容区（GUI-3 / 0.3 + GUI-2 会话）
-//! - `sidebar`    侧栏（8 大分类 52 子项，数据权威在 gui-domain::sidebar）
+//! - `root`       主窗口根视图：六区外壳（Rail/Sub-Nav/控制条/Canvas/Inspector/Footer）
+//!   + 视图分发（BLF-793 起平铺分区框架；GUI-3 / 0.3 起）
+//! - `shell`      外壳六区尺寸常量集中管理（BLF-793）
+//! - `master_rail` 左侧 Master Rail 主图标栏（BLF-793，绑定 gui-domain::sidebar 8 组）
+//! - `sidebar`    侧栏（8 大分类 52 子项，数据权威在 gui-domain::sidebar；
+//!   Stage2 起挂入 Sub-Nav 插槽，Stage3 重造）
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
 //! - `auto_upload` 报表中心 → 报表自动化（P5-4，RPA 自动上传状态矩阵，只读查看）
@@ -30,6 +34,7 @@ pub mod inventory_analysis;
 pub mod inventory_ledger;
 pub mod login;
 pub mod markdown_to_word;
+pub mod master_rail;
 pub mod model_selection;
 pub mod monthly_report;
 pub mod new_product_calculation;
@@ -47,6 +52,7 @@ pub mod return_analysis;
 pub mod root;
 pub mod scheduled_reports;
 pub mod seasonal_replenishment;
+pub mod shell;
 pub mod shipment_management;
 pub mod sidebar;
 pub mod site_navigation;

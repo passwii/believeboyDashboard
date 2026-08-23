@@ -36,8 +36,8 @@
 //!
 //!    高密度模式下**取消宽窗内容居中上限**（原 CONTENT_MAX_WIDTH=1440 +
 //!    content_guard 居中已移除）：主工作区全幅平铺，容器外 padding 0、内部
-//!    间距锁 4/8px；`content_guard` 保留为全宽透传壳，待 Stage2 外壳框架
-//!    重构时移除调用点。
+//!    间距锁 4/8px；`content_guard` 为全宽透传壳，调用点随 Stage11~13 各视图
+//!    迁移批次摘除（BLF-793 外壳重构不触碰业务视图内部）。
 //!
 //! 迁移说明：macOS HIG 舒适字阶（rem 系 xs=12/sm=14/base=16）与跟随系统亮暗
 //! 已被本契约取代；浅色语义色板（`AppTheme::light`）仅服务休眠路径，不再维护。
@@ -59,6 +59,8 @@ pub const BG_PANEL: u32 = 0x141417;
 pub const BG_CARD: u32 = 0x1c1c21;
 /// 背景栈 L3：hover 与选中底（Hover & Selected）
 pub const BG_HOVER: u32 = 0x272730;
+/// 背景栈·Master Rail 细分底（BLF-793：主图标栏专属，介于 Root 与 Panel 之间）
+pub const BG_RAIL: u32 = 0x121214;
 /// 分隔线 / 边框（1px 表达层级，不用重投影）
 pub const BORDER_SEPARATOR: u32 = 0x232328;
 /// 微语义色：正向 / 有货 / 涨
@@ -247,6 +249,8 @@ pub struct AppTheme {
     /// 组件化时消费，侧栏当前经 `sidebar_bg` 同值消费）
     #[allow(dead_code)]
     pub panel_bg: Hsla,
+    /// Master Rail 主图标栏底（[`BG_RAIL`]，BLF-793 六区外壳最左列）
+    pub rail_bg: Hsla,
 
     // ---- 侧栏（Panel 层 + Hover 层选中）----
     pub sidebar_bg: Hsla,
@@ -323,6 +327,7 @@ impl AppTheme {
             separator: c(0xe5e5e5),
             card_shadow: c(0x000000).alpha(0.06),
             panel_bg: c(0xececec),
+            rail_bg: c(0xe4e4e9),
 
             // 表格行态
             table_row_hover: c(0xebebf0).alpha(0.65),
@@ -379,6 +384,7 @@ impl AppTheme {
             separator: c(BORDER_SEPARATOR),
             card_shadow: c(0x000000).alpha(0.0),
             panel_bg: c(BG_PANEL),
+            rail_bg: c(BG_RAIL),
 
             // 表格行态：hover 用 Hover 层实色（强反馈）；斑马纹用白色低透明叠加
             // （与卡底区分且弱于 hover）
@@ -519,8 +525,11 @@ mod tests {
         assert_eq!(c(BG_CARD), c(0x1c1c21), "Card 层规格值 #1c1c21");
         assert_eq!(
             dark.sidebar_bg, dark.panel_bg,
-            "侧栏取 Panel 层（Master Rail 细分色由 Stage2 定）"
+            "侧栏取 Panel 层（Master Rail 细分色见 rail_bg）"
         );
+        // BLF-793：Master Rail 细分底 #121214（Root 与 Panel 之间的独立层级）
+        assert_eq!(dark.rail_bg, c(BG_RAIL));
+        assert_eq!(c(BG_RAIL), c(0x121214), "Rail 层规格值 #121214");
         assert_eq!(dark.muted_fill, c(BG_HOVER));
         assert_eq!(c(BG_HOVER), c(0x272730), "Hover&选中层规格值 #272730");
         assert_eq!(dark.sidebar_item_hover, c(BG_HOVER));

@@ -261,6 +261,10 @@ mod tests {
                 "views/inventory_ledger.rs",
             ),
             (include_str!("../views/login.rs"), "views/login.rs"),
+            (
+                include_str!("../views/master_rail.rs"),
+                "views/master_rail.rs",
+            ),
             (include_str!("../views/mod.rs"), "views/mod.rs"),
             (
                 include_str!("../views/monthly_report.rs"),

@@ -38,14 +38,14 @@ use tracing_subscriber::EnvFilter;
 use assets::AppAssets;
 use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
-use gui_domain::auth::LoginResponse;
+use gui_domain::auth::{LoginResponse, UserRoleType};
 use motion::{detect_system_reduce_motion, MotionPref};
 use theme::{set_theme_pref, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
 
-actions!(gui_app, [Quit]);
+actions!(gui_app, [Quit, TabNext, TabPrev]);
 
 fn main() -> anyhow::Result<()> {
     // 1. .env（仅本地开发）
@@ -95,7 +95,14 @@ fn main() -> anyhow::Result<()> {
             // 登录窗 / 主窗口的文本输入、菜单、窗口级按键绑定：
             // - 文本输入（gpui-component Input，上下文 "Input"）由 gpui_component::init 注册
             // - 全局退出：cmd-q
-            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+            // - BLF-793 键盘可达：tab / shift-tab 在窗口内 tab stop 间前后遍历
+            //   （Master Rail 的 8 个分类图标与底部头像/系统设置均为 tab stop，
+            //   动作由 RootView 根容器 on_action 接住后调 window.focus_next/prev）
+            cx.bind_keys([
+                KeyBinding::new("cmd-q", Quit, None),
+                KeyBinding::new("tab", TabNext, None),
+                KeyBinding::new("shift-tab", TabPrev, None),
+            ]);
             cx.on_action(|_: &Quit, cx| cx.quit());
 
             // 启动：有会话 → 主窗口；无 → 登录窗口
@@ -104,6 +111,40 @@ fn main() -> anyhow::Result<()> {
                 Some(key) => client.with_api_key(key),
                 None => client,
             };
+
+            // BLF-793 开发预览钩子（不设环境变量时零影响）：BELIEVEBOY_GUI_PREVIEW=1
+            // 跳过 Keychain，以离线演示会话直开主窗口——外壳布局 / Rail 导航的
+            // 本地与截图验证用；BELIEVEBOY_GUI_WINDOW_SIZE=WxH 可指定窗宽
+            // （默认 1280x800）。client 指向不可达地址触发警告横幅分支，
+            // 不触碰任何真实数据。
+            if std::env::var("BELIEVEBOY_GUI_PREVIEW").as_deref() == Ok("1") {
+                let size_spec = std::env::var("BELIEVEBOY_GUI_WINDOW_SIZE")
+                    .unwrap_or_else(|_| "1280x800".into());
+                let (w, h) = size_spec
+                    .split_once('x')
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<f32>().unwrap_or(1280.0),
+                            b.parse::<f32>().unwrap_or(800.0),
+                        )
+                    })
+                    .unwrap_or((1280.0, 800.0));
+                tracing::info!(w, h, "预览模式：跳过 Keychain 直开主窗口");
+                let preview_user = LoginResponse {
+                    id: "preview-user".into(),
+                    name: "演示用户".into(),
+                    email: "preview@believeboy.com".into(),
+                    operator_name_zh: None,
+                    is_admin: true,
+                    is_active: true,
+                    role_type: UserRoleType::Admin,
+                    session_id: String::new(),
+                    api_key: String::new(),
+                };
+                open_preview_window(cx, size(px(w), px(h)), preview_user);
+                return;
+            }
+
             match keychain::load_session() {
                 Ok(Some(resp)) => {
                     // BLF-787：恢复会话时同步恢复登录下发的专属 API key——业务路由
@@ -289,4 +330,37 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
         });
     })
     .detach();
+}
+
+/// BLF-793：预览主窗口（`BELIEVEBOY_GUI_PREVIEW=1` 开发钩子）。
+///
+/// 与 [`open_main_window`] 相同的窗口选项与 `RootView` 外壳，但不接
+/// 退出登录 / Keychain 闭环、不做后台会话校验——client 指向不可达地址，
+/// 仅触发警告横幅分支，不产生任何真实数据副作用。供外壳布局 / Rail 导航的
+/// 本地与截图验证使用（BELIEVEBOY_GUI_WINDOW_SIZE=WxH 指定窗宽）。
+fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user: LoginResponse) {
+    let window = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                    None,
+                    bounds_size,
+                    cx,
+                ))),
+                titlebar: Some(TitleBar::title_bar_options()),
+                window_min_size: Some(size(px(960.0), px(640.0))),
+                ..Default::default()
+            },
+            |_, cx| {
+                let session = SessionInfo {
+                    client: Client::new("http://127.0.0.1:1"),
+                    user,
+                    warning: None,
+                };
+                cx.new(|cx| RootView::new(cx, Some(session)))
+            },
+        )
+        .expect("打开预览窗口失败");
+
+    window.update(cx, |_, _, cx| cx.activate(true)).ok();
 }
