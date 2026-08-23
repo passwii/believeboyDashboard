@@ -253,15 +253,23 @@ pub struct AppTheme {
     pub rail_bg: Hsla,
 
     // ---- 侧栏（Panel 层 + Hover 层选中）----
+    // sidebar_* 文字/投影 token 为 BLF-794 遗留侧栏替换后的休眠字段：
+    // Sub-Nav 迁移到通用文字层级（text_primary/secondary），本组取值仍由
+    // 主题契约测试锁定，供后续视图迁移批次恢复消费。
     pub sidebar_bg: Hsla,
     pub sidebar_border: Hsla,
+    #[allow(dead_code)]
     pub sidebar_text: Hsla,
+    #[allow(dead_code)]
     pub sidebar_group_text: Hsla,
     pub sidebar_item_hover: Hsla,
     pub sidebar_item_active_bg: Hsla,
+    #[allow(dead_code)]
     pub sidebar_item_active_text: Hsla,
-    /// 选中指示投影（暗色扁平主题恒透明；字段保留兼容既有消费方）
+    /// 选中指示投影（暗色扁平主题恒透明；BLF-794 起无消费方，休眠字段）
+    #[allow(dead_code)]
     pub sidebar_item_shadow: Hsla,
+    #[allow(dead_code)]
     pub sidebar_footer_text: Hsla,
 
     // ---- 文字层级 ----

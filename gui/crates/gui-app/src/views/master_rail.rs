@@ -26,7 +26,7 @@ use gui_domain::sidebar::{sidebar_groups, SidebarGroup};
 use crate::icon::icon_path;
 use crate::theme::{AppTheme, FONT_BASE};
 use crate::views::shell::RAIL_WIDTH;
-use crate::views::sidebar::SidebarTooltip;
+use crate::views::sub_nav::SidebarTooltip;
 
 /// 图标按钮命中区高度（48px 栏宽、左右各缩进 4px 下约 40×40 触控目标）
 const RAIL_BUTTON_HEIGHT: f32 = 40.0;

@@ -20,6 +20,7 @@ mod icon;
 mod keychain;
 mod markdown_export;
 mod motion;
+mod prefs;
 mod runtime;
 mod theme;
 mod views;
@@ -45,7 +46,16 @@ use theme::{set_theme_pref, ThemePreference};
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
 
-actions!(gui_app, [Quit, TabNext, TabPrev]);
+// BLF-794：⌘K 命令面板 + ⌘\ 折叠 Sub-Nav + 面板 ↑↓ 选择。
+// PaletteSelectPrev/Next 故意**不带 key context** 且在 `gpui_component::init`
+// **之后**注册（见 bind_keys 顺序）：gpui 键位匹配同深度时后注册者优先，
+// 借此抢在 gpui-component Input 的 MoveUp/MoveDown（Input 上下文会静默消费
+// 单行 ↑↓）之前驱动面板列表；面板未打开时 RootView 的 on_action 监听器不在
+// 渲染树上 → 无监听命中 → 按键继续传播回 Input，其余输入框行为不变。
+actions!(
+    gui_app,
+    [Quit, TabNext, TabPrev, ToggleCommandPalette, ToggleSubNav, PaletteSelectPrev, PaletteSelectNext]
+);
 
 fn main() -> anyhow::Result<()> {
     // 1. .env（仅本地开发）
@@ -102,6 +112,17 @@ fn main() -> anyhow::Result<()> {
                 KeyBinding::new("cmd-q", Quit, None),
                 KeyBinding::new("tab", TabNext, None),
                 KeyBinding::new("shift-tab", TabPrev, None),
+                // BLF-794：⌘K / Ctrl+K 命令面板；⌘\ 折叠/展开 Sub-Nav
+                KeyBinding::new("cmd-k", ToggleCommandPalette, None),
+                KeyBinding::new("ctrl-k", ToggleCommandPalette, None),
+                KeyBinding::new("cmd-\\", ToggleSubNav, None),
+                KeyBinding::new("ctrl-\\", ToggleSubNav, None),
+            ]);
+            // BLF-794：命令面板 ↑↓ 选择——必须在 gpui_component::init 之后注册
+            // 才能以「同深度、后注册」优先级压过 Input 的 MoveUp/MoveDown
+            cx.bind_keys([
+                KeyBinding::new("up", PaletteSelectPrev, None),
+                KeyBinding::new("down", PaletteSelectNext, None),
             ]);
             cx.on_action(|_: &Quit, cx| cx.quit());
 
@@ -248,6 +269,8 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
         warning,
     };
     let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
+    // BLF-794：Sub-Nav 折叠态从 UI 偏好恢复（组合根负责持久化读写）
+    let sub_nav_collapsed = prefs::load_ui_prefs().sub_nav_collapsed;
     let window = cx
         .open_window(
             WindowOptions {
@@ -269,6 +292,12 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
         )
         .expect("打开主窗口失败");
 
+    if sub_nav_collapsed {
+        window
+            .update(cx, |root, _, cx| root.restore_sub_nav_collapsed(true, cx))
+            .ok();
+    }
+
     // P2-2：监听主窗口外观变化（跟随系统时同步全局外观并重绘，无闪烁）
     window
         .update(cx, |root, window, _cx| {
@@ -282,23 +311,30 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
         .expect("主窗口根视图");
     let main_window = window;
 
-    // 退出登录 → 清 Keychain → 关主窗 → 回登录窗
+    // 退出登录 → 清 Keychain → 关主窗 → 回登录窗；Sub-Nav 折叠 → 持久化 UI 偏好
     let base_client = client.clone();
     cx.subscribe(&root, move |_root, event: &RootViewEvent, cx| {
-        if *event == RootViewEvent::Logout {
-            let _ = keychain::clear_session();
-            main_window
-                .update(cx, |_, window, _| window.remove_window())
-                .ok();
-            open_login_window(cx, base_client.without_session(), None);
+        match event {
+            RootViewEvent::Logout => {
+                let _ = keychain::clear_session();
+                main_window
+                    .update(cx, |_, window, _| window.remove_window())
+                    .ok();
+                open_login_window(cx, base_client.without_session(), None);
+            }
+            RootViewEvent::SubNavCollapsed { collapsed } => {
+                prefs::save_ui_prefs(&prefs::UiPrefs {
+                    sub_nav_collapsed: *collapsed,
+                });
+            }
         }
     })
     .detach();
 
-    // 初始聚焦侧栏（键盘 ↑/↓ 导航立即可用）
+    // 初始聚焦 Sub-Nav（键盘 ↑/↓ 导航立即可用）
     window
         .update(cx, |root, window, cx| {
-            window.focus(&root.sidebar.read(cx).focus_handle(cx));
+            window.focus(&root.sub_nav.read(cx).focus_handle(cx));
             cx.activate(true);
         })
         .ok();

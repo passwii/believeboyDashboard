@@ -5,8 +5,9 @@
 //!   + 视图分发（BLF-793 起平铺分区框架；GUI-3 / 0.3 起）
 //! - `shell`      外壳六区尺寸常量集中管理（BLF-793）
 //! - `master_rail` 左侧 Master Rail 主图标栏（BLF-793，绑定 gui-domain::sidebar 8 组）
-//! - `sidebar`    侧栏（8 大分类 52 子项，数据权威在 gui-domain::sidebar；
-//!   Stage2 起挂入 Sub-Nav 插槽，Stage3 重造）
+//! - `sub_nav`     Sub-Nav 子导航列：可折叠 180~220px 模块选择器（BLF-794，
+//!   数据权威在 gui-domain::sidebar，替换 Stage2 遗留 sidebar）
+//! - `command_palette` ⌘K 全局命令面板（BLF-794，检索全部 52 个子模块）
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
 //! - `auto_upload` 报表中心 → 报表自动化（P5-4，RPA 自动上传状态矩阵，只读查看）
@@ -23,6 +24,7 @@ pub mod ad_analysis;
 pub mod ad_data;
 pub mod ai_chat;
 pub mod auto_upload;
+pub mod command_palette;
 pub mod commission;
 pub mod crm_audit;
 pub mod crm_dashboard;
@@ -55,9 +57,9 @@ pub mod seasonal_replenishment;
 pub mod shell;
 pub mod shipment_management;
 pub mod shop_calculation;
-pub mod sidebar;
 pub mod site_navigation;
 pub mod stat_band;
 pub mod store_navigation;
+pub mod sub_nav;
 pub mod vat_invoice;
 pub mod weekly_product_analysis;
