@@ -246,8 +246,15 @@ class TestR2Aggregate:
         # 注意：query_return_analysis_aggregate 会用 compute_risk_level 重算
         # risk_level（销量门槛 15 + Wilson 下界）。sales_quantity 必须 ≥15，
         # 否则全部落 no_data。X-001: 30/100 → critical；X-002: 8/50 → warning。
+        # BLF-806：分母改从 raw 销售层取窗口 counted sales，所以这里要同步
+        # seed 同额销售行（100 / 50），否则分母为 0、risk_level 全落 no_data。
         seed_return_analysis(
             env["project_id"],
+            sales_rows=[
+                {"order_id": "S-X001-A", "purchase_date_pt": d, "sku": "X-001", "quantity": 60},
+                {"order_id": "S-X001-B", "purchase_date_pt": d, "sku": "X-001", "quantity": 40},
+                {"order_id": "S-X002-A", "purchase_date_pt": d, "sku": "X-002", "quantity": 50},
+            ],
             aggregate_rows=[
                 {
                     "sku": "X-001",

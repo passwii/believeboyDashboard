@@ -1272,7 +1272,10 @@ def build_return_analysis_from_snapshot(
     )
 
     # 4) Ranking rows：从 aggregate 重聚合（这是 snapshot 的核心价值）
-    # aggregate 粒度是 (sku, date)，需要按 SKU 重聚合：sum return_count / return_quantity / sales_quantity
+    # aggregate 粒度是 (sku, date)，按 SKU 重聚合 return_count / return_quantity
+    # 与周期分布；sales 分母不用聚合表——聚合行只为「有退货的 SKU×日」写入，
+    # 对任何列求和都会漏掉无退货的销售日（BLF-806），一律取 raw 销售层的
+    # 窗口 counted sales（上方 sku_sales，与 summary / fallback 路径同源同口径）。
     sku_agg: dict[str, dict] = {}
     for a in aggregates:
         if a.sku not in sku_agg:
@@ -1281,7 +1284,6 @@ def build_return_analysis_from_snapshot(
                 "asin": a.asin,
                 "return_count": 0,
                 "return_quantity": 0,
-                "sales_quantity": 0,
                 "cycle_min": None,
                 "cycle_max": None,
                 "cycle_avg_sum": 0.0,
@@ -1297,7 +1299,6 @@ def build_return_analysis_from_snapshot(
         agg = sku_agg[a.sku]
         agg["return_count"] += a.return_count
         agg["return_quantity"] += a.return_quantity
-        agg["sales_quantity"] = max(agg["sales_quantity"], a.sales_quantity)
         if a.cycle_avg_days is not None:
             agg["cycle_avg_sum"] += float(a.cycle_avg_days)
             agg["cycle_avg_n"] += 1
@@ -1310,11 +1311,11 @@ def build_return_analysis_from_snapshot(
 
     ranking_rows: list[ReturnRankingItem] = []
     for v in sku_agg.values():
-        sales_qty = (
-            v["sales_quantity"]
-            if v["sales_quantity"] > 0
-            else sku_sales.get(v["sku"], {}).get("quantity", 0)
-        )
+        # BLF-806: 分母与 fallback 路径同源（raw 窗口 counted sales），
+        # 不再依赖聚合表行——聚合行只覆盖有退货的 (SKU, 日)，任何基于
+        # 聚合行的销量口径都无法还原完整窗口销量。
+        s = sku_sales.get(v["sku"], {"quantity": 0})
+        sales_qty = s["quantity"]
         return_qty = v["return_quantity"]
         risk_level, wilson = compute_risk_level(return_qty, sales_qty)
         cycle_avg = (
