@@ -9,7 +9,9 @@ BEL-373 数据层（BEL-372 拍板方案 §2.1）：
 字段说明：
 - return_count: 退货单数（按 order_id+sku 去重）
 - return_quantity: 退货件数（累加）
-- sales_quantity: 同日同期销售件数（join sales_order）
+- sales_quantity: 截至当日累计销量（BEL-376 cumulative 语义，audit 用）
+- daily_sales_quantity: 当日销量（BLF-806；NULL=迁移前旧行待重算）。
+  窗口聚合读侧对它求 SUM，即得与 R1 counted-sales 同口径的窗口内销量。
 - return_rate: return_quantity / sales_quantity * 100
 - wilson_lower: Wilson 95% 下界百分比，audit 用
 - risk_level: critical/warning/normal/no_data（销量门槛 15 + Wilson 下界判定）
@@ -78,6 +80,11 @@ class AnalysisReturnAggregate(Base):
     )
     sales_quantity: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
+    )
+    daily_sales_quantity: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="当日销量（BLF-806）；NULL=迁移前旧行，待刷新任务重算",
     )
     return_rate: Mapped[float] = mapped_column(
         Numeric(6, 3), nullable=False, default=0, server_default="0"

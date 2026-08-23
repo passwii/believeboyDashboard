@@ -110,9 +110,9 @@ def _fetch_per_sku_per_day(
 ) -> list[dict]:
     """Fetch all (sku, data_date) rows within the window.
 
-    Returned dicts carry the 12 fields we need to derive the
+    Returned dicts carry the fields we need to derive the
     per-SKU rollup: return_count / return_quantity / sales_quantity /
-    return_rate / wilson_lower (per-day) / cycle_* / reason_top1 /
+    daily_sales_quantity / cycle_* / reason_top1 /
     disposition_top1 / dominant_fc_id / risk_level.
     """
     filters = _build_aggregate_filters(
@@ -127,6 +127,7 @@ def _fetch_per_sku_per_day(
         AnalysisReturnAggregate.return_count,
         AnalysisReturnAggregate.return_quantity,
         AnalysisReturnAggregate.sales_quantity,
+        AnalysisReturnAggregate.daily_sales_quantity,
         AnalysisReturnAggregate.cycle_avg_days,
         AnalysisReturnAggregate.cycle_min_days,
         AnalysisReturnAggregate.cycle_max_days,
@@ -142,6 +143,9 @@ def _fetch_per_sku_per_day(
             "return_count": int(r.return_count or 0),
             "return_quantity": int(r.return_quantity or 0),
             "sales_quantity": int(r.sales_quantity or 0),
+            # BLF-806: 窗口销量口径用当日销量；NULL=迁移前旧行，按 0 计，
+            # 待每日刷新任务缺口检测自愈后即为准确值。
+            "daily_sales_quantity": int(r.daily_sales_quantity or 0),
             "cycle_avg_days": r.cycle_avg_days,
             "cycle_min_days": r.cycle_min_days,
             "cycle_max_days": r.cycle_max_days,
@@ -160,6 +164,11 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
     For each SKU we:
 
     * ``return_count`` / ``return_quantity`` / ``sales_quantity`` — sum.
+      ``sales_quantity`` sums the per-day ``daily_sales_quantity``
+      (BLF-806), which equals the window's counted sales and matches
+      the R1 overview denominator. (Historic note: before BLF-806 this
+      took ``max`` of the cumulative-through-date column — a full-history
+      total that inflated every return_rate.)
     * ``cycle_avg_days`` — weighted average by return_quantity
       (matches the internal endpoint math, see BEL-373 observation
       "Wilson 公式精确值" lesson).
@@ -205,9 +214,9 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
         agg = by_sku[sku]
         agg["return_count"] += r["return_count"]
         agg["return_quantity"] += r["return_quantity"]
-        # BEL-376: snapshot sales_quantity 是 cumulative-through-date,
-        # 跨天多行时取 max（最后一个 row 的累计值就是 total through window end）
-        agg["sales_quantity"] = max(agg["sales_quantity"], r["sales_quantity"])
+        # BLF-806: 窗口销量 = Σ当日销量（与 R1 overview 同窗口同口径）；
+        # None=迁移前旧行，按 0 计（待刷新任务自愈）。
+        agg["sales_quantity"] += r["daily_sales_quantity"] or 0
 
         # Weighted cycle avg: weight by return_quantity (matches the
         # internal endpoint math).
@@ -251,8 +260,9 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
     for sku, agg in by_sku.items():
         rq = agg["return_quantity"]
         sq = agg["sales_quantity"]
-        # BEL-376: risk_level 从 rolled totals 重算（与 internal endpoint 一致），
-        # 不再取“worst across daily rows”——后者在 cumulative 语义下无意义。
+        # risk_level 从 rolled totals 重算（与 internal endpoint 一致），
+        # 不取"worst across daily rows"——逐日行独立判定会漏掉跨日累积的
+        # 风险，且窗口口径下分母应以整个窗口为准。
         risk_level, _ = compute_risk_level(rq, sq)
         cycle_avg = (
             round(agg["_cycle_weighted_sum"] / rq, 2)

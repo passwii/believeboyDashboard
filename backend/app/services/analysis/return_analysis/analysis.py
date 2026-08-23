@@ -1273,6 +1273,8 @@ def build_return_analysis_from_snapshot(
 
     # 4) Ranking rows：从 aggregate 重聚合（这是 snapshot 的核心价值）
     # aggregate 粒度是 (sku, date)，需要按 SKU 重聚合：sum return_count / return_quantity / sales_quantity
+    # BLF-806: sales 用 Σ当日销量（daily_sales_quantity），与 summary 的窗口内
+    # 口径一致；旧行（NULL）按 0 计，下方 fallback 会回退到 raw 窗口销量。
     sku_agg: dict[str, dict] = {}
     for a in aggregates:
         if a.sku not in sku_agg:
@@ -1297,7 +1299,7 @@ def build_return_analysis_from_snapshot(
         agg = sku_agg[a.sku]
         agg["return_count"] += a.return_count
         agg["return_quantity"] += a.return_quantity
-        agg["sales_quantity"] = max(agg["sales_quantity"], a.sales_quantity)
+        agg["sales_quantity"] += a.daily_sales_quantity or 0
         if a.cycle_avg_days is not None:
             agg["cycle_avg_sum"] += float(a.cycle_avg_days)
             agg["cycle_avg_n"] += 1
@@ -1310,6 +1312,8 @@ def build_return_analysis_from_snapshot(
 
     ranking_rows: list[ReturnRankingItem] = []
     for v in sku_agg.values():
+        # BLF-806: 快照行缺当日销量（迁移前旧行）或该 SKU 窗口内确实无销量
+        # 时，回退到 raw 层窗口内 counted sales，保证 ranking 与 summary 同口径。
         sales_qty = (
             v["sales_quantity"]
             if v["sales_quantity"] > 0
