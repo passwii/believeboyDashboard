@@ -232,6 +232,35 @@ impl AdAnalysisView {
         self.reload(cx);
     }
 
+    /// BLF-795：Console Bar 筛选一键应用——对比当前三维，只对变化维度落值，
+    /// 任一变化仅触发一次 reload。返回是否有实际变化。
+    pub fn apply_console_filter(
+        &mut self,
+        project_id: Option<i64>,
+        country: &'static str,
+        range: DateRange,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let project_changed = project_id != self.selected_project_id;
+        let country_changed = country != self.country;
+        let range_changed =
+            range.from.is_some() && range.to.is_some() && range != self.date_range;
+        if !project_changed && !country_changed && !range_changed {
+            return false;
+        }
+        if project_changed {
+            self.selected_project_id = project_id;
+        }
+        if country_changed {
+            self.country = country;
+        }
+        if range_changed {
+            self.date_range = range;
+        }
+        self.reload(cx);
+        true
+    }
+
     /// 把概览 Top 行同步进三张 DataTable（懒建 + 幂等注入；render 期调用）
     fn sync_top_tables(&mut self, data: &AdAnalysisData, cx: &mut Context<Self>) {
         let campaigns = self

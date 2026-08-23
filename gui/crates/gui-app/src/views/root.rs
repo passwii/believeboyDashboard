@@ -36,6 +36,9 @@ use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
 use crate::theme::AppTheme;
 use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
+use crate::widgets::console_bar::{
+    console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
+};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
@@ -95,12 +98,20 @@ pub enum RootViewEvent {
     Logout,
     /// BLF-794：Sub-Nav 折叠态变化（组合根据此持久化 UI 偏好）
     SubNavCollapsed { collapsed: bool },
+    /// BLF-795：Console Bar 筛选变化（组合根据此持久化，重启还原）
+    ConsoleFilterChanged(ConsoleFilter),
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
 pub struct RootView {
     /// BLF-794：Sub-Nav 子导航列（可折叠模块选择器，绑定 gui-domain 8 组 52 项）
     pub sub_nav: Entity<SubNavView>,
+    /// BLF-795：顶部通用控制条（四件套；无会话时为 None）
+    pub console_bar: Option<Entity<ConsoleBarView>>,
+    /// BLF-795：业务视图统计推送订阅（每个接入视图懒创建时挂一条；必须持有）
+    console_stats_subs: Vec<gpui::Subscription>,
+    /// BLF-795：控制条 Changed 事件订阅（必须持有，否则筛选变更不转发）
+    _console_bar_changed_sub: Option<gpui::Subscription>,
     /// BLF-794：⌘K 命令面板（打开时才存在；None = 关闭）
     command_palette: Option<Entity<CommandPaletteView>>,
     /// BLF-793：Master Rail 主图标栏（六区最左列，绑定 gui-domain 8 分类）
@@ -285,6 +296,19 @@ impl RootView {
         // BLF-794：Sub-Nav 子导航列（折叠态从 UI 偏好恢复，重启保留）
         let initial_collapsed = crate::prefs::load_ui_prefs().sub_nav_collapsed;
         let sub_nav = cx.new(|cx| SubNavView::new(initial_collapsed, cx));
+        // BLF-795：顶部通用控制条（登录后创建；初始筛选自偏好恢复）。
+        // Changed 事件 → 转发当前业务视图 + 向组合根 emit 持久化事件。
+        let console_bar = session.as_ref().map(|s| {
+            let client = s.client.clone();
+            cx.new(|cx| ConsoleBarView::new(client, cx))
+        });
+        let console_bar_changed_sub = console_bar.as_ref().map(|bar| {
+            cx.subscribe(bar, |this, _bar, event: &ConsoleBarEvent, cx| {
+                let ConsoleBarEvent::Changed(filter) = event;
+                this.forward_console_filter(*filter, cx);
+                cx.emit(RootViewEvent::ConsoleFilterChanged(*filter));
+            })
+        });
         let rail_user = session
             .as_ref()
             .map(|s| s.user.name.clone())
@@ -320,6 +344,9 @@ impl RootView {
                     this.show_dashboard = false;
                     this.current_title = title.clone();
                     this.breadcrumb = breadcrumb_for(url).unwrap_or_else(|| vec![title.clone()]);
+                    // BLF-795：页面切换 → 控制条按新页面声明式配置换装
+                    // （保留用户已有筛选值；未声明页面回落空配置纯 chrome）
+                    this.sync_console_config(url, cx);
                     // BLF-793：Rail 选中态与 gui-domain 8 组严格绑定——子项选中
                     // 回写所属分类高亮（Dashboard 着陆页等侧栏外 url → None）
                     let category = group_id_for_url(url);
@@ -412,6 +439,7 @@ impl RootView {
                         this.show_system_logs = false;
                     } else if url == DAILY_ANALYSIS_URL {
                         // P3-1：销售数据视图懒创建（带会话 client），首帧即触发首屏拉取
+                        let daily_new = this.daily_analysis.is_none();
                         this.daily_analysis.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
@@ -423,6 +451,23 @@ impl RootView {
                                 view
                             })
                         });
+                        // BLF-795：Console Bar 联动——统计订阅 + 当前筛选快照应用
+                        if daily_new {
+                            if let Some(view) = this.daily_analysis.clone() {
+                                this.subscribe_view_stats(&view, cx);
+                                if let Some(bar) = &this.console_bar {
+                                    let snapshot = bar.read(cx).snapshot();
+                                    view.update(cx, |v, cx| {
+                                        v.apply_console_filter(
+                                            snapshot.project_id,
+                                            snapshot.country,
+                                            snapshot.range,
+                                            cx,
+                                        )
+                                    });
+                                }
+                            }
+                        }
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
@@ -506,6 +551,7 @@ impl RootView {
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
                         // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                        let ad_new = this.ad_analysis.is_none();
                         this.ad_analysis.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
@@ -517,6 +563,23 @@ impl RootView {
                                 view
                             })
                         });
+                        // BLF-795：Console Bar 联动——当前筛选快照应用
+                        // （广告分析不开统计位，无需统计订阅）
+                        if ad_new {
+                            if let Some(view) = this.ad_analysis.clone() {
+                                if let Some(bar) = &this.console_bar {
+                                    let snapshot = bar.read(cx).snapshot();
+                                    view.update(cx, |v, cx| {
+                                        v.apply_console_filter(
+                                            snapshot.project_id,
+                                            snapshot.country,
+                                            snapshot.range,
+                                            cx,
+                                        )
+                                    });
+                                }
+                            }
+                        }
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
@@ -596,6 +659,7 @@ impl RootView {
                         this.show_system_logs = false;
                     } else if url == MONTHLY_REPORT_URL {
                         // P3-4：财务月报视图懒创建（带会话 client），首帧即触发首屏拉取
+                        let monthly_new = this.monthly_report.is_none();
                         this.monthly_report.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
@@ -607,6 +671,22 @@ impl RootView {
                                 view
                             })
                         });
+                        // BLF-795：Console Bar 联动——当前筛选快照应用
+                        // （财务月报不开统计位，无需统计订阅）
+                        if monthly_new {
+                            if let Some(view) = this.monthly_report.clone() {
+                                if let Some(bar) = &this.console_bar {
+                                    let snapshot = bar.read(cx).snapshot();
+                                    view.update(cx, |v, cx| {
+                                        v.apply_console_filter(
+                                            snapshot.project_id,
+                                            snapshot.country,
+                                            cx,
+                                        )
+                                    });
+                                }
+                            }
+                        }
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
@@ -1915,6 +1995,9 @@ impl RootView {
 
         Self {
             sub_nav,
+            console_bar,
+            console_stats_subs: Vec::new(),
+            _console_bar_changed_sub: console_bar_changed_sub,
             command_palette: None,
             rail,
             content,
@@ -2020,6 +2103,58 @@ impl RootView {
             sub_nav.restore_collapsed(true, cx);
         });
         cx.notify();
+    }
+
+    // ------------------------------------------------------------------
+    // BLF-795：Console Bar 联动
+    // ------------------------------------------------------------------
+
+    /// 控制条筛选变化 → 转发给当前激活业务视图（三类代表页先行接入；
+    /// 其余页面忽略——控制条配置本就不显示对应控件）
+    fn forward_console_filter(&mut self, filter: ConsoleFilter, cx: &mut Context<Self>) {
+        if self.show_daily_analysis {
+            if let Some(view) = self.daily_analysis.clone() {
+                view.update(cx, |v, cx| {
+                    v.apply_console_filter(filter.project_id, filter.country, filter.range, cx)
+                });
+            }
+        } else if self.show_ad_analysis {
+            if let Some(view) = self.ad_analysis.clone() {
+                view.update(cx, |v, cx| {
+                    v.apply_console_filter(filter.project_id, filter.country, filter.range, cx)
+                });
+            }
+        } else if self.show_monthly_report {
+            if let Some(view) = self.monthly_report.clone() {
+                view.update(cx, |v, cx| {
+                    v.apply_console_filter(filter.project_id, filter.country, cx)
+                });
+            }
+        }
+    }
+
+    /// 页面路由变化 → 按新页面声明式配置换装控制条（保留用户已有筛选值）。
+    /// 由 Sub-Nav Select 分发链统一调用（Rail 分类路由亦汇入该链）。
+    fn sync_console_config(&mut self, url: &str, cx: &mut Context<Self>) {
+        if let Some(bar) = &self.console_bar {
+            bar.update(cx, |bar, cx| bar.set_config(console_config_for_url(url), cx));
+        }
+    }
+
+    /// 业务视图懒创建后的统计推送订阅（Loaded 后 KPI → 控制条 pill；
+    /// 订阅必须持有否则事件不送达，统一收进 `console_stats_subs`）
+    fn subscribe_view_stats<V: gpui::EventEmitter<ConsoleStatsEvent> + 'static>(
+        &mut self,
+        view: &Entity<V>,
+        cx: &mut Context<Self>,
+    ) {
+        let sub = cx.subscribe(view, |this, _view, ev: &ConsoleStatsEvent, cx| {
+            if let Some(bar) = &this.console_bar {
+                let stats = ev.0;
+                bar.update(cx, |bar, cx| bar.set_stats(stats, cx));
+            }
+        });
+        self.console_stats_subs.push(sub);
     }
 
     /// BLF-793：Rail 选中分类 → 默认视图路由。
@@ -2483,11 +2618,12 @@ impl Render for RootView {
                             .min_w_0()
                             .h_full()
                             .bg(theme.window_bg)
-                            // Console Bar 插槽（36px）：本期由面包屑 + 用户 chrome
-                            // 占位并承担窗口拖拽区，Stage4 换四件套筛选条组件
+                            // Console Bar 插槽（36px）：BLF-795 起由面包屑 + 四件套
+                            // 控制条（登录态）+ 用户 chrome 组成并承担窗口拖拽区
                             .child(content_header(
                                 &self.breadcrumb,
                                 self.sub_nav_collapsed,
+                                self.console_bar.clone(),
                                 &self.session,
                                 cx,
                             ))
@@ -2547,16 +2683,17 @@ impl Focusable for RootView {
     }
 }
 
-/// Console Bar 插槽占位内容（BLF-793）：左侧 = 面包屑路径（折叠态下最左还有
-/// 「展开侧栏」按钮），右侧 = 已登录用户 + 退出登录；高 36px 固定（插槽契约）。
+/// Console Bar 插槽内容（BLF-793 占位 → BLF-795 四件套实装）：左侧为面包屑路径
+/// 与控制条四件套（按页面声明式配置渲染；折叠态下最左还有「展开侧栏」按钮），
+/// 右侧为已登录用户与退出登录；高 36px 固定（插槽契约）。
 /// 业务标题不在头部渲染——chrome 标题与页面 PageHeader 大标题重复，
 /// 去重后头部仅保留面包屑导航上下文（决策见 BLF-760 完成评论）。
 /// 原 `TitleBar` 的窗口拖拽职责由本条承担（`WindowControlArea::Drag`），
-/// traffic lights 现悬于最左 Master Rail 之上。Stage4 本插槽将换装
-/// ProjectSelect / CountrySelect / DateRangePicker / ConsoleStatBar 四件套。
+/// traffic lights 现悬于最左 Master Rail 之上。
 fn content_header(
     breadcrumb: &[String],
     collapsed: bool,
+    console_bar: Option<Entity<ConsoleBarView>>,
     session: &Option<SessionInfo>,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
@@ -2573,6 +2710,8 @@ fn content_header(
         .gap_3()
         .border_b_1()
         .border_color(theme.separator)
+        // bg Panel token（父 issue「空间栅格」控制条规格：与 Canvas 区分层级）
+        .bg(theme.panel_bg)
         .child(
             div()
                 .id("content-header-left")
@@ -2582,7 +2721,9 @@ fn content_header(
                 .flex_1()
                 .min_w_0()
                 .when(collapsed, |this| this.child(expand_sidebar_button(cx)))
-                .child(breadcrumb_row(breadcrumb)),
+                .child(breadcrumb_row(breadcrumb))
+                // BLF-795：四件套控制条（项目/站点/日期/统计 pill，按页配置）
+                .when_some(console_bar, |row, bar| row.child(bar)),
         )
         .child(session_cluster(session, theme, cx))
         .map(|el| attach_window_drag(el, cx))
