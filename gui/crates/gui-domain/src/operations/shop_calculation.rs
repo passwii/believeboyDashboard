@@ -56,6 +56,9 @@ pub struct SkuRecordItem {
     pub country: String,
     #[serde(default)]
     pub sort_order: i64,
+    /// 每箱装量（backend `units_per_carton`；BLF-798 SKU 信息网格列）
+    #[serde(default)]
+    pub units_per_carton: i64,
     #[serde(default = "default_true")]
     pub is_active: bool,
 }

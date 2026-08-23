@@ -19,8 +19,8 @@
 //!     .child(/* date_range_picker 等 */)
 //! ```
 
-use gpui::{div, px, IntoElement, ParentElement, SharedString, Styled};
-use gpui_component::{button::Button, h_flex, menu::DropdownMenu, Icon, IconName, Sizable};
+use gpui::{div, px, InteractiveElement, IntoElement, ParentElement, SharedString, Styled};
+use gpui_component::{button::Button, h_flex, menu::DropdownMenu, Icon, IconName, Sizable, Size};
 
 use crate::theme::AppTheme;
 
@@ -67,6 +67,38 @@ pub fn filter_select(
                 .label(current)
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
                 .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, menu_builder),
+        )
+}
+
+/// 工具栏弹性空隙（把右侧操作按钮推到行尾）
+pub fn toolbar_spacer() -> gpui::Div {
+    div().flex_1()
+}
+
+/// Pattern A 工具栏搜索输入框（BLF-798）：小尺寸（26px 高，落在控件
+/// 24~28px 规格）、放大镜 prefix、可清空、固定宽。
+///
+/// `InputState` 懒建由宿主视图负责（首帧 render 内创建，见 ad_data.rs 范式）。
+pub fn toolbar_search_input(
+    theme: &AppTheme,
+    state: &gpui::Entity<gpui_component::input::InputState>,
+    id: &'static str,
+    width: f32,
+) -> impl IntoElement {
+    div()
+        .id(SharedString::from(id))
+        .child(
+            gpui_component::input::Input::new(state)
+                .with_size(Size::Small)
+                .h(px(26.))
+                .w(px(width))
+                .cleanable(true)
+                .prefix(
+                    gpui::svg()
+                        .path("icons/search.svg")
+                        .size(px(13.))
+                        .text_color(theme.text_muted),
+                ),
         )
 }
 

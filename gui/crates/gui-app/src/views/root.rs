@@ -51,6 +51,7 @@ use crate::views::crm_audit::{CrmAuditView, CRM_AUDIT_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
 use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
+use crate::views::sku_info::{SkuInfoView, SKU_INFO_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::footer::FooterView;
@@ -143,6 +144,8 @@ pub struct RootView {
     store_navigation: Option<Entity<StoreNavigationView>>,
     /// 运营 → 销售数据真实视图（P3-1；点击「运营 → 销售数据」懒创建，复用数据管线）
     daily_analysis: Option<Entity<DailyAnalysisView>>,
+    /// 运营 → SKU 信息真实视图（BLF-798；Pattern A 第二原型页，点击「运营 → SKU 信息」懒创建）
+    sku_info: Option<Entity<SkuInfoView>>,
     /// 广告 → 广告分析真实视图（P3-3；点击「广告 → 广告分析」懒创建）
     ad_analysis: Option<Entity<AdAnalysisView>>,
     /// 广告 → 广告数据真实视图（P3-3；点击「广告 → 广告数据」懒创建）
@@ -281,6 +284,8 @@ pub struct RootView {
     show_agent_management: bool,
     /// 内容区当前是否显示账号管理视图（sidebar Select 命中 ACCOUNT_MANAGEMENT_URL 时置真）
     show_account_management: bool,
+    /// 内容区当前是否显示 SKU 信息视图（BLF-798；Select 命中 SKU_INFO_URL 时置真）
+    show_sku_info: bool,
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
@@ -418,6 +423,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -466,6 +472,7 @@ impl RootView {
                         this.show_store_navigation = true;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -585,6 +592,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -616,7 +624,67 @@ impl RootView {
                         this.show_system_logs = false;
                         this.show_agent_management = false;
                         this.show_account_management = false;
-                    } else if url == AD_ANALYSIS_URL
+                    } else if url == SKU_INFO_URL {
+                        // BLF-798：SKU 信息视图懒创建（Pattern A 第二原型页；服务端分页）
+                        this.sku_info.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view =
+                                    SkuInfoView::new(cx, client.unwrap_or_else(|| Client::new("")));
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        if let Some(view) = this.sku_info.clone() {
+                            if let Some(bar) = &this.console_bar {
+                                let snapshot = bar.read(cx).snapshot();
+                                view.update(cx, |v, cx| {
+                                    v.apply_console_filter(
+                                        snapshot.project_id,
+                                        snapshot.country,
+                                        snapshot.range,
+                                        cx,
+                                    )
+                                });
+                            }
+                        }
+                        this.show_site_navigation = false;
+                        this.show_store_navigation = false;
+                        this.show_platform_inspection = false;
+                        this.show_shop_calculation = false;
+                        this.show_daily_analysis = false;
+                        this.show_sku_info = true;
+                        this.show_ad_analysis = false;
+                        this.show_ad_data = false;
+                        this.show_monthly_report = false;
+                        this.show_platform_revenue = false;
+                        this.show_scheduled_reports = false;
+                        this.show_portfolio_overview = false;
+                        this.show_return_analysis = false;
+                        this.show_project_goals = false;
+                        this.show_inventory_analysis = false;
+                        this.show_inventory_ledger = false;
+                        this.show_replenishment = false;
+                        this.show_seasonal_replenishment = false;
+                        this.show_weekly_product = false;
+                        this.show_research_analysis = false;
+                        this.show_product_analysis = false;
+                        this.show_new_product_calculation = false;
+                        this.show_shipment_management = false;
+                        this.show_order_info = false;
+                        this.show_exchange_rate = false;
+                        this.show_vat_invoice = false;
+                        this.show_commission = false;
+                        this.show_model_selection = false;
+                        this.show_crm_dashboard = false;
+                        this.show_ai_chat = false;
+                        this.show_crm_follow_ups = false;
+                        this.show_crm_audit = false;
+                        this.show_markdown_to_word = false;
+                        this.show_system_logs = false;
+                        this.show_agent_management = false;
+                        this.show_account_management = false;
+              } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
                         // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取
@@ -652,6 +720,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_shop_calculation = false;
                         this.show_ad_analysis = true;
                         this.show_ad_data = false;
@@ -698,6 +767,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_shop_calculation = false;
                         this.show_ad_data = true;
@@ -762,6 +832,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_shop_calculation = false;
@@ -810,6 +881,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -859,6 +931,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -907,6 +980,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -956,6 +1030,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1004,6 +1079,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1052,6 +1128,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1100,6 +1177,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1148,6 +1226,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1197,6 +1276,7 @@ impl RootView {
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1246,6 +1326,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1294,6 +1375,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1341,6 +1423,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1390,6 +1473,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1433,6 +1517,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1481,6 +1566,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1529,6 +1615,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1574,6 +1661,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1620,6 +1708,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1667,6 +1756,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1715,6 +1805,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1756,6 +1847,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1805,6 +1897,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1854,6 +1947,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1902,6 +1996,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1949,6 +2044,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -1990,6 +2086,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -2036,6 +2133,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -2086,6 +2184,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -2135,6 +2234,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -2176,6 +2276,7 @@ impl RootView {
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
                         this.show_daily_analysis = false;
+                        this.show_sku_info = false;
                         this.show_ad_analysis = false;
                         this.show_ad_data = false;
                         this.show_monthly_report = false;
@@ -2274,12 +2375,14 @@ impl RootView {
             system_logs: None,
             agent_management: None,
             account_management: None,
+            sku_info: None,
 
             platform_inspection: None,
             show_dashboard,
             show_site_navigation: false,
             show_store_navigation: false,
             show_daily_analysis: false,
+            show_sku_info: false,
             show_ad_analysis: false,
             show_ad_data: false,
             show_monthly_report: false,
@@ -2508,6 +2611,8 @@ impl RootView {
             "store-navigation"
         } else if self.show_daily_analysis {
             "daily-analysis"
+        } else if self.show_sku_info {
+            "sku-info"
         } else if self.show_ad_analysis {
             "ad-analysis"
         } else if self.show_ad_data {
@@ -2603,6 +2708,11 @@ impl RootView {
             )
         } else if self.show_daily_analysis {
             self.daily_analysis.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_sku_info {
+            self.sku_info.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -4506,7 +4616,74 @@ mod tests {
     /// 锁每个既有分支的 reset 列表都补了 `show_account_management = false`
     /// （含 system_logs / markdown_to_word 分支与 placeholder else 分支），避免漏
     /// reset 触发 view_key/content_view 链误命中。
+        /// BLF-798：SKU 信息 ↔ 相邻视图两步切换契约——锁每个既有分支的 reset
+    /// 列表都补了 `show_sku_info = false`（含销售数据 / 占位 else 分支），
+    /// 避免漏 reset 触发 view_key/content_view 链误命中。
     #[gpui::test]
+    async fn view_key_sku_info_cross_resets(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-skuinfo".into(),
+                name: "SKU 信息切换".into(),
+                email: "skuinfo@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-skuinfo".into(),
+                api_key: String::new(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+
+        let transitions = [
+            (
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "/dashboard/operations/sku-info",
+                "SKU 信息",
+                "sku-info",
+            ),
+            (
+                "/dashboard/operations/sku-info",
+                "SKU 信息",
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "store-navigation",
+            ),
+            (
+                "/dashboard/operations/store-navigation",
+                "店铺导航",
+                "/dashboard/operations/sku-info",
+                "SKU 信息",
+                "sku-info",
+            ),
+            (
+                "/dashboard/operations/sku-info",
+                "SKU 信息",
+                "/dashboard/nonexistent/placeholder",
+                "占位页",
+                "placeholder",
+            ),
+        ];
+        for (url_a, title_a, url_b, title_b, expected_key) in transitions {
+            sub_nav.update(cx, |this, cx| this.select(url_a, title_a, cx));
+            sub_nav.update(cx, |this, cx| this.select(url_b, title_b, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "SKU 信息两步切换 {title_a} → {title_b}"
+                )
+            });
+        }
+    }
+
+#[gpui::test]
     async fn view_key_account_management_cross_resets(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let session = SessionInfo {

@@ -398,7 +398,18 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
 /// 退出登录 / Keychain 闭环、不做后台会话校验——client 指向不可达地址，
 /// 仅触发警告横幅分支，不产生任何真实数据副作用。供外壳布局 / Rail 导航的
 /// 本地与截图验证使用（BELIEVEBOY_GUI_WINDOW_SIZE=WxH 指定窗宽）。
+///
+/// BLF-798 增补：`BELIEVEBOY_GUI_PREVIEW_URL=/dashboard/operations/sku-info`
+/// （可选 `BELIEVEBOY_GUI_PREVIEW_TITLE=SKU 信息`）打开后直导航至指定子模块，
+/// 免点击直达 Pattern A 原型页截图。
 fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user: LoginResponse) {
+    let preview_url = std::env::var("BELIEVEBOY_GUI_PREVIEW_URL").ok();
+    let preview_title = std::env::var("BELIEVEBOY_GUI_PREVIEW_TITLE")
+        .unwrap_or_else(|_| "预览".to_string());
+    // BLF-798：预览数据源可经 BELIEVEBOY_API_BASE 指向本地 mock（截图验证用）；
+    // 未设置时保持不可达地址（仅警告横幅，不触碰真实数据）
+    let preview_base = std::env::var("BELIEVEBOY_API_BASE")
+        .unwrap_or_else(|_| "http://127.0.0.1:1".to_string());
     let window = cx
         .open_window(
             WindowOptions {
@@ -413,7 +424,7 @@ fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user
             },
             |_, cx| {
                 let session = SessionInfo {
-                    client: Client::new("http://127.0.0.1:1"),
+                    client: Client::new(&preview_base),
                     user,
                     warning: None,
                 };
@@ -423,4 +434,13 @@ fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user
         .expect("打开预览窗口失败");
 
     window.update(cx, |_, _, cx| cx.activate(true)).ok();
+    if let Some(url) = preview_url {
+        window
+            .update(cx, |root: &mut crate::views::root::RootView, _, cx| {
+                root.sub_nav.update(cx, |sub_nav, cx| {
+                    sub_nav.select(&url, &preview_title, cx)
+                });
+            })
+            .ok();
+    }
 }
