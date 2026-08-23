@@ -32,6 +32,7 @@ pub mod exchange_rate;
 pub mod finance;
 pub mod operations;
 pub mod order_info;
+pub mod notification;
 pub mod reports;
 pub mod scheduled_reports;
 pub mod sidebar;

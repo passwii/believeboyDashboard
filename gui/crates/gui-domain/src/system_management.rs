@@ -468,11 +468,63 @@ pub fn parse_user_agent(ua: Option<&str>) -> (String, String) {
     (os.to_string(), browser.to_string())
 }
 
+// ---------------------------------------------------------------------------
+// 数据管理 → 数据库状态（BLF-797 Footer 同步引擎段；数据库状态页同源接口）
+// ---------------------------------------------------------------------------
+
+/// `GET /api/v1/system-management/data-management/status` 的 database 段
+/// （对齐 backend `app/schemas/system_management/data_management.py::DatabaseStatus`；
+/// 其余响应字段 footer 不消费，serde 默认忽略未知字段）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DatabaseStatus {
+    pub engine: String,
+    #[serde(default)]
+    pub source: Option<String>,
+    /// 主库连通性（`SELECT 1` 探测结果）
+    pub healthy: bool,
+    /// 本次检查时刻（ISO8601 字符串；注意这是**探测时刻**而非真实「最近同步
+    /// 完成时刻」——同步引擎心跳端点待后端补齐，见 gui-app views/footer.rs 注释）
+    pub checked_at: String,
+}
+
+/// `GET /api/v1/system-management/data-management/status` 响应（footer 只消费
+/// `server_time` + `database` 两段，字段收窄声明——多余字段被 serde 忽略）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DataManagementStatus {
+    pub server_time: String,
+    pub database: DatabaseStatus,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     // ---------- 响应解析 ----------
+
+    /// BLF-797：data-management/status 收窄声明——多余字段（summary 等）被
+    /// serde 忽略，database 段完整解析
+    #[test]
+    fn data_management_status_parses_narrow_shape() {
+        let payload = r#"{
+            "server_time": "2026-08-23T12:00:00+08:00",
+            "database": {
+                "engine": "postgresql",
+                "source": "10.0.0.8/BLF",
+                "healthy": true,
+                "checked_at": "2026-08-23T12:00:00+08:00"
+            },
+            "cache_enabled": false,
+            "summary": {"total_tables": 0, "total_rows": 0, "stale_tables": 0, "data_status": "active"},
+            "data_status_note": null,
+            "data_status_updated_at": null,
+            "data_status_updated_by": null
+        }"#;
+        let parsed: DataManagementStatus = serde_json::from_str(payload).expect("解析失败");
+        assert!(parsed.database.healthy);
+        assert_eq!(parsed.database.engine, "postgresql");
+        assert_eq!(parsed.database.source.as_deref(), Some("10.0.0.8/BLF"));
+        assert_eq!(parsed.server_time, "2026-08-23T12:00:00+08:00");
+    }
 
     /// 操作审计日志 snake_case 解析（含 before/after JSON 与可空字段）
     #[test]

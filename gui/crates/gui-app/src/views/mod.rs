@@ -9,6 +9,8 @@
 //!   数据权威在 gui-domain::sidebar，替换 Stage2 遗留 sidebar）
 //! - `inspector`   右侧 Inspector 上下文抽屉：Cmd+B 自适应三态内容（BLF-796，
 //!   280~340px 拖拽调宽；运营/广告/Copilot 三态经 mode_for_view 注册表声明）
+//! - `footer`      全局 Footer 系统状态栏：24px 汇率 ticker / 同步引擎 DB 状态 /
+//!   未读通知徽标 / 延迟指标（BLF-797，四段 1px 竖分隔 + 失败降级占位）
 //! - `command_palette` ⌘K 全局命令面板（BLF-794，检索全部 52 个子模块）
 //! - `dashboard`  Dashboard 视图状态机（GUI-6 / 1.0-a；GUI-7 数字带、GUI-8 图表占位卡、
 //!   GUI-9 Top 项目列表均已接入）
@@ -36,6 +38,7 @@ pub mod crm_follow_ups;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;
+pub mod footer;
 pub mod inspector;
 pub mod inventory_analysis;
 pub mod inventory_ledger;

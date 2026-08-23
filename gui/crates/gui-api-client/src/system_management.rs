@@ -10,8 +10,8 @@
 //! 由 [`Client`] 统一携带。
 
 use gui_domain::system_management::{
-    AgentAccessLogsResponse, AgentAccessLogsSummaryResponse, OperationAuditLogsResponse,
-    OperationAuditLogsSummaryResponse,
+    AgentAccessLogsResponse, AgentAccessLogsSummaryResponse, DataManagementStatus,
+    OperationAuditLogsResponse, OperationAuditLogsSummaryResponse,
 };
 
 use crate::client::Client;
@@ -26,6 +26,13 @@ pub(crate) const AGENT_ACCESS_LOGS_PATH: &str = "/api/v1/system-management/agent
 /// `GET /system-management/agent-access-logs/summary` —— Agent 访问汇总端点
 pub(crate) const AGENT_ACCESS_LOGS_SUMMARY_PATH: &str =
     "/api/v1/system-management/agent-access-logs/summary";
+
+/// `GET /system-management/data-management/status` —— 数据管理状态端点
+/// （BLF-797 Footer 同步引擎段；数据库状态页 `/dashboard/system/data-management`
+/// 同源接口。后端 `append_operation_view_log` 对 view 类审计默认不落库，
+/// footer 低频轮询无审计噪音）
+pub(crate) const DATA_MANAGEMENT_STATUS_PATH: &str =
+    "/api/v1/system-management/data-management/status";
 
 impl Client {
     /// 操作审计日志分页查询（对齐 web `fetchLogs` 的 query 口径）
@@ -128,6 +135,13 @@ impl Client {
         self.get_json(AGENT_ACCESS_LOGS_SUMMARY_PATH, &query)
             .await
     }
+
+    /// 数据管理状态（BLF-797 Footer 同步引擎段：主库连通性 pill + 检查时刻；
+    /// 数据库状态页同源接口。响应收窄声明见
+    /// [`gui_domain::system_management::DataManagementStatus`]）
+    pub async fn data_management_status(&self) -> Result<DataManagementStatus, ApiError> {
+        self.get_json(DATA_MANAGEMENT_STATUS_PATH, &[]).await
+    }
 }
 
 #[cfg(test)]
@@ -167,6 +181,42 @@ mod tests {
             AGENT_ACCESS_LOGS_SUMMARY_PATH,
             "/api/v1/system-management/agent-access-logs/summary"
         );
+        assert_eq!(
+            DATA_MANAGEMENT_STATUS_PATH,
+            "/api/v1/system-management/data-management/status"
+        );
+    }
+
+    /// BLF-797：data-management/status 无参数 GET；响应收窄解析
+    /// （多余字段 summary 等被 serde 忽略）
+    #[tokio::test]
+    async fn data_management_status_parses_narrow_response() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", DATA_MANAGEMENT_STATUS_PATH)
+            .match_header("X-User-Id", "u_1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "server_time": "2026-08-23T12:00:00+08:00",
+                    "database": {
+                        "engine": "postgresql",
+                        "source": "10.0.0.8/BLF",
+                        "healthy": false,
+                        "checked_at": "2026-08-23T12:00:00+08:00"
+                    },
+                    "cache_enabled": false,
+                    "summary": {"total_tables": 0, "total_rows": 0, "stale_tables": 0, "data_status": "active"}
+                }"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client.data_management_status().await.expect("请求失败");
+        m.assert();
+        assert!(!resp.database.healthy, "healthy=false 应原样透传（红 pill 依据）");
+        assert_eq!(resp.database.engine, "postgresql");
     }
 
     /// mock HTTP：审计日志筛选 + 分页 query 携带；snake_case 响应解析

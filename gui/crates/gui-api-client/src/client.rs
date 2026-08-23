@@ -199,16 +199,25 @@ impl Client {
             req = req.json(b);
         }
 
-        let resp = req.send().await?;
-        let status = resp.status();
-        let bytes = resp.bytes().await?;
+        // BLF-797 延迟埋点：发起到响应体读毕的全耗时（成功与失败都记录——
+        // 超时/连接失败同样是用户可感知的延迟信号；纯旁路，失败不影响请求）
+        let started = std::time::Instant::now();
+        let result = async {
+            let resp = req.send().await?;
+            let status = resp.status();
+            let bytes = resp.bytes().await?;
 
-        if !status.is_success() {
-            let body = String::from_utf8_lossy(&bytes).to_string();
-            return Err(ApiError::from_response(status.as_u16(), &body));
+            if !status.is_success() {
+                let body = String::from_utf8_lossy(&bytes).to_string();
+                return Err(ApiError::from_response(status.as_u16(), &body));
+            }
+
+            serde_json::from_slice(&bytes)
+                .map_err(|e| ApiError::Deserialize(e.to_string()))
         }
-
-        serde_json::from_slice(&bytes).map_err(|e| ApiError::Deserialize(e.to_string()))
+        .await;
+        crate::metrics::record_latency(started.elapsed().as_secs_f64() * 1000.0);
+        result
     }
 
     /// 发起请求并返回原始响应（流式消费用，BLF-737 AI Chat SSE）。
@@ -311,15 +320,22 @@ impl Client {
             req = req.json(b);
         }
 
-        let resp = req.send().await?;
-        let status = resp.status();
-        let bytes = resp.bytes().await?;
+        // BLF-797 延迟埋点（与 request_json 同口径；204 删除等 discard 路径）
+        let started = std::time::Instant::now();
+        let result = async {
+            let resp = req.send().await?;
+            let status = resp.status();
+            let bytes = resp.bytes().await?;
 
-        if !status.is_success() {
-            let body = String::from_utf8_lossy(&bytes).to_string();
-            return Err(ApiError::from_response(status.as_u16(), &body));
+            if !status.is_success() {
+                let body = String::from_utf8_lossy(&bytes).to_string();
+                return Err(ApiError::from_response(status.as_u16(), &body));
+            }
+            Ok(())
         }
-        Ok(())
+        .await;
+        crate::metrics::record_latency(started.elapsed().as_secs_f64() * 1000.0);
+        result
     }
 }
 
