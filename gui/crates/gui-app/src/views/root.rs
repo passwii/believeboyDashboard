@@ -7,11 +7,12 @@
 //! （对齐 Web /dashboard），侧栏初始无选中项；点击/键盘选中任意子项后切回占位视图。
 //! GUI-12（BLF-684）叠加：侧栏命中「运营 → 站点导航」URL 时显示真实站点导航视图
 //! （懒创建），其余子项仍为占位视图。
-//! P2-2（BLF-689）叠加：主题系统基线——全视图消费 [`AppTheme`] 语义 token
-//! （跟随系统亮/暗），「外观」菜单（跟随系统/浅色/深色三态切换）迁入内容区头部。
+//! P2-2（BLF-689）叠加：主题系统基线——全视图消费 [`AppTheme`] 语义 token；
+//! （历史）「外观」三态切换菜单曾迁入内容区头部，BLF-792 起下线：
+//! 应用默认锁定深色（高密度暗色工具主题），休眠路径见 theme.rs。
 //! P4-1（BLF-707）窗口 Chrome 重构：**移除跨全宽 gpui-component `TitleBar`**——主窗口
 //! 改为经典左右结构，侧栏全高从窗口顶部开始（系统 traffic lights 悬于侧栏头部之上，
-//! 头部顶部留避让区）；右侧内容区头部 = 面包屑路径 + 外观菜单 + 用户/退出；
+//! 头部顶部留避让区）；右侧内容区头部 = 面包屑路径 + 用户/退出；
 //! P4-5（BLF-760）标题去重：chrome 头部不再重复渲染业务标题（此前 text_base 标题 +
 //! 面包屑末项 + 页面 text_2xl 大标题三层重复），仅保留面包屑路径作导航上下文；
 //! 页面标题唯一来源 = 各视图 [`crate::widgets::page_header::PageHeader`] 大标题。
@@ -19,18 +20,17 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable,
-    MouseButton, MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
+    div, px, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_component::{ActiveTheme, Icon, IconName, InteractiveElementExt, Sizable};
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::breadcrumb_for;
 
-use crate::theme::{set_theme_pref, AppTheme, ThemePref, ThemePreference};
+use crate::theme::AppTheme;
 use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
@@ -2141,11 +2141,13 @@ impl Focusable for RootView {
 }
 
 /// 右侧内容区头部（P4-1；P4-5 标题去重）：左侧 = 面包屑路径（折叠态下最左还有
-/// 「展开侧栏」按钮），右侧 = 外观菜单 + 已登录用户 + 退出登录。
+/// 「展开侧栏」按钮），右侧 = 已登录用户 + 退出登录。
 /// 业务标题不在头部渲染——chrome 标题与页面 PageHeader 大标题重复，
 /// 去重后头部仅保留面包屑导航上下文（决策见 BLF-760 完成评论）。
 /// 原跨全宽 `TitleBar`（P2-1）的职责迁入此处——主窗口不再有顶部工具栏，
 /// 侧栏全高从窗口顶部开始，系统 traffic lights 悬于侧栏头部之上。
+/// BLF-792：外观切换菜单已下线——应用默认锁定深色（高密度暗色工具主题），
+/// 浅色/跟随系统路径休眠保留在 theme.rs，不在 UI 暴露。
 fn content_header(
     breadcrumb: &[String],
     collapsed: bool,
@@ -2175,7 +2177,6 @@ fn content_header(
                 .when(collapsed, |this| this.child(expand_sidebar_button(cx)))
                 .child(breadcrumb_row(breadcrumb)),
         )
-        .child(theme_switcher(cx))
         .child(session_cluster(session, theme, cx))
         .map(|el| attach_window_drag(el, cx))
 }
@@ -2230,47 +2231,6 @@ fn expand_sidebar_button(cx: &mut Context<RootView>) -> impl IntoElement {
             this.sidebar
                 .update(cx, |sidebar, cx| sidebar.toggle_collapsed(cx));
         }))
-}
-
-/// 内容区头部「外观」菜单：跟随系统 / 浅色 / 深色 三态（P2-2 主题基线）。
-///
-/// 当前项带勾选标记；切换经 [`set_theme_pref`] 写入全局偏好并即时换肤。
-/// 跟随系统时系统亮暗变化由窗口外观监听自动同步。
-fn theme_switcher(cx: &mut Context<RootView>) -> impl IntoElement {
-    let pref = cx
-        .try_global::<ThemePref>()
-        .map(|p| p.0)
-        .unwrap_or_default();
-
-    Button::new("theme-switcher")
-        .icon(Icon::new(IconName::Palette).with_size(px(14.)))
-        .tooltip("外观：跟随系统 / 浅色 / 深色")
-        .dropdown_menu_with_anchor(Corner::TopRight, move |menu, _window, _cx| {
-            menu.item(
-                PopupMenuItem::new(ThemePreference::Light.label())
-                    .icon(IconName::Sun)
-                    .checked(pref == ThemePreference::Light)
-                    .on_click(move |_, window, cx| {
-                        set_theme_pref(ThemePreference::Light, Some(window), cx)
-                    }),
-            )
-            .item(
-                PopupMenuItem::new(ThemePreference::Dark.label())
-                    .icon(IconName::Moon)
-                    .checked(pref == ThemePreference::Dark)
-                    .on_click(move |_, window, cx| {
-                        set_theme_pref(ThemePreference::Dark, Some(window), cx)
-                    }),
-            )
-            .item(
-                PopupMenuItem::new(ThemePreference::FollowSystem.label())
-                    .icon(IconName::Palette)
-                    .checked(pref == ThemePreference::FollowSystem)
-                    .on_click(move |_, window, cx| {
-                        set_theme_pref(ThemePreference::FollowSystem, Some(window), cx)
-                    }),
-            )
-        })
 }
 
 /// 内容区头部右侧：用户身份 + 退出登录（P4-1 由原标题栏迁入）
@@ -2344,6 +2304,7 @@ fn warning_banner(session: &Option<SessionInfo>, theme: &AppTheme) -> impl IntoE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::{set_theme_pref, ThemePreference};
     use gpui_component::TitleBar;
     use gui_domain::auth::UserRoleType;
 
@@ -2453,16 +2414,17 @@ mod tests {
         });
     }
 
-    /// P2-2：主题偏好三态菜单语义（label + 显式性），不依赖全局状态。
+    /// BLF-792：主题偏好语义——默认锁定深色；休眠路径（浅色/跟随系统）保留。
     #[test]
     fn theme_pref_menu_semantics() {
-        assert_eq!(ThemePreference::default(), ThemePreference::FollowSystem);
-        assert_eq!(ThemePreference::FollowSystem.label(), "跟随系统");
+        assert_eq!(ThemePreference::default(), ThemePreference::Dark);
         assert!(ThemePreference::Dark.is_explicit());
+        // 休眠路径仍保留完整枚举能力（不在 UI 暴露）
+        assert!(ThemePreference::Light.is_explicit());
         assert!(!ThemePreference::FollowSystem.is_explicit());
     }
 
-    /// P2-2 核心契约：强制深色模式下主窗口（内容区头部 + 外观菜单 + 侧栏 + 会话栏）
+    /// P2-2 核心契约：强制深色模式下主窗口（内容区头部 + 侧栏 + 会话栏）
     /// 可完整渲染不 panic（AppTheme::dark 语义色板路径）。
     #[gpui::test]
     async fn root_renders_in_dark_mode(cx: &mut gpui::TestAppContext) {

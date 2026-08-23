@@ -12,10 +12,12 @@
 //! - hover 行态（全部数据行通用，P4-7 起不再限可选中表格）与选中行态；
 //! - 斑马纹（可选；亮暗两态均可见，P4-7 暗态修复）、空态（图标 + 文案）、
 //!   固定最大高度滚动（可选）；
-//! - **排版 token（P4-7，BLF-762）**：表头 / 行共享度量 token
-//!   （[`CELL_PX`] / [`COL_GAP`] / [`ROW_PY`] / [`HEADER_PY`]，单一来源防
-//!   表头与行列错位）；全表数字启用等宽数字 tabular-nums
-//!   （[`TabularNumsExt`]）保证金额 / 数值列纵向数位对齐。
+//! - **排版 token（P4-7，BLF-762；BLF-792 高密度化）**：表头 / 行共享水平度量
+//!   token（[`CELL_PX`] / [`COL_GAP`]，单一来源防表头与行列错位）；表头行高
+//!   固定 28px（[`crate::theme::TABLE_HEADER_HEIGHT`]）、数据行高锁 24~28px
+//!   区间；全表数字启用 tabular-nums（[`TabularNumsExt`]），数字列
+//!   （`ColumnDef::numeric`）另加 JetBrains Mono 等宽字体
+//!   （[`TabularNumsExt::mono_tabular_nums`]）保证金额 / 数值列纵向数位对齐。
 //!
 //! 使用（宿主视图持有 `Entity<DataTable<Row>>`，懒建 + `set_rows` 注入）：
 //! ```ignore
@@ -34,17 +36,19 @@ use gpui::{
 };
 use gpui_component::{h_flex, v_flex, Sizable};
 
-use crate::theme::AppTheme;
+use crate::theme::{AppTheme, FONT_BASE, FONT_XS, TABLE_HEADER_HEIGHT};
 
-/// 表格布局度量 token（P4-7，BLF-762）
+/// 表格布局度量 token（P4-7，BLF-762；BLF-792 高密度化收敛）
 ///
-/// 表头行与数据行共享，保证列纵向对齐：表头 / 行的水平内边距与列间距一律
-/// 取自本组常量（经 [`table_row_metrics`] 单一应用；回归锁见测试
-/// `header_and_rows_share_row_metrics_contract`）。
-pub const CELL_PX: f32 = 16.0; // 表头 / 行水平内边距（4px 尺度）
-pub const COL_GAP: f32 = 12.0; // 列间距（4px 尺度）
-pub const ROW_PY: f32 = 6.0; // 数据行垂直内边距（高密度行）
-pub const HEADER_PY: f32 = 8.0; // 表头行垂直内边距（略高，容纳排序图标）
+/// 表头行与数据行共享水平度量，保证列纵向对齐：表头 / 行的水平内边距与列间距
+/// 一律取自本组常量（经 [`table_row_metrics`] 单一应用；回归锁见测试
+/// `header_and_rows_share_row_metrics_contract`）。垂直方向：表头行高固定
+/// [`TABLE_HEADER_HEIGHT`]（28px），数据行高 = [`ROW_LINE_HEIGHT`] +
+/// 2×[`ROW_PY`] ≈ 26px，落在规格区间 24~28px。
+pub const CELL_PX: f32 = 12.0; // 表头 / 行水平内边距（高密度收紧）
+pub const COL_GAP: f32 = 8.0; // 列间距（最小间距尺度）
+pub const ROW_PY: f32 = 3.0; // 数据行垂直内边距（配合行高锁 24~28px 区间）
+pub const ROW_LINE_HEIGHT: f32 = 20.0; // 数据行文字行高（13px 字号 × ~1.54）
 
 /// 表格共享度量应用：表头 / 行容器的水平内边距 + 列间距单一来源
 ///（防表头与行度量漂移导致列错位）
@@ -61,6 +65,18 @@ pub trait TabularNumsExt: Styled + Sized {
     /// 启用等宽数字（覆盖已存在的 tnum 设置）
     fn tabular_nums(mut self) -> Self {
         let style = self.text_style().get_or_insert_with(Default::default);
+        style.font_features = Some(tnum_features(style.font_features.as_ref()));
+        self
+    }
+
+    /// 等宽字体 + tabular-nums 组合（BLF-792）。
+    ///
+    /// 数字列 / 金额 / 时间戳统一 JetBrains Mono（theme::FONT_MONO_FAMILY，
+    /// main 启动时经 `register_embedded_fonts` 内嵌注册）+ OpenType `tnum`——
+    /// 等宽保证字符宽度一致，tnum 保证数位对齐。
+    fn mono_tabular_nums(mut self) -> Self {
+        let style = self.text_style().get_or_insert_with(Default::default);
+        style.font_family = Some(SharedString::from(crate::theme::FONT_MONO_FAMILY));
         style.font_features = Some(tnum_features(style.font_features.as_ref()));
         self
     }
@@ -118,11 +134,19 @@ pub struct ColumnDef<T> {
     /// 自定义单元格渲染（图标 / 彩色 badge / 行内按钮等；优先于 `render`）。
     /// 用闭包可捕获视图实体（P5-1 起支持；`fn` 指针仍兼容）。
     pub render_element: Option<CellRenderer<T>>,
+    /// 是否数字列（BLF-792）：单元格应用等宽字体 + tabular-nums
+    /// （JetBrains Mono），金额 / 数值 / 时间戳列应置 true（[`ColumnDef::number`]
+    /// 构造器默认 true）
+    pub numeric: bool,
 }
 
 impl<T> ColumnDef<T> {
     /// 构造文本列（默认左对齐、不可排序）
-    pub fn text(id: impl Into<String>, title: impl Into<SharedString>, render: fn(&T, &AppTheme) -> SharedString) -> Self {
+    pub fn text(
+        id: impl Into<String>,
+        title: impl Into<SharedString>,
+        render: fn(&T, &AppTheme) -> SharedString,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -132,11 +156,17 @@ impl<T> ColumnDef<T> {
             sort_value: None,
             render,
             render_element: None,
+            numeric: false,
         }
     }
 
-    /// 构造数值列（默认右对齐；可排序）
-    pub fn number(id: impl Into<String>, title: impl Into<SharedString>, sort_value: fn(&T) -> f64, render: fn(&T, &AppTheme) -> SharedString) -> Self {
+    /// 构造数值列（默认右对齐；可排序；数字列走 JetBrains Mono 等宽）
+    pub fn number(
+        id: impl Into<String>,
+        title: impl Into<SharedString>,
+        sort_value: fn(&T) -> f64,
+        render: fn(&T, &AppTheme) -> SharedString,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -146,7 +176,15 @@ impl<T> ColumnDef<T> {
             sort_value: Some(sort_value),
             render,
             render_element: None,
+            numeric: true,
         }
+    }
+
+    /// 切换数字列标记（时间戳 / 单号等非 `number` 构造的等宽场景）
+    #[allow(dead_code)]
+    pub fn numeric(mut self, numeric: bool) -> Self {
+        self.numeric = numeric;
+        self
     }
 
     /// 设置列宽（px）
@@ -337,14 +375,15 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
         let display = self.sorted_rows();
         let empty = display.is_empty();
 
-        // 表头（度量与数据行共享：table_row_metrics 单一来源）
+        // 表头（BLF-792：固定 28px 行高 + 紧凑字号；水平度量与数据行共享）
         let header = table_row_metrics(
             h_flex()
                 .id(SharedString::from(format!("{}-header", self.id)))
-                .py(px(HEADER_PY))
+                .h(px(TABLE_HEADER_HEIGHT))
+                .items_center()
                 .border_b_1()
                 .border_color(theme.separator)
-                .text_xs()
+                .text_size(px(FONT_XS))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.text_muted)
                 .children(self.columns.iter().enumerate().map(|(col_ix, col)| {
@@ -353,9 +392,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                     let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
                     let header_cell = div()
                         .id(SharedString::from(col.id.clone()))
-                        .when(sortable, |this| {
-                            this.cursor(CursorStyle::PointingHand)
-                        })
+                        .when(sortable, |this| this.cursor(CursorStyle::PointingHand))
                         .when_align(align, col.width, &theme)
                         .when(sortable && active, |this| {
                             this.text_color(theme.text_primary)
@@ -397,52 +434,58 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
 
         // 行（P4-7：hover 行态全行通用；斑马纹取暗态可见的 table_row_stripe；
         // 度量与表头共享；全表数字 tabular-nums）
-        let rows = display
-            .iter()
-            .enumerate()
-            .map(|(row_ix, row)| {
-                let selected = self.selected == Some(row_ix);
-                let bg = if selected {
-                    if theme.is_dark() {
-                        theme.muted_fill
-                    } else {
-                        theme.accent_soft
-                    }
-                } else if self.striped && row_ix % 2 == 1 {
-                    theme.table_row_stripe
+        let rows = display.iter().enumerate().map(|(row_ix, row)| {
+            let selected = self.selected == Some(row_ix);
+            let bg = if selected {
+                if theme.is_dark() {
+                    theme.muted_fill
                 } else {
-                    theme.card_bg
-                };
-                table_row_metrics(
-                    h_flex()
-                        .id(SharedString::from(format!("{}-{row_ix}", self.id)))
-                        .py(px(ROW_PY))
-                        .bg(bg)
-                        .hover(move |this| {
-                            if selected {
-                                this
-                            } else {
-                                this.bg(theme.table_row_hover)
-                            }
-                        })
-                        .when(self.selectable, |this| {
-                            this.cursor(CursorStyle::PointingHand)
-                                .on_click(cx.listener(move |table, _, _, cx| {
-                                    table.select_row(row_ix, cx);
-                                }))
-                        })
-                        .tabular_nums()
-                        .text_sm()
-                        .text_color(theme.text_secondary)
-                        .children(self.columns.iter().map(|col| {
-                            let cell = div().when_align(col.align, col.width, &theme);
-                            match &col.render_element {
-                                Some(render) => cell.child(render(row, &theme)),
-                                None => cell.child((col.render)(row, &theme)),
-                            }
-                        })),
-                )
-            });
+                    theme.accent_soft
+                }
+            } else if self.striped && row_ix % 2 == 1 {
+                theme.table_row_stripe
+            } else {
+                theme.card_bg
+            };
+            table_row_metrics(
+                h_flex()
+                    .id(SharedString::from(format!("{}-{row_ix}", self.id)))
+                    .py(px(ROW_PY))
+                    .line_height(px(ROW_LINE_HEIGHT))
+                    .bg(bg)
+                    .hover(move |this| {
+                        if selected {
+                            this
+                        } else {
+                            this.bg(theme.table_row_hover)
+                        }
+                    })
+                    .when(self.selectable, |this| {
+                        this.cursor(CursorStyle::PointingHand).on_click(cx.listener(
+                            move |table, _, _, cx| {
+                                table.select_row(row_ix, cx);
+                            },
+                        ))
+                    })
+                    .tabular_nums()
+                    .text_size(px(FONT_BASE))
+                    .text_color(theme.text_secondary)
+                    .children(self.columns.iter().map(|col| {
+                        // BLF-792：数字列单元格应用 JetBrains Mono 等宽 +
+                        // tabular-nums（金额 / 数值纵向数位对齐）
+                        let cell = div().when_align(col.align, col.width, &theme);
+                        let cell = if col.numeric {
+                            cell.mono_tabular_nums()
+                        } else {
+                            cell
+                        };
+                        match &col.render_element {
+                            Some(render) => cell.child(render(row, &theme)),
+                            None => cell.child((col.render)(row, &theme)),
+                        }
+                    })),
+            )
+        });
 
         // 空态
         let empty_view = v_flex()
@@ -505,22 +548,36 @@ mod tests {
     }
 
     fn sku_col() -> ColumnDef<StockRow> {
-        ColumnDef::text("sku", "SKU", |r: &StockRow, _| SharedString::from(r.sku.clone()))
-            .width(200.0)
+        ColumnDef::text("sku", "SKU", |r: &StockRow, _| {
+            SharedString::from(r.sku.clone())
+        })
+        .width(200.0)
     }
 
     fn qty_col() -> ColumnDef<StockRow> {
-        ColumnDef::number("qty", "库存", |r: &StockRow| r.qty as f64, |r: &StockRow, _| {
-            SharedString::from(r.qty.to_string())
-        })
+        ColumnDef::number(
+            "qty",
+            "库存",
+            |r: &StockRow| r.qty as f64,
+            |r: &StockRow, _| SharedString::from(r.qty.to_string()),
+        )
         .width(120.0)
     }
 
     fn rows() -> Vec<StockRow> {
         vec![
-            StockRow { sku: "A".into(), qty: 3 },
-            StockRow { sku: "B".into(), qty: 10 },
-            StockRow { sku: "C".into(), qty: 5 },
+            StockRow {
+                sku: "A".into(),
+                qty: 3,
+            },
+            StockRow {
+                sku: "B".into(),
+                qty: 10,
+            },
+            StockRow {
+                sku: "C".into(),
+                qty: 5,
+            },
         ]
     }
 
@@ -531,10 +588,15 @@ mod tests {
         assert_eq!(text.align, CellAlign::Left);
         assert!(!text.sortable);
         assert_eq!(text.width, Some(200.0));
+        assert!(!text.numeric, "文本列默认不是数字列");
         let num = qty_col();
         assert_eq!(num.align, CellAlign::Right);
         assert!(num.sortable);
         assert!(num.sort_value.is_some());
+        assert!(
+            num.numeric,
+            "number 构造器必须标记数字列（JetBrains Mono 等宽）"
+        );
     }
 
     #[test]
@@ -554,7 +616,10 @@ mod tests {
         // 默认顺序保持原序
         let default = table(None);
         let out = default.sorted_rows();
-        assert_eq!(out.iter().map(|r| r.sku.as_str()).collect::<Vec<_>>(), ["A", "B", "C"]);
+        assert_eq!(
+            out.iter().map(|r| r.sku.as_str()).collect::<Vec<_>>(),
+            ["A", "B", "C"]
+        );
         // 库存升序
         let asc = table(Some((1, SortDir::Ascending)));
         let out = asc.sorted_rows();
@@ -567,7 +632,10 @@ mod tests {
 
     #[test]
     fn next_sort_cycles_asc_desc_default() {
-        assert_eq!(DataTable::<StockRow>::next_sort(None, 1), Some((1, SortDir::Ascending)));
+        assert_eq!(
+            DataTable::<StockRow>::next_sort(None, 1),
+            Some((1, SortDir::Ascending))
+        );
         assert_eq!(
             DataTable::<StockRow>::next_sort(Some((1, SortDir::Ascending)), 1),
             Some((1, SortDir::Descending))
@@ -610,7 +678,11 @@ mod tests {
     }
 
     impl Render for TableHost {
-        fn render(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
             v_flex()
                 .gap_4()
                 .child(self.full.clone())
@@ -661,8 +733,14 @@ mod tests {
             ("tnum".to_string(), 0),
         ]));
         let feats = tnum_features(Some(&base));
-        assert!(feats.tag_value_list().iter().any(|(t, v)| t == "tnum" && *v == 1));
-        assert!(feats.tag_value_list().iter().any(|(t, v)| t == "liga" && *v == 0));
+        assert!(feats
+            .tag_value_list()
+            .iter()
+            .any(|(t, v)| t == "tnum" && *v == 1));
+        assert!(feats
+            .tag_value_list()
+            .iter()
+            .any(|(t, v)| t == "liga" && *v == 0));
 
         // 元素层：tabular_nums 必须写入元素 text style
         let mut el = div().tabular_nums();
@@ -670,6 +748,43 @@ mod tests {
             el.style().text_style().is_some(),
             "tabular_nums 必须写入元素 text style"
         );
+    }
+
+    /// BLF-792 回归锁：mono_tabular_nums 必须同时写入 JetBrains Mono 字体家族
+    /// 与 tnum 特性（等宽 + 数位对齐的组合契约）。
+    #[test]
+    fn mono_tabular_nums_sets_mono_family_and_tnum() {
+        let mut el = div().mono_tabular_nums();
+        let style = el
+            .style()
+            .text_style()
+            .as_ref()
+            .expect("mono_tabular_nums 必须写入元素 text style")
+            .clone();
+        let family = style.font_family.clone().expect("必须写入字体家族");
+        assert!(
+            family.as_ref() == crate::theme::FONT_MONO_FAMILY,
+            "必须写入 JetBrains Mono 字体家族，实际 {family}"
+        );
+        assert!(
+            style.font_features.as_ref().is_some_and(|f| f
+                .tag_value_list()
+                .iter()
+                .any(|(t, v)| t == "tnum" && *v == 1)),
+            "必须启用 tnum 特性"
+        );
+    }
+
+    /// BLF-792 回归锁：表格行高必须落在规格区间 24~28px——
+    /// 数据行高 = ROW_LINE_HEIGHT + 2×ROW_PY；表头行高固定 TABLE_HEADER_HEIGHT。
+    #[test]
+    fn row_height_within_dense_range() {
+        let total = ROW_LINE_HEIGHT + 2.0 * ROW_PY;
+        assert!(
+            (24.0..=28.0).contains(&total),
+            "数据行高必须在 24~28px 区间，实际 {total}"
+        );
+        assert_eq!(TABLE_HEADER_HEIGHT, 28.0, "表头行高规格 28px");
     }
 
     /// 表头与数据行必须共享同一布局度量函数（列纵向对齐契约）；
@@ -691,6 +806,9 @@ mod tests {
         // 数据行必须带 hover 行态（不再限可选中表格）与 tabular-nums
         assert!(src.contains(".tabular_nums()"), "数据行必须启用等宽数字");
         assert!(src.contains("table_row_hover"), "行 hover 必须走语义 token");
-        assert!(src.contains("table_row_stripe"), "斑马纹必须走语义 token（暗态可见）");
+        assert!(
+            src.contains("table_row_stripe"),
+            "斑马纹必须走语义 token（暗态可见）"
+        );
     }
 }

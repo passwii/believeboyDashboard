@@ -1,5 +1,3 @@
-#include "alpha_correction.hlsl"
-
 cbuffer GlobalParams: register(b0) {
     float4 gamma_ratios;
     float2 global_viewport_size;

@@ -10,7 +10,10 @@
 
 // Windows 下 release 构建用 GUI 子系统：双击 exe 不再弹出黑色控制台窗口。
 // debug 构建保留 console 以便看日志；非 Windows 目标该属性无效果。
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 
 mod assets;
 mod icon;
@@ -26,18 +29,18 @@ use std::{cell::RefCell, env, rc::Rc};
 
 use gpui::prelude::*;
 use gpui::{
-    App, Application, Bounds, Entity, Focusable, KeyBinding, TitlebarOptions, WindowBounds,
-    WindowKind, WindowOptions, actions, px, size,
+    actions, px, size, App, Application, Bounds, Entity, Focusable, KeyBinding, TitlebarOptions,
+    WindowBounds, WindowKind, WindowOptions,
 };
 use gpui_component::{Root, TitleBar};
 use tracing_subscriber::EnvFilter;
 
 use assets::AppAssets;
-use gui_api_client::Client;
 use gui_api_client::client::AuthSession;
+use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
-use motion::{MotionPref, detect_system_reduce_motion};
-use theme::{ThemePreference, set_theme_pref};
+use motion::{detect_system_reduce_motion, MotionPref};
+use theme::{set_theme_pref, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
@@ -76,10 +79,14 @@ fn main() -> anyhow::Result<()> {
             // Skeleton / Spinner / Alert / Icon 依赖其语义色板与全局单例）
             gpui_component::init(cx);
 
-            // P2-2（BLF-689）：主题偏好基线——默认跟随系统；窗口外观监听在
-            // open_*_window 内注册（on_window_appearance_changed），系统切亮/暗时
-            // 无感跟随。显式浅色/深色由标题栏外观菜单写入本全局。
-            set_theme_pref(ThemePreference::FollowSystem, None, cx);
+            // BLF-792：内嵌 JetBrains Mono（数字列/金额/时间戳的等宽字体）——
+            // 必须在窗口打开前注册，text_system 才能解析 FONT_MONO_FAMILY。
+            theme::register_embedded_fonts(cx);
+
+            // BLF-792：高密度暗色工具主题——默认锁定深色（ThemePreference::Dark
+            // 为唯一活跃外观）；浅色/跟随系统路径休眠保留（枚举不删、UI 不暴露
+            // 切换入口）。窗口外观监听仍在（显式偏好下静默旁路）。
+            set_theme_pref(ThemePreference::Dark, None, cx);
 
             // P4-2（BLF-708）：动效偏好基线——启动时读取系统「减弱动态效果」，
             // 写入全局；所有动效路径据此降级为瞬时切换/无动画。
