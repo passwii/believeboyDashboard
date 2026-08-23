@@ -339,6 +339,27 @@ pub fn breadcrumb_for(url: &str) -> Option<Vec<String>> {
     None
 }
 
+/// 由子项 url 反查所属一级分类 id（BLF-793 Master Rail 选中态绑定用），如
+/// `/dashboard/operations/daily-analysis` → `Some("operations")`。
+///
+/// 匹配规则与 [`breadcrumb_for`] 一致：先精确 url，再 `match_prefixes` 前缀；
+/// 侧栏之外的 url（如 Dashboard 着陆页 `/dashboard`）返回 `None`。
+pub fn group_id_for_url(url: &str) -> Option<String> {
+    for group in sidebar_groups() {
+        let hit = group.items.iter().any(|item| {
+            item.url == url
+                || item
+                    .match_prefixes
+                    .iter()
+                    .any(|p| url.starts_with(p.as_str()))
+        });
+        if hit {
+            return Some(group.id.clone());
+        }
+    }
+    None
+}
+
 /// 分组数（固定 8）。
 pub fn group_count() -> usize {
     sidebar_groups().len()
@@ -490,5 +511,34 @@ mod tests {
                 assert_eq!(path[1], item.title, "面包屑末级应是子项标题");
             }
         }
+    }
+
+    /// BLF-793：url → 分类反查契约——全部 52 个子项（含 match_prefixes 深层
+    /// 子路径）都能映射回自己的分类 id；侧栏之外 url 返回 None。
+    #[test]
+    fn group_id_for_url_covers_all_items() {
+        for group in sidebar_groups() {
+            for item in &group.items {
+                assert_eq!(
+                    group_id_for_url(&item.url).as_deref(),
+                    Some(group.id.as_str()),
+                    "子项 {} 应归属分类 {}",
+                    item.url,
+                    group.id
+                );
+                // match_prefixes 的深层子路径同样命中本分类
+                for prefix in &item.match_prefixes {
+                    assert_eq!(
+                        group_id_for_url(prefix).as_deref(),
+                        Some(group.id.as_str()),
+                        "前缀 {prefix} 应归属分类 {}",
+                        group.id
+                    );
+                }
+            }
+        }
+        // 侧栏之外的 url → None（Dashboard 着陆页 / 空串）
+        assert_eq!(group_id_for_url("/dashboard"), None);
+        assert_eq!(group_id_for_url(""), None);
     }
 }
