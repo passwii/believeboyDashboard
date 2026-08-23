@@ -46,6 +46,8 @@ function buildSearchItems(roleType?: RoleType): { items: SearchItem[]; categorie
   return { items, categories: Array.from(categorySet) }
 }
 
+export const OPEN_SEARCH_EVENT = 'believeboy:open-search'
+
 export function SearchCommand() {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
@@ -60,6 +62,13 @@ export function SearchCommand() {
 
     document.addEventListener('keydown', down)
     return () => document.removeEventListener('keydown', down)
+  }, [])
+
+  // Terminal SubNav / Header 的"搜索"按钮经全局事件打开同一命令面板（BLF-809）
+  React.useEffect(() => {
+    const openHandler = () => setOpen(true)
+    window.addEventListener(OPEN_SEARCH_EVENT, openHandler)
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, openHandler)
   }, [])
 
   const { items: navItems, categories: CATEGORIES } = React.useMemo(() => buildSearchItems(), [])

@@ -28,17 +28,16 @@ vi.mock('@/components/dashboard/dashboard-page-loading', () => ({
   DashboardPageLoading: () => <div data-testid="page-loading">loading</div>,
 }))
 
-// 把 layout 的客户端副作用（SidebarProvider / SidebarShell / SidebarInset / document.title）打平为最小 stub
-vi.mock('@/components/ui/sidebar', () => ({
-  SidebarProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="sidebar-provider">{children}</div>
-  ),
-  SidebarInset: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="sidebar-inset">{children}</div>
+// 把 layout 的客户端副作用（TerminalShell / ServerNotificationsProvider / document.title）打平为最小 stub
+vi.mock('@/components/notifications/server-notifications-context', () => ({
+  ServerNotificationsProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="notifications-provider">{children}</div>
   ),
 }))
-vi.mock('@/components/dashboard/sidebar-shell', () => ({
-  SidebarShell: () => <div data-testid="sidebar-shell" />,
+vi.mock('@/components/terminal/terminal-shell', () => ({
+  TerminalShell: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="terminal-shell">{children}</div>
+  ),
 }))
 
 // 动态 import 被测 layout（在 mock 之后）

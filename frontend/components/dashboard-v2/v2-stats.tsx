@@ -103,18 +103,17 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
   return (
     <>
       {stats.map((s) => (
-        <V2Card className="transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)]" key={s.label}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-normal text-xs tracking-wide">{s.label}</CardTitle>
+        <V2Card className="transition-colors hover:bg-term-raised" key={s.label}>
+          <CardHeader className="flex flex-row items-center justify-between px-4 pb-0 pt-3 md:px-4">
+            <CardTitle className="text-xs font-normal tracking-wide text-term-muted">{s.label}</CardTitle>
             <Delta value={s.delta}>
               <DeltaIcon />
               <DeltaValue />
             </Delta>
           </CardHeader>
-          <CardContent className="flex flex-row items-center gap-2">
-            <p className="font-semibold text-2xl tabular-nums text-blue-700 dark:text-foreground">
-              {s.value}
-            </p>
+          <CardContent className="flex flex-row items-center gap-2 px-4 pb-3 md:px-4">
+            {/* BLF-809：KPI 数值一律等宽字体（font-mono + tabular-nums） */}
+            <p className="font-mono text-xl font-semibold tabular-nums text-term-text">{s.value}</p>
           </CardContent>
         </V2Card>
       ))}

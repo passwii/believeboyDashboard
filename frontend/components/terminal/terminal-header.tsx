@@ -1,0 +1,200 @@
+'use client'
+
+import * as React from 'react'
+import { useSession } from 'next-auth/react'
+import { Bell, LogOut, Menu, PanelLeft, PanelRight, Search, UserRound } from 'lucide-react'
+
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
+import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
+import {
+  TERMINAL_HEADER_HEIGHT,
+} from '@/components/terminal/terminal-constants'
+import type { SidebarTopGroup } from '@/lib/sidebar-config'
+import { useServerNotifications } from '@/components/notifications/server-notifications-context'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { NotificationListView } from '@/components/notifications/notification-list-view'
+import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
+import { cn } from '@/lib/utils'
+
+interface TerminalHeaderProps {
+  groups: SidebarTopGroup[]
+  activeGroupId?: string
+  pathname: string
+  subnavCollapsed: boolean
+  onExpandSubnav: () => void
+  inspectorOpen: boolean
+  onToggleInspector: () => void
+  /** <md 时打开移动端导航抽屉 */
+  onOpenMobileNav?: () => void
+}
+
+/**
+ * Top Header 全局控制台条（固定 36px，BLF-809）。
+ * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）；右：⌘K 搜索、通知、Inspector 开关、用户菜单。
+ * 规范中的 ProjectSelect/CountrySelect/DateRange 四件套需页面筛选状态全局化后接入（后续 stage）。
+ */
+export function TerminalHeader({
+  groups,
+  activeGroupId,
+  pathname,
+  subnavCollapsed,
+  onExpandSubnav,
+  inspectorOpen,
+  onToggleInspector,
+  onOpenMobileNav,
+}: TerminalHeaderProps) {
+  const { data: session } = useSession()
+  const user = session?.user
+  const { unreadCount, refresh } = useServerNotifications()
+
+  const activeGroup = groups.find((g) => g.id === activeGroupId)
+  const pageTitle = React.useMemo(() => getDashboardPageTitle(pathname), [pathname])
+  const displayName = user?.name || 'User'
+
+  return (
+    <header
+      style={{ height: TERMINAL_HEADER_HEIGHT }}
+      className="flex shrink-0 items-stretch border-b border-term-border bg-term-panel"
+    >
+      {/* 左段：subnav 切换 + 面包屑 */}
+      <div className="flex min-w-0 flex-1 items-center gap-1 px-2">
+        <button
+          type="button"
+          onClick={onOpenMobileNav}
+          title="导航菜单"
+          aria-label="打开导航菜单"
+          className="flex h-6 w-6 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:hidden"
+        >
+          <Menu className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onExpandSubnav}
+          title={subnavCollapsed ? '展开侧栏' : '侧栏'}
+          aria-label={subnavCollapsed ? '展开侧栏' : '侧栏'}
+          className="hidden h-6 w-6 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:flex"
+        >
+          <PanelLeft className={cn('h-3.5 w-3.5', !subnavCollapsed && 'text-term-text')} />
+        </button>
+        <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1 text-xs">
+          {activeGroup && (
+            <>
+              <span className="shrink-0 text-term-faint">{activeGroup.label}</span>
+              <span className="shrink-0 font-mono text-[10px] text-term-faint">›</span>
+            </>
+          )}
+          <span className="min-w-0 truncate font-medium text-term-text">{pageTitle}</span>
+        </nav>
+      </div>
+
+      {/* 右段：搜索 / 通知 / Inspector / 用户 */}
+      <div className="flex shrink-0 items-center gap-1 px-2">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
+          title="全局搜索"
+          aria-label="全局搜索"
+          className="flex h-6 items-center gap-1 px-1.5 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+        >
+          <Search className="h-3.5 w-3.5" />
+        </button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              title="通知"
+              aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
+              className="relative flex h-6 w-6 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+            >
+              <Bell className="h-3.5 w-3.5" />
+              {unreadCount > 0 && (
+                <span
+                  data-testid="terminal-header-unread"
+                  className="absolute -right-0.5 -top-0.5 flex h-3 min-w-3 items-center justify-center bg-term-neg px-0.5 font-mono text-[9px] leading-none text-white"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="bottom"
+            align="end"
+            className="w-[340px] rounded-none border-term-border bg-term-panel p-0"
+          >
+            <div className="max-h-[60vh] overflow-y-auto term-scroll">
+              <NotificationListView onBack={() => {}} onNavigateClose={() => {}} />
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <button
+          type="button"
+          onClick={onToggleInspector}
+          title={inspectorOpen ? '收起 Inspector (⌘B)' : '展开 Inspector (⌘B)'}
+          aria-label="切换 Inspector"
+          aria-pressed={inspectorOpen}
+          className="hidden h-6 w-6 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text lg:flex"
+        >
+          <PanelRight className={cn('h-3.5 w-3.5', inspectorOpen && 'text-term-text')} />
+        </button>
+
+        <span className="mx-1 hidden h-4 w-px bg-term-border sm:block" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-testid="terminal-header-user"
+              className="flex h-6 items-center gap-1.5 px-1.5 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              <span className="hidden max-w-24 truncate sm:inline">{displayName}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-32 rounded-none border-term-border bg-term-panel text-term-text"
+          >
+            <DropdownMenuItem
+              className="rounded-none text-xs focus:bg-term-hover focus:text-term-text"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
+            >
+              全局搜索
+              <kbd className="ml-auto border border-term-border px-1 font-mono text-[10px] text-term-faint">
+                ⌘K
+              </kbd>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-term-border" />
+            <DropdownMenuItem asChild className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+              <RouteLoadingLink href="/dashboard/profile">个人中心</RouteLoadingLink>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+              <RouteLoadingLink href="/dashboard/change-password">修改密码</RouteLoadingLink>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-term-border" />
+            <DropdownMenuItem
+              className="rounded-none text-xs focus:bg-term-hover focus:text-term-text"
+              onClick={() => window.dispatchEvent(new CustomEvent('believeboy:logout'))}
+            >
+              <LogOut className="mr-1 h-3 w-3" /> 退出登录
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  )
+}

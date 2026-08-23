@@ -4,7 +4,8 @@ import { type MouseEvent, useCallback, useEffect, useRef } from 'react'
 import Link, { type LinkProps } from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { useSidebar } from '@/components/ui/sidebar'
+// BLF-809：TerminalShell 取代旧 Sidebar 外壳后，本组件不再依赖 SidebarProvider 上下文；
+// 移动端抽屉由外壳自管（导航回调里自行关闭）。
 
 const NAVIGATION_LOADING_WATCHDOG_MS = 10_000
 const IDLE_PREFETCH_DELAY_MS = 120
@@ -39,7 +40,6 @@ export function RouteLoadingLink({
   const pathname = usePathname()
   const router = useRouter()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
-  const { setOpenMobile, isMobile } = useSidebar()
   const pendingRef = useRef(false)
   const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchedRef = useRef(false)
@@ -131,9 +131,6 @@ export function RouteLoadingLink({
         if (hrefString === pathname || hrefString.startsWith(`${pathname}#`)) return
 
         beginNavigationLoading()
-        if (isMobile) {
-          setOpenMobile(false)
-        }
       }}
       {...props}
     />
