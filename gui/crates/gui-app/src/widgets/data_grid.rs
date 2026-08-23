@@ -254,22 +254,38 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
         self.widths.iter().sum()
     }
 
-    /// 重建展示索引序（当前排序 → 稳定升/降；默认序 = 原序）
+    /// 重建展示索引序（当前排序 → 稳定升/降；默认序 = 原序。
+    /// 排序取值：fn 指针优先，缺省回落闭包版 `sort_value_dyn`——动态行类型
+    /// （serde_json::Value 行按列 key 取值，BLF-799）依赖此回落）
     fn rebuild_display(&mut self) {
         self.display = (0..self.rows.len()).collect();
         let Some((col_ix, dir)) = self.sort else {
             return;
         };
-        let Some(sort_value) = self.columns.get(col_ix).and_then(|c| c.sort_value) else {
+        let Some(col) = self.columns.get(col_ix) else {
             return;
         };
         let rows = &self.rows;
+        if let Some(sort_value) = col.sort_value {
+            match dir {
+                SortDir::Ascending => self.display.sort_by(|&a, &b| {
+                    sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))
+                }),
+                SortDir::Descending => self.display.sort_by(|&a, &b| {
+                    sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))
+                }),
+            }
+            return;
+        }
+        let Some(sort_value_dyn) = col.sort_value_dyn.clone() else {
+            return;
+        };
         match dir {
             SortDir::Ascending => self.display.sort_by(|&a, &b| {
-                sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))
+                sort_value_dyn(&rows[a]).total_cmp(&sort_value_dyn(&rows[b]))
             }),
             SortDir::Descending => self.display.sort_by(|&a, &b| {
-                sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))
+                sort_value_dyn(&rows[b]).total_cmp(&sort_value_dyn(&rows[a]))
             }),
         }
     }

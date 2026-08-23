@@ -168,6 +168,274 @@ pub struct AdOverviewResponse {
 }
 
 // ---------------------------------------------------------------------------
+// 广告分析子 Tab（/ad-analysis/{campaigns|products|…}，BLF-799 Pattern B）
+//
+// 除 overview / time-trend 外的 7+1 个子 Tab 响应同构：
+// `{ project_id, country, summary_cards[], narrative_sections[], items[] }`；
+// `items` 是后端 `list[dict[str, object]]`（字段随 Tab 而异），GUI 用
+// [`serde_json::Value`] 承载 + [`ad_analysis_tabs`] 列配置驱动展示
+// （与 ad-data 原始行同一策略）。比率字段为小数（0.37），展示口径沿用
+// [`AdFormat::Percent`] 的 ×100 规则。
+// ---------------------------------------------------------------------------
+
+/// 通用摘要卡（backend 各 Tab 响应的 `summary_cards[]` 1:1；value 已由后端格式化）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AdSummaryCard {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub helper: Option<String>,
+}
+
+/// `GET /api/v1/ad-analysis/{tab}` 通用响应（除 overview / time-trend 外的同构 Tab）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AdAnalysisTabResponse {
+    pub project_id: i64,
+    pub country: String,
+    #[serde(default)]
+    pub summary_cards: Vec<AdSummaryCard>,
+    #[serde(default)]
+    pub narrative_sections: Vec<AdNarrativeSection>,
+    /// 明细行（字段随 Tab 而异，列配置驱动展示）
+    #[serde(default)]
+    pub items: Vec<serde_json::Value>,
+}
+
+/// `GET /api/v1/ad-analysis/time-trend` 响应（backend `AdAnalysisTimeTrendResponse` 1:1；
+/// 明细字段名是 `summary` 而非 `items`，单独定型）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AdTimeTrendResponse {
+    pub project_id: i64,
+    pub country: String,
+    /// 每日聚合行（report_date / clicks / spend / cpc / running_spend /
+    /// spend_change_ratio），列配置驱动展示
+    #[serde(default)]
+    pub summary: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub comparison: Option<AdPeriodComparison>,
+}
+
+impl AdTimeTrendResponse {
+    /// 归一到通用 Tab 响应（summary → items；GUI 侧统一按 items 消费）
+    #[must_use]
+    pub fn into_tab_response(self) -> AdAnalysisTabResponse {
+        AdAnalysisTabResponse {
+            project_id: self.project_id,
+            country: self.country,
+            summary_cards: Vec::new(),
+            narrative_sections: Vec::new(),
+            items: self.summary,
+        }
+    }
+}
+
+/// 广告分析子 Tab 列定义（复用 ad-data 的 [`AdColumn`]：key + 中文列名 + 格式）
+pub type AdAnalysisColumn = AdColumn;
+
+/// 广告分析子 Tab 配置（Pattern B 下半区一 Tab 一配置；key 即端点路径段）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdAnalysisTabDef {
+    /// 端点路径段：`campaigns` → `/ad-analysis/campaigns`
+    pub key: &'static str,
+    /// Tab 条显示名
+    pub label: &'static str,
+    /// 明细列配置（items 行 → 表格列）
+    pub columns: Vec<AdAnalysisColumn>,
+}
+
+impl AdAnalysisTabDef {
+    /// 从行里按 key 取原始值（缺字段 → Null，格式化为「-」）
+    pub fn value<'a>(&self, row: &'a serde_json::Value, key: &str) -> &'a serde_json::Value {
+        row.get(key).unwrap_or(&serde_json::Value::Null)
+    }
+}
+
+/// 广告分析明细 Tab 配置表（10 子 Tab 中除「总览」外的 9 个；顺序对齐 frontend
+/// `AD_ANALYSIS_TABS`：总览之后依次 趋势/活动/SKU/已购买商品/搜索词/投放/广告位/
+/// 预算/流量质量。总览 Tab 由 overview 端点的定型结构渲染，不入本表）。
+///
+/// 列选取对齐 frontend 各 *-client.tsx 表头（保留 GUI 可读的关键数值列，
+/// 「下钻」动作列在 GUI 无内部路由不实现）。
+pub fn ad_analysis_tabs() -> Vec<AdAnalysisTabDef> {
+    use AdFormat::{Int as I, Money as M, Percent as P, Ratio as R, Text as T};
+    vec![
+        AdAnalysisTabDef {
+            key: "time-trend",
+            label: "趋势",
+            columns: vec![
+                col("report_date", "日期", T),
+                col("clicks", "点击量", I),
+                col("spend", "花费", M),
+                col("cpc", "CPC", M),
+                col("running_spend", "累计花费", M),
+                col("spend_change_ratio", "花费环比", P),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "campaigns",
+            label: "活动",
+            columns: vec![
+                col("campaign_name", "活动", T),
+                col("grade", "Grade", T),
+                col("targeting_type", "类型", T),
+                col("status", "状态", T),
+                col("budget", "预算", M),
+                col("impressions", "展示量", I),
+                col("clicks", "点击量", I),
+                col("ctr", "CTR", P),
+                col("cpc", "CPC", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("acos", "ACOS", P),
+                col("roas", "ROAS", R),
+                col("budget_gap", "预算缺口", M),
+                col("budget_utilization_rate", "预算利用率", P),
+                col("cross_sell_sales_7d", "关联销售", M),
+                col("next_action", "下一步", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "products",
+            label: "SKU",
+            columns: vec![
+                col("ad_sku", "SKU", T),
+                col("ad_asin", "ASIN", T),
+                col("grade", "Grade", T),
+                col("primary_campaign", "主活动", T),
+                col("impressions", "展示量", I),
+                col("clicks", "点击量", I),
+                col("ctr", "CTR", P),
+                col("cpc", "CPC", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("units_7d", "单位数", I),
+                col("cvr_7d", "转化率", P),
+                col("acos", "ACOS", P),
+                col("cross_sell_orders_7d", "关联订单", I),
+                col("cross_sell_sales_7d", "关联销售", M),
+                col("next_action", "动作", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "purchased-products",
+            label: "已购买商品",
+            columns: vec![
+                col("purchased_asin", "关联 ASIN", T),
+                col("ad_sku", "广告 SKU", T),
+                col("campaign_count", "活动数", I),
+                col("other_sku_units_7d", "Units", I),
+                col("other_sku_orders_7d", "Orders", I),
+                col("other_sku_sales_7d", "Sales", M),
+                col("action", "动作", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "search-terms",
+            label: "搜索词",
+            columns: vec![
+                col("search_term", "搜索词", T),
+                col("match_type", "匹配类型", T),
+                col("primary_campaign", "主活动", T),
+                col("impressions", "展示量", I),
+                col("clicks", "点击量", I),
+                col("ctr", "CTR", P),
+                col("cpc", "CPC", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("cvr_7d", "CVR", P),
+                col("acos", "ACOS", P),
+                col("impression_share", "份额", P),
+                col("impression_rank", "排名", I),
+                col("action", "动作", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "targets",
+            label: "投放",
+            columns: vec![
+                col("target_text", "投放", T),
+                col("match_type", "匹配类型", T),
+                col("primary_campaign", "主活动", T),
+                col("impressions", "展示量", I),
+                col("clicks", "点击量", I),
+                col("ctr", "CTR", P),
+                col("cpc", "CPC", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("cvr_7d", "CVR", P),
+                col("acos", "ACOS", P),
+                col("top_of_search_impression_share", "首页份额", P),
+                col("action", "动作", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "placements",
+            label: "广告位",
+            columns: vec![
+                col("placement", "广告位", T),
+                col("campaign_name", "活动", T),
+                col("impressions", "展示量", I),
+                col("clicks", "点击量", I),
+                col("ctr", "CTR", P),
+                col("cpc", "CPC", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("units_7d", "单位数", I),
+                col("cvr_7d", "转化率", P),
+                col("acos", "ACOS", P),
+                col("roas", "ROAS", R),
+                col("action", "建议", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "budget",
+            label: "预算",
+            columns: vec![
+                col("campaign_name", "活动", T),
+                col("status", "状态", T),
+                col("budget", "当前预算", M),
+                col("suggested_budget", "建议预算", M),
+                col("budget_gap", "预算缺口", M),
+                col("budget_utilization_rate", "预算利用率", P),
+                col("missed_sales_min", "错失销售(最小)", M),
+                col("missed_sales_max", "错失销售(最大)", M),
+                col("spend", "花费", M),
+                col("sales_7d", "Sales", M),
+                col("orders_7d", "订单", I),
+                col("acos", "ACOS", P),
+                col("next_step", "下一步", T),
+            ],
+        },
+        AdAnalysisTabDef {
+            key: "traffic-quality",
+            label: "流量质量",
+            columns: vec![
+                col("campaign_name", "活动", T),
+                col("status", "状态", T),
+                col("risk_level", "风险等级", T),
+                col("total_impressions", "总曝光", I),
+                col("invalid_impressions", "无效曝光", I),
+                col("invalid_impression_rate", "无效曝光率", P),
+                col("total_clicks", "总点击", I),
+                col("invalid_clicks", "无效点击", I),
+                col("invalid_click_rate", "无效点击率", P),
+                col("next_step", "下一步", T),
+            ],
+        },
+    ]
+}
+
+/// 按 Tab key 查配置（无 → None；overview / 未知 key 均为 None）
+pub fn ad_analysis_tab(key: &str) -> Option<AdAnalysisTabDef> {
+    ad_analysis_tabs().into_iter().find(|t| t.key == key)
+}
+
+// ---------------------------------------------------------------------------
 // 广告数据（/internal/ad-data）
 // ---------------------------------------------------------------------------
 
@@ -601,6 +869,16 @@ pub fn is_numeric_format(format: AdFormat) -> bool {
     !matches!(format, AdFormat::Text | AdFormat::Date)
 }
 
+/// 数值列排序键（BLF-799：`serde_json::Value` 行的动态列排序取值；
+/// 数字 / 数字字符串 → f64，其余 None → 调用方落 `f64::NAN` 沉底）
+pub fn ad_numeric_value(value: &serde_json::Value) -> Option<f64> {
+    match value {
+        serde_json::Value::Number(n) => n.as_f64(),
+        serde_json::Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -773,5 +1051,125 @@ mod tests {
         assert_eq!(resp.data.len(), 0);
         assert_eq!(resp.summary.total_rows, 0);
         assert!(resp.summary.date_range.is_empty());
+    }
+
+    /// BLF-799：9 个明细 Tab 配置齐备、key 唯一且与端点路径段一致；
+    /// overview 不入表（由定型结构渲染）。
+    #[test]
+    fn analysis_tab_defs_cover_nine_item_tabs() {
+        let tabs = ad_analysis_tabs();
+        assert_eq!(tabs.len(), 9, "除总览外应有 9 个明细 Tab 配置");
+        let expected = [
+            "time-trend",
+            "campaigns",
+            "products",
+            "purchased-products",
+            "search-terms",
+            "targets",
+            "placements",
+            "budget",
+            "traffic-quality",
+        ];
+        let keys: Vec<&str> = tabs.iter().map(|t| t.key).collect();
+        assert_eq!(keys, expected, "Tab 顺序对齐 frontend AD_ANALYSIS_TABS");
+        for t in &tabs {
+            assert!(!t.label.is_empty());
+            assert!(t.columns.len() >= 3, "{} 列数异常", t.key);
+            // 每列 key 唯一（表格列 id 去重依据）
+            let mut col_keys: Vec<&str> = t.columns.iter().map(|c| c.key).collect();
+            col_keys.sort_unstable();
+            col_keys.dedup();
+            assert_eq!(col_keys.len(), t.columns.len(), "{} 列 key 重复", t.key);
+        }
+        // overview / 未知 key 查不到
+        assert!(ad_analysis_tab("overview").is_none());
+        assert!(ad_analysis_tab("nope").is_none());
+        assert!(ad_analysis_tab("campaigns").is_some());
+    }
+
+    /// BLF-799：通用 Tab 响应（items 为 dict 行）+ time-trend 响应都能反序列化，
+    /// 缺省列表字段回退空。
+    #[test]
+    fn analysis_tab_responses_deserialize_sample_json() {
+        let tab_json = r#"{
+            "project_id": 3,
+            "country": "DE",
+            "summary_cards": [
+                {"label": "活动数", "value": "12", "helper": null},
+                {"label": "总花费", "value": "$320.10", "helper": "近 7 天"}
+            ],
+            "narrative_sections": [
+                {"title": "花费趋势", "summary": "环比上升", "evidence": ["+12%"], "action": null}
+            ],
+            "items": [
+                {"campaign_name": "活动 A", "spend": 80.0, "acos": 0.37, "grade": "A"},
+                {"campaign_name": "活动 B", "spend": 42.5, "acos": 0.081, "grade": "C"}
+            ]
+        }"#;
+        let resp: AdAnalysisTabResponse = serde_json::from_str(tab_json).expect("反序列化失败");
+        assert_eq!(resp.project_id, 3);
+        assert_eq!(resp.country, "DE");
+        assert_eq!(resp.summary_cards.len(), 2);
+        assert_eq!(resp.summary_cards[0].value, "12");
+        assert_eq!(resp.narrative_sections.len(), 1);
+        assert_eq!(resp.items.len(), 2);
+        assert_eq!(resp.items[0]["grade"], "A");
+
+        // 缺省 narrative_sections / summary_cards → 空
+        let minimal: AdAnalysisTabResponse = serde_json::from_str(
+            r#"{"project_id": 1, "country": "US", "items": []}"#,
+        )
+        .expect("最小载荷应可解析");
+        assert!(minimal.summary_cards.is_empty());
+        assert!(minimal.narrative_sections.is_empty());
+
+        let trend_json = r#"{
+            "project_id": 1,
+            "country": "US",
+            "summary": [
+                {"report_date": "2026-08-13", "clicks": 35, "spend": 18.0, "cpc": 0.51, "running_spend": 96.4, "spend_change_ratio": 0.12}
+            ],
+            "comparison": {"current_start": "2026-08-07", "current_end": "2026-08-13", "spend_change_ratio": 0.05}
+        }"#;
+        let trend: AdTimeTrendResponse = serde_json::from_str(trend_json).expect("反序列化失败");
+        assert_eq!(trend.summary.len(), 1);
+        assert_eq!(trend.summary[0]["report_date"], "2026-08-13");
+        assert_eq!(
+            trend.comparison.expect("comparison 应有值").spend_change_ratio,
+            Some(0.05)
+        );
+        // comparison 可缺省
+        let trend_min: AdTimeTrendResponse = serde_json::from_str(
+            r#"{"project_id": 1, "country": "US", "summary": []}"#,
+        )
+        .expect("应可解析");
+        assert!(trend_min.comparison.is_none());
+    }
+
+    /// BLF-799：TabDef::value 对缺字段行回退 Null（格式化层显示「-」）。
+    #[test]
+    fn tab_def_value_falls_back_to_null() {
+        let def = ad_analysis_tab("time-trend").expect("趋势 Tab 应有配置");
+        let row = serde_json::json!({"report_date": "2026-08-13", "clicks": 35});
+        assert_eq!(def.value(&row, "clicks"), &serde_json::json!(35));
+        assert_eq!(def.value(&row, "missing"), &serde_json::Value::Null);
+    }
+
+    /// BLF-799：time-trend 归一后 items 承载 summary 行；数值键解析。
+    #[test]
+    fn time_trend_normalizes_into_tab_response_and_numeric_value_parses() {
+        let trend: AdTimeTrendResponse = serde_json::from_str(
+            r#"{"project_id": 9, "country": "UK", "summary": [{"clicks": 3}]}"#,
+        )
+        .expect("应可解析");
+        let tab = trend.into_tab_response();
+        assert_eq!(tab.project_id, 9);
+        assert_eq!(tab.country, "UK");
+        assert_eq!(tab.items.len(), 1);
+
+        assert_eq!(ad_numeric_value(&serde_json::json!(12.5)), Some(12.5));
+        assert_eq!(ad_numeric_value(&serde_json::json!("0.37")), Some(0.37));
+        assert_eq!(ad_numeric_value(&serde_json::Value::Null), None);
+        assert_eq!(ad_numeric_value(&serde_json::json!("abc")), None);
     }
 }

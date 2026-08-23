@@ -15,7 +15,7 @@
 
 use chrono::NaiveDate;
 use gui_domain::advertising::{
-    AdOverviewResponse, AdRawResponse, AdUploadFileItem,
+    AdAnalysisTabResponse, AdOverviewResponse, AdRawResponse, AdTimeTrendResponse, AdUploadFileItem,
 };
 
 use crate::client::Client;
@@ -23,6 +23,11 @@ use crate::error::ApiError;
 
 /// `GET /ad-analysis/overview` —— 广告分析概览（adAgentV2 汇总）
 const AD_ANALYSIS_OVERVIEW_PATH: &str = "/api/v1/ad-analysis/overview";
+
+/// `GET /ad-analysis/{tab}` —— 广告分析子 Tab（campaigns/products/…，BLF-799）
+fn ad_analysis_tab_path(tab: &str) -> String {
+    format!("/api/v1/ad-analysis/{tab}")
+}
 
 /// `GET /internal/ad-data/projects/{project_id}/ad-upload-files` —— 项目已入库报表文件
 fn ad_upload_files_path(project_id: i64) -> String {
@@ -61,6 +66,56 @@ impl Client {
             query.push(("date_to", to.to_string()));
         }
         self.get_json(AD_ANALYSIS_OVERVIEW_PATH, &query).await
+    }
+
+    /// 广告分析子 Tab（campaigns / products / placements / search-terms /
+    /// targets / budget / traffic-quality / purchased-products；BLF-799）。
+    ///
+    /// 对齐 frontend 各 `*-client.tsx` 的 query 口径：`project_id`（必填）+
+    /// `country` + 可选 `date_from` / `date_to`。与 [`Self::ad_analysis_overview`]
+    /// 共用同一组参数——Pattern B 上部图表区与下部表格的口径一致性由调用方
+    /// 传同一参数保证。
+    pub async fn ad_analysis_tab(
+        &self,
+        tab: &str,
+        project_id: i64,
+        country: &str,
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Result<AdAnalysisTabResponse, ApiError> {
+        let mut query = vec![
+            ("project_id", project_id.to_string()),
+            ("country", country.to_string()),
+        ];
+        if let Some(from) = date_from {
+            query.push(("date_from", from.to_string()));
+        }
+        if let Some(to) = date_to {
+            query.push(("date_to", to.to_string()));
+        }
+        self.get_json(&ad_analysis_tab_path(tab), &query).await
+    }
+
+    /// 广告分析「趋势」子 Tab（响应明细字段名是 `summary`，单独定型）。
+    pub async fn ad_analysis_time_trend(
+        &self,
+        project_id: i64,
+        country: &str,
+        date_from: Option<NaiveDate>,
+        date_to: Option<NaiveDate>,
+    ) -> Result<AdTimeTrendResponse, ApiError> {
+        let mut query = vec![
+            ("project_id", project_id.to_string()),
+            ("country", country.to_string()),
+        ];
+        if let Some(from) = date_from {
+            query.push(("date_from", from.to_string()));
+        }
+        if let Some(to) = date_to {
+            query.push(("date_to", to.to_string()));
+        }
+        self.get_json(&ad_analysis_tab_path("time-trend"), &query)
+            .await
     }
 
     /// 项目已入库的广告报表文件（判断「哪些报表类型有成功入库数据」）。
@@ -111,6 +166,14 @@ mod tests {
     fn paths_match_backend_routes() {
         assert_eq!(AD_ANALYSIS_OVERVIEW_PATH, "/api/v1/ad-analysis/overview");
         assert_eq!(
+            ad_analysis_tab_path("campaigns"),
+            "/api/v1/ad-analysis/campaigns"
+        );
+        assert_eq!(
+            ad_analysis_tab_path("purchased-products"),
+            "/api/v1/ad-analysis/purchased-products"
+        );
+        assert_eq!(
             ad_upload_files_path(1),
             "/api/v1/internal/ad-data/projects/1/ad-upload-files"
         );
@@ -122,6 +185,84 @@ mod tests {
             ad_raw_path(2, "search-terms"),
             "/api/v1/internal/ad-data/projects/2/ad-search-terms-raw"
         );
+    }
+
+    #[tokio::test]
+    async fn ad_analysis_tab_sends_query_params_and_parses_items() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/api/v1/ad-analysis/campaigns")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("project_id".into(), "1".into()),
+                Matcher::UrlEncoded("country".into(), "US".into()),
+                Matcher::UrlEncoded("date_from".into(), "2026-08-07".into()),
+                Matcher::UrlEncoded("date_to".into(), "2026-08-13".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "project_id": 1,
+                    "country": "US",
+                    "summary_cards": [{"label": "活动数", "value": "2", "helper": null}],
+                    "narrative_sections": [],
+                    "items": [
+                        {"campaign_name": "活动 A", "spend": 30.5, "acos": 0.061, "grade": "A"},
+                        {"campaign_name": "活动 B", "spend": 12.0, "acos": 0.06, "grade": "C"}
+                    ]
+                }"#,
+            )
+            .create();
+
+        let client = Client::new(server.url());
+        let from = NaiveDate::from_ymd_opt(2026, 8, 7).unwrap();
+        let to = NaiveDate::from_ymd_opt(2026, 8, 13).unwrap();
+        let resp = client
+            .ad_analysis_tab("campaigns", 1, "US", Some(from), Some(to))
+            .await
+            .expect("请求失败");
+
+        m.assert();
+        assert_eq!(resp.project_id, 1);
+        assert_eq!(resp.country, "US");
+        assert_eq!(resp.summary_cards.len(), 1);
+        assert_eq!(resp.items.len(), 2);
+        assert_eq!(resp.items[0]["grade"], "A");
+    }
+
+    #[tokio::test]
+    async fn ad_analysis_time_trend_parses_summary_rows() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/api/v1/ad-analysis/time-trend")
+            .match_query(Matcher::Regex(
+                r"^project_id=5&country=DE$".to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "project_id": 5,
+                    "country": "DE",
+                    "summary": [
+                        {"report_date": "2026-08-13", "clicks": 35, "spend": 18.0, "cpc": 0.51, "running_spend": 96.4, "spend_change_ratio": 0.12}
+                    ],
+                    "comparison": null
+                }"#,
+            )
+            .create();
+
+        let client = Client::new(server.url());
+        let resp = client
+            .ad_analysis_time_trend(5, "DE", None, None)
+            .await
+            .expect("请求失败");
+
+        m.assert();
+        assert_eq!(resp.project_id, 5);
+        assert_eq!(resp.summary.len(), 1);
+        assert_eq!(resp.summary[0]["report_date"], "2026-08-13");
+        assert!(resp.comparison.is_none());
     }
 
     #[tokio::test]

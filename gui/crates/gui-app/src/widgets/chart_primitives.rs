@@ -16,11 +16,12 @@
 use gpui::{div, prelude::*, px, FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled};
 use gpui_component::{
     chart::{AreaChart, BarChart, LineChart, PieChart},
-    h_flex, v_flex, Icon, Sizable, StyledExt,
+    h_flex, skeleton::Skeleton, v_flex, Icon, Sizable, StyledExt,
 };
 
 use crate::theme::AppTheme;
 use crate::views::stat_band::{format_compact_currency, render_delta};
+use crate::widgets::data_table::TabularNumsExt;
 use crate::widgets::top_projects::fmt_money_precise;
 
 // ---------------------------------------------------------------------------
@@ -153,6 +154,7 @@ pub fn share_legend(rows: &[ShareRow], total: f64, theme: &AppTheme) -> impl Int
                 .child(
                     div()
                         .text_xs()
+                        .mono_tabular_nums()
                         .text_color(theme.text_muted)
                         .child(fmt_money_precise(row.sales)),
                 )
@@ -161,6 +163,7 @@ pub fn share_legend(rows: &[ShareRow], total: f64, theme: &AppTheme) -> impl Int
                         .w_11()
                         .text_right()
                         .text_xs()
+                        .mono_tabular_nums()
                         .text_color(theme.text_primary)
                         .child(format!("{share:.1}%")),
                 )
@@ -264,7 +267,29 @@ pub fn chart_empty(text: &'static str, chart_height_px: f32, theme: &AppTheme) -
         .child(text)
 }
 
-/// footer 统计项（label + 数值；流量卡等底部统计条）
+/// 图表区空态·弹性版（填满父容器；Pattern B 分割区高度随拖拽/窗口变化）
+pub fn chart_empty_fill(text: &'static str, theme: &AppTheme) -> impl IntoElement {
+    div()
+        .w_full()
+        .h_full()
+        .rounded(px(theme.radius))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_sm()
+        .text_color(theme.text_muted)
+        .child(text)
+}
+
+/// 图表区加载态·弹性版（骨架占位，高度随父容器；
+/// BLF-799 模板的统一加载出口——页面级 Loading 走 state_views 骨架块）
+#[allow(dead_code)] // 公共 API 面（模板出口；后续 Pattern B 套版页消费）
+pub fn chart_loading_fill() -> impl IntoElement {
+    div().w_full().h_full().child(Skeleton::new())
+}
+
+/// footer 统计项（label + 数值；流量卡等底部统计条。数值 mono——规格：
+/// 图表区数字一律等宽）
 pub fn stat_item(
     label: &'static str,
     value: impl Into<SharedString>,
@@ -276,6 +301,7 @@ pub fn stat_item(
         .child(div().text_color(theme.text_muted).child(label))
         .child(
             div()
+                .mono_tabular_nums()
                 .font_semibold()
                 .text_color(if theme.is_dark() {
                     theme.text_primary
@@ -286,7 +312,7 @@ pub fn stat_item(
         )
 }
 
-/// 大数字展示（库存等区间末快照；与 footer 统计区分）
+/// 大数字展示（库存等区间末快照；与 footer 统计区分。数值 mono）
 pub fn big_number(
     value: impl Into<SharedString>,
     unit: impl Into<SharedString>,
@@ -297,6 +323,7 @@ pub fn big_number(
         .items_baseline()
         .child(
             div()
+                .mono_tabular_nums()
                 .text_2xl()
                 .font_semibold()
                 .text_color(if theme.is_dark() {

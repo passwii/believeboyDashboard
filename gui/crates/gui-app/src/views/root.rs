@@ -36,7 +36,7 @@ use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
 use crate::theme::AppTheme;
-use crate::views::ad_analysis::{AdAnalysisView, AD_ANALYSIS_URL};
+use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
 use crate::widgets::console_bar::{
     console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
 };
@@ -109,6 +109,8 @@ pub enum RootViewEvent {
     InspectorVisibleChanged(bool),
     /// BLF-796：Inspector 拖拽调宽结束（组合根据此持久化宽度偏好）
     InspectorWidthChanged(f32),
+    /// BLF-799：广告分析双轴画布分割比例提交（per-mille 400..=500；组合根持久化）
+    AdChartRatioChanged(u16),
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
@@ -148,6 +150,8 @@ pub struct RootView {
     sku_info: Option<Entity<SkuInfoView>>,
     /// 广告 → 广告分析真实视图（P3-3；点击「广告 → 广告分析」懒创建）
     ad_analysis: Option<Entity<AdAnalysisView>>,
+    /// BLF-799：广告分析 Pattern B 事件订阅（分割比例提交上抛组合根持久化；必须持有）
+    _ad_analysis_event_sub: Option<gpui::Subscription>,
     /// 广告 → 广告数据真实视图（P3-3；点击「广告 → 广告数据」懒创建）
     ad_data: Option<Entity<AdDataView>>,
     /// 报表中心 → 财务月报真实视图（P3-4；点击「报表中心 → 财务月报」懒创建）
@@ -687,18 +691,34 @@ impl RootView {
               } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
-                        // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取
+                        // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取；
+                        // BLF-799：Pattern B 分割比例自偏好恢复 + 事件订阅挂一次
+                        let ad_new = this.ad_analysis.is_none();
                         this.ad_analysis.get_or_insert_with(|| {
+                            let saved_ratio = crate::prefs::load_ui_prefs().analysis_chart_ratio;
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
                                 let mut view = AdAnalysisView::new(
                                     cx,
                                     client.unwrap_or_else(|| Client::new("")),
+                                    saved_ratio,
                                 );
                                 view.reload(cx);
                                 view
                             })
                         });
+                        if ad_new {
+                            if let Some(view) = this.ad_analysis.clone() {
+                                this._ad_analysis_event_sub =
+                                    Some(cx.subscribe(&view, |_this, _v, event: &AdAnalysisEvent, cx| {
+                                        match event {
+                                            AdAnalysisEvent::ChartRatioCommitted(per_mille) => {
+                                                cx.emit(RootViewEvent::AdChartRatioChanged(*per_mille));
+                                            }
+                                        }
+                                    }));
+                            }
+                        }
                         // BLF-795：Console Bar 联动——筛选快照每次进入都回放
                         // （review 阻塞项修复：视图常驻缓存，二次进入也必须对齐
                         // 控制条；同值 no-op 零额外拉取。广告分析不开统计位，
@@ -2344,6 +2364,7 @@ impl RootView {
             store_navigation: None,
             daily_analysis: None,
             ad_analysis: None,
+            _ad_analysis_event_sub: None,
             ad_data: None,
             monthly_report: None,
             platform_revenue: None,
