@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
+import { RefreshCcw } from 'lucide-react'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { DailyAnalysisTable } from '@/components/terminal/daily-analysis-table'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { V2Card } from '@/components/dashboard-v2/v2-card'
 import { V2Grid } from '@/components/dashboard-v2/v2-grid'
 import { V2Stats } from '@/components/dashboard-v2/v2-stats'
@@ -12,7 +15,6 @@ import { V2TopProjects } from '@/components/dashboard-v2/v2-top-projects'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -351,22 +353,47 @@ export default function DashboardV2Page() {
       : (projects.find((p) => String(p.id) === selectedProjectId)?.name ?? null)
 
   return (
-    <div className="space-y-4">
-      {/* 顶部工具栏：页面级项目过滤 */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-2">
+      {/* Console 工具栏：项目过滤 + 数据区间 + 刷新（BLF-809 终端化，h-7 微控件） */}
+      <div className="flex h-8 items-center gap-2">
         <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="h-8 w-[180px] text-xs">
+          <SelectTrigger className="h-7 w-[180px] rounded-none border-term-border bg-term-panel text-xs text-term-text focus:ring-0 [&>span]:truncate">
             <SelectValue placeholder="选择项目" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_PROJECTS}>全部项目</SelectItem>
+          <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+            <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+              全部项目
+            </SelectItem>
             {projects.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>
+              <SelectItem
+                key={p.id}
+                value={String(p.id)}
+                className="rounded-none text-xs focus:bg-term-hover focus:text-term-text"
+              >
                 {p.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        <span className="font-mono text-xs tabular-nums text-term-muted">
+          {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => {
+            void loadData()
+            void loadCountriesData()
+          }}
+          disabled={anyLoading}
+          title="刷新"
+          aria-label="刷新数据"
+          className="ml-auto flex h-7 items-center gap-1 border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:opacity-50"
+        >
+          <RefreshCcw className={`h-3 w-3 ${anyLoading ? 'animate-spin' : ''}`} />
+          刷新
+        </button>
       </div>
 
       <V2Grid>
@@ -392,9 +419,13 @@ export default function DashboardV2Page() {
           <V2Card className="col-span-full gap-0">
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
               <span>暂无销售数据</span>
-              <Button onClick={() => void loadData()} size="sm" variant="outline">
+              <button
+                type="button"
+                onClick={() => void loadData()}
+                className="border border-term-border px-3 py-1 text-xs text-term-muted transition-colors hover:text-term-text"
+              >
                 重试
-              </Button>
+              </button>
             </div>
           </V2Card>
         )}
@@ -405,6 +436,11 @@ export default function DashboardV2Page() {
           loading={anyLoading}
         />
       </V2Grid>
+
+      {/* Pattern A 高密度明细表：近 14 天销售数据（日环比着色 + 等宽数字） */}
+      <TermPanel title="近 14 天明细" bodyClassName="overflow-hidden">
+        <DailyAnalysisTable rows={currentRows} loading={dataLoading && currentRows.length === 0} />
+      </TermPanel>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import { Manrope, Space_Grotesk } from 'next/font/google'
+import { JetBrains_Mono, Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
 import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
@@ -25,6 +25,14 @@ const spaceGrotesk = Space_Grotesk({
   adjustFontFallback: false,
 })
 
+/* Terminal 等宽数字字体（BLF-809）：金额/订单号/时间戳一律 font-mono */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500', '600'],
+  display: 'swap',
+})
+
 export const metadata: Metadata = {
   description: 'A modern dashboard built with Next.js and shadcn/ui',
 }
@@ -32,7 +40,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body className={`${manrope.variable} ${spaceGrotesk.variable} min-h-screen antialiased`}>
+      <body
+        className={`${manrope.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
+      >
         <SkipLink href="#main-content">Skip to main content</SkipLink>
         <SkipLink href="#main-navigation">Skip to navigation</SkipLink>
         <ThemeProvider

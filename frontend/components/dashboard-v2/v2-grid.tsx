@@ -9,7 +9,9 @@ export function V2Grid({ children, className }: { children: React.ReactNode; cla
   return (
     <div
       className={cn(
-        'grid grid-cols-2 gap-px bg-blue-100/70 p-px lg:grid-cols-4 dark:bg-border',
+        /* BLF-809 终端化：发丝线改用 --term-border；lg 4 列 / md 2 列 / 移动端 2 列。
+         * BLF-621：移动端 grid-cols-2 —— KPI 一行两个（规则 4）；宽组件（图表/TopProjects）用 col-span-2 独占一行。 */
+        'grid grid-cols-2 gap-px bg-term-border p-px lg:grid-cols-4',
         className
       )}
     >

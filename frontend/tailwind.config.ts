@@ -29,6 +29,16 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        mono: [
+          'var(--font-mono)',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Consolas',
+          'monospace',
+        ],
+      },
       screens: {
         xs: '375px',
         sm: '640px',
@@ -239,6 +249,22 @@ const config: Config = {
           'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
+        },
+        /* Terminal 高密度交易终端令牌（BLF-809），变量见 globals.css --term-* */
+        term: {
+          bg: 'var(--term-bg)',
+          panel: 'var(--term-panel)',
+          raised: 'var(--term-raised)',
+          hover: 'var(--term-hover)',
+          border: 'var(--term-border)',
+          'border-strong': 'var(--term-border-strong)',
+          text: 'var(--term-text)',
+          muted: 'var(--term-muted)',
+          faint: 'var(--term-faint)',
+          pos: 'var(--term-pos)',
+          warn: 'var(--term-warn)',
+          neg: 'var(--term-neg)',
+          accent: 'var(--term-accent)',
         },
       },
       borderRadius: {

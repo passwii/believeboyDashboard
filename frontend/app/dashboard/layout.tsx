@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { PageTransition } from '@/components/motion/PageTransition'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { SidebarShell } from '@/components/dashboard/sidebar-shell'
+import { TerminalShell } from '@/components/terminal/terminal-shell'
 import { ServerNotificationsProvider } from '@/components/notifications/server-notifications-context'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
@@ -36,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.title = `${pageTitle} | BelieveBoy Dashboard`
   }, [pageTitle])
 
-  // 监听 SidebarShell 派发的登出事件
+  // 监听 TerminalShell 派发的登出事件
   useEffect(() => {
     const handler = () => {
       void signOut({ callbackUrl: buildLoginCallbackUrl(getCurrentPath()) })
@@ -58,26 +56,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname])
 
   return (
-    <SidebarProvider>
-      {/* 服务端通知全局状态（未读数 30s 轮询）：通知入口已迁入 sidebar 底部 profile 面板，
-          未读徽标需在面板未打开时也实时，故 Provider 常驻于此（BLF-603） */}
-      <ServerNotificationsProvider>
-        <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))] supports-[height:100dvh]:h-dvh">
-          <SidebarShell />
-
-          {/* Main content area — pushed right when sidebar panel is open via parent flex layout */}
-          <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--surface-low))]">
-            <main
-              id="main-content"
-              className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-3 md:px-2 md:pb-8 lg:px-3 xl:px-4"
-            >
-              <div className="dashboard-page-shell min-h-0 md:min-h-[calc(100vh-4rem)] px-0 py-1">
-                <PageTransition>{children}</PageTransition>
-              </div>
-            </main>
-          </SidebarInset>
-        </div>
-      </ServerNotificationsProvider>
-    </SidebarProvider>
+    <ServerNotificationsProvider>
+      <TerminalShell>{children}</TerminalShell>
+    </ServerNotificationsProvider>
   )
 }
