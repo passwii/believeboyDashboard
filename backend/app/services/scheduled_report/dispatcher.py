@@ -712,7 +712,8 @@ def _dispatch_one(
     2) 委托给共享主体 `_dispatch_one_task_body(...)`
 
     manual_log / P0-3 幂等检查全部位于 `_dispatch_one_task_body` 入口，
-    旧路径与新 Celery 路径共享同一段业务逻辑，包括 ai_summary Celery 派发。
+    旧路径与新 Celery 路径共享同一段业务逻辑。AI 摘要：日报频次同步写
+    fallback 摘要；周报/月报不再自动派发（BLF-820），留 pending 等手动触发。
     """
     # 自动调度路径（scheduler._run_minutely_scan → _dispatch_subscriptions → 本函数）
     # 不会经过 dispatch_reports()，所以这里的 _dispatch_date_str 和 _summary_cache
@@ -752,7 +753,7 @@ def _dispatch_one_task_body(
     pre_existing_log_id: int | None = None,
     old_log_id: int | None = None,
 ) -> dict[str, Any]:
-    """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要派发。
+    """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要处理。
 
     调用方契约（方案 P0 / 切片 2）：
     - 调用方负责模块全局 `_dispatch_date_str` 与传入 `report_date` 对齐；body 内部不触碰全局。
@@ -767,8 +768,9 @@ def _dispatch_one_task_body(
     - `app.celery_tasks.scheduled_report.dispatch_one_task`（新 Celery 路径，定时 / 手动 trigger）
     - `resend_ledger_entry_async`（新 Celery 路径 + pre_log_id，复用 P0-1/P0-2/P0-3 护栏）
 
-    末尾 AI 摘要派发走 `app.celery_tasks.ai_summary.generate_delivery_summary.delay(...)`
-    （方案 §4.6 / 切片 2）：三条入口都自动获得 ai_summary Celery 化。
+    AI 摘要（BLF-820）：日报频次在发送成功后**同步**写 fallback 摘要进
+    delivery_log；周报/月报不再自动派发 ai_summary 任务，delivery_log 保持
+    pending，由前端手动触发 regenerate 入口补齐。
     """
     result: dict[str, Any] = {
         "subscription_id": subscription_id,
