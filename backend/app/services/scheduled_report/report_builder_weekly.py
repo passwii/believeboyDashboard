@@ -228,6 +228,8 @@ def build_weekly_report_data(
             "top_skus_comparison": top_skus_comparison,
             "ads_comparison": ads_comparison,
             "inventory_alerts": inventory_alerts,
+            "inventory_summary": inventory_summary,
+            "anomalies": anomalies,
             "returns_data": returns_data,
             "project_context": project_context,
             "sku_context": sku_context,

@@ -179,19 +179,37 @@ def _call_weekly_ai_inner(
     return _generate_fallback_weekly_summary(report_data)
 
 
+def _fmt_change(change: float | int | None) -> str:
+    """格式化环比变化：None → 无上期基数；0 → 持平；否则 ↑/↓ + 百分比。"""
+    if change is None:
+        return "无上期基数"
+    if change >= 0:
+        return f"↑ {change:.1f}%"
+    return f"↓ {abs(change):.1f}%"
+
+
 def _generate_fallback_weekly_summary(report_data: dict[str, Any]) -> str:
-    """当 AI 服务不可用时，生成基础周报告摘要。
-    
-    包含：
-    - 本周 vs 上周对比
-    - 关键变化摘要
-    - 简单预警提示
+    """当 AI 服务不可用时，生成多维度分节周报摘要（BLF-821）。
+
+    基于报告已有数据生成 Markdown 分节文本：
+    - 销售概览（含环比）
+    - SKU 归因 Top 3~5
+    - Top SKU 对比
+    - 库存状态
+    - 广告对比（ACOS / 花费环比）
+    - 异常与正向信号
+
+    某维度数据缺失时对应小节整体跳过，不输出空标题。
     """
     current = report_data.get("current_week", {}) or {}
     prev = report_data.get("prev_week", {}) or {}
     changes = report_data.get("changes", {}) or {}
-    alerts = report_data.get("alerts", []) or []
+    attribution = report_data.get("attribution", []) or []
     top_skus = report_data.get("top_skus_comparison", []) or []
+    inventory_alerts = report_data.get("inventory_alerts", []) or []
+    ads_comparison = report_data.get("ads_comparison", {}) or {}
+    anomalies = report_data.get("anomalies", []) or []
+    alerts = report_data.get("alerts", []) or []
 
     if not isinstance(current, dict):
         current = {}
@@ -199,57 +217,99 @@ def _generate_fallback_weekly_summary(report_data: dict[str, Any]) -> str:
         prev = {}
     if not isinstance(changes, dict):
         changes = {}
+    if not isinstance(ads_comparison, dict):
+        ads_comparison = {}
 
-    top_skus = list(top_skus)[:3]
+    sections: list[str] = []
 
-    # 基础数据
-    curr_qty = current.get("qty", 0)
-    curr_amount = current.get("amount", 0)
-    prev_qty = prev.get("qty", 0)
-    prev_amount = prev.get("amount", 0)
+    # ── 销售概览 ──
+    curr_qty = current.get("qty", 0) or 0
+    curr_amount = current.get("amount", 0.0) or 0.0
+    curr_avg_price = current.get("avg_price", 0.0) or 0.0
+    overview_lines = [
+        f"销售额 {_fmt_week_currency(curr_amount)}，销量 {curr_qty:,} 件，均价 {_fmt_week_currency(curr_avg_price)}",
+        f"销量环比 {_fmt_change(changes.get('qty_change'))}，销售额环比 {_fmt_change(changes.get('amount_change'))}，均价环比 {_fmt_change(changes.get('avg_price_change'))}",
+    ]
+    if prev:
+        overview_lines.insert(
+            1,
+            f"上期：销售额 {_fmt_week_currency(prev.get('amount', 0.0) or 0.0)}，"
+            f"销量 {prev.get('qty', 0) or 0:,} 件，均价 {_fmt_week_currency(prev.get('avg_price', 0.0) or 0.0)}",
+        )
+    sections.append("**📈 销售概览**\n" + "\n".join(f"- {line}" for line in overview_lines))
 
-    # 变化方向
-    qty_change = changes.get("qty_change")
-    amount_change = changes.get("amount_change")
+    # ── SKU 归因 Top 3~5 ──
+    if attribution:
+        attribution = list(attribution)[:5]
+        attr_lines = []
+        for a in attribution:
+            contribution = a.get("contribution", 0) or 0
+            sign = "+" if contribution > 0 else ""
+            attr_lines.append(
+                f"- {a.get('sku', 'Unknown')}：{'涨' if contribution > 0 else '跌' if contribution < 0 else '持平'}"
+                f"贡献 {sign}{contribution} 件（占比 {a.get('pct', 0) or 0}%）"
+            )
+        sections.append("**🔍 SKU 归因 Top**\n" + "\n".join(attr_lines))
 
-    # 构建摘要
-    summary_parts = []
-
-    # 销售概览
-    summary_parts.append(f"本周销售 {curr_qty:,} 件，销售额 ${curr_amount:,.2f}。")
-    if qty_change is None:
-        summary_parts.append("销量环比无上期基数（上周为 0，本周新增）。")
-    else:
-        qty_dir = "↑" if qty_change >= 0 else "↓"
-        summary_parts.append(f"销量环比 {qty_dir} {abs(qty_change):.1f}%。")
-    if amount_change is None:
-        summary_parts.append("销售额环比无上期基数（上周为 0，本周新增）。")
-    else:
-        amount_dir = "↑" if amount_change >= 0 else "↓"
-        summary_parts.append(f"销售额环比 {amount_dir} {abs(amount_change):.1f}%。")
-
-    # Top SKU 亮点
+    # ── Top SKU 对比（本周 vs 上周） ──
     if top_skus:
-        top_sku = top_skus[0]
-        sku_name = top_sku.get("sku", "N/A")
-        sku_change = top_sku.get("change")
-        if sku_change is None:
-            summary_parts.append(f"热销 SKU：{sku_name}（上周无销量，本周新增）。")
-        else:
-            sku_dir = "↑" if sku_change >= 0 else "↓"
-            summary_parts.append(f"热销 SKU：{sku_name}（{sku_dir} {abs(sku_change):.1f}%）。")
+        sku_lines = []
+        for s in top_skus[:5]:
+            change = s.get("change")
+            if s.get("new") or change is None and (s.get("prev", 0) or 0) == 0:
+                change_str = "NEW"
+            elif change is None:
+                change_str = "—"
+            else:
+                change_str = _fmt_change(change)
+            sku_lines.append(
+                f"- {s.get('sku', 'Unknown')}：{s.get('current', 0) or 0} 件"
+                f"（上周 {s.get('prev', 0) or 0} 件，{change_str}）"
+            )
+        sections.append("**🏆 Top SKU 对比**\n" + "\n".join(sku_lines))
 
-    # 预警提示
-    if alerts:
-        critical = [a for a in alerts if a.get("type") == "critical"]
-        if critical:
-            summary_parts.append(f"⚠️ 需关注：{critical[0].get('message', '存在异常情况')}。")
-        else:
-            warning = [a for a in alerts if a.get("type") == "warning"]
-            if warning:
-                summary_parts.append(f"提示：{warning[0].get('message', '存在需关注项')}。")
+    # ── 库存状态 ──
+    inv_lines = []
+    oos_count = sum(1 for a in inventory_alerts if a.get("level") == "oos")
+    low_count = sum(1 for a in inventory_alerts if a.get("level") == "low")
+    if inventory_alerts:
+        inv_lines.append(f"预警 SKU 共 {len(inventory_alerts)} 个（缺货 {oos_count}、低库存 {low_count}）")
+        worst = inventory_alerts[0]
+        inv_lines.append(
+            f"最紧张：{worst.get('sku', 'Unknown')}（剩 {worst.get('available_qty', 0) or 0} 件）"
+        )
+    if inv_lines:
+        sections.append("**📦 库存状态**\n" + "\n".join(f"- {line}" for line in inv_lines))
 
-    return " ".join(summary_parts)
+    # ── 广告对比 ──
+    if ads_comparison:
+        acos = ads_comparison.get("acos", {}) or {}
+        spend = ads_comparison.get("spend", {}) or {}
+        roas = ads_comparison.get("roas", {}) or {}
+        ad_lines = [
+            f"ACOS {(acos.get('current') or 0):.1f}%，环比 {_fmt_change(acos.get('change'))}",
+            f"花费 {_fmt_week_currency(spend.get('current') or 0.0)}，环比 {_fmt_change(spend.get('change'))}",
+            f"ROAS {(roas.get('current') or 0):.2f}，环比 {_fmt_change(roas.get('change'))}",
+        ]
+        sections.append("**💰 广告对比**\n" + "\n".join(f"- {line}" for line in ad_lines))
+
+    # ── 异常与正向信号 ──
+    signal_lines = []
+    for anomaly in anomalies:
+        severity_icon = "🔴" if anomaly.get("severity") == "critical" else "⚠️"
+        signal_lines.append(f"- {severity_icon} {anomaly.get('message', '存在异常')}")
+    positive_signals = [a for a in alerts if a.get("type") == "positive" or a.get("category")]
+    for signal in positive_signals[:3]:
+        signal_lines.append(f"- ✅ {signal.get('message', '')}")
+    if signal_lines:
+        sections.append("**⚡ 异常与信号**\n" + "\n".join(signal_lines))
+
+    return "\n\n".join(sections)
+
+
+def _fmt_week_currency(val: float) -> str:
+    """周报摘要货币格式化（无国家上下文时按美元）。"""
+    return f"${val:,.2f}"
 
 
 def generate_weekly_attribution_analysis(

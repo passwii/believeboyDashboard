@@ -292,13 +292,25 @@ def _call_monthly_ai_inner(
         raise
 
 
-def _generate_fallback_monthly_summary(report_data: dict[str, Any]) -> str:
-    """当 AI 服务不可用时，生成基础月报告摘要。
+def _fmt_month_change(change: float | int | None) -> str:
+    """格式化环比变化：None → 无上期基数；否则 ↑/↓ + 百分比。"""
+    if change is None:
+        return "无上期基数"
+    if change >= 0:
+        return f"↑ {change:.1f}%"
+    return f"↓ {abs(change):.1f}%"
 
-    包含：
-    - 本月 vs 上月（环比）+ 本月 vs 去年同月（同比）对比
-    - 关键变化摘要
-    - 简单预警提示
+
+def _generate_fallback_monthly_summary(report_data: dict[str, Any]) -> str:
+    """当 AI 服务不可用时，生成多维度分节月报摘要（BLF-821，对齐周报、维度精简）。
+
+    基于报告已有数据生成 Markdown 分节文本：
+    - 销售概览（环比 + 同比）
+    - SKU 归因 Top 3
+    - Top SKU 对比
+    - 库存与广告（合并一节）
+
+    某维度数据缺失时对应小节整体跳过，不输出空标题。
     """
     current = report_data.get("current_month", {}) or {}
     prev = report_data.get("prev_month", {}) or {}
@@ -307,6 +319,9 @@ def _generate_fallback_monthly_summary(report_data: dict[str, Any]) -> str:
     yoy_changes = report_data.get("yoy_changes", {}) or {}
     alerts = report_data.get("alerts", []) or []
     top_skus = report_data.get("top_skus_comparison", []) or []
+    attribution = report_data.get("attribution", []) or []
+    inventory_alerts = report_data.get("inventory_alerts", []) or []
+    ads_comparison = report_data.get("ads_comparison", {}) or {}
 
     if not isinstance(current, dict):
         current = {}
@@ -316,48 +331,88 @@ def _generate_fallback_monthly_summary(report_data: dict[str, Any]) -> str:
         mom_changes = {}
     if not isinstance(yoy_changes, dict):
         yoy_changes = {}
+    if not isinstance(ads_comparison, dict):
+        ads_comparison = {}
 
-    top_skus = list(top_skus)[:3]
+    sections: list[str] = []
 
-    # 基础数据
-    curr_qty = current.get("qty", 0)
-    curr_amount = current.get("amount", 0)
-    prev_qty = prev.get("qty", 0)
+    # ── 销售概览 ──
+    curr_qty = current.get("qty", 0) or 0
+    curr_amount = current.get("amount", 0.0) or 0.0
+    curr_avg_price = current.get("avg_price", 0.0) or 0.0
+    qty_mom = mom_changes.get("qty_change")
+    amount_mom = mom_changes.get("amount_change")
+    qty_yoy = yoy_changes.get("qty_change")
+    overview_lines = [
+        f"销售额 {_fmt_month_currency(curr_amount)}，销量 {curr_qty:,} 件，均价 {_fmt_month_currency(curr_avg_price)}",
+        f"销量环比 {_fmt_month_change(qty_mom)}，销售额环比 {_fmt_month_change(amount_mom)}",
+        f"销量同比 {_fmt_month_change(qty_yoy)}（去年同期销量 {(yoy.get('qty', 0) if isinstance(yoy, dict) else 0) or 0:,} 件）",
+    ]
+    sections.append("**📈 销售概览**\n" + "\n".join(f"- {line}" for line in overview_lines))
 
-    # 变化方向
-    qty_mom = mom_changes.get("qty_change", 0)
-    amount_mom = mom_changes.get("amount_change", 0)
-    qty_yoy = yoy_changes.get("qty_change", 0)
-    qty_dir = "↑" if qty_mom >= 0 else "↓"
-    amount_dir = "↑" if amount_mom >= 0 else "↓"
-    yoy_dir = "↑" if qty_yoy >= 0 else "↓"
+    # ── SKU 归因 Top 3 ──
+    if attribution:
+        attr_lines = []
+        for a in list(attribution)[:3]:
+            contribution = a.get("contribution", 0) or 0
+            sign = "+" if contribution > 0 else ""
+            attr_lines.append(
+                f"- {a.get('sku', 'Unknown')}：{'涨' if contribution > 0 else '跌' if contribution < 0 else '持平'}"
+                f"贡献 {sign}{contribution} 件（占比 {a.get('pct', 0) or 0}%）"
+            )
+        sections.append("**🔍 SKU 归因 Top**\n" + "\n".join(attr_lines))
 
-    # 构建摘要
-    summary_parts = []
-
-    # 销售概览
-    summary_parts.append(f"本月销售 {curr_qty:,} 件，销售额 ${curr_amount:,.2f}。")
-    summary_parts.append(f"销量环比 {qty_dir} {abs(qty_mom):.1f}%，同比 {yoy_dir} {abs(qty_yoy):.1f}%。")
-
-    # Top SKU 亮点
+    # ── Top SKU 对比（本月 vs 上月） ──
     if top_skus:
-        top_sku = top_skus[0]
-        sku_name = top_sku.get("sku", "N/A")
-        sku_change = top_sku.get("mom_change", 0)
-        sku_dir = "↑" if sku_change >= 0 else "↓"
-        summary_parts.append(f"热销 SKU：{sku_name}（环比 {sku_dir} {abs(sku_change):.1f}%）。")
+        sku_lines = []
+        for s in list(top_skus)[:3]:
+            mom_change = s.get("mom_change")
+            if s.get("new") or (mom_change is None and (s.get("prev", 0) or 0) == 0):
+                change_str = "NEW"
+            elif mom_change is None:
+                change_str = "—"
+            else:
+                change_str = _fmt_month_change(mom_change)
+            sku_lines.append(
+                f"- {s.get('sku', 'Unknown')}：{s.get('current', 0) or 0} 件"
+                f"（上月 {s.get('prev', 0) or 0} 件，{change_str}）"
+            )
+        sections.append("**🏆 Top SKU 对比**\n" + "\n".join(sku_lines))
 
-    # 预警提示
-    if alerts:
-        critical = [a for a in alerts if a.get("type") == "critical"]
-        if critical:
-            summary_parts.append(f"⚠️ 需关注：{critical[0].get('message', '存在异常情况')}。")
-        else:
-            warning = [a for a in alerts if a.get("type") == "warning"]
-            if warning:
-                summary_parts.append(f"提示：{warning[0].get('message', '存在需关注项')}。")
+    # ── 库存与广告 ──
+    brief_lines = []
+    if inventory_alerts:
+        oos_count = sum(1 for a in inventory_alerts if a.get("level") == "oos")
+        low_count = sum(1 for a in inventory_alerts if a.get("level") == "low")
+        brief_lines.append(
+            f"库存预警 SKU 共 {len(inventory_alerts)} 个（缺货 {oos_count}、低库存 {low_count}）"
+        )
+    if ads_comparison:
+        acos = ads_comparison.get("acos", {}) or {}
+        spend = ads_comparison.get("spend", {}) or {}
+        brief_lines.append(
+            f"ACOS {(acos.get('current') or 0):.1f}%，环比 {_fmt_month_change(acos.get('mom_change'))}；"
+            f"花费 {_fmt_month_currency(spend.get('current') or 0.0)}，环比 {_fmt_month_change(spend.get('mom_change'))}"
+        )
+    if brief_lines:
+        sections.append("**📦 库存与广告**\n" + "\n".join(f"- {line}" for line in brief_lines))
 
-    return " ".join(summary_parts)
+    # ── 预警提示 ──
+    warning_lines = []
+    critical = [a for a in alerts if a.get("type") == "critical"]
+    warnings = [a for a in alerts if a.get("type") == "warning"]
+    for a in (critical + warnings)[:3]:
+        icon = "🔴" if a.get("type") == "critical" else "⚠️"
+        warning_lines.append(f"- {icon} {a.get('message', '存在需关注项')}")
+    if warning_lines:
+        sections.append("**⚡ 预警提示**\n" + "\n".join(warning_lines))
+
+    return "\n\n".join(sections)
+
+
+def _fmt_month_currency(val: float) -> str:
+    """月报摘要货币格式化（无国家上下文时按美元）。"""
+    return f"${val:,.2f}"
 
 
 def generate_monthly_attribution_analysis(
