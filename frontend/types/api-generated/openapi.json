@@ -10008,6 +10008,11 @@
             "title": "Page Views",
             "type": "integer"
           },
+          "pending_order_qty": {
+            "default": 0,
+            "title": "Pending Order Qty",
+            "type": "integer"
+          },
           "sales_amount": {
             "title": "Sales Amount",
             "type": "number"
@@ -10138,6 +10143,11 @@
           "page_views": {
             "default": 0,
             "title": "Page Views",
+            "type": "integer"
+          },
+          "pending_order_qty": {
+            "default": 0,
+            "title": "Pending Order Qty",
             "type": "integer"
           },
           "sales_amount": {

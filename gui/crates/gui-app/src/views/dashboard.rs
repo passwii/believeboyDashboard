@@ -516,6 +516,7 @@ mod tests {
                 summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
                     date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                     order_qty: 10,
+                    pending_order_qty: 0,
                     sales_amount: 1000.0,
                     impressions: 0,
                     clicks: 0,
@@ -536,6 +537,7 @@ mod tests {
             summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
                 date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                 order_qty: 10,
+                pending_order_qty: 0,
                 sales_amount: 1000.0,
                 impressions: 0,
                 clicks: 0,
@@ -672,6 +674,7 @@ mod tests {
                     gui_domain::dashboard::DailyAnalysisRow {
                         date: NaiveDate::from_ymd_opt(2026, 8, 12).unwrap(),
                         order_qty: 10,
+                        pending_order_qty: 0,
                         sales_amount: 1000.0,
                         impressions: 0,
                         clicks: 0,
@@ -688,6 +691,7 @@ mod tests {
                     gui_domain::dashboard::DailyAnalysisRow {
                         date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                         order_qty: 20,
+                        pending_order_qty: 0,
                         sales_amount: 2000.0,
                         impressions: 0,
                         clicks: 0,
@@ -712,6 +716,7 @@ mod tests {
                 summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
                     date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                     order_qty: 5,
+                    pending_order_qty: 0,
                     sales_amount: 300.0,
                     impressions: 0,
                     clicks: 0,
@@ -736,6 +741,7 @@ mod tests {
                 summary_rows: vec![gui_domain::dashboard::DailyAnalysisRow {
                     date: NaiveDate::from_ymd_opt(2026, 8, 6).unwrap(),
                     order_qty: 10,
+                    pending_order_qty: 0,
                     sales_amount: 2500.0,
                     impressions: 0,
                     clicks: 0,

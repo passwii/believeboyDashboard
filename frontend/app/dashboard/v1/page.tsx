@@ -75,6 +75,7 @@ const LazyDashboardAdSpendChart = dynamic(
 type DailyAnalysisRow = {
   date: string
   order_qty: number
+  pending_order_qty: number
   sales_amount: number
   impressions: number
   clicks: number

@@ -28,6 +28,7 @@ import type { DashboardDailyData } from '@/app/dashboard/v1/page'
 type DailyAnalysisRow = {
   date: string
   order_qty: number
+  pending_order_qty: number
   sales_amount: number
   impressions: number
   clicks: number

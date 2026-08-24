@@ -612,13 +612,14 @@ impl DailyAnalysisView {
         if let Ok(data) = &result {
             if !data.is_empty() {
                 self.projects = data.projects.clone();
-                // BLF-795：KPI 推送给 Console Bar 统计 pill（GMV / 订单数；
-                // Pending 数据源未接入，恒为 None 不出位）
+                // BLF-795：KPI 推送给 Console Bar 统计 pill（GMV / 订单数）；
+                // BLF-812：Pending 接真实合计（BLF-811 后端字段，与聚合条同源）
                 let kpi = KpiSummary::from_rows(&data.summary_rows);
+                let pending: i64 = data.summary_rows.iter().map(|r| r.pending_order_qty).sum();
                 cx.emit(ConsoleStatsEvent(ConsoleStats {
                     gmv: Some(kpi.sales_amount),
                     orders: Some(kpi.order_qty),
-                    pending: None,
+                    pending: Some(pending),
                 }));
             }
         }
@@ -702,7 +703,7 @@ fn page_slice<T: Clone>(rows: &[T], state: &PageState) -> Vec<T> {
 // 聚合条目（数字一律 mono 渲染于 grid_footer_bar；Pending 含口径标注）
 // ---------------------------------------------------------------------------
 
-/// 明细数据集聚合：总销售额（GMV）/ 总订单数 / 总广告花费 / Pending 口径占位
+/// 明细数据集聚合：总销售额（GMV）/ 总订单数 / 总广告花费 / Pending 待发货合计
 pub fn detail_aggregates(rows: &[DailyAnalysisDetailRow]) -> Vec<AggregateItem> {
     vec![
         AggregateItem::new(
@@ -717,7 +718,7 @@ pub fn detail_aggregates(rows: &[DailyAnalysisDetailRow]) -> Vec<AggregateItem> 
             "广告花费",
             fmt_money_precise(rows.iter().map(|r| r.ad_spend).sum()),
         ),
-        pending_placeholder_item(rows.len()),
+        pending_item(rows.iter().map(|r| r.pending_order_qty).sum()),
     ]
 }
 
@@ -736,7 +737,7 @@ pub fn daily_aggregates(rows: &[DailyAnalysisRow]) -> Vec<AggregateItem> {
             "广告花费",
             fmt_money_precise(rows.iter().map(|r| r.ad_spend).sum()),
         ),
-        pending_placeholder_item(rows.len()),
+        pending_item(rows.iter().map(|r| r.pending_order_qty).sum()),
     ]
 }
 
@@ -758,12 +759,12 @@ pub fn breakdown_aggregates(rows: &[BreakdownRow]) -> Vec<AggregateItem> {
     ]
 }
 
-/// Pending 占位条目：数值「—」警示色 + 口径标注（BLF-798 验收项：
-/// 「销售数据含 Pending 口径标注」；后端无现成端点，缺口在完成评论列出）
-fn pending_placeholder_item(_rows: usize) -> AggregateItem {
-    AggregateItem::new("Pending", "—")
+/// Pending 条目：窗口内待发货订单合计 + 警示色与口径标注
+/// （BLF-798 占位 → BLF-812 接线：后端 BLF-811 已在行级输出 `pending_order_qty`）
+fn pending_item(pending_qty: i64) -> AggregateItem {
+    AggregateItem::new("Pending", fmt_num_precise(pending_qty))
         .tone(AggregateTone::Warning)
-        .note("口径：窗口内待发货订单 · 后端待接入")
+        .note("口径：窗口内待发货订单")
 }
 
 // ---------------------------------------------------------------------------
@@ -1336,6 +1337,7 @@ mod tests {
             sku: sku.to_string(),
             asin: Some("B0TEST01".to_string()),
             order_qty: 4,
+            pending_order_qty: 0,
             sales_amount: 360.0,
             impressions: 1800,
             clicks: 60,
@@ -1422,6 +1424,7 @@ mod tests {
         DailyAnalysisRow {
             date: NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap(),
             order_qty: orders,
+            pending_order_qty: 0,
             sales_amount: sales,
             impressions: 0,
             clicks: 0,
@@ -1540,16 +1543,30 @@ mod tests {
 
     #[test]
     fn aggregates_sum_and_pending_note_present() {
-        let details = vec![detail_row("A", 1), detail_row("B", 0)];
+        let mut a = detail_row("A", 1);
+        a.pending_order_qty = 2;
+        let mut b = detail_row("B", 0);
+        b.pending_order_qty = 3;
+        let details = vec![a, b];
         let items = detail_aggregates(&details);
         assert_eq!(items.len(), 4);
         assert_eq!(items[0].value, "$720.00");
         assert_eq!(items[1].value, "8");
         assert_eq!(items[2].value, "$57.60");
-        // Pending 占位必须带口径标注与警示色（BLF-798 验收项）
-        assert_eq!(items[3].value, "—");
+        // Pending 为窗口内待发货合计（BLF-812 接线，BLF-811 后端字段）
+        assert_eq!(items[3].value, "5");
         assert_eq!(items[3].tone, AggregateTone::Warning);
         assert!(items[3].note.is_some());
+
+        // 每日汇总同口径
+        let mut daily = row("2026-08-13", 100.0, 4, 1.0);
+        daily.pending_order_qty = 7;
+        let daily_items = daily_aggregates(&[daily]);
+        assert_eq!(daily_items[3].value, "7");
+
+        // 全零行 → Pending 显示 0（不再回退「—」占位）
+        let zero_items = detail_aggregates(&[detail_row("A", 0)]);
+        assert_eq!(zero_items[3].value, "0");
 
         let breakdown = vec![BreakdownRow {
             name: "X".into(),
