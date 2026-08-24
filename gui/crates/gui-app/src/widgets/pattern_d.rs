@@ -817,10 +817,7 @@ mod tests {
         assert_eq!(validate_cell("费率", &bounded, ""), Ok(0.0), "非必填空值放行");
         assert!(validate_cell("费率", &bounded, "-1").is_err(), "越下界报错");
         assert!(validate_cell("费率", &bounded, "101").is_err(), "越上界报错");
-        assert!(matches!(
-            validate_cell("名称", &CellRule::Text, ""),
-            Ok(_)
-        ));
+        assert!(validate_cell("名称", &CellRule::Text, "").is_ok());
     }
 
     #[test]
