@@ -90,11 +90,23 @@ export function TerminalHeader({
         <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1 text-xs">
           {activeGroup && (
             <>
-              <span className="shrink-0 text-term-faint">{activeGroup.label}</span>
-              <span className="shrink-0 font-mono text-[10px] text-term-faint">›</span>
+              <span
+                className="shrink-0 uppercase tracking-wide text-term-faint transition-colors hover:text-term-muted"
+                title={activeGroup.label}
+              >
+                {activeGroup.label}
+              </span>
+              <span
+                aria-hidden
+                className="shrink-0 select-none font-mono text-[10px] leading-none text-term-border"
+              >
+                ›
+              </span>
             </>
           )}
-          <span className="min-w-0 truncate font-medium text-term-text">{pageTitle}</span>
+          <span className="min-w-0 truncate font-medium tracking-tight text-term-text">
+            {pageTitle}
+          </span>
         </nav>
       </div>
 

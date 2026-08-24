@@ -11,6 +11,29 @@ export const TERMINAL_HEADER_HEIGHT = 36
 export const TERMINAL_FOOTER_HEIGHT = 24
 export const TERMINAL_INSPECTOR_WIDTH = 288
 
+/**
+ * Footer 多频道滚动 Ticker 配置（BLF-816）。
+ * 频道开关集中在此，新增/下线频道只改常量不动组件。
+ */
+export const TERMINAL_TICKER = {
+  /** 滚动速度（像素/秒）；按内容实际宽度换算动画时长，保证匀速观感 */
+  scrollSpeedPxPerSecond: 60,
+  /** 内容不超宽时关闭滚动（静态展示），避免双拷贝出现空档跳动 */
+  staticWhenContentFits: true,
+  /** 各频道数据轮询间隔（毫秒） */
+  pollIntervalMs: 5 * 60 * 1000,
+  channels: {
+    /** 汇率频道：全部可用币种 + 环比涨跌着色 */
+    fx: true,
+    /** 全局快报：今日 GMV / 订单数 / Pending 数 */
+    dailyBrief: true,
+    /** 最近同步完成时刻（复用汇率频道成功时间） */
+    syncTime: true,
+    /** 更新日志最新一条摘要（本地 changelog 快照，无网络开销） */
+    changelog: true,
+  },
+} as const
+
 export const TERMINAL_STORAGE_KEYS = {
   subnavCollapsed: 'bb.terminal.subnav-collapsed',
   inspectorOpen: 'bb.terminal.inspector-open',
