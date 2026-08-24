@@ -712,7 +712,8 @@ def _dispatch_one(
     2) 委托给共享主体 `_dispatch_one_task_body(...)`
 
     manual_log / P0-3 幂等检查全部位于 `_dispatch_one_task_body` 入口，
-    旧路径与新 Celery 路径共享同一段业务逻辑，包括 ai_summary Celery 派发。
+    旧路径与新 Celery 路径共享同一段业务逻辑。AI 摘要：日报频次同步写
+    fallback 摘要；周报/月报不再自动派发（BLF-820），留 pending 等手动触发。
     """
     # 自动调度路径（scheduler._run_minutely_scan → _dispatch_subscriptions → 本函数）
     # 不会经过 dispatch_reports()，所以这里的 _dispatch_date_str 和 _summary_cache
@@ -752,7 +753,7 @@ def _dispatch_one_task_body(
     pre_existing_log_id: int | None = None,
     old_log_id: int | None = None,
 ) -> dict[str, Any]:
-    """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要派发。
+    """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要处理。
 
     调用方契约（方案 P0 / 切片 2）：
     - 调用方负责模块全局 `_dispatch_date_str` 与传入 `report_date` 对齐；body 内部不触碰全局。
@@ -767,8 +768,9 @@ def _dispatch_one_task_body(
     - `app.celery_tasks.scheduled_report.dispatch_one_task`（新 Celery 路径，定时 / 手动 trigger）
     - `resend_ledger_entry_async`（新 Celery 路径 + pre_log_id，复用 P0-1/P0-2/P0-3 护栏）
 
-    末尾 AI 摘要派发走 `app.celery_tasks.ai_summary.generate_delivery_summary.delay(...)`
-    （方案 §4.6 / 切片 2）：三条入口都自动获得 ai_summary Celery 化。
+    AI 摘要（BLF-820）：日报频次在发送成功后**同步**写 fallback 摘要进
+    delivery_log；周报/月报不再自动派发 ai_summary 任务，delivery_log 保持
+    pending，由前端手动触发 regenerate 入口补齐。
     """
     result: dict[str, Any] = {
         "subscription_id": subscription_id,
@@ -998,7 +1000,8 @@ def _dispatch_one_task_body(
 
             # AI 摘要派发：日报频次已关闭 AI（AI_SUMMARY_TIMEOUT_SEC_DAILY=0）时
             # **同步**生成 fallback 摘要写入 delivery_log（点完立即出摘要、零转圈），
-            # 不再派 Celery 异步任务；周报/月报（或 daily 未关 AI 时）走 Celery。
+            # 纯格式化文本、非 LLM。周报/月报不再自动生成 AI 摘要（BLF-820）：
+            # delivery_log 保持初始 pending，等前端手动触发。
             try:
                 from app.services.scheduled_report.subscription_service import (
                     update_delivery_log_ai_summary,
@@ -1021,28 +1024,12 @@ def _dispatch_one_task_body(
                             log_id,
                         )
                     else:
-                        logger.warning(
-                            "Daily fallback summary empty, enqueuing Celery: sub=%d log=%d",
+                        logger.info(
+                            "Daily fallback summary empty, leaving pending: sub=%d log=%d",
                             subscription_id,
                             log_id,
                         )
-                        from app.celery_tasks.ai_summary import (
-                            generate_delivery_summary,
-                        )
-
-                        generate_delivery_summary.delay(
-                            log_id=log_id,
-                            ledger_key=None,
-                            override_ai_model=ai_model,
-                        )
-                else:
-                    from app.celery_tasks.ai_summary import generate_delivery_summary
-
-                    generate_delivery_summary.delay(
-                        log_id=log_id,
-                        ledger_key=None,
-                        override_ai_model=ai_model,
-                    )
+                # 周报/月报：不自动派发 AI 摘要任务，留空等手动触发。
             except Exception as sum_err:
                 logger.warning("启动 delivery log ai_summary task 失败: %s", sum_err)
 
@@ -1486,21 +1473,8 @@ def _dispatch_one_async(
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
 
-            # AI 摘要改为后台异步生成，不阻塞补发主任务。
-            try:
-                from app.services.scheduled_report.ledger_service import (
-                    enqueue_ai_summary_generation,
-                )
-
-                enqueue_ai_summary_generation(
-                    db=db,
-                    log_id=log_id,
-                    ledger_key=ledger_key,
-                    override_ai_model=ai_model,
-                )
-            except Exception as sum_err:
-                logger.warning("启动 delivery log ai_summary 后台任务失败: %s", sum_err)
-
+            # BLF-820：AI 摘要不再自动生成，delivery_log 保持初始 pending，
+            # 等前端手动触发（前端「生成摘要」按钮）。
             # 直接更新 ledger entry 状态（不依赖后续的 refresh_ledger）
             try:
                 ledger_entry = (
