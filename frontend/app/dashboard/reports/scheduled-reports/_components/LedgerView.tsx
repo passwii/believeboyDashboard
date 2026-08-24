@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
-import { Loader2, RotateCcw } from 'lucide-react'
+import { Loader2, RotateCcw, Sparkles } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -311,6 +311,12 @@ export default function LedgerView() {
     setDetailOpen(true)
   }
 
+  // BLF-822：行内快捷生成——不带模型覆盖，走订阅预设/后端默认模型；
+  // 需要指定模型的场景走详情弹窗里的入口。
+  const handleQuickRegenerateSummary = (item: LedgerItem) => {
+    void handleRegenerateAiSummary(item, null)
+  }
+
   return (
     <div className="space-y-3">
       {/* 工具栏 */}
@@ -452,6 +458,8 @@ export default function LedgerView() {
                     isLoadingModelConfig={isLoadingModelConfig}
                     onRequestModelConfig={ensureModelConfig}
                     resendingStates={resendingStates}
+                    regeneratingSummaryKeys={regeneratingSummaryKeys}
+                    onRegenerateSummary={handleQuickRegenerateSummary}
                     onRowClick={openDetail}
                     onResend={handleResendLedger}
                     onResendLoading={(item) =>
@@ -485,6 +493,14 @@ export default function LedgerView() {
                 const sub = subscriptions.find((s) => s.id === item.subscription_id)
                 const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
                 const canTrigger = canTriggerResend || item.can_resend
+                // BLF-822：行内 AI 摘要快捷操作（仅管理员，pending/failed 可用）
+                const summaryBusy =
+                  regeneratingSummaryKeys.has(item.ledger_key) ||
+                  item.ai_summary_status === 'generating'
+                const showSummaryAction =
+                  canTriggerResend &&
+                  item.status === 'sent' &&
+                  (item.ai_summary_status === 'pending' || item.ai_summary_status === 'failed')
 
                 return (
                   <div
@@ -519,7 +535,23 @@ export default function LedgerView() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        {summaryBusy ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            生成中
+                          </span>
+                        ) : showSummaryAction ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                            onClick={() => handleQuickRegenerateSummary(item)}
+                          >
+                            <Sparkles className="mr-0.5 h-3 w-3" />
+                            {item.ai_summary_status === 'failed' ? '重新生成' : '生成摘要'}
+                          </Button>
+                        ) : null}
                         {canTrigger ? (
                           <LedgerResendCell
                             item={item}
