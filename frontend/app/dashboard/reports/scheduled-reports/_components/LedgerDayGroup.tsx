@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { format } from 'date-fns'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -14,6 +14,7 @@ import {
   ColGroup,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { LedgerResendCell } from './LedgerResendCell'
 import {
   FREQUENCY_COLORS,
@@ -37,6 +38,10 @@ interface LedgerDayGroupProps {
   /** BEL-422：行内重发下拉打开时按需加载模型配置 */
   onRequestModelConfig: () => void
   resendingStates: Record<string, ResendStage>
+  /** BLF-822：正在生成 AI 摘要的 ledger_key 集合（乐观更新/轮询中） */
+  regeneratingSummaryKeys: Set<string>
+  /** BLF-822：行内快捷触发「生成/重新生成 AI 摘要」（仅管理员，pending/failed 可用） */
+  onRegenerateSummary: (item: LedgerItem) => void
   onRowClick: (item: LedgerItem) => void
   onResend: (item: LedgerItem, overrideAiModel: string | null) => void
   onResendLoading: (item: LedgerItem) => void
@@ -55,6 +60,8 @@ export function LedgerDayGroup({
   isLoadingModelConfig,
   onRequestModelConfig,
   resendingStates,
+  regeneratingSummaryKeys,
+  onRegenerateSummary,
   onRowClick,
   onResend,
   onResendLoading,
@@ -181,6 +188,15 @@ export function LedgerDayGroup({
               const sub = subscriptions.find((s) => s.id === item.subscription_id)
               const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
               const canTrigger = canTriggerResend || item.can_resend
+              // BLF-822：行内 AI 摘要快捷操作——仅管理员；报告已发送且摘要
+              // pending（尚未生成）或 failed（可重试）时提供入口。
+              const regeneratingSummary =
+                regeneratingSummaryKeys.has(item.ledger_key) ||
+                item.ai_summary_status === 'generating'
+              const showSummaryAction =
+                canTriggerResend &&
+                item.status === 'sent' &&
+                (item.ai_summary_status === 'pending' || item.ai_summary_status === 'failed')
 
               return (
                 <TableRow
@@ -231,21 +247,40 @@ export function LedgerDayGroup({
                     className="whitespace-nowrap text-right"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {canTrigger ? (
-                      <LedgerResendCell
-                        item={item}
-                        resendingStage={resendingStates[item.ledger_key]}
-                        canResend
-                        modelConfig={modelConfig}
-                        isLoadingModelConfig={isLoadingModelConfig}
-                        onRequestModelConfig={onRequestModelConfig}
-                        fallbackModel={fallbackModel}
-                        onLoading={() => onResendLoading(item)}
-                        onSubmit={(overrideAiModel) => onResend(item, overrideAiModel)}
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {regeneratingSummary ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          生成中
+                        </span>
+                      ) : showSummaryAction ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid="row-generate-summary"
+                          className="h-7 px-2 text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                          onClick={() => onRegenerateSummary(item)}
+                        >
+                          <Sparkles className="mr-0.5 h-3 w-3" />
+                          {item.ai_summary_status === 'failed' ? '重新生成' : '生成摘要'}
+                        </Button>
+                      ) : null}
+                      {canTrigger ? (
+                        <LedgerResendCell
+                          item={item}
+                          resendingStage={resendingStates[item.ledger_key]}
+                          canResend
+                          modelConfig={modelConfig}
+                          isLoadingModelConfig={isLoadingModelConfig}
+                          onRequestModelConfig={onRequestModelConfig}
+                          fallbackModel={fallbackModel}
+                          onLoading={() => onResendLoading(item)}
+                          onSubmit={(overrideAiModel) => onResend(item, overrideAiModel)}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )
