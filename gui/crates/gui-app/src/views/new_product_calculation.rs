@@ -1451,19 +1451,33 @@ fn render_loaded(
     let runs_total = *runs_total;
     let runs_count = *runs_count;
 
+    // Pattern D 套版：币种 & VAT 站点卡片选择器替代原站点下拉（保留入库模式下拉）
+    let sites_row = crate::widgets::pattern_d::site_card_selector(
+        view,
+        app_theme,
+        "new-product-site-cards",
+        country,
+        |this, code, cx| this.select_country(code, cx),
+    );
+
     crate::motion::enter_fade_in(
         SharedString::from("new-product-calculation-loaded-fade"),
-        v_flex()
-            .id("new-product-calculation-loaded")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("新品核算").subtitle(format!(
+        crate::widgets::pattern_d::pattern_d_shell(
+            app_theme,
+            "new-product-calculation-loaded",
+            PageHeader::new("新品核算").subtitle(format!(
                 "{} · 利润核算 / 利润倒算 / 成本倒推 / FBM测算",
                 country_label(country)
-            )))
+            )),
+            div(),
+            true,
+            sites_row,
+            v_flex()
+                .id("new-product-calculation-body")
+                .size_full()
+                .gap_4()
+                .p_4()
+                .overflow_y_scroll()
             // 测算输入 × 结果面板（web grid-cols-[520px_1fr] 的 GPUI 等价）
             .child(
                 h_flex()
@@ -1492,7 +1506,7 @@ fn render_loaded(
                     comparison_table,
                     selected_count,
                 ))
-            }),
+            })),
         reduce,
     )
 }
