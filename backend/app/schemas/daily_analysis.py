@@ -28,6 +28,9 @@ class DailyAnalysisConsoleResponse(BaseModel):
 class DailyAnalysisSummaryRow(BaseModel):
     date: str
     order_qty: int
+    # BLF-811：窗口内待发货订单量（order_status ∈ Pending/Unshipped 的已计数行
+    # quantity 合计），order_qty 的子集；默认 0 兼容 Redis 旧缓存载荷。
+    pending_order_qty: int = 0
     sales_amount: float
     impressions: int
     clicks: int
@@ -47,6 +50,7 @@ class DailyAnalysisDetailRow(BaseModel):
     sku: str
     asin: str | None
     order_qty: int
+    pending_order_qty: int = 0
     sales_amount: float
     impressions: int
     clicks: int

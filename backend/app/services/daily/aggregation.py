@@ -15,6 +15,9 @@ def _bucket_key(target_date: date, sku: str) -> tuple[str, str]:
 class _MetricBucket:
     asin: str | None = None
     order_qty: int = 0
+    # BLF-811：窗口内待发货订单量（order_status ∈ Pending/Unshipped 的已计数行），
+    # 是 order_qty 的子集；跨项目 / 跨国家合并时与其他非金额字段同法相加。
+    pending_order_qty: int = 0
     sales_amount: Decimal = field(default_factory=lambda: Decimal("0"))
     impressions: int = 0
     clicks: int = 0
@@ -60,6 +63,7 @@ def _aggregate_buckets(
             "sku": bucket_sku,
             "asin": bucket.asin,
             "order_qty": int(bucket.order_qty),
+            "pending_order_qty": int(bucket.pending_order_qty),
             "sales_amount": round_money(bucket.sales_amount),
             "impressions": int(bucket.impressions),
             "clicks": int(bucket.clicks),
@@ -81,6 +85,7 @@ def _aggregate_buckets(
             {
                 "date": day_text,
                 "order_qty": 0,
+                "pending_order_qty": 0,
                 "sales_amount": Decimal("0"),
                 "impressions": 0,
                 "clicks": 0,
@@ -94,6 +99,9 @@ def _aggregate_buckets(
             },
         )
         summary["order_qty"] = int(summary["order_qty"]) + int(bucket.order_qty)
+        summary["pending_order_qty"] = (
+            int(summary["pending_order_qty"]) + int(bucket.pending_order_qty)
+        )
         summary["sales_amount"] = Decimal(summary["sales_amount"]) + bucket.sales_amount
         summary["impressions"] = int(summary["impressions"]) + int(bucket.impressions)
         summary["clicks"] = int(summary["clicks"]) + int(bucket.clicks)
@@ -109,6 +117,7 @@ def _aggregate_buckets(
         {
             "date": item["date"],
             "order_qty": int(item["order_qty"]),
+            "pending_order_qty": int(item["pending_order_qty"]),
             "sales_amount": round_money(Decimal(item["sales_amount"])),
             "impressions": int(item["impressions"]),
             "clicks": int(item["clicks"]),

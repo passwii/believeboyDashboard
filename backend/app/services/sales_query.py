@@ -17,6 +17,11 @@ from app.models import AnalysisSalesOrderRow
 
 CountryParam = Union[str, Sequence[str]]
 
+# 「待发货」订单状态集合（Amazon 订单报表原始状态文本，大小写不敏感匹配）。
+# Pending = 已下单未进入处理队列；Unshipped = 已处理未发货——两者均为
+# 「已下单、尚未发货」口径（BLF-811），Shipped / Cancelled 不计。
+PENDING_SHIPMENT_STATUSES: frozenset[str] = frozenset({"pending", "unshipped"})
+
 
 def counted_sales_where(
     *,
