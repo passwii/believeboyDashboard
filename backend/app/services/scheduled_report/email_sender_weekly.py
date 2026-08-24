@@ -815,6 +815,75 @@ _WEEKLY_SECTIONS = [
 ]
 
 
+# ── Combined multi-country section (BLF-813) ─────────────────────────────────
+
+# 板块之间的浅色分隔行（多站点布局共用）
+_LIGHT_DIVIDER = """
+      <tr>
+        <td style="padding: 8px 16px 0;">
+          <div style="border-bottom: 1px solid #F3F4F6;"></div>
+        </td>
+      </tr>"""
+
+
+def _section_week_combined_trend(
+    countries: list[str],
+    country_data: dict[str, dict[str, Any]],
+) -> str:
+    """🌐 整体销售情况（多站点汇总）：把各站点的每日销量趋势柱状图合并为一条整体柱状图。
+
+    BLF-813：仅出现在多站点报告的正文开头，先给整体、再进按站点分列的原有板块。
+    只汇总销量件数（各站点币种不同，销售额不可跨站点直接相加）。
+    所有站点均无趋势数据时返回空串（该环节自动省略）。
+    """
+    totals: dict[str, dict[str, Any]] = {}
+    for country in countries:
+        for d in country_data.get(country, {}).get("daily_trend", []):
+            day = str(d.get("date", "")).strip()
+            if not day:
+                continue
+            try:
+                qty = int(d.get("qty", 0) or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            slot = totals.setdefault(day, {"qty": 0, "weekday": str(d.get("weekday", "")).strip()})
+            slot["qty"] += qty
+    if not totals:
+        return ""
+
+    site_labels = " / ".join(_country_label(c) for c in countries)
+    max_q = max(v["qty"] for v in totals.values()) or 1
+    col_pct = f"{100 // len(totals)}%"
+    trend_tds = ""
+    for day in sorted(totals):
+        q = totals[day]["qty"]
+        weekday_label = totals[day]["weekday"]
+        bar_h = max(4, int(q / max_q * 60))
+        trend_tds += f"""
+        <td width="{col_pct}" style="text-align: center; padding: 0 2px; vertical-align: bottom;">
+          <div style="font-size: 14px; font-weight: 700; color: #1D4ED8; margin-bottom: 3px;">{q:,}</div>
+          <div style="background: #DBEAFE; border-radius: 3px 3px 0 0; height: {bar_h}px; margin: 0 auto; min-height: 4px;"></div>
+          <div style="font-size: 11px; color: #6B7280; margin-top: 3px; white-space: nowrap;">{weekday_label}</div>
+          <div style="font-size: 10px; color: #9CA3AF; white-space: nowrap;">{day}</div>
+        </td>"""
+
+    return f"""
+      <!-- Section: 整体销售情况（多站点汇总） -->
+      <tr>
+        <td style="padding: 20px 16px 10px;">
+          <div style="border-left: 4px solid #0891B2; padding-left: 10px; font-size: 16px; font-weight: 700; color: #111827;">🌐 整体销售情况（多站点汇总）</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 0 16px 12px;">
+          <div style="font-size: 13px; color: #6B7280; margin-bottom: 8px;">本周销量合计 · 已合并 {site_labels} · 单位：件</div>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px;">
+            <tr>{trend_tds}</tr>
+          </table>
+        </td>
+      </tr>"""
+
+
 # ── HTML shell (header + summary + content + CTA) ────────────────────────────
 
 
@@ -963,6 +1032,13 @@ def _render_multi_country_weekly_html(
     country_display = " / ".join(_country_label(c) for c in countries)
 
     content_parts: list[str] = []
+
+    # BLF-813：多站点报告开头先给「整体销售情况」合并柱状图，再进按站点分列的板块
+    combined_section = _section_week_combined_trend(countries, country_data)
+    if combined_section:
+        content_parts.append(combined_section)
+        content_parts.append(_LIGHT_DIVIDER)
+
     for section in _WEEKLY_SECTIONS:
         renderer = section["fn"]
 
@@ -995,12 +1071,7 @@ def _render_multi_country_weekly_html(
                 content_parts.append(section_html)
 
         # Light divider
-        content_parts.append("""
-      <tr>
-        <td style="padding: 8px 16px 0;">
-          <div style="border-bottom: 1px solid #F3F4F6;"></div>
-        </td>
-      </tr>""")
+        content_parts.append(_LIGHT_DIVIDER)
 
     combined_content = "\n".join(content_parts)
     logo_src = _get_logo_src(for_screenshot)
