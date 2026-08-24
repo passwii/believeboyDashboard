@@ -129,7 +129,7 @@ def test_timeout_logs_stage_chat_completion_and_model(
 
     # Fallback text is returned, no exception bubbles up.
     assert isinstance(result, str)
-    assert "本月销售" in result  # signature of _generate_fallback_monthly_summary
+    assert "销售概览" in result  # signature of _generate_fallback_monthly_summary（BLF-821 分节格式）
 
     timeout_warnings = [
         rec for rec in caplog.records
@@ -180,7 +180,7 @@ def test_http_error_logs_stage_chat_completion_exception(
         )
 
     assert isinstance(result, str)
-    assert "本月销售" in result
+    assert "销售概览" in result  # signature of _generate_fallback_monthly_summary（BLF-821 分节格式）
 
     failure_warnings = [
         rec for rec in caplog.records
