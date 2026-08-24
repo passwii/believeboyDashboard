@@ -8,10 +8,13 @@
 - /api/v1/ad-analysis/overview（BLF-799：Pattern B 上半区图表 + 总览 Tab）
 - /api/v1/ad-analysis/{tab}（BLF-799：9 个明细 Tab，items 字段与
   gui_domain::advertising::ad_analysis_tabs 列配置一一对应）
+- /api/v1/ai/**（BLF-800：Pattern C AI Chat——配置 / 会话 CRUD /
+  历史消息 / SSE 流式对话；POST 仅 stream / create / cancel 三类）
 """
 import json
 import random
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 random.seed(7)
@@ -438,6 +441,93 @@ AD_TAB_ITEMS = {
 }
 
 AD_OVERVIEW = ad_overview()
+
+# ---------------------------------------------------------------------------
+# BLF-800：AI Chat mock（配置 / 会话 / 消息 / SSE 流）
+# ---------------------------------------------------------------------------
+
+_NOW = datetime.now(timezone.utc)
+
+
+def _iso(minutes_ago: float) -> str:
+    return (_NOW - timedelta(minutes=minutes_ago)).isoformat()
+
+
+AI_CONFIG = {
+    "provider_configured": True,
+    "web_search_configured": True,
+    "models": ["believeboy-flash", "believeboy-pro", "claude-sonnet"],
+    "default_model": "believeboy-flash",
+    "timeout_seconds": 120,
+}
+
+_AI_REPLY_TEMPLATE = (
+    "这是 **mock 流式回复**（BLF-800 Pattern C 验证数据）。\n\n"
+    "## 销售表现小结\n\n"
+    "| 站点 | GMV | 环比 |\n|---|---|---|\n"
+    "| US | $128,400 | +12.3% |\n| DE | €46,120 | -2.1% |\n\n"
+    "- 建议关注 **DE 站** ACoS 走高\n"
+    "- US 站库存周转健康\n\n"
+    "`代码块` 与 *行内样式* 均可渲染；本回复超过 2000 字符时仍应保持"
+    "滚动跟随流畅、上翻即暂停。"
+)
+
+AI_CONVERSATIONS = [
+    {
+        "id": 7,
+        "title": "上周销售数据分析",
+        "created_at": _iso(600),
+        "updated_at": _iso(30),
+        "total_prompt_tokens": 320,
+        "total_completion_tokens": 1450,
+        "total_tokens": 1770,
+    },
+    {
+        "id": 5,
+        "title": "广告活动优化建议",
+        "created_at": _iso(2880),
+        "updated_at": _iso(1500),
+        "total_prompt_tokens": 180,
+        "total_completion_tokens": 620,
+        "total_tokens": 800,
+    },
+]
+
+AI_MESSAGES = {
+    7: [
+        {
+            "id": 1,
+            "conversation_id": 7,
+            "role": "user",
+            "content": "帮我总结一下上周的销售表现，重点看美区。",
+            "search_sources": [],
+            "is_complete": True,
+            "total_tokens": 0,
+            "created_at": _iso(32),
+        },
+        {
+            "id": 2,
+            "conversation_id": 7,
+            "role": "assistant",
+            "content": (
+                "## 上周销售小结\n\nUS 站 GMV $128,400（环比 **+12.3%**），"
+                "主要由 Prime Day 尾量拉动；DE 站小幅回落。\n\n"
+                "| 站点 | GMV | 环比 |\n|---|---|---|\n"
+                "| US | $128,400 | +12.3% |\n| DE | €46,120 | -2.1% |"
+            ),
+            "search_sources": [],
+            "is_complete": True,
+            "prompt_tokens": 160,
+            "completion_tokens": 720,
+            "total_tokens": 880,
+            "duration_ms": 2100,
+            "created_at": _iso(31),
+        },
+    ],
+    5: [],
+}
+_NEXT_CONV_ID = 100
+_NEXT_MSG_ID = 1000
 _running = 0.0
 for _t in AD_OVERVIEW["trend_summary"]:
     _running += _t["spend"]
@@ -523,7 +613,134 @@ class Handler(BaseHTTPRequestHandler):
                     "has_next": True,
                 }
             )
+        if path == "/api/v1/ai/config":
+            return self._send(AI_CONFIG)
+        if path == "/api/v1/ai/conversations":
+            return self._send(AI_CONVERSATIONS)
+        if path.startswith("/api/v1/ai/conversations/") and path.endswith("/messages"):
+            conv_id = int(path.split("/")[5])
+            return self._send(AI_MESSAGES.get(conv_id, []))
         return self._send({})
+
+    def do_POST(self):
+        global _NEXT_CONV_ID, _NEXT_MSG_ID
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else b"{}"
+        path = self.path.split("?")[0]
+        if path == "/api/v1/ai/conversations":
+            _NEXT_CONV_ID += 1
+            conv = {
+                "id": _NEXT_CONV_ID,
+                "title": "新对话",
+                "created_at": _iso(0),
+                "updated_at": _iso(0),
+                "total_prompt_tokens": 0,
+                "total_completion_tokens": 0,
+                "total_tokens": 0,
+            }
+            AI_CONVERSATIONS.insert(0, conv)
+            AI_MESSAGES[conv["id"]] = []
+            return self._send(conv)
+        if path.endswith("/cancel"):
+            return self._send({"ok": True})
+        if path.endswith("/messages/stream"):
+            parts = path.split("/")
+            conv_id = int(parts[5]) if len(parts) > 5 else 7
+            try:
+                req = json.loads(body or b"{}")
+            except ValueError:
+                req = {}
+            user_content = str(req.get("content") or "")
+            return self._stream_chat(conv_id, user_content)
+        return self._send({})
+
+    def _stream_chat(self, conv_id: int, user_content: str):
+        """Anthropic Messages 形 SSE：message_start → text_delta* → done。"""
+        global _NEXT_MSG_ID
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+        def emit(payload):
+            chunk = (f"data: {json.dumps(payload, ensure_ascii=False)}\n\n").encode()
+            self.wfile.write(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n")
+            self.wfile.flush()
+
+        model = "believeboy-flash"
+        emit({"type": "message_start", "message_id": f"m-{_NEXT_MSG_ID}", "model": model})
+        emit({
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "text", "text": ""},
+        })
+        reply = _AI_REPLY_TEMPLATE
+        # 按 ~8 字符粒度切块，模拟逐 token 推进（总时长 ~2.5s，便于观察跟随）
+        for i in range(0, len(reply), 8):
+            emit({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": reply[i : i + 8]},
+            })
+            time.sleep(0.02)
+        emit({"type": "content_block_stop"})
+        emit({"type": "message_delta", "usage": {"input_tokens": 64, "output_tokens": 512}})
+        emit({"type": "message_stop"})
+
+        now = _iso(0)
+        assistant_message = {
+            "id": _NEXT_MSG_ID + 1,
+            "conversation_id": conv_id,
+            "role": "assistant",
+            "content": reply,
+            "search_sources": [],
+            "is_complete": True,
+            "prompt_tokens": 64,
+            "completion_tokens": 512,
+            "total_tokens": 576,
+            "duration_ms": 2400,
+            "created_at": now,
+        }
+        user_message = {
+            "id": _NEXT_MSG_ID,
+            "conversation_id": conv_id,
+            "role": "user",
+            "content": user_content,
+            "search_sources": [],
+            "is_complete": True,
+            "total_tokens": 0,
+            "created_at": now,
+        }
+        _NEXT_MSG_ID += 2
+        AI_MESSAGES.setdefault(conv_id, []).extend([user_message, assistant_message])
+        for conv in AI_CONVERSATIONS:
+            if conv["id"] == conv_id:
+                conv["updated_at"] = now
+                conv["total_tokens"] += 576
+        emit({
+            "type": "done",
+            "user_message": user_message,
+            "assistant_message": assistant_message,
+            "conversation_title": None,
+            "token_usage": {"prompt_tokens": 64, "completion_tokens": 512, "total_tokens": 576},
+            "duration_ms": 2400,
+            "title_regenerated": False,
+        })
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+
+    def do_DELETE(self):
+        path = self.path.split("?")[0]
+        parts = path.split("/")
+        if len(parts) == 6 and parts[4] == "conversations":
+            conv_id = int(parts[5])
+            AI_CONVERSATIONS[:] = [c for c in AI_CONVERSATIONS if c["id"] != conv_id]
+            self.send_response(204)
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
 
     def log_message(self, fmt, *args):
         pass

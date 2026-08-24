@@ -34,6 +34,13 @@ pub struct UiPrefs {
     /// 40%~50%；None = 默认 450）。广告分析页为首个消费方，后续 Pattern B
     /// 页面如需独立比例再按页面 key 扩展。
     pub analysis_chart_ratio: Option<u16>,
+    /// BLF-800：Pattern C 会话置顶列表（AI Chat 首个消费方；后端无置顶字段，
+    /// 属 GUI 本地偏好，重启保留）
+    #[serde(default)]
+    pub chat_pinned_conversations: Vec<i64>,
+    /// BLF-800：Pattern C 右上下文栏是否收起（默认展开）
+    #[serde(default)]
+    pub chat_context_collapsed: bool,
 }
 
 impl Default for UiPrefs {
@@ -45,6 +52,8 @@ impl Default for UiPrefs {
             inspector_visible: true,
             inspector_width: None,
             analysis_chart_ratio: None,
+            chat_pinned_conversations: Vec::new(),
+            chat_context_collapsed: false,
         }
     }
 }
@@ -160,6 +169,9 @@ mod tests {
             inspector_width: Some(320),
             // BLF-799：Pattern B 分割比例记忆一并持久化（per-mille 400~500）
             analysis_chart_ratio: Some(470),
+            // BLF-800：Pattern C 置顶会话与右栏收起态一并持久化
+            chat_pinned_conversations: vec![7, 11],
+            chat_context_collapsed: true,
         };
         let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
@@ -186,6 +198,9 @@ mod tests {
         assert!(prefs.inspector_width.is_none());
         // BLF-799：Pattern B 分割比例缺省（None = 模板默认 45%）
         assert!(prefs.analysis_chart_ratio.is_none());
+        // BLF-800：Pattern C 置顶列表缺省为空、右栏默认展开
+        assert!(prefs.chat_pinned_conversations.is_empty());
+        assert!(!prefs.chat_context_collapsed);
     }
 
     /// 文件级往返：写入后再读取应得到同一份偏好（临时目录，不碰真实用户目录）。

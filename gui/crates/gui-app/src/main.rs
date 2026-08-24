@@ -357,6 +357,17 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 prefs.analysis_chart_ratio = Some(*per_mille);
                 prefs::save_ui_prefs(&prefs);
             }
+            // BLF-800：Pattern C AI Chat 置顶列表 / 右栏收起态 → 持久化（读改写）
+            RootViewEvent::AiChatPinnedChanged(ids) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.chat_pinned_conversations = ids.clone();
+                prefs::save_ui_prefs(&prefs);
+            }
+            RootViewEvent::AiChatContextCollapsed(collapsed) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.chat_context_collapsed = *collapsed;
+                prefs::save_ui_prefs(&prefs);
+            }
         }
     })
     .detach();

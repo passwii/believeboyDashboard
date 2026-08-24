@@ -43,7 +43,7 @@ use crate::widgets::console_bar::{
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
 use crate::views::agent_management::{AgentManagementView, AGENT_MANAGEMENT_URL};
-use crate::views::ai_chat::{AiChatView, AI_CHAT_URL};
+use crate::views::ai_chat::{AiChatEvent, AiChatView, AI_CHAT_URL};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::command_palette::{CommandPaletteEvent, CommandPaletteView};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
@@ -96,8 +96,9 @@ pub struct SessionInfo {
     pub warning: Option<String>,
 }
 
-/// 主窗口根视图事件（BLF-796 起含 f32 宽度载荷，故不再派生 Eq；匹配用）
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// 主窗口根视图事件（BLF-796 起含 f32 宽度载荷，故不再派生 Eq；
+/// BLF-800 起含 Vec 载荷，故不再派生 Copy；匹配用）
+#[derive(Debug, Clone, PartialEq)]
 pub enum RootViewEvent {
     /// 用户点了退出登录（coordinator 负责清 Keychain + 切窗口）
     Logout,
@@ -111,6 +112,10 @@ pub enum RootViewEvent {
     InspectorWidthChanged(f32),
     /// BLF-799：广告分析双轴画布分割比例提交（per-mille 400..=500；组合根持久化）
     AdChartRatioChanged(u16),
+    /// BLF-800：AI Chat 会话置顶列表变化（全量 id；组合根持久化）
+    AiChatPinnedChanged(Vec<i64>),
+    /// BLF-800：AI Chat 右上下文栏收起态变化（组合根持久化）
+    AiChatContextCollapsed(bool),
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
@@ -152,6 +157,9 @@ pub struct RootView {
     ad_analysis: Option<Entity<AdAnalysisView>>,
     /// BLF-799：广告分析 Pattern B 事件订阅（分割比例提交上抛组合根持久化；必须持有）
     _ad_analysis_event_sub: Option<gpui::Subscription>,
+    /// BLF-800：AI Chat Pattern C 偏好事件订阅（置顶列表 / 右栏收起态上抛
+    /// 组合根持久化；必须持有）
+    _ai_chat_event_sub: Option<gpui::Subscription>,
     /// 广告 → 广告数据真实视图（P3-3；点击「广告 → 广告数据」懒创建）
     ad_data: Option<Entity<AdDataView>>,
     /// 报表中心 → 财务月报真实视图（P3-4；点击「报表中心 → 财务月报」懒创建）
@@ -2050,16 +2058,45 @@ impl RootView {
                         this.show_agent_management = false;
                         this.show_account_management = false;
                     } else if url == AI_CHAT_URL {
-                        // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取
+                        // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取；
+                        // BLF-800：Pattern C 偏好（置顶列表 / 右栏收起态）自偏好恢复 +
+                        // 偏好事件订阅挂一次
+                        let chat_new = this.ai_chat.is_none();
                         this.ai_chat.get_or_insert_with(|| {
+                            let ui_prefs = crate::prefs::load_ui_prefs();
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
-                                let mut view =
-                                    AiChatView::new(cx, client.unwrap_or_else(|| Client::new("")));
+                                let mut view = AiChatView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                )
+                                .with_session_prefs(
+                                    ui_prefs.chat_pinned_conversations.clone(),
+                                    ui_prefs.chat_context_collapsed,
+                                );
                                 view.reload(cx);
                                 view
                             })
                         });
+                        if chat_new {
+                            if let Some(view) = this.ai_chat.clone() {
+                                this._ai_chat_event_sub =
+                                    Some(cx.subscribe(&view, |_this, _v, event: &AiChatEvent, cx| {
+                                        match event {
+                                            AiChatEvent::PinnedSessionsChanged(ids) => {
+                                                cx.emit(RootViewEvent::AiChatPinnedChanged(
+                                                    ids.clone(),
+                                                ));
+                                            }
+                                            AiChatEvent::ContextPaneCollapsed(collapsed) => {
+                                                cx.emit(RootViewEvent::AiChatContextCollapsed(
+                                                    *collapsed,
+                                                ));
+                                            }
+                                        }
+                                    }));
+                            }
+                        }
                         this.show_site_navigation = false;
                         this.show_store_navigation = false;
                         this.show_platform_inspection = false;
@@ -2365,6 +2402,7 @@ impl RootView {
             daily_analysis: None,
             ad_analysis: None,
             _ad_analysis_event_sub: None,
+            _ai_chat_event_sub: None,
             ad_data: None,
             monthly_report: None,
             platform_revenue: None,
@@ -5703,7 +5741,7 @@ mod tests {
             let root_for_sub = cx.entity();
             let events = events.clone();
             cx.subscribe(&root_for_sub, move |_, _, event: &RootViewEvent, _| {
-                events.borrow_mut().push(*event);
+                events.borrow_mut().push(event.clone());
             })
             .detach();
             RootView::new(cx, None)
