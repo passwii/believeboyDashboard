@@ -1306,19 +1306,33 @@ fn render_loaded(
     let last_run = last_run.clone();
     let table = table.clone();
 
+    // Pattern D 套版：币种 & VAT 站点卡片选择器替代原站点下拉
+    let sites_row = crate::widgets::pattern_d::site_card_selector(
+        view,
+        app_theme,
+        "shop-calculation-site-cards",
+        country,
+        |this, code, cx| this.select_country(code, cx),
+    );
+
     crate::motion::enter_fade_in(
         SharedString::from("shop-calculation-loaded-fade"),
-        v_flex()
-            .id("shop-calculation-loaded")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("店铺测算").subtitle(format!(
+        crate::widgets::pattern_d::pattern_d_shell(
+            app_theme,
+            "shop-calculation-loaded",
+            PageHeader::new("店铺测算").subtitle(format!(
                 "{} · 店铺维度 SKU 利润核算（美国 / 德国 / 英国）",
                 country_label(country)
-            )))
+            )),
+            div(),
+            true,
+            sites_row,
+            v_flex()
+                .id("shop-calculation-body")
+                .size_full()
+                .gap_4()
+                .p_4()
+                .overflow_y_scroll()
             .child(render_console_card(
                 view,
                 app_theme,
@@ -1348,7 +1362,7 @@ fn render_loaded(
                         &selected,
                         &calc_phase,
                         last_run.as_deref(),
-                    )),
+                    ))),
             ),
         reduce,
     )

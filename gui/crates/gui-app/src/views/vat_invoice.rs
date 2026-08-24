@@ -712,15 +712,21 @@ impl Render for VatInvoiceView {
             _ => "欧洲订单 VAT 发票签发与历史管理；新建发票请在 web 端操作".to_string(),
         };
 
-        v_flex()
-            .id("vat-invoice")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("VAT 发票").subtitle(subtitle))
-            .child(content_guard().child(render_filter_card(self, view.clone(), &app_theme)))
+        // Pattern D 套版：页头 + 筛选工具栏带 + 主体（无站点卡，VAT 发票为
+        // 多币种历史读取面——站点选择器关闭，币种语义由数据行自带）
+        crate::widgets::pattern_d::pattern_d_shell(
+            &app_theme,
+            "vat-invoice",
+            PageHeader::new("VAT 发票").subtitle(subtitle),
+            content_guard().child(render_filter_card(self, view.clone(), &app_theme)),
+            false,
+            div(),
+            v_flex()
+                .id("vat-invoice-body")
+                .size_full()
+                .gap_4()
+                .p_4()
+                .overflow_y_scroll()
             .child(match state {
                 VatInvoiceState::Loading => render_loading(&app_theme).into_any_element(),
                 VatInvoiceState::Error(msg) => state_views::error_state(
@@ -760,7 +766,8 @@ impl Render for VatInvoiceView {
                     self.summary_table.clone(),
                 )
                 .into_any_element(),
-            })
+            }),
+        )
     }
 }
 
