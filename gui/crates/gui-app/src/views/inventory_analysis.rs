@@ -14,12 +14,15 @@
 //!   `useAutoSelectFirstProject` 语义）→ `tokio::join!` 并行拉取
 //!   `inventory_analysis`（`GET /api/v1/inventory-analysis`）与
 //!   `inventory_snapshot_options`（`GET /api/v1/inventory-snapshot-options`）；
-//! - **表格**：P5-0 公共 `DataTable`——固定 12 列（SKU/ASIN/品名/6 库龄分桶/
-//!   建议操作/库存状态/库龄状态）+ 响应驱动的在途 shipment 动态列（列签名变化时
-//!   重建表格，否则 `set_rows_if_changed` 幂等注入）；状态 pill 走 `render_element`
+//! - **表格**（BLF-802 Stage11 套版）：Pattern A 虚拟化大表 [`DataGrid`]——
+//!   固定 12 列（SKU/ASIN/品名/6 库龄分桶/建议操作/库存状态/库龄状态）+
+//!   响应驱动的在途 shipment 动态列（列签名变化时重建网格，否则
+//!   `set_rows_if_changed` 幂等注入）；状态 pill 走 `render_element`
 //!   自定义单元格（动态列需捕获 shipment_no，故用闭包而非 fn 指针）；
-//! - **筛选**：P5-0 `filter_bar`（项目单选 / 国家 US·DE·UK·ALL / 业务日期
-//!   快照下拉 + 刷新）；
+//!   底部 pinned [`aggregate_strip`] 承载合计口径（原合计条数值同源）；
+//! - **筛选**：Pattern A 工具栏行（项目单选 / 国家 US·DE·UK·ALL / 业务日期
+//!   快照下拉 + 刷新）；项目 / 站点由 Stage4 Console Bar 唯一权威承载
+//!   （BLF-795，BLF-802 接线），页内下拉保留快照维度；
 //! - **动效**：Phase 4 `enter_fade_in` + `reduce_motion` 尊重。
 //!
 //! 与 frontend 的已知差异（有意保留，GPUI 能力边界 / 范围）：
@@ -57,8 +60,10 @@ use gui_domain::operations::inventory::{
 };
 
 use crate::theme::AppTheme;
-use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
-use crate::widgets::layout::content_guard;
+use crate::widgets::data_grid::{
+    aggregate_strip, pattern_a_shell, AggregateItem, DataGrid,
+};
+use crate::widgets::data_table::{CellAlign, ColumnDef};
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::{filter_bar};
@@ -183,9 +188,9 @@ pub struct InventoryAnalysisView {
     snapshot_options: Vec<InventorySnapshotOption>,
     /// 请求竞态保护：只有等于最新值的响应才被应用
     latest_request_id: u64,
-    /// 库存明细表（P5-0 DataTable；shipment 动态列 → 列签名变化时重建）
-    table: Option<Entity<DataTable<InventoryAnalysisItem>>>,
-    /// 当前表格的 shipment 列签名（shipment_no 序列；用于判断是否需重建表格）
+    /// 库存明细大表（BLF-802 Pattern A 套版；shipment 动态列 → 列签名变化时重建）
+    grid: Option<Entity<DataGrid<InventoryAnalysisItem>>>,
+    /// 当前表格的 shipment 列签名（shipment_no 序列；用于判断是否需重建网格）
     shipment_sig: Vec<String>,
 }
 
@@ -202,7 +207,7 @@ impl InventoryAnalysisView {
             selected_snapshot: SharedString::from(SNAPSHOT_CURRENT),
             snapshot_options: Vec::new(),
             latest_request_id: 0,
-            table: None,
+            grid: None,
             shipment_sig: Vec::new(),
         }
     }
@@ -288,7 +293,7 @@ impl InventoryAnalysisView {
             // useAutoSelectFirstProject 的「URL 没指定 → 选第一个」落点）
             self.selected_project_id = Some(payload.response.project_id);
             self.snapshot_options = payload.snapshot_options.clone();
-            self.sync_table(&payload.response, cx);
+            self.sync_grid(&payload.response, cx);
         }
         self.state.update(cx, |state, cx| {
             *state = InventoryState::from_fetch_result(result);
@@ -296,31 +301,30 @@ impl InventoryAnalysisView {
         });
     }
 
-    /// 幂等注入明细表：shipment 列签名变化（或首建）→ 重建 DataTable；
+    /// 幂等注入明细大表：shipment 列签名变化（或首建）→ 重建 DataGrid；
     /// 否则 `set_rows_if_changed` 只注入行（render 期重复调用不触发多余重绘）。
-    fn sync_table(&mut self, resp: &InventoryAnalysisResponse, cx: &mut Context<Self>) {
+    fn sync_grid(&mut self, resp: &InventoryAnalysisResponse, cx: &mut Context<Self>) {
         let sig: Vec<String> = resp
             .shipment_columns
             .iter()
             .map(|c| c.shipment_no.clone())
             .collect();
-        if self.shipment_sig == sig && self.table.is_some() {
-            if let Some(table) = &self.table {
+        if self.shipment_sig == sig && self.grid.is_some() {
+            if let Some(grid) = &self.grid {
                 let items = resp.items.clone();
-                table.update(cx, |t, cx| t.set_rows_if_changed(&items, cx));
+                grid.update(cx, |g, cx| g.set_rows_if_changed(&items, cx));
             }
             return;
         }
         let columns = inventory_columns(&resp.shipment_columns);
         let items = resp.items.clone();
-        let table = cx.new(|_| {
-            DataTable::new("inventory-analysis-table", columns)
+        let grid = cx.new(|_| {
+            DataGrid::new("inventory-analysis-grid", columns)
                 .striped(true)
                 .empty_text("当前筛选下暂无库存快照数据")
-                .max_height(520.0)
         });
-        table.update(cx, |t, cx| t.set_rows(items, cx));
-        self.table = Some(table);
+        grid.update(cx, |g, cx| g.set_rows(items, cx));
+        self.grid = Some(grid);
         self.shipment_sig = sig;
     }
 }
@@ -365,7 +369,7 @@ impl Render for InventoryAnalysisView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
-        let table = self.table.clone();
+        let grid = self.grid.clone();
         match state {
             InventoryState::Loading => render_loading(&app_theme).into_any_element(),
             InventoryState::Error(msg) => {
@@ -382,7 +386,7 @@ impl Render for InventoryAnalysisView {
                     self.selected_project_id,
                     self.country,
                     &self.selected_snapshot,
-                    table,
+                    grid,
                 )
                 .into_any_element()
             }
@@ -472,41 +476,81 @@ fn render_loaded(
     selected_project_id: Option<i64>,
     country: &'static str,
     selected_snapshot: &str,
-    table: Option<Entity<DataTable<InventoryAnalysisItem>>>,
+    grid: Option<Entity<DataGrid<InventoryAnalysisItem>>>,
 ) -> impl IntoElement {
     let resp = &payload.response;
     let reduce = crate::motion::reduce_motion(cx);
 
+    let header = PageHeader::new("库存分析").subtitle(format!(
+        "{} · {} · 业务日期 {}",
+        resp.project_name,
+        country_label(&resp.country),
+        format_business_date(resp.report_date)
+    ));
+    // Pattern A 工具栏行（36px）：项目 / 站点 / 快照 / 刷新
+    let toolbar = render_filter_bar(
+        view,
+        app_theme,
+        &payload.projects,
+        selected_project_id,
+        country,
+        selected_snapshot,
+        &payload.snapshot_options,
+        resp.report_date,
+    );
+    // pinned 底部聚合条：合计口径（原合计条数值同源；数字 mono）
+    let footer = aggregate_strip(
+        app_theme,
+        "inventory-analysis",
+        &inventory_totals(resp),
+    );
+    // 统计卡带（4 张库存统计卡）置于网格上方
+    let body = v_flex()
+        .id("inventory-analysis-body")
+        .size_full()
+        .min_h_0()
+        .child(
+            div()
+                .w_full()
+                .flex_none()
+                .px_2()
+                .pt_2()
+                .pb_1()
+                .child(stat_band(app_theme, &resp.summary)),
+        )
+        .child(match grid {
+            Some(grid) => grid.into_any_element(),
+            None => state_views::skeleton_loading(app_theme, &[SkeletonBlock::BarRow(6, 320.0)])
+                .into_any_element(),
+        });
+
     crate::motion::enter_fade_in(
         SharedString::from("inventory-analysis-loaded-fade"),
-        v_flex()
-            .id("inventory-analysis-loaded")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("库存分析").subtitle(format!(
-                "{} · {} · 业务日期 {}",
-                resp.project_name,
-                country_label(&resp.country),
-                format_business_date(resp.report_date)
-            )))
-            // 筛选栏 + 统计卡：宽窗受内容上限约束；主表保留全宽
-            .child(content_guard().child(render_filter_bar(
-                view,
-                app_theme,
-                &payload.projects,
-                selected_project_id,
-                country,
-                selected_snapshot,
-                &payload.snapshot_options,
-                resp.report_date,
-            )))
-            .child(content_guard().child(stat_band(app_theme, &resp.summary)))
-            .child(table_card(app_theme, table, resp)),
+        pattern_a_shell(app_theme, "inventory-analysis", header, toolbar, body, footer),
         reduce,
     )
+}
+
+/// 底部聚合条目：合计口径与旧合计行一致——可售 + 6 库龄分桶 + 各在途 shipment。
+fn inventory_totals(resp: &InventoryAnalysisResponse) -> Vec<AggregateItem> {
+    let summary = &resp.summary;
+    let mut items = vec![
+        AggregateItem::new("可售库存", fmt_num_precise(summary.total_available_qty)),
+        AggregateItem::new("0-90天", fmt_num_precise(summary.total_age_0_90_qty)),
+        AggregateItem::new("91-180天", fmt_num_precise(summary.total_age_91_180_qty)),
+        AggregateItem::new("181-270天", fmt_num_precise(summary.total_age_181_270_qty)),
+        AggregateItem::new("271-365天", fmt_num_precise(summary.total_age_271_365_qty)),
+        AggregateItem::new("超过365天", fmt_num_precise(summary.total_age_365_plus_qty)),
+    ];
+    for col in &resp.shipment_columns {
+        let qty = resp
+            .shipment_column_totals
+            .get(&col.shipment_no)
+            .copied()
+            .unwrap_or_default();
+        items.push(AggregateItem::new(col.label.clone(), fmt_num_precise(qty)));
+    }
+    items
 }
 
 // ---------------------------------------------------------------------------
@@ -774,113 +818,7 @@ fn stat_card(
 }
 
 // ---------------------------------------------------------------------------
-// 库存明细表卡（P5-0 DataTable + 合计条）
-// ---------------------------------------------------------------------------
-
-/// 明细表卡：标题（操作台账 · 库存明细表）+ 表格 + 合计条
-fn table_card(
-    app_theme: &AppTheme,
-    table: Option<Entity<DataTable<InventoryAnalysisItem>>>,
-    resp: &InventoryAnalysisResponse,
-) -> impl IntoElement {
-    v_flex()
-        .id("inventory-analysis-table-card")
-        .w_full()
-        .rounded(px(app_theme.radius_lg))
-        .bg(app_theme.card_bg)
-        .shadow(vec![app_theme.card_shadow_box()])
-        .child(
-            v_flex()
-                .gap_1()
-                .px_4()
-                .py_3()
-                .border_b_1()
-                .border_color(app_theme.separator)
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(app_theme.text_muted)
-                        .child("操作台账"),
-                )
-                .child(
-                    div()
-                        .text_base()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(app_theme.text_primary)
-                        .child("库存明细表"),
-                ),
-        )
-        .when_some(table, |this, table| this.child(table))
-        .child(totals_footer(app_theme, resp))
-}
-
-/// 合计条（对齐 web 合计行数值口径：可售 + 6 库龄分桶 + 各在途 shipment 合计）
-fn totals_footer(app_theme: &AppTheme, resp: &InventoryAnalysisResponse) -> impl IntoElement {
-    let summary = &resp.summary;
-    let mut totals: Vec<(String, String)> = vec![
-        ("可售库存".to_string(), fmt_num_precise(summary.total_available_qty)),
-        ("0-90天".to_string(), fmt_num_precise(summary.total_age_0_90_qty)),
-        ("91-180天".to_string(), fmt_num_precise(summary.total_age_91_180_qty)),
-        (
-            "181-270天".to_string(),
-            fmt_num_precise(summary.total_age_181_270_qty),
-        ),
-        (
-            "271-365天".to_string(),
-            fmt_num_precise(summary.total_age_271_365_qty),
-        ),
-        (
-            "超过365天".to_string(),
-            fmt_num_precise(summary.total_age_365_plus_qty),
-        ),
-    ];
-    for col in &resp.shipment_columns {
-        let qty = resp
-            .shipment_column_totals
-            .get(&col.shipment_no)
-            .copied()
-            .unwrap_or_default();
-        totals.push((col.label.clone(), fmt_num_precise(qty)));
-    }
-
-    h_flex()
-        .id("inventory-analysis-totals")
-        .gap_3()
-        .items_center()
-        .flex_wrap()
-        .px_4()
-        .py_2()
-        .border_t_1()
-        .border_color(app_theme.separator)
-        .child(
-            div()
-                .text_sm()
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(app_theme.text_primary)
-                .child("合计"),
-        )
-        .children(totals.into_iter().map(|(label, value)| {
-            h_flex()
-                .gap_1()
-                .items_center()
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(app_theme.text_muted)
-                        .child(label),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(app_theme.text_secondary)
-                        .child(value),
-                )
-        }))
-}
-
-// ---------------------------------------------------------------------------
-// 表格列定义（固定 12 列 + shipment 动态列）
+// 库存明细大表列定义（Pattern A DataGrid；固定 12 列 + shipment 动态列）
 // ---------------------------------------------------------------------------
 
 /// 状态 pill（圆角胶囊：浅底 + 描边 + 强调色文字）
@@ -1318,7 +1256,7 @@ mod tests {
         });
         view.update(cx2, |this, cx| {
             let payload = sample_payload();
-            this.sync_table(&payload.response, cx);
+            this.sync_grid(&payload.response, cx);
             this.state.update(cx, |state, _| {
                 *state = InventoryState::Loaded(Box::new(payload));
             });
@@ -1338,7 +1276,7 @@ mod tests {
         });
         view.update(cx2, |this, cx| {
             let payload = sample_payload();
-            this.sync_table(&payload.response, cx);
+            this.sync_grid(&payload.response, cx);
             this.state.update(cx, |state, _| {
                 *state = InventoryState::Loaded(Box::new(payload));
             });
@@ -1369,7 +1307,7 @@ mod tests {
         view.update(cx2, |this, cx| {
             let mut payload = sample_payload();
             payload.response.items = Vec::new();
-            this.sync_table(&payload.response, cx);
+            this.sync_grid(&payload.response, cx);
             this.state.update(cx, |state, _| {
                 *state = InventoryState::Loaded(Box::new(payload));
             });
