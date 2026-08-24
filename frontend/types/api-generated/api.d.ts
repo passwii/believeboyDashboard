@@ -11574,6 +11574,11 @@ export interface components {
              * @default 0
              */
             page_views: number;
+            /**
+             * Pending Order Qty
+             * @default 0
+             */
+            pending_order_qty: number;
             /** Sales Amount */
             sales_amount: number;
             /**
@@ -11636,6 +11641,11 @@ export interface components {
              * @default 0
              */
             page_views: number;
+            /**
+             * Pending Order Qty
+             * @default 0
+             */
+            pending_order_qty: number;
             /** Sales Amount */
             sales_amount: number;
             /**

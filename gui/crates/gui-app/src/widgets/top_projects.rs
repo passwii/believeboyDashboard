@@ -587,6 +587,7 @@ mod tests {
         DailyAnalysisRow {
             date: NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap(),
             order_qty,
+            pending_order_qty: 0,
             sales_amount: sales,
             impressions: 0,
             clicks: 0,

@@ -19,12 +19,17 @@ use serde::{Deserialize, Serialize};
 
 /// daily-analysis 单日聚合行（frontend `DailyAnalysisSummaryRow` 1:1）
 ///
-/// 后端 Pydantic 对 `page_views` / `units_ordered` / `sessions` /
-/// `ordered_sales_amount` / `conversion_rate` 有默认值，反序列化时同样容忍缺省。
+/// 后端 Pydantic 对 `pending_order_qty` / `page_views` / `units_ordered` /
+/// `sessions` / `ordered_sales_amount` / `conversion_rate` 有默认值，
+/// 反序列化时同样容忍缺省。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DailyAnalysisRow {
     pub date: NaiveDate,
     pub order_qty: i64,
+    /// 窗口内待发货订单量（BLF-811：Pending/Unshipped 已计数行 quantity 合计，
+    /// `order_qty` 的子集；默认 0 兼容 Redis 旧缓存载荷）
+    #[serde(default)]
+    pub pending_order_qty: i64,
     pub sales_amount: f64,
     pub impressions: i64,
     pub clicks: i64,
@@ -70,6 +75,9 @@ pub struct DailyAnalysisDetailRow {
     pub sku: String,
     pub asin: Option<String>,
     pub order_qty: i64,
+    /// 窗口内待发货订单量（BLF-811，口径同 [`DailyAnalysisRow::pending_order_qty`]）
+    #[serde(default)]
+    pub pending_order_qty: i64,
     pub sales_amount: f64,
     pub impressions: i64,
     pub clicks: i64,
@@ -307,6 +315,7 @@ mod tests {
                 {
                     "date": "2026-08-13",
                     "order_qty": 21,
+                    "pending_order_qty": 5,
                     "sales_amount": 1860.0,
                     "impressions": 8100,
                     "clicks": 240,
@@ -327,6 +336,7 @@ mod tests {
                     "sku": "B0-A-001",
                     "asin": "B0EXAMPLE1",
                     "order_qty": 4,
+                    "pending_order_qty": 2,
                     "sales_amount": 360.0,
                     "impressions": 1800,
                     "clicks": 60,
@@ -364,10 +374,12 @@ mod tests {
 
         assert_eq!(resp.summary_rows.len(), 1);
         assert_eq!(resp.summary_rows[0].date.to_string(), "2026-08-13");
+        assert_eq!(resp.summary_rows[0].pending_order_qty, 5);
         approx(resp.summary_rows[0].sales_amount, 1860.0);
 
         assert_eq!(resp.detail_rows.len(), 1);
         assert_eq!(resp.detail_rows[0].sku, "B0-A-001");
+        assert_eq!(resp.detail_rows[0].pending_order_qty, 2);
         assert_eq!(resp.detail_rows[0].in_transit_qty, 12);
 
         assert_eq!(
@@ -386,6 +398,7 @@ mod tests {
                 {
                     "date": "2026-08-13",
                     "order_qty": 42,
+                    "pending_order_qty": 11,
                     "sales_amount": 3100.5,
                     "impressions": 12000,
                     "clicks": 350,
@@ -406,6 +419,7 @@ mod tests {
                     "sku": "B0-A-001",
                     "asin": "B0EXAMPLE1",
                     "order_qty": 12,
+                    "pending_order_qty": 4,
                     "sales_amount": 980.0,
                     "impressions": 3400,
                     "clicks": 95,
@@ -458,6 +472,7 @@ mod tests {
         let row = &resp.summary_rows[0];
         assert_eq!(row.date.to_string(), "2026-08-13");
         assert_eq!(row.order_qty, 42);
+        assert_eq!(row.pending_order_qty, 11);
         approx(row.sales_amount, 3100.5);
         assert_eq!(row.clicks, 350);
         approx(row.cpc, 0.62);
@@ -466,6 +481,7 @@ mod tests {
         let detail = &resp.detail_rows[0];
         assert_eq!(detail.sku, "B0-A-001");
         assert_eq!(detail.asin.as_deref(), Some("B0EXAMPLE1"));
+        assert_eq!(detail.pending_order_qty, 4);
         assert_eq!(detail.in_transit_qty, 24);
 
         assert_eq!(
@@ -478,6 +494,8 @@ mod tests {
         assert_eq!(proj.project_name, "测试项目 A");
         assert_eq!(proj.summary_rows.len(), 1);
         assert!(proj.detail_rows.is_empty());
+        // 嵌套 breakdown 行缺省新字段 → serde default 兜底（旧缓存载荷兼容）
+        assert_eq!(proj.summary_rows[0].pending_order_qty, 0);
     }
 
     #[test]
@@ -589,6 +607,7 @@ mod tests {
             "available_qty": 40
         }"#;
         let row: DailyAnalysisRow = serde_json::from_str(json).expect("反序列化失败");
+        assert_eq!(row.pending_order_qty, 0);
         assert_eq!(row.page_views, 0);
         assert_eq!(row.units_ordered, 0);
         assert_eq!(row.sessions, 0);
@@ -602,6 +621,7 @@ mod tests {
             DailyAnalysisRow {
                 date: NaiveDate::from_ymd_opt(2026, 8, 12).unwrap(),
                 order_qty: 10,
+                pending_order_qty: 0,
                 sales_amount: 1000.0,
                 impressions: 2000,
                 clicks: 100,
@@ -618,6 +638,7 @@ mod tests {
             DailyAnalysisRow {
                 date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                 order_qty: 30,
+                pending_order_qty: 0,
                 sales_amount: 3000.0,
                 impressions: 4000,
                 clicks: 200,
@@ -665,6 +686,7 @@ mod tests {
         let rows = vec![DailyAnalysisRow {
             date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
             order_qty: 0,
+            pending_order_qty: 0,
             sales_amount: 0.0,
             impressions: 0,
             clicks: 0,
@@ -689,6 +711,7 @@ mod tests {
             DailyAnalysisRow {
                 date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
                 order_qty: 0,
+                pending_order_qty: 0,
                 sales_amount: 300.0,
                 impressions: 0,
                 clicks: 0,
@@ -705,6 +728,7 @@ mod tests {
             DailyAnalysisRow {
                 date: NaiveDate::from_ymd_opt(2026, 8, 12).unwrap(),
                 order_qty: 0,
+                pending_order_qty: 0,
                 sales_amount: 150.0,
                 impressions: 0,
                 clicks: 0,
