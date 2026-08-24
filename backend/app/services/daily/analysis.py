@@ -502,6 +502,7 @@ def build_daily_analysis_all_projects(
             global_bucket = global_buckets.setdefault(key, _MetricBucket())
             _set_asin_if_blank(global_bucket, bucket.asin)
             global_bucket.order_qty += bucket.order_qty
+            global_bucket.pending_order_qty += bucket.pending_order_qty
             global_bucket.sales_amount += bucket.sales_amount
             global_bucket.impressions += bucket.impressions
             global_bucket.clicks += bucket.clicks
@@ -813,6 +814,7 @@ def build_daily_analysis_all_countries(
             global_bucket = global_buckets.setdefault(key, _MetricBucket())
             _set_asin_if_blank(global_bucket, bucket.asin)
             global_bucket.order_qty += bucket.order_qty
+            global_bucket.pending_order_qty += bucket.pending_order_qty
             global_bucket.sales_amount += bucket.sales_amount
             global_bucket.impressions += bucket.impressions
             global_bucket.clicks += bucket.clicks
