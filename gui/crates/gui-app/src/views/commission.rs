@@ -39,7 +39,7 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, AsyncApp, Context, CursorStyle, Entity, FontWeight, Hsla, IntoElement, Render,
+    div, px, App, AsyncApp, Context, Entity, FontWeight, Hsla, IntoElement, Render,
     SharedString, WeakEntity, Window,
 };
 use gpui_component::button::Button;
@@ -58,8 +58,8 @@ use gui_domain::common::ManagedProject;
 use crate::theme::AppTheme;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::filter_bar;
-use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pattern_b::{pattern_b_shell, tab_bar, tabs_zone, TabItem};
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「财务资金 → 佣金管理」URL（数据权威 gui-domain::sidebar）
@@ -923,38 +923,40 @@ impl Render for CommissionView {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
         let view = cx.entity();
-        let subtitle =
-            "项目佣金月度核算与回款跟踪；回款状态更新与「核算」请在 web 端操作".to_string();
-
-        v_flex()
-            .id("commission")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("佣金管理").subtitle(subtitle))
-            .child(content_guard().child(render_tab_bar(&view, self.active_tab, &app_theme)))
-            .child(content_guard().child(render_filter_card(
-                &view,
-                self.active_tab,
-                &self.report_month,
-                &self.summary_year,
-                self.country,
+        // Pattern B 下半区机制：Tab 条进 36px 工具栏行，内容区占满剩余高度；
+        // 规则卡随 Tab 内容尾部渲染（总览 / 月度回款可见，对齐 web 布局位置）
+        match state {
+            CommissionState::Loading => pattern_b_shell(
                 &app_theme,
-            )))
-            .child(match state {
-                CommissionState::Loading => render_loading(&app_theme).into_any_element(),
-                CommissionState::Error(msg) => state_views::error_state(
-                    &view,
-                    &app_theme,
-                    "commission-error",
-                    "佣金数据加载失败",
-                    msg,
-                    |this, cx| this.reload(cx),
-                )
-                .into_any_element(),
-                CommissionState::Empty => state_views::empty_state_with_action_desc(
+                "commission",
+                PageHeader::new("佣金管理").subtitle("项目佣金月度核算与回款跟踪"),
+                div(),
+                0.0,
+                div(),
+                div(),
+                render_loading(&app_theme),
+            )
+            .into_any_element(),
+            CommissionState::Error(msg) => pattern_b_shell(
+                &app_theme,
+                "commission",
+                PageHeader::new("佣金管理").subtitle("项目佣金月度核算与回款跟踪"),
+                div(),
+                0.0,
+                div(),
+                div(),
+                state_views::error_state(&view, &app_theme, "commission-error", "佣金数据加载失败", msg, |this, cx| this.reload(cx)),
+            )
+            .into_any_element(),
+            CommissionState::Empty => pattern_b_shell(
+                &app_theme,
+                "commission",
+                PageHeader::new("佣金管理").subtitle("项目佣金月度核算与回款跟踪"),
+                div(),
+                0.0,
+                div(),
+                div(),
+                state_views::empty_state_with_action_desc(
                     &view,
                     &app_theme,
                     "commission-empty",
@@ -963,70 +965,84 @@ impl Render for CommissionView {
                     Some("请确认月份 / 年份 / 站点筛选，或在 web 端先执行核算".to_string()),
                     "刷新",
                     |this, cx| this.reload(cx),
-                )
-                .into_any_element(),
-                CommissionState::Loaded(data) => render_loaded(
-                    cx,
-                    &app_theme,
-                    &data,
-                    self.active_tab,
-                    self.detail_table.clone(),
-                    self.monthly_table.clone(),
-                    self.project_table.clone(),
-                    self.collection_table.clone(),
-                )
-                .into_any_element(),
-            })
-            .child(content_guard().child(render_rules_card(&app_theme)))
+                ),
+            )
+            .into_any_element(),
+            CommissionState::Loaded(data) => {
+                let subtitle =
+                    "项目佣金月度核算与回款跟踪；回款状态更新与「核算」请在 web 端操作".to_string();
+                let header = PageHeader::new("佣金管理").subtitle(subtitle);
+                // 工具栏行 = 子 Tab 条（Pattern B 下半区机制）
+                let tab_items: Vec<TabItem> = CommissionTab::ALL
+                    .iter()
+                    .map(|t| TabItem::new(t.id(), t.label()))
+                    .collect();
+                let active_ix = CommissionTab::ALL
+                    .iter()
+                    .position(|t| *t == self.active_tab)
+                    .unwrap_or(0);
+                let strip = tab_bar(&view, &app_theme, "commission", &tab_items, active_ix, |this, ix, cx| {
+                    this.select_tab(CommissionTab::ALL[ix], cx);
+                });
+                // 筛选控件行（Tab 相关的年/月/站点下拉）
+                let filter_row = h_flex()
+                    .gap_2()
+                    .items_center()
+                    .px_2()
+                    .py_1p5()
+                    .child(render_filter_card(
+                        &view,
+                        self.active_tab,
+                        &self.report_month,
+                        &self.summary_year,
+                        self.country,
+                        &app_theme,
+                    ))
+                    .child(div().flex_1());
+                let content = crate::motion::enter_fade_in(
+                    SharedString::from("commission-loaded-fade"),
+                    v_flex()
+                        .id("commission-loaded")
+                        .size_full()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .child(render_loaded(
+                            cx,
+                            &app_theme,
+                            &data,
+                            self.active_tab,
+                            self.detail_table.clone(),
+                            self.monthly_table.clone(),
+                            self.project_table.clone(),
+                            self.collection_table.clone(),
+                        ))
+                        .when(
+                            matches!(self.active_tab, CommissionTab::Detail | CommissionTab::MonthlyCollection),
+                            |this| this.child(content_rules_footer(&app_theme)),
+                        )
+                        .when(data.is_empty(), |this| {
+                            this.child(
+                                div()
+                                    .text_sm()
+                                    .text_color(app_theme.text_muted)
+                                    .child("当前筛选条件下暂无佣金数据"),
+                            )
+                        }),
+                    crate::motion::reduce_motion(cx),
+                );
+                let tabs = tabs_zone(strip, content);
+                pattern_b_shell(&app_theme, "commission", header, filter_row, 0.0, div(), div(), tabs)
+                    .into_any_element()
+            }
+        }
     }
 }
 
-/// Tab 栏（对齐 web TabsList 四项；沿 return_analysis「选中强调底 + 文本色」
-/// 观感）
-fn render_tab_bar(
-    view: &Entity<CommissionView>,
-    active: CommissionTab,
-    theme: &AppTheme,
-) -> impl IntoElement {
-    h_flex()
-        .id("commission-tabs")
-        .w_full()
-        .p_1()
-        .gap_1()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.muted_fill)
-        .children(CommissionTab::ALL.into_iter().map(|tab| {
-            let view = view.clone();
-            let selected = active == tab;
-            div()
-                .id(SharedString::from(format!(
-                    "commission-tab-{}",
-                    tab.id()
-                )))
-                .flex_1()
-                .py_1p5()
-                .px_2()
-                .text_center()
-                .text_sm()
-                .rounded(px(theme.radius))
-                .cursor(CursorStyle::PointingHand)
-                .when(selected, |this| {
-                    this.bg(theme.card_bg)
-                        .text_color(theme.accent)
-                        .font_weight(FontWeight::MEDIUM)
-                })
-                .when(!selected, |this| {
-                    this.text_color(theme.text_secondary).hover(|this| {
-                        this.bg(theme.card_bg.opacity(0.5))
-                            .text_color(theme.text_primary)
-                    })
-                })
-                .child(tab.label().to_string())
-                .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
-                    view.update(cx, |this, cx| this.select_tab(tab, cx));
-                })
-        }))
+/// 规则卡（只读说明；从主体抽离为 Tab 内容尾注）
+fn content_rules_footer(theme: &AppTheme) -> gpui::AnyElement {
+    render_rules_card(theme)
 }
+
 
 /// 筛选卡（总览：年 + 月下拉；汇总：年下拉；均含站点下拉 + 刷新）
 fn render_filter_card(
@@ -1321,7 +1337,7 @@ fn render_loaded(
             .gap_4()
             // 空数据集时表格自带空态文案；这里补一条页面级提示（对齐 web 各
             // Tab 独立空态）
-            .child(content_guard().child(content))
+            .child(content)
             .when(data.is_empty(), |this| {
                 this.child(
                     div()

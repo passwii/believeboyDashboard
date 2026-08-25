@@ -46,6 +46,7 @@ use gui_domain::scheduled_reports::{LedgerItem, LedgerListResponse, Subscription
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::layout::content_guard;
+use crate::widgets::pattern_b::{pattern_b_shell, tab_bar, tabs_zone, TabItem};
 use crate::widgets::state_views::{self, EmptyIcon, SkeletonBlock};
 use crate::widgets::page_header::PageHeader;
 
@@ -216,6 +217,7 @@ pub enum ReportTab {
 }
 
 impl ReportTab {
+    #[allow(dead_code)] // TabItem 静态标签接管后保留（契约测试消费）
     pub fn label(self) -> &'static str {
         match self {
             Self::Subscriptions => "订阅管理",
@@ -537,97 +539,45 @@ impl Render for ScheduledReportsView {
         let tab = self.tab;
         let view = cx.entity();
 
-        v_flex()
-            .id("scheduled-reports")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(theme.window_bg)
-            // 页面头部（P4-5：共享 PageHeader）
-            .child(
-                PageHeader::new("定时报告").subtitle("订阅管理 · 调度台账（只读查看）"),
-            )
-            .child(content_guard().child(render_tab_bar(&view, tab, &theme)))
-            .child(match tab {
-                ReportTab::Subscriptions => {
-                    render_subs_panel(self, cx, &view, &theme).into_any_element()
-                }
-                ReportTab::Ledger => {
-                    render_ledger_panel(self, cx, &view, &theme).into_any_element()
-                }
-            })
+        // BLF-803 套版：pattern_b_shell 骨架——Tab 条进工具栏行（下划线式
+        // 高密度 Tab 替换原胶囊组），双面板占满剩余高
+        let tab_items = [
+            TabItem::new("subscriptions", "订阅管理"),
+            TabItem::new("ledger", "调度台账"),
+        ];
+        let active_ix = match tab {
+            ReportTab::Ledger => 1,
+            _ => 0,
+        };
+        let strip = tab_bar(&view, &theme, "scheduled-reports", &tab_items, active_ix, |this, ix, cx| {
+            this.select_tab(match ix {
+                1 => ReportTab::Ledger,
+                _ => ReportTab::Subscriptions,
+            }, cx);
+        });
+        let body: gpui::AnyElement = match tab {
+            ReportTab::Subscriptions => {
+                render_subs_panel(self, cx, &view, &theme).into_any_element()
+            }
+            ReportTab::Ledger => {
+                render_ledger_panel(self, cx, &view, &theme).into_any_element()
+            }
+        };
+        let tabs = tabs_zone(strip, body);
+        pattern_b_shell(
+            &theme,
+            "scheduled-reports",
+            PageHeader::new("定时报告").subtitle("订阅管理 · 调度台账（只读查看）"),
+            div(),
+            0.0,
+            div(),
+            div(),
+            tabs,
+        )
     }
 }
 
-/// 顶部 tab 栏（对齐 frontend layout.tsx 滑动 Tab：订阅管理 / 调度记录）
-fn render_tab_bar(
-    view: &Entity<ScheduledReportsView>,
-    active: ReportTab,
-    theme: &AppTheme,
-) -> impl IntoElement {
-    h_flex()
-        .id("scheduled-reports-tabs")
-        .w_full()
-        .p_1()
-        .gap_1()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.muted_fill)
-        .child(tab_button(
-            view,
-            ReportTab::Subscriptions,
-            active == ReportTab::Subscriptions,
-            theme,
-        ))
-        .child(tab_button(
-            view,
-            ReportTab::Ledger,
-            active == ReportTab::Ledger,
-            theme,
-        ))
-}
 
-fn tab_button(
-    view: &Entity<ScheduledReportsView>,
-    tab: ReportTab,
-    selected: bool,
-    theme: &AppTheme,
-) -> impl IntoElement {
-    let label = tab.label();
-    let view = view.clone();
-    div()
-        .id(SharedString::from(format!(
-            "scheduled-reports-tab-{}",
-            match tab {
-                ReportTab::Subscriptions => "subscriptions",
-                ReportTab::Ledger => "ledger",
-            }
-        )))
-        .flex_1()
-        .py_1p5()
-        .px_3()
-        .text_center()
-        .text_sm()
-        .rounded(px(theme.radius))
-        .cursor(CursorStyle::PointingHand)
-        .when(selected, |this| {
-            this.bg(theme.accent_soft)
-                .text_color(theme.accent)
-                .font_weight(FontWeight::MEDIUM)
-        })
-        .when(!selected, |this| {
-            this.text_color(theme.text_secondary).hover(|this| {
-                this.bg(theme.card_bg.opacity(0.5))
-            })
-        })
-        .on_mouse_up(
-            MouseButton::Left,
-            move |_, _window, cx| {
-                view.update(cx, |this, cx| this.select_tab(tab, cx));
-            },
-        )
-        .child(label)
-}
 
 /// 订阅管理 tab 面板（四态；经 `&self` 读状态，不用 entity 自读——
 /// render 期间 entity 已被更新锁占用，`view.read(cx)` 会 panic）

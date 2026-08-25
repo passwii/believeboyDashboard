@@ -614,6 +614,7 @@ impl AiChatView {
             let payload = AiChatMessageCreate {
                 content,
                 model,
+                system_prompt: String::new(),
                 regenerate: false,
                 enable_web_search: web_search,
             };

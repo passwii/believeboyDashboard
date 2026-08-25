@@ -33,9 +33,13 @@ use gui_domain::common::ManagedProject;
 use gui_domain::finance::PlatformRevenueItem;
 
 use crate::theme::AppTheme;
-use crate::widgets::layout::content_guard;
-use crate::widgets::state_views::{self, SkeletonBlock};
+use crate::widgets::data_table::TabularNumsExt;
+use crate::widgets::chart_primitives::{bar_series_chart, chart_card, ShareRow};
+use crate::widgets::pattern_b::{
+    pattern_b_shell, split_divider, tab_bar, tabs_zone, SplitDrag, SplitDragGhost, TabItem,
+};
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的平台回款条目一致）
 pub const PLATFORM_REVENUE_URL: &str = "/dashboard/finance/platform-revenue";
@@ -263,6 +267,10 @@ pub struct PlatformRevenueView {
     latest_request_id: u64,
     /// 回款列表表（懒建 TableState）
     table: Entity<RevenueTable>,
+    /// BLF-803 Pattern B：上部图表区占比（拖拽可调，40~50%）
+    chart_ratio: f32,
+    /// 下半区子 Tab（0 = 流水表 / 1 = 币种汇总）
+    active_tab: usize,
 }
 
 /// 筛选键（set_filter 分派）
@@ -288,7 +296,21 @@ impl PlatformRevenueView {
             page_size: DEFAULT_PAGE_SIZE,
             latest_request_id: 0,
             table,
+            chart_ratio: crate::widgets::pattern_b::DEFAULT_CHART_RATIO,
+            active_tab: 0,
         }
+    }
+
+    /// Pattern B：切换下半区子 Tab（BLF-803）
+    pub fn activate_tab(&mut self, ix: usize, cx: &mut Context<Self>) {
+        self.active_tab = ix;
+        cx.notify();
+    }
+
+    /// Pattern B：拖拽结束提交图表占比（当前会话内生效；持久化留后续批次）
+    pub fn set_chart_ratio(&mut self, ratio: f32, cx: &mut Context<Self>) {
+        self.chart_ratio = ratio;
+        cx.notify();
     }
 
     /// 当前状态（只读，测试用）
@@ -482,12 +504,41 @@ impl Render for PlatformRevenueView {
         let table = self.table.clone();
         let filters = self.filters.clone();
         match state {
-            PlatformRevenueState::Loading => render_loading(&app_theme).into_any_element(),
-            PlatformRevenueState::Error(msg) => {
-                render_error(cx, &app_theme, &msg).into_any_element()
-            }
-            PlatformRevenueState::Empty => render_empty(cx, &app_theme).into_any_element(),
+            PlatformRevenueState::Loading => pattern_b_shell(
+                &app_theme,
+                "platform-revenue",
+                PageHeader::new("平台回款"),
+                div(),
+                self.chart_ratio,
+                state_views::skeleton_loading(&app_theme, &[SkeletonBlock::Chart(180.0)]),
+                div(),
+                state_views::skeleton_loading(&app_theme, &[SkeletonBlock::Table(200.0)]),
+            )
+            .into_any_element(),
+            PlatformRevenueState::Error(msg) => pattern_b_shell(
+                &app_theme,
+                "platform-revenue",
+                PageHeader::new("平台回款"),
+                div(),
+                self.chart_ratio,
+                render_error(cx, &app_theme, &msg),
+                div(),
+                div(),
+            )
+            .into_any_element(),
+            PlatformRevenueState::Empty => pattern_b_shell(
+                &app_theme,
+                "platform-revenue",
+                PageHeader::new("平台回款"),
+                div(),
+                self.chart_ratio,
+                render_empty(cx, &app_theme),
+                div(),
+                div(),
+            )
+            .into_any_element(),
             PlatformRevenueState::Loaded(data) => render_loaded(
+                self,
                 cx,
                 &app_theme,
                 &data,
@@ -506,25 +557,6 @@ impl Render for PlatformRevenueView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-/// Loading：筛选骨架 + 表格骨架
-///
-/// P4-6：骨架块统一走 `state_views::skeleton_loading` 声明式组合。
-fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
-    v_flex()
-        .id("platform-revenue-loading")
-        .size_full()
-        .gap_4()
-        .p_6()
-        .overflow_y_scroll()
-        .bg(app_theme.window_bg)
-        .child(state_views::skeleton_loading(
-            app_theme,
-            &[
-                SkeletonBlock::Filter(5),
-                SkeletonBlock::Table(360.0),
-            ],
-        ))
-}
 
 /// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
@@ -572,9 +604,11 @@ fn render_empty(cx: &mut Context<PlatformRevenueView>, app_theme: &AppTheme) -> 
         ))
 }
 
-/// Loaded：页面头部 + 筛选栏 + 回款列表表（合计行 + 分页）
+/// Loaded：Pattern B 双轴画布——上部币种合计柱状图 + 下部子 Tab（流水表 / 币种汇总）
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_pass_by_value)]
 fn render_loaded(
+    this: &PlatformRevenueView,
     cx: &mut Context<PlatformRevenueView>,
     app_theme: &AppTheme,
     data: &PlatformRevenueData,
@@ -583,53 +617,170 @@ fn render_loaded(
     page: i64,
     page_size: i64,
     table: Entity<RevenueTable>,
-) -> impl IntoElement {
+) -> gpui::AnyElement {
     let view = cx.entity();
     let totals = calculate_totals(&data.items);
     let totals_text = format_totals(&totals);
-    let reduce = crate::motion::reduce_motion(cx);
 
-    // P4-2：页面 enter 轻量 fade-in（一次性；减弱动态时瞬时）
-    crate::motion::enter_fade_in(
-        gpui::SharedString::from("platform-revenue-loaded-fade"),
-        v_flex()
-            .id("platform-revenue-loaded")
+    // 页面头部（副标题 = 条数/页码/合计口径）
+    let header = PageHeader::new("平台回款").subtitle(format!(
+        "共 {} 条 · 第 {} / {} 页 · 合计 {}",
+        data.total,
+        data.page,
+        data.total_pages,
+        if totals_text.is_empty() {
+            "—".to_string()
+        } else {
+            totals_text
+        }
+    ));
+
+    // 工具栏：筛选控件 + 弹性位
+    let toolbar = h_flex()
+        .gap_2()
+        .items_center()
+        .child(render_filter_bar(&view, app_theme, &projects, &filters))
+        .child(div().flex_1());
+
+    // 上部图表区：币种合计柱状图（与下部表格同源当页数据，口径一致）
+    let chart_rows: Vec<ShareRow> = totals
+        .iter()
+        .map(|e| ShareRow { name: e.currency.clone(), sales: e.total })
+        .collect();
+    let charts = chart_card(
+        "platform-revenue-chart",
+        "币种合计",
+        format!(
+            "当前 {} 条回款按币种求和（USD / GBP / EUR）",
+            data.items.len()
+        ),
+        "icons/dollar-sign.svg",
+        None,
+        app_theme,
+        div()
+            .id("platform-revenue-chart-area")
+            .w_full()
+            .h_full()
+            .child(bar_series_chart(&chart_rows, app_theme.chart_primary)),
+    );
+
+    // 分割条（拖拽三件套；松手提交占比）
+    let divider = split_divider(app_theme, "platform-revenue-split")
+        .on_drag(SplitDrag, |_, _, _, cx| cx.new(|_| SplitDragGhost))
+        .on_mouse_up(
+            gpui::MouseButton::Left,
+            cx.listener(|this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
+                this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
+            }),
+        )
+        .on_mouse_up_out(
+            gpui::MouseButton::Left,
+            cx.listener(|this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
+                this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
+            }),
+        );
+
+    // 下部子 Tab 区：流水表 / 币种汇总
+    let tab_items = [TabItem::new("ledger", "回款流水"), TabItem::new("summary", "币种汇总")];
+    let strip = tab_bar(&view, app_theme, "platform-revenue", &tab_items, this.active_tab, |this2, ix, cx| {
+        this2.activate_tab(ix, cx);
+    });
+    let content: gpui::AnyElement = match this.active_tab {
+        1 => v_flex()
+            .id("platform-revenue-summary")
             .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            // 页面头部（P4-5：共享 PageHeader）
-            .child(PageHeader::new("平台回款").subtitle(format!(
-                "共 {} 条 · 第 {} / {} 页 · 合计 {}",
-                data.total,
-                data.page,
-                data.total_pages,
-                if totals_text.is_empty() {
-                    "—".to_string()
-                } else {
-                    totals_text
-                }
-            )))
-            // 筛选栏（宽窗受内容上限约束）
-            .child(content_guard().child(render_filter_bar(
-                &view,
-                app_theme,
-                &projects,
-                &filters,
-            )))
-            // 回款列表表（含合计行；P4-5：数据表格保留全宽）
-            .child(table)
-            // 分页条
-            .child(pagination_bar(
-                &view,
-                app_theme,
-                page,
-                data.total_pages,
-                page_size,
-            )),
-        reduce,
+            .min_h_0()
+            .p_4()
+            .gap_3()
+            .child(table_summary_card(app_theme, data, &totals))
+            .into_any_element(),
+        _ => v_flex()
+            .id("platform-revenue-ledger")
+            .size_full()
+            .min_h_0()
+            .child(div().id("platform-revenue-ledger-scroll").flex_1().min_h_0().px_2().py_2().overflow_y_scroll().child(table))
+            .child(div().px_4().pb_2().child(pagination_bar(&view, app_theme, page, data.total_pages, page_size)))
+            .into_any_element(),
+    };
+    let tabs = tabs_zone(strip, content);
+
+    pattern_b_shell(
+        app_theme,
+        "platform-revenue",
+        header,
+        toolbar,
+        this.chart_ratio,
+        charts,
+        divider,
+        tabs,
     )
+    // 占比换算要用整壳 bounds → on_drag_move 挂壳元素上
+    .on_drag_move(cx.listener(
+        |this: &mut PlatformRevenueView, ev: &gpui::DragMoveEvent<SplitDrag>, _, cx| {
+            crate::widgets::pattern_b::apply_split_drag(ev, this, cx, |this, ratio, cx| {
+                this.set_chart_ratio(ratio, cx);
+            });
+        },
+    ))
+    .into_any_element()
+}
+
+/// 币种汇总卡（下半区 Tab 2：每币种合计 mono 数字行）
+fn table_summary_card(
+    theme: &AppTheme,
+    data: &PlatformRevenueData,
+    totals: &[TotalsEntry],
+) -> gpui::AnyElement {
+    let rows: Vec<gpui::AnyElement> = if totals.is_empty() {
+        vec![div().text_sm().text_color(theme.text_muted).child("当前页无数据").into_any_element()]
+    } else {
+        totals
+            .iter()
+            .map(|e| {
+                h_flex()
+                    .id(SharedString::from(format!("pr-sum-{}", e.currency)))
+                    .justify_between()
+                    .items_center()
+                    .py_1()
+                    .border_b_1()
+                    .border_color(theme.separator)
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme.text_secondary)
+                            .child(format!(
+                                "{} · {}",
+                                e.currency,
+                                currency_label(&e.currency)
+                            )),
+                    )
+                    .child(
+                        div()
+                            .text_base()
+                            .mono_tabular_nums()
+                            .text_color(theme.text_primary)
+                            .child(format_amount(e.total, &e.currency)),
+                    )
+                    .into_any_element()
+            })
+            .collect()
+    };
+    v_flex()
+        .rounded(px(theme.radius_lg))
+        .border_1()
+        .border_color(theme.separator)
+        .bg(theme.card_bg)
+        .p_4()
+        .gap_2()
+        .child(
+            div()
+                .text_base()
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(theme.text_primary)
+                .child(format!("当前页汇总 · 共 {} 条", data.items.len())),
+        )
+        .children(rows)
+        .into_any_element()
 }
 
 // ---------------------------------------------------------------------------

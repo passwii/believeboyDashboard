@@ -29,7 +29,7 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
+    div, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
     WeakEntity, Window,
 };
 use chrono::Datelike;
@@ -43,11 +43,11 @@ use gui_domain::exchange_rate::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::data_grid::{grid_footer_bar, pattern_a_shell, AggregateItem};
 use crate::widgets::data_table::{ColumnDef, DataTable};
 use crate::widgets::filter_bar;
-use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::pagination::{self, PageState};
+use crate::widgets::pagination::PageState;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「财务资金 → 汇率信息」URL（数据权威 gui-domain::sidebar）
@@ -464,60 +464,82 @@ impl Render for ExchangeRateView {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
         let view = cx.entity();
-        let subtitle = match &state {
+        match &state {
             ExchangeRateState::Loaded(data) => {
-                format!("共 {} 条月度汇率 · 新增 / 编辑 / 删除请在 web 端操作", data.list.total)
-            }
-            _ => "月度汇率维护（每货币每月一条）；SKU 成本按站点和月份自动换算".to_string(),
-        };
-
-        v_flex()
-            .id("exchange-rate")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("汇率信息").subtitle(subtitle))
-            .child(
-                content_guard().child(render_filter_card(self, view.clone(), &app_theme)),
-            )
-            .child(match state {
-                ExchangeRateState::Loading => render_loading(&app_theme).into_any_element(),
-                ExchangeRateState::Error(msg) => state_views::error_state(
+                let subtitle = format!(
+                    "共 {} 条月度汇率 · 新增 / 编辑 / 删除请在 web 端操作",
+                    data.list.total
+                );
+                let header = PageHeader::new("汇率信息").subtitle(subtitle);
+                let toolbar = h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(render_filter_card(self, view.clone(), &app_theme))
+                    .child(div().flex_1());
+                let total = data.list.total.max(0) as usize;
+                let page_state = PageState::new(self.page, self.page_size.max(1), total);
+                let footer = grid_footer_bar(
                     &view,
                     &app_theme,
-                    "exchange-rate-error",
-                    "汇率信息加载失败",
-                    msg,
-                    |this, cx| this.reload(cx),
+                    "exchange-rate",
+                    &[AggregateItem::new(
+                        "总条数",
+                        fmt_int(total as i64),
+                    )],
+                    &page_state,
+                    &[DEFAULT_PAGE_SIZE],
+                    |this, page, cx| this.go_to_page(page, cx),
+                    |this, size, cx| this.set_page_size(size, cx),
+                );
+                crate::motion::enter_fade_in(
+                    SharedString::from("exchange-rate-loaded-fade"),
+                    pattern_a_shell(
+                        &app_theme,
+                        "exchange-rate",
+                        header,
+                        toolbar,
+                        list_section(view, &app_theme, data.list.items.len(), self.table.clone()),
+                        footer,
+                    ),
+                    crate::motion::reduce_motion(cx),
                 )
-                .into_any_element(),
-                ExchangeRateState::Empty => {
-                    let message = empty_message(self);
-                    state_views::empty_state_with_action_desc(
+                .into_any_element()
+            }
+            _ => {
+                let subtitle =
+                    "月度汇率维护（每货币每月一条）；SKU 成本按站点和月份自动换算".to_string();
+                let header = PageHeader::new("汇率信息").subtitle(subtitle);
+                let body: gpui::AnyElement = match state {
+                    ExchangeRateState::Loading => render_loading(&app_theme).into_any_element(),
+                    ExchangeRateState::Error(msg) => state_views::error_state(
                         &view,
                         &app_theme,
-                        "exchange-rate-empty",
-                        "icons/coins.svg",
-                        message,
-                        Some("新增 / 编辑 / 删除与备注图上传请在 web 端操作".to_string()),
-                        "刷新",
+                        "exchange-rate-error",
+                        "汇率信息加载失败",
+                        msg,
                         |this, cx| this.reload(cx),
                     )
+                    .into_any_element(),
+                    ExchangeRateState::Empty => {
+                        let message = empty_message(self);
+                        state_views::empty_state_with_action_desc(
+                            &view,
+                            &app_theme,
+                            "exchange-rate-empty",
+                            "icons/coins.svg",
+                            message,
+                            Some("新增 / 编辑 / 删除与备注图上传请在 web 端操作".to_string()),
+                            "刷新",
+                            |this, cx| this.reload(cx),
+                        )
+                        .into_any_element()
+                    }
+                    ExchangeRateState::Loaded(_) => unreachable!("Loaded 分支已在上层处理"),
+                };
+                pattern_a_shell(&app_theme, "exchange-rate", header, div(), body, div())
                     .into_any_element()
-                }
-                ExchangeRateState::Loaded(data) => render_loaded(
-                    &view,
-                    cx,
-                    &app_theme,
-                    &data,
-                    self.page,
-                    self.page_size,
-                    self.table.clone(),
-                )
-                .into_any_element(),
-            })
+            }
+        }
     }
 }
 
@@ -710,100 +732,28 @@ fn render_loading(theme: &AppTheme) -> impl IntoElement {
     )
 }
 
-fn render_loaded(
-    view: &Entity<ExchangeRateView>,
-    cx: &mut Context<ExchangeRateView>,
+fn list_section(
+    view: Entity<ExchangeRateView>,
     theme: &AppTheme,
-    data: &ExchangeRateData,
-    page: usize,
-    page_size: usize,
+    total: usize,
     table: Entity<DataTable<ExchangeRateItem>>,
 ) -> gpui::AnyElement {
-    let reduce = crate::motion::reduce_motion(cx);
-    let total = data.list.total.max(0) as usize;
-    let page_state = PageState::new(page, page_size.max(1), total);
-
-    crate::motion::enter_fade_in(
-        SharedString::from("exchange-rate-loaded-fade"),
-        v_flex()
-            .id("exchange-rate-loaded")
-            .gap_4()
-            .child(content_guard().child(list_section(
-                view,
-                theme,
-                table,
-                &page_state,
-                total,
-            ))),
-        reduce,
-    )
-    .into_any_element()
-}
-
-/// 列表卡（表格 + 分页条 + 行数脚注）
-fn list_section(
-    view: &Entity<ExchangeRateView>,
-    theme: &AppTheme,
-    table: Entity<DataTable<ExchangeRateItem>>,
-    page_state: &PageState,
-    total: usize,
-) -> impl IntoElement {
+    let _ = view;
     v_flex()
-        .id("exchange-rate-list-card")
-        .w_full()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            v_flex()
-                .gap_1()
-                .px_4()
-                .py_3()
-                .border_b_1()
-                .border_color(theme.separator)
-                .child(
-                    div()
-                        .text_base()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.text_primary)
-                        .child("月度汇率"),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("后端按年月倒序 + 货币正序排列；每货币每月仅一条，汇率值 = 1 单位外币对应人民币"),
-                ),
-        )
-        .child(div().w_full().px_4().py_2().child(table))
+        .id("exchange-rate-list")
+        .size_full()
+        .min_h_0()
         .child(
             div()
-                .w_full()
-                .px_4()
-                .py_2()
-                .child(pagination::pagination_bar(
-                    view,
-                    theme,
-                    "exchange-rate-pagination",
-                    page_state,
-                    &[DEFAULT_PAGE_SIZE],
-                    |this, page, cx| this.go_to_page(page, cx),
-                    |this, size, cx| this.set_page_size(size, cx),
-                )),
-        )
-        .child(
-            // 行数脚注（对齐 web「上一页 / 下一页」分页条语义）
-            div()
-                .px_4()
-                .pb_2()
+                .px_2()
+                .pt_2()
                 .text_xs()
                 .text_color(theme.text_muted)
-                .child(SharedString::from(format!(
-                    "共 {} 条 · 每页 {} 条",
-                    fmt_int(total as i64),
-                    DEFAULT_PAGE_SIZE
-                ))),
+                .child("后端按年月倒序 + 货币正序排列；每货币每月仅一条"),
         )
+        .child(div().id("exchange-rate-table").flex_1().min_h_0().px_2().pb_2().overflow_y_scroll().child(table))
+        .when(total == 0, |this| this.child(div()))
+        .into_any_element()
 }
 
 // ---------------------------------------------------------------------------

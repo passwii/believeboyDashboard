@@ -44,6 +44,11 @@ use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
 use crate::views::agent_management::{AgentManagementView, AGENT_MANAGEMENT_URL};
 use crate::views::ai_chat::{AiChatEvent, AiChatView, AI_CHAT_URL};
+use crate::views::ai_insights::{AiInsightsView, AI_INSIGHTS_URL};
+use crate::views::customer_service::{CustomerServiceView, CUSTOMER_SERVICE_URL};
+use crate::views::virtual_office::{
+    VirtualOfficeView, VIRTUAL_OFFICE_URL, DIGITAL_EMPLOYEES_URL,
+};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::command_palette::{CommandPaletteEvent, CommandPaletteView};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
@@ -213,6 +218,12 @@ pub struct RootView {
     crm_audit: Option<Entity<CrmAuditView>>,
     /// AI 智能 → AI Chat 真实视图（P5-6 BLF-737；点击「AI 智能 → AI Chat」懒创建，SSE 流式对话）
     ai_chat: Option<Entity<AiChatView>>,
+    /// BLF-803：AI 洞察真实视图（历史查看）
+    ai_insights: Option<Entity<AiInsightsView>>,
+    /// BLF-803：客服交流真实视图（场景化话术生成，V2 SSE 流式）
+    customer_service: Option<Entity<CustomerServiceView>>,
+    /// BLF-803：数字员工 / 虚拟办公室真实视图（管理列表 + 办公室卡片墙双形态）
+    virtual_office: Option<Entity<VirtualOfficeView>>,
     /// 工具箱 → Markdown 转换真实视图（P5-8 BLF-749；点击「工具箱 → Markdown 转换」懒创建）
     markdown_to_word: Option<Entity<MarkdownToWordView>>,
     /// 系统管理 → 日志查看真实视图（P5-8 BLF-757；点击「系统管理 → 日志查看」懒创建）
@@ -288,6 +299,12 @@ pub struct RootView {
     show_crm_audit: bool,
     /// 内容区当前是否显示 AI Chat 视图（sidebar Select 命中 AI_CHAT_URL 时置真）
     show_ai_chat: bool,
+    /// BLF-803：内容区当前是否显示 AI 洞察视图
+    show_ai_insights: bool,
+    /// BLF-803：内容区当前是否显示客服交流视图
+    show_customer_service: bool,
+    /// BLF-803：内容区当前是否显示数字员工/虚拟办公室视图
+    show_virtual_office: bool,
     /// 内容区当前是否显示 Markdown 转换视图（sidebar Select 命中 MARKDOWN_TO_WORD_URL 时置真）
     show_markdown_to_word: bool,
     /// 内容区当前是否显示日志查看视图（sidebar Select 命中 SYSTEM_LOGS_URL 时置真）
@@ -413,6 +430,13 @@ impl RootView {
                     });
                 }
                 SubNavEvent::Select { url, title } => {
+                    // BLF-803：进入分发前统一复位 BLF-803 新增三视图标志——
+                    // 既有 36 个分支的内联复位列表不含它们，残留 true 会在
+                    // view_key/content_view if 链中误命中新视图（两步切换测试
+                    // 锁定此契约）
+                    this.show_ai_insights = false;
+                    this.show_customer_service = false;
+                    this.show_virtual_office = false;
                     this.show_dashboard = false;
                     this.current_title = title.clone();
                     this.breadcrumb = breadcrumb_for(url).unwrap_or_else(|| vec![title.clone()]);
@@ -2134,6 +2158,51 @@ impl RootView {
                         this.show_account_management = false;
                         this.show_shop_calculation = false;
                         this.show_ai_chat = true;
+                    } else if url == AI_INSIGHTS_URL {
+                        // BLF-803：AI 洞察视图懒创建，首帧触发列表拉取
+                        this.ai_insights.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = AiInsightsView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_ai_insights = true;
+                    } else if url == CUSTOMER_SERVICE_URL {
+                        // BLF-803：客服交流视图懒创建（V2 SSE 场景化生成）
+                        this.customer_service.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CustomerServiceView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_customer_service = true;
+                    } else if url == DIGITAL_EMPLOYEES_URL || url.starts_with(VIRTUAL_OFFICE_URL) {
+                        // BLF-803：数字员工 / 虚拟办公室（同实体双形态）
+                        this.virtual_office.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = VirtualOfficeView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_virtual_office = true;
                     } else if url == MARKDOWN_TO_WORD_URL {
                         // P5-8 BLF-749：工具箱 → Markdown 转换视图懒创建
                         //（纯本地工具：无网络请求，无需首屏 reload）
@@ -2430,6 +2499,9 @@ impl RootView {
             crm_follow_ups: None,
             crm_audit: None,
             ai_chat: None,
+            ai_insights: None,
+            customer_service: None,
+            virtual_office: None,
             markdown_to_word: None,
             system_logs: None,
             agent_management: None,
@@ -2469,6 +2541,9 @@ impl RootView {
             show_crm_follow_ups: false,
             show_crm_audit: false,
             show_ai_chat: false,
+            show_ai_insights: false,
+            show_customer_service: false,
+            show_virtual_office: false,
             show_markdown_to_word: false,
             show_system_logs: false,
             show_agent_management: false,
@@ -2484,6 +2559,52 @@ impl RootView {
             focus_handle: cx.focus_handle(),
             theme_appearance_sub: None,
         }
+    }
+
+    /// BLF-803：复位全部视图 show_* 标志（新分支统一入口；既有分支保持
+    /// 内联复位不动，避免大面积 diff）。
+    fn reset_all_show_flags(&mut self) {
+        self.show_dashboard = false;
+        self.show_site_navigation = false;
+        self.show_store_navigation = false;
+        self.show_platform_inspection = false;
+        self.show_daily_analysis = false;
+        self.show_sku_info = false;
+        self.show_ad_analysis = false;
+        self.show_ad_data = false;
+        self.show_monthly_report = false;
+        self.show_platform_revenue = false;
+        self.show_scheduled_reports = false;
+        self.show_portfolio_overview = false;
+        self.show_return_analysis = false;
+        self.show_project_goals = false;
+        self.show_inventory_analysis = false;
+        self.show_inventory_ledger = false;
+        self.show_replenishment = false;
+        self.show_seasonal_replenishment = false;
+        self.show_weekly_product = false;
+        self.show_research_analysis = false;
+        self.show_product_analysis = false;
+        self.show_new_product_calculation = false;
+        self.show_shop_calculation = false;
+        self.show_shipment_management = false;
+        self.show_order_info = false;
+        self.show_exchange_rate = false;
+        self.show_vat_invoice = false;
+        self.show_commission = false;
+        self.show_model_selection = false;
+        self.show_crm_dashboard = false;
+        self.show_ai_chat = false;
+        self.show_crm_follow_ups = false;
+        self.show_crm_audit = false;
+        self.show_markdown_to_word = false;
+        self.show_system_logs = false;
+        self.show_agent_management = false;
+        self.show_account_management = false;
+        self.show_auto_upload = false;
+        self.show_ai_insights = false;
+        self.show_customer_service = false;
+        self.show_virtual_office = false;
     }
 
     /// 显示非致命警告横幅（会话校验等后台任务回调用）
@@ -2726,6 +2847,12 @@ impl RootView {
             "crm-audit"
         } else if self.show_ai_chat {
             "ai-chat"
+        } else if self.show_ai_insights {
+            "ai-insights"
+        } else if self.show_customer_service {
+            "customer-service"
+        } else if self.show_virtual_office {
+            "virtual-office"
         } else if self.show_markdown_to_word {
             "markdown-to-word"
         } else if self.show_system_logs {
@@ -2907,6 +3034,21 @@ impl RootView {
             )
         } else if self.show_ai_chat {
             self.ai_chat.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_ai_insights {
+            self.ai_insights.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_customer_service {
+            self.customer_service.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_virtual_office {
+            self.virtual_office.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -3698,6 +3840,27 @@ mod tests {
                 "ad-analysis",
             ),
             ("/dashboard/advertising/ad-data", "广告数据", "ad-data"),
+            // BLF-803：AI 智能三页 + 数字员工/虚拟办公室
+            (
+                "/dashboard/ai/insights",
+                "AI洞察",
+                "ai-insights",
+            ),
+            (
+                "/dashboard/ai/customer-service",
+                "客服交流",
+                "customer-service",
+            ),
+            (
+                "/dashboard/ai/digital-employees",
+                "数字员工",
+                "virtual-office",
+            ),
+            (
+                "/dashboard/ai/digital-employees/office",
+                "虚拟办公室",
+                "virtual-office",
+            ),
             (
                 "/dashboard/reports/monthly-report/display",
                 "财务月报",
