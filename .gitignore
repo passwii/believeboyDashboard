@@ -190,3 +190,6 @@ openSourceProjects/
 
 # 部署/回滚运行产物（deploy_vps / rollback / alerting 运行时写入）
 productEnvAgent/logs/
+
+# pnpm 本地 store（agent 运行时产物，禁止入库）
+.pnpm-store/

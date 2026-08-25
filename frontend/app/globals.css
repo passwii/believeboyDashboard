@@ -1232,6 +1232,46 @@
     background: var(--term-border-strong);
     border-radius: 0;
   }
+
+  /* ----------------------------------------------------------
+   * L2 SubNav 折叠/展开动效（BLF-825）
+   * 壳层用 width 过渡（flex 布局中 Main Canvas 平滑跟随），
+   * 内容层用 opacity/translateX 分层退场；容器 overflow:hidden 防溢出。
+   * ---------------------------------------------------------- */
+  .term-subnav-shell {
+    overflow: hidden;
+    transition: width var(--subnav-duration, 260ms) var(--subnav-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    will-change: width;
+  }
+
+  /* 内容层：收缩时文字先淡出并轻微左移，展开时反向级联入场（延迟由组件内联 stagger） */
+  .term-subnav-content {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    transition:
+      opacity var(--subnav-fade-out, 120ms) ease-out,
+      transform var(--subnav-fade-out, 120ms) ease-out;
+  }
+
+  .term-subnav-collapsed .term-subnav-content {
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none; /* 淡出期间不可点击，避免幽灵点击 */
+  }
+
+  /* 展开时内容层换用更长的入场时长（级联延迟由组件内联 --subnav-delay 控制） */
+  .term-subnav-expanded .term-subnav-content {
+    transition:
+      opacity var(--subnav-fade-in, 180ms) cubic-bezier(0.22, 1, 0.36, 1),
+      transform var(--subnav-fade-in, 180ms) cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--subnav-delay, 0ms);
+  }
+
+  /* 激活指示条：折叠态保留可见性（窄态可辨），过渡期间不闪烁 —— 独立于内容层淡出 */
+  .term-subnav-indicator {
+    transition: none;
+  }
 }
 
 @keyframes term-marquee {
@@ -1249,5 +1289,16 @@
   .term-marquee-static {
     animation: none !important;
     will-change: auto;
+  }
+
+  /* BLF-825：reduced-motion 下 SubNav 折叠/展开直接切换，无动画 */
+  .term-subnav-shell {
+    transition: none !important;
+    will-change: auto;
+  }
+
+  .term-subnav-content {
+    transition: none !important;
+    transform: none !important;
   }
 }

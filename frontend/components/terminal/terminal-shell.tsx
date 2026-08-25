@@ -88,16 +88,16 @@ export function TerminalShell({ children }: TerminalShellProps) {
         onGroupNavigate={handleGroupNavigate}
       />
 
-      {!subnavCollapsed && (
-        <div className="hidden h-full md:flex">
-          <TerminalSubnav
-            groups={visibleGroups}
-            activeGroupId={activeGroupId}
-            pathname={pathname}
-            onCollapse={toggleSubnav}
-          />
-        </div>
-      )}
+      {/* L2 常驻挂载：折叠/展开由组件内部做宽度过渡（BLF-825），避免硬卸载跳变 */}
+      <div className="hidden h-full md:flex">
+        <TerminalSubnav
+          groups={visibleGroups}
+          activeGroupId={activeGroupId}
+          pathname={pathname}
+          collapsed={subnavCollapsed}
+          onCollapse={toggleSubnav}
+        />
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TerminalHeader
