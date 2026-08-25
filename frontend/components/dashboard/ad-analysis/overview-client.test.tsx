@@ -107,12 +107,21 @@ describe('AdAnalysisOverviewClient mount 请求行为（BEL-421）', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('下方非首屏区块经 DeferredSection 懒挂载（无 IntersectionObserver 时降级直出）', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(OVERVIEW_PAYLOAD))
+  it('Pattern B 双轴画布：KPI 磁贴带 + 上部图表分割区 + 下部明细数据网格（BLF-818）', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({
+        ...OVERVIEW_PAYLOAD,
+        trend_summary: [{ report_date: '2026-08-20', spend: 12.5, clicks: 30, cpc: 0.42, sales_7d: 88 }],
+        top_campaigns: [{ campaign_name: 'CAM-A', spend: 33.1, sales_7d: 120, orders_7d: 4, acos: 0.276 }],
+      })
+    )
     render(<AdAnalysisOverviewClient />)
-    // jsdom 无 IntersectionObserver → useInViewOnce 降级为可见，区块仍会渲染
-    await waitFor(() => expect(screen.getByTestId('overview-deferred-analysis')).toBeTruthy())
-    expect(screen.getByTestId('overview-deferred-products')).toBeTruthy()
-    expect(screen.getByTestId('overview-deferred-trend')).toBeTruthy()
+    // 下部明细数据网格面板存在且 sticky 表头可滚动
+    await waitFor(() => expect(screen.getByLabelText('广告明细数据')).toBeTruthy())
+    expect(screen.getByText('明细数据 DETAILS')).toBeTruthy()
+    // 明细行渲染：活动分组 + 日趋势分组
+    await waitFor(() => expect(screen.getByText('CAM-A')).toBeTruthy())
+    expect(screen.getAllByText('活动 CAMP').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('日趋势 DAILY').length).toBeGreaterThan(0)
   })
 })
