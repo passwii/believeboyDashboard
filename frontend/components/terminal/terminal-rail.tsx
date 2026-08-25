@@ -25,7 +25,7 @@ interface TerminalRailProps {
 }
 
 /**
- * L1 极窄主轨（固定 50px，BLF-809）：8 大业务域图标 + 底部主题切换与用户菜单。
+ * L1 极窄主轨（固定 56px，BLF-809）：8 大业务域图标 + 底部主题切换与用户菜单。
  * 仅图标不落文字，hover 以 title 提示；活动域以左侧 2px accent 指示。
  */
 export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: TerminalRailProps) {
@@ -45,12 +45,15 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
       className="hidden h-full shrink-0 flex-col border-r border-term-border bg-term-panel md:flex"
     >
       {/* Logo 位 */}
-      <div className="flex h-[50px] shrink-0 items-center justify-center border-b border-term-border">
+      <div
+        style={{ height: TERMINAL_RAIL_WIDTH }}
+        className="flex shrink-0 items-center justify-center border-b border-term-border"
+      >
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
           aria-label="返回总览"
-          className="flex h-7 w-7 items-center justify-center bg-term-accent font-mono text-[13px] font-bold text-white transition-opacity hover:opacity-85"
+          className="flex h-8 w-8 items-center justify-center bg-term-accent font-mono text-sm font-bold text-white transition-opacity hover:opacity-85"
         >
           B
         </button>
@@ -79,7 +82,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               {isActive && (
                 <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 bg-term-accent" />
               )}
-              <Icon className="h-[15px] w-[15px]" strokeWidth={1.75} />
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
             </button>
           )
         })}
@@ -100,7 +103,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" title="用户" aria-label="用户菜单" data-testid="terminal-user-trigger" className="flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text">
-              <span className="flex h-5 w-5 items-center justify-center rounded-sm border border-term-border-strong bg-term-raised font-mono text-[10px] uppercase text-term-text">
+              <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-term-border-strong bg-term-raised font-mono text-[11px] uppercase text-term-text">
                 U
               </span>
             </button>

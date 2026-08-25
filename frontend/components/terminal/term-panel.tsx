@@ -20,7 +20,7 @@ export function TermPanel({ title, actions, children, className, bodyClassName }
       {(title || actions) && (
         <header className="flex h-8 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1">
           {title && (
-            <h2 className="truncate text-[11px] font-semibold uppercase tracking-wider text-term-muted">
+            <h2 className="truncate text-xs font-semibold uppercase tracking-wider text-term-muted">
               {title}
             </h2>
           )}

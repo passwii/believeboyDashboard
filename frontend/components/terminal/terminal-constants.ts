@@ -5,11 +5,12 @@ import type { SidebarSubItem, SidebarTopGroup } from '@/lib/sidebar-config'
  * 规格来源：高密度交易终端设计规范 —— L1 50px / L2 200px / Header 36px / Footer 24px / Inspector 280px。
  */
 
-export const TERMINAL_RAIL_WIDTH = 50
-export const TERMINAL_SUBNAV_WIDTH = 200
-export const TERMINAL_HEADER_HEIGHT = 36
-export const TERMINAL_FOOTER_HEIGHT = 24
-export const TERMINAL_INSPECTOR_WIDTH = 288
+// 全局放大一档后的规格（master-prompt §任务 0a）：L1 56 / L2 224 / Header 40 / Footer 28 / Inspector 320
+export const TERMINAL_RAIL_WIDTH = 56
+export const TERMINAL_SUBNAV_WIDTH = 224
+export const TERMINAL_HEADER_HEIGHT = 40
+export const TERMINAL_FOOTER_HEIGHT = 28
+export const TERMINAL_INSPECTOR_WIDTH = 320
 
 /**
  * Footer 多频道滚动 Ticker 配置（BLF-816）。

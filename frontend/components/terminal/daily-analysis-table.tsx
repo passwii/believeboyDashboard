@@ -39,7 +39,7 @@ function deltaTone(current: number, previous: number): 'pos' | 'neg' | 'muted' {
 
 /**
  * 近 N 天销售明细高密度表（BLF-809 Pattern A 示范列）：
- * 行高 28px、等宽数字右对齐、订单/销售额按日环比着色。
+ * 行高 32px、等宽数字右对齐、订单/销售额按日环比着色。
  */
 export function DailyAnalysisTable({
   rows,
@@ -54,7 +54,7 @@ export function DailyAnalysisTable({
     return (
       <div className="space-y-px p-px">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-7 w-full rounded-none" />
+          <Skeleton key={i} className="h-8 w-full rounded-none" />
         ))}
       </div>
     )
@@ -68,8 +68,9 @@ export function DailyAnalysisTable({
     return <p className="p-4 text-xs text-term-faint">暂无数据</p>
   }
 
+  // 可见高度 = 32px 表头 + 11 行 × 32px 行高，与放大后的 TermTable 行高保持同档可见行数
   return (
-    <div className="max-h-[336px] overflow-y-auto term-scroll">
+    <div className="max-h-[384px] overflow-y-auto term-scroll">
       <TermTable>
         <TermTHead>
           <TermRow>

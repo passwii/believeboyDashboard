@@ -44,7 +44,7 @@ function changeColorClass(changePct: number | null): string {
 }
 
 /**
- * Global Footer 系统状态栏（固定 24px，BLF-809/816）：
+ * Global Footer 系统状态栏（固定 28px，BLF-809/816）：
  * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 数据更新时间 · 更新日志摘要）
  * · 同步引擎状态 · 未读通知 · 双时区时钟。
  * 各段以 1px 竖分隔线切分；移动端隐藏（<sm）。
@@ -217,7 +217,7 @@ export function TerminalFooter() {
     <footer
       style={{ height: TERMINAL_FOOTER_HEIGHT }}
       data-testid="terminal-footer"
-      className="hidden shrink-0 items-stretch overflow-hidden border-t border-term-border bg-term-panel font-mono text-[11px] leading-none text-term-muted sm:flex"
+      className="hidden shrink-0 items-stretch overflow-hidden border-t border-term-border bg-term-panel font-mono text-xs leading-none text-term-muted sm:flex"
     >
       {/* 多频道滚动 Ticker */}
       <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
@@ -262,7 +262,7 @@ export function TerminalFooter() {
       {/* 未读通知 */}
       {unreadCount > 0 && (
         <div className="flex shrink-0 items-center gap-1 border-l border-term-border px-3 text-term-text">
-          <Bell className="h-3 w-3" />
+          <Bell className="h-3.5 w-3.5" />
           <span className="tabular-nums">{unreadCount}</span>
         </div>
       )}

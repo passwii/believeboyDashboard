@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 /**
  * BLF-818 · 终端风子 Tab 栏（Pattern B 下部数据网格 Tab）：
- * h-7 单行、1px 边界、零圆角零阴影；激活态底部 2px accent 指示条 +
+ * h-8 单行、1px 边界、零圆角零阴影；激活态底部 2px accent 指示条 +
  * 文字提亮，非激活 hover 仅文字变色 —— 无背景位移动画，切换零布局抖动。
  */
 export function AdAnalysisTabNav() {
@@ -19,7 +19,7 @@ export function AdAnalysisTabNav() {
     <div className="overflow-x-auto term-scroll">
       <nav
         aria-label="广告分析子页面"
-        className="flex h-7 min-w-max items-stretch border border-term-border bg-term-panel"
+        className="flex h-8 min-w-max items-stretch border border-term-border bg-term-panel"
       >
         {AD_ANALYSIS_TABS.map((tab) => {
           const isActive = pathname === tab.href
@@ -32,7 +32,7 @@ export function AdAnalysisTabNav() {
               href={href}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'relative flex shrink-0 items-center border-r border-term-border px-3 font-mono text-[11px] tracking-wide transition-colors last:border-r-0',
+                'relative flex shrink-0 items-center border-r border-term-border px-3 font-mono text-xs tracking-wide transition-colors last:border-r-0',
                 isActive
                   ? 'bg-term-raised font-semibold text-term-text'
                   : 'text-term-muted hover:bg-term-hover hover:text-term-text'

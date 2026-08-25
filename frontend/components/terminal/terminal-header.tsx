@@ -51,7 +51,7 @@ interface TerminalHeaderProps {
 }
 
 /**
- * Top Header 全局控制台条（固定 36px，BLF-809）。
+ * Top Header 全局控制台条（固定 40px，BLF-809）。
  * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）。
  * 中：全局筛选四件套 + KPI 磁贴（BLF-819，仅试点路由激活；未接入页面零变化）。
  * 右：⌘K 搜索、通知、Inspector 开关、用户菜单。
@@ -95,18 +95,18 @@ export function TerminalHeader({
           onClick={onOpenMobileNav}
           title="导航菜单"
           aria-label="打开导航菜单"
-          className="flex h-6 w-6 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:hidden"
+          className="flex h-7 w-7 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:hidden"
         >
-          <Menu className="h-3.5 w-3.5" />
+          <Menu className="h-4 w-4" />
         </button>
         <button
           type="button"
           onClick={onExpandSubnav}
           title={subnavCollapsed ? '展开侧栏' : '侧栏'}
           aria-label={subnavCollapsed ? '展开侧栏' : '侧栏'}
-          className="hidden h-6 w-6 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:flex"
+          className="hidden h-7 w-7 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:flex"
         >
-          <PanelLeft className={cn('h-3.5 w-3.5', !subnavCollapsed && 'text-term-text')} />
+          <PanelLeft className={cn('h-4 w-4', !subnavCollapsed && 'text-term-text')} />
         </button>
         <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1 text-xs">
           {activeGroup && (
@@ -119,7 +119,7 @@ export function TerminalHeader({
               </span>
               <span
                 aria-hidden
-                className="shrink-0 select-none font-mono text-[10px] leading-none text-term-border"
+                className="shrink-0 select-none font-mono text-[11px] leading-none text-term-border"
               >
                 ›
               </span>
@@ -172,9 +172,9 @@ export function TerminalHeader({
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
           title="全局搜索"
           aria-label="全局搜索"
-          className="flex h-6 items-center gap-1 px-1.5 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-7 items-center gap-1 px-1.5 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          <Search className="h-3.5 w-3.5" />
+          <Search className="h-4 w-4" />
         </button>
 
         <Popover>
@@ -184,13 +184,13 @@ export function TerminalHeader({
               onClick={() => void refresh()}
               title="通知"
               aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
-              className="relative flex h-6 w-6 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+              className="relative flex h-7 w-7 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
             >
-              <Bell className="h-3.5 w-3.5" />
+              <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
                 <span
                   data-testid="terminal-header-unread"
-                  className="absolute -right-0.5 -top-0.5 flex h-3 min-w-3 items-center justify-center bg-term-neg px-0.5 font-mono text-[9px] leading-none text-white"
+                  className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center bg-term-neg px-0.5 font-mono text-[10px] leading-none text-white"
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
@@ -214,9 +214,9 @@ export function TerminalHeader({
           title={inspectorOpen ? '收起 Inspector (⌘B)' : '展开 Inspector (⌘B)'}
           aria-label="切换 Inspector"
           aria-pressed={inspectorOpen}
-          className="hidden h-6 w-6 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text lg:flex"
+          className="hidden h-7 w-7 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text lg:flex"
         >
-          <PanelRight className={cn('h-3.5 w-3.5', inspectorOpen && 'text-term-text')} />
+          <PanelRight className={cn('h-4 w-4', inspectorOpen && 'text-term-text')} />
         </button>
 
         <span className="mx-1 hidden h-4 w-px bg-term-border sm:block" />
@@ -226,9 +226,9 @@ export function TerminalHeader({
             <button
               type="button"
               data-testid="terminal-header-user"
-              className="flex h-6 items-center gap-1.5 px-1.5 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+              className="flex h-7 items-center gap-1.5 px-1.5 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
             >
-              <UserRound className="h-3.5 w-3.5" />
+              <UserRound className="h-4 w-4" />
               <span className="hidden max-w-24 truncate sm:inline">{displayName}</span>
             </button>
           </DropdownMenuTrigger>
@@ -241,7 +241,7 @@ export function TerminalHeader({
               onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
             >
               全局搜索
-              <kbd className="ml-auto border border-term-border px-1 font-mono text-[10px] text-term-faint">
+              <kbd className="ml-auto border border-term-border px-1 font-mono text-[11px] text-term-faint">
                 ⌘K
               </kbd>
             </DropdownMenuItem>
