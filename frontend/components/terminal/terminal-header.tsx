@@ -9,6 +9,17 @@ import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
 import {
   TERMINAL_HEADER_HEIGHT,
 } from '@/components/terminal/terminal-constants'
+import {
+  HeaderCountrySelect,
+  HeaderDateRangePicker,
+  HeaderKpiTile,
+  HeaderProjectSelect,
+} from '@/components/terminal/header-filter-suite'
+import {
+  isGlobalFilterPilotRoute,
+  useTerminalGlobalFilter,
+} from '@/components/terminal/global-filter-context'
+import { useHeaderKpis } from '@/lib/hooks/use-header-kpis'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import {
@@ -41,8 +52,9 @@ interface TerminalHeaderProps {
 
 /**
  * Top Header 全局控制台条（固定 36px，BLF-809）。
- * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）；右：⌘K 搜索、通知、Inspector 开关、用户菜单。
- * 规范中的 ProjectSelect/CountrySelect/DateRange 四件套需页面筛选状态全局化后接入（后续 stage）。
+ * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）。
+ * 中：全局筛选四件套 + KPI 磁贴（BLF-819，仅试点路由激活；未接入页面零变化）。
+ * 右：⌘K 搜索、通知、Inspector 开关、用户菜单。
  */
 export function TerminalHeader({
   groups,
@@ -57,6 +69,15 @@ export function TerminalHeader({
   const { data: session } = useSession()
   const user = session?.user
   const { unreadCount, refresh } = useServerNotifications()
+
+  // BLF-819 全局筛选四件套：仅试点路由渲染，其余页面头部行为零变化
+  const globalFilter = useTerminalGlobalFilter()
+  const pilotActive = isGlobalFilterPilotRoute(pathname)
+  const { kpis, loading: kpisLoading } = useHeaderKpis()
+  const formatMoney0 = React.useCallback(
+    (v: number | null) => (v == null ? null : `$${Math.round(v).toLocaleString('en-US')}`),
+    []
+  )
 
   const activeGroup = groups.find((g) => g.id === activeGroupId)
   const pageTitle = React.useMemo(() => getDashboardPageTitle(pathname), [pathname])
@@ -109,6 +130,40 @@ export function TerminalHeader({
           </span>
         </nav>
       </div>
+
+      {/* 中段：全局筛选四件套 + KPI 磁贴（BLF-819，试点路由激活） */}
+      {pilotActive && globalFilter.ready ? (
+        <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto border-l border-term-border px-2 term-scroll xl:flex">
+          <HeaderProjectSelect
+            value={globalFilter.projectId}
+            onChange={globalFilter.setProjectId}
+          />
+          <HeaderCountrySelect
+            value={globalFilter.country}
+            onChange={globalFilter.setCountry}
+          />
+          <HeaderDateRangePicker
+            dateFrom={globalFilter.dateFrom}
+            dateTo={globalFilter.dateTo}
+            country={globalFilter.country}
+            onChange={globalFilter.setDateRange}
+          />
+          <span className="mx-0.5 hidden h-4 w-px bg-term-border 2xl:block" aria-hidden />
+          <div className="hidden items-center gap-1.5 2xl:flex">
+            <HeaderKpiTile label="GMV" value={formatMoney0(kpis.gmv)} loading={kpisLoading} />
+            <HeaderKpiTile
+              label="ORD"
+              value={kpis.orders == null ? null : kpis.orders.toLocaleString('en-US')}
+              loading={kpisLoading}
+            />
+            <HeaderKpiTile
+              label="PND"
+              value={kpis.pending == null ? null : kpis.pending.toLocaleString('en-US')}
+              loading={kpisLoading}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {/* 右段：搜索 / 通知 / Inspector / 用户 */}
       <div className="flex shrink-0 items-center gap-1 px-2">

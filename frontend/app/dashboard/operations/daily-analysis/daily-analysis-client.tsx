@@ -22,7 +22,7 @@ import {
   DataTableCardHeader,
   DataTableCardBody,
 } from '@/components/ui/data-card'
-import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
+import { DateRangePicker, COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import {
   Command,
@@ -55,6 +55,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import {
   addMonths,
   bucketDetailByMonth,
@@ -924,10 +925,56 @@ export default function DailyAnalysisPage() {
   // 默认不预设 "all"：项目加载完成后由下方 effect 自动选中第一个真实项目，
   // 以满足"控制台默认选择第一个项目"的需求。
   // 项目 / 国家站点 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // BLF-819：全局筛选就绪时，头部四件套的选择会同步覆盖到本页（见下方 effect）。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
   const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
     allowed: ['US', 'DE', 'UK', 'ALL'],
   })
+  const globalFilter = useTerminalGlobalFilter()
+  const gfProjectId = globalFilter.ready ? globalFilter.projectId : null
+  const gfCountry = globalFilter.ready ? globalFilter.country : null
+  const gfDateFrom = globalFilter.ready ? globalFilter.dateFrom : null
+  const gfDateTo = globalFilter.ready ? globalFilter.dateTo : null
+
+  // BLF-819 头部 → 页面同步：头部四件套变化（含首次水合出的持久化值）写入本页筛选。
+  // 只在头部值真正变化时触发，页面内手动切换不受影响；日期仅在头部有完整范围时应用。
+  // BLF-819 头部 → 页面同步：头部四件套变化（含首次水合出的持久化值）写入本页筛选。
+  // loadData 在下方才定义，用 ref 桥接避免依赖顺序问题。
+  const loadDataRef = useRef<((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null>(null)
+  const lastAppliedGfRef = useRef('')
+  useEffect(() => {
+    if (!globalFilter.ready) return
+    const signature = `${gfProjectId}|${gfCountry}|${gfDateFrom}|${gfDateTo}`
+    if (signature === lastAppliedGfRef.current) return
+    const isFirstApply = lastAppliedGfRef.current === ''
+    lastAppliedGfRef.current = signature
+    if (isFirstApply) {
+      // 首次水合：仅当头部带用户上次选择（URL/localStorage 有项目）时才覆盖，
+      // 否则保留本页 URL param 的既有行为（自动选第一个项目）。
+      if (!gfProjectId) return
+    }
+    if (gfProjectId && gfProjectId !== projectId) {
+      setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
+    }
+    if (
+      gfCountry &&
+      ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) &&
+      gfCountry !== country
+    ) {
+      setCountry(gfCountry as CountryOption)
+    }
+    if (gfDateFrom && gfDateTo) {
+      const from = parseDateInputValue(gfDateFrom)
+      const to = parseDateInputValue(gfDateTo)
+      if (from && to) {
+        setDatePresetKey(undefined)
+        setDateRange({ from, to })
+        void loadDataRef.current?.({ from, to })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只响应头部四件套的变化
+  }, [globalFilter.ready, gfProjectId, gfCountry, gfDateFrom, gfDateTo])
+
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   // 当用户在 DateRangePicker 里点了 preset 侧边栏时，记下触发的 preset label；
@@ -1204,6 +1251,8 @@ export default function DailyAnalysisPage() {
     },
     [projectId, country, dateRange, notify, isAllProjects, projects, session]
   )
+  // BLF-819：供头部同步 effect 桥接调用（定义顺序解耦）
+  loadDataRef.current = loadData
 
   const loadProjectSkus = useCallback(
     async (projectIdText: string, countryValue: string) => {
