@@ -1,6 +1,48 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
+// 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
+const gfState = {
+  ready: true,
+  projectId: '',
+  country: 'US',
+  dateFrom: '2026-08-19',
+  dateTo: '2026-08-25',
+}
+const gfSetters = {
+  setProjectId: vi.fn(),
+  setCountry: vi.fn(),
+  setDateRange: vi.fn(),
+}
+vi.mock('@/components/terminal/global-filter-context', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/components/terminal/global-filter-context')
+  >()
+  return {
+    ...actual,
+    TerminalGlobalFilterProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+    useTerminalGlobalFilter: () => gfValue,
+  }
+})
+
+/** 测试内修改全局筛选态（模拟用户在头部操作）；bump 版本号让 mock 返回新引用触发重渲染 */
+let gfVersion = 0
+const gfValue = new Proxy(gfState, {
+  get(target, key) {
+    if (key === '__gfVersion') return gfVersion
+    if (key in gfSetters) return gfSetters[key as keyof typeof gfSetters]
+    return target[key as keyof typeof gfState]
+  },
+})
+
+/** 测试内修改全局筛选态（模拟用户在头部操作） */
+function setGf(patch: Partial<typeof gfState>) {
+  Object.assign(gfState, patch)
+  gfVersion += 1
+}
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
@@ -245,5 +287,59 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(screen.getByText('+ 运费 5.00')).toBeInTheDocument()
     // 无运费的行不显示运费标注
     expect(screen.getByText('20.00 USD')).toBeInTheDocument()
+  })
+
+  // ====== BLF-819 review 补测：头部 → 页面绑定 effect ======
+
+  it('BLF-819 首次水合守卫：URL 无 g* 参数（gf projectId 为空）时，binding 不覆盖页面 projectId，自动选第一个店铺生效', async () => {
+    setGf({ ready: true, projectId: '', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    const { rerender } = render(<OrderInfoPage />)
+
+    await screen.findByText('111-1111111-0000001')
+    // 店铺下拉显示自动选中的第一个店铺「店铺A」（而非 __all__）
+    const projectTrigger = screen.getByRole('combobox', { name: '店铺' })
+    expect(projectTrigger).toHaveTextContent('店铺A')
+    // 首次请求带的是 autoselect 出的 project_ids=1
+    const firstCall = String(fetchMock.mock.calls[0]![0])
+    expect(firstCall).toContain('project_ids=1')
+  })
+
+  it('BLF-819 头部切换项目/站点/日期后，页面筛选与请求参数随动', async () => {
+    setGf({ ready: true, projectId: '', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    const { rerender } = render(<OrderInfoPage />)
+    await screen.findByText('111-1111111-0000001')
+
+    // 模拟用户在头部切到项目 2 / 德国站 / 自定义日期
+    act(() => {
+      setGf({ projectId: '2', country: 'DE', dateFrom: '2026-08-01', dateTo: '2026-08-05' })
+    })
+    rerender(<OrderInfoPage />)
+
+    await waitFor(() => {
+      const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+      expect(lastUrl).toContain('project_ids=2')
+      expect(lastUrl).toContain('countries=DE')
+      expect(lastUrl).toContain('date_from=2026-08-01')
+      expect(lastUrl).toContain('date_to=2026-08-05')
+    })
+  })
+
+  it("BLF-819 '__all__' ↔ 'all' 语义映射：头部选全部项目时页面回到全店铺且不误传具体 project_id", async () => {
+    // 先让头部持有具体项目 1
+    setGf({ ready: true, projectId: '1', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    const { rerender } = render(<OrderInfoPage />)
+    await screen.findByText('111-1111111-0000001')
+    expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('project_ids=1')
+
+    // 头部切到「全部项目」→ 页面应回 DEFAULT_PROJECT_VALUE('__all__')，请求不带 project_ids
+    act(() => {
+      setGf({ projectId: 'all' })
+    })
+    rerender(<OrderInfoPage />)
+
+    await waitFor(() => {
+      const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+      expect(lastUrl).not.toContain('project_ids=')
+    })
   })
 })
