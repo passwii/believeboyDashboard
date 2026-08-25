@@ -21,7 +21,6 @@ use gpui::{
 use gpui_component::{h_flex, v_flex, Icon, IconName, Sizable};
 
 use crate::theme::AppTheme;
-use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use gui_domain::operations::site_navigation::{
     forum_count, forum_items, platform_count, platform_items, SiteNavigationItem, TYPE_LABEL,
@@ -69,11 +68,14 @@ impl Render for SiteNavigationView {
         let platforms = platform_items();
         let forums = forum_items();
 
+        // BLF-802 Stage11 卡片墙暗色 token 化收敛：去掉旧 p_6/gap_6 大留白
+        // 页面壳，改高密度平铺（px_2 + 4/8px 间距节奏；卡片全部走 theme token）。
         v_flex()
             .id("site-navigation")
             .size_full()
-            .gap_6()
-            .p_6()
+            .gap_2()
+            .px_2()
+            .py_2()
             .bg(theme.window_bg)
             .overflow_y_scroll()
             // 页面头部（P4-5：共享 PageHeader；此前本站点无头部）
@@ -81,7 +83,7 @@ impl Render for SiteNavigationView {
                 PageHeader::new("站点导航")
                     .subtitle("聚合主流跨境电商平台与运营入口 · 团队一键直达高频站点"),
             )
-            .child(content_guard().child(header_card(&theme, accent)))
+            .child(header_card(&theme, accent))
             .child(section(
                 "平台",
                 "核心运营入口",

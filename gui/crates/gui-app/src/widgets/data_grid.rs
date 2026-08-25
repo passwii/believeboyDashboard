@@ -220,6 +220,17 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
         cx.notify();
     }
 
+    /// 幂等注入行数据：与当前行集相同（PartialEq 逐项相等）则跳过重绘。
+    /// 供 render 期 / 高频刷新路径调用，避免同值注入触发多余 notify 重绘
+    /// （对齐 DataTable::set_rows_if_changed 语义；BLF-802 套版迁移消费）。
+    pub fn set_rows_if_changed(&mut self, rows: &[T], cx: &mut Context<Self>) {
+        if self.rows.len() == rows.len() && self.rows.iter().zip(rows).all(|(a, b)| a == b) {
+            return;
+        }
+        let owned = rows.to_vec();
+        self.set_rows(owned, cx);
+    }
+
     /// 当前行数据（只读；测试 / 外部消费）
     #[allow(dead_code)] // 公共 API 面（测试 / 后续视图批次消费）
     pub fn rows(&self) -> &[T] {
@@ -819,6 +830,58 @@ pub fn grid_footer_bar<V: 'static>(
             on_page_size,
         ))
         .child(pagination_controls(view, theme, id_prefix, state, on_page))
+}
+
+/// Pattern A 底部聚合摘要条（无分页器）：左侧聚合摘要 + 右侧弹性空隙。
+/// 供「全量数据一屏呈现、无分页语义」的套版页（如库存分析合计口径）复用，
+/// 视觉规格与 [`grid_footer_bar`] 完全一致（32px pinned 底条）。
+pub fn aggregate_strip(
+    theme: &AppTheme,
+    id_prefix: &'static str,
+    aggregates: &[AggregateItem],
+) -> gpui::Stateful<gpui::Div> {
+    let items: Vec<AggregateItem> = aggregates.to_vec();
+    h_flex()
+        .id(SharedString::from(format!("{id_prefix}-footer")))
+        .w_full()
+        .flex_none()
+        .h(px(GRID_FOOTER_HEIGHT))
+        .px_2()
+        .gap_3()
+        .items_center()
+        .bg(theme.panel_bg)
+        .border_t_1()
+        .border_color(theme.separator)
+        .children(items.iter().enumerate().map(|(ix, item)| {
+            h_flex()
+                .id(SharedString::from(format!(
+                    "{id_prefix}-agg-{ix}-{}",
+                    item.label
+                )))
+                .min_w_0()
+                .gap_1p5()
+                .items_center()
+                .when(ix > 0, |this| {
+                    this.border_l_1().border_color(theme.separator).pl_3()
+                })
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.text_muted)
+                        .child(item.label.clone()),
+                )
+                .child(
+                    div()
+                        .mono_tabular_nums()
+                        .text_size(px(FONT_BASE))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(item.tone.color(theme))
+                        .child(item.value.clone()),
+                )
+                .children(item.note.clone().map(|note| {
+                    div().text_xs().text_color(theme.warning).child(note)
+                }))
+        }))
 }
 
 #[cfg(test)]

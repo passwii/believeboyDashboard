@@ -32,7 +32,6 @@ use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
 use crate::views::site_navigation::grid_columns;
-use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
@@ -235,8 +234,9 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
     v_flex()
         .id("store-nav-loading")
         .size_full()
-        .gap_4()
-        .p_6()
+        .gap_2()
+        .px_2()
+        .py_2()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(page_header())
@@ -259,8 +259,9 @@ fn render_error(
     v_flex()
         .id("store-nav-error")
         .size_full()
-        .gap_4()
-        .p_6()
+        .gap_2()
+        .px_2()
+        .py_2()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(page_header())
@@ -280,8 +281,9 @@ fn render_empty(cx: &mut Context<StoreNavigationView>, app_theme: &AppTheme) -> 
     v_flex()
         .id("store-nav-empty")
         .size_full()
-        .gap_4()
-        .p_6()
+        .gap_2()
+        .px_2()
+        .py_2()
         .overflow_y_scroll()
         .bg(app_theme.window_bg)
         .child(page_header())
@@ -309,12 +311,13 @@ fn render_loaded(
         v_flex()
             .id("store-nav-loaded")
             .size_full()
-            .gap_6()
-            .p_6()
+            .gap_2()
+            .px_2()
+            .py_2()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
             .child(page_header())
-            .child(content_guard().child(header_card(app_theme, stores)))
+            .child(header_card(app_theme, stores))
             .child(section(app_theme, stores, columns, cx)),
         reduce,
     )
