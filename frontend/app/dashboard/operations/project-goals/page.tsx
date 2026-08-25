@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { PagePill } from '@/components/ui/page-pill'
 import {
   Dialog,
   DialogContent,
@@ -457,7 +456,7 @@ export default function ProjectGoalsPage() {
       <div className="dashboard-surface overflow-hidden">
         {/* 头部行：PILL + 刷新按钮（与 PILL 等高 h-9） */}
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <PagePill icon={<Target />}>运营 · 目标管理</PagePill>
+          <div />
           <Button
             variant="outline"
             size="sm"

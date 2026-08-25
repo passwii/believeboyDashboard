@@ -156,15 +156,9 @@ export default function StoreNavigationPage() {
   return (
     <div className="space-y-6 md:space-y-7">
       <section className="dashboard-surface px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        {/* BLF-505：页面头部收口为 PageHeader 原语（eyebrow pill 形态 + 统计 chips） */}
+        {/* BLF-505：页面头部收口为 PageHeader 原语（统计 chips） */}
         <PageHeader
           className="relative z-10"
-          eyebrow={
-            <>
-              <Store className="h-3.5 w-3.5" />
-              运营导航 · 店铺导航
-            </>
-          }
           description="聚合团队所有店铺入口，可视化书签卡片，方便一键直达各店铺后台与前台页面。"
           actions={
             <div className="grid w-full max-w-xs grid-cols-3 gap-2">

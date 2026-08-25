@@ -85,14 +85,8 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      {/* ── 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
+      {/* ── 页面头部：标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
       <PageHeader
-        eyebrow={
-          <>
-            <Waypoints className="h-3.5 w-3.5" />
-            系统管理 · 更新日志
-          </>
-        }
         title="更新日志"
         description="记录 Dashboard 各版本的关键能力建设与原始变更线索。"
       />

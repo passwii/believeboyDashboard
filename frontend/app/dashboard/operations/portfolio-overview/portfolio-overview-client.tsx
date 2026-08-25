@@ -75,12 +75,6 @@ export default function PortfolioOverviewClient() {
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <PageHeader
           className="relative z-10"
-          eyebrow={
-            <>
-              <BarChart3 className="h-3.5 w-3.5" />
-              运营 · 组合分析
-            </>
-          }
           title="组合分析"
           description="跨项目 KPI 对比、趋势分析和贡献占比"
         />

@@ -3,7 +3,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-  Boxes,
   CalendarClock,
   FileDown,
   Gauge,
@@ -49,7 +48,6 @@ import {
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { PagePill } from '@/components/ui/page-pill'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -1041,7 +1039,7 @@ export default function InventoryReplenishmentPage() {
       <div className="dashboard-surface">
         {/* 标题行 */}
         <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <PagePill icon={<Boxes />}>运营 · 补货分析</PagePill>
+          <div />
           <div className="flex flex-wrap items-center gap-2">
             <SnapshotSelector
               projectId={currentProjectId}

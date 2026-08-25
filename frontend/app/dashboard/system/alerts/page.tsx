@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BellRing } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
@@ -46,12 +45,6 @@ export default function AlertCenterPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={
-          <>
-            <BellRing className="h-3.5 w-3.5" />
-            系统 · 告警中心
-          </>
-        }
         title="告警中心"
         description="配置告警规则、跟踪异常事件、管理通知偏好"
       />

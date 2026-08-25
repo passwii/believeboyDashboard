@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
+import { AlertTriangle, Download, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
@@ -1727,16 +1727,10 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
+      {/* 页面头部：标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <PageHeader
           className="relative z-10"
-          eyebrow={
-            <>
-              <ShoppingCart className="h-3.5 w-3.5" />
-              运营 · 每周商品分析
-            </>
-          }
           title="每周商品分析"
           description="按周聚合商品销售 / 广告 / 库存表现，对比上周与四周均值，定位增长与风险 SKU。"
         />

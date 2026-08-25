@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle, ClipboardCheck, Clock4, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Clock4, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -240,16 +240,10 @@ export default function InventoryLedgerPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 页面头部：eyebrow pill + 标题 + 描述 + 操作区（§8.1 PageHeader 原语，对齐 site-navigation） */}
+      {/* 页面头部：标题 + 描述 + 操作区（§8.1 PageHeader 原语，对齐 site-navigation） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <PageHeader
           className="relative z-10"
-          eyebrow={
-            <>
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              运营 · 库存分类账
-            </>
-          }
           title="库存分类账"
           description="按月对账 Amazon Inventory Ledger：汇总水位 / 事件明细 / 上传批次，支持跨月连续性与双表一致性校验。"
           actions={

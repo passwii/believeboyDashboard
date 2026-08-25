@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Calculator } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -19,12 +18,6 @@ export default function ProductAnalysisPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={
-          <>
-            <Calculator className="h-3.5 w-3.5" />
-            报表 · 产品分析
-          </>
-        }
         title="产品分析"
         description="按产品维度核算利润与定价，支持手动核算与月度 SKU 分析。"
       />
