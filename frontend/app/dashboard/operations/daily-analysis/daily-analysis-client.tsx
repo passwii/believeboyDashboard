@@ -2,28 +2,25 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Check, ChevronsUpDown, FileDown, Loader2, RefreshCcw, Target } from 'lucide-react'
+import { Check, ChevronsUpDown, FileDown, Loader2, SlidersHorizontal, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
-import {
-  CountrySelect,
-  FilterField,
-  ProjectSelect,
-  RefreshButton,
-} from '@/components/dashboard/console'
+import { CountrySelect } from '@/components/dashboard/console'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import { DateRangePicker, COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Command,
   CommandEmpty,
@@ -32,7 +29,6 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
@@ -56,6 +52,10 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import {
   addMonths,
   bucketDetailByMonth,
@@ -885,6 +885,37 @@ function FilterSkeleton() {
 }
 
 /**
+ * BLF-826 阶段 B：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
+ * 拆出子组件是为了让 useHeaderSlot / useHeaderRefresh 的 hook 调用
+ * 都落在 DailyAnalysisPage 顶层（hooks 规则），控件 JSX 复用同一份。
+ */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+}
+
+/**
  * 把 CHART_METRICS + SINGLE_METRIC_CHART_CONFIG 投影成 MetricSwitcherCard 需要的 MetricDef[]。
  * 保留 daily-analysis 原有的 format / isNegativeBetter 语义（metricIncreaseIsGood 取反）。
  * preferredChart 标注业务偏好：量级类（订单/销售额/曝光/点击/广告花费/广告订单/页面浏览/销量/访问量）
@@ -1614,136 +1645,124 @@ export default function DailyAnalysisPage() {
     await loadData(nextRange)
   }
 
+  // —— BLF-826 阶段 B：head 插槽 + 全局刷新 ——
+  // 刷新语义与原「控制台」RefreshButton 一致：当前筛选条件下强刷（跳 Redis/客户端缓存）。
+  const { setLoading: setHeaderRefreshLoading } = useHeaderRefresh(
+    () => loadData(undefined, true),
+    { loading }
+  )
+
+  const headerFilterControls = (
+    <>
+      <Select value={projectId} onValueChange={setProjectId}>
+        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
+          <SelectValue placeholder="选择项目" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">全部项目</SelectItem>
+          {projects.map((item) => (
+            <SelectItem key={item.id} value={String(item.id)}>
+              {item.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <CountrySelect
+        value={country}
+        onChange={(value) => setCountry(value as CountryOption)}
+        triggerClassName="h-8 w-full border-term-border bg-term-panel text-xs md:w-[140px]"
+      />
+      <SearchableSkuField
+        value={selectedSku}
+        options={skuOptions}
+        loading={skuLoading}
+        disabled={country === 'ALL'}
+        onOpen={ensureSkuOptions}
+        onChange={(value) => {
+          selectedSkuRef.current = value
+          setSelectedSku(value)
+          setActiveTab('summary')
+          void loadData()
+        }}
+      />
+      <DateRangePicker
+        value={dateRange}
+        onChange={(range, meta) => {
+          setDateRange(range)
+          setDatePresetKey(meta?.presetKey)
+        }}
+        className="h-8 w-full border-term-border bg-term-panel font-mono text-xs md:w-[220px]"
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        onApply={() => void loadData()}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={headerFilterControls} />
+  )
+
   return (
     <div className="space-y-5 lg:space-y-6">
-      <DataCard>
-        <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
-        <div className="space-y-0">
-          {/* BLF-503 试点：筛选工具栏统一走 FilterToolbar（桌面横向 / 手机 2 列网格） */}
-          <FilterToolbar
-            actions={
-              <>
-                <RefreshButton
-                  onClick={() => void loadData(undefined, true)}
-                  loading={loading || projectsLoading}
-                  label="刷新数据"
-                  size="default"
-                  variant="outline"
-                  className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
-                  className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 md:hidden"
-                >
-                  近7天
-                </Button>
-              </>
-            }
-          >
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部项目</SelectItem>
-                {projects.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9 md:w-[160px]"
-            />
-            <SearchableSkuField
-              value={selectedSku}
-              options={skuOptions}
-              loading={skuLoading}
-              disabled={country === 'ALL'}
-              onOpen={ensureSkuOptions}
-              onChange={(value) => {
-                selectedSkuRef.current = value
-                setSelectedSku(value)
-                setActiveTab('summary')
-                void loadData()
-              }}
-            />
-            <DateRangePicker
-              value={dateRange}
-              onChange={(range, meta) => {
-                setDateRange(range)
-                setDatePresetKey(meta?.presetKey)
-              }}
-              className="h-9 w-full md:w-[220px]"
-              timezone={COUNTRY_TIMEZONE_MAP[country]}
-              onApply={() => void loadData()}
-            />
-          </FilterToolbar>
-          {goalProgress && goalProgress.target_amount > 0 && (
-            <div className="dashboard-toolbar flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 px-4 py-3 md:px-6">
-              <Target className="h-4 w-4 shrink-0 text-blue-500" />
-              <div className="text-xs font-medium text-foreground shrink-0">
-                {new Date().getMonth() + 1}月目标
-                <span className="ml-1.5 text-muted-foreground">
-                  {goalProgress.today_day}/{goalProgress.days_in_month}日
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                      background: goalProgress.completion_vs_monthly >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-1))',
-                    }}
-                  />
-                </div>
-                <span className="text-xs font-semibold tabular-nums">
-                  {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                      background: goalProgress.completion_vs_daily >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-7))',
-                    }}
-                  />
-                </div>
-                <span className="text-xs font-semibold tabular-nums">
-                  {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground truncate">
-                {goalProgress.currency}
-                {goalProgress.achieved_amount.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{' '}
-                / {goalProgress.currency}
-                {goalProgress.target_amount.toLocaleString('zh-CN', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <Link
-                href={`/dashboard/operations/project-goals?project=${projectId}&country=${country}`}
-                className="shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline"
-              >
-                目标详情 →
-              </Link>
+      {/* BLF-826：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+      {/* BLF-826：月度目标进度条留在页内（信息密度取舍，不塞 head） */}
+      {goalProgress && goalProgress.target_amount > 0 && (
+        <div className="dashboard-surface flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-4 py-3">
+          <Target className="h-4 w-4 shrink-0 text-blue-500" />
+          <div className="text-xs font-medium text-foreground shrink-0">
+            {new Date().getMonth() + 1}月目标
+            <span className="ml-1.5 text-muted-foreground">
+              {goalProgress.today_day}/{goalProgress.days_in_month}日
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
+                  background: goalProgress.completion_vs_monthly >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-1))',
+                }}
+              />
             </div>
-          )}
+            <span className="text-xs font-semibold tabular-nums">
+              {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
+                  background: goalProgress.completion_vs_daily >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-7))',
+                }}
+              />
+            </div>
+            <span className="text-xs font-semibold tabular-nums">
+              {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground truncate">
+            {goalProgress.currency}
+            {goalProgress.achieved_amount.toLocaleString('zh-CN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{' '}
+            / {goalProgress.currency}
+            {goalProgress.target_amount.toLocaleString('zh-CN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+          <Link
+            href={`/dashboard/operations/project-goals?project=${projectId}&country=${country}`}
+            className="shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline"
+          >
+            目标详情 →
+          </Link>
         </div>
-      </DataCard>
+      )}
 
       {summaryRows.length || (selectedSku && filteredDetailRows.length) ? (
         // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
