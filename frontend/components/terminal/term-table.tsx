@@ -23,9 +23,29 @@ export function TermTHead({ children }: { children: React.ReactNode }) {
   return <thead className="sticky top-0 z-10">{children}</thead>
 }
 
-export function TermHead({ children, className, numeric }: { children: React.ReactNode; className?: string; numeric?: boolean }) {
+export function TermHead({
+  children,
+  className,
+  numeric,
+  onClick,
+}: {
+  children: React.ReactNode
+  className?: string
+  numeric?: boolean
+  /** 可选点击（列排序）；传入时自动带 cursor + hover 反馈 */
+  onClick?: () => void
+}) {
   return (
-    <th scope="col" className={cn(HEAD_BASE, numeric && 'text-right', className)}>
+    <th
+      scope="col"
+      onClick={onClick}
+      className={cn(
+        HEAD_BASE,
+        numeric && 'text-right',
+        onClick && 'cursor-pointer select-none hover:text-term-text',
+        className
+      )}
+    >
       {children}
     </th>
   )
@@ -57,15 +77,19 @@ export function TermCell({
   className,
   numeric,
   tone,
+  title,
 }: {
   children: React.ReactNode
   className?: string
   numeric?: boolean
   /** 微语义色：pos 涨/有货 · warn 待处理 · neg 跌/缺货 */
   tone?: 'pos' | 'warn' | 'neg' | 'muted'
+  /** 可选原生 title（截断单元格的完整内容提示） */
+  title?: string
 }) {
   return (
     <td
+      title={title}
       className={cn(
         CELL_CN,
         numeric && 'text-right',
