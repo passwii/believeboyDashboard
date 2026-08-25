@@ -27,7 +27,7 @@ interface TerminalInspectorProps {
 }
 
 /**
- * Right Inspector 上下文面板（320px，BLF-809）：Cmd/Ctrl+B 或 Header 按钮开关。
+ * Right Inspector 上下文面板（360px，BLF-809；二档放大 2026-08-25）：Cmd/Ctrl+B 或 Header 按钮开关。
  * 本期承载快捷入口 + 最近访问；实时出单流 / AI 助手等内容形态留待后续 stage。
  */
 export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
@@ -47,8 +47,8 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
       data-testid="terminal-inspector"
       className="hidden h-full shrink-0 flex-col border-l border-term-border bg-term-panel lg:flex"
     >
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1">
-        <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wider text-term-muted">
+      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1">
+        <span className="min-w-0 flex-1 text-sm font-semibold uppercase tracking-wider text-term-muted">
           Inspector
         </span>
         <button
@@ -56,15 +56,15 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
           onClick={onClose}
           title="收起 (⌘B)"
           aria-label="收起 Inspector"
-          className="flex h-7 w-7 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-8 w-8 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          <X className="h-4 w-4" />
+          <X className="h-[18px] w-[18px]" />
         </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
         <section className="border-b border-term-border p-2">
-          <h3 className="px-1 pb-1.5 text-xs uppercase tracking-wider text-term-faint">
+          <h3 className="px-1 pb-1.5 text-sm uppercase tracking-wider text-term-faint">
             快捷操作
           </h3>
           <div className="grid grid-cols-2 gap-px bg-term-border">
@@ -72,7 +72,7 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
               <RouteLoadingLink
                 key={action.url}
                 href={action.url}
-                className="flex h-9 items-center bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+                className="flex h-10 items-center bg-term-panel px-2 text-sm text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
               >
                 <span className="truncate">{action.title}</span>
               </RouteLoadingLink>
@@ -81,11 +81,11 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
         </section>
 
         <section className="p-2">
-          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-xs uppercase tracking-wider text-term-faint">
-            <History className="h-3.5 w-3.5" /> 最近访问
+          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm uppercase tracking-wider text-term-faint">
+            <History className="h-4 w-4" /> 最近访问
           </h3>
           {recents.length === 0 ? (
-            <p className="px-1 py-2 text-xs text-term-faint">暂无记录</p>
+            <p className="px-1 py-2 text-sm text-term-faint">暂无记录</p>
           ) : (
             <div className="flex flex-col">
               {recents.map((entry) => {
@@ -94,7 +94,7 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
                   <RouteLoadingLink
                     key={entry.path}
                     href={entry.path}
-                    className={`truncate px-1 py-1.5 text-xs transition-colors hover:text-term-text ${
+                    className={`truncate px-1 py-2 text-sm transition-colors hover:text-term-text ${
                       isActive ? 'text-term-text' : 'text-term-muted'
                     }`}
                   >

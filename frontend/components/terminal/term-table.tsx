@@ -4,10 +4,10 @@ import { cn } from '@/lib/utils'
 
 /**
  * Terminal 高密度数据表格原语（BLF-809 规范 Pattern A）。
- * 表头 32px / 行高 32px、等宽数字右对齐、涨跌微语义色由调用方按单元格语义追加。
+ * 表头 36px / 行高 36px（二档放大 2026-08-25）、等宽数字右对齐、涨跌微语义色由调用方按单元格语义追加。
  */
 
-const CELL_BASE = 'h-8 px-2 align-middle whitespace-nowrap'
+const CELL_BASE = 'h-9 px-2 align-middle whitespace-nowrap'
 const HEAD_BASE = cn(CELL_BASE, 'border-b border-term-border bg-term-raised text-left font-medium normal-case tracking-normal text-term-muted')
 const CELL_CN = cn(CELL_BASE, 'border-b border-term-border text-term-text')
 

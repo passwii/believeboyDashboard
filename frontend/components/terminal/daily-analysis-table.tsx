@@ -68,9 +68,9 @@ export function DailyAnalysisTable({
     return <p className="p-4 text-xs text-term-faint">暂无数据</p>
   }
 
-  // 可见高度 = 32px 表头 + 11 行 × 32px 行高，与放大后的 TermTable 行高保持同档可见行数
+  // 可见高度 = 36px 表头 + 9 行 × 36px 行高，与二档放大后的 TermTable 行高保持同档可见行数
   return (
-    <div className="max-h-[384px] overflow-y-auto term-scroll">
+    <div className="max-h-[360px] overflow-y-auto term-scroll">
       <TermTable>
         <TermTHead>
           <TermRow>

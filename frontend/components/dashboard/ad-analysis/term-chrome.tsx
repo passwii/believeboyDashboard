@@ -54,13 +54,13 @@ export function TermMetricTile({
       title={helper || undefined}
     >
       <div className="flex h-4 items-center justify-between gap-1">
-        <span className="truncate text-[11px] uppercase tracking-wider text-term-muted">
+        <span className="truncate text-xs uppercase tracking-wider text-term-muted">
           {label}
         </span>
         {hasChange ? (
           <span
             className={cn(
-              'shrink-0 font-mono text-[11px] tabular-nums',
+              'shrink-0 font-mono text-xs tabular-nums',
               positive ? 'text-term-pos' : 'text-term-neg'
             )}
           >
@@ -68,7 +68,7 @@ export function TermMetricTile({
             {Math.abs(changeRatio as number).toFixed(2)}%
           </span>
         ) : (
-          <span className="shrink-0 font-mono text-[11px] text-term-faint">—</span>
+          <span className="shrink-0 font-mono text-xs text-term-faint">—</span>
         )}
       </div>
       <div className="truncate pt-0.5 font-mono text-base leading-6 tabular-nums text-term-text" title={value}>
@@ -99,7 +99,7 @@ export function TermChartPanel({
       aria-label={title}
     >
       <header className="flex h-7 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
-        <h2 className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-term-muted">
+        <h2 className="truncate font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
           {title}
         </h2>
         {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
@@ -124,11 +124,11 @@ export function TermGridHeader({
 }) {
   return (
     <header className="flex h-7 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
-      <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-term-muted">
+      <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
         {title}
       </h2>
       {meta && (
-        <span className="font-mono text-[11px] tabular-nums text-term-faint">{meta}</span>
+        <span className="font-mono text-xs tabular-nums text-term-faint">{meta}</span>
       )}
       {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
     </header>

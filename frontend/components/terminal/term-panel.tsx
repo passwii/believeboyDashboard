@@ -11,16 +11,16 @@ interface TermPanelProps {
 }
 
 /**
- * Terminal 面板（BLF-809 规范 §1）：
- * 1px 边界分割、零阴影、零圆角；标题条 32px，内部间距锁 4/8px。
+ * Terminal 面板（BLF-809 规范 §1；二档放大 2026-08-25）：
+ * 1px 边界分割、零阴影、零圆角；标题条 36px，内部间距锁 4/8px。
  */
 export function TermPanel({ title, actions, children, className, bodyClassName }: TermPanelProps) {
   return (
     <section className={cn('flex min-w-0 flex-col border border-term-border bg-term-panel', className)}>
       {(title || actions) && (
-        <header className="flex h-8 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1">
+        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1">
           {title && (
-            <h2 className="truncate text-xs font-semibold uppercase tracking-wider text-term-muted">
+            <h2 className="truncate text-sm font-semibold uppercase tracking-wider text-term-muted">
               {title}
             </h2>
           )}

@@ -25,7 +25,7 @@ interface TerminalRailProps {
 }
 
 /**
- * L1 极窄主轨（固定 56px，BLF-809）：8 大业务域图标 + 底部主题切换与用户菜单。
+ * L1 极窄主轨（固定 64px，BLF-809；二档放大 2026-08-25）：8 大业务域图标 + 底部主题切换与用户菜单。
  * 仅图标不落文字，hover 以 title 提示；活动域以左侧 2px accent 指示。
  */
 export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: TerminalRailProps) {
@@ -53,7 +53,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           type="button"
           onClick={() => router.push('/dashboard')}
           aria-label="返回总览"
-          className="flex h-8 w-8 items-center justify-center bg-term-accent font-mono text-sm font-bold text-white transition-opacity hover:opacity-85"
+          className="flex h-10 w-10 items-center justify-center bg-term-accent font-mono text-base font-bold text-white transition-opacity hover:opacity-85"
         >
           B
         </button>
@@ -73,16 +73,16 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               aria-current={isActive ? 'page' : undefined}
               onClick={() => onGroupNavigate(group)}
               className={cn(
-                'relative flex h-8 w-8 shrink-0 items-center justify-center transition-colors',
+                'relative flex h-10 w-10 shrink-0 items-center justify-center transition-colors',
                 isActive
                   ? 'bg-term-hover text-term-text'
                   : 'text-term-muted hover:bg-term-hover hover:text-term-text'
               )}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 bg-term-accent" />
+                <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 bg-term-accent" />
               )}
-              <Icon className="h-4 w-4" strokeWidth={1.75} />
+              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </button>
           )
         })}
@@ -95,15 +95,15 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           title={isDark ? '切换亮色' : '切换暗色'}
           aria-label="切换主题"
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          className="flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-9 w-9 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          {isDark ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {isDark ? <SunMedium className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
         </button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" title="用户" aria-label="用户菜单" data-testid="terminal-user-trigger" className="flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text">
-              <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-term-border-strong bg-term-raised font-mono text-[11px] uppercase text-term-text">
+            <button type="button" title="用户" aria-label="用户菜单" data-testid="terminal-user-trigger" className="flex h-9 w-9 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text">
+              <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-term-border-strong bg-term-raised font-mono text-xs uppercase text-term-text">
                 U
               </span>
             </button>

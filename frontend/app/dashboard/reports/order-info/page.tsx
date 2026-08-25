@@ -131,15 +131,15 @@ const COLUMN_COUNT = 13
 
 /**
  * BLF-817 终端化控件基类：
- * Console 工具栏所有控件统一 h-7、零圆角、1px 边界、等宽字体。
+ * Console 工具栏所有控件统一终端规格（二档放大后 h-9）、零圆角、1px 边界、等宽字体。
  */
 const TERM_TRIGGER =
-  'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
-const TERM_SELECT_ITEM = 'rounded-none text-xs focus:bg-term-hover focus:text-term-text'
+  'h-9 rounded-none border-term-border bg-term-bg text-sm text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
+const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
 const TERM_INPUT =
-  'h-8 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-9 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0'
 const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-9 shrink-0 items-center gap-1 border border-term-border bg-term-panel px-2 font-mono text-sm text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50'
 
 // ======================== 工具函数 ========================
 
@@ -922,7 +922,7 @@ export default function OrderInfoPage() {
         aria-label="订单信息"
       >
         {/* 面板标题条 */}
-        <header className="flex h-8 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
+        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
           <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
             订单信息 <span className="text-term-faint">ORDER INFO</span>
           </h2>
@@ -1200,7 +1200,7 @@ export default function OrderInfoPage() {
       </section>
 
       {/* ====== 底部 pinned 聚合分页条：总单量 / 总金额 / 选中态合计 + 翻页 ====== */}
-      <footer className="flex h-7 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-xs tabular-nums text-term-muted">
+      <footer className="flex h-8 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-sm tabular-nums text-term-muted">
         <span>
           Σ 单量 <span className="text-term-text">{stats ? stats.total_orders.toLocaleString('zh-CN') : '—'}</span>
         </span>
