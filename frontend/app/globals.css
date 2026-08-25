@@ -1194,16 +1194,23 @@
  * Terminal 高密度交易终端 utilities（BLF-809）
  * ============================================================ */
 @layer utilities {
-  /* Footer 汇率 ticker 无缝滚动：内容渲染两份，位移 -50% 后复位 */
+  /* Footer 多频道 ticker 无缝滚动：内容渲染两份，位移 -50% 后复位。
+     动画时长由组件按内容宽度 / 常量速度（px/s）内联计算。 */
   .term-marquee-track {
     display: inline-flex;
     white-space: nowrap;
-    animation: term-marquee 40s linear infinite;
+    animation: term-marquee var(--term-marquee-duration, 60s) linear infinite;
     will-change: transform;
   }
 
   .term-marquee-track:hover {
     animation-play-state: paused;
+  }
+
+  /* 内容欠宽：静态展示，不滚动（避免双拷贝空档跳动） */
+  .term-marquee-static {
+    animation: none;
+    will-change: auto;
   }
 
   /* 终端画布滚动条：细、贴边、低对比 */
@@ -1237,7 +1244,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .term-marquee-track {
+  /* 降级为静态截断：不滚动，内容从头部截断展示（信息仍可读） */
+  .term-marquee-track,
+  .term-marquee-static {
     animation: none !important;
+    will-change: auto;
   }
 }

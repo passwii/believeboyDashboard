@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
 import { TerminalSubnav } from './terminal-subnav'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
+import { TrendingUp } from 'lucide-react'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/operations/daily-analysis',
@@ -30,7 +31,7 @@ const GROUPS: SidebarTopGroup[] = [
   {
     id: 'operations',
     label: '运营',
-    icon: () => null,
+    icon: TrendingUp,
     accent: '',
     activeAccent: '',
     items: [
