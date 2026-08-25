@@ -88,7 +88,14 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
-import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import {
+  applyBorder,
+  applyGroupBanding,
+  applyHeaderBorder,
+  applyHeaderRowStyle,
+  applyTotalRowStyle,
+} from '@/lib/excel-styles'
+import type { Cell } from 'exceljs'
 import { ImageLightbox } from '@/components/dashboard/sku-info/image-lightbox'
 
 const API_BASE = '/api/backend'
@@ -347,6 +354,22 @@ function formatDecimal(value: number, digits = 3): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   })
+}
+
+/** 导出 Excel 时状态列的底色（与页面徽章配色对应），需在分组带状底纹之后叠加。 */
+const SHIPMENT_STATUS_EXPORT_FILLS: Record<string, string> = {
+  草稿: 'FFF1F5F9',
+  在途: 'FFE0F2FE',
+  已完成: 'FFDCFCE7',
+}
+
+/** 给导出表格的状态单元格着色；未知状态回退白底。 */
+function paintExportStatusCell(cell: Cell) {
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: SHIPMENT_STATUS_EXPORT_FILLS[String(cell.value)] ?? 'FFFFFFFF' },
+  }
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
@@ -1968,13 +1991,7 @@ export default function ShipmentManagementPage() {
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
-      headerRow.height = 24
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        applyHeaderBorder(cell)
-      })
+      applyHeaderRowStyle(headerRow, lastColumn)
 
       items.forEach((item, index) => {
         const row = worksheet.getRow(index + 2)
@@ -2000,37 +2017,47 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber === 10 || colNumber === 11 ? 'right' : 'left',
-            wrapText: true,
+            // 数量列右对齐；日期 / 状态 / 更新时间居中；其余文本左对齐
+            horizontal:
+              colNumber === 11 || colNumber === 12
+                ? 'right'
+                : colNumber === 3 ||
+                    colNumber === 5 ||
+                    colNumber === 9 ||
+                    colNumber === 10 ||
+                    colNumber === 15
+                  ? 'center'
+                  : 'left',
+            wrapText: colNumber === 14,
           }
-          if (colNumber === 10 || colNumber === 11) {
+          if (colNumber === 11 || colNumber === 12) {
             cell.numFmt = '#,##0'
           }
           applyBorder(cell)
-          if (colNumber === 4) {
-            const statusColorMap: Record<string, string> = {
-              草稿: 'FFF1F5F9',
-              在途: 'FFE0F2FE',
-              已完成: 'FFDCFCE7',
-            }
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: statusColorMap[String(cell.value)] ?? 'FFFFFFFF' },
-            }
-          }
         })
       })
 
+      // 分组带状底纹：相邻同项目的批次归为一组并合并“项目”列；
+      // 列表按创建时间倒序、项目分散时自动退化为逐行斑马纹。
+      applyGroupBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: items.length,
+        groupKeys: items.map((item) => item.project_name),
+        columnCount: lastColumn,
+        mergeColumn: 1,
+      })
+
+      // 状态列底色在分组底纹之后叠加，避免被覆盖（原实现误涂在第 4 列“货件编号”上，永不生效）
+      items.forEach((_, index) => {
+        paintExportStatusCell(worksheet.getRow(index + 2).getCell(5))
+      })
+
       const totalRow = worksheet.getRow(items.length + 2)
-      totalRow.getCell(2).value = '当前页合计'
+      totalRow.getCell(1).value = '当前页合计'
       totalRow.getCell(11).value = summary.totalSku
       totalRow.getCell(12).value = summary.totalQuantity
-      applyRowBorder(totalRow, 1, 15)
-      totalRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-      })
+      applyTotalRowStyle(totalRow, lastColumn, { numericColumns: [11, 12] })
       totalRow.getCell(11).numFmt = '#,##0'
       totalRow.getCell(12).numFmt = '#,##0'
 
@@ -2107,13 +2134,7 @@ export default function ShipmentManagementPage() {
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
-      headerRow.height = 24
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        applyHeaderBorder(cell)
-      })
+      applyHeaderRowStyle(headerRow, lastColumn)
 
       items.forEach((item, index) => {
         const row = worksheet.getRow(index + 2)
@@ -2137,8 +2158,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 6 ? 'right' : 'left',
-            wrapText: true,
+            // 费用 / 数量列右对齐；日期与状态居中；其余文本左对齐
+            horizontal:
+              colNumber >= 6 ? 'right' : colNumber === 2 || colNumber === 4 ? 'center' : 'left',
+            wrapText: colNumber === 5,
           }
           if (colNumber === 6) cell.numFmt = '#,##0'
           if (colNumber === 7) cell.numFmt = '#,##0.000'
@@ -2146,32 +2169,32 @@ export default function ShipmentManagementPage() {
           if (colNumber === 9 || colNumber === 11) cell.numFmt = '#,##0.00'
           if (colNumber === 10) cell.numFmt = '#,##0.0000'
           applyBorder(cell)
-          if (colNumber === 4) {
-            const statusColorMap: Record<string, string> = {
-              草稿: 'FFF1F5F9',
-              在途: 'FFE0F2FE',
-              已完成: 'FFDCFCE7',
-            }
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: statusColorMap[String(cell.value)] ?? 'FFFFFFFF' },
-            }
-          }
         })
       })
 
+      // 分组带状底纹：相邻同项目的批次归为一组并合并“项目”列；
+      // 列表按创建时间倒序、项目分散时自动退化为逐行斑马纹。
+      applyGroupBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: items.length,
+        groupKeys: items.map((item) => item.project_name),
+        columnCount: lastColumn,
+        mergeColumn: 1,
+      })
+
+      // 状态列底色在分组底纹之后叠加，避免被覆盖
+      items.forEach((_, index) => {
+        paintExportStatusCell(worksheet.getRow(index + 2).getCell(4))
+      })
+
       const totalRow = worksheet.getRow(items.length + 2)
-      totalRow.getCell(2).value = '当前页合计'
+      totalRow.getCell(1).value = '当前页合计'
       totalRow.getCell(6).value = summary.totalQuantity
       totalRow.getCell(7).value = totalWeight
       totalRow.getCell(8).value = totalVolume
       totalRow.getCell(11).value = totalLogisticsCost
-      applyRowBorder(totalRow, 1, 11)
-      totalRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-      })
+      applyTotalRowStyle(totalRow, lastColumn, { numericColumns: [6, 7, 8, 11] })
       totalRow.getCell(6).numFmt = '#,##0'
       totalRow.getCell(7).numFmt = '#,##0.000'
       totalRow.getCell(8).numFmt = '#,##0.0000'
@@ -2254,13 +2277,7 @@ export default function ShipmentManagementPage() {
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
-      headerRow.height = 24
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        applyHeaderBorder(cell)
-      })
+      applyHeaderRowStyle(headerRow, lastColumn)
 
       skuSummaryItems.forEach((item, index) => {
         const row = worksheet.getRow(index + 2)
@@ -2279,8 +2296,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 4 ? 'right' : 'left',
-            wrapText: true,
+            // 数量 / 费用列右对齐；国家居中；其余文本左对齐
+            horizontal:
+              colNumber >= 4 ? 'right' : colNumber === 2 ? 'center' : 'left',
+            wrapText: colNumber === 3,
           }
           if (colNumber === 4 || colNumber === 5) cell.numFmt = '#,##0'
           if (colNumber === 6) cell.numFmt = '#,##0.000'
@@ -2290,17 +2309,24 @@ export default function ShipmentManagementPage() {
         })
       })
 
+      // 分组带状底纹：接口按项目名排序返回，同项目 SKU 天然聚簇，
+      // 合并“项目”列后与 daily-analysis 明细表的分组观感一致。
+      applyGroupBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: skuSummaryItems.length,
+        groupKeys: skuSummaryItems.map((item) => item.project_name),
+        columnCount: lastColumn,
+        mergeColumn: 1,
+      })
+
       const totalRow = worksheet.getRow(skuSummaryItems.length + 2)
       totalRow.getCell(1).value = '合计'
       totalRow.getCell(4).value = totalShipmentCount
       totalRow.getCell(5).value = totalQuantity
       totalRow.getCell(6).value = totalChargeableWeight
       totalRow.getCell(7).value = totalLogisticsCost
-      applyRowBorder(totalRow, 1, 7)
-      totalRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-      })
+      applyTotalRowStyle(totalRow, lastColumn, { numericColumns: [4, 5, 6, 7] })
       totalRow.getCell(4).numFmt = '#,##0'
       totalRow.getCell(5).numFmt = '#,##0'
       totalRow.getCell(6).numFmt = '#,##0.000'
@@ -2379,13 +2405,7 @@ export default function ShipmentManagementPage() {
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
-      headerRow.height = 22
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center' }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        applyHeaderBorder(cell)
-      })
+      applyHeaderRowStyle(headerRow, columns.length)
 
       fbaBoxItems.forEach((item, index) => {
         const row = worksheet.getRow(index + dataStartRow)
@@ -2417,13 +2437,35 @@ export default function ShipmentManagementPage() {
             horizontal:
               colNumber >= 13 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
           }
+          if (colNumber === 13 || colNumber === 16) cell.numFmt = '#,##0'
           if (colNumber === 17) cell.numFmt = '#,##0.0000'
           if (colNumber === 18) cell.numFmt = '#,##0.000'
           applyBorder(cell)
         })
       })
 
+      // 分组带状底纹：接口按货件聚簇返回，相邻同货件行归为一组；
+      // 列 1-3 的纵向合并沿用下方既有逻辑，此处只铺底纹与边框。
+      applyGroupBanding({
+        worksheet,
+        startRow: dataStartRow,
+        rowCount: fbaBoxItems.length,
+        groupKeys: fbaBoxItems.map((item) => item.shipment_no),
+        columnCount: columns.length,
+      })
+
       // ── 合并单元格：货件编号(列 1) 按 shipment_no，追踪 ID(列 2) 按 (shipment_no, tracking_no)，仓库 ID(列 3) 按 (shipment_no, warehouse_code) ──
+      const mergeAndCenterAnchor = (colNumber: number, startIndex: number, endIndex: number) => {
+        worksheet.mergeCells(
+          startIndex + dataStartRow,
+          colNumber,
+          endIndex + dataStartRow,
+          colNumber
+        )
+        const anchorCell = worksheet.getCell(startIndex + dataStartRow, colNumber)
+        anchorCell.font = { name: 'Microsoft YaHei', size: 9, bold: true, color: { argb: 'FF0F172A' } }
+        anchorCell.alignment = { vertical: 'middle', horizontal: 'center' }
+      }
       let shipStart = 0
       let whStart = 0
       let tkStart = 0
@@ -2442,7 +2484,7 @@ export default function ShipmentManagementPage() {
 
         if (item.shipment_no !== currentShipNo) {
           if (index - shipStart > 1) {
-            worksheet.mergeCells(shipStart + dataStartRow, 1, index + dataStartRow - 1, 1, 'merge')
+            mergeAndCenterAnchor(1, shipStart, index - 1)
           } else if (isLast) {
             // 单行不合并（ExcelJS 不允许单行 merge）
           }
@@ -2456,7 +2498,7 @@ export default function ShipmentManagementPage() {
 
         if (itemShipTkKey !== currentShipTkKey) {
           if (index - tkStart > 1) {
-            worksheet.mergeCells(tkStart + dataStartRow, 2, index + dataStartRow - 1, 2, 'merge')
+            mergeAndCenterAnchor(2, tkStart, index - 1)
           }
           tkStart = index
           currentShipTkKey = itemShipTkKey
@@ -2464,7 +2506,7 @@ export default function ShipmentManagementPage() {
 
         if (itemShipWhKey !== currentShipWhKey) {
           if (index - whStart > 1) {
-            worksheet.mergeCells(whStart + dataStartRow, 3, index + dataStartRow - 1, 3, 'merge')
+            mergeAndCenterAnchor(3, whStart, index - 1)
           }
           whStart = index
           currentShipWhKey = itemShipWhKey
@@ -2472,13 +2514,13 @@ export default function ShipmentManagementPage() {
 
         if (isLast) {
           if (index - shipStart >= 1) {
-            worksheet.mergeCells(shipStart + dataStartRow, 1, index + dataStartRow, 1, 'merge')
+            mergeAndCenterAnchor(1, shipStart, index)
           }
           if (index - tkStart >= 1) {
-            worksheet.mergeCells(tkStart + dataStartRow, 2, index + dataStartRow, 2, 'merge')
+            mergeAndCenterAnchor(2, tkStart, index)
           }
           if (index - whStart >= 1) {
-            worksheet.mergeCells(whStart + dataStartRow, 3, index + dataStartRow, 3, 'merge')
+            mergeAndCenterAnchor(3, whStart, index)
           }
         }
       })
@@ -2550,11 +2592,9 @@ export default function ShipmentManagementPage() {
       totalRow.getCell(16).value = fbaBoxSummary.totalQuantity
       totalRow.getCell(17).value = fbaBoxSummary.totalVolumeM3
       totalRow.getCell(18).value = fbaBoxSummary.totalWeightKg
-      applyRowBorder(totalRow, 1, 18)
-      totalRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-      })
+      applyTotalRowStyle(totalRow, columns.length, { numericColumns: [14, 16, 17, 18] })
+      totalRow.getCell(14).numFmt = '#,##0'
+      totalRow.getCell(16).numFmt = '#,##0'
       totalRow.getCell(17).numFmt = '#,##0.0000'
       totalRow.getCell(18).numFmt = '#,##0.000'
 
