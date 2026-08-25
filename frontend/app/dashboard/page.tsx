@@ -355,21 +355,21 @@ export default function DashboardV2Page() {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Console 工具栏：项目过滤 + 数据区间 + 刷新（BLF-809 终端化，h-8 终端控件） */}
-      <div className="flex h-8 items-center gap-2">
+      {/* Console 工具栏：项目过滤 + 数据区间 + 刷新（BLF-809 终端化，二档放大后 h-9 终端控件） */}
+      <div className="flex h-9 items-center gap-2">
         <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="h-8 w-[180px] rounded-none border-term-border bg-term-panel text-xs text-term-text focus:ring-0 [&>span]:truncate">
+          <SelectTrigger className="h-9 w-[180px] rounded-none border-term-border bg-term-panel text-sm text-term-text focus:ring-0 [&>span]:truncate">
             <SelectValue placeholder="选择项目" />
           </SelectTrigger>
           <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-            <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+            <SelectItem value={ALL_PROJECTS} className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
               全部项目
             </SelectItem>
             {projects.map((p) => (
               <SelectItem
                 key={p.id}
                 value={String(p.id)}
-                className="rounded-none text-xs focus:bg-term-hover focus:text-term-text"
+                className="rounded-none text-sm focus:bg-term-hover focus:text-term-text"
               >
                 {p.name}
               </SelectItem>
@@ -377,7 +377,7 @@ export default function DashboardV2Page() {
           </SelectContent>
         </Select>
 
-        <span className="font-mono text-xs tabular-nums text-term-muted">
+        <span className="font-mono text-sm tabular-nums text-term-muted">
           {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
         </span>
 
@@ -390,9 +390,9 @@ export default function DashboardV2Page() {
           disabled={anyLoading}
           title="刷新"
           aria-label="刷新数据"
-          className="ml-auto flex h-8 items-center gap-1 border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:opacity-50"
+          className="ml-auto flex h-9 items-center gap-1 border border-term-border bg-term-panel px-2 text-sm text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:opacity-50"
         >
-          <RefreshCcw className={`h-3 w-3 ${anyLoading ? 'animate-spin' : ''}`} />
+          <RefreshCcw className={`h-4 w-4 ${anyLoading ? 'animate-spin' : ''}`} />
           刷新
         </button>
       </div>

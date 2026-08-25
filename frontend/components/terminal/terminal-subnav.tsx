@@ -16,7 +16,7 @@ interface TerminalSubnavProps {
 }
 
 /**
- * L2 模块抽屉（224px，BLF-809）：当前域的子模块导航 + ⌘K 搜索入口。
+ * L2 模块抽屉（256px，BLF-809；二档放大 2026-08-25）：当前域的子模块导航 + ⌘K 搜索入口。
  * 活动项以左侧 2px accent 条 + raised 底色标识；折叠由外层 shell 直接摘除本列。
  */
 export function TerminalSubnav({ groups, activeGroupId, pathname, onCollapse }: TerminalSubnavProps) {
@@ -28,8 +28,8 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, onCollapse }: 
       className="hidden h-full shrink-0 flex-col border-r border-term-border bg-term-panel md:flex"
     >
       {/* 组头：域名 + 折叠按钮 */}
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1">
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wider text-term-muted">
+      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wider text-term-muted">
           {activeGroup?.label ?? '导航'}
         </span>
         <button
@@ -48,11 +48,11 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, onCollapse }: 
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
-          className="flex h-8 w-full items-center gap-1.5 border border-term-border bg-term-raised px-2 text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+          className="flex w-full h-9 items-center gap-2 border border-term-border bg-term-raised px-2.5 text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
         >
-          <Search className="h-3.5 w-3.5" />
-          <span className="flex-1 text-left text-xs">搜索…</span>
-          <kbd className="border border-term-border px-1 font-mono text-[11px] leading-4 text-term-faint">
+          <Search className="h-4 w-4" />
+          <span className="flex-1 text-left text-sm">搜索…</span>
+          <kbd className="border border-term-border px-1 font-mono text-xs leading-4 text-term-faint">
             ⌘K
           </kbd>
         </button>
@@ -68,7 +68,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, onCollapse }: 
               key={item.url}
               href={item.url}
               className={cn(
-                'relative flex h-7 shrink-0 items-center gap-2 pl-[10px] pr-2 text-xs transition-colors',
+                'relative flex h-8 shrink-0 items-center gap-2 pl-3 pr-2 text-sm transition-colors',
                 isActive
                   ? 'bg-term-raised text-term-text'
                   : 'text-term-muted hover:bg-term-hover hover:text-term-text'

@@ -22,7 +22,7 @@ import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
 /**
- * BLF-819 · Top Header 全局筛选四件套（h-8 终端规格）。
+ * BLF-819 · Top Header 全局筛选四件套（二档放大后 h-9 终端规格）。
  *
  * 与 BLF-817 Console 工具栏同源的控件基类：h-8、零圆角、1px 边界、等宽字体。
  * 数据经 useTerminalGlobalFilter 读写（URL + localStorage 双持久化），
@@ -30,13 +30,13 @@ import { cn } from '@/lib/utils'
  */
 
 export const TERM_HEADER_TRIGGER =
-  'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
-const TERM_SELECT_ITEM = 'rounded-none text-xs focus:bg-term-hover focus:text-term-text'
+  'h-9 rounded-none border-term-border bg-term-bg text-sm text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
+const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
 
 /** 头部四件套外层标签：11px mono 大写，与 TermGridHeader 同规格 */
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="hidden shrink-0 font-mono text-[11px] uppercase tracking-wider text-term-faint lg:inline">
+    <span className="hidden shrink-0 font-mono text-xs uppercase tracking-wider text-term-faint lg:inline">
       {children}
     </span>
   )
@@ -179,7 +179,7 @@ export function HeaderDateRangePicker({
         onChange={(next?: DateRange) => {
           onChange(formatDateInputValue(next?.from), formatDateInputValue(next?.to))
         }}
-        className="h-8 w-[220px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text shadow-none"
+        className="h-9 w-[240px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-sm font-normal text-term-text shadow-none"
       />
     </label>
   )
@@ -197,15 +197,15 @@ type HeaderKpiTileProps = {
 export function HeaderKpiTile({ label, value, loading }: HeaderKpiTileProps) {
   return (
     <div
-      className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 border border-term-border bg-term-panel px-2"
+      className="flex h-9 min-w-0 shrink-0 items-center gap-1.5 border border-term-border bg-term-panel px-2"
       title={`${label}${value != null ? ` · ${value}` : ''}`}
     >
-      <span className="shrink-0 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+      <span className="shrink-0 font-mono text-xs uppercase tracking-wider text-term-faint">
         {label}
       </span>
       <span
         className={cn(
-          'truncate font-mono text-xs tabular-nums',
+          'truncate font-mono text-sm tabular-nums',
           value == null ? 'text-term-faint' : 'text-term-text',
           loading && 'animate-pulse'
         )}
