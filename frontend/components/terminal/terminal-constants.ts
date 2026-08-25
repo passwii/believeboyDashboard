@@ -8,6 +8,28 @@ import type { SidebarSubItem, SidebarTopGroup } from '@/lib/sidebar-config'
 // 全局放大两档后的规格（master-prompt §任务 0a 一档 56/224/40/28/320；二档 64/256/48/32/360）：
 export const TERMINAL_RAIL_WIDTH = 64
 export const TERMINAL_SUBNAV_WIDTH = 256
+/** SubNav 折叠宽度（BLF-825）：有意整列收起归零（与 BLF-809 旧行为等价），仅以动效呈现；非窄图标列 */
+export const TERMINAL_SUBNAV_COLLAPSED_WIDTH = 0
+
+/**
+ * L2 SubNav 折叠/展开动效参数（BLF-825）。
+ * 曲线取 ease-out-expo 类（cubic-bezier(0.16, 1, 0.3, 1)）：快出缓收，符合交易终端的利落手感。
+ * 内容退场先于容器收缩、入场晚于容器展开，形成「壳动→字散→壳定→字归」的分层节奏。
+ */
+export const TERMINAL_SUBNAV_MOTION = {
+  /** 容器宽度过渡时长（ms） */
+  durationMs: 260,
+  /** 宽度过渡缓动曲线（ease-out-expo 类） */
+  ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
+  /** 文本内容淡出时长（ms）；收缩时文字先行淡出 */
+  fadeOutMs: 120,
+  /** 文本内容入场单段时长（ms）；展开时级联淡入 */
+  fadeInMs: 180,
+  /** 入场 stagger 步长（ms）：组头 → 搜索框 → 列表项依次级联 */
+  staggerStepMs: 40,
+  /** 入场最大级联延迟（ms），防止列表过长时尾部等待过久 */
+  maxStaggerDelayMs: 240,
+} as const
 export const TERMINAL_HEADER_HEIGHT = 48
 export const TERMINAL_FOOTER_HEIGHT = 32
 export const TERMINAL_INSPECTOR_WIDTH = 360
