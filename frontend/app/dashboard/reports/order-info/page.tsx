@@ -281,12 +281,21 @@ export default function OrderInfoPage() {
   const gfDateFrom = globalFilter.ready ? globalFilter.dateFrom : null
   const gfDateTo = globalFilter.ready ? globalFilter.dateTo : null
   const lastAppliedGfRef = useRef('')
+  // 头部是否已接管本页项目选择；接管后「自动选第一个店铺」不再覆盖（见下方 autoselect effect）
+  const gfProjectOwnedRef = useRef(false)
   useEffect(() => {
     if (!globalFilter.ready) return
     const signature = `${gfProjectId}|${gfCountry}|${gfDateFrom}|${gfDateTo}`
     if (signature === lastAppliedGfRef.current) return
+    const isFirstApply = lastAppliedGfRef.current === ''
     lastAppliedGfRef.current = signature
+    if (isFirstApply) {
+      // 首次水合：仅当头部带用户上次选择（URL/localStorage 有项目）时才覆盖，
+      // 否则保留本页既有行为（自动选第一个店铺），与 daily-analysis-client 守卫一致。
+      if (!gfProjectId) return
+    }
     if (gfProjectId) {
+      gfProjectOwnedRef.current = true
       const nextProjectId = gfProjectId === 'all' ? DEFAULT_PROJECT_VALUE : gfProjectId
       if (nextProjectId !== projectId) {
         setProjectId(nextProjectId)
@@ -396,7 +405,9 @@ export default function OrderInfoPage() {
             typeof item.id === 'number' && item.id > 0 && typeof item.name === 'string'
         )
         setManagedProjects(rows)
-        if (rows.length > 0) {
+        // BLF-819 review 修复：头部已写入具体项目时不自动选第一个店铺，
+        // 否则本 effect 会把用户在头部选的项目又覆盖回 rows[0]。
+        if (rows.length > 0 && !gfProjectOwnedRef.current) {
           setProjectId(String(rows[0].id))
         }
         initialProjectAutoselected.current = true
