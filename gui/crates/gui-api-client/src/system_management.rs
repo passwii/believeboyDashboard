@@ -10,8 +10,9 @@
 //! 由 [`Client`] 统一携带。
 
 use gui_domain::system_management::{
-    AgentAccessLogsResponse, AgentAccessLogsSummaryResponse, DataManagementStatus,
-    OperationAuditLogsResponse, OperationAuditLogsSummaryResponse,
+    AgentAccessLogsResponse, AgentAccessLogsSummaryResponse, DataManagementOverview,
+    DataManagementStatus, OperationAuditLogsResponse, OperationAuditLogsSummaryResponse,
+    OperatorPerformanceResponse,
 };
 
 use crate::client::Client;
@@ -33,6 +34,12 @@ pub(crate) const AGENT_ACCESS_LOGS_SUMMARY_PATH: &str =
 /// footer 低频轮询无审计噪音）
 pub(crate) const DATA_MANAGEMENT_STATUS_PATH: &str =
     "/api/v1/system-management/data-management/status";
+/// `GET /system-management/data-management/overview` —— 表健康全景端点
+pub(crate) const DATA_MANAGEMENT_OVERVIEW_PATH: &str =
+    "/api/v1/system-management/data-management/overview";
+/// `GET /system-management/operator-management/performance` —— 运营绩效月报端点
+pub(crate) const OPERATOR_PERFORMANCE_PATH: &str =
+    "/api/v1/system-management/operator-management/performance";
 
 impl Client {
     /// 操作审计日志分页查询（对齐 web `fetchLogs` 的 query 口径）
@@ -141,6 +148,31 @@ impl Client {
     /// [`gui_domain::system_management::DataManagementStatus`]）
     pub async fn data_management_status(&self) -> Result<DataManagementStatus, ApiError> {
         self.get_json(DATA_MANAGEMENT_STATUS_PATH, &[]).await
+    }
+
+    // -----------------------------------------------------------------------
+    // 数据库状态页 / 运营绩效（Stage13，BLF-804）
+    // -----------------------------------------------------------------------
+
+    /// `GET /system-management/data-management/overview` —— 表健康全景
+    /// （表清单 + 最近系统状态；数据库状态页主数据）
+    pub async fn data_management_overview(
+        &self,
+    ) -> Result<DataManagementOverview, ApiError> {
+        self.get_json(DATA_MANAGEMENT_OVERVIEW_PATH, &[]).await
+    }
+
+    /// `GET /system-management/operator-management/performance` —— 运营绩效月报
+    /// （`report_month` 格式 `YYYY-MM`，对齐 web 页面月份选择器）
+    pub async fn operator_performance(
+        &self,
+        report_month: &str,
+    ) -> Result<OperatorPerformanceResponse, ApiError> {
+        self.get_json(
+            OPERATOR_PERFORMANCE_PATH,
+            &[("report_month", report_month.to_string())],
+        )
+        .await
     }
 }
 
@@ -418,5 +450,95 @@ mod tests {
             .await
             .expect_err("403 应转错误");
         assert_eq!(err.status(), Some(403));
+    }
+
+    /// Stage13：overview / operator-performance 路径锁定
+    #[test]
+    fn stage13_paths_match_backend_routes() {
+        assert_eq!(
+            DATA_MANAGEMENT_OVERVIEW_PATH,
+            "/api/v1/system-management/data-management/overview"
+        );
+        assert_eq!(
+            OPERATOR_PERFORMANCE_PATH,
+            "/api/v1/system-management/operator-management/performance"
+        );
+    }
+
+    /// mock HTTP：overview 解析表清单 + 最近状态 + 汇总段
+    #[tokio::test]
+    async fn data_management_overview_parses_tables_and_statuses() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", DATA_MANAGEMENT_OVERVIEW_PATH)
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "server_time": "2026-08-25T12:00:00+08:00",
+                    "database": {"engine": "postgresql", "source": "10.0.0.8/BLF",
+                                 "healthy": true, "checked_at": "2026-08-25T12:00:00+08:00"},
+                    "cache_enabled": true,
+                    "summary": {"total_tables": 114, "total_rows": 12345,
+                                "stale_tables": 2, "data_status": "active"},
+                    "tables": [
+                        {"table_name": "orders", "table_name_cn": "订单表",
+                         "row_count": 9999, "last_updated_at": "2026-08-25T11:00:00+08:00",
+                         "status": "healthy", "note": null},
+                        {"table_name": "old_logs", "row_count": null, "status": "stale"}
+                    ],
+                    "recent_statuses": [
+                        {"source": "sync", "level": "info", "message": "同步完成",
+                         "occurred_at": "2026-08-25T11:30:00+08:00"}
+                    ]
+                }"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client.data_management_overview().await.expect("请求失败");
+        m.assert();
+        assert_eq!(resp.summary.total_tables, 114);
+        assert_eq!(resp.tables.len(), 2);
+        assert_eq!(resp.tables[0].status, gui_domain::system_management::TableHealthStatus::Healthy);
+        assert_eq!(resp.tables[0].status.label(), "健康");
+        assert_eq!(
+            resp.tables[1].status,
+            gui_domain::system_management::TableHealthStatus::Stale
+        );
+        assert_eq!(resp.recent_statuses.len(), 1);
+    }
+
+    /// mock HTTP：operator_performance 携带 report_month 并解析行
+    #[tokio::test]
+    async fn operator_performance_sends_month_and_parses() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", OPERATOR_PERFORMANCE_PATH)
+            .match_query(mockito::Matcher::UrlEncoded(
+                "report_month".into(),
+                "2026-08".into(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"report_month": "2026-08", "items": [
+                    {"id": 3, "report_month": "2026-08", "week_index": 2,
+                     "project_id": 7, "project_name": "测试项目", "person_name": "张三",
+                     "role_type": "operator", "score": 88, "note": null,
+                     "updated_by": "admin", "updated_at": "2026-08-20T10:00:00+08:00"}
+                ]}"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client
+            .operator_performance("2026-08")
+            .await
+            .expect("请求失败");
+        m.assert();
+        assert_eq!(resp.report_month, "2026-08");
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.items[0].score, 88);
     }
 }

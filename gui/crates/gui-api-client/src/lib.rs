@@ -13,6 +13,7 @@
 
 pub mod admin_users;
 pub mod advertising;
+pub mod alerts;
 /// AI 智能域（BLF-803：AI洞察 / 数字员工列表）
 pub mod ai;
 pub mod agent_management;

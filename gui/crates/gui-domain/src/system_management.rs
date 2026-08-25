@@ -495,6 +495,119 @@ pub struct DataManagementStatus {
     pub database: DatabaseStatus,
 }
 
+// ---------------------------------------------------------------------------
+// 数据库状态页 / 运营绩效（Stage13，BLF-804；对齐 backend
+// `app/schemas/system_management/data_management.py` 与
+// `operator_performance.py`）
+// ---------------------------------------------------------------------------
+
+/// 表健康状态（对齐 backend `TableHealthStatus`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TableHealthStatus {
+    #[serde(rename = "healthy")]
+    Healthy,
+    #[serde(rename = "empty")]
+    Empty,
+    #[serde(rename = "stale")]
+    Stale,
+    #[serde(rename = "error")]
+    Error,
+}
+
+impl TableHealthStatus {
+    /// 中文标签（页面表格展示用）
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Healthy => "健康",
+            Self::Empty => "空表",
+            Self::Stale => "过期",
+            Self::Error => "异常",
+        }
+    }
+}
+
+/// 单表健康行，字段对齐 backend `TableStatusItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TableStatusItem {
+    pub table_name: String,
+    #[serde(default)]
+    pub table_name_cn: Option<String>,
+    #[serde(default)]
+    pub row_count: Option<i64>,
+    #[serde(default)]
+    pub last_updated_at: Option<String>,
+    pub status: TableHealthStatus,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+/// 最近系统状态行，字段对齐 backend `RecentSystemStatusItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecentSystemStatusItem {
+    pub source: String,
+    pub level: String,
+    pub message: String,
+    pub occurred_at: String,
+}
+
+/// 数据汇总段，字段对齐 backend `DataSummary`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DataSummary {
+    pub total_tables: i64,
+    pub total_rows: i64,
+    pub stale_tables: i64,
+    /// 生命周期状态（active/maintenance/read_only/paused 原样透传）
+    pub data_status: String,
+}
+
+/// `GET /data-management/overview` 响应（数据库状态页主数据；
+/// 字段对齐 backend `DataManagementOverviewResponse`）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DataManagementOverview {
+    pub server_time: String,
+    pub database: DatabaseStatus,
+    #[serde(default)]
+    pub cache_enabled: bool,
+    pub summary: DataSummary,
+    #[serde(default)]
+    pub data_status_note: Option<String>,
+    #[serde(default)]
+    pub tables: Vec<TableStatusItem>,
+    #[serde(default)]
+    pub recent_statuses: Vec<RecentSystemStatusItem>,
+}
+
+/// 运营绩效单行，字段对齐 backend `OperatorPerformanceItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OperatorPerformanceItem {
+    pub id: i64,
+    /// 报告月（`YYYY-MM`）
+    pub report_month: String,
+    /// 周序号（1~5）
+    pub week_index: i64,
+    pub project_id: i64,
+    pub project_name: String,
+    pub person_name: String,
+    pub role_type: String,
+    /// 绩效分（0~100）
+    pub score: i64,
+    #[serde(default)]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub updated_by: Option<String>,
+    #[serde(default)]
+    pub updated_at: String,
+}
+
+/// `GET /operator-management/performance?report_month=` 响应
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct OperatorPerformanceResponse {
+    pub report_month: String,
+    #[serde(default)]
+    pub items: Vec<OperatorPerformanceItem>,
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
