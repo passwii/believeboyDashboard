@@ -9,6 +9,9 @@ import { PageTransition } from '@/components/motion/PageTransition'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
+import {
+  TerminalHeaderSlotProvider,
+} from '@/components/terminal/terminal-header-slot'
 import { TerminalFooter } from '@/components/terminal/terminal-footer'
 import { TerminalHeader } from '@/components/terminal/terminal-header'
 import { TerminalInspector } from '@/components/terminal/terminal-inspector'
@@ -81,6 +84,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
 
   return (
     <TerminalGlobalFilterProvider>
+      <TerminalHeaderSlotProvider>
       <div className="flex h-dvh w-full overflow-hidden bg-term-bg text-[15px] leading-normal text-term-text supports-[height:100dvh]:h-dvh">
       <TerminalRail
         groups={visibleGroups}
@@ -146,6 +150,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
         </SheetContent>
       </Sheet>
     </div>
+    </TerminalHeaderSlotProvider>
     </TerminalGlobalFilterProvider>
   )
 }

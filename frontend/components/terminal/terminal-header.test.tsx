@@ -1,8 +1,14 @@
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TerminalHeader } from './terminal-header'
 import { GLOBAL_FILTER_PILOT_PREFIXES } from './global-filter-context'
+import {
+  HeaderSlotMount,
+  TerminalHeaderSlotProvider,
+  useHeaderRefresh,
+} from './terminal-header-slot'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { TrendingUp } from 'lucide-react'
 
@@ -63,6 +69,24 @@ vi.mock('@/components/dashboard/route-loading-link', () => ({
   ),
 }))
 
+/** 带 HeaderSlotMount 的 header 包装（BLF-826 真实接线形态） */
+function TerminalHeaderWithMount({ pathname }: { pathname: string }) {
+  return (
+    <>
+      <HeaderSlotMount className="flex items-center" />
+      <TerminalHeader
+        groups={GROUPS}
+        activeGroupId="operations"
+        pathname={pathname}
+        subnavCollapsed={false}
+        onExpandSubnav={vi.fn()}
+        inspectorOpen={false}
+        onToggleInspector={vi.fn()}
+      />
+    </>
+  )
+}
+
 const GROUPS: SidebarTopGroup[] = [
   {
     id: 'operations',
@@ -76,16 +100,20 @@ const GROUPS: SidebarTopGroup[] = [
 
 function renderHeader(pathname: string) {
   currentPathname = pathname
+  // BLF-826 起 TerminalHeader 依赖 TerminalHeaderSlotProvider（刷新按钮/插槽），
+  // 测试统一在 Provider 内渲染，与 TerminalShell 真实接线一致。
   return render(
-    <TerminalHeader
-      groups={GROUPS}
-      activeGroupId="operations"
-      pathname={pathname}
-      subnavCollapsed={false}
-      onExpandSubnav={vi.fn()}
-      inspectorOpen={false}
-      onToggleInspector={vi.fn()}
-    />
+    <TerminalHeaderSlotProvider>
+      <TerminalHeader
+        groups={GROUPS}
+        activeGroupId="operations"
+        pathname={pathname}
+        subnavCollapsed={false}
+        onExpandSubnav={vi.fn()}
+        inspectorOpen={false}
+        onToggleInspector={vi.fn()}
+      />
+    </TerminalHeaderSlotProvider>
   )
 }
 
@@ -131,5 +159,57 @@ describe('TerminalHeader 全局筛选四件套（BLF-819）', () => {
     filterState = { ...filterState, ready: false }
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
+  })
+})
+
+describe('TerminalHeader 全局刷新按钮（BLF-826）', () => {
+  it('无页面注册刷新回调时：不显示刷新按钮（静态页零变化）', () => {
+    renderHeader('/dashboard/profile', { withSlotProvider: true })
+    expect(screen.queryByTestId('terminal-header-refresh')).not.toBeInTheDocument()
+    // 基础控件仍在
+    expect(screen.getByTestId('terminal-header-user')).toBeInTheDocument()
+  })
+
+  it('页面注册后：显示刷新按钮；点击触发页面回调', async () => {
+    const user = userEvent.setup()
+    const handler = vi.fn()
+
+    function SlotPage() {
+      useHeaderRefresh(handler)
+      return null
+    }
+
+    render(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeaderWithMount pathname="/dashboard/profile" />
+        <SlotPage />
+      </TerminalHeaderSlotProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('terminal-header-refresh')).toBeInTheDocument())
+    await user.click(screen.getByTestId('terminal-header-refresh'))
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it('loading 时：按钮禁用并转 spinner，不可重复点击', async () => {
+    const user = userEvent.setup()
+    const handler = vi.fn()
+
+    function SlotPage() {
+      useHeaderRefresh(handler, { loading: true })
+      return null
+    }
+
+    render(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeaderWithMount pathname="/dashboard/profile" />
+        <SlotPage />
+      </TerminalHeaderSlotProvider>
+    )
+
+    const btn = await screen.findByTestId('terminal-header-refresh')
+    await waitFor(() => expect(btn).toBeDisabled())
+    await user.click(btn)
+    expect(handler).not.toHaveBeenCalled()
   })
 })

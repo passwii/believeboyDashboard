@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useSession } from 'next-auth/react'
-import { Bell, LogOut, Menu, PanelLeft, PanelRight, Search, UserRound } from 'lucide-react'
+import { Bell, Loader2, LogOut, Menu, PanelLeft, PanelRight, RefreshCcw, Search, UserRound } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
@@ -15,6 +15,10 @@ import {
   HeaderKpiTile,
   HeaderProjectSelect,
 } from '@/components/terminal/header-filter-suite'
+import {
+  HeaderSlotMount,
+  useTerminalHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import {
   isGlobalFilterPilotRoute,
   useTerminalGlobalFilter,
@@ -69,6 +73,9 @@ export function TerminalHeader({
   const { data: session } = useSession()
   const user = session?.user
   const { unreadCount, refresh } = useServerNotifications()
+
+  // BLF-826 全局刷新按钮：页面经 useHeaderRefresh 注册回调；无注册时隐藏。
+  const { refreshRegistered, refreshLoading, triggerRefresh } = useTerminalHeaderSlot()
 
   // BLF-819 全局筛选四件套：仅试点路由渲染，其余页面头部行为零变化
   const globalFilter = useTerminalGlobalFilter()
@@ -131,7 +138,8 @@ export function TerminalHeader({
         </nav>
       </div>
 
-      {/* 中段：全局筛选四件套 + KPI 磁贴（BLF-819，试点路由激活） */}
+      {/* 中段：页面级 HeaderSlot（BLF-826）+ 全局筛选四件套（BLF-819，试点路由） */}
+      <HeaderSlotMount className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden border-l border-term-border px-2 md:flex" />
       {pilotActive && globalFilter.ready ? (
         <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto border-l border-term-border px-2 term-scroll xl:flex">
           <HeaderProjectSelect
@@ -165,8 +173,24 @@ export function TerminalHeader({
         </div>
       ) : null}
 
-      {/* 右段：搜索 / 通知 / Inspector / 用户 */}
+      {/* 右段：全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
       <div className="flex shrink-0 items-center gap-1 px-2">
+        {refreshRegistered && (
+          <button
+            type="button"
+            onClick={triggerRefresh}
+            disabled={refreshLoading}
+            title="刷新当前页数据（强刷跳缓存）"
+            aria-label="刷新当前页数据"
+            data-testid="terminal-header-refresh"
+            className="relative flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text disabled:pointer-events-none disabled:opacity-50"
+          >
+            <RefreshCcw className="h-[18px] w-[18px]" />
+            {refreshLoading && (
+              <Loader2 className="absolute h-[18px] w-[18px] animate-spin" aria-hidden />
+            )}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
