@@ -435,14 +435,8 @@ export function AgentManagementClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* ── 页面头部：eyebrow-only（保留 pill icon + 文字，去掉冗余标题/描述） ── */}
+      {/* ── 页面头部：仅操作区（BLF-824：eyebrow 与 Top Header 面包屑重复，已移除；标题/描述 BLF-493 已移除） ── */}
       <PageHeader
-        eyebrow={
-          <>
-            <KeyRound className="h-3.5 w-3.5" />
-            系统管理 · Agent 接入
-          </>
-        }
         actions={<Button onClick={() => setCreateOpen(true)}>创建凭据</Button>}
       />
 

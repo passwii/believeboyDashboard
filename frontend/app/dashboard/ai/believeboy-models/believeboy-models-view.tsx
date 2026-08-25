@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
-import { ArrowUpRight, FileText, Sparkles } from 'lucide-react'
+import { ArrowUpRight, FileText } from 'lucide-react'
 
 type Props = {
   source: string
@@ -27,12 +27,6 @@ export function BelieveboyModelsView({ source }: Props) {
   return (
     <div className="space-y-6 md:space-y-7">
       <PageHeader
-        eyebrow={
-          <>
-            <Sparkles className="h-3.5 w-3.5" />
-            AI · 模型参考
-          </>
-        }
         title="彼励扶 Believeboy 模型选型方案"
         description="汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在 名称 / 架构 / 大小 / 上下文 / 背后模型 五个维度的差异，便于算力选型、 推理部署、对外展示时快速查阅。（最后更新 2026-07-07）"
       />

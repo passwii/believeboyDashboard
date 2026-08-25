@@ -36,7 +36,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PagePill } from '@/components/ui/page-pill'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -878,7 +877,7 @@ export default function SkuInfoPage() {
       {/* 筛选控制台 — PILL 头 + 右侧查询/重置，筛选区下部（BLF-634：合并顶部头部卡，减少一卡） */}
       <div className="dashboard-surface overflow-hidden animate-enter">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
-          <PagePill icon={<Package2 />}>运营 · SKU 信息管理</PagePill>
+          <div />
           <div className="flex items-center gap-2">
             <Button type="button" variant="outline" onClick={onResetFilters}>
               重置

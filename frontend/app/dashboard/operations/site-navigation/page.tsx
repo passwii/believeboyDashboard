@@ -1,4 +1,4 @@
-import { ArrowUpRight, Building2, Globe2, ShoppingBag, Store, Tag } from 'lucide-react'
+import { ArrowUpRight, Building2, Globe2, ShoppingBag, Tag } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/page-header'
 
@@ -137,12 +137,6 @@ export default function SiteNavigationPage() {
         {/* BLF-503 试点：页面头部统一走 PageHeader（pill 形态） */}
         <PageHeader
           className="relative z-10"
-          eyebrow={
-            <>
-              <Store className="h-3.5 w-3.5" />
-              运营导航 · 站点导航
-            </>
-          }
           description="聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。"
           actions={
             <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">

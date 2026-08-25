@@ -10,12 +10,10 @@ import {
   LayoutDashboard,
   Loader2,
   Upload,
-  UploadCloud,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { PageHeader } from '@/components/ui/page-header'
 import {
   formatDateInputValue,
   parseDateInputValue,
@@ -1230,16 +1228,6 @@ export default function AutoUploadPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden">
-      {/* 页面头部（eyebrow-only：BLF-493 头部冗余精简，保留 pill icon + 文字） */}
-      <PageHeader
-        eyebrow={
-          <>
-            <UploadCloud className="h-3.5 w-3.5" />
-            报表 · 自动上传
-          </>
-        }
-      />
-
       {/* Tab switcher */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}>
         <TabsList>

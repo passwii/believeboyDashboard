@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Monitor, RefreshCw, Users, Search } from 'lucide-react'
+import { Monitor, RefreshCw, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -50,12 +50,6 @@ export default function DigitalEmployeesPage() {
     <div className="space-y-6">
       {/* Header（BLF-505：收口为 PageHeader 原语 §8.1） */}
       <PageHeader
-        eyebrow={
-          <>
-            <Users className="h-3.5 w-3.5" />
-            AI · 数字员工
-          </>
-        }
         title="数字员工"
         description="查看与启停后台数字员工（Agent），监控运行与异常状态。"
         actions={

@@ -1,14 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { ClipboardCheck } from 'lucide-react'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
-import { PagePill } from '@/components/ui/page-pill'
 import { useNotifications } from '@/components/notifications'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
@@ -65,11 +63,6 @@ export default function InspectionClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 顶部：仅 PILL（BLF-634：卡片完全移除，只保留 PILL 徽标） */}
-      <div className="animate-enter">
-        <PagePill icon={<ClipboardCheck />}>运营 · 平台巡检</PagePill>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsMotionGroup id="inspection-tabs">
           <TabsList>

@@ -284,12 +284,6 @@ export default function AdAnalysisPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={
-          <>
-            <Sparkles className="h-3.5 w-3.5" />
-            AI · 广告分析
-          </>
-        }
         title="AI 广告分析"
         description="基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 + 广告投放双专家，自主分析并给出可执行的调整建议。"
       />
