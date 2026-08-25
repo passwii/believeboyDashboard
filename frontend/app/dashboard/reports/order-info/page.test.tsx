@@ -2,6 +2,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/dashboard/reports/order-info',
+}))
+
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
 }))
@@ -147,6 +152,7 @@ const fetchMock = vi.fn(async () =>
 
 vi.stubGlobal('fetch', fetchMock)
 
+import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
 import OrderInfoPage from './page'
 
 describe('订单信息页终端化（BLF-817）', () => {
@@ -156,7 +162,11 @@ describe('订单信息页终端化（BLF-817）', () => {
   })
 
   it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
-    render(<OrderInfoPage />)
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
 
     // 等数据行渲染出来
     expect(await screen.findByText('111-1111111-0000001')).toBeInTheDocument()
@@ -170,7 +180,11 @@ describe('订单信息页终端化（BLF-817）', () => {
   })
 
   it('底部 pinned 聚合条展示总单量 / 总金额 / FBA·FBM 行数与翻页信息', async () => {
-    render(<OrderInfoPage />)
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
 
     await screen.findByText('111-1111111-0000001')
     expect(screen.getByText('Σ 单量').closest('span')).toHaveTextContent('3')
@@ -180,7 +194,11 @@ describe('订单信息页终端化（BLF-817）', () => {
 
   it('勾选行后聚合条出现选中态合计，金额口径 = item_price + shipping_price', async () => {
     const user = userEvent.setup()
-    render(<OrderInfoPage />)
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
 
     await screen.findByText('111-1111111-0000001')
 
@@ -195,7 +213,11 @@ describe('订单信息页终端化（BLF-817）', () => {
 
   it('表头排序按钮可点击触发带 sort 参数的刷新请求', async () => {
     const user = userEvent.setup()
-    render(<OrderInfoPage />)
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
 
     await screen.findByText('111-1111111-0000001')
     const callsAfterLoad = fetchMock.mock.calls.length
@@ -211,7 +233,11 @@ describe('订单信息页终端化（BLF-817）', () => {
   })
 
   it('金额单元格展示 item_price + shipping_price 合计并标注运费', async () => {
-    render(<OrderInfoPage />)
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
     await screen.findByText('111-1111111-0000001')
 
     const amountCell = screen.getByText('15.00 USD')

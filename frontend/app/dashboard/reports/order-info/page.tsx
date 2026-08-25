@@ -28,6 +28,7 @@ import {
   DateRangePicker,
   formatDateInputValue as formatPickerDateInputValue,
   getTodayInTimezone,
+  parseDateInputValue,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -47,6 +48,7 @@ import { getOrderStatusLabel } from '@/lib/order-status'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
+import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
 
@@ -268,6 +270,49 @@ export default function OrderInfoPage() {
   // FBM 编辑 Dialog 状态
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  // BLF-819 头部 → 页面同步：全局筛选就绪时，头部四件套的选择写入本页对应筛选。
+  // 项目：'__all__'（全部店铺）↔ 'all'（全部项目）语义对齐；
+  // 站点：取头部第一个国家映射到 countries 多选（ALL → 清空 = 不限）；
+  // 日期：头部完整范围覆盖 dateFrom/dateTo。
+  const globalFilter = useTerminalGlobalFilter()
+  const gfProjectId = globalFilter.ready ? globalFilter.projectId : null
+  const gfCountry = globalFilter.ready ? globalFilter.country : null
+  const gfDateFrom = globalFilter.ready ? globalFilter.dateFrom : null
+  const gfDateTo = globalFilter.ready ? globalFilter.dateTo : null
+  const lastAppliedGfRef = useRef('')
+  useEffect(() => {
+    if (!globalFilter.ready) return
+    const signature = `${gfProjectId}|${gfCountry}|${gfDateFrom}|${gfDateTo}`
+    if (signature === lastAppliedGfRef.current) return
+    lastAppliedGfRef.current = signature
+    if (gfProjectId) {
+      const nextProjectId = gfProjectId === 'all' ? DEFAULT_PROJECT_VALUE : gfProjectId
+      if (nextProjectId !== projectId) {
+        setProjectId(nextProjectId)
+        setPage(1)
+      }
+    }
+    if (gfCountry) {
+      const nextCountries = gfCountry === 'ALL' || !['US', 'DE', 'UK'].includes(gfCountry)
+        ? []
+        : [gfCountry]
+      if (nextCountries.join(',') !== countries.join(',')) {
+        setCountries(nextCountries)
+        setPage(1)
+      }
+    }
+    if (gfDateFrom && gfDateTo) {
+      const from = parseDateInputValue(gfDateFrom)
+      const to = parseDateInputValue(gfDateTo)
+      if (from && to) {
+        setDateFrom(formatPickerDateInputValue(from))
+        setDateTo(formatPickerDateInputValue(to))
+        setPage(1)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只响应头部四件套的变化
+  }, [globalFilter.ready, gfProjectId, gfCountry, gfDateFrom, gfDateTo])
 
   // 首次加载时自动选中第一个店铺，避免默认全部店铺导致全量数据慢查询
   const initialProjectAutoselected = useRef(false)

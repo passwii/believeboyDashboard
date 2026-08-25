@@ -8,6 +8,7 @@ import { ChevronDown } from 'lucide-react'
 import { PageTransition } from '@/components/motion/PageTransition'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { SearchCommand } from '@/components/dashboard/search-command'
+import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
 import { TerminalFooter } from '@/components/terminal/terminal-footer'
 import { TerminalHeader } from '@/components/terminal/terminal-header'
 import { TerminalInspector } from '@/components/terminal/terminal-inspector'
@@ -79,7 +80,8 @@ export function TerminalShell({ children }: TerminalShellProps) {
   const openMobileNav = React.useCallback(() => setMobileNavOpen(true), [])
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-term-bg text-[13px] leading-normal text-term-text supports-[height:100dvh]:h-dvh">
+    <TerminalGlobalFilterProvider>
+      <div className="flex h-dvh w-full overflow-hidden bg-term-bg text-[13px] leading-normal text-term-text supports-[height:100dvh]:h-dvh">
       <TerminalRail
         groups={visibleGroups}
         activeGroupId={activeGroupId}
@@ -144,6 +146,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
         </SheetContent>
       </Sheet>
     </div>
+    </TerminalGlobalFilterProvider>
   )
 }
 
