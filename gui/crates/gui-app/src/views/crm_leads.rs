@@ -11,9 +11,14 @@
 //!   （converted 徽标 + 转化客户 id）、分页聚合条；
 //! - **精简**：新建/编辑/转化对话框等写链路不移植，走 web 端。
 
+
+// Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
+#![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
+
 use gpui::prelude::*;
 use gpui::{
     div, App, AsyncApp, Context, Entity, IntoElement, Render, SharedString, Styled, WeakEntity,
+    Window,
 };
 use gpui_component::button::Button;
 use gpui_component::{h_flex, v_flex, Sizable};
@@ -165,7 +170,7 @@ impl CrmLeadsView {
         params.scope = self.scope.as_backend_scope().to_string();
         params.page = self.page;
         params.page_size = PAGE_SIZE;
-        let status = self.status_filter.as_query().map(str::to_string);
+        let _status = self.status_filter.as_query().map(str::to_string);
 
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
@@ -268,15 +273,16 @@ impl Render for CrmLeadsView {
                 build_status_menu(view.clone(), self.status_filter),
             ))
             .child(div().flex_1())
-            .child(
+            .child({
+                let view = view.clone();
                 Button::new("crm-leads-refresh")
                     .outline()
                     .small()
                     .label("刷新")
                     .on_click(move |_ev, _w, cx| {
                         view.update(cx, |this, cx| this.reload(cx));
-                    }),
-            );
+                    })
+            });
 
         // footer 聚合条（Loaded 态：总数 / 已转化数）
         let footer: gpui::AnyElement = match &state {
@@ -331,6 +337,7 @@ impl Render for CrmLeadsView {
                     table.update(cx, |t, cx| t.set_rows_if_changed(&p.items, cx));
                 }
                 v_flex()
+                    .id("crm-leads-scroll")
                     .size_full()
                     .min_h_0()
                     .overflow_y_scroll()
@@ -399,27 +406,27 @@ fn build_status_menu(
 fn columns() -> Vec<ColumnDef<LeadItem>> {
     vec![
         ColumnDef::text("name", "线索名称", |r, _| SharedString::from(r.name.clone())),
-        ColumnDef::text("company", "公司", |r, _| {
+        ColumnDef::text("company", "公司", |r: &LeadItem, _| {
             SharedString::from(r.company.clone().unwrap_or_else(|| "—".into()))
         }),
-        ColumnDef::text("status", "状态", |r, theme| status_cell(r, theme)).width(110.0),
-        ColumnDef::text("intent", "意向", |r, _| {
+        ColumnDef::text("status", "状态", status_cell).width(110.0),
+        ColumnDef::text("intent", "意向", |r: &LeadItem, _| {
             SharedString::from(lead_intent_label(&r.intent))
         })
         .width(88.0),
-        ColumnDef::text("source", "来源", |r, _| {
+        ColumnDef::text("source", "来源", |r: &LeadItem, _| {
             SharedString::from(r.source.clone().unwrap_or_else(|| "—".into()))
         })
         .width(96.0),
-        ColumnDef::text("owner_name", "负责人", |r, _| {
+        ColumnDef::text("owner_name", "负责人", |r: &LeadItem, _| {
             SharedString::from(r.owner_name.clone().unwrap_or_else(|| "未指派".into()))
         })
         .width(96.0),
-        ColumnDef::text("next_follow_at", "下次跟进", |r, _| {
+        ColumnDef::text("next_follow_at", "下次跟进", |r: &LeadItem, _| {
             SharedString::from(follow_time(r.next_follow_at))
         })
         .width(140.0),
-        ColumnDef::text("expected_amount", "预期金额", |r, _| {
+        ColumnDef::text("expected_amount", "预期金额", |r: &LeadItem, _| {
             SharedString::from(match r.expected_amount {
                 Some(v) => format!("${v:.0}"),
                 None => "—".into(),

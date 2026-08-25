@@ -33,6 +33,7 @@ pub mod metrics;
 pub mod monthly_reports;
 pub mod notifications;
 pub mod order_info;
+pub mod page_render;
 pub mod platform_revenues;
 pub mod portfolio;
 pub mod pricing_calculation;

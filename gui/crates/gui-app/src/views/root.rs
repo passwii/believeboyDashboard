@@ -39,6 +39,7 @@ use crate::theme::AppTheme;
 use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
 use crate::widgets::console_bar::{
     console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
+    DASHBOARD_LANDING_URL,
 };
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
@@ -55,6 +56,17 @@ use crate::views::commission::{CommissionView, COMMISSION_URL};
 use crate::views::crm_audit::{CrmAuditView, CRM_AUDIT_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
 use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
+// Stage13（BLF-804）：CRM 三页 + 设置 + 工具箱渲染 + 系统管理五页
+use crate::views::crm_customers::{CrmCustomersView, CRM_CUSTOMERS_URL};
+use crate::views::crm_leads::{CrmLeadsView, CRM_LEADS_URL};
+use crate::views::crm_tasks::{CrmTasksView, CRM_TASKS_URL};
+use crate::views::crm_settings::{CrmSettingsView, CRM_SETTINGS_URL};
+use crate::views::alerts_center::{AlertsCenterView, ALERTS_CENTER_URL};
+use crate::views::changelog::{ChangelogView, CHANGELOG_URL};
+use crate::views::database_status::{DatabaseStatusView, DATABASE_STATUS_URL};
+use crate::views::operator_management::{OperatorManagementView, OPERATOR_MANAGEMENT_URL};
+use crate::views::page_render::{PageRenderView, PAGE_RENDER_URL};
+use crate::views::project_info::{ProjectInfoView, PROJECT_INFO_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::sku_info::{SkuInfoView, SKU_INFO_URL};
 use crate::views::dashboard::DashboardView;
@@ -216,6 +228,17 @@ pub struct RootView {
     crm_follow_ups: Option<Entity<CrmFollowUpsView>>,
     /// CRM → 操作日志真实视图（P5-7 BLF-747；点击「CRM → 操作日志」懒创建）
     crm_audit: Option<Entity<CrmAuditView>>,
+    // Stage13（BLF-804）：新增十视图懒建槽
+    crm_customers: Option<Entity<CrmCustomersView>>,
+    crm_leads: Option<Entity<CrmLeadsView>>,
+    crm_tasks: Option<Entity<CrmTasksView>>,
+    crm_settings: Option<Entity<CrmSettingsView>>,
+    page_render: Option<Entity<PageRenderView>>,
+    project_info: Option<Entity<ProjectInfoView>>,
+    operator_management: Option<Entity<OperatorManagementView>>,
+    alerts_center: Option<Entity<AlertsCenterView>>,
+    database_status: Option<Entity<DatabaseStatusView>>,
+    changelog: Option<Entity<ChangelogView>>,
     /// AI 智能 → AI Chat 真实视图（P5-6 BLF-737；点击「AI 智能 → AI Chat」懒创建，SSE 流式对话）
     ai_chat: Option<Entity<AiChatView>>,
     /// BLF-803：AI 洞察真实视图（历史查看）
@@ -315,6 +338,17 @@ pub struct RootView {
     show_account_management: bool,
     /// 内容区当前是否显示 SKU 信息视图（BLF-798；Select 命中 SKU_INFO_URL 时置真）
     show_sku_info: bool,
+    // Stage13（BLF-804）：新增十视图 show 标志
+    show_crm_customers: bool,
+    show_crm_leads: bool,
+    show_crm_tasks: bool,
+    show_crm_settings: bool,
+    show_page_render: bool,
+    show_project_info: bool,
+    show_operator_management: bool,
+    show_alerts_center: bool,
+    show_database_status: bool,
+    show_changelog: bool,
 
     /// 内容区当前是否显示平台巡检视图（sidebar Select 命中 PLATFORM_INSPECTION_URL 时置真）
     show_platform_inspection: bool,
@@ -451,7 +485,12 @@ impl RootView {
                         this.rail
                             .update(cx, |rail_view, cx| rail_view.set_active(category, cx));
                     }
-                    if url == SITE_NAV_URL {
+                    // Stage13（BLF-804）：着陆页路由——点击 Logo / 返回首页时回到
+                    // Dashboard（接控制条项目选择器）；复用 reset_all_show_flags
+                    if url == DASHBOARD_LANDING_URL {
+                        this.reset_all_show_flags();
+                        this.show_dashboard = true;
+                    } else if url == SITE_NAV_URL {
                         this.site_navigation
                             .get_or_insert_with(|| cx.new(|_| SiteNavigationView::new()));
                         this.show_shop_calculation = false;
@@ -2081,6 +2120,147 @@ impl RootView {
                         this.show_system_logs = false;
                         this.show_agent_management = false;
                         this.show_account_management = false;
+                    } else if url == CRM_CUSTOMERS_URL {
+                        // Stage13 BLF-804：CRM 客户视图懒创建，首帧触发首屏拉取
+                        this.crm_customers.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CrmCustomersView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_crm_customers = true;
+                    } else if url == CRM_LEADS_URL {
+                        // Stage13 BLF-804：CRM 线索视图懒创建
+                        this.crm_leads.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CrmLeadsView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_crm_leads = true;
+                    } else if url == CRM_TASKS_URL {
+                        // Stage13 BLF-804：CRM 任务视图懒创建（列表 + 看板双形态）
+                        this.crm_tasks.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CrmTasksView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_crm_tasks = true;
+                    } else if url == CRM_SETTINGS_URL {
+                        // Stage13 BLF-804：CRM 设置视图懒创建（只读配置面）
+                        this.crm_settings.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = CrmSettingsView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_crm_settings = true;
+                    } else if url == PAGE_RENDER_URL {
+                        // Stage13 BLF-804：Markdown/HTML 渲染工具懒创建（查看主面）
+                        this.page_render.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = PageRenderView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_page_render = true;
+                    } else if url == PROJECT_INFO_URL {
+                        // Stage13 BLF-804：项目信息视图懒创建（与控制条项目选择器同源）
+                        this.project_info.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = ProjectInfoView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_project_info = true;
+                    } else if url == OPERATOR_MANAGEMENT_URL {
+                        // Stage13 BLF-804：运营管理视图懒创建（绩效只读面）
+                        this.operator_management.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = OperatorManagementView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_operator_management = true;
+                    } else if url == ALERTS_CENTER_URL {
+                        // Stage13 BLF-804：告警中心视图懒创建（统计 + 事件表）
+                        this.alerts_center.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = AlertsCenterView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_alerts_center = true;
+                    } else if url == DATABASE_STATUS_URL {
+                        // Stage13 BLF-804：数据库状态视图懒创建
+                        this.database_status.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = DatabaseStatusView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_database_status = true;
+                    } else if url == CHANGELOG_URL {
+                        // Stage13 BLF-804：更新日志视图懒创建（纯静态，无首拉）
+                        this.changelog
+                            .get_or_insert_with(|| cx.new(|_| ChangelogView::new()));
+                        this.reset_all_show_flags();
+                        this.show_changelog = true;
                     } else if url == AI_CHAT_URL {
                         // P5-6 BLF-737：AI Chat 视图懒创建（带会话 client），首帧即触发首屏拉取；
                         // BLF-800：Pattern C 偏好（置顶列表 / 右栏收起态）自偏好恢复 +
@@ -2498,6 +2678,17 @@ impl RootView {
             crm_dashboard: None,
             crm_follow_ups: None,
             crm_audit: None,
+            // Stage13（BLF-804）：新增十视图懒建槽
+            crm_customers: None,
+            crm_leads: None,
+            crm_tasks: None,
+            crm_settings: None,
+            page_render: None,
+            project_info: None,
+            operator_management: None,
+            alerts_center: None,
+            database_status: None,
+            changelog: None,
             ai_chat: None,
             ai_insights: None,
             customer_service: None,
@@ -2549,6 +2740,18 @@ impl RootView {
             show_agent_management: false,
             show_account_management: false,
             show_auto_upload: false,
+
+            // Stage13（BLF-804）：新增十视图 show 标志
+            show_crm_customers: false,
+            show_crm_leads: false,
+            show_crm_tasks: false,
+            show_crm_settings: false,
+            show_page_render: false,
+            show_project_info: false,
+            show_operator_management: false,
+            show_alerts_center: false,
+            show_database_status: false,
+            show_changelog: false,
 
             show_platform_inspection: false,
             current_title: "Dashboard".to_string(),
@@ -2605,6 +2808,17 @@ impl RootView {
         self.show_ai_insights = false;
         self.show_customer_service = false;
         self.show_virtual_office = false;
+        // Stage13（BLF-804）：新增十视图
+        self.show_crm_customers = false;
+        self.show_crm_leads = false;
+        self.show_crm_tasks = false;
+        self.show_crm_settings = false;
+        self.show_page_render = false;
+        self.show_project_info = false;
+        self.show_operator_management = false;
+        self.show_alerts_center = false;
+        self.show_database_status = false;
+        self.show_changelog = false;
     }
 
     /// 显示非致命警告横幅（会话校验等后台任务回调用）
@@ -2661,7 +2875,14 @@ impl RootView {
     /// 控制条筛选变化 → 转发给当前激活业务视图（三类代表页先行接入；
     /// 其余页面忽略——控制条配置本就不显示对应控件）
     fn forward_console_filter(&mut self, filter: ConsoleFilter, cx: &mut Context<Self>) {
-        if self.show_daily_analysis {
+        // Stage13（BLF-804）：着陆页接控制条项目选择器（页内数据随项目重拉）
+        if self.show_dashboard {
+            if let Some(view) = self.dashboard.clone() {
+                view.update(cx, |v, cx| {
+                    v.apply_console_filter(filter.project_id, filter.country, filter.range, cx)
+                });
+            }
+        } else if self.show_daily_analysis {
             if let Some(view) = self.daily_analysis.clone() {
                 view.update(cx, |v, cx| {
                     v.apply_console_filter(filter.project_id, filter.country, filter.range, cx)
@@ -2845,6 +3066,26 @@ impl RootView {
             "crm-follow-ups"
         } else if self.show_crm_audit {
             "crm-audit"
+        } else if self.show_crm_customers {
+            "crm-customers"
+        } else if self.show_crm_leads {
+            "crm-leads"
+        } else if self.show_crm_tasks {
+            "crm-tasks"
+        } else if self.show_crm_settings {
+            "crm-settings"
+        } else if self.show_page_render {
+            "page-render"
+        } else if self.show_project_info {
+            "project-info"
+        } else if self.show_operator_management {
+            "operator-management"
+        } else if self.show_alerts_center {
+            "alerts-center"
+        } else if self.show_database_status {
+            "database-status"
+        } else if self.show_changelog {
+            "changelog"
         } else if self.show_ai_chat {
             "ai-chat"
         } else if self.show_ai_insights {
@@ -3029,6 +3270,56 @@ impl RootView {
             )
         } else if self.show_crm_audit {
             self.crm_audit.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_customers {
+            self.crm_customers.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_leads {
+            self.crm_leads.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_tasks {
+            self.crm_tasks.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_crm_settings {
+            self.crm_settings.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_page_render {
+            self.page_render.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_project_info {
+            self.project_info.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_operator_management {
+            self.operator_management.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_alerts_center {
+            self.alerts_center.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_database_status {
+            self.database_status.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_changelog {
+            self.changelog.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -5370,6 +5661,83 @@ mod tests {
                 )
             });
         }
+    }
+
+    /// Stage13（BLF-804）：新增十视图路由契约——每个新 URL 选中后 view_key
+    /// 命中对应视图，且从既有视图两步切换后不残留旧 show 标志（
+    /// reset_all_show_flags 统一复位）；另锁着陆页 /dashboard 路由回到
+    /// Dashboard。
+    #[gpui::test]
+    async fn view_key_stage13_routes_and_landing(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let session = SessionInfo {
+            client: Client::new("http://127.0.0.1:1"),
+            user: LoginResponse {
+                id: "u-stage13".into(),
+                name: "Stage13 路由".into(),
+                email: "stage13@believeboy.com".into(),
+                operator_name_zh: None,
+                is_admin: false,
+                is_active: true,
+                role_type: UserRoleType::Operator,
+                session_id: "s-stage13".into(),
+                api_key: String::new(),
+            },
+            warning: None,
+        };
+        let (view, cx) = cx.add_window_view(|_window, cx| RootView::new(cx, Some(session)));
+        let sub_nav = cx.read(|app| view.read(app).sub_nav.clone());
+
+        // 新视图 URL → view_key 一一对应
+        let routes = [
+            ("/dashboard/crm/customers", "客户", "crm-customers"),
+            ("/dashboard/crm/leads", "线索", "crm-leads"),
+            ("/dashboard/crm/tasks", "任务", "crm-tasks"),
+            ("/dashboard/crm/settings", "CRM 设置", "crm-settings"),
+            ("/dashboard/tools/page-render", "渲染", "page-render"),
+            ("/dashboard/system/project-info", "项目信息", "project-info"),
+            (
+                "/dashboard/system/operator-management",
+                "运营管理",
+                "operator-management",
+            ),
+            ("/dashboard/system/alerts", "告警中心", "alerts-center"),
+            (
+                "/dashboard/system/data-management",
+                "数据库状态",
+                "database-status",
+            ),
+            ("/dashboard/system/changelog", "更新日志", "changelog"),
+        ];
+        for (url, title, expected_key) in routes {
+            sub_nav.update(cx, |this, cx| this.select(url, title, cx));
+            cx.read(|app| {
+                assert_eq!(
+                    view.read(app).view_key(),
+                    expected_key,
+                    "Stage13 路由 {title}"
+                )
+            });
+        }
+
+        // 两步切换：新视图 ↔ 销售数据互切不残留；再回着陆页
+        sub_nav.update(cx, |this, cx| {
+            this.select("/dashboard/crm/tasks", "任务", cx)
+        });
+        sub_nav.update(cx, |this, cx| {
+            this.select("/dashboard/operations/daily-analysis", "销售数据", cx)
+        });
+        cx.read(|app| assert_eq!(view.read(app).view_key(), "daily-analysis"));
+        sub_nav.update(cx, |this, cx| {
+            this.select("/dashboard/crm/customers", "客户", cx)
+        });
+        cx.read(|app| assert_eq!(view.read(app).view_key(), "crm-customers"));
+
+        // 着陆页路由：回到 dashboard 且控制条配置为项目选择器单件
+        sub_nav.update(cx, |this, cx| {
+            this.select("/dashboard", "Dashboard", cx)
+        });
+        cx.read(|app| assert_eq!(view.read(app).view_key(), "dashboard"));
     }
 
     /// P5-7（BLF-747）：CRM 操作日志 ↔ 各业务视图的两步切换契约——锁每个既有

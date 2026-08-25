@@ -36,6 +36,7 @@ pub mod finance;
 pub mod operations;
 pub mod order_info;
 pub mod notification;
+pub mod page_render;
 pub mod reports;
 pub mod scheduled_reports;
 pub mod sidebar;

@@ -151,14 +151,14 @@ fn format_income_with_currency(amount: f64, country: &str) -> String {
     format!("{sign}{symbol}{} {currency}", fmt_money(amount))
 }
 
-/// 站点圆点色（对齐 web `SITE_INFO.dotClass`：US 蓝 / DE 紫 / UK 绿；
-/// 未知站点 slate-400 兜底）
-fn site_dot_color(country: &str) -> Hsla {
+/// 站点圆点色（收尾清点 BLF-804：裸 hex 收敛到主题图表色板——
+/// US 主蓝 / DE 次色 / UK 成功色，语义与 web dotClass 对应；未知站点 muted）
+fn site_dot_color(country: &str, theme: &AppTheme) -> Hsla {
     match country.trim().to_ascii_uppercase().as_str() {
-        "US" => gpui::rgb(0x3B82F6).into(),
-        "DE" => gpui::rgb(0xA855F7).into(),
-        "UK" => gpui::rgb(0x22C55E).into(),
-        _ => gpui::rgb(0x94A3B8).into(),
+        "US" => theme.chart_primary,
+        "DE" => theme.chart_secondary,
+        "UK" => theme.success,
+        _ => theme.text_muted,
     }
 }
 
@@ -202,9 +202,10 @@ fn rate_pill_colors(level: ReceiveRateLevel, theme: &AppTheme) -> (Hsla, Hsla) {
     match level {
         ReceiveRateLevel::Positive => (theme.success.opacity(0.14), theme.success),
         ReceiveRateLevel::Warning => (theme.warning.opacity(0.16), theme.warning),
+        // 收尾清点 BLF-804：裸 hex（yellow-500）收敛到 theme.warning——
+        // 与 Warning 档靠底色透明度区分（0.28 vs 0.16），语义同属「预警黄」
         ReceiveRateLevel::Yellow => {
-            let yellow: Hsla = gpui::rgb(0xEAB308).into();
-            (yellow.opacity(0.18), yellow)
+            (theme.warning.opacity(0.28), theme.warning)
         }
         ReceiveRateLevel::Negative => (theme.danger.opacity(0.12), theme.danger),
     }
@@ -693,7 +694,7 @@ fn detail_columns() -> Vec<ColumnDef<DetailRow>> {
                     div()
                         .size_2()
                         .rounded_full()
-                        .bg(site_dot_color(&r.country)),
+                        .bg(site_dot_color(&r.country, theme)),
                 )
                 .child(
                     div()
@@ -1713,7 +1714,7 @@ mod tests {
         );
         assert_eq!(
             rate_pill_colors(ReceiveRateLevel::Yellow, &theme).1,
-            gpui::rgb(0xEAB308).into()
+            theme.warning
         );
         assert_eq!(
             rate_pill_colors(ReceiveRateLevel::Negative, &theme).1,
@@ -1722,11 +1723,13 @@ mod tests {
     }
 
     #[test]
-    fn site_dot_colors_match_web_dot_class() {
-        assert_eq!(site_dot_color("US"), gpui::rgb(0x3B82F6).into());
-        assert_eq!(site_dot_color("de"), gpui::rgb(0xA855F7).into());
-        assert_eq!(site_dot_color("UK"), gpui::rgb(0x22C55E).into());
-        assert_eq!(site_dot_color("JP"), gpui::rgb(0x94A3B8).into());
+    fn site_dot_colors_use_theme_palette() {
+        // 收尾清点 BLF-804：裸 hex 收敛到主题图表色板后，锁语义映射不变
+        let theme = AppTheme::dark();
+        assert_eq!(site_dot_color("US", &theme), theme.chart_primary);
+        assert_eq!(site_dot_color("de", &theme), theme.chart_secondary);
+        assert_eq!(site_dot_color("UK", &theme), theme.success);
+        assert_eq!(site_dot_color("JP", &theme), theme.text_muted);
     }
 
     #[test]

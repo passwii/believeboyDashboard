@@ -27,8 +27,8 @@
 use crate::client::Client;
 use crate::error::ApiError;
 use gui_domain::crm::{
-    AuditLogPage, CrmUser, CustomerPage, DashboardStats, FollowUpGroups, LeadPage, LifecycleBoard,
-    TaskItem, TaskPage,
+    AuditLogPage, CustomerPage, DashboardStats, FollowUpGroups, LeadPage, LifecycleBoard, TaskItem,
+    TaskPage,
 };
 
 /// `GET …/crm/dashboard/stats`
@@ -431,6 +431,12 @@ pub(crate) const CRM_CUSTOMERS_PATH: &str = "/api/v1/crm/customers";
 pub(crate) const CRM_LEADS_PATH: &str = "/api/v1/crm/leads";
 pub(crate) const CRM_TASKS_PATH: &str = "/api/v1/crm/tasks";
 pub(crate) const CRM_USERS_PATH: &str = "/api/v1/crm/users";
+pub(crate) const CRM_RULES_PATH: &str = "/api/v1/crm/rules";
+pub(crate) const CRM_WORKFLOW_SETTINGS_PATH: &str = "/api/v1/crm/settings/workflow";
+
+/// 域类型 re-export（视图层统一从 `gui_api_client::crm` 取 CRM 类型；
+/// `CrmUser` 等定义在 gui-domain，此处补齐公共 API 面）
+pub use gui_domain::crm::{CrmRuleItem, CrmUser, CrmWorkflowSettings};
 
 /// CRM 列表查询参数（客户/线索共用；任务另有 type/status 维度走独立方法）
 #[derive(Debug, Clone, Default)]
@@ -521,6 +527,19 @@ impl Client {
     pub async fn crm_users(&self) -> Result<Vec<CrmUser>, ApiError> {
         let users: Vec<CrmUser> = self.get_json(CRM_USERS_PATH, &[]).await?;
         Ok(users)
+    }
+
+    /// 规则引擎规则列表（Stage13 BLF-804；对齐 web `client.listRules()`；
+    /// admin-gated，非管理员 403 → 调用方落 Forbidden 态）
+    pub async fn crm_rules(&self) -> Result<Vec<CrmRuleItem>, ApiError> {
+        let rules: Vec<CrmRuleItem> = self.get_json(CRM_RULES_PATH, &[]).await?;
+        Ok(rules)
+    }
+
+    /// 工作流自动化设置（Stage13 BLF-804；7 天无跟进提醒阈值/邮件开关；
+    /// admin-gated 只读——更新走 web 端）
+    pub async fn crm_workflow_settings(&self) -> Result<CrmWorkflowSettings, ApiError> {
+        self.get_json(CRM_WORKFLOW_SETTINGS_PATH, &[]).await
     }
 }
 

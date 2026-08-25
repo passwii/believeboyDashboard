@@ -13,12 +13,16 @@
 //! - **精简**：新建/编辑任务对话框不移植；提醒 SSE 流不移植（GUI 无长驻流式
 //!   先例），到期信号由 due_date 着色承载。
 
+
+// Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
+#![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
+
 use gpui::prelude::*;
 use gpui::{
     div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
-    Styled, WeakEntity,
+    Styled, WeakEntity, Window,
 };
-use gpui_component::button::Button;
+use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{h_flex, v_flex, Sizable};
 use gui_api_client::crm::{CrmListParams, CrmUser};
 use gui_api_client::Client;
@@ -84,9 +88,9 @@ impl TaskTypeFilter {
         Self::Custom,
     ];
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
-            Self::All => "全部类型",
+            Self::All => "全部类型".to_string(),
             other => task_type_label(other.as_key()),
         }
     }
@@ -110,7 +114,7 @@ impl TaskTypeFilter {
 
     /// 行内匹配（响应行的 type key 是否命中当前筛选）
     fn matches(self, task_type: &str) -> bool {
-        self.as_query().map_or(true, |k| k == task_type)
+        self.as_query().is_none_or(|k| k == task_type)
     }
 }
 
@@ -305,7 +309,7 @@ impl CrmTasksView {
 
     /// 当前行集（Loaded 态应用乐观覆盖；type 服务端已过滤，这里兜底行内匹配）
     fn visible_rows(&self, cx: &App) -> Vec<TaskItem> {
-        match self.state.read(cx).as_ref() {
+        match self.state.read(cx) {
             TasksState::Loaded(page) => page
                 .items
                 .iter()
@@ -418,15 +422,16 @@ impl Render for CrmTasksView {
                     .text_color(app_theme.danger)
                     .child(msg.clone())
             }))
-            .child(
+            .child({
+                let view = view.clone();
                 Button::new("crm-tasks-refresh")
                     .outline()
                     .small()
                     .label("刷新")
                     .on_click(move |_ev, _w, cx| {
                         view.update(cx, |this, cx| this.reload(cx));
-                    }),
-            );
+                    })
+            });
 
         let rows = self.visible_rows(cx);
 
@@ -485,6 +490,7 @@ impl Render for CrmTasksView {
                     });
                     table.update(cx, |t, cx| t.set_rows_if_changed(&rows, cx));
                     v_flex()
+                        .id("crm-tasks-list-scroll")
                         .size_full()
                         .min_h_0()
                         .overflow_y_scroll()
@@ -752,23 +758,23 @@ fn card_meta_line(task: &TaskItem) -> String {
 fn columns() -> Vec<ColumnDef<TaskItem>> {
     vec![
         ColumnDef::text("title", "标题", |r, _| SharedString::from(r.title.clone())),
-        ColumnDef::text("status", "状态", |r, _| {
+        ColumnDef::text("status", "状态", |r: &TaskItem, _| {
             SharedString::from(task_status_label(&r.status))
         })
         .width(88.0),
-        ColumnDef::text("priority", "优先级", |r, _| {
+        ColumnDef::text("priority", "优先级", |r: &TaskItem, _| {
             SharedString::from(task_priority_label(&r.priority))
         })
         .width(72.0),
-        ColumnDef::text("type", "类型", |r, _| {
+        ColumnDef::text("type", "类型", |r: &TaskItem, _| {
             SharedString::from(task_type_label(&r.r#type))
         })
         .width(80.0),
-        ColumnDef::text("owner_name", "负责人", |r, _| {
+        ColumnDef::text("owner_name", "负责人", |r: &TaskItem, _| {
             SharedString::from(r.owner_name.clone().unwrap_or_else(|| "未指派".into()))
         })
         .width(96.0),
-        ColumnDef::text("related", "关联", |r, _| {
+        ColumnDef::text("related", "关联", |r: &TaskItem, _| {
             SharedString::from(match (&r.customer_name, &r.lead_name) {
                 (Some(c), _) => c.clone(),
                 (None, Some(l)) => l.clone(),
@@ -776,7 +782,7 @@ fn columns() -> Vec<ColumnDef<TaskItem>> {
             })
         })
         .width(120.0),
-        ColumnDef::text("due_date", "到期", |r, _| {
+        ColumnDef::text("due_date", "到期", |r: &TaskItem, _| {
             SharedString::from(due_time(r.due_date))
         })
         .width(132.0),

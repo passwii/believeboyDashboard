@@ -23,7 +23,7 @@
 
 use chrono::{Local, NaiveDate};
 use gpui::{
-    div, prelude::*, px, rgb, AsyncApp, Context, Entity, FontWeight, Render, SharedString,
+    div, prelude::*, px, AsyncApp, Context, Entity, FontWeight, Render, SharedString,
     WeakEntity, Window,
 };
 use gpui_component::{
@@ -655,10 +655,11 @@ fn render_cell(theme: &AppTheme, cell: Option<&ReportTypeStatus>) -> impl IntoEl
         .items_center()
         .justify_center()
         .bg(color)
+        // 收尾清点 BLF-804：裸白 → on_accent token（彩色底上的前景色）
         .child(
             div()
                 .text_sm()
-                .text_color(rgb(0xffffff))
+                .text_color(theme.on_accent)
                 .child(if uploaded { "✓" } else { "✗" }),
         )
 }

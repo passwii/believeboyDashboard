@@ -21,6 +21,12 @@
 //!   FilterToolbar + 虚拟化大表 + pinned 聚合分页条）
 //! - `sku_info` 运营 → SKU 信息（BLF-798，Pattern A 第二原型页：服务端分页 +
 //!   关键词搜索 + 启用状态筛选）
+//! - `crm_customers` / `crm_leads` / `crm_tasks` CRM 客户 / 线索 / 任务
+//!   （Stage13 BLF-804，基线视图接线；任务 = 列表 + 看板双形态 Pattern A 变体）
+//! - `crm_settings` CRM 设置（Stage13 BLF-804，Pattern D 变体只读配置面）
+//! - `page_render` Markdown/HTML 渲染工具（Stage13 BLF-804，Pattern C 变体）
+//! - `project_info` / `operator_management` / `alerts_center` /
+//!   `database_status` / `changelog` 系统管理五页（Stage13 BLF-804）
 //! - `placeholder`占位内容视图
 //!
 //! 后续每个 sidebar 子项对应一个真实 View，按 frontend sidebar 顺序推进。
@@ -40,6 +46,10 @@ pub mod crm_audit;
 pub mod customer_service;
 pub mod crm_dashboard;
 pub mod crm_follow_ups;
+pub mod crm_customers;
+pub mod crm_leads;
+pub mod crm_settings;
+pub mod crm_tasks;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;
@@ -52,7 +62,13 @@ pub mod markdown_to_word;
 pub mod master_rail;
 pub mod model_selection;
 pub mod monthly_report;
+pub mod alerts_center;
+pub mod changelog;
+pub mod database_status;
 pub mod new_product_calculation;
+pub mod operator_management;
+pub mod page_render;
+pub mod project_info;
 pub mod order_info;
 pub mod placeholder;
 pub mod virtual_office;

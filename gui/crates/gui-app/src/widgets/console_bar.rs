@@ -37,6 +37,10 @@ use crate::views::daily_analysis::DAILY_ANALYSIS_URL;
 use crate::views::dashboard::last_7_days_window;
 use crate::views::monthly_report::MONTHLY_REPORT_URL;
 use crate::views::sku_info::SKU_INFO_URL;
+
+/// 着陆页 URL（sidebar 之外的 landing；root.rs 启动默认显示）。
+/// Stage13（BLF-804）：着陆页接控制条项目选择器。
+pub(crate) const DASHBOARD_LANDING_URL: &str = "/dashboard";
 use crate::views::stat_band::{format_compact_currency, format_compact_number};
 use crate::widgets::data_table::TabularNumsExt;
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
@@ -69,6 +73,16 @@ impl ConsoleBarConfig {
 /// 按页面 URL 给出该页的 Console Bar 配置（BLF-795 三类代表页先行接入；
 /// 未声明的页面一律空配置——控制条保持纯 chrome 不占额外空间）。
 pub fn console_config_for_url(url: &str) -> ConsoleBarConfig {
+    // 着陆页（Stage13 BLF-804）：项目选择器（页内数据随项目重拉；
+    // 近 7 天窗口与 US 口径由页内数据源决定，不暴露站点/日期控件）
+    if url == DASHBOARD_LANDING_URL {
+        return ConsoleBarConfig {
+            project: true,
+            country: false,
+            date: false,
+            stat: false,
+        };
+    }
     // 销售数据：全四件套（验收基准页——切项目/站点/日期明细与汇总随之刷新）
     if url == DAILY_ANALYSIS_URL {
         return ConsoleBarConfig {
@@ -627,6 +641,11 @@ mod tests {
         assert!(monthly.project && monthly.country);
         assert!(!monthly.date, "财务月报月粒度由页内月份选择器承载");
         assert!(!monthly.stat);
+
+        // Stage13（BLF-804）：着陆页仅项目选择器（近 7 天/US 由页内数据源决定）
+        let landing = console_config_for_url(DASHBOARD_LANDING_URL);
+        assert!(landing.project);
+        assert!(!landing.country && !landing.date && !landing.stat);
 
         let other = console_config_for_url("/dashboard/ai/ai-chat");
         assert!(other.is_empty(), "未声明页面一律空配置");

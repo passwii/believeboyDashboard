@@ -13,9 +13,13 @@
 //!   JSON）不移植——GUI 无表单弹层先例，v1 只读主面覆盖「看客户」核心信号；
 //!   写操作走 web 端。
 
+
+// Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
+#![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
+
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, AsyncApp, Context, Entity, IntoElement, Render, SharedString, Styled, WeakEntity,
+    div, App, AsyncApp, Context, Entity, IntoElement, Render, SharedString, Styled, WeakEntity,
     Window,
 };
 use gpui_component::button::Button;
@@ -221,7 +225,7 @@ impl CrmCustomersView {
 
     /// 当前行集（Loaded 态按范围行内过滤——公海视图）
     fn visible_rows(&self, cx: &App) -> Vec<CustomerItem> {
-        match self.state.read(cx).as_ref() {
+        match self.state.read(cx) {
             CustomersState::Loaded(page) => page
                 .items
                 .iter()
@@ -249,7 +253,7 @@ impl Render for CrmCustomersView {
             .subtitle("客户档案 · mine/all 数据范围 · 公海视图 · 新建与批量操作走 web 端");
 
         let state = self.state.read(cx).clone();
-        let total = match &state {
+        let _total = match &state {
             CustomersState::Loaded(p) => p.total,
             _ => 0,
         };
@@ -290,15 +294,16 @@ impl Render for CrmCustomersView {
                     }),
             )
             .child(div().flex_1())
-            .child(
+            .child({
+                let view = view.clone();
                 Button::new("crm-customers-refresh")
                     .outline()
                     .small()
                     .label("刷新")
                     .on_click(move |_ev, _w, cx| {
                         view.update(cx, |this, cx| this.reload(cx));
-                    }),
-            );
+                    })
+            });
 
         let body: gpui::AnyElement = match &state {
             CustomersState::Loading => state_views::skeleton_loading(
@@ -328,13 +333,14 @@ impl Render for CrmCustomersView {
             .into_any_element(),
             CustomersState::Loaded(_) => {
                 // 表格懒建 + 行注入（render 期幂等）
+                let rows = self.visible_rows(cx);
                 let table = self.table.get_or_insert_with(|| {
                     cx.new(|_| DataTable::new("crm-customers-table", columns()).striped(true))
                 });
-                let rows = self.visible_rows(cx);
                 table.update(cx, |t, cx| t.set_rows_if_changed(&rows, cx));
 
                 v_flex()
+                    .id("crm-customers-scroll")
                     .size_full()
                     .min_h_0()
                     .overflow_y_scroll()
@@ -393,34 +399,34 @@ fn aggregate_items(rows: &[CustomerItem], total: usize) -> Vec<AggregateItem> {
 
 fn columns() -> Vec<ColumnDef<CustomerItem>> {
     vec![
-        ColumnDef::text("name", "客户名称", |r, theme| name_cell(r, theme)),
-        ColumnDef::text("rating", "等级", |r, theme| rating_pill(r, theme))
+        ColumnDef::text("name", "客户名称", name_cell),
+        ColumnDef::text("rating", "等级", rating_pill)
             .width(64.0),
-        ColumnDef::text("status", "状态", |r, _| {
+        ColumnDef::text("status", "状态", |r: &CustomerItem, _| {
             SharedString::from(status_label(&r.status))
         })
         .width(88.0),
-        ColumnDef::text("industry", "行业", |r, _| {
+        ColumnDef::text("industry", "行业", |r: &CustomerItem, _| {
             SharedString::from(r.industry.clone().unwrap_or_else(|| "—".into()))
         }),
-        ColumnDef::text("customer_type", "对象类型", |r, _| {
+        ColumnDef::text("customer_type", "对象类型", |r: &CustomerItem, _| {
             SharedString::from(r.customer_type.clone().unwrap_or_else(|| "—".into()))
         })
         .width(96.0),
-        ColumnDef::text("owner_name", "负责人", |r, _| {
+        ColumnDef::text("owner_name", "负责人", |r: &CustomerItem, _| {
             SharedString::from(owner_cell(r))
         })
         .width(96.0),
-        ColumnDef::text("contact_name", "联系人", |r, _| {
+        ColumnDef::text("contact_name", "联系人", |r: &CustomerItem, _| {
             SharedString::from(r.contact_name.clone().unwrap_or_else(|| "—".into()))
         })
         .width(96.0),
-        ColumnDef::text("contact_phone", "电话", |r, _| {
+        ColumnDef::text("contact_phone", "电话", |r: &CustomerItem, _| {
             SharedString::from(mono_or_dash(r.contact_phone.as_deref()))
         })
         .width(132.0)
         .align(CellAlign::Left),
-        ColumnDef::text("next_follow_at", "下次跟进", |r, _| {
+        ColumnDef::text("next_follow_at", "下次跟进", |r: &CustomerItem, _| {
             SharedString::from(follow_time(r.next_follow_at))
         })
         .width(140.0),

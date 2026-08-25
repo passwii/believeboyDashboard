@@ -1098,6 +1098,114 @@ fn default_true_crm() -> bool {
     true
 }
 
+// ---------------------------------------------------------------------------
+// P9 规则引擎 / 工作流设置（Stage13，BLF-804；对齐 backend
+// `RuleItem` / `WorkflowSettings` 与 frontend `lib/crm/types/rule.ts`）
+// ---------------------------------------------------------------------------
+
+/// 规则条件行（AND 语义；MVP 白名单字段见 `rule_condition_field_label`）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleCondition {
+    pub id: i64,
+    /// 白名单字段：days_since_created / days_since_last_follow /
+    /// last_follow_at / status / rating
+    pub field: String,
+    pub operator: String,
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+/// 规则动作行（MVP 仅 notify_owner）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleAction {
+    pub id: i64,
+    pub action_type: String,
+    #[serde(default)]
+    pub params: Option<serde_json::Value>,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+/// 一条规则（对齐 backend `RuleItem`，snake_case 原样）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleItem {
+    pub id: i64,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub entity_type: String,
+    pub event_type: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub priority: i64,
+    #[serde(default)]
+    pub conditions: Vec<CrmRuleCondition>,
+    #[serde(default)]
+    pub actions: Vec<CrmRuleAction>,
+}
+
+impl CrmRuleItem {
+    /// 触发条件中文描述（对齐 web `describeRule` 口径：当… → 提醒负责人）
+    pub fn trigger_kind_label(&self) -> String {
+        let entity = rule_entity_label(&self.entity_type);
+        let mut parts: Vec<String> = Vec::new();
+        for cond in &self.conditions {
+            match (cond.field.as_str(), cond.operator.as_str()) {
+                ("days_since_created", "gte") => {
+                    if let Some(v) = &cond.value {
+                        parts.push(format!("{}创建超过 {} 天", entity, v));
+                    }
+                }
+                ("days_since_last_follow", "gte") => {
+                    if let Some(v) = &cond.value {
+                        parts.push(format!("{}超过 {} 天未跟进", entity, v));
+                    }
+                }
+                ("last_follow_at", "is_null") => parts.push("从未跟进".to_string()),
+                _ => {}
+            }
+        }
+        if parts.is_empty() {
+            format!("{}符合条件", entity)
+        } else {
+            parts.join(" 且 ")
+        }
+    }
+
+    /// 执行动作中文摘要（MVP 仅提醒负责人）
+    pub fn action_summary(&self) -> String {
+        if self
+            .actions
+            .iter()
+            .any(|a| a.action_type == "notify_owner")
+        {
+            "提醒负责人".to_string()
+        } else {
+            "自定义动作".to_string()
+        }
+    }
+}
+
+/// 规则作用实体中文标签（未知原样返回）
+fn rule_entity_label(entity_type: &str) -> String {
+    match entity_type {
+        "customer" => "客户".to_string(),
+        "lead" => "线索".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// P9 工作流自动化设置（7 天无跟进提醒邮件；对齐 backend `WorkflowSettings`）
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CrmWorkflowSettings {
+    /// 无跟进提醒阈值（天，1~365）
+    pub stale_days: i64,
+    /// 提醒邮件开关
+    pub stale_email_enabled: bool,
+}
+
 /// 任务优先级 → 中文标签（对齐 web PRIORITY_LABELS）
 pub fn task_priority_label(priority: &str) -> String {
     match priority {
