@@ -28,6 +28,7 @@
 7. 每个 PR：先跑 `pnpm lint && pnpm build && pnpm test` 全绿；涉及公共组件/hook 用 CodeGraph 或全局搜索确认调用方；commit 信息中文 Conventional Commits。
 8. 移动端（<md）行为保持现状：L1/L2 收进左侧 Sheet 抽屉，Footer 隐藏。
 9. **顶部基准线贯通**：外壳各列（Rail / SubNav / Header 所在主列 / Inspector）顶部第一条横向分割线必须处于同一水平线上（见 §任务 1 的 Top Strip 规范）；任何新增的顶栏区块高度一律引用该常量，不得另起炉灶。
+10. **微细节按阶梯取值**：字号 / 图标尺寸 / 控件高度 / 大小写字距一律从 §任务 1b 的阶梯表中选档，禁止组件内自创新值（如 `text-[13px]`、`w-[17px]` 这类档外魔法数）。
 
 ## 任务 0：全局放大一档（✅ 已完成，保留作历史参考）
 
@@ -106,6 +107,75 @@
 
 > 注意与 BLF-804 / BLF-826 并行改造的协调：本项只动三个组件的**顶部区块高度**，不碰页面内容与筛选集成，冲突面极小；但若两者同分支排队，先合本项（纯外壳、零页面依赖）。
 
+## 任务 1b：外壳微细节规范——字号 / 图标 / 控件高度 / 字距（⭐ 2026-08-25 用户复核提出）
+
+> 背景用户原话：「分割线只是一个举例，更多在 sidebar / layout 上面这类型细节，字号、icon 等都需要打磨写好规范。」
+> 本节先给出**规范阶梯**（今后所有新代码照此取值），再附**现状审计表**（grep 已核实的偏离点，实施 PR 逐处替换收编）。
+
+### 1b-1. 字号阶梯（Shell 全域唯一取值表）
+
+| 档位 | 用途（穷举角色，不开放新档） |
+|---|---|
+| `text-xs`（12px） | 表格正文（term-table 已是）、kbd 快捷键、通知未读角标数字、下拉菜单次要说明、时间戳辅助文本 |
+| `text-sm`（14px） | Shell 基准字号：导航项文字、面板/组标题、面包屑、Footer Ticker、Inspector 条目、按钮与菜单项正文 |
+| `text-base`（16px） | KPI 磁贴主数值、Rail Logo 字符（仅此两处） |
+| `text-lg`（18px） | KPI 磁贴强调数值（上限，页面级不得再大） |
+
+规则：数值/金额/订单号/时间戳在以上任一档位上都叠加 `font-mono tabular-nums`；中文文案**不用** mono（Footer 当前把「快报」等中文标签也 mono 化了，见审计表 A5，应改为中文走默认字体栈、仅数值 mono）。
+
+### 1b-2. 图标阶梯（lucide-react，两档 + 一条例外）
+
+| 档位 | 尺寸 | strokeWidth | 适用场景 |
+|---|---|---|---|
+| L-图标 | `h-[18px] w-[18px]` | **1.75** | 独立图标按钮（Header 工具钮、Rail 业务域图标）——按钮内的主视觉图标 |
+| M-图标 | `h-4 w-4`（16px） | **1.75** | 行内伴随图标（SubNav 列表项前缀、Inspector 区块标题前缀、菜单项前缀） |
+| S-例外 | `h-3.5 w-3.5`（14px） | 1.75 | 仅限 Footer Ticker 行内小图标（32px 高度带内的贴身装饰），其他位置禁用 |
+
+规则：① strokeWidth 全域统一 1.75，**不允许依赖 lucide 默认值 2**（当前 Header 全部图标都没显式设置，见审计表 A1）；② 尺寸写在图标 className 上，但档位以本表为准，禁止出现 17px / 20px 等中间值。
+
+### 1b-3. 控件高度阶梯
+
+| 档位 | 用途 |
+|---|---|
+| `h-4`（16px） | 徽标本体（min-w-4）、状态点 |
+| `h-7`（28px） | 紧凑场景小方钮：仅限「已被更高档包裹的第二层控件」（如 SubNav 顶部基准带内的折叠钮）——**若该钮与 Header 同排对齐则必须升到 h-8** |
+| `h-8`（32px） | 标准图标按钮（Header/Inspector 工具钮）、SubNav 列表项、筛选条工具栏 |
+| `h-9`（36px） | 输入类与标题条：搜索触发框、TermPanel 标题条、TermTable 表头与行、Rail 底部次级钮 |
+| `h-10`（40px） | 主导航大按钮：Rail 业务域钮、Rail Logo 位 |
+
+规则：同一水平带上并排的可点击控件必须同档（顶部基准带内 SubNav 折叠钮 h-7 与 Header 内 h-8 并存即违反此条，见审计表 A3）；触控命中区最小 24px 不因档位放宽。
+
+### 1b-4. 大小写与字距（英文标签专用，中文不适用）
+
+| 角色 | 规范 |
+|---|---|
+| 面板/分组标题（SubNav 组头、Inspector 标题条、TermPanel h2、Footer 频道标签） | `uppercase tracking-wider`（0.05em）+ `font-semibold` + `text-term-muted` |
+| Inspector 区块小标题（最近访问 / 快捷操作这类二级标题） | 同上四件套，但降一级视觉权重：颜色用 `text-term-faint`、保留 `font-semibold`（现状漏了 semibold，见审计表 A2） |
+| 面包屑组名 | `uppercase tracking-wider`（现状是 tracking-wide，见审计表 A4，统一到 wider） |
+| 正文 / 导航项 / 数据单元格 | 不加 uppercase、不加 tracking（数据单元格保持 term-table 的 normal-case tracking-normal） |
+
+### 1b-5. kbd 快捷键规范（提取共享组件）
+
+现状两处手写 `<kbd>` 且细节漂移（subnav 带 `leading-4`、header 不带）。规范：新建 `frontend/components/terminal/term-kbd.tsx`，唯一实现 `border border-term-border px-1 font-mono text-xs leading-4 text-term-faint`；SubNav 搜索框与 Header 用户菜单两处替换为 `<TermKbd>⌘K</TermKbd>` 形态，后续 ⌘B 等提示复用。
+
+### 1b-6. 现状审计表（grep 核实，实施时逐处收编）
+
+| # | 偏离点 | 证据（file:line） | 应改为 |
+|---|---|---|---|
+| A1 | Header 全部图标未显式设 strokeWidth（吃到 lucide 默认 2），与 Rail/SubNav 的 1.75 不一致 | `terminal-header.tsx:107,116,188,190,201,213,243,255` | 统一补 `strokeWidth={1.75}` |
+| A2 | Inspector 二级标题缺 `font-semibold`，与面板标题族不一致 | `terminal-inspector.tsx:67,84` | 补 `font-semibold`（保持 text-term-faint） |
+| A3 | SubNav 折叠钮 h-7 与 Header 同排 h-8 图标钮不同档 | `terminal-subnav.tsx:74` | 升为 `h-8 w-8`（随 §任务 1 顶部基准带改造一起做） |
+| A4 | 面包屑组名 `tracking-wide`，其余标题族均为 `tracking-wider` | `terminal-header.tsx:122` | 改 `tracking-wider` |
+| A5 | Footer 整条 `font-mono` 把中文标签也 mono 化 | `terminal-footer.tsx:220` | 中文标签走默认字体栈（去整条 mono，仅在数值 span 上加 `font-mono tabular-nums`） |
+| A6 | kbd 两处手写实现漂移（leading-4 有无） | `terminal-subnav.tsx:90`、`terminal-header.tsx:268` | 提取 `<TermKbd>` 共享组件替换 |
+| A7 | Footer Bell h-3.5 属 S-例外档，但 LogOut 在 Header 下拉里也是 h-3.5（M 档场景用了 S 档） | `terminal-footer.tsx:265`、`terminal-header.tsx:284` | LogOut 升 `h-4 w-4`；Bell 维持例外档并在本表留档 |
+
+### 实施与验收
+
+- 一个 PR 收编 A1–A7（纯样式类名与一处小组件抽取，无逻辑变更，可与 §任务 1 同分支先后合入）；A5 涉及 Footer 渲染结构调整，跑 `terminal-footer` 现有单测并补「数值 span 含 font-mono、中文标签不含」断言。
+- 验收 grep：`grep -rn "strokeWidth" frontend/components/terminal/` 只允许 1.75；`text-[13px]` / `text-[15px]` 等 12/14 之外的正文档位为零；`<kbd` 在 terminal 目录下仅存在于 term-kbd.tsx。
+- 明暗两主题各目测一遍：图标粗细观感一致、标题字距一致、kbd 无错位。
+
 
 ## 任务 2：各页面精细化打磨（放大完成后分批做）
 
@@ -180,6 +250,7 @@ frontend/
 │   ├── header-filter-suite.tsx              # ★ Header 全局筛选组件族（Project/Country/DateRange/KPI 磁贴）
 │   ├── global-filter-context.tsx            # ★ 全局筛选态 Context（页面消费入口）
 │   ├── terminal-constants.ts                # ★ 全部结构尺寸/Ticker/动效常量（唯一尺寸来源）
+│   ├── term-kbd.tsx                          # kbd 快捷键共享组件（§任务 1b-5 新增）
 │   └── use-terminal-layout.ts               # 折叠状态持久化 hook
 ├── components/dashboard/search-command.tsx  # ⌘K 命令面板（待接 readRecents 最近访问）
 ├── lib/sidebar-config.ts                    # 导航分组配置（Rail/SubNav 数据源）
