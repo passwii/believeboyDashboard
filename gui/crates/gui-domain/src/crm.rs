@@ -865,3 +865,467 @@ mod audit_tests {
         assert_eq!(formatted.as_bytes()[10], b' ');
     }
 }
+// ---------------------------------------------------------------------------
+// 客户 / 线索 / 任务列表（Stage13，BLF-804）
+// ---------------------------------------------------------------------------
+
+/// 一条客户记录，字段对齐 backend `backend/app/schemas/crm.py` 的
+/// `CustomerItem`（GUI 只读主面消费子集 + 联系人 join 字段）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CustomerItem {
+    pub id: i64,
+    pub name: String,
+    #[serde(default)]
+    pub short_name: Option<String>,
+    #[serde(default)]
+    pub industry: Option<String>,
+    /// 对象类型：工厂/贸易商/同行/其他
+    #[serde(default)]
+    pub customer_type: Option<String>,
+    /// 意向服务：代运营/AI运营/运营服务/其他
+    #[serde(default)]
+    pub interested_service: Option<String>,
+    /// 客户等级（A/B/C/D，4 维价值评分汇总）
+    pub rating: String,
+    /// 客户状态（active/churned/…；后端自由字符串）
+    pub status: String,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub owner_name: Option<String>,
+    // primary contact join 字段
+    #[serde(default)]
+    pub contact_name: Option<String>,
+    #[serde(default)]
+    pub contact_phone: Option<String>,
+    #[serde(default)]
+    pub contact_email: Option<String>,
+    #[serde(default)]
+    pub contact_wechat: Option<String>,
+    #[serde(default)]
+    pub address: Option<String>,
+    #[serde(default)]
+    pub website: Option<String>,
+    #[serde(default)]
+    pub remark: Option<String>,
+    #[serde(default)]
+    pub last_follow_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub next_follow_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl CustomerItem {
+    /// 是否公海客户（owner 为空）
+    pub fn is_sea(&self) -> bool {
+        self.owner_id.is_none()
+    }
+}
+
+/// 客户分页结果，字段对齐 backend `CustomerListResponse`
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CustomerPage {
+    #[serde(default)]
+    pub items: Vec<CustomerItem>,
+    #[serde(default)]
+    pub total: i64,
+    #[serde(default)]
+    pub page: i64,
+    #[serde(default)]
+    pub page_size: i64,
+}
+
+/// 一条线索记录，字段对齐 backend `LeadItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LeadItem {
+    pub id: i64,
+    pub name: String,
+    #[serde(default)]
+    pub company: Option<String>,
+    #[serde(default)]
+    pub phone: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub wechat: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    /// 线索状态（new/contacting/qualified/converted/discarded）
+    pub status: String,
+    /// 意向（high/medium/low）
+    #[serde(default = "default_lead_intent")]
+    pub intent: String,
+    #[serde(default)]
+    pub customer_type: Option<String>,
+    #[serde(default)]
+    pub interested_service: Option<String>,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub owner_name: Option<String>,
+    #[serde(default)]
+    pub expected_amount: Option<f64>,
+    #[serde(default)]
+    pub expected_close_date: Option<String>,
+    #[serde(default)]
+    pub remark: Option<String>,
+    #[serde(default)]
+    pub next_follow_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub converted_to_customer_id: Option<i64>,
+    #[serde(default)]
+    pub converted_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+fn default_lead_intent() -> String {
+    "medium".to_string()
+}
+
+/// 线索状态 → 中文标签（对齐 web lead.enum STATUS_LABELS；未知原样返回）
+pub fn lead_status_label(status: &str) -> String {
+    match status {
+        "new" => "新线索",
+        "contacting" => "接触中",
+        "qualified" => "已验证",
+        "converted" => "已转化",
+        "discarded" => "已弃置",
+        _ => return status.to_string(),
+    }
+    .to_string()
+}
+
+/// 意向等级 → 中文标签（对齐 web INTENT_LABELS）
+pub fn lead_intent_label(intent: &str) -> String {
+    match intent {
+        "high" => "高意向",
+        "medium" => "中意向",
+        "low" => "低意向",
+        _ => return intent.to_string(),
+    }
+    .to_string()
+}
+
+/// 线索分页结果，字段对齐 backend `LeadListResponse`
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct LeadPage {
+    #[serde(default)]
+    pub items: Vec<LeadItem>,
+    #[serde(default)]
+    pub total: i64,
+    #[serde(default)]
+    pub page: i64,
+    #[serde(default)]
+    pub page_size: i64,
+}
+
+/// 一条 CRM 任务，字段对齐 backend `TaskItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskItem {
+    pub id: i64,
+    pub title: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<DateTime<Utc>>,
+    /// 优先级（high/medium/low）
+    pub priority: String,
+    /// 状态（pending/in_progress/done/cancelled）
+    pub status: String,
+    /// 类型（follow_up/call/visit/custom）
+    #[serde(default = "default_task_type")]
+    pub r#type: String,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub owner_name: Option<String>,
+    #[serde(default)]
+    pub customer_id: Option<i64>,
+    #[serde(default)]
+    pub customer_name: Option<String>,
+    #[serde(default)]
+    pub lead_id: Option<i64>,
+    #[serde(default)]
+    pub lead_name: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+fn default_task_type() -> String {
+    "custom".to_string()
+}
+
+impl TaskItem {
+    /// 是否在看板三列之一（cancelled 不入看板，对齐 web isBoardStatus）
+    pub fn on_board(&self) -> bool {
+        matches!(self.status.as_str(), "pending" | "in_progress" | "done")
+    }
+}
+
+/// 任务分页结果，字段对齐 backend `TaskListResponse`
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TaskPage {
+    #[serde(default)]
+    pub items: Vec<TaskItem>,
+    #[serde(default)]
+    pub total: i64,
+    #[serde(default)]
+    pub page: i64,
+    #[serde(default)]
+    pub page_size: i64,
+}
+
+/// CRM 协作用户（负责人下拉数据源），字段对齐 backend `CrmUserItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmUser {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub email: String,
+    #[serde(default)]
+    pub role_type: Option<String>,
+    #[serde(default = "default_true_crm")]
+    pub is_active: bool,
+}
+
+fn default_true_crm() -> bool {
+    true
+}
+
+// ---------------------------------------------------------------------------
+// P9 规则引擎 / 工作流设置（Stage13，BLF-804；对齐 backend
+// `RuleItem` / `WorkflowSettings` 与 frontend `lib/crm/types/rule.ts`）
+// ---------------------------------------------------------------------------
+
+/// 规则条件行（AND 语义；MVP 白名单字段见 `rule_condition_field_label`）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleCondition {
+    pub id: i64,
+    /// 白名单字段：days_since_created / days_since_last_follow /
+    /// last_follow_at / status / rating
+    pub field: String,
+    pub operator: String,
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+/// 规则动作行（MVP 仅 notify_owner）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleAction {
+    pub id: i64,
+    pub action_type: String,
+    #[serde(default)]
+    pub params: Option<serde_json::Value>,
+    #[serde(default)]
+    pub sort_order: i64,
+}
+
+/// 一条规则（对齐 backend `RuleItem`，snake_case 原样）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CrmRuleItem {
+    pub id: i64,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub entity_type: String,
+    pub event_type: String,
+    pub enabled: bool,
+    #[serde(default)]
+    pub priority: i64,
+    #[serde(default)]
+    pub conditions: Vec<CrmRuleCondition>,
+    #[serde(default)]
+    pub actions: Vec<CrmRuleAction>,
+}
+
+impl CrmRuleItem {
+    /// 触发条件中文描述（对齐 web `describeRule` 口径：当… → 提醒负责人）
+    pub fn trigger_kind_label(&self) -> String {
+        let entity = rule_entity_label(&self.entity_type);
+        let mut parts: Vec<String> = Vec::new();
+        for cond in &self.conditions {
+            match (cond.field.as_str(), cond.operator.as_str()) {
+                ("days_since_created", "gte") => {
+                    if let Some(v) = &cond.value {
+                        parts.push(format!("{}创建超过 {} 天", entity, v));
+                    }
+                }
+                ("days_since_last_follow", "gte") => {
+                    if let Some(v) = &cond.value {
+                        parts.push(format!("{}超过 {} 天未跟进", entity, v));
+                    }
+                }
+                ("last_follow_at", "is_null") => parts.push("从未跟进".to_string()),
+                _ => {}
+            }
+        }
+        if parts.is_empty() {
+            format!("{}符合条件", entity)
+        } else {
+            parts.join(" 且 ")
+        }
+    }
+
+    /// 执行动作中文摘要（MVP 仅提醒负责人）
+    pub fn action_summary(&self) -> String {
+        if self
+            .actions
+            .iter()
+            .any(|a| a.action_type == "notify_owner")
+        {
+            "提醒负责人".to_string()
+        } else {
+            "自定义动作".to_string()
+        }
+    }
+}
+
+/// 规则作用实体中文标签（未知原样返回）
+fn rule_entity_label(entity_type: &str) -> String {
+    match entity_type {
+        "customer" => "客户".to_string(),
+        "lead" => "线索".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// P9 工作流自动化设置（7 天无跟进提醒邮件；对齐 backend `WorkflowSettings`）
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CrmWorkflowSettings {
+    /// 无跟进提醒阈值（天，1~365）
+    pub stale_days: i64,
+    /// 提醒邮件开关
+    pub stale_email_enabled: bool,
+}
+
+/// 任务优先级 → 中文标签（对齐 web PRIORITY_LABELS）
+pub fn task_priority_label(priority: &str) -> String {
+    match priority {
+        "high" => "高",
+        "medium" => "中",
+        "low" => "低",
+        _ => return priority.to_string(),
+    }
+    .to_string()
+}
+
+/// 任务类型 key → 中文标签（对齐 web TASK_TYPE_LABELS）
+pub fn task_type_label(task_type: &str) -> String {
+    match task_type {
+        "follow_up" => "跟进",
+        "call" => "电话",
+        "visit" => "拜访",
+        "custom" => "自定义",
+        _ => return task_type.to_string(),
+    }
+    .to_string()
+}
+
+/// 任务状态 → 中文标签（对齐 web TASK_STATUS_LABELS）
+pub fn task_status_label(status: &str) -> String {
+    match status {
+        "pending" => "待处理",
+        "in_progress" => "进行中",
+        "done" => "已完成",
+        "cancelled" => "已取消",
+        _ => return status.to_string(),
+    }
+    .to_string()
+}
+
+#[cfg(test)]
+mod crm_list_tests {    use super::*;
+
+    /// 客户列表 snake_case 解析：可空字段缺省 + 联系人 join 字段
+    #[test]
+    fn customer_page_parses_snake_case() {
+        let payload = r#"{
+            "items": [{
+                "id": 1,
+                "name": "测试客户",
+                "rating": "A",
+                "status": "active",
+                "owner_id": "u-1",
+                "owner_name": "张三",
+                "contact_name": "李四",
+                "created_at": "2026-08-01T10:00:00+08:00",
+                "updated_at": "2026-08-20T10:00:00+08:00"
+            }],
+            "total": 1, "page": 1, "page_size": 20
+        }"#;
+        let page: CustomerPage = serde_json::from_str(payload).expect("解析失败");
+        assert_eq!(page.total, 1);
+        let c = &page.items[0];
+        assert_eq!(c.rating, "A");
+        assert!(!c.is_sea());
+        assert_eq!(c.contact_name.as_deref(), Some("李四"));
+        assert_eq!(c.industry, None);
+    }
+
+    /// 公海判定：owner_id 为 None 即公海
+    #[test]
+    fn customer_sea_detection() {
+        let payload = r#"{
+            "items": [{
+                "id": 2, "name": "公海客户", "rating": "B", "status": "active",
+                "owner_id": null,
+                "created_at": "2026-08-01T10:00:00+08:00",
+                "updated_at": "2026-08-20T10:00:00+08:00"
+            }],
+            "total": 1, "page": 1, "page_size": 20
+        }"#;
+        let page: CustomerPage = serde_json::from_str(payload).unwrap();
+        assert!(page.items[0].is_sea());
+    }
+
+    /// 线索解析 + 状态/意向标签映射
+    #[test]
+    fn lead_page_parses_and_labels() {
+        let payload = r#"{
+            "items": [{
+                "id": 5, "name": "线索甲", "company": "甲公司", "status": "new",
+                "intent": "high",
+                "created_at": "2026-08-01T10:00:00+08:00",
+                "updated_at": "2026-08-20T10:00:00+08:00"
+            }],
+            "total": 1, "page": 1, "page_size": 20
+        }"#;
+        let page: LeadPage = serde_json::from_str(payload).unwrap();
+        assert_eq!(page.items[0].intent, "high");
+        assert_eq!(lead_status_label("contacting"), "接触中");
+        assert_eq!(lead_status_label("weird"), "weird");
+        assert_eq!(lead_intent_label("low"), "低意向");
+    }
+
+    /// 任务解析：type 键为 Rust 关键字（r#type）+ 看板归属
+    #[test]
+    fn task_page_parses_and_board_membership() {
+        let payload = r#"{
+            "items": [
+                {"id": 7, "title": "跟进任务", "priority": "high", "status": "pending",
+                 "type": "follow_up",
+                 "created_at": "2026-08-01T10:00:00+08:00",
+                 "updated_at": "2026-08-20T10:00:00+08:00"},
+                {"id": 8, "title": "已取消", "priority": "low", "status": "cancelled",
+                 "created_at": "2026-08-01T10:00:00+08:00",
+                 "updated_at": "2026-08-20T10:00:00+08:00"}
+            ],
+            "total": 2, "page": 1, "page_size": 100
+        }"#;
+        let page: TaskPage = serde_json::from_str(payload).unwrap();
+        assert_eq!(page.items[0].r#type, "follow_up");
+        assert!(page.items[0].on_board());
+        assert!(!page.items[1].on_board(), "cancelled 不入看板");
+        assert_eq!(task_status_label("in_progress"), "进行中");
+        assert_eq!(task_priority_label("high"), "高");
+        assert_eq!(task_type_label("visit"), "拜访");
+    }
+}

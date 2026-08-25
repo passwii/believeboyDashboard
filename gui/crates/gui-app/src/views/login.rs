@@ -187,6 +187,9 @@ fn login_logo_tile() -> impl gpui::IntoElement {
     const ICON_BOTTOM: u32 = 0x06488c; // make-icon.py BOTTOM（深蓝）
     const TILE_SIZE: f32 = 72.0; // 登录窗顶部图块边长（px）
     const TILE_RADIUS: f32 = 13.0; // ≈ make-icon RADIUS 比例（185/1024 ≈ 18%）
+    // 收尾清点 BLF-804：白色是 App 图标作品的一部分（make-icon.py 同源），
+    // 非主题语义色，不随亮暗切换 —— 命名常量承载而非裸字面量。
+    const ICON_LOGO_WHITE: u32 = 0xffffff;
 
     div()
         .size(px(TILE_SIZE))
@@ -200,7 +203,7 @@ fn login_logo_tile() -> impl gpui::IntoElement {
             svg()
                 .path("icons/logo.svg")
                 .size_full()
-                .text_color(rgb(0xffffff)),
+                .text_color(rgb(ICON_LOGO_WHITE)),
         )
 }
 

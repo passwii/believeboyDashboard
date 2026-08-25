@@ -26,7 +26,10 @@
 
 use crate::client::Client;
 use crate::error::ApiError;
-use gui_domain::crm::{AuditLogPage, DashboardStats, FollowUpGroups, LifecycleBoard};
+use gui_domain::crm::{
+    AuditLogPage, CustomerPage, DashboardStats, FollowUpGroups, LeadPage, LifecycleBoard, TaskItem,
+    TaskPage,
+};
 
 /// `GET …/crm/dashboard/stats`
 pub(crate) const DASHBOARD_STATS_PATH: &str = "/api/v1/crm/dashboard/stats";
@@ -417,5 +420,229 @@ mod audit_tests {
         m.assert();
         assert_eq!(err.status(), Some(403));
         assert_eq!(err.user_message(), "仅管理员可访问");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 客户 / 线索 / 任务列表（Stage13，BLF-804）
+// ---------------------------------------------------------------------------
+
+pub(crate) const CRM_CUSTOMERS_PATH: &str = "/api/v1/crm/customers";
+pub(crate) const CRM_LEADS_PATH: &str = "/api/v1/crm/leads";
+pub(crate) const CRM_TASKS_PATH: &str = "/api/v1/crm/tasks";
+pub(crate) const CRM_USERS_PATH: &str = "/api/v1/crm/users";
+pub(crate) const CRM_RULES_PATH: &str = "/api/v1/crm/rules";
+pub(crate) const CRM_WORKFLOW_SETTINGS_PATH: &str = "/api/v1/crm/settings/workflow";
+
+/// 域类型 re-export（视图层统一从 `gui_api_client::crm` 取 CRM 类型；
+/// `CrmUser` 等定义在 gui-domain，此处补齐公共 API 面）
+pub use gui_domain::crm::{CrmRuleItem, CrmUser, CrmWorkflowSettings};
+
+/// CRM 列表查询参数（客户/线索共用；任务另有 type/status 维度走独立方法）
+#[derive(Debug, Clone, Default)]
+pub struct CrmListParams {
+    /// `mine` | `all`（非管理员请求 all 后端静默降级 mine）
+    pub scope: String,
+    /// 关键词（名称/公司等模糊匹配）
+    pub keyword: Option<String>,
+    pub page: usize,
+    pub page_size: usize,
+}
+
+impl CrmListParams {
+    /// 默认参数：全部范围 + 第 1 页 100 行（GUI 单页大表口径）
+    pub fn new() -> Self {
+        Self {
+            scope: "all".to_string(),
+            keyword: None,
+            page: 1,
+            page_size: 100,
+        }
+    }
+
+    fn query(&self) -> Vec<(&'static str, String)> {
+        let mut q: Vec<(&'static str, String)> = Vec::with_capacity(4);
+        q.push(("scope", self.scope.clone()));
+        if let Some(kw) = &self.keyword {
+            if !kw.is_empty() {
+                q.push(("keyword", kw.clone()));
+            }
+        }
+        q.push(("page", self.page.to_string()));
+        q.push(("page_size", self.page_size.to_string()));
+        q
+    }
+}
+
+impl Client {
+    /// 客户分页列表（对齐 web `listCustomers`）
+    pub async fn crm_customers(&self, params: &CrmListParams) -> Result<CustomerPage, ApiError> {
+        let page: CustomerPage = self.get_json(CRM_CUSTOMERS_PATH, &params.query()).await?;
+        Ok(page)
+    }
+
+    /// 线索分页列表（对齐 web `listLeads`）
+    pub async fn crm_leads(&self, params: &CrmListParams) -> Result<LeadPage, ApiError> {
+        let page: LeadPage = self.get_json(CRM_LEADS_PATH, &params.query()).await?;
+        Ok(page)
+    }
+
+    /// 任务分页列表（对齐 web `listTasks`；`type` / `status` 可选白名单值）
+    ///
+    /// - `task_type`：follow_up/call/visit/custom；None = 全部类型
+    /// - `status`：pending/in_progress/done/cancelled；None = 全部状态
+    pub async fn crm_tasks(
+        &self,
+        params: &CrmListParams,
+        task_type: Option<&str>,
+        status: Option<&str>,
+    ) -> Result<TaskPage, ApiError> {
+        let mut query = params.query();
+        // 后端 sort_by 默认 due_date asc（看板列内即到期序），无需显式传
+        if let Some(t) = task_type {
+            query.push(("type", t.to_string()));
+        }
+        if let Some(s) = status {
+            query.push(("status", s.to_string()));
+        }
+        let page: TaskPage = self.get_json(CRM_TASKS_PATH, &query).await?;
+        Ok(page)
+    }
+
+    /// 任务状态变更（对齐 web `setTaskStatus`；POST /tasks/{id}/status）
+    ///
+    /// 返回服务端校正后的最新任务（completed_at 等由后端置位）。
+    pub async fn crm_set_task_status(
+        &self,
+        task_id: i64,
+        status: &str,
+    ) -> Result<TaskItem, ApiError> {
+        let path = format!("{CRM_TASKS_PATH}/{task_id}/status");
+        let body = serde_json::json!({ "status": status });
+        let item: TaskItem = self.request_json(reqwest::Method::POST, &path, &[], Some(&body)).await?;
+        Ok(item)
+    }
+
+    /// CRM 协作用户列表（负责人下拉数据源；对齐 web `useCrmUsers`）
+    pub async fn crm_users(&self) -> Result<Vec<CrmUser>, ApiError> {
+        let users: Vec<CrmUser> = self.get_json(CRM_USERS_PATH, &[]).await?;
+        Ok(users)
+    }
+
+    /// 规则引擎规则列表（Stage13 BLF-804；对齐 web `client.listRules()`；
+    /// admin-gated，非管理员 403 → 调用方落 Forbidden 态）
+    pub async fn crm_rules(&self) -> Result<Vec<CrmRuleItem>, ApiError> {
+        let rules: Vec<CrmRuleItem> = self.get_json(CRM_RULES_PATH, &[]).await?;
+        Ok(rules)
+    }
+
+    /// 工作流自动化设置（Stage13 BLF-804；7 天无跟进提醒阈值/邮件开关；
+    /// admin-gated 只读——更新走 web 端）
+    pub async fn crm_workflow_settings(&self) -> Result<CrmWorkflowSettings, ApiError> {
+        self.get_json(CRM_WORKFLOW_SETTINGS_PATH, &[]).await
+    }
+}
+
+#[cfg(test)]
+mod crm_list_tests {
+    use super::*;
+
+    /// 带会话 client（与主测试模块同款）
+    fn session_client(base_url: &str) -> Client {
+        let session = crate::client::AuthSession {
+            user_id: "u_1".into(),
+            email: "demo@believeboy.com".into(),
+            session_id: "sess_1".into(),
+            user_name: Some("测试".into()),
+            operator_name_zh: Some("测试运营".into()),
+            role_type: gui_domain::auth::UserRoleType::Operator,
+            is_admin: false,
+        };
+        Client::new(base_url).with_session(session)
+    }
+
+    #[test]
+    fn paths_match_backend_routes() {
+        assert_eq!(CRM_CUSTOMERS_PATH, "/api/v1/crm/customers");
+        assert_eq!(CRM_LEADS_PATH, "/api/v1/crm/leads");
+        assert_eq!(CRM_TASKS_PATH, "/api/v1/crm/tasks");
+        assert_eq!(CRM_USERS_PATH, "/api/v1/crm/users");
+    }
+
+    #[test]
+    fn crm_list_params_default_query_shape() {
+        let p = CrmListParams::new();
+        let q = p.query();
+        assert!(q.contains(&("scope", "all".to_string())));
+        assert!(q.contains(&("page", "1".to_string())));
+        assert!(!q.iter().any(|(k, _)| *k == "keyword"), "无关键词不带 keyword");
+        // 带 keyword 时携带
+        let mut p2 = CrmListParams::new();
+        p2.keyword = Some("甲".to_string());
+        assert!(p2.query().iter().any(|(k, v)| *k == "keyword" && v == "甲"));
+    }
+
+    /// mock HTTP：customers 携带 scope/page/page_size 并解析 snake_case 响应
+    #[tokio::test]
+    async fn crm_customers_sends_query_and_parses() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/api/v1/crm/customers")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("scope".into(), "all".into()),
+                mockito::Matcher::UrlEncoded("page".into(), "1".into()),
+                mockito::Matcher::UrlEncoded("page_size".into(), "100".into()),
+            ]))
+            .match_header("X-User-Id", "u_1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"items": [{"id": 1, "name": "测试客户", "rating": "A",
+                    "status": "active", "owner_id": "u-1", "owner_name": "张三",
+                    "created_at": "2026-08-01T10:00:00+08:00",
+                    "updated_at": "2026-08-20T10:00:00+08:00"}],
+                    "total": 1, "page": 1, "page_size": 100}"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client.crm_customers(&CrmListParams::new()).await.expect("请求失败");
+        m.assert();
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.items[0].owner_name.as_deref(), Some("张三"));
+    }
+
+    /// mock HTTP：tasks 携带 type/status 过滤并解析
+    #[tokio::test]
+    async fn crm_tasks_sends_filters_and_parses() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", "/api/v1/crm/tasks")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("scope".into(), "mine".into()),
+                mockito::Matcher::UrlEncoded("type".into(), "follow_up".into()),
+                mockito::Matcher::UrlEncoded("status".into(), "pending".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{"items": [{"id": 7, "title": "跟进任务", "priority": "high",
+                    "status": "pending", "type": "follow_up",
+                    "created_at": "2026-08-01T10:00:00+08:00",
+                    "updated_at": "2026-08-20T10:00:00+08:00"}],
+                    "total": 1, "page": 1, "page_size": 100}"#,
+            )
+            .create();
+
+        let client = session_client(&server.url());
+        let mut params = CrmListParams::new();
+        params.scope = "mine".to_string();
+        let resp = client
+            .crm_tasks(&params, Some("follow_up"), Some("pending"))
+            .await
+            .expect("请求失败");
+        m.assert();
+        assert_eq!(resp.items.len(), 1);
+        assert_eq!(resp.items[0].r#type, "follow_up");
     }
 }

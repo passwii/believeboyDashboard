@@ -85,14 +85,15 @@ fn fmt_percent_1(rate: f64) -> String {
     format!("{:.1}%", rate * 100.0)
 }
 
-/// 漏斗各阶段条色（对齐 web gradient 收口色：sky→cyan→teal→emerald）
-fn stage_color(stage: &str) -> Hsla {
+/// 漏斗各阶段条色（收尾清点 BLF-804：裸 hex 收敛到主题图表色板——
+/// 亮暗两态成组，蓝系递进表「新→联系中→已验证」，转化态用成功色收口）
+fn stage_color(stage: &str, theme: &AppTheme) -> Hsla {
     match stage {
-        "new" => gpui::rgb(0x0EA5E9).into(),
-        "contacting" => gpui::rgb(0x06B6D4).into(),
-        "qualified" => gpui::rgb(0x14B8A6).into(),
-        "converted" => gpui::rgb(0x10B981).into(),
-        _ => gpui::rgb(0x94A3B8).into(),
+        "new" => theme.chart_primary,
+        "contacting" => theme.chart_secondary,
+        "qualified" => theme.chart_tertiary,
+        "converted" => theme.success,
+        _ => theme.text_muted,
     }
 }
 
@@ -578,7 +579,7 @@ fn render_funnel_bars(stages: &[FunnelStageBar], theme: &AppTheme) -> impl IntoE
                                 .h_full()
                                 .w(relative(ratio.clamp(if stage.value > 0 { 0.02 } else { 0.0 }, 1.0)))
                                 .rounded(px(theme.radius))
-                                .bg(stage_color(stage.stage)),
+                                .bg(stage_color(stage.stage, theme)),
                         ),
                 )
                 .child(
@@ -826,7 +827,7 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                         .when(b.count > 0, |this| {
                             this.child(
                                 div()
-                                    .text_size(px(11.0))
+                                    .text_size(px(crate::theme::FONT_XS))
                                     .text_color(theme.text_muted)
                                     .child(b.count.to_string()),
                             )
@@ -850,7 +851,7 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                     div()
                         .flex_1()
                         .text_center()
-                        .text_size(px(11.0))
+                        .text_size(px(crate::theme::FONT_XS))
                         .text_color(theme.text_muted)
                         .truncate()
                         .child(short_bucket_label(&b.label))
@@ -891,13 +892,13 @@ fn render_summary_chips(dist: &LifecycleDistribution, theme: &AppTheme) -> impl 
                 .bg(theme.muted_fill.opacity(0.6))
                 .child(
                     div()
-                        .text_size(px(11.0))
+                        .text_size(px(crate::theme::FONT_XS))
                         .text_color(theme.text_muted)
                         .child(label.to_string()),
                 )
                 .child(
                     div()
-                        .text_size(px(11.0))
+                        .text_size(px(crate::theme::FONT_XS))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(theme.text_primary)
                         .child(value),
@@ -930,7 +931,7 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                 .child(
                     div()
                         .w(px(52.0))
-                        .text_size(px(11.0))
+                        .text_size(px(crate::theme::FONT_XS))
                         .text_color(theme.text_secondary)
                         .truncate()
                         .child(stage.label.clone()),
@@ -953,7 +954,7 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                     div()
                         .w(px(36.0))
                         .text_right()
-                        .text_size(px(11.0))
+                        .text_size(px(crate::theme::FONT_XS))
                         .text_color(theme.text_muted)
                         .child(format!("{} 个", stage.value)),
                 )

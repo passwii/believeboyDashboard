@@ -236,13 +236,30 @@ impl DashboardView {
 
     /// 切换选中项目 → 立即 reload（项目切换重新拉数据）。
     /// 选中同一项目为 no-op，避免无意义的重复请求。
-    #[allow(dead_code)] // GUI-8 项目选择器接入前仅供测试使用
     pub fn select_project(&mut self, project_id: Option<ProjectId>, cx: &mut Context<Self>) {
         if project_id == self.selected_project_id {
             return;
         }
         self.selected_project_id = project_id;
         self.reload(cx);
+    }
+
+    /// Stage13（BLF-804）：控制条筛选接入着陆页——项目维度消费，
+    /// 同值 no-op；返回是否触发 reload（对齐 daily_analysis 契约）。
+    /// 着陆页固定近 7 天窗口与 US 口径（页内数据源决定），日期/站点
+    /// 变更不重拉。
+    pub fn apply_console_filter(
+        &mut self,
+        project_id: Option<i64>,
+        _country: &'static str,
+        _range: crate::widgets::date_range::DateRange,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if project_id == self.selected_project_id {
+            return false;
+        }
+        self.select_project(project_id, cx);
+        true
     }
 
     /// 应用拉取结果：竞态保护（`request_id` 过期 → 丢弃，不触碰状态）。
