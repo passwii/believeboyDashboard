@@ -300,7 +300,16 @@ impl Render for AutoUploadView {
             }
         };
         let tabs = tabs_zone(div(), body);
-        pattern_b_shell(&theme, "auto-upload", header, toolbar, 0.0, div(), div(), tabs)
+        pattern_b_shell(
+            &theme,
+            "auto-upload",
+            header,
+            toolbar,
+            0.0,
+            div(),
+            div(),
+            tabs,
+        )
     }
 }
 

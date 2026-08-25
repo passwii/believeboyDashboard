@@ -33,9 +33,7 @@ use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{h_flex, v_flex, Disableable, Icon, IconName, Sizable};
 
-use crate::markdown_export::{
-    create_word_filename, format_file_size, markdown_to_docx_bytes,
-};
+use crate::markdown_export::{create_word_filename, format_file_size, markdown_to_docx_bytes};
 use crate::theme::AppTheme;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
@@ -257,7 +255,11 @@ impl MarkdownToWordView {
                 h_flex()
                     .items_center()
                     .gap_2()
-                    .child(Icon::new(IconName::File).with_size(px(16.)).text_color(theme.accent))
+                    .child(
+                        Icon::new(IconName::File)
+                            .with_size(px(16.))
+                            .text_color(theme.accent),
+                    )
                     .child(
                         div()
                             .text_sm()
@@ -367,21 +369,17 @@ impl Render for MarkdownToWordView {
                     .child("上方打开文件，下方直接粘贴或编辑 Markdown 内容。"),
             )
             .child(
-                h_flex()
-                    .items_center()
-                    .gap_3()
-                    .child(open_button)
-                    .children(
-                        self.source_file_name
-                            .as_deref()
-                            .zip(self.source_file_size)
-                            .map(|(name, size)| {
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.text_muted)
-                                    .child(source_meta(name, size))
-                            }),
-                    ),
+                h_flex().items_center().gap_3().child(open_button).children(
+                    self.source_file_name
+                        .as_deref()
+                        .zip(self.source_file_size)
+                        .map(|(name, size)| {
+                            div()
+                                .text_xs()
+                                .text_color(theme.text_muted)
+                                .child(source_meta(name, size))
+                        }),
+                ),
             )
             .child(
                 h_flex()
@@ -437,7 +435,11 @@ impl Render for MarkdownToWordView {
                         h_flex()
                             .items_center()
                             .gap_2()
-                            .child(Icon::new(IconName::Eye).with_size(px(16.)).text_color(theme.accent))
+                            .child(
+                                Icon::new(IconName::Eye)
+                                    .with_size(px(16.))
+                                    .text_color(theme.accent),
+                            )
                             .child(
                                 div()
                                     .text_sm()
@@ -479,9 +481,11 @@ impl Render for MarkdownToWordView {
             .gap_4()
             .p_6()
             .bg(theme.window_bg)
-            .child(PageHeader::new("Markdown 转换").subtitle(
-                "粘贴或打开 Markdown，右侧实时预览文档结构，一键导出为 Word（DOCX）。",
-            ))
+            .child(
+                PageHeader::new("Markdown 转换").subtitle(
+                    "粘贴或打开 Markdown，右侧实时预览文档结构，一键导出为 Word（DOCX）。",
+                ),
+            )
             .children(self.status.as_ref().map(|status| {
                 let color = if status.is_error() {
                     theme.danger
@@ -503,8 +507,14 @@ impl Render for MarkdownToWordView {
             }))
             .child(
                 div().flex_1().min_h_0().child(
-                    content_guard()
-                        .child(h_flex().h_full().min_h_0().gap_4().child(editor_card).child(preview_card)),
+                    content_guard().child(
+                        h_flex()
+                            .h_full()
+                            .min_h_0()
+                            .gap_4()
+                            .child(editor_card)
+                            .child(preview_card),
+                    ),
                 ),
             )
     }

@@ -13,10 +13,14 @@
 //! 色板统一走 `AppTheme`（`chart_primary / chart_secondary / chart_tertiary /
 //! chart_palette()`），亮暗两态由 theme.rs 保证对比度。
 
-use gpui::{div, prelude::*, px, FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled};
+use gpui::{
+    div, prelude::*, px, FontWeight, Hsla, IntoElement, ParentElement, SharedString, Styled,
+};
 use gpui_component::{
     chart::{AreaChart, BarChart, LineChart, PieChart},
-    h_flex, skeleton::Skeleton, v_flex, Icon, Sizable, StyledExt,
+    h_flex,
+    skeleton::Skeleton,
+    v_flex, Icon, Sizable, StyledExt,
 };
 
 use crate::theme::AppTheme;

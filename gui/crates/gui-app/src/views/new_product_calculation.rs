@@ -65,8 +65,7 @@ use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
 /// 新品核算条目一致）
-pub const NEW_PRODUCT_CALCULATION_URL: &str =
-    "/dashboard/reports/pricing-calculation/new-product";
+pub const NEW_PRODUCT_CALCULATION_URL: &str = "/dashboard/reports/pricing-calculation/new-product";
 
 /// 站点选项（对齐 web `COUNTRY_OPTIONS`：US / DE / UK 三站）
 pub const COUNTRY_OPTIONS: [(&str, &str); 3] = [
@@ -191,23 +190,108 @@ pub struct FormFieldDef {
 
 /// 全量表单字段（顺序 = 输入实体下标序；17 项对齐 web FormState 全键）
 pub const FORM_FIELDS: [FormFieldDef; 17] = [
-    FormFieldDef { key: FormKey::ProductName, label: "产品名称", placeholder: "例如：桌面置物架", default: "" },
-    FormFieldDef { key: FormKey::CompetitorUrl, label: "竞品链接（可选）", placeholder: "https://www.amazon.com/dp/...", default: "" },
-    FormFieldDef { key: FormKey::LengthCm, label: "长(cm)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::WidthCm, label: "宽(cm)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::HeightCm, label: "高(cm)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::WeightKg, label: "重量(kg)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::FobCostRmb, label: "FOB 产品成本(RMB)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::FirstLegUnitPriceRmb, label: "头程单价(RMB/kg)", placeholder: "请输入头程单价", default: "5" },
-    FormFieldDef { key: FormKey::FullContainerQty, label: "整柜数量", placeholder: "请输入整柜数量", default: "" },
-    FormFieldDef { key: FormKey::FullContainerPriceRmb, label: "整柜价格(RMB)", placeholder: "请输入整柜价格", default: "" },
-    FormFieldDef { key: FormKey::SalePriceUsd, label: "售价(USD)", placeholder: "0", default: "" },
-    FormFieldDef { key: FormKey::TargetProfitRate, label: "目标利润率(%)", placeholder: "25", default: "25" },
-    FormFieldDef { key: FormKey::CommissionRate, label: "平台佣金率(%)", placeholder: "15", default: "15" },
-    FormFieldDef { key: FormKey::AdvertisingRate, label: "广告费率(%)", placeholder: "12", default: "12" },
-    FormFieldDef { key: FormKey::ReturnLossRate, label: "退货折损率(%)", placeholder: "4", default: "4" },
-    FormFieldDef { key: FormKey::StorageMonths, label: "仓储月数", placeholder: "1", default: "1" },
-    FormFieldDef { key: FormKey::DeliveryFeeUsd, label: "配送费(USD)", placeholder: "请输入配送费", default: "" },
+    FormFieldDef {
+        key: FormKey::ProductName,
+        label: "产品名称",
+        placeholder: "例如：桌面置物架",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::CompetitorUrl,
+        label: "竞品链接（可选）",
+        placeholder: "https://www.amazon.com/dp/...",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::LengthCm,
+        label: "长(cm)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::WidthCm,
+        label: "宽(cm)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::HeightCm,
+        label: "高(cm)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::WeightKg,
+        label: "重量(kg)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::FobCostRmb,
+        label: "FOB 产品成本(RMB)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::FirstLegUnitPriceRmb,
+        label: "头程单价(RMB/kg)",
+        placeholder: "请输入头程单价",
+        default: "5",
+    },
+    FormFieldDef {
+        key: FormKey::FullContainerQty,
+        label: "整柜数量",
+        placeholder: "请输入整柜数量",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::FullContainerPriceRmb,
+        label: "整柜价格(RMB)",
+        placeholder: "请输入整柜价格",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::SalePriceUsd,
+        label: "售价(USD)",
+        placeholder: "0",
+        default: "",
+    },
+    FormFieldDef {
+        key: FormKey::TargetProfitRate,
+        label: "目标利润率(%)",
+        placeholder: "25",
+        default: "25",
+    },
+    FormFieldDef {
+        key: FormKey::CommissionRate,
+        label: "平台佣金率(%)",
+        placeholder: "15",
+        default: "15",
+    },
+    FormFieldDef {
+        key: FormKey::AdvertisingRate,
+        label: "广告费率(%)",
+        placeholder: "12",
+        default: "12",
+    },
+    FormFieldDef {
+        key: FormKey::ReturnLossRate,
+        label: "退货折损率(%)",
+        placeholder: "4",
+        default: "4",
+    },
+    FormFieldDef {
+        key: FormKey::StorageMonths,
+        label: "仓储月数",
+        placeholder: "1",
+        default: "1",
+    },
+    FormFieldDef {
+        key: FormKey::DeliveryFeeUsd,
+        label: "配送费(USD)",
+        placeholder: "请输入配送费",
+        default: "",
+    },
 ];
 
 impl FormKey {
@@ -305,7 +389,13 @@ pub fn fmt_compact_date(iso: &str) -> String {
     // 期望格式 "2026-08-18T10:00:00..."：月日在 [5..10]，时分在 [11..16]
     let bytes = iso.as_bytes();
     if bytes.len() >= 16 && bytes[10] == b'T' && bytes[13] == b':' {
-        format!("{}-{} {}:{}", &iso[5..7], &iso[8..10], &iso[11..13], &iso[14..16])
+        format!(
+            "{}-{} {}:{}",
+            &iso[5..7],
+            &iso[8..10],
+            &iso[11..13],
+            &iso[14..16]
+        )
     } else {
         iso.to_string()
     }
@@ -362,42 +452,93 @@ pub fn build_comparison_rows(runs: &[PricingRunItem]) -> Vec<ComparisonRow> {
     vec![
         // 货品数据
         row("货品数据", "产品名称", |r| r.product_name.clone()),
-        row("货品数据", "测算类型", |r| r.calculation_type.label().to_string()),
+        row("货品数据", "测算类型", |r| {
+            r.calculation_type.label().to_string()
+        }),
         row("货品数据", "包装尺寸(cm)", |r| {
-            format!("{} × {} × {}", r.package_length_cm, r.package_width_cm, r.package_height_cm)
+            format!(
+                "{} × {} × {}",
+                r.package_length_cm, r.package_width_cm, r.package_height_cm
+            )
         }),
         row("货品数据", "重量(kg)", |r| fmt_metric(r.weight_kg, 3)),
         // DDP 成本
-        row("DDP 成本", "FOB成本", |r| fmt_rmb(r.fob_product_cost_rmb)),
-        row("DDP 成本", "头程", |r| fmt_rmb(derive_first_leg_cost_rmb(r))),
+        row("DDP 成本", "FOB成本", |r| {
+            fmt_rmb(r.fob_product_cost_rmb)
+        }),
+        row("DDP 成本", "头程", |r| {
+            fmt_rmb(derive_first_leg_cost_rmb(r))
+        }),
         row("DDP 成本", "DDP(RMB)", |r| fmt_rmb(r.profit.ddp_cost_rmb)),
         row("DDP 成本", "DDP(USD)", |r| fmt_usd(r.profit.ddp_cost_usd)),
         // 费用支出
-        row("费用支出", "平台佣金", |r| fmt_usd(r.fees.referral_fee_usd)),
-        row("费用支出", "平台佣金率", |r| fmt_percent(r.commission_rate)),
-        row("费用支出", "广告费", |r| fmt_usd(r.fees.advertising_fee_usd)),
-        row("费用支出", "广告费率", |r| fmt_percent(r.advertising_rate)),
-        row("费用支出", "派送", |r| fmt_usd(r.fees.fba_fulfillment_fee_usd)),
-        row("费用支出", "配置费", |r| fmt_usd(r.fees.inbound_config_fee_usd)),
-        row("费用支出", "仓储费", |r| fmt_usd(r.fees.storage_fee_usd)),
-        row("费用支出", "仓储月数", |r| format!("{} 月", r.storage_months)),
-        row("费用支出", "退货损耗", |r| fmt_usd(r.fees.return_loss_usd)),
-        row("费用支出", "退货折损率", |r| fmt_percent(r.return_loss_rate)),
-        row("费用支出", "费用合计", |r| fmt_usd(r.fees.total_fee_usd)),
+        row("费用支出", "平台佣金", |r| {
+            fmt_usd(r.fees.referral_fee_usd)
+        }),
+        row("费用支出", "平台佣金率", |r| {
+            fmt_percent(r.commission_rate)
+        }),
+        row("费用支出", "广告费", |r| {
+            fmt_usd(r.fees.advertising_fee_usd)
+        }),
+        row("费用支出", "广告费率", |r| {
+            fmt_percent(r.advertising_rate)
+        }),
+        row("费用支出", "派送", |r| {
+            fmt_usd(r.fees.fba_fulfillment_fee_usd)
+        }),
+        row("费用支出", "配置费", |r| {
+            fmt_usd(r.fees.inbound_config_fee_usd)
+        }),
+        row("费用支出", "仓储费", |r| {
+            fmt_usd(r.fees.storage_fee_usd)
+        }),
+        row("费用支出", "仓储月数", |r| {
+            format!("{} 月", r.storage_months)
+        }),
+        row("费用支出", "退货损耗", |r| {
+            fmt_usd(r.fees.return_loss_usd)
+        }),
+        row("费用支出", "退货折损率", |r| {
+            fmt_percent(r.return_loss_rate)
+        }),
+        row("费用支出", "费用合计", |r| {
+            fmt_usd(r.fees.total_fee_usd)
+        }),
         // 售价与利润
         row("售价与利润", "售价", |r| fmt_usd(r.sale_price_usd)),
-        row("售价与利润", "回款", |r| fmt_usd(r.profit.payout_usd)),
-        row("售价与利润", "利润", |r| fmt_usd(r.profit.profit_usd)),
-        row("售价与利润", "利润率", |r| fmt_percent(r.profit.profit_rate)),
+        row("售价与利润", "回款", |r| {
+            fmt_usd(r.profit.payout_usd)
+        }),
+        row("售价与利润", "利润", |r| {
+            fmt_usd(r.profit.profit_usd)
+        }),
+        row("售价与利润", "利润率", |r| {
+            fmt_percent(r.profit.profit_rate)
+        }),
         // 核算规则
-        row("核算规则", "尺寸等级", |r| r.size_tier_label.clone()),
+        row("核算规则", "尺寸等级", |r| {
+            r.size_tier_label.clone()
+        }),
         row("核算规则", "售价带", |r| r.price_band_label.clone()),
-        row("核算规则", "计费重(lb)", |r| fmt_metric(r.weights.chargeable_weight_lb, 4)),
-        row("核算规则", "体积(ft³)", |r| fmt_metric(r.dimensions.volume_cubic_ft, 2)),
-        row("核算规则", "派送规则", |r| r.fulfillment_fee_rule_label.clone()),
-        row("核算规则", "入库配置", |r| r.inbound_config_fee_rule_label.clone()),
-        row("核算规则", "仓储规则", |r| r.storage_fee_rule_label.clone()),
-        row("核算规则", "汇率", |r| fmt_metric(r.usd_to_rmb_rate, 4)),
+        row("核算规则", "计费重(lb)", |r| {
+            fmt_metric(r.weights.chargeable_weight_lb, 4)
+        }),
+        row("核算规则", "体积(ft³)", |r| {
+            fmt_metric(r.dimensions.volume_cubic_ft, 2)
+        }),
+        row("核算规则", "派送规则", |r| {
+            r.fulfillment_fee_rule_label.clone()
+        }),
+        row("核算规则", "入库配置", |r| {
+            r.inbound_config_fee_rule_label.clone()
+        }),
+        row("核算规则", "仓储规则", |r| {
+            r.storage_fee_rule_label.clone()
+        }),
+        row("核算规则", "汇率", |r| {
+            fmt_metric(r.usd_to_rmb_rate, 4)
+        }),
     ]
 }
 
@@ -826,14 +967,19 @@ impl NewProductCalculationView {
         match self.mode {
             CalcMode::ProfitCalc | CalcMode::ProfitReverse => {
                 let fob = self.require_non_negative(cx, FormKey::FobCostRmb, "FOB 产品成本")?;
-                if self.field_text(cx, FormKey::FirstLegUnitPriceRmb).trim().is_empty() {
+                if self
+                    .field_text(cx, FormKey::FirstLegUnitPriceRmb)
+                    .trim()
+                    .is_empty()
+                {
                     return Err("请填写头程单价".to_string());
                 }
                 let unit_price = self
                     .field_num(cx, FormKey::FirstLegUnitPriceRmb)
                     .filter(|v| *v >= 0.0)
                     .ok_or("头程单价必须为非负数字")?;
-                let first_leg_cost = chargeable_weight_kg(length, width, height, weight) * unit_price;
+                let first_leg_cost =
+                    chargeable_weight_kg(length, width, height, weight) * unit_price;
                 if self.mode == CalcMode::ProfitCalc {
                     let sale_price = self.require_positive(cx, FormKey::SalePriceUsd, "售价")?;
                     Ok(CalculationBody::Quote(PricingQuoteRequest {
@@ -884,14 +1030,19 @@ impl NewProductCalculationView {
             CalcMode::CostReverse => {
                 let sale_price = self.require_positive(cx, FormKey::SalePriceUsd, "售价")?;
                 let target = self.require_target_rate(cx)?;
-                if self.field_text(cx, FormKey::FirstLegUnitPriceRmb).trim().is_empty() {
+                if self
+                    .field_text(cx, FormKey::FirstLegUnitPriceRmb)
+                    .trim()
+                    .is_empty()
+                {
                     return Err("请填写头程单价".to_string());
                 }
                 let unit_price = self
                     .field_num(cx, FormKey::FirstLegUnitPriceRmb)
                     .filter(|v| *v >= 0.0)
                     .ok_or("头程单价必须为非负数字")?;
-                let first_leg_cost = chargeable_weight_kg(length, width, height, weight) * unit_price;
+                let first_leg_cost =
+                    chargeable_weight_kg(length, width, height, weight) * unit_price;
                 Ok(CalculationBody::CostReverse(PricingCostReverseRequest {
                     country,
                     product_name,
@@ -915,8 +1066,10 @@ impl NewProductCalculationView {
             CalcMode::FbmCalc => {
                 let fob = self.require_non_negative(cx, FormKey::FobCostRmb, "FOB 产品成本")?;
                 let qty = self.require_positive(cx, FormKey::FullContainerQty, "整柜数量")?;
-                let price = self.require_non_negative(cx, FormKey::FullContainerPriceRmb, "整柜价格")?;
-                let delivery_fee = self.require_non_negative(cx, FormKey::DeliveryFeeUsd, "配送费")?;
+                let price =
+                    self.require_non_negative(cx, FormKey::FullContainerPriceRmb, "整柜价格")?;
+                let delivery_fee =
+                    self.require_non_negative(cx, FormKey::DeliveryFeeUsd, "配送费")?;
                 let sale_price = self.require_positive(cx, FormKey::SalePriceUsd, "售价")?;
                 Ok(CalculationBody::FbmQuote(PricingFbmQuoteRequest {
                     country,
@@ -1046,7 +1199,10 @@ impl NewProductCalculationView {
             return;
         };
         self.mode = CalcMode::from_calculation_type(run.calculation_type);
-        if COUNTRY_OPTIONS.iter().any(|(value, _)| *value == run.country) {
+        if COUNTRY_OPTIONS
+            .iter()
+            .any(|(value, _)| *value == run.country)
+        {
             self.country = match run.country.as_str() {
                 "DE" => "DE",
                 "UK" => "UK",
@@ -1072,9 +1228,18 @@ impl NewProductCalculationView {
             (opt_num(run.package_height_cm), FormKey::HeightCm),
             (opt_num(run.weight_kg), FormKey::WeightKg),
             (opt_num(run.fob_product_cost_rmb), FormKey::FobCostRmb),
-            (opt_num_4(first_leg_unit_price), FormKey::FirstLegUnitPriceRmb),
-            (opt_num(run.full_container_quantity), FormKey::FullContainerQty),
-            (opt_num(run.full_container_price_rmb), FormKey::FullContainerPriceRmb),
+            (
+                opt_num_4(first_leg_unit_price),
+                FormKey::FirstLegUnitPriceRmb,
+            ),
+            (
+                opt_num(run.full_container_quantity),
+                FormKey::FullContainerQty,
+            ),
+            (
+                opt_num(run.full_container_price_rmb),
+                FormKey::FullContainerPriceRmb,
+            ),
             (opt_num(run.sale_price_usd), FormKey::SalePriceUsd),
             ("25".to_string(), FormKey::TargetProfitRate),
             (opt_rate(run.commission_rate), FormKey::CommissionRate),
@@ -1134,7 +1299,12 @@ impl NewProductCalculationView {
     }
 
     /// 应用删除结果：成功 → 移出对比选择 + 刷新当前页；失败 → 内联错误横幅
-    fn apply_delete_result(&mut self, run_id: i64, result: Result<(), String>, cx: &mut Context<Self>) {
+    fn apply_delete_result(
+        &mut self,
+        run_id: i64,
+        result: Result<(), String>,
+        cx: &mut Context<Self>,
+    ) {
         if self.deleting_id != Some(run_id) {
             return;
         }
@@ -1478,35 +1648,43 @@ fn render_loaded(
                 .gap_4()
                 .p_4()
                 .overflow_y_scroll()
-            // 测算输入 × 结果面板（web grid-cols-[520px_1fr] 的 GPUI 等价）
-            .child(
-                h_flex()
-                    .w_full()
-                    .items_start()
-                    .gap_4()
-                    .child(render_form_card(view, cx, app_theme, mode, &calc_phase, snap))
-                    .child(render_result_panel(app_theme, &calc_phase)),
-            )
-            .child(render_runs_card(
-                view,
-                app_theme,
-                search_input,
-                runs_table,
-                page,
-                runs_loading,
-                runs_error.as_deref(),
-                &applied_keyword,
-                runs_total,
-                runs_count,
-            ))
-            .when(selected_count > 0, |this| {
-                this.child(render_comparison_card(
+                // 测算输入 × 结果面板（web grid-cols-[520px_1fr] 的 GPUI 等价）
+                .child(
+                    h_flex()
+                        .w_full()
+                        .items_start()
+                        .gap_4()
+                        .child(render_form_card(
+                            view,
+                            cx,
+                            app_theme,
+                            mode,
+                            &calc_phase,
+                            snap,
+                        ))
+                        .child(render_result_panel(app_theme, &calc_phase)),
+                )
+                .child(render_runs_card(
                     view,
                     app_theme,
-                    comparison_table,
-                    selected_count,
+                    search_input,
+                    runs_table,
+                    page,
+                    runs_loading,
+                    runs_error.as_deref(),
+                    &applied_keyword,
+                    runs_total,
+                    runs_count,
                 ))
-            })),
+                .when(selected_count > 0, |this| {
+                    this.child(render_comparison_card(
+                        view,
+                        app_theme,
+                        comparison_table,
+                        selected_count,
+                    ))
+                }),
+        ),
         reduce,
     )
 }
@@ -1588,7 +1766,10 @@ fn render_form_card(
     snap: &ViewSnapshot,
 ) -> impl IntoElement {
     let Some(inputs) = snap.inputs.clone() else {
-        return v_flex().id("new-product-form-card").w(px(480.)).into_any_element();
+        return v_flex()
+            .id("new-product-form-card")
+            .w(px(480.))
+            .into_any_element();
     };
     let (country, inbound_mode) = (snap.country, snap.inbound_mode);
     let calculating = matches!(calc_phase, CalcPhase::Calculating);
@@ -1698,7 +1879,12 @@ fn render_form_card(
                     h_flex()
                         .w_full()
                         .gap_3()
-                        .child(form_field(app_theme, FormKey::FullContainerQty, &inputs, true))
+                        .child(form_field(
+                            app_theme,
+                            FormKey::FullContainerQty,
+                            &inputs,
+                            true,
+                        ))
                         .child(form_field(
                             app_theme,
                             FormKey::FullContainerPriceRmb,
@@ -1717,7 +1903,12 @@ fn render_form_card(
             v_flex()
                 .w_full()
                 .gap_2()
-                .child(form_field(app_theme, FormKey::FirstLegUnitPriceRmb, &inputs, true))
+                .child(form_field(
+                    app_theme,
+                    FormKey::FirstLegUnitPriceRmb,
+                    &inputs,
+                    true,
+                ))
                 .child(
                     div()
                         .text_xs()
@@ -1735,24 +1926,46 @@ fn render_form_card(
                 .into_any_element()
         })
         // Row 5：售价 / 目标利润率（模式分支；成本倒推的售价已在 Row 1）
-        .child(if matches!(mode, CalcMode::CostReverse | CalcMode::ProfitReverse) {
-            form_field(app_theme, FormKey::TargetProfitRate, &inputs, true)
-        } else {
-            form_field(app_theme, FormKey::SalePriceUsd, &inputs, true)
-        })
+        .child(
+            if matches!(mode, CalcMode::CostReverse | CalcMode::ProfitReverse) {
+                form_field(app_theme, FormKey::TargetProfitRate, &inputs, true)
+            } else {
+                form_field(app_theme, FormKey::SalePriceUsd, &inputs, true)
+            },
+        )
         // Row 6：佣金率 / 广告费率 / 退货折损率 / 仓储月数（4 等分）
         .child(
             h_flex()
                 .w_full()
                 .gap_3()
-                .child(form_field(app_theme, FormKey::CommissionRate, &inputs, true))
-                .child(form_field(app_theme, FormKey::AdvertisingRate, &inputs, true))
-                .child(form_field(app_theme, FormKey::ReturnLossRate, &inputs, true))
+                .child(form_field(
+                    app_theme,
+                    FormKey::CommissionRate,
+                    &inputs,
+                    true,
+                ))
+                .child(form_field(
+                    app_theme,
+                    FormKey::AdvertisingRate,
+                    &inputs,
+                    true,
+                ))
+                .child(form_field(
+                    app_theme,
+                    FormKey::ReturnLossRate,
+                    &inputs,
+                    true,
+                ))
                 .child(form_field(app_theme, FormKey::StorageMonths, &inputs, true)),
         )
         // Row 7（FBM）：配送费
         .when(mode == CalcMode::FbmCalc, |this| {
-            this.child(form_field(app_theme, FormKey::DeliveryFeeUsd, &inputs, true))
+            this.child(form_field(
+                app_theme,
+                FormKey::DeliveryFeeUsd,
+                &inputs,
+                true,
+            ))
         })
         // 提交
         .child(
@@ -1820,14 +2033,12 @@ fn country_menu_builder(
         for (value, label) in COUNTRY_OPTIONS {
             let checked = country == value;
             let view = view.clone();
-            menu = menu.item(
-                PopupMenuItem::new(label)
-                    .checked(checked)
-                    .on_click(move |_, _window, cx| {
-                        let view = view.clone();
-                        view.update(cx, |this, cx| this.select_country(value, cx));
-                    }),
-            );
+            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                move |_, _window, cx| {
+                    let view = view.clone();
+                    view.update(cx, |this, cx| this.select_country(value, cx));
+                },
+            ));
         }
         menu
     }
@@ -1992,14 +2203,21 @@ fn render_run_result(app_theme: &AppTheme, run: &PricingRunItem) -> impl IntoEle
     let rules = [
         ("尺寸等级", run.size_tier_label.clone()),
         ("售价带", run.price_band_label.clone()),
-        ("计费重", format!("{:.2} lb", run.weights.chargeable_weight_lb)),
+        (
+            "计费重",
+            format!("{:.2} lb", run.weights.chargeable_weight_lb),
+        ),
         ("体积", format!("{:.2} ft³", run.dimensions.volume_cubic_ft)),
         ("派送规则", run.fulfillment_fee_rule_label.clone()),
         ("入库配置", run.inbound_config_fee_rule_label.clone()),
         ("仓储规则", run.storage_fee_rule_label.clone()),
         (
             "汇率",
-            format!("{}（{}）", fmt_metric(run.usd_to_rmb_rate, 4), run.usd_to_rmb_rate_source),
+            format!(
+                "{}（{}）",
+                fmt_metric(run.usd_to_rmb_rate, 4),
+                run.usd_to_rmb_rate_source
+            ),
         ),
     ];
 
@@ -2038,10 +2256,30 @@ fn render_run_result(app_theme: &AppTheme, run: &PricingRunItem) -> impl IntoEle
             h_flex()
                 .w_full()
                 .gap_2()
-                .child(metric_block(app_theme, "售价", &fmt_usd(run.sale_price_usd), app_theme.text_primary))
-                .child(metric_block(app_theme, "回款", &fmt_usd(run.profit.payout_usd), app_theme.text_primary))
-                .child(metric_block(app_theme, "利润", &fmt_usd(run.profit.profit_usd), profit_color))
-                .child(metric_block(app_theme, "利润率", &fmt_percent(run.profit.profit_rate), profit_color)),
+                .child(metric_block(
+                    app_theme,
+                    "售价",
+                    &fmt_usd(run.sale_price_usd),
+                    app_theme.text_primary,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "回款",
+                    &fmt_usd(run.profit.payout_usd),
+                    app_theme.text_primary,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "利润",
+                    &fmt_usd(run.profit.profit_usd),
+                    profit_color,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "利润率",
+                    &fmt_percent(run.profit.profit_rate),
+                    profit_color,
+                )),
         )
         // DDP 成本行
         .child(
@@ -2119,7 +2357,12 @@ fn render_run_result(app_theme: &AppTheme, run: &PricingRunItem) -> impl IntoEle
 }
 
 /// 指标小块（label + 数值，数值色由调用方给定——利润涨绿跌红）
-fn metric_block(app_theme: &AppTheme, label: &str, value: &str, value_color: gpui::Hsla) -> impl IntoElement {
+fn metric_block(
+    app_theme: &AppTheme,
+    label: &str,
+    value: &str,
+    value_color: gpui::Hsla,
+) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_1()
@@ -2198,7 +2441,10 @@ fn render_runs_card(
     runs_count: usize,
 ) -> impl IntoElement {
     let view_for_search = view.clone();
-    let stats = format!("共 {runs_total} 条记录 · 当前第 {} 页 / 显示 {runs_count} 条", page.page);
+    let stats = format!(
+        "共 {runs_total} 条记录 · 当前第 {} 页 / 显示 {runs_count} 条",
+        page.page
+    );
 
     v_flex()
         .id("new-product-runs-card")
@@ -2233,9 +2479,7 @@ fn render_runs_card(
                 })
                 .child(div().flex_1())
                 .when_some(search_input, |this, input| {
-                    this.child(
-                        div().w(px(240.)).child(Input::new(&input)),
-                    )
+                    this.child(div().w(px(240.)).child(Input::new(&input)))
                 })
                 .child(
                     Button::new("new-product-search")
@@ -2302,7 +2546,9 @@ fn render_comparison_card(
                     div()
                         .text_xs()
                         .text_color(app_theme.text_muted)
-                        .child(format!("已选 {selected_count} 条（最多 {MAX_SELECTED_RUNS} 条）")),
+                        .child(format!(
+                            "已选 {selected_count} 条（最多 {MAX_SELECTED_RUNS} 条）"
+                        )),
                 )
                 .child(div().flex_1())
                 .child(
@@ -2339,7 +2585,9 @@ fn runs_columns(view: Entity<NewProductCalculationView>) -> Vec<ColumnDef<RunRow
             SharedString::from(row.run.calculation_type.label().to_string())
         })
         .width(76.0)
-        .with_render_element(|row, theme| type_badge(theme, row.run.calculation_type).into_any_element()),
+        .with_render_element(|row, theme| {
+            type_badge(theme, row.run.calculation_type).into_any_element()
+        }),
         ColumnDef::text("run-product", "产品名称", |row: &RunRow, _| {
             let prefix = if row.selected { "✓ " } else { "" };
             SharedString::from(format!("{prefix}{}", row.run.product_name))
@@ -2400,51 +2648,62 @@ fn runs_columns(view: Entity<NewProductCalculationView>) -> Vec<ColumnDef<RunRow
         })
         .width(92.0),
         ColumnDef::text("run-created-by", "创建人", |row: &RunRow, _| {
-            SharedString::from(row.run.created_by.clone().unwrap_or_else(|| "-".to_string()))
+            SharedString::from(
+                row.run
+                    .created_by
+                    .clone()
+                    .unwrap_or_else(|| "-".to_string()),
+            )
         })
         .width(72.0),
-        ColumnDef::text("run-actions", "操作", |_row: &RunRow, _| SharedString::from(""))
-            .width(150.0)
-            .align(CellAlign::Right)
-            .with_render_element(move |row, _theme| {
-                let run_id = row.run.id;
-                let view_for_backfill = view_for_actions.clone();
-                let view_for_delete = view_for_actions.clone();
-                let delete_label = if row.deleting {
-                    "删除中…"
-                } else if row.delete_armed {
-                    "确认删除"
-                } else {
-                    "删除"
-                };
-                h_flex()
-                    .w_full()
-                    .gap_1()
-                    .justify_end()
-                    .child(
-                        Button::new(SharedString::from(format!("run-backfill-{run_id}")))
-                            .outline()
-                            .xsmall()
-                            .label(if row.selected { "已回填 ✓" } else { "回填" })
-                            .on_click(move |_, _window, cx| {
-                                let view = view_for_backfill.clone();
-                                view.update(cx, |this, cx| this.backfill_run(run_id, cx));
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("run-delete-{run_id}")))
-                            .outline()
-                            .xsmall()
-                            .disabled(row.deleting)
-                            .when(row.delete_armed, |b| b.danger())
-                            .label(delete_label)
-                            .on_click(move |_, _window, cx| {
-                                let view = view_for_delete.clone();
-                                view.update(cx, |this, cx| this.delete_run(run_id, cx));
-                            }),
-                    )
-                    .into_any_element()
-            }),
+        ColumnDef::text("run-actions", "操作", |_row: &RunRow, _| {
+            SharedString::from("")
+        })
+        .width(150.0)
+        .align(CellAlign::Right)
+        .with_render_element(move |row, _theme| {
+            let run_id = row.run.id;
+            let view_for_backfill = view_for_actions.clone();
+            let view_for_delete = view_for_actions.clone();
+            let delete_label = if row.deleting {
+                "删除中…"
+            } else if row.delete_armed {
+                "确认删除"
+            } else {
+                "删除"
+            };
+            h_flex()
+                .w_full()
+                .gap_1()
+                .justify_end()
+                .child(
+                    Button::new(SharedString::from(format!("run-backfill-{run_id}")))
+                        .outline()
+                        .xsmall()
+                        .label(if row.selected {
+                            "已回填 ✓"
+                        } else {
+                            "回填"
+                        })
+                        .on_click(move |_, _window, cx| {
+                            let view = view_for_backfill.clone();
+                            view.update(cx, |this, cx| this.backfill_run(run_id, cx));
+                        }),
+                )
+                .child(
+                    Button::new(SharedString::from(format!("run-delete-{run_id}")))
+                        .outline()
+                        .xsmall()
+                        .disabled(row.deleting)
+                        .when(row.delete_armed, |b| b.danger())
+                        .label(delete_label)
+                        .on_click(move |_, _window, cx| {
+                            let view = view_for_delete.clone();
+                            view.update(cx, |this, cx| this.delete_run(run_id, cx));
+                        }),
+                )
+                .into_any_element()
+        }),
     ]
 }
 
@@ -2605,7 +2864,10 @@ mod tests {
             CalcMode::CostReverse.calculation_type(),
             CalculationType::CostReverse
         );
-        assert_eq!(CalcMode::FbmCalc.calculation_type(), CalculationType::FbmCalc);
+        assert_eq!(
+            CalcMode::FbmCalc.calculation_type(),
+            CalculationType::FbmCalc
+        );
 
         // 反向映射（eu_accounting 回落利润核算——web modeMap ?? 'profit-calc'）
         assert_eq!(
@@ -2675,7 +2937,10 @@ mod tests {
     #[test]
     fn form_fields_registry_matches_web_initial_form() {
         assert_eq!(FORM_FIELDS.len(), 17);
-        assert_eq!(FORM_FIELDS[FormKey::FirstLegUnitPriceRmb.index()].default, "5");
+        assert_eq!(
+            FORM_FIELDS[FormKey::FirstLegUnitPriceRmb.index()].default,
+            "5"
+        );
         assert_eq!(FORM_FIELDS[FormKey::TargetProfitRate.index()].default, "25");
         assert_eq!(FORM_FIELDS[FormKey::CommissionRate.index()].default, "15");
         assert_eq!(FORM_FIELDS[FormKey::AdvertisingRate.index()].default, "12");
@@ -2707,7 +2972,11 @@ mod tests {
     #[test]
     fn derive_first_leg_cost_falls_back_to_container_split() {
         let mut run = sample_run(1, CalculationType::FbmCalc, "测试", 29.99, 10.0, 0.3);
-        assert_eq!(derive_first_leg_cost_rmb(&run), 8.0, "优先取 first_leg_cost_rmb");
+        assert_eq!(
+            derive_first_leg_cost_rmb(&run),
+            8.0,
+            "优先取 first_leg_cost_rmb"
+        );
         run.first_leg_cost_rmb = 0.0;
         run.full_container_quantity = 1000.0;
         run.full_container_price_rmb = 8500.0;
@@ -2752,7 +3021,14 @@ mod tests {
     #[test]
     fn comparison_rows_match_web_sections() {
         let runs = vec![
-            sample_run(1, CalculationType::ProfitCalc, "桌面置物架", 29.99, 10.62, 0.354),
+            sample_run(
+                1,
+                CalculationType::ProfitCalc,
+                "桌面置物架",
+                29.99,
+                10.62,
+                0.354,
+            ),
             sample_run(2, CalculationType::FbmCalc, "收纳盒", 19.99, -2.0, -0.1),
         ];
         let rows = build_comparison_rows(&runs);
@@ -2849,7 +3125,10 @@ mod tests {
             this.select_inbound_mode(InboundPlacementMode::AmazonOptimizedSplit, cx);
             assert_eq!(this.mode, CalcMode::FbmCalc);
             assert_eq!(this.country, "DE");
-            assert_eq!(this.inbound_mode, InboundPlacementMode::AmazonOptimizedSplit);
+            assert_eq!(
+                this.inbound_mode,
+                InboundPlacementMode::AmazonOptimizedSplit
+            );
         });
     }
 
@@ -2859,7 +3138,9 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, cx2) = new_view!(cx);
         view.update(cx2, |this, cx| {
-            this.runs = (1..=15).map(|i| sample_run(i, CalculationType::ProfitCalc, "p", 10.0, 1.0, 0.1)).collect();
+            this.runs = (1..=15)
+                .map(|i| sample_run(i, CalculationType::ProfitCalc, "p", 10.0, 1.0, 0.1))
+                .collect();
             // 选 13 条 → 截断到 12，最新（13）置顶
             for id in 1..=13 {
                 this.backfill_run(id, cx);
@@ -2884,12 +3165,26 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, cx2) = new_view!(cx);
         view.update(cx2, |this, cx| {
-            this.runs = vec![sample_run(7, CalculationType::ProfitCalc, "p", 10.0, 1.0, 0.1)];
+            this.runs = vec![sample_run(
+                7,
+                CalculationType::ProfitCalc,
+                "p",
+                10.0,
+                1.0,
+                0.1,
+            )];
             this.delete_run(7, cx);
             assert_eq!(this.delete_confirm_id, Some(7), "首次点击仅武装");
             assert_eq!(this.deleting_id, None);
             // 武装转移到另一条 → 原武装解除
-            this.runs.push(sample_run(8, CalculationType::ProfitCalc, "q", 10.0, 1.0, 0.1));
+            this.runs.push(sample_run(
+                8,
+                CalculationType::ProfitCalc,
+                "q",
+                10.0,
+                1.0,
+                0.1,
+            ));
             this.delete_run(8, cx);
             assert_eq!(this.delete_confirm_id, Some(8));
             // 回到 7：未武装 → 重新武装而非执行
@@ -2914,7 +3209,14 @@ mod tests {
         view.update(cx2, |this, cx| {
             let resp = PricingRunListResponse {
                 items: vec![
-                    sample_run(1, CalculationType::ProfitCalc, "桌面置物架", 29.99, 10.62, 0.354),
+                    sample_run(
+                        1,
+                        CalculationType::ProfitCalc,
+                        "桌面置物架",
+                        29.99,
+                        10.62,
+                        0.354,
+                    ),
                     sample_run(2, CalculationType::CostReverse, "收纳盒", 19.99, 3.0, 0.15),
                 ],
                 total: 2,
@@ -2949,7 +3251,14 @@ mod tests {
         view.update(vcx, |this, cx| {
             let resp = PricingRunListResponse {
                 items: vec![
-                    sample_run(1, CalculationType::ProfitCalc, "桌面置物架", 29.99, 10.62, 0.354),
+                    sample_run(
+                        1,
+                        CalculationType::ProfitCalc,
+                        "桌面置物架",
+                        29.99,
+                        10.62,
+                        0.354,
+                    ),
                     sample_run(2, CalculationType::FbmCalc, "收纳盒", 19.99, -2.0, -0.1),
                 ],
                 total: 2,

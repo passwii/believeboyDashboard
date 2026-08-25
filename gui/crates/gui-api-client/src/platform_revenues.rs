@@ -169,9 +169,7 @@ mod tests {
             .mock("GET", PLATFORM_REVENUES_PATH)
             // mockito 的 UrlEncoded 匹配是子集语义，无法断言缺省 → 用锚定 Regex
             // 锁定完整 query 字符串（恰好 2 个参数，无 project_id / year 等筛选）
-            .match_query(Matcher::Regex(
-                r"^page=2&page_size=50$".to_string(),
-            ))
+            .match_query(Matcher::Regex(r"^page=2&page_size=50$".to_string()))
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(

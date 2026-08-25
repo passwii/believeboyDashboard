@@ -122,13 +122,8 @@ impl Client {
     /// 删除汇率（对齐 web `handleDelete`；204 空响应体）
     pub async fn exchange_rate_delete(&self, rate_id: i64) -> Result<(), ApiError> {
         let path = format!("{ITEM_PATH_PREFIX}/{rate_id}");
-        self.request_discard::<ExchangeRateSavePayload>(
-            reqwest::Method::DELETE,
-            &path,
-            &[],
-            None,
-        )
-        .await
+        self.request_discard::<ExchangeRateSavePayload>(reqwest::Method::DELETE, &path, &[], None)
+            .await
     }
 }
 
@@ -312,7 +307,10 @@ mod tests {
             description: Some("备注".into()),
             note_images: Vec::new(),
         };
-        let created = client.exchange_rate_create(&payload).await.expect("请求失败");
+        let created = client
+            .exchange_rate_create(&payload)
+            .await
+            .expect("请求失败");
         m.assert();
         assert_eq!(created.id, 21);
         assert_eq!(created.year_month, "2026-09");
@@ -379,9 +377,7 @@ mod tests {
             .match_body(Matcher::Any)
             .with_status(409)
             .with_header("content-type", "application/json")
-            .with_body(
-                r#"{"detail":"Exchange rate for this currency and month already exists"}"#,
-            )
+            .with_body(r#"{"detail":"Exchange rate for this currency and month already exists"}"#)
             .create();
 
         let client = Client::new(server.url());

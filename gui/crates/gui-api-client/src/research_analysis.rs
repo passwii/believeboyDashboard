@@ -79,7 +79,8 @@ impl Client {
             .with_opt("category_keyword_en", category_keyword_en)
             .with_opt("current_only", current_only)
             .with_opt("include_history", include_history);
-        self.get_json(DATASETS_PATH, &query.clone().into_pairs()).await
+        self.get_json(DATASETS_PATH, &query.clone().into_pairs())
+            .await
     }
 
     /// 单数据集总览（对齐 frontend `loadOverview` 口径）：
@@ -121,7 +122,8 @@ impl Client {
         fulfillment_method: Option<&str>,
         price_band: Option<&str>,
     ) -> Result<CategoryResearchProductsResponse, ApiError> {
-        let path = format!("{DATASET_DETAIL_PATH_PREFIX}/{dataset_id}{DATASET_PRODUCTS_PATH_SUFFIX}");
+        let path =
+            format!("{DATASET_DETAIL_PATH_PREFIX}/{dataset_id}{DATASET_PRODUCTS_PATH_SUFFIX}");
         let query = QueryBuilder::new()
             .with("page", page)
             .with("page_size", page_size)
@@ -138,13 +140,8 @@ impl Client {
     ) -> Result<CategoryResearchRecomputeResponse, ApiError> {
         let path =
             format!("{DATASET_DETAIL_PATH_PREFIX}/{dataset_id}{DATASET_RECOMPUTE_PATH_SUFFIX}");
-        self.request_json(
-            reqwest::Method::POST,
-            &path,
-            &[],
-            None::<()>.as_ref(),
-        )
-        .await
+        self.request_json(reqwest::Method::POST, &path, &[], None::<()>.as_ref())
+            .await
     }
 
     /// 批量重算（POST + 可选 query 参数；GUI 暂不消费，保留）。
@@ -191,7 +188,10 @@ mod tests {
     #[test]
     fn paths_match_backend_routes() {
         assert_eq!(DATASETS_PATH, "/api/v1/category-research/datasets");
-        assert_eq!(DATASET_DETAIL_PATH_PREFIX, "/api/v1/category-research/datasets");
+        assert_eq!(
+            DATASET_DETAIL_PATH_PREFIX,
+            "/api/v1/category-research/datasets"
+        );
         assert_eq!(MARKET_TREND_PATH_SUFFIX, "/market-trend");
         assert_eq!(DATASET_PRODUCTS_PATH_SUFFIX, "/products");
         assert_eq!(DATASET_RECOMPUTE_PATH_SUFFIX, "/recompute");
@@ -277,9 +277,10 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let m = server
             .mock("GET", "/api/v1/category-research/datasets/7")
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("price_band_standard".into(), "refined".into()),
-            ]))
+            .match_query(Matcher::AllOf(vec![Matcher::UrlEncoded(
+                "price_band_standard".into(),
+                "refined".into(),
+            )]))
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(
@@ -327,13 +328,11 @@ mod tests {
     async fn market_trend_sends_params_and_parses_response() {
         let mut server = mockito::Server::new_async().await;
         let m = server
-            .mock(
-                "GET",
-                "/api/v1/category-research/datasets/7/market-trend",
-            )
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("months".into(), "24".into()),
-            ]))
+            .mock("GET", "/api/v1/category-research/datasets/7/market-trend")
+            .match_query(Matcher::AllOf(vec![Matcher::UrlEncoded(
+                "months".into(),
+                "24".into(),
+            )]))
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(
@@ -402,10 +401,7 @@ mod tests {
     async fn dataset_recompute_posts_and_parses_response() {
         let mut server = mockito::Server::new_async().await;
         let m = server
-            .mock(
-                "POST",
-                "/api/v1/category-research/datasets/7/recompute",
-            )
+            .mock("POST", "/api/v1/category-research/datasets/7/recompute")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(

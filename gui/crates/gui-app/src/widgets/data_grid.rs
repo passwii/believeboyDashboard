@@ -33,7 +33,7 @@ use gpui_component::{h_flex, v_flex, Sizable};
 
 use crate::theme::{AppTheme, FONT_BASE, FONT_XS, TABLE_HEADER_HEIGHT};
 use crate::widgets::data_table::{CellAlign, ColumnDef, SortDir, TabularNumsExt, CELL_PX};
-use crate::widgets::pagination::{pagination_controls, page_size_select, PageState};
+use crate::widgets::pagination::{page_size_select, pagination_controls, PageState};
 
 /// 数据行高（px）：锁定规格区间 24~28px（26 = 20px 行高 + 2×3px 内边距，
 /// 与 data_table 的 ROW_LINE_HEIGHT/ROW_PY 组合一致）
@@ -57,7 +57,9 @@ pub const DEFAULT_COL_WIDTH: f32 = 120.0;
 
 /// 运行期列宽初始化：显式 width 优先，未指定回落默认宽；统一收敛到下限之上
 fn initial_width<T>(col: &ColumnDef<T>) -> f32 {
-    col.width.unwrap_or(DEFAULT_COL_WIDTH).clamp(MIN_COL_WIDTH, MAX_COL_WIDTH)
+    col.width
+        .unwrap_or(DEFAULT_COL_WIDTH)
+        .clamp(MIN_COL_WIDTH, MAX_COL_WIDTH)
 }
 
 // ---------------------------------------------------------------------------
@@ -72,11 +74,7 @@ struct GridColResize {
 }
 
 impl Render for GridColResize {
-    fn render(
-        &mut self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div()
     }
 }
@@ -279,12 +277,12 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
         let rows = &self.rows;
         if let Some(sort_value) = col.sort_value {
             match dir {
-                SortDir::Ascending => self.display.sort_by(|&a, &b| {
-                    sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))
-                }),
-                SortDir::Descending => self.display.sort_by(|&a, &b| {
-                    sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))
-                }),
+                SortDir::Ascending => self
+                    .display
+                    .sort_by(|&a, &b| sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))),
+                SortDir::Descending => self
+                    .display
+                    .sort_by(|&a, &b| sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))),
             }
             return;
         }
@@ -292,12 +290,12 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
             return;
         };
         match dir {
-            SortDir::Ascending => self.display.sort_by(|&a, &b| {
-                sort_value_dyn(&rows[a]).total_cmp(&sort_value_dyn(&rows[b]))
-            }),
-            SortDir::Descending => self.display.sort_by(|&a, &b| {
-                sort_value_dyn(&rows[b]).total_cmp(&sort_value_dyn(&rows[a]))
-            }),
+            SortDir::Ascending => self
+                .display
+                .sort_by(|&a, &b| sort_value_dyn(&rows[a]).total_cmp(&sort_value_dyn(&rows[b]))),
+            SortDir::Descending => self
+                .display
+                .sort_by(|&a, &b| sort_value_dyn(&rows[b]).total_cmp(&sort_value_dyn(&rows[a]))),
         }
     }
 
@@ -328,8 +326,8 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
                 self.resize.as_ref().expect("session 已写入")
             }
         };
-        let new_width =
-            (session.start_width + (position_x - session.origin_x)).clamp(MIN_COL_WIDTH, MAX_COL_WIDTH);
+        let new_width = (session.start_width + (position_x - session.origin_x))
+            .clamp(MIN_COL_WIDTH, MAX_COL_WIDTH);
         if (self.widths[col_ix] - new_width).abs() > f32::EPSILON {
             self.widths[col_ix] = new_width;
             true
@@ -433,16 +431,18 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
                     .bg(gpui::transparent_black())
                     .group_hover(group_id, |line| line.bg(theme.accent)),
             )
-            .on_drag_move(cx.listener(move |grid, e: &gpui::DragMoveEvent<GridColResize>, _, cx| {
-                let drag = e.drag(cx);
-                if drag.grid != grid_id || drag.col_ix != col_ix {
-                    return;
-                }
-                let position_x: f32 = e.event.position.x.into();
-                if grid.apply_resize(col_ix, position_x) {
-                    cx.notify();
-                }
-            }))
+            .on_drag_move(cx.listener(
+                move |grid, e: &gpui::DragMoveEvent<GridColResize>, _, cx| {
+                    let drag = e.drag(cx);
+                    if drag.grid != grid_id || drag.col_ix != col_ix {
+                        return;
+                    }
+                    let position_x: f32 = e.event.position.x.into();
+                    if grid.apply_resize(col_ix, position_x) {
+                        cx.notify();
+                    }
+                },
+            ))
             .on_drag(
                 GridColResize {
                     grid: grid_id,
@@ -542,9 +542,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
                 visible
                     .clone()
                     .filter_map(|pos| grid_ref.display_row(pos).map(|row| (pos, row)))
-                    .map(|(pos, row)| {
-                        grid_ref.render_row(pos, row, &theme).into_any_element()
-                    })
+                    .map(|(pos, row)| grid_ref.render_row(pos, row, &theme).into_any_element())
                     .collect::<Vec<_>>()
             },
         )
@@ -644,7 +642,11 @@ pub fn tone_text(
 /// 数字走 mono+tabular（规格：数值一律等宽）。
 pub fn change_indicator(change: Option<f64>, theme: &AppTheme) -> gpui::AnyElement {
     let (icon, color, text) = match change {
-        None => (gpui_component::IconName::Minus, theme.text_muted, "—".to_string()),
+        None => (
+            gpui_component::IconName::Minus,
+            theme.text_muted,
+            "—".to_string(),
+        ),
         Some(v) if v > 0.5 => (
             gpui_component::IconName::ArrowUp,
             theme.success,
@@ -655,7 +657,11 @@ pub fn change_indicator(change: Option<f64>, theme: &AppTheme) -> gpui::AnyEleme
             theme.danger,
             format!("{:.1}%", v.abs()),
         ),
-        Some(v) => (gpui_component::IconName::Minus, theme.text_muted, format!("{v:.1}%")),
+        Some(v) => (
+            gpui_component::IconName::Minus,
+            theme.text_muted,
+            format!("{v:.1}%"),
+        ),
     };
     h_flex()
         .w_full()
@@ -814,9 +820,11 @@ pub fn grid_footer_bar<V: 'static>(
                                 .text_color(item.tone.color(theme))
                                 .child(item.value.clone()),
                         )
-                        .children(item.note.clone().map(|note| {
-                            div().text_xs().text_color(theme.warning).child(note)
-                        }))
+                        .children(
+                            item.note
+                                .clone()
+                                .map(|note| div().text_xs().text_color(theme.warning).child(note)),
+                        )
                         .into_any_element()
                 })),
         )
@@ -878,9 +886,11 @@ pub fn aggregate_strip(
                         .text_color(item.tone.color(theme))
                         .child(item.value.clone()),
                 )
-                .children(item.note.clone().map(|note| {
-                    div().text_xs().text_color(theme.warning).child(note)
-                }))
+                .children(
+                    item.note
+                        .clone()
+                        .map(|note| div().text_xs().text_color(theme.warning).child(note)),
+                )
         }))
 }
 
@@ -897,15 +907,23 @@ mod tests {
 
     fn demo_columns() -> Vec<ColumnDef<DemoRow>> {
         vec![
-            ColumnDef::text("name", "名称", |r: &DemoRow, _| SharedString::from(r.name.clone()))
-                .width(180.0),
-            ColumnDef::number("qty", "数量", |r: &DemoRow| r.qty as f64, |r: &_, _| {
-                SharedString::from(r.qty.to_string())
+            ColumnDef::text("name", "名称", |r: &DemoRow, _| {
+                SharedString::from(r.name.clone())
             })
+            .width(180.0),
+            ColumnDef::number(
+                "qty",
+                "数量",
+                |r: &DemoRow| r.qty as f64,
+                |r: &_, _| SharedString::from(r.qty.to_string()),
+            )
             .width(96.0),
-            ColumnDef::number("amount", "金额", |r: &DemoRow| r.amount, |r: &_, _| {
-                SharedString::from(format!("{:.2}", r.amount))
-            }),
+            ColumnDef::number(
+                "amount",
+                "金额",
+                |r: &DemoRow| r.amount,
+                |r: &_, _| SharedString::from(format!("{:.2}", r.amount)),
+            ),
         ]
     }
 
@@ -925,8 +943,8 @@ mod tests {
         assert_eq!(grid.widths(), &[180.0, 96.0, DEFAULT_COL_WIDTH]);
         assert_eq!(grid.total_width(), 180.0 + 96.0 + DEFAULT_COL_WIDTH);
         // 显式过窄宽度被抬到 MIN_COL_WIDTH
-        let narrow = ColumnDef::text("n", "窄", |_: &DemoRow, _| SharedString::from(""))
-            .width(20.0);
+        let narrow =
+            ColumnDef::text("n", "窄", |_: &DemoRow, _| SharedString::from("")).width(20.0);
         let g2 = DataGrid::new("g2", vec![narrow]);
         assert_eq!(g2.widths()[0], MIN_COL_WIDTH);
     }
@@ -938,12 +956,16 @@ mod tests {
         grid.rebuild_display();
         assert_eq!(grid.display_len(), 4);
         // 默认顺序保持原序
-        let qtys: Vec<_> = (0..4).map(|p| grid.display_row(p).expect("pos").qty).collect();
+        let qtys: Vec<_> = (0..4)
+            .map(|p| grid.display_row(p).expect("pos").qty)
+            .collect();
         assert_eq!(qtys, vec![0, 1, 2, 3]);
         // 数量降序 → 索引序 [3,2,1,0]（qty=i%97）
         grid.sort = Some((1, SortDir::Descending));
         grid.rebuild_display();
-        let qtys: Vec<_> = (0..4).map(|p| grid.display_row(p).expect("pos").qty).collect();
+        let qtys: Vec<_> = (0..4)
+            .map(|p| grid.display_row(p).expect("pos").qty)
+            .collect();
         assert_eq!(qtys, vec![3, 2, 1, 0]);
         // 越界安全
         assert!(grid.display_row(99).is_none());
@@ -1032,8 +1054,14 @@ mod tests {
         assert_eq!(grid.display_len(), 10_000);
         assert!(filtered_count > 0 && total > 0.0);
         // 各环节预算一帧 16ms；断言放宽到 ≤50ms 防 CI 抖动误报
-        assert!(generated.as_millis() <= 50, "生成 10k 行耗时过长: {generated:?}");
-        assert!(injected.as_millis() <= 50, "注入 10k 行耗时过长: {injected:?}");
+        assert!(
+            generated.as_millis() <= 50,
+            "生成 10k 行耗时过长: {generated:?}"
+        );
+        assert!(
+            injected.as_millis() <= 50,
+            "注入 10k 行耗时过长: {injected:?}"
+        );
         assert!(
             sorted_elapsed.as_millis() <= 50,
             "排序 10k 行耗时过长: {sorted_elapsed:?}"

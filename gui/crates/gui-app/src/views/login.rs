@@ -336,15 +336,10 @@ impl Render for LoginView {
                     .items_center()
                     .justify_center()
                     .pb(px(16.))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child(format!(
-                                "BelieveBoy 桌面端 · v{}",
-                                env!("CARGO_PKG_VERSION")
-                            )),
-                    ),
+                    .child(div().text_xs().text_color(theme.text_muted).child(format!(
+                        "BelieveBoy 桌面端 · v{}",
+                        env!("CARGO_PKG_VERSION")
+                    ))),
             )
     }
 }

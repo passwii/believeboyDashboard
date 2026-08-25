@@ -228,7 +228,10 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let rows = client.weekly_product_analysis(7, "DE", None, None).await.expect("请求失败");
+        let rows = client
+            .weekly_product_analysis(7, "DE", None, None)
+            .await
+            .expect("请求失败");
         m.assert();
         assert!(rows.is_empty());
     }
@@ -263,7 +266,10 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let resp = client.pt1_details(101, "US", 1, 1000).await.expect("请求失败");
+        let resp = client
+            .pt1_details(101, "US", 1, 1000)
+            .await
+            .expect("请求失败");
         m.assert();
         assert_eq!(resp.pt1_id, 101);
         assert!(!resp.has_next);

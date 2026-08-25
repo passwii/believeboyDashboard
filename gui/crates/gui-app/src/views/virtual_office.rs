@@ -23,8 +23,8 @@ use gui_domain::ai::DigitalEmployeeItem;
 
 use crate::theme::{AppTheme, FONT_BASE};
 use crate::widgets::data_grid::{pattern_a_shell, AggregateItem};
-use crate::widgets::page_header::PageHeader;
 use crate::widgets::data_table::TabularNumsExt;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「AI 智能 → 数字员工」URL
@@ -93,11 +93,13 @@ impl VirtualOfficeView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(async {
-                            let list = client.digital_employee_list().await.map_err(|e| e.user_message())?;
-                            Ok::<_, String>(list)
-                        })
+                    crate::runtime::runtime().block_on(async {
+                        let list = client
+                            .digital_employee_list()
+                            .await
+                            .map_err(|e| e.user_message())?;
+                        Ok::<_, String>(list)
+                    })
                 })
                 .await;
             this.update(cx, |this, cx| {
@@ -219,9 +221,11 @@ impl Render for VirtualOfficeView {
                 // 卡片墙：每行 3 张（flex wrap 由外层承担）
                 for chunk in items.chunks(3) {
                     wall = wall.child(
-                        h_flex().gap_2().children(chunk.iter().map(|e| {
-                            employee_card(e, is_office, &app_theme)
-                        })),
+                        h_flex().gap_2().children(
+                            chunk
+                                .iter()
+                                .map(|e| employee_card(e, is_office, &app_theme)),
+                        ),
                     );
                 }
 
@@ -245,14 +249,14 @@ impl Render for VirtualOfficeView {
                 "virtual-office",
                 &[
                     AggregateItem::new("总数", items.len().to_string()),
-                    AggregateItem::new("运行中", running.to_string()).tone(crate::widgets::data_grid::AggregateTone::Positive),
+                    AggregateItem::new("运行中", running.to_string())
+                        .tone(crate::widgets::data_grid::AggregateTone::Positive),
                     AggregateItem::new("待命", idle.to_string()),
-                    AggregateItem::new("异常", failed.to_string())
-                        .tone(if failed > 0 {
-                            crate::widgets::data_grid::AggregateTone::Danger
-                        } else {
-                            crate::widgets::data_grid::AggregateTone::Neutral
-                        }),
+                    AggregateItem::new("异常", failed.to_string()).tone(if failed > 0 {
+                        crate::widgets::data_grid::AggregateTone::Danger
+                    } else {
+                        crate::widgets::data_grid::AggregateTone::Neutral
+                    }),
                 ],
             )
             .into_any_element()
@@ -407,10 +411,7 @@ mod tests {
     #[test]
     fn url_constants_match_sidebar() {
         assert_eq!(DIGITAL_EMPLOYEES_URL, "/dashboard/ai/digital-employees");
-        assert_eq!(
-            VIRTUAL_OFFICE_URL,
-            "/dashboard/ai/digital-employees/office"
-        );
+        assert_eq!(VIRTUAL_OFFICE_URL, "/dashboard/ai/digital-employees/office");
     }
 
     #[test]

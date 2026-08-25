@@ -25,7 +25,10 @@ use gpui::{
     SharedString, Styled,
 };
 use gpui_component::{
-    button::Button, h_flex, menu::{DropdownMenu, PopupMenuItem}, Icon, IconName, Sizable,
+    button::Button,
+    h_flex,
+    menu::{DropdownMenu, PopupMenuItem},
+    Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -445,23 +448,25 @@ impl ConsoleBarView {
         self.projects_requested = true;
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            // 与各业务视图同一管线：专用 tokio runtime 上阻塞拉取（后台线程）
-            let projects = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(client.list_managed_projects())
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                // 与各业务视图同一管线：专用 tokio runtime 上阻塞拉取（后台线程）
+                let projects = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(client.list_managed_projects())
+                    })
+                    .await;
+                this.update(cx, |this, cx| {
+                    match projects {
+                        Ok(list) => this.projects = list,
+                        // 失败复位请求标志：否则下拉永远只有「全部项目」直到重启
+                        Err(_) => this.projects_requested = false,
+                    }
+                    cx.notify();
                 })
-                .await;
-            this.update(cx, |this, cx| {
-                match projects {
-                    Ok(list) => this.projects = list,
-                    // 失败复位请求标志：否则下拉永远只有「全部项目」直到重启
-                    Err(_) => this.projects_requested = false,
-                }
-                cx.notify();
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
     }
 
@@ -500,91 +505,81 @@ impl Render for ConsoleBarView {
             .when(config.project, |row| {
                 let label: SharedString = self.project_label().into();
                 let entity = entity_for_project;
-                row.child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("项目"),
-                )
-                .child(
-                    Button::new("console-project-select")
-                        .outline()
-                        .small()
-                        .label(label)
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(
-                            gpui::Corner::BottomLeft,
-                            move |menu, _window, _cx| {
-                                let mut menu = menu;
-                                // 「全部项目」= 清除项目筛选（None）
-                                menu = menu.item(
-                                    PopupMenuItem::new("全部项目")
-                                        .checked(selected_project_id.is_none())
-                                        .on_click({
-                                            let view = entity.clone();
-                                            move |_, _, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_project(None, cx)
-                                                });
-                                            }
-                                        }),
-                                );
-                                for project in &projects_owned {
-                                    let checked = selected_project_id == Some(project.id);
-                                    let id = project.id;
-                                    let name = project.name.clone();
+                row.child(div().text_xs().text_color(theme.text_muted).child("项目"))
+                    .child(
+                        Button::new("console-project-select")
+                            .outline()
+                            .small()
+                            .label(label)
+                            .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+                            .dropdown_menu_with_anchor(
+                                gpui::Corner::BottomLeft,
+                                move |menu, _window, _cx| {
+                                    let mut menu = menu;
+                                    // 「全部项目」= 清除项目筛选（None）
                                     menu = menu.item(
-                                        PopupMenuItem::new(name).checked(checked).on_click({
-                                            let view = entity.clone();
-                                            move |_, _, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_project(Some(id), cx)
-                                                });
-                                            }
-                                        }),
+                                        PopupMenuItem::new("全部项目")
+                                            .checked(selected_project_id.is_none())
+                                            .on_click({
+                                                let view = entity.clone();
+                                                move |_, _, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.select_project(None, cx)
+                                                    });
+                                                }
+                                            }),
                                     );
-                                }
-                                menu
-                            },
-                        ),
-                )
+                                    for project in &projects_owned {
+                                        let checked = selected_project_id == Some(project.id);
+                                        let id = project.id;
+                                        let name = project.name.clone();
+                                        menu = menu.item(
+                                            PopupMenuItem::new(name).checked(checked).on_click({
+                                                let view = entity.clone();
+                                                move |_, _, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.select_project(Some(id), cx)
+                                                    });
+                                                }
+                                            }),
+                                        );
+                                    }
+                                    menu
+                                },
+                            ),
+                    )
             })
             // 站点选择器：label + 下拉（US/DE/UK/ALL）
             .when(config.country, |row| {
                 let entity = entity_for_country;
-                row.child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("站点"),
-                )
-                .child(
-                    Button::new("console-country-select")
-                        .outline()
-                        .small()
-                        .label(SharedString::from(console_country_label(country)))
-                        .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                        .dropdown_menu_with_anchor(
-                            gpui::Corner::BottomLeft,
-                            move |menu, _window, _cx| {
-                                let mut menu = menu;
-                                for (value, label) in CONSOLE_COUNTRY_OPTIONS {
-                                    let checked = country == value;
-                                    menu = menu.item(
-                                        PopupMenuItem::new(label).checked(checked).on_click({
-                                            let view = entity.clone();
-                                            move |_, _, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.select_country(value, cx)
-                                                });
-                                            }
-                                        }),
-                                    );
-                                }
-                                menu
-                            },
-                        ),
-                )
+                row.child(div().text_xs().text_color(theme.text_muted).child("站点"))
+                    .child(
+                        Button::new("console-country-select")
+                            .outline()
+                            .small()
+                            .label(SharedString::from(console_country_label(country)))
+                            .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+                            .dropdown_menu_with_anchor(
+                                gpui::Corner::BottomLeft,
+                                move |menu, _window, _cx| {
+                                    let mut menu = menu;
+                                    for (value, label) in CONSOLE_COUNTRY_OPTIONS {
+                                        let checked = country == value;
+                                        menu = menu.item(
+                                            PopupMenuItem::new(label).checked(checked).on_click({
+                                                let view = entity.clone();
+                                                move |_, _, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.select_country(value, cx)
+                                                    });
+                                                }
+                                            }),
+                                        );
+                                    }
+                                    menu
+                                },
+                            ),
+                    )
             })
             // 日期区间：复用 DateRangePickerState 翻页模式（◀ 快捷/自定义区间 ▶）
             .when(config.date, |row| row.child(self.date_picker.clone()))
@@ -725,7 +720,8 @@ mod tests {
 
         cx2.update(|_, app| {
             host.update(app, |host, cx| {
-                host.bar.update(cx, |bar, cx| bar.select_project(Some(3), cx))
+                host.bar
+                    .update(cx, |bar, cx| bar.select_project(Some(3), cx))
             });
         });
         cx2.read(|app| {
@@ -736,7 +732,8 @@ mod tests {
         // 同值 no-op：last_event 不变（仍为第一次的事件）
         cx2.update(|_, app| {
             host.update(app, |host, cx| {
-                host.bar.update(cx, |bar, cx| bar.select_project(Some(3), cx))
+                host.bar
+                    .update(cx, |bar, cx| bar.select_project(Some(3), cx))
             });
         });
         cx2.read(|app| {
@@ -766,10 +763,7 @@ mod tests {
             });
         });
         cx2.read(|app| {
-            assert_eq!(
-                host.read(app).bar.read(app).snapshot().country,
-                "UK"
-            );
+            assert_eq!(host.read(app).bar.read(app).snapshot().country, "UK");
         });
     }
 
@@ -882,7 +876,9 @@ mod tests {
         });
 
         // 复位后再次进入带 project 的页面（配置经空页往返）应重新发起请求
-        bar.update(cx, |bar, cx| bar.set_config(ConsoleBarConfig::default(), cx));
+        bar.update(cx, |bar, cx| {
+            bar.set_config(ConsoleBarConfig::default(), cx)
+        });
         bar.update(cx, |bar, cx| {
             bar.set_config(console_config_for_url(DAILY_ANALYSIS_URL), cx)
         });

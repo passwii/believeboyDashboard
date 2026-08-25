@@ -24,11 +24,11 @@ use std::io::Cursor;
 use std::time::SystemTime;
 
 use docx_rs::{
-    AbstractNumbering, BorderType, BreakType, Docx, Hyperlink, HyperlinkType,
-    IndentLevel, Level, LevelJc, LevelText, LineSpacing, NumberFormat, Numbering, NumberingId,
-    PageMargin, Paragraph, ParagraphBorder, ParagraphBorderPosition, ParagraphBorders,
-    Run, RunFonts, Shading, Start, Style, StyleType, Table, TableBorders, TableCell,
-    TableCellMargins, TableLayoutType, TableRow, TableBorderPosition, WidthType,
+    AbstractNumbering, BorderType, BreakType, Docx, Hyperlink, HyperlinkType, IndentLevel, Level,
+    LevelJc, LevelText, LineSpacing, NumberFormat, Numbering, NumberingId, PageMargin, Paragraph,
+    ParagraphBorder, ParagraphBorderPosition, ParagraphBorders, Run, RunFonts, Shading, Start,
+    Style, StyleType, Table, TableBorderPosition, TableBorders, TableCell, TableCellMargins,
+    TableLayoutType, TableRow, WidthType,
 };
 
 // ---------------------------------------------------------------------------
@@ -62,16 +62,29 @@ impl InlineToken {
 /// 块级节点（对齐 web `BlockNode`）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockNode {
-    Heading { level: u8, children: Vec<InlineToken> },
-    Paragraph { children: Vec<InlineToken> },
-    BulletList { items: Vec<Vec<InlineToken>> },
-    OrderedList { items: Vec<Vec<InlineToken>> },
+    Heading {
+        level: u8,
+        children: Vec<InlineToken>,
+    },
+    Paragraph {
+        children: Vec<InlineToken>,
+    },
+    BulletList {
+        items: Vec<Vec<InlineToken>>,
+    },
+    OrderedList {
+        items: Vec<Vec<InlineToken>>,
+    },
     Table {
         rows: Vec<Vec<Vec<InlineToken>>>,
         column_count: usize,
     },
-    Code { text: String },
-    Quote { children: Vec<InlineToken> },
+    Code {
+        text: String,
+    },
+    Quote {
+        children: Vec<InlineToken>,
+    },
     Hr,
 }
 
@@ -116,7 +129,15 @@ fn find_close(value: &str, from: usize, marker: &str) -> Option<(usize, usize)> 
 fn try_match_linkish(line: &str, at: usize) -> Option<(bool, String, String, usize)> {
     let rest = &line[at..];
     let image = rest.starts_with("![");
-    let open = if image { 2 } else { if rest.starts_with('[') { 1 } else { return None } };
+    let open = if image {
+        2
+    } else {
+        if rest.starts_with('[') {
+            1
+        } else {
+            return None;
+        }
+    };
     let after_open = &rest[open..];
     // text：非 `]` 序列且非空（web INLINE_PATTERN `[\]]+` 对图片/链接统一要求
     // 非空；imageMatch 的 `[\]]*` 只是对已匹配串的二次解析）
@@ -335,10 +356,7 @@ fn is_table_line(line: &str) -> bool {
 
 fn is_table_separator(line: &str) -> bool {
     let cells = split_table_cells(line);
-    cells.len() > 1
-        && cells
-            .iter()
-            .all(|cell| is_separator_cell(cell.trim()))
+    cells.len() > 1 && cells.iter().all(|cell| is_separator_cell(cell.trim()))
 }
 
 /// `/^:?-{3,}:?$/` 等价判断
@@ -485,12 +503,11 @@ pub fn parse_markdown(markdown: &str) -> Vec<BlockNode> {
         }
 
         // GFM 表格：表头行 + 分隔行
-        if is_table_line(line)
-            && index + 1 < lines.len()
-            && is_table_separator(lines[index + 1])
-        {
-            let mut rows: Vec<Vec<Vec<InlineToken>>> =
-                vec![split_table_cells(line).iter().map(|c| parse_inline(c)).collect()];
+        if is_table_line(line) && index + 1 < lines.len() && is_table_separator(lines[index + 1]) {
+            let mut rows: Vec<Vec<Vec<InlineToken>>> = vec![split_table_cells(line)
+                .iter()
+                .map(|c| parse_inline(c))
+                .collect()];
             let mut cursor = index + 2;
             while cursor < lines.len() && is_table_line(lines[cursor]) {
                 rows.push(
@@ -597,9 +614,7 @@ pub fn parse_markdown(markdown: &str) -> Vec<BlockNode> {
         // 段落：累积到空行或 hr
         let mut paragraph_lines: Vec<&str> = Vec::new();
         let mut cursor = index;
-        while cursor < lines.len()
-            && !lines[cursor].trim().is_empty()
-            && !is_hr_line(lines[cursor])
+        while cursor < lines.len() && !lines[cursor].trim().is_empty() && !is_hr_line(lines[cursor])
         {
             paragraph_lines.push(lines[cursor]);
             cursor += 1;
@@ -707,7 +722,11 @@ fn render_inline(tokens: &[InlineToken]) -> Vec<InlinePiece> {
                 }
                 if token.mono {
                     // web font: 'Courier New'
-                    run = run.fonts(RunFonts::new().ascii("Courier New").east_asia("Courier New"));
+                    run = run.fonts(
+                        RunFonts::new()
+                            .ascii("Courier New")
+                            .east_asia("Courier New"),
+                    );
                 }
                 InlinePiece::Run(Box::new(run))
             }
@@ -741,9 +760,11 @@ fn code_paragraph(text: &str) -> Paragraph {
     let mut para = Paragraph::new().line_spacing(LineSpacing::new().after(120));
     para.property.shading = Some(Shading::new().fill(SOFT_FILL));
     for (i, line) in lines.iter().enumerate() {
-        let run = Run::new()
-            .add_text((*line).to_string())
-            .fonts(RunFonts::new().ascii("Courier New").east_asia("Courier New"));
+        let run = Run::new().add_text((*line).to_string()).fonts(
+            RunFonts::new()
+                .ascii("Courier New")
+                .east_asia("Courier New"),
+        );
         para = if i + 1 == lines.len() {
             para.add_run(run)
         } else {
@@ -756,12 +777,14 @@ fn code_paragraph(text: &str) -> Paragraph {
 fn quote_paragraph(tokens: &[InlineToken]) -> Paragraph {
     let mut para = paragraph_from(tokens, 120);
     para.property.shading = Some(Shading::new().fill(SOFT_FILL));
-    para.property.borders = Some(ParagraphBorders::new().set(
-        ParagraphBorder::new(ParagraphBorderPosition::Left)
-            .val(BorderType::Single)
-            .size(8)
-            .color(QUOTE_BAR_COLOR),
-    ));
+    para.property.borders = Some(
+        ParagraphBorders::new().set(
+            ParagraphBorder::new(ParagraphBorderPosition::Left)
+                .val(BorderType::Single)
+                .size(8)
+                .color(QUOTE_BAR_COLOR),
+        ),
+    );
     para
 }
 
@@ -769,12 +792,14 @@ fn hr_paragraph() -> Paragraph {
     let mut para = Paragraph::new()
         .line_spacing(LineSpacing::new().after(160))
         .add_run(Run::new().add_text(" ").color("FFFFFF"));
-    para.property.borders = Some(ParagraphBorders::new().set(
-        ParagraphBorder::new(ParagraphBorderPosition::Bottom)
-            .val(BorderType::Single)
-            .size(8)
-            .color(TABLE_BORDER_COLOR),
-    ));
+    para.property.borders = Some(
+        ParagraphBorders::new().set(
+            ParagraphBorder::new(ParagraphBorderPosition::Bottom)
+                .val(BorderType::Single)
+                .size(8)
+                .color(TABLE_BORDER_COLOR),
+        ),
+    );
     para
 }
 
@@ -900,7 +925,13 @@ pub fn build_docx_document(markdown: &str) -> Docx {
     }
 
     // web 四边页边距 1440 twips（1 inch）
-    docx.page_margin(PageMargin::new().top(1440).bottom(1440).left(1440).right(1440))
+    docx.page_margin(
+        PageMargin::new()
+            .top(1440)
+            .bottom(1440)
+            .left(1440)
+            .right(1440),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -940,7 +971,8 @@ pub fn create_word_filename(source_name: Option<&str>) -> String {
 fn strip_extensions(name: &str) -> String {
     let trimmed = name.trim();
     // 第一步：大小写不敏感地剥结尾 `.md`
-    let after_md = if trimmed.len() >= 3 && trimmed[trimmed.len() - 3..].eq_ignore_ascii_case(".md") {
+    let after_md = if trimmed.len() >= 3 && trimmed[trimmed.len() - 3..].eq_ignore_ascii_case(".md")
+    {
         &trimmed[..trimmed.len() - 3]
     } else {
         trimmed
@@ -1022,7 +1054,8 @@ pub fn markdown_to_docx_bytes(markdown: &str) -> Result<Vec<u8>, ExportError> {
     }
     let docx = build_docx_document(markdown);
     let mut buf = Cursor::new(Vec::new());
-    docx.pack(&mut buf).map_err(|e| ExportError::Io(e.to_string()))?;
+    docx.pack(&mut buf)
+        .map_err(|e| ExportError::Io(e.to_string()))?;
     Ok(buf.into_inner())
 }
 
@@ -1038,7 +1071,10 @@ mod tests {
 
     #[test]
     fn unescapes_markdown_punctuation() {
-        assert_eq!(unescape_markdown_text("\\*not emphasis\\*"), "*not emphasis*");
+        assert_eq!(
+            unescape_markdown_text("\\*not emphasis\\*"),
+            "*not emphasis*"
+        );
         assert_eq!(unescape_markdown_text("a\\|b"), "a|b");
         // 未列出的转义保持原样
         assert_eq!(unescape_markdown_text("\\n"), "\\n");
@@ -1121,9 +1157,15 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                InlineToken { bold: true, ..InlineToken::plain("粗") },
+                InlineToken {
+                    bold: true,
+                    ..InlineToken::plain("粗")
+                },
                 InlineToken::plain("普通"),
-                InlineToken { italics: true, ..InlineToken::plain("斜") },
+                InlineToken {
+                    italics: true,
+                    ..InlineToken::plain("斜")
+                },
             ]
         );
     }
@@ -1132,10 +1174,7 @@ mod tests {
 
     #[test]
     fn table_cells_split_on_pipes() {
-        assert_eq!(
-            split_table_cells("| a | b | c |"),
-            vec!["a", "b", "c"]
-        );
+        assert_eq!(split_table_cells("| a | b | c |"), vec!["a", "b", "c"]);
         assert_eq!(split_table_cells("a | b"), vec!["a", "b"]);
     }
 
@@ -1148,7 +1187,10 @@ mod tests {
     fn separator_cell_detection() {
         assert!(is_table_separator("| --- | :---: | ---: |"));
         assert!(!is_table_separator("| a | b |"));
-        assert!(!is_table_separator("| -- | -- |"), "短于 3 个横线不算分隔行");
+        assert!(
+            !is_table_separator("| -- | -- |"),
+            "短于 3 个横线不算分隔行"
+        );
     }
 
     // ---------- 块级解析 ----------
@@ -1159,9 +1201,18 @@ mod tests {
         assert_eq!(
             blocks,
             vec![
-                BlockNode::Heading { level: 1, children: vec![InlineToken::plain("一")] },
-                BlockNode::Heading { level: 2, children: vec![InlineToken::plain("二")] },
-                BlockNode::Heading { level: 3, children: vec![InlineToken::plain("四级")] },
+                BlockNode::Heading {
+                    level: 1,
+                    children: vec![InlineToken::plain("一")]
+                },
+                BlockNode::Heading {
+                    level: 2,
+                    children: vec![InlineToken::plain("二")]
+                },
+                BlockNode::Heading {
+                    level: 3,
+                    children: vec![InlineToken::plain("四级")]
+                },
             ]
         );
     }
@@ -1234,7 +1285,9 @@ mod tests {
         let blocks = parse_markdown(md);
         assert_eq!(
             blocks[0],
-            BlockNode::Code { text: "fn main() {}\nlet x = 1;".to_string() }
+            BlockNode::Code {
+                text: "fn main() {}\nlet x = 1;".to_string()
+            }
         );
         assert!(matches!(&blocks[1], BlockNode::Paragraph { .. }));
     }
@@ -1246,7 +1299,12 @@ mod tests {
         let md = "~~~\ncode\n~~~~~~\n后文";
         let blocks = parse_markdown(md);
         assert_eq!(blocks.len(), 2);
-        assert_eq!(blocks[0], BlockNode::Code { text: "code".to_string() });
+        assert_eq!(
+            blocks[0],
+            BlockNode::Code {
+                text: "code".to_string()
+            }
+        );
         assert!(matches!(&blocks[1], BlockNode::Paragraph { .. }));
     }
 
@@ -1299,7 +1357,9 @@ mod tests {
     fn filename_timestamp_shape_is_compact_utc() {
         let name = create_word_filename(None);
         // markdown-document-YYYYMMDDHHMMSS.docx
-        let stem = name.trim_start_matches("markdown-document-").trim_end_matches(".docx");
+        let stem = name
+            .trim_start_matches("markdown-document-")
+            .trim_end_matches(".docx");
         assert_eq!(stem.len(), 14, "实际 {name}");
         assert!(stem.bytes().all(|b| b.is_ascii_digit()), "实际 {name}");
     }
@@ -1317,7 +1377,11 @@ mod tests {
     #[test]
     fn docx_bytes_are_non_empty_zip() {
         let bytes = markdown_to_docx_bytes("# 标题\n正文段落").expect("导出应成功");
-        assert!(bytes.len() > 1000, "DOCX 至少包含骨架 XML，实际 {} 字节", bytes.len());
+        assert!(
+            bytes.len() > 1000,
+            "DOCX 至少包含骨架 XML，实际 {} 字节",
+            bytes.len()
+        );
         assert_eq!(&bytes[..2], b"PK", "DOCX 是 ZIP 容器（PK 魔数）");
     }
 
@@ -1343,8 +1407,14 @@ mod tests {
     fn docx_heading_uses_heading_style_ids() {
         let docx = build_docx_document("# 大标题\n### 小标题");
         let json = docx.json();
-        assert!(json.contains("\"style\": \"Heading1\""), "H1 → Heading1 样式");
-        assert!(json.contains("\"style\": \"Heading3\""), "H3 → Heading3 样式");
+        assert!(
+            json.contains("\"style\": \"Heading1\""),
+            "H1 → Heading1 样式"
+        );
+        assert!(
+            json.contains("\"style\": \"Heading3\""),
+            "H3 → Heading3 样式"
+        );
     }
 
     #[test]
@@ -1376,9 +1446,16 @@ mod tests {
 
     #[test]
     fn docx_code_block_keeps_line_breaks() {
-        let xml = String::from_utf8_lossy(&build_docx_document("```\nline1\nline2\n```").build().document)
-            .into_owned();
-        assert!(xml.contains("<w:br w:type=\"textWrapping\""), "代码块行间显式换行（修正 web 裸 \\n 问题）");
+        let xml = String::from_utf8_lossy(
+            &build_docx_document("```\nline1\nline2\n```")
+                .build()
+                .document,
+        )
+        .into_owned();
+        assert!(
+            xml.contains("<w:br w:type=\"textWrapping\""),
+            "代码块行间显式换行（修正 web 裸 \\n 问题）"
+        );
         assert!(xml.contains(SOFT_FILL), "代码块底纹 F8FAFC");
     }
 }

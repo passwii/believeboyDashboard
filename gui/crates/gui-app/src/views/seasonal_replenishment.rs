@@ -61,8 +61,8 @@ use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::{filter_bar, state_views};
 use crate::widgets::top_projects::fmt_num_precise;
+use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
 /// 季节性补货分析条目一致）
@@ -105,7 +105,9 @@ pub fn fmt_opt_int(value: Option<i64>) -> String {
 
 /// 日期字符串展示（对齐 web `formatDate`：空 → `--`）
 pub fn fmt_opt_date(value: Option<&str>) -> String {
-    value.filter(|v| !v.is_empty()).map_or_else(|| "--".to_string(), str::to_string)
+    value
+        .filter(|v| !v.is_empty())
+        .map_or_else(|| "--".to_string(), str::to_string)
 }
 
 /// 同比方向（对齐 web `yoyDeltaClass`：当前 < 去年 → 下滑预警；当前 > 去年 →
@@ -276,7 +278,10 @@ impl SeasonalReplenishmentView {
             _ => {
                 let today = chrono::Local::now().date_naive();
                 let range = DateRange::last_days(DEFAULT_WINDOW_DAYS, today);
-                (range.from.expect("近 90 天有起点"), range.to.expect("近 90 天有终点"))
+                (
+                    range.from.expect("近 90 天有起点"),
+                    range.to.expect("近 90 天有终点"),
+                )
             }
         };
 
@@ -291,7 +296,13 @@ impl SeasonalReplenishmentView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime().block_on(load_seasonal(
-                        &client, selected, country, from, to, compare_year, &keyword,
+                        &client,
+                        selected,
+                        country,
+                        from,
+                        to,
+                        compare_year,
+                        &keyword,
                     ))
                 })
                 .await;
@@ -487,25 +498,19 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .child(
             h_flex()
                 .gap_3()
-                .children((0..4).map(|_| {
-                    div().w(px(140.)).h_8().child(Skeleton::new())
-                })),
+                .children((0..4).map(|_| div().w(px(140.)).h_8().child(Skeleton::new()))),
         )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..5).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .child(div().w_6().h_4().child(Skeleton::new()))
-                        .child(div().w_16().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
+        .child(h_flex().gap_3().children((0..5).map(|_| {
+            v_flex()
+                .flex_1()
+                .gap_2()
+                .p_4()
+                .rounded(px(app_theme.radius_lg))
+                .bg(app_theme.card_bg)
+                .child(div().w_6().h_4().child(Skeleton::new()))
+                .child(div().w_16().h_7().child(Skeleton::new()))
+                .child(div().w_20().child(Skeleton::new()))
+        })))
         .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
@@ -665,13 +670,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -686,13 +689,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(
-                            move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            },
-                        ),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -729,7 +730,11 @@ fn render_filter_bar(
                 .outline()
                 .small()
                 .selected(compare_year)
-                .label(if compare_year { "去年同期：开" } else { "去年同期：关" })
+                .label(if compare_year {
+                    "去年同期：开"
+                } else {
+                    "去年同期：关"
+                })
                 .on_click(move |_, _window, cx| {
                     view_for_compare.update(cx, |this, cx| this.toggle_compare_year(cx));
                 }),
@@ -878,7 +883,11 @@ fn table_card(
                             resp.from_date,
                             resp.to_date,
                             fmt_num_precise(resp.total),
-                            if compare_year { " · 含去年同期" } else { "" }
+                            if compare_year {
+                                " · 含去年同期"
+                            } else {
+                                ""
+                            }
                         )),
                 ),
         )
@@ -995,26 +1004,16 @@ fn caliber_note(app_theme: &AppTheme) -> impl IntoElement {
                 .text_color(app_theme.text_primary)
                 .child("口径说明"),
         )
-        .child(
-            div()
-                .text_xs()
-                .text_color(app_theme.text_secondary)
-                .child(
-                    "选定的日期区间是历史回看窗口：主窗口右端 = to_date，4 个 DMS 分别向前回溯 \
+        .child(div().text_xs().text_color(app_theme.text_secondary).child(
+            "选定的日期区间是历史回看窗口：主窗口右端 = to_date，4 个 DMS 分别向前回溯 \
                      90/30/14/7 天（双闭区间）；加权 DMS = 90D×40% + 30D×30% + 14D×20% + \
                      7D×10%（长周期高权重，任一窗口缺失按可用窗口重新归一化）。",
-                ),
-        )
-        .child(
-            div()
-                .text_xs()
-                .text_color(app_theme.text_secondary)
-                .child(
-                    "开启「去年同期」后额外计算去年同期窗口（右端 = to_date - 365）：同比单元格 \
+        ))
+        .child(div().text_xs().text_color(app_theme.text_secondary).child(
+            "开启「去年同期」后额外计算去年同期窗口（右端 = to_date - 365）：同比单元格 \
                      当前 < 去年 → 红（下滑预警），当前 > 去年 → 绿（爬坡预警）。季节性页面不判定 \
                      风险状态，请基于售卖截止 / 含在途截止 / 预计补货数量自行决策。",
-                ),
-        )
+        ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1040,11 +1039,9 @@ fn yoy_cell(current: Option<f64>, yoy: Option<f64>, theme: &AppTheme) -> AnyElem
 /// 可售天数 / 售卖截止 / 含在途截止 / 预计数量）。
 pub fn seasonal_columns(has_yoy: bool) -> Vec<ColumnDef<SeasonalReplenishmentItem>> {
     let mut columns = vec![
-        ColumnDef::text(
-            "seasonal-sku",
-            "SKU",
-            |r: &SeasonalReplenishmentItem, _| SharedString::from(r.sku.clone()),
-        )
+        ColumnDef::text("seasonal-sku", "SKU", |r: &SeasonalReplenishmentItem, _| {
+            SharedString::from(r.sku.clone())
+        })
         .width(140.0),
         ColumnDef::text(
             "seasonal-product",
@@ -1402,8 +1399,7 @@ mod tests {
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
         let (_view, _cx) = cx.add_window_view(|_window, cx| {
-            let mut view =
-                SeasonalReplenishmentView::new(cx, Client::new("http://127.0.0.1:1"));
+            let mut view = SeasonalReplenishmentView::new(cx, Client::new("http://127.0.0.1:1"));
             view.reload(cx);
             view
         });

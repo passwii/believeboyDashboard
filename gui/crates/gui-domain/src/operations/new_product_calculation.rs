@@ -413,13 +413,19 @@ mod tests {
         assert_eq!(item.id, 12);
         assert_eq!(item.calculation_type, CalculationType::FbmCalc);
         assert_eq!(item.calculation_type.label(), "FBM测算");
-        assert_eq!(item.inbound_placement_mode, InboundPlacementMode::SingleDestination);
+        assert_eq!(
+            item.inbound_placement_mode,
+            InboundPlacementMode::SingleDestination
+        );
         assert_eq!(item.fees.total_fee_usd, 15.1);
         assert_eq!(item.profit.profit_usd, 10.62);
         assert_eq!(item.dimensions.volume_cubic_ft, 0.21);
         assert_eq!(item.weights.chargeable_weight_rule, "取大");
         assert_eq!(item.warnings, vec!["售价低于建议区间".to_string()]);
-        assert_eq!(item.competitor_url.as_deref(), Some("https://www.amazon.com/dp/B0TEST"));
+        assert_eq!(
+            item.competitor_url.as_deref(),
+            Some("https://www.amazon.com/dp/B0TEST")
+        );
     }
 
     /// 响应解析容忍缺省：`platform_fee_usd` / `vat_usd` / FBM 扩展字段缺失的
@@ -476,7 +482,10 @@ mod tests {
         let item: PricingRunItem = serde_json::from_str(json).expect("解析失败");
         assert_eq!(item.country, "US", "country 缺省回退 US");
         assert_eq!(item.calculation_type, CalculationType::ProfitCalc);
-        assert_eq!(item.inbound_placement_mode, InboundPlacementMode::AmazonOptimizedSplit);
+        assert_eq!(
+            item.inbound_placement_mode,
+            InboundPlacementMode::AmazonOptimizedSplit
+        );
         assert_eq!(item.fees.platform_fee_usd, 0.0);
         assert_eq!(item.profit.vat_usd, 0.0);
         assert!(item.warnings.is_empty());

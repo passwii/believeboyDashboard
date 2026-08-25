@@ -216,11 +216,7 @@ impl CrmAuditView {
     /// 当前筛选与页码（只读，测试用）
     #[allow(dead_code)]
     pub fn current_filters(&self) -> (EntityFilter, ActionFilter, usize) {
-        (
-            self.entity_filter,
-            self.action_filter.clone(),
-            self.page,
-        )
+        (self.entity_filter, self.action_filter.clone(), self.page)
     }
 
     /// 重新拉取：首屏 / 错误重试 / 空态刷新 / 筛选切换 / 翻页共用入口
@@ -338,7 +334,12 @@ impl Render for CrmAuditView {
             .p_6()
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
-            .child(page_header(view.clone(), self.entity_filter, &self.action_filter, &app_theme))
+            .child(page_header(
+                view.clone(),
+                self.entity_filter,
+                &self.action_filter,
+                &app_theme,
+            ))
             .child(match state {
                 CrmAuditState::Loading => render_loading(&app_theme).into_any_element(),
                 CrmAuditState::Error(msg) => state_views::error_state(
@@ -517,10 +518,8 @@ fn render_loaded(
 
     crate::motion::enter_fade_in(
         SharedString::from("crm-audit-loaded-fade"),
-        v_flex()
-            .id("crm-audit-loaded")
-            .gap_3()
-            .child(content_guard().child(
+        v_flex().id("crm-audit-loaded").gap_3().child(
+            content_guard().child(
                 v_flex()
                     .id("crm-audit-list-card")
                     .w_full()
@@ -561,7 +560,8 @@ fn render_loaded(
                                 "共 {total} 条记录 · 每页 {PAGE_SIZE} 条"
                             ))),
                     ),
-            )),
+            ),
+        ),
         reduce,
     )
     .into_any_element()
@@ -579,10 +579,7 @@ fn action_pill_colors(action: &str, theme: &AppTheme) -> (Hsla, Hsla) {
         "create" | "complete" => (theme.success_soft, theme.success),
         "delete" => (theme.danger_soft, theme.danger),
         "update" => (theme.chart_primary.opacity(0.12), theme.chart_primary),
-        "transfer" => (
-            theme.chart_secondary.opacity(0.12),
-            theme.chart_secondary,
-        ),
+        "transfer" => (theme.chart_secondary.opacity(0.12), theme.chart_secondary),
         "move_sea" => (theme.warning.opacity(0.12), theme.warning),
         _ => (theme.muted_fill, theme.text_secondary),
     }
@@ -627,7 +624,11 @@ fn audit_columns() -> Vec<ColumnDef<AuditLogItem>> {
             .with_render_element(|item: &AuditLogItem, theme| action_pill(item, theme)),
         ColumnDef::text("actor", "操作人", |item: &AuditLogItem, _theme| {
             // 操作人为空 → 「系统」（对齐 web `actorName ?? '系统'`）
-            SharedString::from(item.actor_name.clone().unwrap_or_else(|| "系统".to_string()))
+            SharedString::from(
+                item.actor_name
+                    .clone()
+                    .unwrap_or_else(|| "系统".to_string()),
+            )
         })
         .width(110.0),
         ColumnDef::text("summary", "变更", |item: &AuditLogItem, _theme| {
@@ -667,10 +668,7 @@ mod tests {
 
     fn sample_page() -> AuditLogPage {
         AuditLogPage {
-            items: vec![
-                item(1, "customer", "create"),
-                item(2, "lead", "move_sea"),
-            ],
+            items: vec![item(1, "customer", "create"), item(2, "lead", "move_sea")],
             total: 42,
             page: 1,
             page_size: PAGE_SIZE as i64,
@@ -813,10 +811,7 @@ mod tests {
             );
             assert_eq!(
                 action_pill_colors("transfer", theme),
-                (
-                    theme.chart_secondary.opacity(0.12),
-                    theme.chart_secondary
-                )
+                (theme.chart_secondary.opacity(0.12), theme.chart_secondary)
             );
             assert_eq!(
                 action_pill_colors("move_sea", theme),
@@ -877,8 +872,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CrmAuditState::Loaded(Box::new(sample_page()));
@@ -893,8 +887,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CrmAuditState::Loaded(Box::new(sample_page()));
@@ -906,8 +899,7 @@ mod tests {
     #[gpui::test]
     async fn renders_error_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CrmAuditState::Error("登录已过期".into());
@@ -918,10 +910,10 @@ mod tests {
     #[gpui::test]
     async fn renders_empty_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
-            this.state.update(cx, |state, _| *state = CrmAuditState::Empty);
+            this.state
+                .update(cx, |state, _| *state = CrmAuditState::Empty);
         });
     }
 
@@ -929,10 +921,10 @@ mod tests {
     #[gpui::test]
     async fn renders_forbidden_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
-            this.state.update(cx, |state, _| *state = CrmAuditState::Forbidden);
+            this.state
+                .update(cx, |state, _| *state = CrmAuditState::Forbidden);
         });
     }
 
@@ -942,8 +934,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CrmAuditState::Loaded(Box::new(sample_page()));
@@ -958,8 +949,7 @@ mod tests {
     #[gpui::test]
     async fn reload_bumps_request_id_and_drops_stale_results(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             let before = this.latest_request_id;
@@ -994,8 +984,7 @@ mod tests {
     #[gpui::test]
     async fn set_filters_reset_page_and_reload(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             // 先翻到第 3 页
@@ -1038,8 +1027,7 @@ mod tests {
     #[gpui::test]
     async fn go_to_page_guards_invalid_and_same_page(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CrmAuditView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             let before = this.latest_request_id;
@@ -1062,12 +1050,20 @@ mod tests {
         let mut log = item(11, "contact", "convert");
         // 行内展示拼 entity_id（非日志主键 id；helper 默认 entity_id=3）
         assert_eq!(
-            format!("{} #{}", audit_entity_label(&log.entity_type), log.entity_id),
+            format!(
+                "{} #{}",
+                audit_entity_label(&log.entity_type),
+                log.entity_id
+            ),
             "联系人 #3"
         );
         log.entity_id = 11;
         assert_eq!(
-            format!("{} #{}", audit_entity_label(&log.entity_type), log.entity_id),
+            format!(
+                "{} #{}",
+                audit_entity_label(&log.entity_type),
+                log.entity_id
+            ),
             "联系人 #11"
         );
         assert_eq!(audit_action_label(&log.action), "转化");

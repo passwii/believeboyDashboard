@@ -200,7 +200,10 @@ pub struct LedgerKpis {
 }
 
 /// 从筛选后的原始行派生 KPI（设计决策 D6：原始行是唯一真相源）
-pub fn compute_kpis(summary_rows: &[LedgerSummaryRow], detail_rows: &[LedgerDetailRow]) -> LedgerKpis {
+pub fn compute_kpis(
+    summary_rows: &[LedgerSummaryRow],
+    detail_rows: &[LedgerDetailRow],
+) -> LedgerKpis {
     let mut ending_total = 0i64;
     let mut damaged_qty = 0i64;
     for r in latest_ending_by_group(summary_rows).values() {
@@ -252,11 +255,13 @@ pub struct EventTypeGroup {
 pub fn group_detail_by_event_type(rows: &[LedgerDetailRow]) -> Vec<EventTypeGroup> {
     let mut map: HashMap<String, EventTypeGroup> = HashMap::new();
     for r in rows {
-        let g = map.entry(r.event_type.clone()).or_insert_with(|| EventTypeGroup {
-            event_type: r.event_type.clone(),
-            count: 0,
-            net_qty: 0,
-        });
+        let g = map
+            .entry(r.event_type.clone())
+            .or_insert_with(|| EventTypeGroup {
+                event_type: r.event_type.clone(),
+                count: 0,
+                net_qty: 0,
+            });
         g.count += 1;
         g.net_qty += r.quantity;
     }
@@ -573,8 +578,7 @@ impl InventoryLedgerView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_ledger(&client, selected, month))
+                    crate::runtime::runtime().block_on(load_ledger(&client, selected, month))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -802,7 +806,10 @@ async fn load_ledger(
     let period = month.to_string();
     let (snap_res, trend_res, summary_res, detail_res, batches_res, cons_res) = tokio::join!(
         client.ledger_snapshot(project_id, &period),
-        client.ledger_trend(project_id, gui_api_client::inventory_ledger::LEDGER_TREND_MONTHS),
+        client.ledger_trend(
+            project_id,
+            gui_api_client::inventory_ledger::LEDGER_TREND_MONTHS
+        ),
         client.ledger_summary(project_id, &period),
         client.ledger_detail(project_id, &period),
         client.ledger_batches(project_id),
@@ -901,21 +908,17 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                 .gap_3()
                 .children((0..3).map(|_| div().w(px(140.)).h_8().child(Skeleton::new()))),
         )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..4).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .child(div().w_6().h_4().child(Skeleton::new()))
-                        .child(div().w_16().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
+        .child(h_flex().gap_3().children((0..4).map(|_| {
+            v_flex()
+                .flex_1()
+                .gap_2()
+                .p_4()
+                .rounded(px(app_theme.radius_lg))
+                .bg(app_theme.card_bg)
+                .child(div().w_6().h_4().child(Skeleton::new()))
+                .child(div().w_16().h_7().child(Skeleton::new()))
+                .child(div().w_20().child(Skeleton::new()))
+        })))
         .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
@@ -1037,21 +1040,21 @@ fn render_loaded(
                     summary_table,
                 )
                 .into_any_element(),
-                LedgerTab::Detail => render_detail_tab(
-                    view,
-                    app_theme,
-                    &filtered_detail,
-                    detail_page,
-                    detail_table,
-                )
-                .into_any_element(),
+                LedgerTab::Detail => {
+                    render_detail_tab(view, app_theme, &filtered_detail, detail_page, detail_table)
+                        .into_any_element()
+                }
                 LedgerTab::Batches => {
                     render_batches_tab(app_theme, payload, batches_table).into_any_element()
                 }
             });
     }
 
-    crate::motion::enter_fade_in(SharedString::from("inventory-ledger-loaded-fade"), body, reduce)
+    crate::motion::enter_fade_in(
+        SharedString::from("inventory-ledger-loaded-fade"),
+        body,
+        reduce,
+    )
 }
 
 /// 部分端点失败横幅（destructive 语义：danger 浅底 + 描边）
@@ -1208,55 +1211,52 @@ fn kpi_band(
         None
     };
 
-    h_flex()
-        .id("inventory-ledger-kpis")
-        .gap_3()
-        .children(vec![
-            kpi_card(
-                app_theme,
-                "期末总库存",
-                if has_data {
-                    fmt_num_precise(kpis.ending_total)
-                } else {
-                    "—".to_string()
-                },
-                "筛选范围内期末水位合计",
-                None,
-            ),
-            kpi_card(
-                app_theme,
-                "环比变动",
-                mom_value,
-                "较上月期末（SKU 筛选口径）",
-                mom_color,
-            ),
-            kpi_card(
-                app_theme,
-                "损坏占比",
-                if has_data {
-                    format!("{:.1}%", kpis.damaged_pct)
-                } else {
-                    "—".to_string()
-                },
-                &format!("非可售期末 {} 件", fmt_num_precise(kpis.damaged_qty)),
-                if kpis.damaged_pct > 5.0 {
-                    Some(app_theme.warning)
-                } else {
-                    None
-                },
-            ),
-            kpi_card(
-                app_theme,
-                "事件净变动",
-                if has_data {
-                    format_signed(kpis.net_change)
-                } else {
-                    "—".to_string()
-                },
-                &format!("{} 条事件", fmt_num_precise(kpis.event_count as i64)),
-                net_color,
-            ),
-        ])
+    h_flex().id("inventory-ledger-kpis").gap_3().children(vec![
+        kpi_card(
+            app_theme,
+            "期末总库存",
+            if has_data {
+                fmt_num_precise(kpis.ending_total)
+            } else {
+                "—".to_string()
+            },
+            "筛选范围内期末水位合计",
+            None,
+        ),
+        kpi_card(
+            app_theme,
+            "环比变动",
+            mom_value,
+            "较上月期末（SKU 筛选口径）",
+            mom_color,
+        ),
+        kpi_card(
+            app_theme,
+            "损坏占比",
+            if has_data {
+                format!("{:.1}%", kpis.damaged_pct)
+            } else {
+                "—".to_string()
+            },
+            &format!("非可售期末 {} 件", fmt_num_precise(kpis.damaged_qty)),
+            if kpis.damaged_pct > 5.0 {
+                Some(app_theme.warning)
+            } else {
+                None
+            },
+        ),
+        kpi_card(
+            app_theme,
+            "事件净变动",
+            if has_data {
+                format_signed(kpis.net_change)
+            } else {
+                "—".to_string()
+            },
+            &format!("{} 条事件", fmt_num_precise(kpis.event_count as i64)),
+            net_color,
+        ),
+    ])
 }
 
 /// 单张 KPI 卡：标签 + 数值 + 提示（数值可带强调色）
@@ -1585,13 +1585,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1608,13 +1606,11 @@ fn render_filter_bar(
                     let value = *month;
                     let label = month_label(value);
                     let view = view_for_month.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_month(value, cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_month(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1630,12 +1626,12 @@ fn render_filter_bar(
                 for value in &options.mskus {
                     let value = value.clone();
                     let view = view_for_msku.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(value.clone()).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(value.clone()).on_click(
+                        move |_, _window, cx| {
                             let value = value.clone();
                             view.update(cx, |this, cx| this.set_filter(FilterDim::Msku, value, cx));
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -1654,14 +1650,14 @@ fn render_filter_bar(
                 for value in &options.locations {
                     let value = value.clone();
                     let view = view_for_location.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(value.clone()).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(value.clone()).on_click(
+                        move |_, _window, cx| {
                             let value = value.clone();
                             view.update(cx, |this, cx| {
                                 this.set_filter(FilterDim::Location, value, cx)
                             });
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -1681,14 +1677,12 @@ fn render_filter_bar(
                     let value = value.clone();
                     let label = disposition_label(&value);
                     let view = view_for_disposition.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).on_click(move |_, _window, cx| {
-                            let value = value.clone();
-                            view.update(cx, |this, cx| {
-                                this.set_filter(FilterDim::Disposition, value, cx)
-                            });
-                        }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).on_click(move |_, _window, cx| {
+                        let value = value.clone();
+                        view.update(cx, |this, cx| {
+                            this.set_filter(FilterDim::Disposition, value, cx)
+                        });
+                    }));
                 }
                 menu
             },
@@ -1708,14 +1702,12 @@ fn render_filter_bar(
                     let value = value.clone();
                     let label = event_type_label(&value);
                     let view = view_for_event.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).on_click(move |_, _window, cx| {
-                            let value = value.clone();
-                            view.update(cx, |this, cx| {
-                                this.set_filter(FilterDim::EventType, value, cx)
-                            });
-                        }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).on_click(move |_, _window, cx| {
+                        let value = value.clone();
+                        view.update(cx, |this, cx| {
+                            this.set_filter(FilterDim::EventType, value, cx)
+                        });
+                    }));
                 }
                 menu
             },
@@ -1943,15 +1935,19 @@ fn render_summary_tab(
                 )
                 .when_some(table, |this, table| this.child(table))
                 .child(
-                    div().w_full().px_4().py_2().child(pagination::pagination_bar(
-                        view,
-                        app_theme,
-                        "inventory-ledger-summary-pagination",
-                        &page_state,
-                        &[PAGE_SIZE],
-                        |this, page, cx| this.set_summary_page(page, cx),
-                        |_, _, _| {},
-                    )),
+                    div()
+                        .w_full()
+                        .px_4()
+                        .py_2()
+                        .child(pagination::pagination_bar(
+                            view,
+                            app_theme,
+                            "inventory-ledger-summary-pagination",
+                            &page_state,
+                            &[PAGE_SIZE],
+                            |this, page, cx| this.set_summary_page(page, cx),
+                            |_, _, _| {},
+                        )),
                 ),
         )
 }
@@ -2031,15 +2027,19 @@ fn render_detail_tab(
         )
         .when_some(table, |this, table| this.child(table))
         .child(
-            div().w_full().px_4().py_2().child(pagination::pagination_bar(
-                view,
-                app_theme,
-                "inventory-ledger-detail-pagination",
-                &page_state,
-                &[PAGE_SIZE],
-                |this, page, cx| this.set_detail_page(page, cx),
-                |_, _, _| {},
-            )),
+            div()
+                .w_full()
+                .px_4()
+                .py_2()
+                .child(pagination::pagination_bar(
+                    view,
+                    app_theme,
+                    "inventory-ledger-detail-pagination",
+                    &page_state,
+                    &[PAGE_SIZE],
+                    |this, page, cx| this.set_detail_page(page, cx),
+                    |_, _, _| {},
+                )),
         )
 }
 
@@ -2073,12 +2073,9 @@ fn render_batches_tab(
                         .text_color(app_theme.text_primary)
                         .child("上传批次"),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(app_theme.text_muted)
-                        .child("每次 CSV 上传留档：文件指纹 / 行数 / 状态 / 对账结果，用于排查数据版本"),
-                ),
+                .child(div().text_xs().text_color(app_theme.text_muted).child(
+                    "每次 CSV 上传留档：文件指纹 / 行数 / 状态 / 对账结果，用于排查数据版本",
+                )),
         )
         .when_some(table, |this, table| {
             let _ = payload; // 行已在 sync_table_rows 注入；payload 仅保留签名对称
@@ -2149,9 +2146,11 @@ pub fn summary_columns() -> Vec<ColumnDef<LedgerSummaryRow>> {
             SharedString::from(r.location.clone())
         })
         .width(80.0),
-        ColumnDef::text("ledger-disposition", "处置状态", |_: &LedgerSummaryRow, _| {
-            SharedString::from("")
-        })
+        ColumnDef::text(
+            "ledger-disposition",
+            "处置状态",
+            |_: &LedgerSummaryRow, _| SharedString::from(""),
+        )
         .width(96.0)
         .with_render_element(|r: &LedgerSummaryRow, theme: &AppTheme| {
             disposition_pill(&r.disposition, theme)
@@ -2224,9 +2223,11 @@ pub fn detail_columns() -> Vec<ColumnDef<LedgerDetailRow>> {
             SharedString::from(r.msku.clone())
         })
         .width(120.0),
-        ColumnDef::text("ledger-detail-event", "事件类型", |r: &LedgerDetailRow, _| {
-            SharedString::from(event_type_label(&r.event_type))
-        })
+        ColumnDef::text(
+            "ledger-detail-event",
+            "事件类型",
+            |r: &LedgerDetailRow, _| SharedString::from(event_type_label(&r.event_type)),
+        )
         .width(96.0),
         ColumnDef::number(
             "ledger-detail-qty",
@@ -2346,17 +2347,23 @@ pub fn batch_columns() -> Vec<ColumnDef<LedgerIngestBatchInfo>> {
             |r: &LedgerIngestBatchInfo, _| r.id.to_string().into(),
         )
         .width(72.0),
-        ColumnDef::text("ledger-batch-month", "报表月", |r: &LedgerIngestBatchInfo, _| {
-            SharedString::from(month_label(r.report_month))
-        })
+        ColumnDef::text(
+            "ledger-batch-month",
+            "报表月",
+            |r: &LedgerIngestBatchInfo, _| SharedString::from(month_label(r.report_month)),
+        )
         .width(84.0),
-        ColumnDef::text("ledger-batch-kind", "类型", |r: &LedgerIngestBatchInfo, _| {
-            SharedString::from(match r.file_kind.as_str() {
-                "summary" => "汇总".to_string(),
-                "detail" => "明细".to_string(),
-                other => other.to_string(),
-            })
-        })
+        ColumnDef::text(
+            "ledger-batch-kind",
+            "类型",
+            |r: &LedgerIngestBatchInfo, _| {
+                SharedString::from(match r.file_kind.as_str() {
+                    "summary" => "汇总".to_string(),
+                    "detail" => "明细".to_string(),
+                    other => other.to_string(),
+                })
+            },
+        )
         .width(64.0),
         ColumnDef::text(
             "ledger-batch-file",
@@ -2384,23 +2391,29 @@ pub fn batch_columns() -> Vec<ColumnDef<LedgerIngestBatchInfo>> {
             |r: &LedgerIngestBatchInfo, _| fmt_num_precise(r.rows_written_detail).into(),
         )
         .width(76.0),
-        ColumnDef::text("ledger-batch-status", "状态", |_: &LedgerIngestBatchInfo, _| {
-            SharedString::from("")
-        })
+        ColumnDef::text(
+            "ledger-batch-status",
+            "状态",
+            |_: &LedgerIngestBatchInfo, _| SharedString::from(""),
+        )
         .width(88.0)
         .with_render_element(|r: &LedgerIngestBatchInfo, theme: &AppTheme| {
             batch_status_pill(&r.status, theme)
         }),
-        ColumnDef::text("ledger-batch-consistency", "对账", |_: &LedgerIngestBatchInfo, _| {
-            SharedString::from("")
-        })
+        ColumnDef::text(
+            "ledger-batch-consistency",
+            "对账",
+            |_: &LedgerIngestBatchInfo, _| SharedString::from(""),
+        )
         .width(96.0)
         .with_render_element(|r: &LedgerIngestBatchInfo, theme: &AppTheme| {
             batch_consistency_pill(r, theme)
         }),
-        ColumnDef::text("ledger-batch-loaded-at", "上传时间", |r: &LedgerIngestBatchInfo, _| {
-            SharedString::from(fmt_datetime(&r.loaded_at))
-        })
+        ColumnDef::text(
+            "ledger-batch-loaded-at",
+            "上传时间",
+            |r: &LedgerIngestBatchInfo, _| SharedString::from(fmt_datetime(&r.loaded_at)),
+        )
         .width(130.0),
     ]
 }
@@ -2414,8 +2427,8 @@ mod tests {
     use super::*;
     use gpui::TestAppContext;
     use gui_domain::operations::inventory_ledger::{
-        LedgerConsistencyResult, LedgerIntegrityCheck, LedgerSkuMonthEom,
-        LedgerSnapshotResponse, LedgerTrendMonthItem, LedgerTrendResponse,
+        LedgerConsistencyResult, LedgerIntegrityCheck, LedgerSkuMonthEom, LedgerSnapshotResponse,
+        LedgerTrendMonthItem, LedgerTrendResponse,
     };
 
     // ---------- 测试数据 ----------
@@ -2786,7 +2799,10 @@ mod tests {
         assert_eq!(options.mskus, vec!["SKU-A", "SKU-B"]);
         assert_eq!(options.locations, vec!["US-EAST", "US-WEST"]);
         assert_eq!(options.dispositions, vec!["DAMAGED", "SELLABLE"]);
-        assert_eq!(options.event_types, vec!["CUSTOMER_SHIPMENTS", "DAMAGED", "RECEIPTS"]);
+        assert_eq!(
+            options.event_types,
+            vec!["CUSTOMER_SHIPMENTS", "DAMAGED", "RECEIPTS"]
+        );
     }
 
     /// KPI 派生（期末总库存 = 每组合末日 ending 求和；损坏占比；事件净变动）

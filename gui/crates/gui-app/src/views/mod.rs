@@ -27,9 +27,9 @@
 //!
 //! > GUI-7 起 `dashboard` 挂载到 root.rs：作为「sidebar 之外的着陆页」在启动时默认
 //! > 显示（对齐 Web /dashboard 首页），侧栏选中任意项后切换到对应占位视图。
+pub mod account_management;
 pub mod ad_analysis;
 pub mod ad_data;
-pub mod account_management;
 pub mod agent_management;
 pub mod ai_chat;
 pub mod ai_insights;
@@ -37,9 +37,9 @@ pub mod auto_upload;
 pub mod command_palette;
 pub mod commission;
 pub mod crm_audit;
-pub mod customer_service;
 pub mod crm_dashboard;
 pub mod crm_follow_ups;
+pub mod customer_service;
 pub mod daily_analysis;
 pub mod dashboard;
 pub mod exchange_rate;
@@ -55,7 +55,6 @@ pub mod monthly_report;
 pub mod new_product_calculation;
 pub mod order_info;
 pub mod placeholder;
-pub mod virtual_office;
 pub mod platform_inspection;
 pub mod platform_inspection_edit;
 pub mod platform_revenue;
@@ -78,4 +77,5 @@ pub mod store_navigation;
 pub mod sub_nav;
 pub mod system_logs;
 pub mod vat_invoice;
+pub mod virtual_office;
 pub mod weekly_product_analysis;

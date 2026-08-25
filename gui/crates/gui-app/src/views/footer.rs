@@ -116,13 +116,9 @@ type UnreadState = Option<u64>;
 pub fn pick_latest_per_currency(
     items_by_currency: &[(&str, Vec<ExchangeRateItem>)],
 ) -> [Option<ExchangeRateItem>; TICKER_CURRENCIES.len()] {
-    let mut picked: [Option<ExchangeRateItem>; TICKER_CURRENCIES.len()] =
-        [None, None, None];
+    let mut picked: [Option<ExchangeRateItem>; TICKER_CURRENCIES.len()] = [None, None, None];
     for (slot, currency) in TICKER_CURRENCIES.iter().enumerate() {
-        if let Some((_, items)) = items_by_currency
-            .iter()
-            .find(|(cur, _)| *cur == *currency)
-        {
+        if let Some((_, items)) = items_by_currency.iter().find(|(cur, _)| *cur == *currency) {
             picked[slot] = items.first().cloned();
         }
     }
@@ -137,7 +133,11 @@ pub fn format_rate(rate: f64) -> SharedString {
 /// ISO8601 时刻 → 本地时区 `HH:MM:SS`（解析失败返回 `None`，调用方省略时刻段）
 pub fn format_local_clock(iso: &str) -> Option<String> {
     let dt = chrono::DateTime::parse_from_rfc3339(iso).ok()?;
-    Some(dt.with_timezone(&chrono::Local).format("%H:%M:%S").to_string())
+    Some(
+        dt.with_timezone(&chrono::Local)
+            .format("%H:%M:%S")
+            .to_string(),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -192,18 +192,16 @@ impl FooterView {
 
     fn start_rate_poll(&mut self, cx: &mut Context<Self>) {
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            loop {
-                bg.timer(RATE_POLL_INTERVAL).await;
-                let alive = this
-                    .update(cx, |this, cx| {
-                        this.fetch_rates(cx);
-                        true
-                    })
-                    .is_ok();
-                if !alive {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            bg.timer(RATE_POLL_INTERVAL).await;
+            let alive = this
+                .update(cx, |this, cx| {
+                    this.fetch_rates(cx);
+                    true
+                })
+                .is_ok();
+            if !alive {
+                break;
             }
         })
         .detach();
@@ -211,18 +209,16 @@ impl FooterView {
 
     fn start_db_poll(&mut self, cx: &mut Context<Self>) {
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            loop {
-                bg.timer(DB_POLL_INTERVAL).await;
-                let alive = this
-                    .update(cx, |this, cx| {
-                        this.fetch_db_status(cx);
-                        true
-                    })
-                    .is_ok();
-                if !alive {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            bg.timer(DB_POLL_INTERVAL).await;
+            let alive = this
+                .update(cx, |this, cx| {
+                    this.fetch_db_status(cx);
+                    true
+                })
+                .is_ok();
+            if !alive {
+                break;
             }
         })
         .detach();
@@ -230,18 +226,16 @@ impl FooterView {
 
     fn start_unread_poll(&mut self, cx: &mut Context<Self>) {
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            loop {
-                bg.timer(UNREAD_POLL_INTERVAL).await;
-                let alive = this
-                    .update(cx, |this, cx| {
-                        this.fetch_unread(cx);
-                        true
-                    })
-                    .is_ok();
-                if !alive {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            bg.timer(UNREAD_POLL_INTERVAL).await;
+            let alive = this
+                .update(cx, |this, cx| {
+                    this.fetch_unread(cx);
+                    true
+                })
+                .is_ok();
+            if !alive {
+                break;
             }
         })
         .detach();
@@ -249,13 +243,11 @@ impl FooterView {
 
     fn start_latency_refresh_tick(&mut self, cx: &mut Context<Self>) {
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            loop {
-                bg.timer(LATENCY_REFRESH_INTERVAL).await;
-                let alive = this.update(cx, |_, cx| cx.notify()).is_ok();
-                if !alive {
-                    break;
-                }
+        cx.spawn(async move |this, cx| loop {
+            bg.timer(LATENCY_REFRESH_INTERVAL).await;
+            let alive = this.update(cx, |_, cx| cx.notify()).is_ok();
+            if !alive {
+                break;
             }
         })
         .detach();
@@ -470,12 +462,12 @@ impl FooterView {
                     .hover(|style| style.bg(theme.muted_fill))
                     .on_click(cx.listener(move |this, _, _, cx| this.refresh_all(cx)))
                     .tooltip(move |_window, cx| {
-                        cx.new(|_| crate::views::sub_nav::SidebarTooltip::new("刷新状态栏".to_string()))
-                            .into()
+                        cx.new(|_| {
+                            crate::views::sub_nav::SidebarTooltip::new("刷新状态栏".to_string())
+                        })
+                        .into()
                     })
-                    .child(
-                        svg_refresh_icon(theme),
-                    ),
+                    .child(svg_refresh_icon(theme)),
             )
             .children(entries)
     }
@@ -533,7 +525,11 @@ impl FooterView {
     /// 未读通知徽标段：铃铛 + 数字胶囊（0 未读 / 无数据只显示铃铛，对齐 web）
     fn unread_segment(&self, theme: &AppTheme) -> impl IntoElement {
         let badge = self.unread.filter(|count| *count > 0).map(|count| {
-            let text = if count > 999 { "999+".to_string() } else { count.to_string() };
+            let text = if count > 999 {
+                "999+".to_string()
+            } else {
+                count.to_string()
+            };
             div()
                 .id("footer-unread-badge")
                 .min_w(px(14.0))
@@ -665,7 +661,13 @@ mod tests {
     #[test]
     fn pick_latest_per_currency_takes_first_hit_in_order() {
         let items = vec![
-            ("USD", vec![rate_item("USD", "2026-08", 7.23), rate_item("USD", "2026-07", 7.20)]),
+            (
+                "USD",
+                vec![
+                    rate_item("USD", "2026-08", 7.23),
+                    rate_item("USD", "2026-07", 7.20),
+                ],
+            ),
             ("EUR", vec![rate_item("EUR", "2026-08", 7.89)]),
             // GBP 缺失 → 占位
             ("CNY", vec![rate_item("CNY", "2026-08", 1.0)]),
@@ -854,7 +856,11 @@ mod tests {
                 ),
                 other => panic!("汇率段应完成降级应用，实际 {other:?}"),
             }
-            assert_eq!(footer.db_sync, DbSyncState::Unreachable, "DB 探测不可达应转黄");
+            assert_eq!(
+                footer.db_sync,
+                DbSyncState::Unreachable,
+                "DB 探测不可达应转黄"
+            );
             assert_eq!(footer.unread, None, "未读轮询失败应回退 None");
         });
     }

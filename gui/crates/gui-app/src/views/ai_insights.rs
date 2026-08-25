@@ -20,21 +20,16 @@ use gpui::{
     div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
     WeakEntity, Window,
 };
-use gpui_component::{
-    button::Button,
-    h_flex,
-    menu::PopupMenuItem,
-    v_flex, Sizable,
-};
+use gpui_component::{button::Button, h_flex, menu::PopupMenuItem, v_flex, Sizable};
 use gui_api_client::Client;
 use gui_domain::ai::{AiInsightDetail, AiInsightItem};
 use gui_domain::common::ManagedProject;
 
 use crate::theme::{AppTheme, FONT_BASE};
 use crate::widgets::data_grid::{pattern_a_shell, AggregateItem};
-use crate::widgets::page_header::PageHeader;
-use crate::widgets::{filter_bar};
 use crate::widgets::data_table::TabularNumsExt;
+use crate::widgets::filter_bar;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「AI 智能 → AI洞察」URL（数据权威 gui-domain::sidebar）
@@ -115,7 +110,10 @@ impl AiInsightsView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime().block_on(async {
-                        let projects = client.list_managed_projects().await.map_err(|e| e.user_message())?;
+                        let projects = client
+                            .list_managed_projects()
+                            .await
+                            .map_err(|e| e.user_message())?;
                         let list = client
                             .ai_insight_list(project_id, country, 50, 0)
                             .await
@@ -253,10 +251,8 @@ impl Render for AiInsightsView {
             )
             .into_any_element(),
             InsightsState::Loaded(items, total) => {
-                let header = PageHeader::new("AI洞察").subtitle(format!(
-                    "共 {} 条历史洞察 · 生成请在 web 端操作",
-                    total
-                ));
+                let header = PageHeader::new("AI洞察")
+                    .subtitle(format!("共 {} 条历史洞察 · 生成请在 web 端操作", total));
                 let body = v_flex()
                     .id("ai-insights-body")
                     .size_full()
@@ -265,9 +261,10 @@ impl Render for AiInsightsView {
                     .p_2()
                     .gap_2()
                     .children(
-                        items.iter().enumerate().map(|(ix, item)| {
-                            insight_row(&view, ix, item, &app_theme)
-                        }),
+                        items
+                            .iter()
+                            .enumerate()
+                            .map(|(ix, item)| insight_row(&view, ix, item, &app_theme)),
                     )
                     .child(div().id("ai-insights-detail").w_full().child(detail_el));
                 pattern_a_shell(
@@ -387,13 +384,11 @@ fn render_toolbar(
                     let checked = country == value;
                     let view = view_for_country.clone();
                     let value: &'static str = value;
-                    menu = menu.item(
-                        PopupMenuItem::new(label)
-                            .checked(checked)
-                            .on_click(move |_, _w, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _w, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -452,9 +447,14 @@ fn insight_row(
         .on_click(move |_, _, cx| {
             view.update(cx, |this, cx| this.open_detail(id, cx));
         })
-        .child(status_label.child(
-            div().text_xs().text_color(status_color).child(item.status_label()),
-        ))
+        .child(
+            status_label.child(
+                div()
+                    .text_xs()
+                    .text_color(status_color)
+                    .child(item.status_label()),
+            ),
+        )
         .child(
             div()
                 .flex_1()
@@ -484,7 +484,11 @@ fn insight_row(
 }
 
 /// 状态徽标骨架与语义色（终态绿 / 失败红 / 进行中琥珀）
-fn status_meta(label: &'static str, terminal: bool, theme: &AppTheme) -> (gpui::Stateful<gpui::Div>, gpui::Hsla) {
+fn status_meta(
+    label: &'static str,
+    terminal: bool,
+    theme: &AppTheme,
+) -> (gpui::Stateful<gpui::Div>, gpui::Hsla) {
     let color = if label == "失败" {
         theme.danger
     } else if terminal {
@@ -493,7 +497,9 @@ fn status_meta(label: &'static str, terminal: bool, theme: &AppTheme) -> (gpui::
         theme.warning
     };
     (
-        div().id(SharedString::from(format!("status-{label}"))).px_1p5(),
+        div()
+            .id(SharedString::from(format!("status-{label}")))
+            .px_1p5(),
         color,
     )
 }

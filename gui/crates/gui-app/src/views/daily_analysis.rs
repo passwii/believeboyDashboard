@@ -191,9 +191,7 @@ pub fn filter_breakdown_rows(
     ad_filter: AdFilter,
 ) -> Vec<BreakdownRow> {
     rows.iter()
-        .filter(|r| {
-            text_matches(query, &[&r.name]) && ad_filter.matches(r.ad_spend > 0.0)
-        })
+        .filter(|r| text_matches(query, &[&r.name]) && ad_filter.matches(r.ad_spend > 0.0))
         .cloned()
         .collect()
 }
@@ -524,8 +522,7 @@ impl DailyAnalysisView {
         let project_changed = project_id != self.selected_project_id;
         let country_changed = country != self.country;
         // 区间只在两端齐全时才应用（与 reload 的回退口径一致）
-        let range_changed =
-            range.from.is_some() && range.to.is_some() && range != self.date_range;
+        let range_changed = range.from.is_some() && range.to.is_some() && range != self.date_range;
         if !project_changed && !country_changed && !range_changed {
             return false;
         }
@@ -779,48 +776,82 @@ fn detail_columns() -> Vec<ColumnDef<DailyAnalysisDetailRow>> {
         })
         .width(96.0)
         .numeric(true),
-        ColumnDef::text("sku", "SKU", |_r: &DailyAnalysisDetailRow, _| SharedString::from(""))
-            .with_render_element(|r: &DailyAnalysisDetailRow, theme| sku_cell(&r.sku, theme))
-            .width(150.0),
-        ColumnDef::number("orders", "订单量", |r: &DailyAnalysisDetailRow| r.order_qty as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.order_qty))
+        ColumnDef::text("sku", "SKU", |_r: &DailyAnalysisDetailRow, _| {
+            SharedString::from("")
         })
+        .with_render_element(|r: &DailyAnalysisDetailRow, theme| sku_cell(&r.sku, theme))
+        .width(150.0),
+        ColumnDef::number(
+            "orders",
+            "订单量",
+            |r: &DailyAnalysisDetailRow| r.order_qty as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.order_qty)),
+        )
         .width(76.0),
-        ColumnDef::number("sales", "销售额", |r: &DailyAnalysisDetailRow| r.sales_amount, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_money_precise(r.sales_amount))
-        })
+        ColumnDef::number(
+            "sales",
+            "销售额",
+            |r: &DailyAnalysisDetailRow| r.sales_amount,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_money_precise(r.sales_amount)),
+        )
         .width(104.0),
-        ColumnDef::number("ad_spend", "广告花费", |r: &DailyAnalysisDetailRow| r.ad_spend, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_money_precise(r.ad_spend))
-        })
+        ColumnDef::number(
+            "ad_spend",
+            "广告花费",
+            |r: &DailyAnalysisDetailRow| r.ad_spend,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_money_precise(r.ad_spend)),
+        )
         .width(104.0),
-        ColumnDef::number("impressions", "曝光量", |r: &DailyAnalysisDetailRow| r.impressions as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.impressions))
-        })
+        ColumnDef::number(
+            "impressions",
+            "曝光量",
+            |r: &DailyAnalysisDetailRow| r.impressions as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.impressions)),
+        )
         .width(92.0),
-        ColumnDef::number("clicks", "点击量", |r: &DailyAnalysisDetailRow| r.clicks as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.clicks))
-        })
+        ColumnDef::number(
+            "clicks",
+            "点击量",
+            |r: &DailyAnalysisDetailRow| r.clicks as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.clicks)),
+        )
         .width(76.0),
-        ColumnDef::number("cpc", "CPC", |r: &DailyAnalysisDetailRow| r.cpc, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(format!("{:.2}", r.cpc))
-        })
+        ColumnDef::number(
+            "cpc",
+            "CPC",
+            |r: &DailyAnalysisDetailRow| r.cpc,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(format!("{:.2}", r.cpc)),
+        )
         .width(72.0),
-        ColumnDef::number("ad_orders", "广告订单", |r: &DailyAnalysisDetailRow| r.ad_orders as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.ad_orders))
-        })
+        ColumnDef::number(
+            "ad_orders",
+            "广告订单",
+            |r: &DailyAnalysisDetailRow| r.ad_orders as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.ad_orders)),
+        )
         .width(84.0),
-        ColumnDef::number("available", "可售库存", |r: &DailyAnalysisDetailRow| r.available_qty as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.available_qty))
-        })
+        ColumnDef::number(
+            "available",
+            "可售库存",
+            |r: &DailyAnalysisDetailRow| r.available_qty as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.available_qty)),
+        )
         .width(88.0),
-        ColumnDef::number("units", "销量", |r: &DailyAnalysisDetailRow| r.units_ordered as f64, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(fmt_num_precise(r.units_ordered))
-        })
+        ColumnDef::number(
+            "units",
+            "销量",
+            |r: &DailyAnalysisDetailRow| r.units_ordered as f64,
+            |r: &DailyAnalysisDetailRow, _| SharedString::from(fmt_num_precise(r.units_ordered)),
+        )
         .width(72.0),
-        ColumnDef::number("conversion", "转化率", |r: &DailyAnalysisDetailRow| r.conversion_rate, |r: &DailyAnalysisDetailRow, _| {
-            SharedString::from(format!("{:.2}%", r.conversion_rate))
-        })
+        ColumnDef::number(
+            "conversion",
+            "转化率",
+            |r: &DailyAnalysisDetailRow| r.conversion_rate,
+            |r: &DailyAnalysisDetailRow, _| {
+                SharedString::from(format!("{:.2}%", r.conversion_rate))
+            },
+        )
         .width(84.0),
     ]
 }
@@ -833,45 +864,75 @@ fn daily_columns() -> Vec<ColumnDef<DailyAnalysisRow>> {
         })
         .width(96.0)
         .numeric(true),
-        ColumnDef::number("orders", "订单量", |r: &DailyAnalysisRow| r.order_qty as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.order_qty))
-        })
+        ColumnDef::number(
+            "orders",
+            "订单量",
+            |r: &DailyAnalysisRow| r.order_qty as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.order_qty)),
+        )
         .width(76.0),
-        ColumnDef::number("sales", "销售额", |r: &DailyAnalysisRow| r.sales_amount, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_money_precise(r.sales_amount))
-        })
+        ColumnDef::number(
+            "sales",
+            "销售额",
+            |r: &DailyAnalysisRow| r.sales_amount,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_money_precise(r.sales_amount)),
+        )
         .width(104.0),
-        ColumnDef::number("ad_spend", "广告花费", |r: &DailyAnalysisRow| r.ad_spend, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_money_precise(r.ad_spend))
-        })
+        ColumnDef::number(
+            "ad_spend",
+            "广告花费",
+            |r: &DailyAnalysisRow| r.ad_spend,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_money_precise(r.ad_spend)),
+        )
         .width(104.0),
-        ColumnDef::number("impressions", "曝光量", |r: &DailyAnalysisRow| r.impressions as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.impressions))
-        })
+        ColumnDef::number(
+            "impressions",
+            "曝光量",
+            |r: &DailyAnalysisRow| r.impressions as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.impressions)),
+        )
         .width(92.0),
-        ColumnDef::number("clicks", "点击量", |r: &DailyAnalysisRow| r.clicks as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.clicks))
-        })
+        ColumnDef::number(
+            "clicks",
+            "点击量",
+            |r: &DailyAnalysisRow| r.clicks as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.clicks)),
+        )
         .width(76.0),
-        ColumnDef::number("cpc", "CPC", |r: &DailyAnalysisRow| r.cpc, |r: &DailyAnalysisRow, _| {
-            SharedString::from(format!("{:.2}", r.cpc))
-        })
+        ColumnDef::number(
+            "cpc",
+            "CPC",
+            |r: &DailyAnalysisRow| r.cpc,
+            |r: &DailyAnalysisRow, _| SharedString::from(format!("{:.2}", r.cpc)),
+        )
         .width(72.0),
-        ColumnDef::number("ad_orders", "广告订单", |r: &DailyAnalysisRow| r.ad_orders as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.ad_orders))
-        })
+        ColumnDef::number(
+            "ad_orders",
+            "广告订单",
+            |r: &DailyAnalysisRow| r.ad_orders as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.ad_orders)),
+        )
         .width(84.0),
-        ColumnDef::number("available", "可售库存", |r: &DailyAnalysisRow| r.available_qty as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.available_qty))
-        })
+        ColumnDef::number(
+            "available",
+            "可售库存",
+            |r: &DailyAnalysisRow| r.available_qty as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.available_qty)),
+        )
         .width(88.0),
-        ColumnDef::number("units", "销量", |r: &DailyAnalysisRow| r.units_ordered as f64, |r: &DailyAnalysisRow, _| {
-            SharedString::from(fmt_num_precise(r.units_ordered))
-        })
+        ColumnDef::number(
+            "units",
+            "销量",
+            |r: &DailyAnalysisRow| r.units_ordered as f64,
+            |r: &DailyAnalysisRow, _| SharedString::from(fmt_num_precise(r.units_ordered)),
+        )
         .width(72.0),
-        ColumnDef::number("conversion", "转化率", |r: &DailyAnalysisRow| r.conversion_rate, |r: &DailyAnalysisRow, _| {
-            SharedString::from(format!("{:.2}%", r.conversion_rate))
-        })
+        ColumnDef::number(
+            "conversion",
+            "转化率",
+            |r: &DailyAnalysisRow| r.conversion_rate,
+            |r: &DailyAnalysisRow, _| SharedString::from(format!("{:.2}%", r.conversion_rate)),
+        )
         .width(84.0),
     ]
 }
@@ -879,24 +940,38 @@ fn daily_columns() -> Vec<ColumnDef<DailyAnalysisRow>> {
 /// 维度下钻网格列（名称 + 合计指标 + 环比语义色）
 fn breakdown_columns() -> Vec<ColumnDef<BreakdownRow>> {
     vec![
-        ColumnDef::text("name", "名称", |_r: &BreakdownRow, _| SharedString::from(""))
-            .with_render_element(|r: &BreakdownRow, theme| sku_cell(&r.name, theme))
-            .width(200.0),
-        ColumnDef::number("sales", "销售额", |r: &BreakdownRow| r.sales, |r: &BreakdownRow, _| {
-            SharedString::from(fmt_money_precise(r.sales))
-        })
-        .width(120.0),
-        ColumnDef::number("orders", "订单量", |r: &BreakdownRow| r.orders as f64, |r: &BreakdownRow, _| {
-            SharedString::from(fmt_num_precise(r.orders))
-        })
-        .width(90.0),
-        ColumnDef::number("ad_spend", "广告花费", |r: &BreakdownRow| r.ad_spend, |r: &BreakdownRow, _| {
-            SharedString::from(fmt_money_precise(r.ad_spend))
-        })
-        .width(120.0),
-        ColumnDef::number("change", "环比", |r: &BreakdownRow| r.change.unwrap_or(f64::MIN), |_r, _| {
+        ColumnDef::text("name", "名称", |_r: &BreakdownRow, _| {
             SharedString::from("")
         })
+        .with_render_element(|r: &BreakdownRow, theme| sku_cell(&r.name, theme))
+        .width(200.0),
+        ColumnDef::number(
+            "sales",
+            "销售额",
+            |r: &BreakdownRow| r.sales,
+            |r: &BreakdownRow, _| SharedString::from(fmt_money_precise(r.sales)),
+        )
+        .width(120.0),
+        ColumnDef::number(
+            "orders",
+            "订单量",
+            |r: &BreakdownRow| r.orders as f64,
+            |r: &BreakdownRow, _| SharedString::from(fmt_num_precise(r.orders)),
+        )
+        .width(90.0),
+        ColumnDef::number(
+            "ad_spend",
+            "广告花费",
+            |r: &BreakdownRow| r.ad_spend,
+            |r: &BreakdownRow, _| SharedString::from(fmt_money_precise(r.ad_spend)),
+        )
+        .width(120.0),
+        ColumnDef::number(
+            "change",
+            "环比",
+            |r: &BreakdownRow| r.change.unwrap_or(f64::MIN),
+            |_r, _| SharedString::from(""),
+        )
         .width(110.0)
         .with_render_element(|r: &BreakdownRow, theme| change_indicator(r.change, theme)),
     ]
@@ -922,19 +997,17 @@ impl Render for DailyAnalysisView {
 
         // 搜索输入框懒建（首帧；InputState::new 需要 window）
         if self.search_input.is_none() {
-            let input =
-                cx.new(|cx| InputState::new(window, cx).placeholder("搜索 SKU / ASIN…"));
-            self.search_sub =
-                Some(cx.subscribe(&input, |this, _e, event: &InputEvent, cx| {
-                    if let InputEvent::Change = event {
-                        let query = this
-                            .search_input
-                            .as_ref()
-                            .map(|input| input.read(cx).value().to_string())
-                            .unwrap_or_default();
-                        this.set_search_query(query, cx);
-                    }
-                }));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("搜索 SKU / ASIN…"));
+            self.search_sub = Some(cx.subscribe(&input, |this, _e, event: &InputEvent, cx| {
+                if let InputEvent::Change = event {
+                    let query = this
+                        .search_input
+                        .as_ref()
+                        .map(|input| input.read(cx).value().to_string())
+                        .unwrap_or_default();
+                    this.set_search_query(query, cx);
+                }
+            }));
             self.search_input = Some(input);
         }
 
@@ -942,7 +1015,9 @@ impl Render for DailyAnalysisView {
             DailyAnalysisState::Loading => render_loading(&app_theme).into_any_element(),
             DailyAnalysisState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
             DailyAnalysisState::Empty => render_empty(cx, &app_theme).into_any_element(),
-            DailyAnalysisState::Loaded(_) => self.render_loaded(&app_theme, window, cx).into_any_element(),
+            DailyAnalysisState::Loaded(_) => self
+                .render_loaded(&app_theme, window, cx)
+                .into_any_element(),
         }
     }
 }
@@ -1050,20 +1125,22 @@ fn dataset_menu(
         .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
         .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
             let mut menu = menu;
-            for dataset in [GridDataset::Detail, GridDataset::Daily, GridDataset::Breakdown] {
+            for dataset in [
+                GridDataset::Detail,
+                GridDataset::Daily,
+                GridDataset::Breakdown,
+            ] {
                 if dataset == GridDataset::Breakdown && !breakdown_available {
                     continue; // 单项目 × 单站点模式下无下钻数据 → 不出项
                 }
                 let checked = current == dataset;
                 let label = dataset.label();
                 let view = view.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label)
-                        .checked(checked)
-                        .on_click(move |_, _window, cx| {
-                            view.update(cx, |this, cx| this.select_dataset(dataset, cx));
-                        }),
-                );
+                menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                    move |_, _window, cx| {
+                        view.update(cx, |this, cx| this.select_dataset(dataset, cx));
+                    },
+                ));
             }
             menu
         })
@@ -1071,31 +1148,26 @@ fn dataset_menu(
 
 /// 广告状态筛选下拉（Pattern A 工具栏「状态下拉」）
 fn ad_filter_menu(view: Entity<DailyAnalysisView>, current: AdFilter) -> impl IntoElement {
-    h_flex()
-        .gap_1p5()
-        .items_center()
-        .child(
-            Button::new("daily-analysis-ad-filter")
-                .outline()
-                .small()
-                .label(SharedString::from(format!("广告：{}", current.label())))
-                .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
-                    let mut menu = menu;
-                    for (label, filter) in AdFilter::OPTIONS {
-                        let checked = current == filter;
-                        let view = view.clone();
-                        menu = menu.item(
-                            PopupMenuItem::new(label)
-                                .checked(checked)
-                                .on_click(move |_, _window, cx| {
-                                    view.update(cx, |this, cx| this.set_ad_filter(filter, cx));
-                                }),
-                        );
-                    }
-                    menu
-                }),
-        )
+    h_flex().gap_1p5().items_center().child(
+        Button::new("daily-analysis-ad-filter")
+            .outline()
+            .small()
+            .label(SharedString::from(format!("广告：{}", current.label())))
+            .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+            .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                let mut menu = menu;
+                for (label, filter) in AdFilter::OPTIONS {
+                    let checked = current == filter;
+                    let view = view.clone();
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.set_ad_filter(filter, cx));
+                        },
+                    ));
+                }
+                menu
+            }),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1110,9 +1182,16 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
         .bg(app_theme.window_bg)
         .child(state_views::skeleton_loading(
             app_theme,
-            &[SkeletonBlock::Title, SkeletonBlock::Filter(3), SkeletonBlock::Kpi(6)],
+            &[
+                SkeletonBlock::Title,
+                SkeletonBlock::Filter(3),
+                SkeletonBlock::Kpi(6),
+            ],
         ))
-        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[SkeletonBlock::Table(300.0)],
+        ))
 }
 
 /// Error：卡片内 Alert + 重试按钮（公共组件 `state_views::error_state`）
@@ -1192,9 +1271,7 @@ async fn load_daily_analysis(
 
     // 对比期：紧邻主窗口之前的等长区间
     let span = (to - from).num_days().max(0) as u64 + 1;
-    let compare_to = from
-        .checked_sub_days(chrono::Days::new(1))
-        .unwrap_or(from);
+    let compare_to = from.checked_sub_days(chrono::Days::new(1)).unwrap_or(from);
     let compare_from = compare_to
         .checked_sub_days(chrono::Days::new(span - 1))
         .unwrap_or(compare_to);
@@ -1370,23 +1447,50 @@ mod tests {
             "B0-B-002"
         );
         // 关键词命中 ASIN（大小写不敏感）
-        assert_eq!(filter_detail_rows(&rows, "b0test01", AdFilter::All).len(), 2);
+        assert_eq!(
+            filter_detail_rows(&rows, "b0test01", AdFilter::All).len(),
+            2
+        );
         // 关键词 + 状态组合
         assert!(filter_detail_rows(&rows, "A-001", AdFilter::WithoutAds).is_empty());
     }
 
     #[test]
     fn filter_daily_and_breakdown_rows_by_spend() {
-        let daily = vec![row("2026-08-12", 100.0, 1, 20.0), row("2026-08-13", 50.0, 1, 0.0)];
+        let daily = vec![
+            row("2026-08-12", 100.0, 1, 20.0),
+            row("2026-08-13", 50.0, 1, 0.0),
+        ];
         assert_eq!(filter_daily_rows(&daily, "", AdFilter::WithAds).len(), 1);
-        assert_eq!(filter_daily_rows(&daily, "08-13", AdFilter::WithoutAds).len(), 1);
+        assert_eq!(
+            filter_daily_rows(&daily, "08-13", AdFilter::WithoutAds).len(),
+            1
+        );
 
         let breakdown = vec![
-            BreakdownRow { name: "项目 A".into(), sales: 100.0, orders: 1, ad_spend: 10.0, change: None },
-            BreakdownRow { name: "项目 B".into(), sales: 50.0, orders: 1, ad_spend: 0.0, change: None },
+            BreakdownRow {
+                name: "项目 A".into(),
+                sales: 100.0,
+                orders: 1,
+                ad_spend: 10.0,
+                change: None,
+            },
+            BreakdownRow {
+                name: "项目 B".into(),
+                sales: 50.0,
+                orders: 1,
+                ad_spend: 0.0,
+                change: None,
+            },
         ];
-        assert_eq!(filter_breakdown_rows(&breakdown, "", AdFilter::WithAds).len(), 1);
-        assert_eq!(filter_breakdown_rows(&breakdown, "项目 b", AdFilter::All).len(), 1);
+        assert_eq!(
+            filter_breakdown_rows(&breakdown, "", AdFilter::WithAds).len(),
+            1
+        );
+        assert_eq!(
+            filter_breakdown_rows(&breakdown, "项目 b", AdFilter::All).len(),
+            1
+        );
     }
 
     #[test]
@@ -1484,7 +1588,11 @@ mod tests {
         let rows = compute_project_breakdown(
             &breakdown,
             Some(&compare),
-            &[project(1, "项目 A"), project(2, "项目 B"), project(3, "项目 C")],
+            &[
+                project(1, "项目 A"),
+                project(2, "项目 B"),
+                project(3, "项目 C"),
+            ],
         );
         // 销售额降序：A(3000) > B(300)；C 无数据被过滤
         assert_eq!(rows.len(), 2);
@@ -1675,7 +1783,10 @@ mod tests {
         })
     }
 
-    fn read_state(cx: &mut gpui::TestAppContext, view: &Entity<DailyAnalysisView>) -> DailyAnalysisState {
+    fn read_state(
+        cx: &mut gpui::TestAppContext,
+        view: &Entity<DailyAnalysisView>,
+    ) -> DailyAnalysisState {
         cx.read(|app| view.read(app).state.read(app).clone())
     }
 

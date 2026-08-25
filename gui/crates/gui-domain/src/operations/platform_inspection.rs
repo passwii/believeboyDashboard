@@ -13,35 +13,27 @@ use serde::{Deserialize, Serialize};
 pub struct HealthData {
     /// 账户健康评级（Healthy / Good / At Risk / Critical）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub account_health_rating: Option<String>,
     /// 负面反馈
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub negative_feedback: Option<i64>,
     /// 亚马逊 A-to-Z 索赔
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub a2z_claims: Option<i64>,
     /// 信用卡拒付
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub chargeback_claims: Option<i64>,
     /// 迟发率（%）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub late_shipment_rate: Option<f64>,
     /// 配送前取消率（%）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub pre_fulfillment_cancel_rate: Option<f64>,
     /// 有效追踪率（%）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub valid_tracking_rate: Option<f64>,
     /// 准时交付率（%）
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub on_time_delivery_rate: Option<f64>,
 }
 
@@ -49,34 +41,24 @@ pub struct HealthData {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ComplianceData {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub ip_infringement: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub ip_complaints: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub product_authenticity_complaints: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub product_condition_complaints: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub food_product_safety: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub listing_policy_violations: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub restricted_product_violations: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub review_policy_violations: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub other_policy_violations: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub regulatory_compliance: Option<i64>,
 }
 

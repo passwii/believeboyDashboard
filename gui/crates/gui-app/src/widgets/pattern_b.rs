@@ -217,9 +217,8 @@ pub fn tab_bar<V: 'static>(
                         .text_color(theme.text_primary)
                 })
                 .when(!active, |this| {
-                    this.text_color(theme.text_muted).hover(|h| {
-                        h.bg(theme.table_row_hover).text_color(theme.text_secondary)
-                    })
+                    this.text_color(theme.text_muted)
+                        .hover(|h| h.bg(theme.table_row_hover).text_color(theme.text_secondary))
                 })
                 .child(item.label);
             // 活动 Tab 底部 2px accent 指示条（贴住 Tab 条底边框）
@@ -399,7 +398,11 @@ mod tests {
     }
 
     impl gpui::Render for ShellHost {
-        fn render(&mut self, _window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            cx: &mut Context<Self>,
+        ) -> impl IntoElement {
             let theme = AppTheme::current(cx);
             let view = cx.entity();
             let divider = split_divider(&theme, "host-split");

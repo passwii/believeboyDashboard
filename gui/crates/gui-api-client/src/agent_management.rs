@@ -22,8 +22,8 @@
 //!   GUI 精简为 keyword + method + result + operation_type）。
 
 use gui_domain::agent_management::{
-    AgentApiKeyCreateResponse, AgentApiKeyItem, AgentKeyToggleResponse,
-    AgentOperationLogsResponse, AgentOperationLogsSummary,
+    AgentApiKeyCreateResponse, AgentApiKeyItem, AgentKeyToggleResponse, AgentOperationLogsResponse,
+    AgentOperationLogsSummary,
 };
 
 use crate::client::Client;
@@ -132,14 +132,20 @@ impl Client {
     }
 
     /// 停用凭据（可随时重新激活，凭据本身不失效）
-    pub async fn agent_key_deactivate(&self, key_id: i64) -> Result<AgentKeyToggleResponse, ApiError> {
+    pub async fn agent_key_deactivate(
+        &self,
+        key_id: i64,
+    ) -> Result<AgentKeyToggleResponse, ApiError> {
         let path = format!("{API_KEYS_PATH}/{key_id}/deactivate");
         self.request_json(reqwest::Method::POST, &path, &[], None::<()>.as_ref())
             .await
     }
 
     /// 激活凭据（已删除 Key 不可激活 → 后端 404）
-    pub async fn agent_key_activate(&self, key_id: i64) -> Result<AgentKeyToggleResponse, ApiError> {
+    pub async fn agent_key_activate(
+        &self,
+        key_id: i64,
+    ) -> Result<AgentKeyToggleResponse, ApiError> {
         let path = format!("{API_KEYS_PATH}/{key_id}/activate");
         self.request_json(reqwest::Method::POST, &path, &[], None::<()>.as_ref())
             .await
@@ -163,7 +169,8 @@ impl Client {
             .base_query()
             .with("page", page)
             .with("page_size", 50i64);
-        self.get_json(OPERATION_LOGS_PATH, &query.into_pairs()).await
+        self.get_json(OPERATION_LOGS_PATH, &query.into_pairs())
+            .await
     }
 
     /// 写操作统计概览（当前筛选条件下聚合）
@@ -245,7 +252,10 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let m = server
             .mock("GET", API_KEYS_PATH)
-            .match_query(Matcher::UrlEncoded("include_deleted".into(), "false".into()))
+            .match_query(Matcher::UrlEncoded(
+                "include_deleted".into(),
+                "false".into(),
+            ))
             .match_header("X-User-Id", "u_1")
             .match_header("X-Is-Admin", "true")
             .with_status(200)
@@ -371,7 +381,9 @@ mod tests {
         let off = client.agent_key_deactivate(9).await.expect("停用失败");
         let on = client.agent_key_activate(9).await.expect("激活失败");
         client.agent_key_delete(9).await.expect("删除失败");
-        [deactivate, activate, delete].iter().for_each(|m| m.assert());
+        [deactivate, activate, delete]
+            .iter()
+            .for_each(|m| m.assert());
         assert!(off.is_revoked);
         assert!(!on.is_revoked);
     }
@@ -406,11 +418,11 @@ mod tests {
             )
             .create();
         let summary = server
-            .mock("GET", "/api/v1/system-management/agent-operation-logs/summary")
-            .match_query(Matcher::UrlEncoded(
-                "result".into(),
-                "success".into(),
-            ))
+            .mock(
+                "GET",
+                "/api/v1/system-management/agent-operation-logs/summary",
+            )
+            .match_query(Matcher::UrlEncoded("result".into(), "success".into()))
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(
@@ -450,7 +462,10 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let m = server
             .mock("GET", API_KEYS_PATH)
-            .match_query(Matcher::UrlEncoded("include_deleted".into(), "false".into()))
+            .match_query(Matcher::UrlEncoded(
+                "include_deleted".into(),
+                "false".into(),
+            ))
             .with_status(403)
             .with_header("content-type", "application/json")
             .with_body(r#"{"detail":"需要管理员权限"}"#)

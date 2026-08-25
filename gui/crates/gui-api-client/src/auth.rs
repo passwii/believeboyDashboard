@@ -13,13 +13,22 @@ use crate::error::ApiError;
 
 impl Client {
     /// 用邮箱 + 密码登录，拿到带会话的新 client
-    pub async fn login(&self, email: &str, password: &str) -> Result<(Self, LoginResponse), ApiError> {
+    pub async fn login(
+        &self,
+        email: &str,
+        password: &str,
+    ) -> Result<(Self, LoginResponse), ApiError> {
         let body = LoginRequest {
             email: email.trim().to_lowercase(),
             password: password.to_string(),
         };
         let payload: LoginResponse = self
-            .request_json(reqwest::Method::POST, "/api/v1/auth/login", &[], Some(&body))
+            .request_json(
+                reqwest::Method::POST,
+                "/api/v1/auth/login",
+                &[],
+                Some(&body),
+            )
             .await?;
 
         if !payload.is_active {

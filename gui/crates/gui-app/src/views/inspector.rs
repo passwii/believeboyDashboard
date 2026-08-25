@@ -25,11 +25,11 @@
 //! - Copilot 态：静态容器壳，会话与流式能力归 Stage9。
 
 use chrono::NaiveDate;
+use gpui::prelude::*;
 use gpui::{
     div, px, AnimationExt, Context, CursorStyle, Div, DragMoveEvent, EventEmitter, FontWeight,
     IntoElement, MouseButton, MouseUpEvent, Render, SharedString, Stateful, WeakEntity, Window,
 };
-use gpui::prelude::*;
 use gpui_component::{
     button::{Button, ButtonVariants},
     Icon, IconName, Sizable,
@@ -130,7 +130,10 @@ const METRIC_CARD_MIN_W: f32 = 118.0;
 /// Copilot 静态演示转录（role, text）；末条 `▊` 模拟流式光标
 const COPILOT_TRANSCRIPT: [(&str, &str); 2] = [
     ("user", "帮我总结上周 US 站 ACoS 的变化"),
-    ("assistant", "上周 US 站 ACoS 21.4% → 19.8%，主要由 negative keyword 清理带来 ▊"),
+    (
+        "assistant",
+        "上周 US 站 ACoS 21.4% → 19.8%，主要由 negative keyword 清理带来 ▊",
+    ),
 ];
 
 /// 拖拽标记类型（on_drag/on_drag_move 配对用；无数据负载）
@@ -143,7 +146,11 @@ struct InspectorResizeGhost;
 impl Render for InspectorResizeGhost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
-        div().w(px(2.0)).h(px(48.0)).rounded(px(1.0)).bg(theme.accent)
+        div()
+            .w(px(2.0))
+            .h(px(48.0))
+            .rounded(px(1.0))
+            .bg(theme.accent)
     }
 }
 
@@ -403,8 +410,8 @@ impl InspectorView {
         self.ops_generation = self.ops_generation.wrapping_add(1);
         let generation = self.ops_generation;
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            loop {
+        cx.spawn(
+            async move |this: WeakEntity<Self>, cx: &mut gpui::AsyncApp| loop {
                 bg.timer(OPS_POLL_INTERVAL).await;
                 let alive = this
                     .update(cx, |this, cx| {
@@ -423,8 +430,8 @@ impl InspectorView {
                 if !alive {
                     break;
                 }
-            }
-        })
+            },
+        )
         .detach();
     }
 
@@ -466,29 +473,31 @@ impl InspectorView {
         let date_from = self.ads_date_from;
         let date_to = self.ads_date_to;
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(
-                        client.ad_analysis_overview(project_id, country, date_from, date_to),
-                    )
-                })
-                .await;
-            this.update(cx, |this, cx| {
-                if this.ads_request_id != request_id {
-                    return;
-                }
-                this.ads_state = match result {
-                    Ok(overview) => {
-                        this.ads_loaded_for = Some((this.ads_project_id, this.ads_country));
-                        AdsState::Loaded(Box::new(overview))
+        cx.spawn(
+            async move |this: WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let result = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(
+                            client.ad_analysis_overview(project_id, country, date_from, date_to),
+                        )
+                    })
+                    .await;
+                this.update(cx, |this, cx| {
+                    if this.ads_request_id != request_id {
+                        return;
                     }
-                    Err(e) => AdsState::Failed(e.user_message()),
-                };
-                cx.notify();
-            })
-            .ok();
-        })
+                    this.ads_state = match result {
+                        Ok(overview) => {
+                            this.ads_loaded_for = Some((this.ads_project_id, this.ads_country));
+                            AdsState::Loaded(Box::new(overview))
+                        }
+                        Err(e) => AdsState::Failed(e.user_message()),
+                    };
+                    cx.notify();
+                })
+                .ok();
+            },
+        )
         .detach();
     }
 
@@ -543,15 +552,15 @@ impl InspectorView {
             .on_drag(InspectorResize, |_, _, _, cx| {
                 cx.new(|_| InspectorResizeGhost)
             })
-            .on_drag_move(cx.listener(
-                |this, ev: &DragMoveEvent<InspectorResize>, window, cx| {
+            .on_drag_move(
+                cx.listener(|this, ev: &DragMoveEvent<InspectorResize>, window, cx| {
                     this.apply_resize(
                         window.viewport_size().width.into(),
                         ev.event.position.x.into(),
                         cx,
                     );
-                },
-            ))
+                }),
+            )
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _: &MouseUpEvent, _, cx| this.commit_resize(cx)),
@@ -595,7 +604,8 @@ impl InspectorView {
                     .ghost()
                     .small()
                     .icon(Icon::new(IconName::PanelRightClose).with_size(px(14.0)))
-                    .tooltip("收起 Inspector（⌘B）")
+                    // BLF-828：快捷键文案平台化（macOS ⌘B / Windows Ctrl+B）
+                    .tooltip(format!("收起 Inspector（{}）", crate::platform::combo("B")))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_visible(cx))),
             )
     }
@@ -731,12 +741,8 @@ impl InspectorView {
                 for metric in &overview.metrics {
                     cards.push(
                         div()
-                            .id(SharedString::from(format!(
-                                "ads-metric-{}",
-                                metric.label
-                            )))
+                            .id(SharedString::from(format!("ads-metric-{}", metric.label)))
                             .flex_col()
-                            
                             .flex_1()
                             .min_w(px(METRIC_CARD_MIN_W))
                             .px_2()
@@ -827,10 +833,7 @@ impl InspectorView {
                                     } else {
                                         theme.success
                                     })
-                                    .child(SharedString::from(format!(
-                                        "{} 单",
-                                        term.orders_7d
-                                    ))),
+                                    .child(SharedString::from(format!("{} 单", term.orders_7d))),
                             ),
                     );
                 }
@@ -1154,7 +1157,9 @@ mod tests {
         assert_eq!(a0[0], a6[0], "池长 6 → tick 6 回到起点（周期性）");
 
         // 滞留 pill 口径：≥4h 转小时由渲染层处理，这里锁池数据形态
-        assert!(MOCK_PENDING_POOL.iter().all(|(_, _, age, amount)| *age > 0 && *amount > 0.0));
+        assert!(MOCK_PENDING_POOL
+            .iter()
+            .all(|(_, _, age, amount)| *age > 0 && *amount > 0.0));
     }
 
     // ------------------------------------------------------------------
@@ -1190,14 +1195,7 @@ mod tests {
 
         // 注册运营态 → 开合往返，宽度记忆保持
         view.update(cx, |v, cx| {
-            v.set_mode(
-                Some(InspectorMode::Operations),
-                None,
-                "US",
-                None,
-                None,
-                cx,
-            )
+            v.set_mode(Some(InspectorMode::Operations), None, "US", None, None, cx)
         });
         view.update(cx, |v, cx| v.toggle_visible(cx)); // 收起
         cx.read(|app| assert!(!view.read(app).visible()));
@@ -1223,9 +1221,8 @@ mod tests {
     async fn ads_context_guards(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         use chrono::NaiveDate;
-        let (view, cx) = cx.add_window_view(|_window, cx| {
-            InspectorView::new(Client::new(""), true, None, cx)
-        });
+        let (view, cx) =
+            cx.add_window_view(|_window, cx| InspectorView::new(Client::new(""), true, None, cx));
 
         // 进入广告态但控制条未选项目 → 引导提示而非空面板/网络错误
         view.update(cx, |v, cx| {

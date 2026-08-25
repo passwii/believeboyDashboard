@@ -280,7 +280,10 @@ mod tests {
     fn receive_rate_level_thresholds_match_web() {
         // 容差：0.999999… 仍为 Positive
         assert_eq!(receive_rate_level(1.0), ReceiveRateLevel::Positive);
-        assert_eq!(receive_rate_level(0.999_999_999), ReceiveRateLevel::Positive);
+        assert_eq!(
+            receive_rate_level(0.999_999_999),
+            ReceiveRateLevel::Positive
+        );
         assert_eq!(receive_rate_level(0.5), ReceiveRateLevel::Warning);
         assert_eq!(receive_rate_level(0.499_999_999), ReceiveRateLevel::Warning);
         assert_eq!(receive_rate_level(0.2), ReceiveRateLevel::Yellow);
@@ -302,7 +305,10 @@ mod tests {
             "8.00%"
         );
         // 元数据比例缺失 / 非有限 → 行自带比例
-        assert_eq!(commission_ratio_label(0.05, Some("sales_amount"), None), "5.00%");
+        assert_eq!(
+            commission_ratio_label(0.05, Some("sales_amount"), None),
+            "5.00%"
+        );
         assert_eq!(
             commission_ratio_label(0.05, Some("sales_amount"), Some(f64::NAN)),
             "5.00%"
@@ -347,7 +353,8 @@ mod tests {
             "total_income_usd": 300.0, "total_commission_rmb": 210.0,
             "total_received_rmb": 70.0, "receive_rate": 0.3333
         }"#;
-        let item: CommissionProjectYearlySummaryItem = serde_json::from_str(json).expect("反序列化失败");
+        let item: CommissionProjectYearlySummaryItem =
+            serde_json::from_str(json).expect("反序列化失败");
         // BTreeMap 键序稳定：首键为 2026-01
         let first = item.months.keys().next().expect("months 非空");
         assert_eq!(first, "2026-01");

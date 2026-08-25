@@ -195,7 +195,10 @@ mod tests {
         // 动态 shipment 列解析
         assert_eq!(resp.shipment_columns.len(), 1);
         assert_eq!(resp.shipment_columns[0].shipment_no, "SHIP-1");
-        assert_eq!(resp.shipment_columns[0].eta_date.as_deref(), Some("2026-09-05"));
+        assert_eq!(
+            resp.shipment_columns[0].eta_date.as_deref(),
+            Some("2026-09-05")
+        );
         assert_eq!(resp.shipment_column_totals["SHIP-1"], 50);
         assert_eq!(resp.items[0].shipment_quantities["SHIP-1"], 50);
         assert_eq!(resp.action_options, vec!["补货", "清货", "观察"]);

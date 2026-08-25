@@ -251,8 +251,7 @@ impl Render for SubNavView {
         // （折叠/展开双向动画；减弱动态时瞬时切换）
         let width_from = self.width_anim_from;
         let width_to = self.width();
-        let animate_width =
-            !reduce && (width_from - width_to).abs() > f32::EPSILON;
+        let animate_width = !reduce && (width_from - width_to).abs() > f32::EPSILON;
 
         // 折叠态也保留内容树（宽度收 0 + overflow_hidden 裁剪）——折叠动画期间
         // 有内容可裁剪；稳态下 0 宽列不可见、焦点链已摘除（见下方 when 门控）
@@ -339,7 +338,11 @@ impl Render for SubNavView {
         base.with_animation(
             SharedString::from(format!("sub-nav-width-{collapsed}")),
             animation(DURATION_SIDEBAR, ease_out_cubic),
-            move |el, delta| el.w(px(width_from + (width_to - width_from) * ease_out_cubic(delta))),
+            move |el, delta| {
+                el.w(px(
+                    width_from + (width_to - width_from) * ease_out_cubic(delta)
+                ))
+            },
         )
         .into_any_element()
     }
@@ -446,13 +449,14 @@ fn badge_pill(count: u32, theme: &AppTheme) -> impl IntoElement {
         .child(SharedString::from(label))
 }
 
-/// 头部折叠按钮（ghost 图标钮；⌘\ 全局快捷键见 main.rs 绑定）
+/// 头部折叠按钮（ghost 图标钮；⌘\ / Ctrl+\ 全局快捷键见 main.rs 绑定）
 fn collapse_button(cx: &mut Context<SubNavView>) -> impl IntoElement {
     Button::new("sub-nav-collapse")
         .ghost()
         .small()
         .icon(Icon::new(IconName::PanelLeftClose).with_size(px(14.0)))
-        .tooltip("折叠侧栏（⌘\\）")
+        // BLF-828：快捷键文案平台化（macOS ⌘\ / Windows Ctrl+\）
+        .tooltip(format!("折叠侧栏（{}）", crate::platform::combo("\\")))
         .on_click(cx.listener(|this, _, _, cx| this.toggle_collapsed(cx)))
 }
 
@@ -714,8 +718,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx) =
-            cx.add_window_view(|_window, cx| SubNavView::new(false, cx));
+        let (view, cx) = cx.add_window_view(|_window, cx| SubNavView::new(false, cx));
         view.update(cx, |v, cx| {
             v.set_active(Some("reports".into()), cx);
             v.toggle_collapsed(cx);

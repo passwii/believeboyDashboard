@@ -25,8 +25,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
-    MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
+    div, px, App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseMoveEvent, MouseUpEvent, Render, SharedString, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
@@ -35,34 +35,27 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
-use crate::theme::AppTheme;
-use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
-use crate::widgets::console_bar::{
-    console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
-};
-use crate::views::ad_data::{AdDataView, AD_DATA_URL};
+use crate::theme::{hex_color, AppTheme};
 use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
+use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
+use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::agent_management::{AgentManagementView, AGENT_MANAGEMENT_URL};
 use crate::views::ai_chat::{AiChatEvent, AiChatView, AI_CHAT_URL};
 use crate::views::ai_insights::{AiInsightsView, AI_INSIGHTS_URL};
-use crate::views::customer_service::{CustomerServiceView, CUSTOMER_SERVICE_URL};
-use crate::views::virtual_office::{
-    VirtualOfficeView, VIRTUAL_OFFICE_URL, DIGITAL_EMPLOYEES_URL,
-};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::command_palette::{CommandPaletteEvent, CommandPaletteView};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
 use crate::views::crm_audit::{CrmAuditView, CRM_AUDIT_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
 use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
+use crate::views::customer_service::{CustomerServiceView, CUSTOMER_SERVICE_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
-use crate::views::sku_info::{SkuInfoView, SKU_INFO_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::footer::FooterView;
+use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
-use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
 use crate::views::markdown_to_word::{MarkdownToWordView, MARKDOWN_TO_WORD_URL};
 use crate::views::master_rail::{MasterRailEvent, MasterRailView};
 use crate::views::model_selection::{ModelSelectionView, MODEL_SELECTION_URL};
@@ -82,14 +75,20 @@ use crate::views::research_analysis::{ResearchAnalysisView, RESEARCH_ANALYSIS_UR
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
-use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT};use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
+use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT};
+use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::shop_calculation::{ShopCalculationView, SHOP_CALCULATION_URL};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
+use crate::views::sku_info::{SkuInfoView, SKU_INFO_URL};
 use crate::views::store_navigation::{StoreNavigationView, STORE_NAV_URL};
 use crate::views::sub_nav::{SubNavEvent, SubNavView};
 use crate::views::system_logs::{SystemLogsView, SYSTEM_LOGS_URL};
 use crate::views::vat_invoice::{VatInvoiceView, VAT_INVOICE_URL};
+use crate::views::virtual_office::{VirtualOfficeView, DIGITAL_EMPLOYEES_URL, VIRTUAL_OFFICE_URL};
 use crate::views::weekly_product_analysis::{WeeklyProductAnalysisView, WEEKLY_PRODUCT_URL};
+use crate::widgets::console_bar::{
+    console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
+};
 
 /// 主窗口会话信息（登录成功 / Keychain 恢复后注入）
 pub struct SessionInfo {
@@ -329,6 +328,9 @@ pub struct RootView {
     /// P4-1 修复：窗口拖拽武装标志——鼠标在内容区头部按下后置真，移动时触发
     /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
     should_move: bool,
+    /// BLF-828：Windows Snap Layouts 浮层是否展开（最大化钮 hover 弹出；
+    /// 仅 Windows 有 caption buttons，macOS 恒 false）
+    snap_layout_open: bool,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
     /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
@@ -393,17 +395,17 @@ impl RootView {
                 cx,
             )
         });
-        let inspector_event_sub =
-            cx.subscribe(&inspector, |_this, _inspector, event: &InspectorEvent, cx| {
-                match event {
-                    InspectorEvent::VisibleChanged(visible) => {
-                        cx.emit(RootViewEvent::InspectorVisibleChanged(*visible));
-                    }
-                    InspectorEvent::WidthCommitted(width) => {
-                        cx.emit(RootViewEvent::InspectorWidthChanged(*width));
-                    }
+        let inspector_event_sub = cx.subscribe(
+            &inspector,
+            |_this, _inspector, event: &InspectorEvent, cx| match event {
+                InspectorEvent::VisibleChanged(visible) => {
+                    cx.emit(RootViewEvent::InspectorVisibleChanged(*visible));
                 }
-            });
+                InspectorEvent::WidthCommitted(width) => {
+                    cx.emit(RootViewEvent::InspectorWidthChanged(*width));
+                }
+            },
+        );
 
         // BLF-793：Rail 选中分类 → 默认视图路由（该组第一项；已在该分类内则
         // 保留当前子视图不重路由）。emit 经 pending_effects 异步冲刷，此处
@@ -720,7 +722,7 @@ impl RootView {
                         this.show_system_logs = false;
                         this.show_agent_management = false;
                         this.show_account_management = false;
-              } else if url == AD_ANALYSIS_URL
+                    } else if url == AD_ANALYSIS_URL
                         || url.starts_with("/dashboard/advertising/ad-analysis")
                     {
                         // P3-3：广告分析视图懒创建（带会话 client），首帧即触发首屏拉取；
@@ -741,14 +743,14 @@ impl RootView {
                         });
                         if ad_new {
                             if let Some(view) = this.ad_analysis.clone() {
-                                this._ad_analysis_event_sub =
-                                    Some(cx.subscribe(&view, |_this, _v, event: &AdAnalysisEvent, cx| {
-                                        match event {
-                                            AdAnalysisEvent::ChartRatioCommitted(per_mille) => {
-                                                cx.emit(RootViewEvent::AdChartRatioChanged(*per_mille));
-                                            }
+                                this._ad_analysis_event_sub = Some(cx.subscribe(
+                                    &view,
+                                    |_this, _v, event: &AdAnalysisEvent, cx| match event {
+                                        AdAnalysisEvent::ChartRatioCommitted(per_mille) => {
+                                            cx.emit(RootViewEvent::AdChartRatioChanged(*per_mille));
                                         }
-                                    }));
+                                    },
+                                ));
                             }
                         }
                         // BLF-795：Console Bar 联动——筛选快照每次进入都回放
@@ -2090,35 +2092,33 @@ impl RootView {
                             let ui_prefs = crate::prefs::load_ui_prefs();
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
-                                let mut view = AiChatView::new(
-                                    cx,
-                                    client.unwrap_or_else(|| Client::new("")),
-                                )
-                                .with_session_prefs(
-                                    ui_prefs.chat_pinned_conversations.clone(),
-                                    ui_prefs.chat_context_collapsed,
-                                );
+                                let mut view =
+                                    AiChatView::new(cx, client.unwrap_or_else(|| Client::new("")))
+                                        .with_session_prefs(
+                                            ui_prefs.chat_pinned_conversations.clone(),
+                                            ui_prefs.chat_context_collapsed,
+                                        );
                                 view.reload(cx);
                                 view
                             })
                         });
                         if chat_new {
                             if let Some(view) = this.ai_chat.clone() {
-                                this._ai_chat_event_sub =
-                                    Some(cx.subscribe(&view, |_this, _v, event: &AiChatEvent, cx| {
-                                        match event {
-                                            AiChatEvent::PinnedSessionsChanged(ids) => {
-                                                cx.emit(RootViewEvent::AiChatPinnedChanged(
-                                                    ids.clone(),
-                                                ));
-                                            }
-                                            AiChatEvent::ContextPaneCollapsed(collapsed) => {
-                                                cx.emit(RootViewEvent::AiChatContextCollapsed(
-                                                    *collapsed,
-                                                ));
-                                            }
+                                this._ai_chat_event_sub = Some(cx.subscribe(
+                                    &view,
+                                    |_this, _v, event: &AiChatEvent, cx| match event {
+                                        AiChatEvent::PinnedSessionsChanged(ids) => {
+                                            cx.emit(RootViewEvent::AiChatPinnedChanged(
+                                                ids.clone(),
+                                            ));
                                         }
-                                    }));
+                                        AiChatEvent::ContextPaneCollapsed(collapsed) => {
+                                            cx.emit(RootViewEvent::AiChatContextCollapsed(
+                                                *collapsed,
+                                            ));
+                                        }
+                                    },
+                                ));
                             }
                         }
                         this.show_site_navigation = false;
@@ -2249,8 +2249,10 @@ impl RootView {
                         this.system_logs.get_or_insert_with(|| {
                             let client = this.session.as_ref().map(|s| s.client.clone());
                             cx.new(|cx| {
-                                let mut view =
-                                    SystemLogsView::new(cx, client.unwrap_or_else(|| Client::new("")));
+                                let mut view = SystemLogsView::new(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                );
                                 view.reload(cx);
                                 view
                             })
@@ -2555,6 +2557,7 @@ impl RootView {
             breadcrumb: vec!["Dashboard".to_string()],
             sub_nav_collapsed: initial_collapsed,
             should_move: false,
+            snap_layout_open: false,
             session,
             focus_handle: cx.focus_handle(),
             theme_appearance_sub: None,
@@ -2696,7 +2699,9 @@ impl RootView {
     /// 由 Sub-Nav Select 分发链统一调用（Rail 分类路由亦汇入该链）。
     fn sync_console_config(&mut self, url: &str, cx: &mut Context<Self>) {
         if let Some(bar) = &self.console_bar {
-            bar.update(cx, |bar, cx| bar.set_config(console_config_for_url(url), cx));
+            bar.update(cx, |bar, cx| {
+                bar.set_config(console_config_for_url(url), cx)
+            });
         }
     }
 
@@ -2754,19 +2759,22 @@ impl RootView {
             return;
         }
         let palette = cx.new(CommandPaletteView::new);
-        cx.subscribe(&palette, |this, _palette, event: &CommandPaletteEvent, cx| {
-            match event {
-                CommandPaletteEvent::Navigate { url, title } => {
-                    // ⌘K 命中跳转与侧栏点击走同一条分发链（Sub-Nav select →
-                    // 视图切换 + 面包屑 + Rail 回写）
-                    this.sub_nav.update(cx, |sub_nav, cx| {
-                        sub_nav.select(url, title, cx);
-                    });
-                    this.close_command_palette(cx);
+        cx.subscribe(
+            &palette,
+            |this, _palette, event: &CommandPaletteEvent, cx| {
+                match event {
+                    CommandPaletteEvent::Navigate { url, title } => {
+                        // ⌘K 命中跳转与侧栏点击走同一条分发链（Sub-Nav select →
+                        // 视图切换 + 面包屑 + Rail 回写）
+                        this.sub_nav.update(cx, |sub_nav, cx| {
+                            sub_nav.select(url, title, cx);
+                        });
+                        this.close_command_palette(cx);
+                    }
+                    CommandPaletteEvent::Dismissed => this.close_command_palette(cx),
                 }
-                CommandPaletteEvent::Dismissed => this.close_command_palette(cx),
-            }
-        })
+            },
+        )
         .detach();
         palette.update(cx, |palette, cx| palette.ensure_input_focused(window, cx));
         self.command_palette = Some(palette);
@@ -3133,7 +3141,7 @@ impl RootView {
 impl EventEmitter<RootViewEvent> for RootView {}
 
 impl Render for RootView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
 
         // BLF-793 六区外壳（尺寸常量见 views::shell）：
@@ -3166,34 +3174,49 @@ impl Render for RootView {
             // 绑定注册见 main.rs；此处为全窗口唯一处理点）
             .on_action(cx.listener(Self::toggle_command_palette))
             .on_action(cx.listener(|this, _: &crate::ToggleSubNav, _, cx| {
-                this.sub_nav.update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
+                this.sub_nav
+                    .update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
             }))
             // BLF-796：⌘B 切换右侧 Inspector 抽屉（绑定见 main.rs；未注册形态
             // 页面内 toggle_visible 自身 no-op——无入口亦不响应快捷键）
             .on_action(cx.listener(|this, _: &crate::ToggleInspector, _, cx| {
-                this.inspector.update(cx, |inspector, cx| inspector.toggle_visible(cx));
+                this.inspector
+                    .update(cx, |inspector, cx| inspector.toggle_visible(cx));
             }))
             // BLF-794：命令面板 ↑↓ 选择（无 key context 全局绑定，面板未打开时
             // 本监听器不存在于渲染树 → 按键继续传播到原绑定）
-            .on_action(
-                cx.listener(|this, _: &crate::PaletteSelectPrev, _, cx| {
-                    if let Some(palette) = &this.command_palette {
-                        palette.update(cx, |p, cx| p.move_cursor(-1, cx));
-                    }
-                }),
-            )
-            .on_action(
-                cx.listener(|this, _: &crate::PaletteSelectNext, _, cx| {
-                    if let Some(palette) = &this.command_palette {
-                        palette.update(cx, |p, cx| p.move_cursor(1, cx));
-                    }
-                }),
-            )
+            .on_action(cx.listener(|this, _: &crate::PaletteSelectPrev, _, cx| {
+                if let Some(palette) = &this.command_palette {
+                    palette.update(cx, |p, cx| p.move_cursor(-1, cx));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &crate::PaletteSelectNext, _, cx| {
+                if let Some(palette) = &this.command_palette {
+                    palette.update(cx, |p, cx| p.move_cursor(1, cx));
+                }
+            }))
             // P4-3（BLF-709）材质收敛：主窗口背景改用不透明（main.rs 移除
             // `WindowBackgroundAppearance::Blurred`）——GPUI 0.2.2 无 NSVisualEffectView
             // 接入，整窗模糊 + 半透明叠加观感粗糙且禁用亚像素文字渲染（apple-glass.md
             // Tier 4/6）。根容器画不透明 window_bg 兜底（分区切换期间无透底/间隙）。
             .bg(theme.window_bg)
+            // BLF-828：Win11 Fluent 视觉基调——Mica 近似暗色垂直渐变（仅 Windows）。
+            // GPUI 0.2.2 无 DWM_SYSTEMBACKDROP_TYPE 接入，无法启用原生 Mica；
+            // 按 apple-glass.md Tier 4「跨平台近似」原则用极低对比暗色渐变模拟
+            // 质感意向（不宣称原生 Mica）。macOS 零改动（保持纯实色）。
+            .when(crate::platform::is_windows(), |root| {
+                root.bg(gpui::linear_gradient(
+                    180.0,
+                    gpui::linear_color_stop(
+                        crate::theme::hex_color(crate::platform::WIN11_MICA_TOP),
+                        0.0,
+                    ),
+                    gpui::linear_color_stop(
+                        crate::theme::hex_color(crate::platform::WIN11_MICA_BOTTOM),
+                        1.0,
+                    ),
+                ))
+            })
             .child(
                 // 上区行：Rail | Sub-Nav | 中央列 | Inspector
                 div()
@@ -3225,12 +3248,15 @@ impl Render for RootView {
                             .h_full()
                             .bg(theme.window_bg)
                             // Console Bar 插槽（36px）：BLF-795 起由面包屑 + 四件套
-                            // 控制条（登录态）+ 用户 chrome 组成并承担窗口拖拽区
+                            // 控制条（登录态）+ 用户 chrome 组成并承担窗口拖拽区；
+                            // BLF-828 Windows 下右端另有 caption buttons
                             .child(content_header(
                                 &self.breadcrumb,
                                 self.sub_nav_collapsed,
                                 self.console_bar.clone(),
                                 &self.session,
+                                window.is_maximized(),
+                                self.snap_layout_open,
                                 cx,
                             ))
                             .when(
@@ -3272,10 +3298,9 @@ impl Render for RootView {
                     .when_some(self.footer.clone(), |slot, footer| slot.child(footer)),
             )
             // BLF-794：⌘K 命令面板 overlay（最后 child = 最顶层；absolute 铺满全窗）
-            .when_some(
-                self.command_palette.clone(),
-                |root, palette| root.child(palette),
-            )
+            .when_some(self.command_palette.clone(), |root, palette| {
+                root.child(palette)
+            })
     }
 }
 
@@ -3297,6 +3322,8 @@ fn content_header(
     collapsed: bool,
     console_bar: Option<Entity<ConsoleBarView>>,
     session: &Option<SessionInfo>,
+    maximized: bool,
+    snap_open: bool,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
     let theme = AppTheme::current(cx);
@@ -3314,6 +3341,11 @@ fn content_header(
         .border_color(theme.separator)
         // bg Panel token（父 issue「空间栅格」控制条规格：与 Canvas 区分层级）
         .bg(theme.panel_bg)
+        // BLF-828：Windows 下右侧 caption buttons 覆盖在头部右端之上，
+        // 用户身份簇需避让 3 × 36px；macOS 无此区。
+        .when(crate::platform::is_windows(), |this| {
+            this.pr(px(crate::platform::CAPTION_ZONE_WIDTH))
+        })
         .child(
             div()
                 .id("content-header-left")
@@ -3328,20 +3360,32 @@ fn content_header(
                 .when_some(console_bar, |row, bar| row.child(bar)),
         )
         .child(session_cluster(session, theme, cx))
+        // BLF-828：Windows caption buttons 挂在头部最右（渲染顺序上位于
+        // 身份簇之后；配合上面的 pr 避让不遮挡内容）
+        .when(crate::platform::is_windows(), |this| {
+            this.child(caption_buttons(maximized, snap_open, &theme, cx))
+        })
         .map(|el| attach_window_drag(el, cx))
 }
 
 /// P4-1 修复：给内容区头部挂窗口拖拽交互——复刻 gpui-component `TitleBar` 的交互链：
 /// `WindowControlArea::Drag` 注册原生拖拽区；按下武装 → 移动时 `start_window_move()`
 /// 启动原生窗口拖拽；未移动直接松开 = 普通点击（外观菜单/退出登录仍可交互）；macOS
-/// 双击 = `titlebar_double_click()`。与侧栏头部（sidebar.rs）构成左右两条拖拽区。
+/// 双击 = `titlebar_double_click()`，Windows 双击 = `zoom_window()`（BLF-828：
+/// Win11 惯例双击标题栏最大化/还原）。与侧栏头部（sidebar.rs）构成左右两条拖拽区。
 fn attach_window_drag(
     el: gpui::Stateful<gpui::Div>,
     cx: &mut Context<RootView>,
 ) -> gpui::Stateful<gpui::Div> {
     el.window_control_area(WindowControlArea::Drag)
-        .when(cfg!(target_os = "macos"), |this| {
-            this.on_double_click(|_, window, _| window.titlebar_double_click())
+        .on_double_click(|_, window, _| {
+            // macOS：titlebar_double_click 跟随系统「双击窗口标题栏」设置（缩放/最小化/无操作）；
+            // Windows：Win11 惯例固定为最大化/还原切换（zoom 即 toggle）。
+            if crate::platform::is_macos() {
+                window.titlebar_double_click();
+            } else {
+                window.zoom_window();
+            }
         })
         .on_mouse_down_out(cx.listener(|this, _, _, _| this.disarm_drag()))
         .on_mouse_down(
@@ -3357,6 +3401,273 @@ fn attach_window_drag(
         )
 }
 
+/// BLF-828：Windows caption buttons 区——右上角自绘最小化/最大化(还原)/关闭三钮。
+///
+/// 视觉对齐 Win11 Fluent：每钮 [`CAPTION_BUTTON_WIDTH`]×36px、图标 10px 细线、
+/// hover 中性高亮、关闭钮 hover 红。交互链与 gpui-component TitleBar 同源：
+/// 元素注册 `WindowControlArea::Min/Max/Close` hitbox → Windows 端 WM_NCHITTEST
+/// 返回 HTMINBUTTON/HTMAXBUTTON/HTCLOSE → 消息循环在 NC mouse up 时执行原生
+/// 最小化/最大化还原/关闭（见 gpui platform/windows/events.rs）。因此**应用侧不写
+/// 点击逻辑**——这也保证 hover 弹出 Snap Layouts 与原生点击不冲突（NC down 会先
+/// 派发 GPUI MouseDown，未消费才落回系统处理；浮层打开时点最大化钮由浮层关闭
+/// 监听消费，不会误触发最大化）。
+///
+/// macOS 下返回空 div（traffic lights 悬于侧栏头部，无此区）。
+fn caption_buttons(
+    maximized: bool,
+    snap_open: bool,
+    theme: &AppTheme,
+    cx: &mut Context<RootView>,
+) -> gpui::AnyElement {
+    if !crate::platform::is_windows() {
+        return div().id("caption-buttons-empty").into_any_element();
+    }
+
+    let btn_w = px(crate::platform::CAPTION_BUTTON_WIDTH);
+    let icon_size = px(10.0);
+
+    // 三钮通用基座：等宽等高、居中图标、hover/active 反馈。
+    // 注意不用 .window_control_area 的元素 hover 样式做状态判定——
+    // NC 消息路径下 hover 样式仍生效（NC mouse move 会派发 MouseMove），
+    // 但点击行为完全交给系统。
+    fn button_base(
+        id: &'static str,
+        w: gpui::Pixels,
+        theme: &AppTheme,
+    ) -> gpui::Stateful<gpui::Div> {
+        div()
+            .id(id)
+            .flex()
+            .items_center()
+            .justify_center()
+            .w(w)
+            .h_full()
+            .flex_shrink_0()
+            .text_color(theme.text_secondary)
+            .hover(|style| style.bg(theme.muted_fill).text_color(theme.text_primary))
+            .active(|style| style.bg(theme.separator))
+    }
+
+    let maximize_icon = if maximized {
+        "icons/window-restore.svg"
+    } else {
+        "icons/window-maximize.svg"
+    };
+
+    div()
+        .id("caption-buttons")
+        .flex()
+        .items_center()
+        .h_full()
+        .flex_shrink_0()
+        .child(
+            // 最小化钮
+            button_base("caption-minimize", btn_w, theme)
+                .window_control_area(WindowControlArea::Min)
+                .child(
+                    gpui::svg()
+                        .path("icons/window-minimize.svg")
+                        .size(icon_size),
+                ),
+        )
+        .child(snap_layout_button(
+            maximize_icon,
+            snap_open,
+            btn_w,
+            icon_size,
+            theme,
+            cx,
+        ))
+        .child(
+            // 关闭钮：hover 红（Win11 Fluent 惯例）
+            div()
+                .id("caption-close")
+                .flex()
+                .items_center()
+                .justify_center()
+                .w(btn_w)
+                .h_full()
+                .flex_shrink_0()
+                .window_control_area(WindowControlArea::Close)
+                .text_color(theme.text_secondary)
+                .hover(|style| {
+                    style
+                        .bg(theme.danger)
+                        .text_color(crate::theme::hex_color(0xffffff))
+                })
+                .active(|style| style.bg(theme.danger).opacity(0.8))
+                .child(gpui::svg().path("icons/window-close.svg").size(icon_size)),
+        )
+        .into_any_element()
+}
+
+/// BLF-828：Snap Layouts 最大化钮——本体注册 `WindowControlArea::Max` 原生
+/// 最大化/还原；hover 时向下弹出 Snap 布局选择浮层（交付项 2 的常用四分格子集：
+/// 左半 / 右半 / 左 2:1 / 右 1:2，见 [`SNAP_LAYOUTS`]）。选中项由
+/// [`apply_snap_layout`] 按当前显示器工作区计算目标 bounds 并移动/缩放窗口。
+fn snap_layout_button(
+    maximize_icon: &'static str,
+    snap_open: bool,
+    btn_w: gpui::Pixels,
+    icon_size: gpui::Pixels,
+    theme: &AppTheme,
+    cx: &mut Context<RootView>,
+) -> gpui::AnyElement {
+    let radius = theme.radius;
+    div()
+        .id("caption-maximize")
+        .relative()
+        .flex()
+        .items_center()
+        .justify_center()
+        .w(btn_w)
+        .h_full()
+        .flex_shrink_0()
+        .window_control_area(WindowControlArea::Max)
+        .text_color(theme.text_secondary)
+        .hover(|style| style.bg(theme.muted_fill).text_color(theme.text_primary))
+        .active(|style| style.bg(theme.separator))
+        // hover 展开浮层（NC mouse move 会派发 GPUI MouseMove，on_hover 可用；
+        // 移出即收起——与 Win11 Snap 弹层的短暂驻留语义近似，简单可靠）
+        .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+            if this.snap_layout_open != *hovered {
+                this.snap_layout_open = *hovered;
+                cx.notify();
+            }
+        }))
+        .child(gpui::svg().path(maximize_icon).size(icon_size))
+        // Snap 浮层（absolute 定位在按钮下方右对齐；仅展开态渲染）。
+        // 注意：浮层元素**不**注册 WindowControlArea——鼠标进入浮层即离开
+        // 最大化钮 hitbox，on_hover(false) 收起逻辑由 open 状态门控（浮层自身
+        // hover 时保持 open，见下方 on_hover 驻留）。
+        .when(snap_open, |btn| {
+            btn.child(
+                div()
+                    .id("snap-layout-popover")
+                    .absolute()
+                    .top_full()
+                    .right_0()
+                    .mt_1()
+                    .flex()
+                    .gap_1()
+                    .p_1()
+                    .rounded(px(radius))
+                    .bg(theme.card_bg)
+                    .border_1()
+                    .border_color(theme.separator)
+                    // 鼠标移入浮层期间保持展开（离开时整体收起）
+                    .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                        if !*hovered && this.snap_layout_open {
+                            this.snap_layout_open = false;
+                            cx.notify();
+                        }
+                    }))
+                    .child(snap_layout_menu(cx)),
+            )
+        })
+        .into_any_element()
+}
+
+/// BLF-828：Snap Layouts 四分格布局选项（常用子集）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SnapLayout {
+    /// 相对显示器工作区的比例矩形（0..1）：(x, y, w, h)
+    rect: (f32, f32, f32, f32),
+    /// 预览小图标签（无障碍/调试用途；浮层预览用比例小格表达）
+    label: &'static str,
+}
+
+const SNAP_LAYOUTS: [SnapLayout; 4] = [
+    SnapLayout {
+        rect: (0.0, 0.0, 0.5, 1.0),
+        label: "左半",
+    },
+    SnapLayout {
+        rect: (0.5, 0.0, 0.5, 1.0),
+        label: "右半",
+    },
+    SnapLayout {
+        rect: (0.0, 0.0, 0.67, 1.0),
+        label: "左三分之二",
+    },
+    SnapLayout {
+        rect: (0.33, 0.0, 0.67, 1.0),
+        label: "右三分之二",
+    },
+];
+
+/// BLF-828：Snap 布局选择菜单（四个预览小格；点击套用对应布局）。
+fn snap_layout_menu(cx: &mut Context<RootView>) -> impl IntoElement {
+    let cells: Vec<gpui::AnyElement> = SNAP_LAYOUTS
+        .iter()
+        .map(|layout| {
+            let (rx, _ry, rw, _rh) = layout.rect;
+            div()
+                .id(SharedString::from(format!("snap-{}", (rw * 100.0) as u32)))
+                .w(px(44.0))
+                .h(px(28.0))
+                .p(px(3.0))
+                .rounded(px(4.0))
+                .cursor(CursorStyle::PointingHand)
+                .on_mouse_up(MouseButton::Left, {
+                    let rect = layout.rect;
+                    cx.listener(move |this, _, window, cx| {
+                        apply_snap_layout(this, rect, window, cx);
+                        cx.notify();
+                    })
+                })
+                // 预览小格：按布局比例画一个高亮矩形示意分区形状
+                .child(
+                    div()
+                        .w_full()
+                        .h_full()
+                        .rounded(px(2.0))
+                        .bg(hex_color(crate::theme::BORDER_SEPARATOR))
+                        .child(
+                            div()
+                                .relative()
+                                .h_full()
+                                .bg(hex_color(crate::theme::SEMANTIC_POSITIVE))
+                                .ml(px(rx * 38.0))
+                                .w(px(rw * 38.0)),
+                        ),
+                )
+                .into_any_element()
+        })
+        .collect();
+    div().flex().gap_1().children(cells)
+}
+
+/// BLF-828：应用 Snap 布局——把窗口缩放到当前显示器工作区的比例矩形大小。
+///
+/// 实现说明：GPUI 0.2.2 无跨平台 `set_position`（Windows `resize` 带 SWP_NOMOVE，
+/// 只改尺寸不动位置），因此本实现为「尺寸贴格」近似：按目标格宽高比把窗口
+/// resize 到对应大小；若窗口已最大化则先 `zoom_window()` 还原到窗口态再缩放。
+/// 位置不自动移动到屏幕左/右半边——用户拖动一次即可对齐。这是当前 gpui
+/// 能力下的已知局限（BLF-828 已注明），待上游提供 set_bounds 后替换为精确贴格。
+fn apply_snap_layout(
+    this: &mut RootView,
+    rect: (f32, f32, f32, f32),
+    window: &mut Window,
+    cx: &App,
+) {
+    this.snap_layout_open = false;
+    let (_, _, ratio_w, ratio_h) = rect;
+
+    // 已最大化先还原（否则 resize 对最大化窗口无效/被系统忽略）
+    if window.is_maximized() {
+        window.zoom_window();
+    }
+
+    // 以显示器 bounds 为基准计算目标内容尺寸（工作区近似取全屏 bounds）
+    if let Some(display) = window.display(cx) {
+        let db = display.bounds();
+        let target_w = db.size.width * ratio_w;
+        let target_h = db.size.height * ratio_h;
+        window.resize(gpui::size(target_w, target_h));
+    }
+}
+
 /// 面包屑路径行：`一级分类 › 二级标题`（gpui-component Breadcrumb，末项为
 /// 当前页标题——前景色高亮，前级为分类——弱化色；自动带 chevron 分隔）。
 fn breadcrumb_row(path: &[String]) -> impl IntoElement {
@@ -3370,13 +3681,14 @@ fn breadcrumb_row(path: &[String]) -> impl IntoElement {
 }
 
 /// 折叠态内容区头部最左的「展开侧栏」按钮（BLF-794：Sub-Nav 整列折叠至 0 后，
-/// 从这里恢复——也可按 ⌘\ 或点 Rail 分类图标区域外的快捷键切换）。
+/// 从这里恢复——也可按 ⌘\ / Ctrl+\ 或点 Rail 分类图标区域外的快捷键切换）。
 fn expand_sidebar_button(cx: &mut Context<RootView>) -> impl IntoElement {
     Button::new("sidebar-expand-button")
         .ghost()
         .small()
         .icon(Icon::new(IconName::PanelLeftOpen).with_size(px(14.0)))
-        .tooltip("展开侧栏（⌘\\）")
+        // BLF-828：快捷键文案平台化（macOS ⌘\ / Windows Ctrl+\）
+        .tooltip(format!("展开侧栏（{}）", crate::platform::combo("\\")))
         .on_click(cx.listener(|this, _, _, cx| {
             this.sub_nav
                 .update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));
@@ -3626,9 +3938,7 @@ mod tests {
 
         // ② 切到广告分析页 → 控制条切项目 P2 + 站点 DE（经 Changed 转发当页视图；
         //    bar 句柄顶层驱动，避免 root re-entrant borrow）
-        sub_nav.update(cx, |this, cx| {
-            this.select(AD_ANALYSIS_URL, "广告分析", cx)
-        });
+        sub_nav.update(cx, |this, cx| this.select(AD_ANALYSIS_URL, "广告分析", cx));
         let bar = cx
             .read(|app| view.read(app).console_bar.clone())
             .expect("有会话必有控制条");
@@ -3645,7 +3955,15 @@ mod tests {
             let (project, country, _) = ad.read(app).console_filter_state();
             assert_eq!(project, Some(42), "改条当页应即时生效");
             assert_eq!(country, "DE");
-            assert_eq!(root.console_bar.as_ref().unwrap().read(app).snapshot().project_id, Some(42));
+            assert_eq!(
+                root.console_bar
+                    .as_ref()
+                    .unwrap()
+                    .read(app)
+                    .snapshot()
+                    .project_id,
+                Some(42)
+            );
         });
 
         // ③ 返回销售数据页（视图已缓存，不再走首建分支）：快照必须回放对齐
@@ -3841,11 +4159,7 @@ mod tests {
             ),
             ("/dashboard/advertising/ad-data", "广告数据", "ad-data"),
             // BLF-803：AI 智能三页 + 数字员工/虚拟办公室
-            (
-                "/dashboard/ai/insights",
-                "AI洞察",
-                "ai-insights",
-            ),
+            ("/dashboard/ai/insights", "AI洞察", "ai-insights"),
             (
                 "/dashboard/ai/customer-service",
                 "客服交流",
@@ -4838,7 +5152,7 @@ mod tests {
     /// 锁每个既有分支的 reset 列表都补了 `show_account_management = false`
     /// （含 system_logs / markdown_to_word 分支与 placeholder else 分支），避免漏
     /// reset 触发 view_key/content_view 链误命中。
-        /// BLF-798：SKU 信息 ↔ 相邻视图两步切换契约——锁每个既有分支的 reset
+    /// BLF-798：SKU 信息 ↔ 相邻视图两步切换契约——锁每个既有分支的 reset
     /// 列表都补了 `show_sku_info = false`（含销售数据 / 占位 else 分支），
     /// 避免漏 reset 触发 view_key/content_view 链误命中。
     #[gpui::test]
@@ -4905,7 +5219,7 @@ mod tests {
         }
     }
 
-#[gpui::test]
+    #[gpui::test]
     async fn view_key_account_management_cross_resets(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let session = SessionInfo {
@@ -5915,7 +6229,9 @@ mod tests {
         cx.read(|app| assert_eq!(view.read(app).inspector.read(app).mode(), None));
 
         // 销售数据 → 运营态
-        sub_nav.update(cx, |this, cx| this.select(DAILY_ANALYSIS_URL, "销售数据", cx));
+        sub_nav.update(cx, |this, cx| {
+            this.select(DAILY_ANALYSIS_URL, "销售数据", cx)
+        });
         cx.read(|app| {
             assert_eq!(
                 view.read(app).inspector.read(app).mode(),
@@ -5925,9 +6241,7 @@ mod tests {
         });
 
         // 广告分析 → 广告态
-        sub_nav.update(cx, |this, cx| {
-            this.select(AD_ANALYSIS_URL, "广告分析", cx)
-        });
+        sub_nav.update(cx, |this, cx| this.select(AD_ANALYSIS_URL, "广告分析", cx));
         cx.read(|app| {
             assert_eq!(
                 view.read(app).inspector.read(app).mode(),
@@ -5951,10 +6265,13 @@ mod tests {
         cx.read(|app| assert_eq!(view.read(app).inspector.read(app).mode(), None));
 
         // 回到已注册页后 Cmd+B 语义：toggle 经实体句柄驱动，事件上抛 RootView 层
-        sub_nav.update(cx, |this, cx| this.select(DAILY_ANALYSIS_URL, "销售数据", cx));
+        sub_nav.update(cx, |this, cx| {
+            this.select(DAILY_ANALYSIS_URL, "销售数据", cx)
+        });
         let before = events.borrow().len();
         view.update(cx, |root, cx| {
-            root.inspector.update(cx, |inspector, cx| inspector.toggle_visible(cx))
+            root.inspector
+                .update(cx, |inspector, cx| inspector.toggle_visible(cx))
         });
         cx.read(|app| assert!(!view.read(app).inspector.read(app).visible(), "应收起"));
         assert_eq!(events.borrow().len(), before + 1, "开合必须上抛持久化事件");

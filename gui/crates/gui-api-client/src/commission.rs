@@ -178,10 +178,7 @@ mod tests {
         };
         assert_eq!(
             year.base_query().into_pairs(),
-            vec![
-                ("year", "2026".to_string()),
-                ("country", "US".to_string()),
-            ]
+            vec![("year", "2026".to_string()), ("country", "US".to_string()),]
         );
         let year_all = CommissionYearFilter {
             year: "2026".into(),
@@ -344,7 +341,10 @@ mod tests {
         assert_eq!(resp.items.len(), 1);
         let project = &resp.items[0];
         assert_eq!(project.months.len(), 2);
-        assert_eq!(project.months.keys().next().map(String::as_str), Some("2026-01"));
+        assert_eq!(
+            project.months.keys().next().map(String::as_str),
+            Some("2026-01")
+        );
         assert!(project.month("2026-02").is_some());
     }
 

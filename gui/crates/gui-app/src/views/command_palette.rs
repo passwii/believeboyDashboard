@@ -14,7 +14,7 @@
 //! - **失焦**：订阅 `InputEvent::Blur` 自动关闭。
 
 use gpui::{
-    div, prelude::*, px, Context, Entity, EventEmitter, Focusable, FocusHandle, KeyDownEvent,
+    div, prelude::*, px, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
     SharedString, Window,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -75,9 +75,7 @@ pub(crate) fn filter_entries(entries: &[PaletteEntry], query: &str) -> Vec<usize
     for (i, e) in entries.iter().enumerate() {
         if e.title.to_lowercase().contains(&q) {
             by_title.push(i);
-        } else if e.group_label.to_lowercase().contains(&q)
-            || e.url.to_lowercase().contains(&q)
-        {
+        } else if e.group_label.to_lowercase().contains(&q) || e.url.to_lowercase().contains(&q) {
             by_other.push(i);
         }
     }

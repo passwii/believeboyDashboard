@@ -38,24 +38,20 @@ use gpui::{
     SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    button::Button,
-    chart::AreaChart,
-    h_flex,
-    menu::PopupMenuItem,
-    v_flex, Icon, Sizable, StyledExt,
+    button::Button, chart::AreaChart, h_flex, menu::PopupMenuItem, v_flex, Icon, Sizable, StyledExt,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::dashboard::{DailyAnalysisResponse, DailyAnalysisRow};
 
 use crate::theme::AppTheme;
-use crate::widgets::chart_primitives::{ShareRow, chart_area, chart_empty, donut_share_chart};
+use crate::widgets::chart_primitives::{chart_area, chart_empty, donut_share_chart, ShareRow};
 use crate::widgets::data_table::{ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
+use crate::widgets::filter_bar;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
-use crate::widgets::{filter_bar};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的组合分析条目一致）
 pub const PORTFOLIO_URL: &str = "/dashboard/operations/portfolio-overview";
@@ -197,7 +193,11 @@ pub fn build_portfolio_summary(
             },
             impressions,
             clicks,
-            cpc: if clicks > 0 { ad_spend / clicks as f64 } else { 0.0 },
+            cpc: if clicks > 0 {
+                ad_spend / clicks as f64
+            } else {
+                0.0
+            },
             ad_orders: sum_i64(rows, |r| r.ad_orders),
             page_views: sum_i64(rows, |r| r.page_views),
             sessions,
@@ -298,10 +298,7 @@ impl TrendMetric {
 
 /// 多项目趋势序列：按日期合并各项目 daily_trend，同日多项目值存 `values[i]`
 /// （对齐 frontend `chartData` 的 dateMap 合并 + 排序）。
-pub fn trend_series(
-    projects: &[ProjectPortfolioKPI],
-    metric: TrendMetric,
-) -> Vec<MultiTrendPoint> {
+pub fn trend_series(projects: &[ProjectPortfolioKPI], metric: TrendMetric) -> Vec<MultiTrendPoint> {
     let mut map: HashMap<NaiveDate, Vec<f64>> = HashMap::new();
     for (ix, project) in projects.iter().enumerate() {
         for row in &project.daily_trend {
@@ -496,7 +493,8 @@ impl PortfolioOverviewView {
     /// 新建视图：初始 `Loading`，由 root.rs 懒创建后触发 `reload()`
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let state = cx.new(|_| PortfolioState::Loading);
-        let comparison_table = cx.new(|_| DataTable::new("portfolio-comparison", comparison_columns()));
+        let comparison_table =
+            cx.new(|_| DataTable::new("portfolio-comparison", comparison_columns()));
         let today = chrono::Local::now().date_naive();
         let range = DateRange::last_days(7, today);
         let picker = cx.new(|cx| {
@@ -554,8 +552,13 @@ impl PortfolioOverviewView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_portfolio(&client, &selected, user_touched, country, range))
+                    crate::runtime::runtime().block_on(load_portfolio(
+                        &client,
+                        &selected,
+                        user_touched,
+                        country,
+                        range,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -663,7 +666,8 @@ impl PortfolioOverviewView {
             }
             if !data.is_empty() {
                 let rows = data.summary.projects.clone();
-                self.comparison_table.update(cx, |table, cx| table.set_rows(rows, cx));
+                self.comparison_table
+                    .update(cx, |table, cx| table.set_rows(rows, cx));
             }
         }
         self.state.update(cx, |state, cx| {
@@ -842,7 +846,11 @@ fn render_loaded(
             .id("portfolio-overview-loaded")
             .gap_4()
             // KPI 卡（5 张；宽窗受内容上限约束）
-            .child(content_guard().child(kpi_cards(&data.summary, data.country.as_str(), app_theme)))
+            .child(content_guard().child(kpi_cards(
+                &data.summary,
+                data.country.as_str(),
+                app_theme,
+            )))
             // tab 栏
             .child(content_guard().child(render_tab_bar(view, active_tab, app_theme)))
             // tab 内容（对比表 = 数据表格保留全宽；趋势/贡献为图表内容受上限约束）
@@ -1046,13 +1054,11 @@ fn render_filter_bar(
                 );
                 if !selected_owned.is_empty() {
                     let view_clear = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new("清空选择")
-                            .checked(false)
-                            .on_click(move |_, _window, cx| {
-                                view_clear.update(cx, |this, cx| this.clear_projects(cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new("清空选择").checked(false).on_click(
+                        move |_, _window, cx| {
+                            view_clear.update(cx, |this, cx| this.clear_projects(cx));
+                        },
+                    ));
                 }
                 menu = menu.item(PopupMenuItem::separator());
                 for project in &projects_owned {
@@ -1060,11 +1066,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view_toggle = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name).checked(checked).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
                             view_toggle.update(cx, |this, cx| this.toggle_project(id, cx));
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -1079,11 +1085,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view_c = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
                             view_c.update(cx, |this, cx| this.select_country(value, cx));
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -1119,9 +1125,24 @@ fn render_tab_bar(
         .gap_1()
         .rounded(px(theme.radius_lg))
         .bg(theme.muted_fill)
-        .child(tab_button(view, PortfolioTab::Comparison, active == PortfolioTab::Comparison, theme))
-        .child(tab_button(view, PortfolioTab::Trend, active == PortfolioTab::Trend, theme))
-        .child(tab_button(view, PortfolioTab::Contribution, active == PortfolioTab::Contribution, theme))
+        .child(tab_button(
+            view,
+            PortfolioTab::Comparison,
+            active == PortfolioTab::Comparison,
+            theme,
+        ))
+        .child(tab_button(
+            view,
+            PortfolioTab::Trend,
+            active == PortfolioTab::Trend,
+            theme,
+        ))
+        .child(tab_button(
+            view,
+            PortfolioTab::Contribution,
+            active == PortfolioTab::Contribution,
+            theme,
+        ))
 }
 
 fn tab_button(
@@ -1147,16 +1168,12 @@ fn tab_button(
                 .font_weight(FontWeight::MEDIUM)
         })
         .when(!selected, |this| {
-            this.text_color(theme.text_secondary).hover(|this| {
-                this.bg(theme.card_bg.opacity(0.5))
-            })
+            this.text_color(theme.text_secondary)
+                .hover(|this| this.bg(theme.card_bg.opacity(0.5)))
         })
-        .on_mouse_up(
-            gpui::MouseButton::Left,
-            move |_, _window, cx| {
-                view.update(cx, |this, cx| this.select_tab(tab, cx));
-            },
-        )
+        .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
+            view.update(cx, |this, cx| this.select_tab(tab, cx));
+        })
         .child(label.to_string())
 }
 
@@ -1170,9 +1187,7 @@ fn comparison_columns() -> Vec<ColumnDef<ProjectPortfolioKPI>> {
         ColumnDef::text(
             "project",
             "项目",
-            |p: &ProjectPortfolioKPI, _: &AppTheme| {
-                SharedString::from(p.project_name.clone())
-            },
+            |p: &ProjectPortfolioKPI, _: &AppTheme| SharedString::from(p.project_name.clone()),
         )
         .width(150.0),
         ColumnDef::number(
@@ -1354,15 +1369,11 @@ fn trend_panel(
                         for (key, label) in TrendMetric::ALL {
                             let checked = TrendMetric::from_key(key) == metric;
                             let view_m = view_for_metric.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view_m.update(cx, |this, cx| {
-                                            this.select_trend_metric(key, cx)
-                                        });
-                                    },
-                                ),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_, _window, cx| {
+                                    view_m.update(cx, |this, cx| this.select_trend_metric(key, cx));
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1381,9 +1392,15 @@ fn trend_panel(
 /// 趋势指标的量级提示（图元无 Y 轴刻度，用参考值补足量级信息）
 fn metric_hint(metric: TrendMetric, country: &str) -> String {
     match metric {
-        TrendMetric::Sales => format!("Y 轴为销售额（{}），图例颜色对应各项目", currency_symbol(country)),
+        TrendMetric::Sales => format!(
+            "Y 轴为销售额（{}），图例颜色对应各项目",
+            currency_symbol(country)
+        ),
         TrendMetric::Orders => "Y 轴为订单量，图例颜色对应各项目".to_string(),
-        TrendMetric::AdSpend => format!("Y 轴为广告费（{}），图例颜色对应各项目", currency_symbol(country)),
+        TrendMetric::AdSpend => format!(
+            "Y 轴为广告费（{}），图例颜色对应各项目",
+            currency_symbol(country)
+        ),
         TrendMetric::Conversion => "Y 轴为转化率（%），按日各项目求和（对齐 web）".to_string(),
     }
 }
@@ -1395,25 +1412,19 @@ fn multi_series_legend(summary: &PortfolioSummary, theme: &AppTheme) -> impl Int
         .id("portfolio-trend-legend")
         .gap_3()
         .flex_wrap()
-        .children(
-            summary
-                .projects
-                .iter()
-                .enumerate()
-                .map(|(ix, p)| {
-                    let color = palette[ix % palette.len()];
-                    h_flex()
-                        .gap_1p5()
-                        .items_center()
-                        .child(div().size_2p5().rounded_full().bg(color))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(theme.text_secondary)
-                                .child(p.project_name.clone()),
-                        )
-                }),
-        )
+        .children(summary.projects.iter().enumerate().map(|(ix, p)| {
+            let color = palette[ix % palette.len()];
+            h_flex()
+                .gap_1p5()
+                .items_center()
+                .child(div().size_2p5().rounded_full().bg(color))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.text_secondary)
+                        .child(p.project_name.clone()),
+                )
+        }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1487,15 +1498,11 @@ fn contribution_panel(
                         for (key, label) in PieMetric::ALL {
                             let checked = PieMetric::from_key(key) == metric;
                             let view_m = view_for_metric.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view_m.update(cx, |this, cx| {
-                                            this.select_pie_metric(key, cx)
-                                        });
-                                    },
-                                ),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_, _window, cx| {
+                                    view_m.update(cx, |this, cx| this.select_pie_metric(key, cx));
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1653,7 +1660,11 @@ mod tests {
             sales_amount: sales,
             impressions,
             clicks,
-            cpc: if clicks > 0 { ad_spend / clicks as f64 } else { 0.0 },
+            cpc: if clicks > 0 {
+                ad_spend / clicks as f64
+            } else {
+                0.0
+            },
             ad_spend,
             ad_orders: 0,
             available_qty: 0,
@@ -1767,7 +1778,10 @@ mod tests {
         let mut breakdown = HashMap::new();
         breakdown.insert(
             7i64,
-            entry("", vec![row("2026-08-13", 100.0, 1, 10.0, 10, 1, 10, 100.0, 1.0)]),
+            entry(
+                "",
+                vec![row("2026-08-13", 100.0, 1, 10.0, 10, 1, 10, 100.0, 1.0)],
+            ),
         );
         let data = DailyAnalysisResponse {
             summary_rows: Vec::new(),
@@ -1905,11 +1919,25 @@ mod tests {
             1,
             "项目 A",
             vec![
-                row("2026-08-13", 3000.0, 30, 150.0, 1300, 300, 3000, 2800.0, 2.5),
+                row(
+                    "2026-08-13",
+                    3000.0,
+                    30,
+                    150.0,
+                    1300,
+                    300,
+                    3000,
+                    2800.0,
+                    2.5,
+                ),
                 row("2026-08-14", 2000.0, 20, 100.0, 800, 200, 2000, 1900.0, 3.0),
             ],
         );
-        let b = kpi(2, "项目 B", vec![row("2026-08-13", 500.0, 5, 25.0, 100, 0, 400, 0.0, 0.0)]);
+        let b = kpi(
+            2,
+            "项目 B",
+            vec![row("2026-08-13", 500.0, 5, 25.0, 100, 0, 400, 0.0, 0.0)],
+        );
         let mut summary = PortfolioSummary {
             projects: vec![a, b],
             ..Default::default()
@@ -1958,8 +1986,7 @@ mod tests {
                 this.apply_result(1, Ok(data), cx);
             });
         });
-        let (_host, cx2) =
-            cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
+        let (_host, cx2) = cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
         cx2.read(|app| assert!(!crate::theme::AppTheme::current(app).is_dark()));
 
         // 切深色：重渲染不 panic，语义色板跟随
@@ -1981,8 +2008,7 @@ mod tests {
                 this.apply_result(1, Err("服务暂时不可用".to_string()), cx);
             });
         });
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
     }
 
     #[gpui::test]
@@ -1997,8 +2023,7 @@ mod tests {
                 this.apply_result(1, Ok(PortfolioData::empty(vec![project(1, "A")])), cx);
             });
         });
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
     }
 
     #[gpui::test]
@@ -2007,7 +2032,6 @@ mod tests {
             gpui_component::init(cx);
         });
         let view = create_view(cx);
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| PortfolioHost { view: view.clone() });
     }
 }

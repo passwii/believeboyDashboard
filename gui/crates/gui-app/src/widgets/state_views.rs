@@ -22,11 +22,8 @@
 
 use gpui::{div, prelude::*, px, Entity, IntoElement, ParentElement, SharedString, Styled};
 use gpui_component::{
-    alert::Alert,
-    button::Button,
-    skeleton::Skeleton,
-    spinner::Spinner,
-    h_flex, v_flex, Icon, IconName, Sizable,
+    alert::Alert, button::Button, h_flex, skeleton::Skeleton, spinner::Spinner, v_flex, Icon,
+    IconName, Sizable,
 };
 
 use crate::theme::AppTheme;
@@ -50,7 +47,11 @@ pub enum SkeletonBlock {
     /// 卡片网格（count 张卡片 × columns 列，如店铺卡片列表）
     CardGrid { count: usize, columns: usize },
     /// 图表卡网格（count 张带标题行的图表卡 × columns 列，图表区高度 `height`）
-    ChartGrid { count: usize, columns: usize, height: f32 },
+    ChartGrid {
+        count: usize,
+        columns: usize,
+        height: f32,
+    },
 }
 
 impl SkeletonBlock {
@@ -62,9 +63,7 @@ impl SkeletonBlock {
                 .into_any_element(),
             SkeletonBlock::Filter(chips) => h_flex()
                 .gap_2()
-                .children((0..chips).map(|_| {
-                    div().w(px(140.)).h_8().child(Skeleton::new())
-                }))
+                .children((0..chips).map(|_| div().w(px(140.)).h_8().child(Skeleton::new())))
                 .child(div().w_20().h_8().child(Skeleton::new()))
                 .into_any_element(),
             SkeletonBlock::Kpi(count) => h_flex()
@@ -74,7 +73,11 @@ impl SkeletonBlock {
             SkeletonBlock::BarRow(count, height) => h_flex()
                 .gap_3()
                 .children((0..count).map(|_| {
-                    div().flex_1().h(px(height)).child(Skeleton::new()).into_any_element()
+                    div()
+                        .flex_1()
+                        .h(px(height))
+                        .child(Skeleton::new())
+                        .into_any_element()
                 }))
                 .into_any_element(),
             SkeletonBlock::Table(height) => div()
@@ -105,7 +108,11 @@ impl SkeletonBlock {
                         .into_any_element()
                 }))
                 .into_any_element(),
-            SkeletonBlock::ChartGrid { count, columns, height } => div()
+            SkeletonBlock::ChartGrid {
+                count,
+                columns,
+                height,
+            } => div()
                 .grid()
                 .grid_cols(columns as u16)
                 .gap_3()
@@ -167,19 +174,16 @@ pub fn skeleton_loading(theme: &AppTheme, blocks: &[SkeletonBlock]) -> impl Into
 }
 
 /// Loading：Spinner + 文案（默认「加载中…」）
-pub fn loading_state(
-    theme: &AppTheme,
-    text: impl Into<SharedString>,
-) -> impl IntoElement {
+pub fn loading_state(theme: &AppTheme, text: impl Into<SharedString>) -> impl IntoElement {
     h_flex()
         .gap_2()
         .items_center()
-        .child(Spinner::new().small().color(theme.text_primary.opacity(0.6)))
         .child(
-            div()
-                .text_color(theme.text_muted)
-                .child(text.into()),
+            Spinner::new()
+                .small()
+                .color(theme.text_primary.opacity(0.6)),
         )
+        .child(div().text_color(theme.text_muted).child(text.into()))
 }
 
 /// Error：卡片内 Alert + 重试按钮。
@@ -347,12 +351,7 @@ fn empty_card(
         .bg(theme.card_bg)
         .shadow(vec![theme.card_shadow_box()])
         .child(icon_el)
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.text_muted)
-                .child(text),
-        )
+        .child(div().text_sm().text_color(theme.text_muted).child(text))
         .when(desc.is_some(), |this| {
             this.child(
                 div()
@@ -361,7 +360,9 @@ fn empty_card(
                     .child(desc.expect("已判 Some")),
             )
         })
-        .when(action.is_some(), |this| this.child(action.expect("已判 Some")))
+        .when(action.is_some(), |this| {
+            this.child(action.expect("已判 Some"))
+        })
 }
 
 /// 空态文案图标（业务视图默认用 `icons/package.svg`；`empty_state` 可自由指定）
@@ -381,7 +382,11 @@ mod tests {
     struct StateViewsHost;
 
     impl gpui::Render for StateViewsHost {
-        fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
             let theme = AppTheme::current(cx);
             v_flex()
                 .child(String::from("host"))
@@ -394,7 +399,10 @@ mod tests {
                         SkeletonBlock::BarRow(7, 72.0),
                         SkeletonBlock::Table(240.0),
                         SkeletonBlock::Chart(180.0),
-                        SkeletonBlock::CardGrid { count: 6, columns: 2 },
+                        SkeletonBlock::CardGrid {
+                            count: 6,
+                            columns: 2,
+                        },
                     ],
                 ))
                 .child(error_state(
@@ -414,7 +422,12 @@ mod tests {
                     "刷新",
                     |_, _| {},
                 ))
-                .child(empty_state(&theme, "test-empty-plain", "icons/package.svg", "空空如也"))
+                .child(empty_state(
+                    &theme,
+                    "test-empty-plain",
+                    "icons/package.svg",
+                    "空空如也",
+                ))
                 .child(loading_state(&theme, "加载中…"))
         }
     }
@@ -448,8 +461,15 @@ mod tests {
             SkeletonBlock::BarRow(5, 60.0),
             SkeletonBlock::Table(120.0),
             SkeletonBlock::Chart(90.0),
-            SkeletonBlock::CardGrid { count: 4, columns: 2 },
-            SkeletonBlock::ChartGrid { count: 4, columns: 2, height: 120.0 },
+            SkeletonBlock::CardGrid {
+                count: 4,
+                columns: 2,
+            },
+            SkeletonBlock::ChartGrid {
+                count: 4,
+                columns: 2,
+                height: 120.0,
+            },
         ];
         // 枚举可构造、可 Copy、可计数（无 unreachable 分支导致的 panic）
         assert_eq!(blocks.len(), 8);

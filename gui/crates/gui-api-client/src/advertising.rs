@@ -128,7 +128,8 @@ impl Client {
         country: &str,
     ) -> Result<Vec<AdUploadFileItem>, ApiError> {
         let query = [("country", country.to_string())];
-        self.get_json(&ad_upload_files_path(project_id), &query).await
+        self.get_json(&ad_upload_files_path(project_id), &query)
+            .await
     }
 
     /// 某报表类型的原始行（原始表数据源）。

@@ -69,7 +69,10 @@ mod tests {
     /// 契约测试：路径锁定 backend 实际路由 `/monthly-reports/financial-series`
     #[test]
     fn financial_series_path_matches_backend_route() {
-        assert_eq!(FINANCIAL_SERIES_PATH, "/api/v1/monthly-reports/financial-series");
+        assert_eq!(
+            FINANCIAL_SERIES_PATH,
+            "/api/v1/monthly-reports/financial-series"
+        );
     }
 
     #[tokio::test]

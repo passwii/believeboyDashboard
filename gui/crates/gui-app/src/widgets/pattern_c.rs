@@ -225,7 +225,11 @@ pub fn pane_header_base(theme: &AppTheme, id: &'static str) -> gpui::Stateful<gp
 // ---------------------------------------------------------------------------
 
 /// 上下文卡骨架：标题行 + 内容列（宿主继续 `.child(...)` 追加内容行）。
-pub fn context_card(theme: &AppTheme, id: &'static str, title: &'static str) -> gpui::Stateful<gpui::Div> {
+pub fn context_card(
+    theme: &AppTheme,
+    id: &'static str,
+    title: &'static str,
+) -> gpui::Stateful<gpui::Div> {
     v_flex()
         .id(id)
         .w_full()
@@ -351,7 +355,7 @@ mod tests {
         // 未滚动 / 内容不足一屏 → 贴底
         assert!(at_bottom(0.0, 0.0));
         assert!(at_bottom(-0.0, -1.0)); // 防御：负 max 视作不足一屏
-        // 恰在底部（offset == -max）
+                                        // 恰在底部（offset == -max）
         assert!(at_bottom(-800.0, 800.0));
         // 落入容差带仍算贴底
         assert!(at_bottom(-785.0, 800.0));
@@ -371,10 +375,22 @@ mod tests {
     #[test]
     fn sort_pinned_first_is_stable_within_groups() {
         let mut rows = vec![
-            Row { id: 1, pinned: false },
-            Row { id: 2, pinned: true },
-            Row { id: 3, pinned: false },
-            Row { id: 4, pinned: true },
+            Row {
+                id: 1,
+                pinned: false,
+            },
+            Row {
+                id: 2,
+                pinned: true,
+            },
+            Row {
+                id: 3,
+                pinned: false,
+            },
+            Row {
+                id: 4,
+                pinned: true,
+            },
         ];
         sort_pinned_first(&mut rows, |r| r.pinned);
         let ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
@@ -398,12 +414,24 @@ mod tests {
     fn unread_matrix() {
         // 活动会话永不未读
         assert!(!is_unread("2026-08-22T00:00:00+00:00", None, true));
-        assert!(!is_unread("2026-08-22T00:00:00+00:00", Some("2026-08-20T00:00:00+00:00"), true));
+        assert!(!is_unread(
+            "2026-08-22T00:00:00+00:00",
+            Some("2026-08-20T00:00:00+00:00"),
+            true
+        ));
         // 无基线 → 未读
         assert!(is_unread("2026-08-22T00:00:00+00:00", None, false));
         // updated_at 晚于基线 → 未读；早于等于 → 已读
-        assert!(is_unread("2026-08-22T10:00:00+00:00", Some("2026-08-22T09:00:00+00:00"), false));
-        assert!(!is_unread("2026-08-22T09:00:00+00:00", Some("2026-08-22T10:00:00+00:00"), false));
+        assert!(is_unread(
+            "2026-08-22T10:00:00+00:00",
+            Some("2026-08-22T09:00:00+00:00"),
+            false
+        ));
+        assert!(!is_unread(
+            "2026-08-22T09:00:00+00:00",
+            Some("2026-08-22T10:00:00+00:00"),
+            false
+        ));
         assert!(!is_unread("t", Some("t"), false));
     }
 
@@ -414,7 +442,11 @@ mod tests {
     }
 
     impl gpui::Render for ShellHost {
-        fn render(&mut self, _window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            cx: &mut Context<Self>,
+        ) -> impl IntoElement {
             let theme = AppTheme::current(cx);
             let sessions = v_flex().child(pane_header_base(&theme, "host-sessions-header"));
             let conversation = div().child("center");

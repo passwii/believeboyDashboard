@@ -399,7 +399,10 @@ pub fn format_log_time(created_at: &str) -> String {
         return "-".to_string();
     }
     match parse_iso_utc(created_at) {
-        Some(dt) => dt.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string(),
+        Some(dt) => dt
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
         None => created_at.to_string(),
     }
 }
@@ -495,6 +498,118 @@ pub struct DataManagementStatus {
     pub database: DatabaseStatus,
 }
 
+// ---------------------------------------------------------------------------
+// 数据库状态页 / 运营绩效（Stage13，BLF-804；对齐 backend
+// `app/schemas/system_management/data_management.py` 与
+// `operator_performance.py`）
+// ---------------------------------------------------------------------------
+
+/// 表健康状态（对齐 backend `TableHealthStatus`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TableHealthStatus {
+    #[serde(rename = "healthy")]
+    Healthy,
+    #[serde(rename = "empty")]
+    Empty,
+    #[serde(rename = "stale")]
+    Stale,
+    #[serde(rename = "error")]
+    Error,
+}
+
+impl TableHealthStatus {
+    /// 中文标签（页面表格展示用）
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Healthy => "健康",
+            Self::Empty => "空表",
+            Self::Stale => "过期",
+            Self::Error => "异常",
+        }
+    }
+}
+
+/// 单表健康行，字段对齐 backend `TableStatusItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TableStatusItem {
+    pub table_name: String,
+    #[serde(default)]
+    pub table_name_cn: Option<String>,
+    #[serde(default)]
+    pub row_count: Option<i64>,
+    #[serde(default)]
+    pub last_updated_at: Option<String>,
+    pub status: TableHealthStatus,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+/// 最近系统状态行，字段对齐 backend `RecentSystemStatusItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecentSystemStatusItem {
+    pub source: String,
+    pub level: String,
+    pub message: String,
+    pub occurred_at: String,
+}
+
+/// 数据汇总段，字段对齐 backend `DataSummary`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DataSummary {
+    pub total_tables: i64,
+    pub total_rows: i64,
+    pub stale_tables: i64,
+    /// 生命周期状态（active/maintenance/read_only/paused 原样透传）
+    pub data_status: String,
+}
+
+/// `GET /data-management/overview` 响应（数据库状态页主数据；
+/// 字段对齐 backend `DataManagementOverviewResponse`）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DataManagementOverview {
+    pub server_time: String,
+    pub database: DatabaseStatus,
+    #[serde(default)]
+    pub cache_enabled: bool,
+    pub summary: DataSummary,
+    #[serde(default)]
+    pub data_status_note: Option<String>,
+    #[serde(default)]
+    pub tables: Vec<TableStatusItem>,
+    #[serde(default)]
+    pub recent_statuses: Vec<RecentSystemStatusItem>,
+}
+
+/// 运营绩效单行，字段对齐 backend `OperatorPerformanceItem`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OperatorPerformanceItem {
+    pub id: i64,
+    /// 报告月（`YYYY-MM`）
+    pub report_month: String,
+    /// 周序号（1~5）
+    pub week_index: i64,
+    pub project_id: i64,
+    pub project_name: String,
+    pub person_name: String,
+    pub role_type: String,
+    /// 绩效分（0~100）
+    pub score: i64,
+    #[serde(default)]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub updated_by: Option<String>,
+    #[serde(default)]
+    pub updated_at: String,
+}
+
+/// `GET /operator-management/performance?report_month=` 响应
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct OperatorPerformanceResponse {
+    pub report_month: String,
+    #[serde(default)]
+    pub items: Vec<OperatorPerformanceItem>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,7 +684,8 @@ mod tests {
     #[test]
     fn operation_audit_log_tolerates_empty_created_at() {
         let payload = r#"{"items":[{"id":1,"created_at":"","action":"x","target_type":"t","result":"success"}],"total":0,"page":1,"page_size":20,"has_next":false}"#;
-        let page: OperationAuditLogsResponse = serde_json::from_str(payload).expect("空串时间应可解析");
+        let page: OperationAuditLogsResponse =
+            serde_json::from_str(payload).expect("空串时间应可解析");
         assert_eq!(page.items[0].created_at, "");
         assert_eq!(page.items[0].operator, None);
     }
@@ -588,9 +704,10 @@ mod tests {
         assert_eq!(summary.modules.len(), 1);
         assert_eq!(summary.top_actions[0].count, 9);
 
-        let bare: OperationAuditLogsSummaryResponse =
-            serde_json::from_str(r#"{"total":0,"success_count":0,"failure_count":0,"unique_operator_count":0}"#)
-                .expect("缺省 modules/top_actions 应可解析");
+        let bare: OperationAuditLogsSummaryResponse = serde_json::from_str(
+            r#"{"total":0,"success_count":0,"failure_count":0,"unique_operator_count":0}"#,
+        )
+        .expect("缺省 modules/top_actions 应可解析");
         assert!(bare.modules.is_empty() && bare.top_actions.is_empty());
     }
 
@@ -618,7 +735,8 @@ mod tests {
             "page_size": 50,
             "has_next": false
         }"#;
-        let page: AgentAccessLogsResponse = serde_json::from_str(payload).expect("Agent 访问日志应可解析");
+        let page: AgentAccessLogsResponse =
+            serde_json::from_str(payload).expect("Agent 访问日志应可解析");
         let row = &page.items[0];
         assert_eq!(row.key_label.as_deref(), Some("库存运营 Simon"));
         assert_eq!(row.status_code, 200);
@@ -630,17 +748,38 @@ mod tests {
     /// 前缀匹配顺序对齐 web CATEGORY_OPTIONS；未命中 = 其他
     #[test]
     fn operation_category_matches_prefixes() {
-        assert_eq!(operation_category_label("commission.bonus.recompute"), "提成与绩效");
-        assert_eq!(operation_category_label("operator.performance.view"), "提成与绩效");
-        assert_eq!(operation_category_label("shipment_schedules.create"), "发货管理");
+        assert_eq!(
+            operation_category_label("commission.bonus.recompute"),
+            "提成与绩效"
+        );
+        assert_eq!(
+            operation_category_label("operator.performance.view"),
+            "提成与绩效"
+        );
+        assert_eq!(
+            operation_category_label("shipment_schedules.create"),
+            "发货管理"
+        );
         assert_eq!(operation_category_label("sku_info.export"), "SKU资料");
         assert_eq!(operation_category_label("projects.update"), "项目资料");
         assert_eq!(operation_category_label("users.create"), "账号权限");
         assert_eq!(operation_category_label("auth.login.success"), "用户登录");
-        assert_eq!(operation_category_label("inventory_replenishment.list"), "库存补货");
-        assert_eq!(operation_category_label("system.data_status.update"), "系统运维");
-        assert_eq!(operation_category_label("monthly_reports.export"), "报表中心");
-        assert_eq!(operation_category_label("pricing_calculation.run.view"), "报表中心");
+        assert_eq!(
+            operation_category_label("inventory_replenishment.list"),
+            "库存补货"
+        );
+        assert_eq!(
+            operation_category_label("system.data_status.update"),
+            "系统运维"
+        );
+        assert_eq!(
+            operation_category_label("monthly_reports.export"),
+            "报表中心"
+        );
+        assert_eq!(
+            operation_category_label("pricing_calculation.run.view"),
+            "报表中心"
+        );
         assert_eq!(operation_category_label("weird.unknown.action"), "其他");
     }
 
@@ -667,13 +806,19 @@ mod tests {
     #[test]
     fn format_action_label_known_fallback_and_raw() {
         assert_eq!(format_action_label("auth.login.success"), "登录成功");
-        assert_eq!(format_action_label("shipment_schedules.create"), "创建发货计划");
+        assert_eq!(
+            format_action_label("shipment_schedules.create"),
+            "创建发货计划"
+        );
         assert_eq!(
             format_action_label("sku_info.weird_verb"),
             "sku_info.weird_verb",
             "未知非动词末段原样透传"
         );
-        assert_eq!(format_action_label("projects.mystery.list"), "项目资料 · 查看列表");
+        assert_eq!(
+            format_action_label("projects.mystery.list"),
+            "项目资料 · 查看列表"
+        );
         assert_eq!(format_action_label("totally-unknown"), "totally-unknown");
     }
 
@@ -691,9 +836,7 @@ mod tests {
     #[test]
     fn format_log_time_handles_all_shapes() {
         use chrono::TimeZone;
-        let local = Local
-            .with_ymd_and_hms(2026, 8, 21, 18, 30, 0)
-            .unwrap();
+        let local = Local.with_ymd_and_hms(2026, 8, 21, 18, 30, 0).unwrap();
         let utc = local.with_timezone(&Utc);
         let iso = utc.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         assert_eq!(format_log_time(&iso), "2026-08-21 18:30");
@@ -716,22 +859,39 @@ mod tests {
         assert_eq!(format_time_ago(&iso(120)), "2 分钟前");
         assert_eq!(format_time_ago(&iso(3 * 3600)), "3 小时前");
         assert_eq!(format_time_ago(&iso(2 * 24 * 3600)), "2 天前");
-        assert_eq!(format_time_ago(&iso(9 * 24 * 3600)).len(), 10, "7 天外落 YYYY-MM-DD");
+        assert_eq!(
+            format_time_ago(&iso(9 * 24 * 3600)).len(),
+            10,
+            "7 天外落 YYYY-MM-DD"
+        );
     }
 
     /// UA 粗解析：OS / 浏览器二元组；None 与未知串兜底「未知」
     #[test]
     fn parse_user_agent_os_and_browser() {
         let chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-        assert_eq!(parse_user_agent(Some(chrome)), ("macOS".into(), "Chrome".into()));
+        assert_eq!(
+            parse_user_agent(Some(chrome)),
+            ("macOS".into(), "Chrome".into())
+        );
 
         let edge = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
-        assert_eq!(parse_user_agent(Some(edge)), ("Windows".into(), "Edge".into()));
+        assert_eq!(
+            parse_user_agent(Some(edge)),
+            ("Windows".into(), "Edge".into())
+        );
 
-        let firefox = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0";
-        assert_eq!(parse_user_agent(Some(firefox)), ("Windows".into(), "Firefox".into()));
+        let firefox =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0";
+        assert_eq!(
+            parse_user_agent(Some(firefox)),
+            ("Windows".into(), "Firefox".into())
+        );
 
         assert_eq!(parse_user_agent(None), ("未知".into(), "未知".into()));
-        assert_eq!(parse_user_agent(Some("curl/8.0")), ("未知".into(), "未知".into()));
+        assert_eq!(
+            parse_user_agent(Some("curl/8.0")),
+            ("未知".into(), "未知".into())
+        );
     }
 }

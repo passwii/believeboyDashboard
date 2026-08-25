@@ -184,7 +184,10 @@ mod tests {
         assert_eq!(item.ledger_key, "5:2026-08-15");
         assert_eq!(item.status, "sent");
         assert_eq!(item.project_names.len(), 2);
-        assert_eq!(item.screenshot_r2_url.as_deref(), Some("https://r2.example.com/shot.png"));
+        assert_eq!(
+            item.screenshot_r2_url.as_deref(),
+            Some("https://r2.example.com/shot.png")
+        );
         assert_eq!(item.ai_summary_status, "done");
         assert!(!item.can_resend);
     }

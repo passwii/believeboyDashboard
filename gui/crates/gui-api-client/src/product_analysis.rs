@@ -249,7 +249,10 @@ mod tests {
         assert_eq!(resp.total_periods, 1);
         assert_eq!(resp.periods.len(), 1);
         assert_eq!(
-            resp.periods[0].summary.get("利润率").and_then(|v| v.as_f64()),
+            resp.periods[0]
+                .summary
+                .get("利润率")
+                .and_then(|v| v.as_f64()),
             Some(0.2)
         );
         assert_eq!(resp.periods[0].details.len(), 1);

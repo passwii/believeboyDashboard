@@ -176,8 +176,7 @@ struct AdTabSlot {
 
 impl AdTabSlot {
     fn new(def: &AdAnalysisTabDef, cx: &mut Context<AdAnalysisView>) -> Self {
-        let grid =
-            cx.new(|_| DataGrid::new(grid_id(def.key), value_columns(def)).striped(true));
+        let grid = cx.new(|_| DataGrid::new(grid_id(def.key), value_columns(def)).striped(true));
         Self {
             key: def.key,
             grid,
@@ -331,13 +330,12 @@ impl AdAnalysisView {
             (Some(f), Some(t)) => (f, t),
             _ => last_7_days_window(chrono::Local::now().date_naive()),
         };
-        self.selected_project_id
-            .map(|project_id| AdFetchParams {
-                project_id: Some(project_id),
-                country: self.country,
-                from,
-                to,
-            })
+        self.selected_project_id.map(|project_id| AdFetchParams {
+            project_id: Some(project_id),
+            country: self.country,
+            from,
+            to,
+        })
     }
 
     /// 重新拉取概览（项目/站点切换、错误重试、空态刷新共用入口）。
@@ -373,8 +371,9 @@ impl AdAnalysisView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_ad_analysis(&client, selected, country, date_from, date_to))
+                    crate::runtime::runtime().block_on(load_ad_analysis(
+                        &client, selected, country, date_from, date_to,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -423,8 +422,7 @@ impl AdAnalysisView {
     ) -> bool {
         let project_changed = project_id != self.selected_project_id;
         let country_changed = country != self.country;
-        let range_changed =
-            range.from.is_some() && range.to.is_some() && range != self.date_range;
+        let range_changed = range.from.is_some() && range.to.is_some() && range != self.date_range;
         if !project_changed && !country_changed && !range_changed {
             return false;
         }
@@ -517,9 +515,8 @@ impl AdAnalysisView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime().block_on(fetch_ad_tab(
-                        &client, key, project_id, country, from, to,
-                    ))
+                    crate::runtime::runtime()
+                        .block_on(fetch_ad_tab(&client, key, project_id, country, from, to))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -558,7 +555,8 @@ impl AdAnalysisView {
                 if resp.items.is_empty() {
                     slot.status = AdTabStatus::Empty;
                 } else {
-                    slot.grid.update(cx, |grid, cx| grid.set_rows(resp.items, cx));
+                    slot.grid
+                        .update(cx, |grid, cx| grid.set_rows(resp.items, cx));
                     slot.status = AdTabStatus::Loaded;
                 }
             }
@@ -596,42 +594,36 @@ impl AdAnalysisView {
 
     /// 把概览 Top 行同步进三张 DataTable（懒建 + 幂等注入；render 期调用）
     fn sync_top_tables(&mut self, overview: &AdOverviewResponse, cx: &mut Context<Self>) {
-        let campaigns = self
-            .top_campaigns_table
-            .get_or_insert_with(|| {
-                cx.new(|_| {
-                    DataTable::new("ad-top-campaigns-table", campaign_columns())
-                        .striped(true)
-                        .empty_text("暂无活动明细")
-                        .max_height(240.0)
-                })
-            });
+        let campaigns = self.top_campaigns_table.get_or_insert_with(|| {
+            cx.new(|_| {
+                DataTable::new("ad-top-campaigns-table", campaign_columns())
+                    .striped(true)
+                    .empty_text("暂无活动明细")
+                    .max_height(240.0)
+            })
+        });
         campaigns.update(cx, |table, cx| {
             table.set_rows_if_changed(&overview.top_campaigns, cx);
         });
-        let products = self
-            .top_products_table
-            .get_or_insert_with(|| {
-                cx.new(|_| {
-                    DataTable::new("ad-top-products-table", product_columns())
-                        .striped(true)
-                        .empty_text("暂无推广商品明细")
-                        .max_height(240.0)
-                })
-            });
+        let products = self.top_products_table.get_or_insert_with(|| {
+            cx.new(|_| {
+                DataTable::new("ad-top-products-table", product_columns())
+                    .striped(true)
+                    .empty_text("暂无推广商品明细")
+                    .max_height(240.0)
+            })
+        });
         products.update(cx, |table, cx| {
             table.set_rows_if_changed(&overview.top_products, cx);
         });
-        let waste = self
-            .top_waste_terms_table
-            .get_or_insert_with(|| {
-                cx.new(|_| {
-                    DataTable::new("ad-top-waste-table", waste_columns())
-                        .striped(true)
-                        .empty_text("暂无浪费词明细")
-                        .max_height(240.0)
-                })
-            });
+        let waste = self.top_waste_terms_table.get_or_insert_with(|| {
+            cx.new(|_| {
+                DataTable::new("ad-top-waste-table", waste_columns())
+                    .striped(true)
+                    .empty_text("暂无浪费词明细")
+                    .max_height(240.0)
+            })
+        });
         waste.update(cx, |table, cx| {
             table.set_rows_if_changed(&overview.top_waste_terms, cx);
         });
@@ -741,10 +733,8 @@ fn value_columns(def: &AdAnalysisTabDef) -> Vec<ColumnDef<TabRow>> {
             let numeric = is_numeric_format(format);
             let mut col = ColumnDef::<TabRow>::text(c.key, c.label, |_, _| SharedString::default())
                 .with_render_element(move |row: &TabRow, _| {
-                    let text = format_ad_value(
-                        row.get(key).unwrap_or(&serde_json::Value::Null),
-                        format,
-                    );
+                    let text =
+                        format_ad_value(row.get(key).unwrap_or(&serde_json::Value::Null), format);
                     div().child(text).into_any_element()
                 });
             col.width = column_width(format);
@@ -949,13 +939,13 @@ impl Render for AdAnalysisView {
                     tabs,
                 )
                 // 占比换算要用整壳 bounds → on_drag_move 必须挂在壳元素上
-                .on_drag_move(cx.listener(
-                    |this, ev: &gpui::DragMoveEvent<SplitDrag>, _, cx| {
+                .on_drag_move(
+                    cx.listener(|this, ev: &gpui::DragMoveEvent<SplitDrag>, _, cx| {
                         apply_split_drag(ev, this, cx, |this, ratio, cx| {
                             this.set_chart_ratio(ratio, cx);
                         });
-                    },
-                ))
+                    }),
+                )
                 .into_any_element()
             }
         }
@@ -1128,7 +1118,14 @@ fn chart_panel(
                         .child(subtitle),
                 ),
         )
-        .child(div().id(SharedString::from(format!("{id}-body"))).flex_1().min_h_0().p_2().child(body))
+        .child(
+            div()
+                .id(SharedString::from(format!("{id}-body")))
+                .flex_1()
+                .min_h_0()
+                .p_2()
+                .child(body),
+        )
 }
 
 /// trend_summary → 折线点（X = M/D，Y = 花费；对齐 charts.rs dayLabel 口径）
@@ -1159,7 +1156,9 @@ fn short_date_label(date: &str) -> String {
 }
 
 /// top_campaigns → 柱状分布行（名称 = 活动名，值 = 花费；降序已在后端保证）
-fn campaign_spend_shares(overview: &AdOverviewResponse) -> Vec<crate::widgets::chart_primitives::ShareRow> {
+fn campaign_spend_shares(
+    overview: &AdOverviewResponse,
+) -> Vec<crate::widgets::chart_primitives::ShareRow> {
     const TOP_N: usize = 8;
     overview
         .top_campaigns
@@ -1293,9 +1292,24 @@ fn render_overview_content(
                 .gap_3()
                 .flex_wrap()
                 .items_start()
-                .child(top_table_card(app_theme, "高消耗活动", "按花费排序的 Top 广告活动", campaigns))
-                .child(top_table_card(app_theme, "高消耗 SKU", "按花费排序的 Top 推广商品", products))
-                .child(top_table_card(app_theme, "浪费搜索词", "有花费但订单贡献为 0 的搜索词", waste)),
+                .child(top_table_card(
+                    app_theme,
+                    "高消耗活动",
+                    "按花费排序的 Top 广告活动",
+                    campaigns,
+                ))
+                .child(top_table_card(
+                    app_theme,
+                    "高消耗 SKU",
+                    "按花费排序的 Top 推广商品",
+                    products,
+                ))
+                .child(top_table_card(
+                    app_theme,
+                    "浪费搜索词",
+                    "有花费但订单贡献为 0 的搜索词",
+                    waste,
+                )),
         )
         .child(
             h_flex()
@@ -1515,21 +1529,33 @@ fn campaign_columns() -> Vec<ColumnDef<AdTopCampaignRow>> {
         ColumnDef::text("campaign", "活动", |r: &AdTopCampaignRow, _| {
             SharedString::from(r.campaign_name.clone().unwrap_or_else(|| "—".to_string()))
         }),
-        ColumnDef::number("spend", "Spend", |r: &AdTopCampaignRow| r.spend, |r: &_, _| {
-            SharedString::from(fmt_money_precise(r.spend))
-        })
+        ColumnDef::number(
+            "spend",
+            "Spend",
+            |r: &AdTopCampaignRow| r.spend,
+            |r: &_, _| SharedString::from(fmt_money_precise(r.spend)),
+        )
         .width(88.0),
-        ColumnDef::number("sales", "Sales", |r: &AdTopCampaignRow| r.sales_7d, |r: &_, _| {
-            SharedString::from(fmt_money_precise(r.sales_7d))
-        })
+        ColumnDef::number(
+            "sales",
+            "Sales",
+            |r: &AdTopCampaignRow| r.sales_7d,
+            |r: &_, _| SharedString::from(fmt_money_precise(r.sales_7d)),
+        )
         .width(88.0),
-        ColumnDef::number("orders", "订单", |r: &AdTopCampaignRow| r.orders_7d as f64, |r: &_, _| {
-            SharedString::from(fmt_num_precise(r.orders_7d))
-        })
+        ColumnDef::number(
+            "orders",
+            "订单",
+            |r: &AdTopCampaignRow| r.orders_7d as f64,
+            |r: &_, _| SharedString::from(fmt_num_precise(r.orders_7d)),
+        )
         .width(56.0),
-        ColumnDef::number("acos", "ACOS", |r: &AdTopCampaignRow| r.acos, |r: &_, _| {
-            SharedString::from(format!("{:.2}%", r.acos * 100.0))
-        })
+        ColumnDef::number(
+            "acos",
+            "ACOS",
+            |r: &AdTopCampaignRow| r.acos,
+            |r: &_, _| SharedString::from(format!("{:.2}%", r.acos * 100.0)),
+        )
         .width(64.0),
     ]
 }
@@ -1540,21 +1566,33 @@ fn product_columns() -> Vec<ColumnDef<AdTopProductRow>> {
         ColumnDef::text("sku", "SKU", |r: &AdTopProductRow, _| {
             SharedString::from(r.ad_sku.clone().unwrap_or_else(|| "—".to_string()))
         }),
-        ColumnDef::number("spend", "Spend", |r: &AdTopProductRow| r.spend, |r: &_, _| {
-            SharedString::from(fmt_money_precise(r.spend))
-        })
+        ColumnDef::number(
+            "spend",
+            "Spend",
+            |r: &AdTopProductRow| r.spend,
+            |r: &_, _| SharedString::from(fmt_money_precise(r.spend)),
+        )
         .width(88.0),
-        ColumnDef::number("sales", "Sales", |r: &AdTopProductRow| r.sales_7d, |r: &_, _| {
-            SharedString::from(fmt_money_precise(r.sales_7d))
-        })
+        ColumnDef::number(
+            "sales",
+            "Sales",
+            |r: &AdTopProductRow| r.sales_7d,
+            |r: &_, _| SharedString::from(fmt_money_precise(r.sales_7d)),
+        )
         .width(88.0),
-        ColumnDef::number("orders", "订单", |r: &AdTopProductRow| r.orders_7d as f64, |r: &_, _| {
-            SharedString::from(fmt_num_precise(r.orders_7d))
-        })
+        ColumnDef::number(
+            "orders",
+            "订单",
+            |r: &AdTopProductRow| r.orders_7d as f64,
+            |r: &_, _| SharedString::from(fmt_num_precise(r.orders_7d)),
+        )
         .width(56.0),
-        ColumnDef::number("acos", "ACOS", |r: &AdTopProductRow| r.acos, |r: &_, _| {
-            SharedString::from(format!("{:.2}%", r.acos * 100.0))
-        })
+        ColumnDef::number(
+            "acos",
+            "ACOS",
+            |r: &AdTopProductRow| r.acos,
+            |r: &_, _| SharedString::from(format!("{:.2}%", r.acos * 100.0)),
+        )
         .width(64.0),
     ]
 }
@@ -1569,17 +1607,26 @@ fn waste_columns() -> Vec<ColumnDef<AdTopWasteTermRow>> {
             SharedString::from(r.campaign_name.clone().unwrap_or_else(|| "—".to_string()))
         })
         .width(120.0),
-        ColumnDef::number("clicks", "点击", |r: &AdTopWasteTermRow| r.clicks as f64, |r: &_, _| {
-            SharedString::from(fmt_num_precise(r.clicks))
-        })
+        ColumnDef::number(
+            "clicks",
+            "点击",
+            |r: &AdTopWasteTermRow| r.clicks as f64,
+            |r: &_, _| SharedString::from(fmt_num_precise(r.clicks)),
+        )
         .width(56.0),
-        ColumnDef::number("spend", "Spend", |r: &AdTopWasteTermRow| r.spend, |r: &_, _| {
-            SharedString::from(fmt_money_precise(r.spend))
-        })
+        ColumnDef::number(
+            "spend",
+            "Spend",
+            |r: &AdTopWasteTermRow| r.spend,
+            |r: &_, _| SharedString::from(fmt_money_precise(r.spend)),
+        )
         .width(88.0),
-        ColumnDef::number("orders", "订单", |r: &AdTopWasteTermRow| r.orders_7d as f64, |r: &_, _| {
-            SharedString::from(fmt_num_precise(r.orders_7d))
-        })
+        ColumnDef::number(
+            "orders",
+            "订单",
+            |r: &AdTopWasteTermRow| r.orders_7d as f64,
+            |r: &_, _| SharedString::from(fmt_num_precise(r.orders_7d)),
+        )
         .width(56.0),
     ]
 }
@@ -1811,28 +1858,21 @@ fn render_project_select(
                 .small()
                 .label(project_label)
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(
-                    gpui::Corner::BottomLeft,
-                    move |menu, _window, _cx| {
-                        let mut menu = menu;
-                        for project in &projects_owned {
-                            let checked = selected_project_id == Some(project.id);
-                            let id = project.id;
-                            let name = project.name.clone();
-                            let view = view_for_project.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(name).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view.update(cx, |this, cx| {
-                                            this.select_project(Some(id), cx)
-                                        });
-                                    },
-                                ),
-                            );
-                        }
-                        menu
-                    },
-                ),
+                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for project in &projects_owned {
+                        let checked = selected_project_id == Some(project.id);
+                        let id = project.id;
+                        let name = project.name.clone();
+                        let view = view_for_project.clone();
+                        menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                            move |_, _window, cx| {
+                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                            },
+                        ));
+                    }
+                    menu
+                }),
         )
 }
 
@@ -1857,24 +1897,19 @@ fn render_country_select(
                 .small()
                 .label(ad_country_label(country))
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(
-                    gpui::Corner::BottomLeft,
-                    move |menu, _window, _cx| {
-                        let mut menu = menu;
-                        for (value, label) in COUNTRY_OPTIONS {
-                            let checked = country == value;
-                            let view = view_for_country.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view.update(cx, |this, cx| this.select_country(value, cx));
-                                    },
-                                ),
-                            );
-                        }
-                        menu
-                    },
-                ),
+                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for (value, label) in COUNTRY_OPTIONS {
+                        let checked = country == value;
+                        let view = view_for_country.clone();
+                        menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                            move |_, _window, cx| {
+                                view.update(cx, |this, cx| this.select_country(value, cx));
+                            },
+                        ));
+                    }
+                    menu
+                }),
         )
 }
 
@@ -2014,7 +2049,10 @@ mod tests {
             .iter()
             .find(|c| c.id == "spend")
             .expect("活动表必有 spend 列");
-        let sorter = spend_col.sort_value_dyn.as_ref().expect("数值列必有 dyn 键");
+        let sorter = spend_col
+            .sort_value_dyn
+            .as_ref()
+            .expect("数值列必有 dyn 键");
         let row = serde_json::json!({"spend": 30.5});
         assert_eq!(sorter(&row), 30.5);
         let missing = sorter(&serde_json::json!({}));
@@ -2091,7 +2129,11 @@ mod tests {
         });
         let view = create_view(cx, Some(900));
         cx.read(|app| {
-            assert!((view.read(app).chart_ratio() - crate::widgets::pattern_b::DEFAULT_CHART_RATIO).abs() < 1e-6);
+            assert!(
+                (view.read(app).chart_ratio() - crate::widgets::pattern_b::DEFAULT_CHART_RATIO)
+                    .abs()
+                    < 1e-6
+            );
         });
     }
 
@@ -2101,9 +2143,13 @@ mod tests {
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 this.set_chart_ratio(0.9, cx);
-                assert!((this.chart_ratio() - crate::widgets::pattern_b::MAX_CHART_RATIO).abs() < 1e-6);
+                assert!(
+                    (this.chart_ratio() - crate::widgets::pattern_b::MAX_CHART_RATIO).abs() < 1e-6
+                );
                 this.set_chart_ratio(0.1, cx);
-                assert!((this.chart_ratio() - crate::widgets::pattern_b::MIN_CHART_RATIO).abs() < 1e-6);
+                assert!(
+                    (this.chart_ratio() - crate::widgets::pattern_b::MIN_CHART_RATIO).abs() < 1e-6
+                );
                 this.set_chart_ratio(0.47, cx);
                 assert!((this.chart_ratio() - 0.47).abs() < 1e-6);
             });
@@ -2189,7 +2235,10 @@ mod tests {
                 this.select_country("DE", cx);
                 let slot = this.tabs[3].as_ref().unwrap();
                 assert_eq!(slot.status, AdTabStatus::Loading);
-                assert!(slot.loaded_params.is_some(), "活跃 Tab 重拉时已写入新参数快照");
+                assert!(
+                    slot.loaded_params.is_some(),
+                    "活跃 Tab 重拉时已写入新参数快照"
+                );
             });
         });
     }

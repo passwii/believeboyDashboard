@@ -53,7 +53,10 @@ impl Client {
 
     /// 周期概览（对齐 frontend `fetchPeriodOverview(periodId)`：按权限过滤项目 +
     /// 提交/逾期统计 + 各项目健康快照）
-    pub async fn inspection_overview(&self, period_id: i64) -> Result<InspectionOverview, ApiError> {
+    pub async fn inspection_overview(
+        &self,
+        period_id: i64,
+    ) -> Result<InspectionOverview, ApiError> {
         let path = format!("/api/v1/inspections/periods/{period_id}/overview");
         self.get_json(&path, &[]).await
     }
@@ -175,10 +178,7 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let period = client
-            .inspection_current_period()
-            .await
-            .expect("请求失败");
+        let period = client.inspection_current_period().await.expect("请求失败");
 
         m.assert();
         assert_eq!(period.id, 3);
@@ -257,10 +257,7 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let overview = client
-            .inspection_overview(3)
-            .await
-            .expect("请求失败");
+        let overview = client.inspection_overview(3).await.expect("请求失败");
 
         m.assert();
         assert_eq!(overview.period.id, 3);
@@ -287,10 +284,7 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let report = client
-            .inspection_report(3, 5)
-            .await
-            .expect("请求失败");
+        let report = client.inspection_report(3, 5).await.expect("请求失败");
 
         m.assert();
         assert!(report.is_none());
@@ -303,7 +297,8 @@ mod tests {
             .mock("POST", "/api/v1/inspections/periods/3/projects/5")
             .match_header("content-type", "application/json")
             .match_body(Matcher::JsonString(
-                r#"{"health_data":{"account_health_rating":"Good","late_shipment_rate":1.5}}"#.into(),
+                r#"{"health_data":{"account_health_rating":"Good","late_shipment_rate":1.5}}"#
+                    .into(),
             ))
             .with_status(201)
             .with_header("content-type", "application/json")
@@ -343,7 +338,10 @@ mod tests {
         assert_eq!(report.id, 20);
         assert_eq!(report.status, "draft");
         assert_eq!(
-            report.health_data.as_ref().and_then(|h| h.account_health_rating.as_deref()),
+            report
+                .health_data
+                .as_ref()
+                .and_then(|h| h.account_health_rating.as_deref()),
             Some("Good")
         );
     }
