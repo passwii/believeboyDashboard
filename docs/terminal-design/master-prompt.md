@@ -154,11 +154,29 @@
 | 面包屑组名 | `uppercase tracking-wider`（现状是 tracking-wide，见审计表 A4，统一到 wider） |
 | 正文 / 导航项 / 数据单元格 | 不加 uppercase、不加 tracking（数据单元格保持 term-table 的 normal-case tracking-normal） |
 
-### 1b-5. kbd 快捷键规范（提取共享组件）
+### 1b-5. 字体族规范（⭐ 2026-08-26 用户确认：中文走各系统默认，不额外统一）
+
+三套字体已就位（`frontend/app/layout.tsx`，next/font latin 子集按需加载）：
+
+| 变量 | 字体 | 用途 |
+|---|---|---|
+| `--font-sans` | Manrope | 正文、导航、按钮、表格中文本 |
+| `--font-display` | Space Grotesk | 页面/面板标题（h1–h4、dashboard-display） |
+| `--font-mono` | JetBrains Mono | 数值/金额/订单号/时间戳（叠 `tabular-nums`） |
+
+**中文回退栈**（已落地 `tailwind.config.ts` 三条 fontFamily + `globals.css` 三处 font-family）：
+
+```
+"PingFang SC"（macOS）→ "Microsoft YaHei"（Windows）→ "Noto Sans SC"（Linux 兜底）→ sans-serif
+```
+
+规则：① **不引入中文 webfont**——12~14px 高密度字号段系统字体渲染最优（微软雅黑为 ClearType 调优），全量 10~20MB 体积不值（用户拍板）；② mono 栈尾部同样补中文回退，mono 场景里的中文（如 Footer 标签）稳定落到系统黑体；③ 中文文案不用 uppercase / tracking / mono（1b-4 与硬约束第 3 条既有规则不变）。
+
+### 1b-6. kbd 快捷键规范（提取共享组件）
 
 现状两处手写 `<kbd>` 且细节漂移（subnav 带 `leading-4`、header 不带）。规范：新建 `frontend/components/terminal/term-kbd.tsx`，唯一实现 `border border-term-border px-1 font-mono text-xs leading-4 text-term-faint`；SubNav 搜索框与 Header 用户菜单两处替换为 `<TermKbd>⌘K</TermKbd>` 形态，后续 ⌘B 等提示复用。
 
-### 1b-6. 现状审计表（grep 核实，实施时逐处收编）
+### 1b-7. 现状审计表（grep 核实，实施时逐处收编）
 
 | # | 偏离点 | 证据（file:line） | 应改为 |
 |---|---|---|---|

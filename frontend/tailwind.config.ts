@@ -30,12 +30,30 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
+        sans: [
+          'var(--font-sans)',
+          /* 中文回退（BLF-809 字体族规范）：走系统默认，不引中文 webfont */
+          '"PingFang SC"',
+          '"Microsoft YaHei"',
+          '"Noto Sans SC"',
+          'sans-serif',
+        ],
+        display: [
+          'var(--font-display)',
+          'var(--font-sans)',
+          '"PingFang SC"',
+          '"Microsoft YaHei"',
+          'sans-serif',
+        ],
         mono: [
           'var(--font-mono)',
           'ui-monospace',
           'SFMono-Regular',
           'Menlo',
           'Consolas',
+          /* mono 场景里的中文（如 Footer 标签）稳定回退到系统黑体，不靠浏览器碰运气 */
+          '"PingFang SC"',
+          '"Microsoft YaHei"',
           'monospace',
         ],
       },

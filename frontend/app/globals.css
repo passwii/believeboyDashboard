@@ -292,7 +292,9 @@
   }
 
   body {
-    font-family: var(--font-sans), sans-serif;
+    /* BLF-809 字体族规范：中文走系统栈（苹方/微软雅黑），不引中文 webfont */
+    font-family: var(--font-sans), "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+      sans-serif;
     @apply bg-background text-base text-foreground leading-relaxed;
     background-image:
       radial-gradient(circle at top left, hsl(var(--primary) / 0.08), transparent 24%),
@@ -315,7 +317,8 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-family: var(--font-display), var(--font-sans), "PingFang SC", "Microsoft YaHei",
+      "Noto Sans SC", sans-serif;
     letter-spacing: -0.035em;
   }
 
@@ -647,7 +650,8 @@
   }
 
   .dashboard-display {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-family: var(--font-display), var(--font-sans), "PingFang SC", "Microsoft YaHei",
+      "Noto Sans SC", sans-serif;
     font-size: clamp(2.15rem, 3vw, 2.75rem);
     line-height: 0.96;
     letter-spacing: -0.05em;
