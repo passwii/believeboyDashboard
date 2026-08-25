@@ -22,6 +22,8 @@ pub mod agent_management;
 pub mod ai_chat;
 pub mod auth;
 pub mod advertising;
+/// AI 智能域类型（BLF-803：AI洞察 / 数字员工 / 虚拟办公室）
+pub mod ai;
 pub mod auto_upload;
 pub mod commission;
 pub mod common;

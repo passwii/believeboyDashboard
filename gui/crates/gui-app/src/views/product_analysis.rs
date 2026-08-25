@@ -54,6 +54,7 @@ use gui_domain::operations::product_analysis::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::pattern_b::pattern_b_shell;
 use crate::views::weekly_product_analysis::{
     country_label, format_summary_cell, iso_week_label, resolve_project_id,
 };
@@ -681,12 +682,43 @@ impl Render for ProductAnalysisView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
+        // BLF-803 套版：四态统一 pattern_b_shell 骨架（页头 + 主体；本页无
+        // 图表区/子 Tab，图表占比传 0 关闭上半区）
+        let header = PageHeader::new("产品分析");
         match state {
-            ProductAnalysisState::Loading => render_loading(&app_theme).into_any_element(),
-            ProductAnalysisState::Error(msg) => {
-                render_error(cx, &app_theme, &msg).into_any_element()
-            }
-            ProductAnalysisState::Empty => render_empty(cx, &app_theme).into_any_element(),
+            ProductAnalysisState::Loading => pattern_b_shell(
+                &app_theme,
+                "product-analysis",
+                header,
+                div(),
+                0.0,
+                div(),
+                div(),
+                render_loading(&app_theme),
+            )
+            .into_any_element(),
+            ProductAnalysisState::Error(msg) => pattern_b_shell(
+                &app_theme,
+                "product-analysis",
+                PageHeader::new("产品分析"),
+                div(),
+                0.0,
+                div(),
+                div(),
+                render_error(cx, &app_theme, &msg),
+            )
+            .into_any_element(),
+            ProductAnalysisState::Empty => pattern_b_shell(
+                &app_theme,
+                "product-analysis",
+                PageHeader::new("产品分析"),
+                div(),
+                0.0,
+                div(),
+                div(),
+                render_empty(cx, &app_theme),
+            )
+            .into_any_element(),
             ProductAnalysisState::Loaded(payload) => {
                 let view = cx.entity();
                 render_loaded(

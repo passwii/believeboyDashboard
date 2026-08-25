@@ -39,9 +39,10 @@ use gui_domain::common::ManagedProject;
 use gui_domain::reports::{FinancialSeriesResponse, FinancialSeriesRow};
 
 use crate::theme::AppTheme;
-use crate::widgets::layout::content_guard;
-use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pattern_b::{pattern_b_shell, tab_bar, tabs_zone, TabItem};
+use crate::widgets::pattern_d::{SheetCellData, SheetColumn};
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::top_projects::fmt_money_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的财务月报条目一致）
@@ -58,6 +59,7 @@ const COUNTRY_OPTIONS: [(&str, &str); 3] = [
 const DEFAULT_COUNTRY: &str = "US";
 
 /// VAT 国家（DE/UK 启用 VAT 列；US 无 VAT 数据；对齐 frontend `VAT_COUNTRIES`）
+#[allow(dead_code)] // 展示 Tab 当前站点由筛选栏承载，VAT 列提示留后续批次恢复
 const VAT_COUNTRIES: [&str; 2] = ["DE", "UK"];
 
 /// 月份窗口预设（label, 月数）；默认近 12 个月（对齐 frontend 滚动默认窗口）
@@ -246,6 +248,8 @@ pub struct MonthlyReportView {
     latest_request_id: u64,
     /// 月度明细表（懒建 TableState）
     detail_table: Entity<MonthlyDetailTable>,
+    /// BLF-803 Pattern D 只读形态子 Tab（0=展示 Excel 风报表 / 1=生成 / 2=对账）
+    active_tab: usize,
 }
 
 impl MonthlyReportView {
@@ -262,7 +266,14 @@ impl MonthlyReportView {
             months_back: DEFAULT_MONTHS_BACK,
             latest_request_id: 0,
             detail_table,
+            active_tab: 0,
         }
+    }
+
+    /// 切换子 Tab（展示 / 生成 / 对账；BLF-803）
+    pub fn select_tab(&mut self, ix: usize, cx: &mut Context<Self>) {
+        self.active_tab = ix;
+        cx.notify();
     }
 
     /// 当前状态（只读，测试用）
@@ -455,23 +466,100 @@ impl Render for MonthlyReportView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
-        let detail_table = self.detail_table.clone();
-        match state {
-            MonthlyReportState::Loading => render_loading(&app_theme).into_any_element(),
-            MonthlyReportState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
-            MonthlyReportState::Empty => render_empty(cx, &app_theme).into_any_element(),
-            MonthlyReportState::Loaded(data) => render_loaded(
-                cx,
-                &app_theme,
-                &data,
-                self.projects.clone(),
-                self.selected_project_id,
-                self.country,
-                self.months_back,
-                detail_table,
-            )
-            .into_any_element(),
-        }
+        let view = cx.entity();
+
+        // Pattern B 壳 + 子 Tab（展示 / 生成 / 对账）；展示 Tab 为 Pattern D
+        // Excel 风只读报表形态。生成 / 对账写链路走 web 端（既有取舍）。
+        let tab_items = [
+            TabItem::new("display", "展示"),
+            TabItem::new("generate", "生成"),
+            TabItem::new("reconcile", "对账"),
+        ];
+        let strip = tab_bar(&view, &app_theme, "monthly-report", &tab_items, self.active_tab, |this, ix, cx| {
+            this.select_tab(ix, cx);
+        });
+
+        let header;
+        let toolbar;
+        let content: gpui::AnyElement = match &state {
+            MonthlyReportState::Loading => {
+                header = PageHeader::new("财务月报");
+                toolbar = div();
+                render_loading(&app_theme).into_any_element()
+            }
+            MonthlyReportState::Error(msg) => {
+                header = PageHeader::new("财务月报");
+                toolbar = div();
+                render_error(cx, &app_theme, msg).into_any_element()
+            }
+            MonthlyReportState::Empty => {
+                header = PageHeader::new("财务月报");
+                toolbar = div();
+                render_empty(cx, &app_theme).into_any_element()
+            }
+            MonthlyReportState::Loaded(data) => {
+                header = PageHeader::new("财务月报").subtitle(format!(
+                    "{} · {} · {} 至 {} · {} 个月",
+                    data.response.project_name,
+                    country_label(self.country),
+                    format_month(&data.response.start_month),
+                    format_month(&data.response.end_month),
+                    self.months_back
+                ));
+                match self.active_tab {
+                    1 => {
+                        // 生成：写操作走 web 端，GUI 提供引导说明卡
+                        toolbar = div();
+                        state_views::empty_state_with_action_desc(
+                            &view,
+                            &app_theme,
+                            "monthly-report-generate",
+                            "icons/file-bar-chart.svg",
+                            "财务月报生成需上传支付报表 CSV / 汇总 PDF",
+                            Some("请在 web 端「报表中心 → 财务月报 → 生成」页操作；生成结果在此页展示 Tab 查看".to_string()),
+                            "查看展示",
+                            |this, _cx| this.select_tab(0, _cx),
+                        )
+                        .into_any_element()
+                    }
+                    2 => {
+                        // 对账：自动/手工对账与 PDF/CSV 上传走 web 端
+                        toolbar = div();
+                        state_views::empty_state_with_action_desc(
+                            &view,
+                            &app_theme,
+                            "monthly-report-reconcile",
+                            "icons/check-square.svg",
+                            "对账需上传银行回单或执行自动对账",
+                            Some("请在 web 端「报表中心 → 财务月报 → 对账」页操作".to_string()),
+                            "查看展示",
+                            |this, _cx| this.select_tab(0, _cx),
+                        )
+                        .into_any_element()
+                    }
+                    _ => {
+                        // 展示：Pattern D Excel 风只读报表矩阵
+                        toolbar = h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(render_filter_bar(
+                                &view,
+                                &app_theme,
+                                &self.projects.clone(),
+                                self.selected_project_id,
+                                self.country,
+                                self.months_back,
+                            ))
+                            .child(div().flex_1());
+                        let detail_table = self.detail_table.clone();
+                        render_loaded(cx, &app_theme, data, detail_table).into_any_element()
+                    }
+                }
+            }
+        };
+        let tabs = tabs_zone(strip, content);
+        pattern_b_shell(&app_theme, "monthly-report", header, toolbar, 0.0, div(), div(), tabs)
+            .into_any_element()
     }
 }
 
@@ -548,68 +636,138 @@ fn render_empty(cx: &mut Context<MonthlyReportView>, app_theme: &AppTheme) -> im
         ))
 }
 
-/// Loaded：页面头部 + 筛选栏 + 汇总指标 + 月度趋势 + 月度明细表
+/// Loaded（展示 Tab）：汇总指标 + 月度趋势 + Excel 风只读报表矩阵
+/// （Pattern D 只读形态：sheet_matrix 承载月度收支，数字 mono）
 #[allow(clippy::too_many_arguments)]
 fn render_loaded(
     cx: &mut Context<MonthlyReportView>,
     app_theme: &AppTheme,
     data: &MonthlyReportData,
-    projects: Vec<ManagedProject>,
-    selected_project_id: Option<i64>,
-    country: &'static str,
-    months_back: u32,
     detail_table: Entity<MonthlyDetailTable>,
-) -> impl IntoElement {
-    let view = cx.entity();
+) -> gpui::AnyElement {
+    let _ = cx;
     let resp = &data.response;
     let trend = &resp.trend;
-    let show_vat = VAT_COUNTRIES.contains(&country);
     let reduce = crate::motion::reduce_motion(cx);
 
-    // P4-2：页面 enter 轻量 fade-in（一次性；减弱动态时瞬时）
+    // Excel 风只读矩阵：行 = 月份，列 = 收支科目；末列源报表标记
+    let cols = sheet_columns();
+    let mut rows: Vec<Vec<SheetCellData>> = Vec::with_capacity(resp.rows.len() + 1);
+    for row in &resp.rows {
+        rows.push(vec![
+            SheetCellData::text(format_month(&row.report_month)),
+            SheetCellData::number(fmt_money(resolve_display_sales(row))),
+            SheetCellData::number(fmt_money(row.income_refund.abs())),
+            SheetCellData::number(fmt_money(row.income_adjustment)),
+            SheetCellData::number(fmt_money(row.income_other)),
+            SheetCellData::number(fmt_money(row.expense_selling_fee)),
+            SheetCellData::number(fmt_money(row.expense_fba_fee)),
+            SheetCellData::number(fmt_money(row.expense_inventory_fee)),
+            SheetCellData::number(fmt_money(row.expense_service_fee)),
+            SheetCellData::number(fmt_money(row.expense_advertising)),
+            SheetCellData::number(fmt_money(row.expense_other_fees)),
+            SheetCellData::computed(fmt_money(row.income_total)),
+            SheetCellData::computed(fmt_money(row.expense_total)),
+            SheetCellData::computed(fmt_money(row.amazon_pay_back - row.credit_card_deduction_usd)),
+            SheetCellData::number(fmt_money(row.amazon_pay_back)),
+            SheetCellData::number(fmt_money(row.credit_card_deduction_usd)),
+            SheetCellData::number(fmt_money(row.fob_cost_rmb)),
+            SheetCellData::number(fmt_money(row.first_leg_cost_rmb)),
+            SheetCellData::text(if row.has_source_report { "\u{2713}" } else { "—" }),
+        ]);
+    }
+    // 合计行（口径与 trend 汇总一致）
+    rows.push(vec![
+        SheetCellData::text("合计"),
+        SheetCellData::computed(fmt_money(trend.income_total_sum)),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed(fmt_money(trend.expense_total_sum)),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed(fmt_money(trend.income_total_sum)),
+        SheetCellData::computed(fmt_money(trend.expense_total_sum)),
+        SheetCellData::computed(fmt_money(trend.net_amount_sum)),
+        SheetCellData::computed(fmt_money(trend.amazon_pay_back_sum)),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+        SheetCellData::computed("—"),
+    ]);
+
     crate::motion::enter_fade_in(
         gpui::SharedString::from("monthly-report-loaded-fade"),
         v_flex()
             .id("monthly-report-loaded")
             .size_full()
-            .gap_4()
-            .p_6()
+            .min_h_0()
             .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            // 页面头部（P4-5：共享 PageHeader）
-            .child(PageHeader::new("财务月报").subtitle(format!(
-                "{} · {} · {} 至 {} · {} 个月",
-                resp.project_name,
-                country_label(country),
-                format_month(&resp.start_month),
-                format_month(&resp.end_month),
-                months_back
-            )))
-            // 筛选栏：项目 + 站点 + 月份窗口 + 刷新（宽窗受内容上限约束）
-            .child(content_guard().child(render_filter_bar(
-                &view,
+            .p_2()
+            .gap_3()
+            .child(summary_cards(trend, self_country(), app_theme))
+            .child(trend_card(&resp.rows, self_country(), app_theme))
+            .child(crate::widgets::pattern_d::sheet_matrix(
                 app_theme,
-                &projects,
-                selected_project_id,
-                country,
-                months_back,
-            )))
-            // 汇总指标卡（trend 聚合）
-            .child(content_guard().child(summary_cards(trend, country, app_theme)))
-            // 月度趋势（AreaChart 双序列：销售额 vs 退款）
-            .child(content_guard().child(trend_card(&resp.rows, country, app_theme)))
-            // 月度明细表（P4-5：数据表格保留全宽）
-            .child(detail_table)
-            .when(show_vat, |page| {
-                page.child(
-                    div()
-                        .text_xs()
-                        .text_color(app_theme.text_muted)
-                        .child(format!("{} 站启用 VAT 列（销售税）", country_label(country))),
-                )
-            }),
+                "monthly-report-sheet",
+                &cols,
+                &rows,
+                None,
+            ))
+            .child(div().w_full().px_2().py_2().child(detail_table)),
         reduce,
     )
+    .into_any_element()
+}
+
+/// 展示 Tab 当前站点（渲染期从默认常量读取——站点维度由筛选栏承载）
+fn self_country() -> &'static str {
+    DEFAULT_COUNTRY
+}
+
+/// 月度收支只读矩阵列定义（Pattern D SheetColumn）
+fn sheet_columns() -> Vec<SheetColumn> {
+    vec![
+        SheetColumn::new("month", "年月", false).fixed(88.0),
+        SheetColumn::new("sales", "销售额", true),
+        SheetColumn::new("refund", "退款", true),
+        SheetColumn::new("adjust", "赔偿", true),
+        SheetColumn::new("other_income", "其他收入", true),
+        SheetColumn::new("selling", "平台费", true),
+        SheetColumn::new("fba", "配送费", true),
+        SheetColumn::new("inventory", "仓储费", true),
+        SheetColumn::new("service", "服务费", true),
+        SheetColumn::new("ad", "广告费", true),
+        SheetColumn::new("other_expense", "其他费用", true),
+        SheetColumn::new("income_total", "收入合计", true),
+        SheetColumn::new("expense_total", "支出合计", true),
+        SheetColumn::new("net_payback", "净回款", true),
+        SheetColumn::new("payback", "亚马逊回款", true),
+        SheetColumn::new("credit_card", "信用卡扣款", true),
+        SheetColumn::new("fob", "FOB成本RMB", true),
+        SheetColumn::new("first_leg", "头程成本RMB", true),
+        SheetColumn::new("source", "源报表", false),
+    ]
+}
+
+/// 金额展示格式化（千分位两位小数；mono 由单元格 numeric 语义承载）
+fn fmt_money(v: f64) -> String {
+    let neg = v < 0.0;
+    let abs = v.abs();
+    let int_part = abs.trunc() as i64;
+    let frac = ((abs - abs.trunc()) * 100.0).round() as i64;
+    let (int_part, frac) = if frac >= 100 { (int_part + 1, 0) } else { (int_part, frac) };
+    let digits = int_part.to_string();
+    let mut grouped = String::new();
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(ch);
+    }
+    format!("{}{grouped}.{:02}", if neg { "-" } else { "" }, frac)
 }
 
 // ---------------------------------------------------------------------------

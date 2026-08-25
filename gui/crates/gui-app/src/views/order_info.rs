@@ -46,12 +46,16 @@ use gui_domain::order_info::{
 };
 
 use crate::theme::AppTheme;
+use crate::widgets::data_grid::{
+    grid_footer_bar, pattern_a_shell, AggregateItem,
+};
+
 use crate::widgets::data_table::{ColumnDef, DataTable};
+use crate::widgets::pagination::PageState;
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::filter_bar;
-use crate::widgets::layout::content_guard;
+use crate::widgets::filter_bar::toolbar_spacer;
 use crate::widgets::page_header::PageHeader;
-use crate::widgets::pagination::{self, PageState};
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「报表中心 → 订单信息」URL（数据权威 gui-domain::sidebar）
@@ -977,43 +981,39 @@ impl Render for OrderInfoView {
         let app_theme = AppTheme::current(cx);
         let state = self.state.read(cx).clone();
         let view = cx.entity();
-        let subtitle = match &state {
-            OrderInfoState::Loaded(data) => {
-                let stats = &data.overview.stats;
-                format!(
-                    "订单 {} · 总数量 {} · 主导币种 {}",
-                    fmt_int(stats.total_orders),
-                    fmt_int(stats.total_quantity),
-                    stats.currency.clone().unwrap_or_else(|| "—".into()),
-                )
-            }
-            _ => "亚马逊订单查询与明细（按 SKU 行）".to_string(),
-        };
-
-        v_flex()
-            .id("order-info")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(app_theme.window_bg)
-            .child(PageHeader::new("订单信息").subtitle(subtitle))
-            .child(
-                content_guard().child(render_filter_card(self, view.clone(), &app_theme)),
+        match &state {
+            OrderInfoState::Loading => pattern_a_shell(
+                &app_theme,
+                "order-info",
+                PageHeader::new("订单信息"),
+                div(),
+                render_loading(&app_theme),
+                div(),
             )
-            .child(match state {
-                OrderInfoState::Loading => render_loading(&app_theme).into_any_element(),
-                OrderInfoState::Error(msg) => state_views::error_state(
+            .into_any_element(),
+            OrderInfoState::Error(msg) => pattern_a_shell(
+                &app_theme,
+                "order-info",
+                PageHeader::new("订单信息"),
+                div(),
+                state_views::error_state(
                     &view,
                     &app_theme,
                     "order-info-error",
                     "订单信息加载失败",
                     msg,
                     |this, cx| this.reload(cx),
-                )
-                .into_any_element(),
-                OrderInfoState::Empty => {
-                    let message = empty_message(self);
+                ),
+                div(),
+            )
+            .into_any_element(),
+            OrderInfoState::Empty => {
+                let message = empty_message(self);
+                pattern_a_shell(
+                    &app_theme,
+                    "order-info",
+                    PageHeader::new("订单信息"),
+                    div(),
                     state_views::empty_state_with_action_desc(
                         &view,
                         &app_theme,
@@ -1023,20 +1023,62 @@ impl Render for OrderInfoView {
                         Some("调整筛选条件或点击刷新；CSV 导出与 FBM 补录请在 web 端操作".to_string()),
                         "刷新",
                         |this, cx| this.reload(cx),
-                    )
-                    .into_any_element()
-                }
-                OrderInfoState::Loaded(data) => render_loaded(
-                    &view,
-                    cx,
-                    &app_theme,
-                    &data,
-                    self.page,
-                    self.page_size,
-                    self.table.clone(),
+                    ),
+                    div(),
                 )
-                .into_any_element(),
-            })
+                .into_any_element()
+            }
+            OrderInfoState::Loaded(data) => {
+                let subtitle = {
+                    let stats = &data.overview.stats;
+                    format!(
+                        "订单 {} · 总数量 {} · 主导币种 {}",
+                        fmt_int(stats.total_orders),
+                        fmt_int(stats.total_quantity),
+                        stats.currency.clone().unwrap_or_else(|| "—".into()),
+                    )
+                };
+                let header = PageHeader::new("订单信息").subtitle(subtitle);
+
+                // Pattern A 工具栏行：筛选下拉 + 关键字/日期 + 操作按钮
+                let toolbar = h_flex()
+                    .gap_2()
+                    .items_center()
+                    .flex_wrap()
+                    .child(render_filter_card(self, view.clone(), &app_theme))
+                    .child(toolbar_spacer());
+
+                let page_state = PageState::new(
+                    self.page,
+                    self.page_size.max(1),
+                    data.overview.total.max(0) as usize,
+                );
+                let footer = grid_footer_bar(
+                    &view,
+                    &app_theme,
+                    "order-info",
+                    &order_stat_aggregates(&data.overview),
+                    &page_state,
+                    &[DEFAULT_PAGE_SIZE],
+                    |this, page, cx| this.go_to_page(page, cx),
+                    |this, size, cx| this.set_page_size(size, cx),
+                );
+
+                crate::motion::enter_fade_in(
+                    SharedString::from("order-info-loaded-fade"),
+                    pattern_a_shell(
+                        &app_theme,
+                        "order-info",
+                        header,
+                        toolbar,
+                        list_section(view, &app_theme, self.table.clone()),
+                        footer,
+                    ),
+                    crate::motion::reduce_motion(cx),
+                )
+                .into_any_element()
+            }
+        }
     }
 }
 
@@ -1053,7 +1095,7 @@ fn empty_message(view: &OrderInfoView) -> String {
     }
 }
 
-/// 筛选卡（两行：五个下拉 + 关键字输入 / 日期 / 操作按钮）
+/// 筛选控件组（Pattern A 工具栏内容：五个下拉 + 关键字输入 / 日期 / 操作按钮）
 fn render_filter_card(
     view: &OrderInfoView,
     view_entity: Entity<OrderInfoView>,
@@ -1128,9 +1170,10 @@ fn render_filter_card(
     let country_filter = view.country_filter;
     let currency_filter = view.currency_filter.clone();
 
+    // Pattern A 工具栏内容：两行筛选控件纵向叠放（壳负责行容器 chrome）
     v_flex()
         .id("order-info-filters")
-        .gap_3()
+        .gap_2()
         .child(
             filter_bar::filter_bar_layout(theme)
                 .child(filter_bar::filter_select(
@@ -1390,194 +1433,36 @@ fn render_loading(theme: &AppTheme) -> impl IntoElement {
     )
 }
 
-fn render_loaded(
-    view: &Entity<OrderInfoView>,
-    cx: &mut Context<OrderInfoView>,
-    theme: &AppTheme,
-    data: &OrderInfoData,
-    page: usize,
-    page_size: usize,
-    table: Entity<DataTable<OrderInfoItem>>,
-) -> gpui::AnyElement {
-    let reduce = crate::motion::reduce_motion(cx);
-    let total = data.overview.total.max(0) as usize;
-    let page_state = PageState::new(page, page_size.max(1), total);
-
-    crate::motion::enter_fade_in(
-        SharedString::from("order-info-loaded-fade"),
-        v_flex()
-            .id("order-info-loaded")
-            .gap_4()
-            // 统计带（对齐 web DataTableCardStatBar 5 项）
-            .child(content_guard().child(stat_band(&data.overview, theme)))
-            // 订单列表 + 分页
-            .child(content_guard().child(list_section(
-                view,
-                theme,
-                table,
-                &page_state,
-                total,
-            ))),
-        reduce,
-    )
-    .into_any_element()
-}
-
-/// 统计带（订单数 / 总数量 / 总金额（主导币种，强调） / FBA 行数 / FBM 行数）
-fn stat_band(overview: &OrderInfoOverview, theme: &AppTheme) -> impl IntoElement {
+/// 底部聚合条目（对齐原统计带 5 项；数字 mono 渲染于 grid_footer_bar）
+fn order_stat_aggregates(overview: &OrderInfoOverview) -> Vec<AggregateItem> {
     let stats = &overview.stats;
-    h_flex()
-        .id("order-info-stat-band")
-        .gap_3()
-        .flex_wrap()
-        .children(vec![
-            stat_card(theme, "订单数", fmt_int(stats.total_orders), String::new(), false),
-            stat_card(
-                theme,
-                "总数量",
-                fmt_int(stats.total_quantity),
-                String::new(),
-                false,
-            ),
-            stat_card(
-                theme,
-                "总金额（主导币种）",
-                fmt_fixed(stats.total_amount, 2),
-                stats.currency.clone().unwrap_or_default(),
-                true,
-            ),
-            stat_card(theme, "FBA 行数", fmt_int(stats.fba_count), String::new(), false),
-            stat_card(theme, "FBM 行数", fmt_int(stats.fbm_count), String::new(), false),
-        ])
-}
-
-fn stat_card(
-    theme: &AppTheme,
-    label: &'static str,
-    value: String,
-    unit: String,
-    highlight: bool,
-) -> gpui::AnyElement {
-    let chip_bg = if theme.is_dark() {
-        theme.muted_fill
-    } else {
-        theme.accent_soft
-    };
-    v_flex()
-        .id(SharedString::from(format!("order-info-stat-{label}")))
-        .flex_1()
-        .min_w(px(150.0))
-        .gap_1()
-        .px_4()
-        .py_3()
-        .rounded(px(theme.radius_lg))
-        .border_1()
-        .border_color(if highlight {
-            theme.accent.opacity(0.4)
-        } else {
-            theme.separator
-        })
-        .bg(theme.card_bg)
-        .child(
-            h_flex()
-                .gap_2()
-                .items_center()
-                .child(
-                    h_flex()
-                        .size_2()
-                        .flex_shrink_0()
-                        .rounded_full()
-                        .bg(if highlight { theme.accent } else { chip_bg }),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child(SharedString::from(label)),
-                ),
+    vec![
+        AggregateItem::new("订单数", fmt_int(stats.total_orders)),
+        AggregateItem::new("总数量", fmt_int(stats.total_quantity)),
+        AggregateItem::new(
+            "总金额",
+            fmt_fixed(stats.total_amount, 2),
         )
-        .child(
-            h_flex()
-                .gap_2()
-                .items_baseline()
-                .child(
-                    div()
-                        .text_2xl()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.text_primary)
-                        .child(value),
-                )
-                .when(!unit.is_empty(), |this| {
-                    this.child(div().text_xs().text_color(theme.text_muted).child(unit))
-                }),
-        )
-        .into_any_element()
+        .note(stats.currency.clone().unwrap_or_else(|| "—".into())),
+        AggregateItem::new("FBA 行数", fmt_int(stats.fba_count)),
+        AggregateItem::new("FBM 行数", fmt_int(stats.fbm_count)),
+    ]
 }
-
 /// 列表卡（表格 + 分页条 + 行数脚注）
+/// 订单列表主体（表格全幅；分页 / 聚合由 pattern_a 底部 footer 条承载）
 fn list_section(
-    view: &Entity<OrderInfoView>,
-    theme: &AppTheme,
+    view: Entity<OrderInfoView>,
+    _theme: &AppTheme,
     table: Entity<DataTable<OrderInfoItem>>,
-    page_state: &PageState,
-    total: usize,
-) -> impl IntoElement {
-    v_flex()
-        .id("order-info-list-card")
-        .w_full()
-        .rounded(px(theme.radius_lg))
-        .bg(theme.card_bg)
-        .shadow(vec![theme.card_shadow_box()])
-        .child(
-            v_flex()
-                .gap_1()
-                .px_4()
-                .py_3()
-                .border_b_1()
-                .border_color(theme.separator)
-                .child(
-                    div()
-                        .text_base()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.text_primary)
-                        .child("订单信息"),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("服务端按下单时间（PT）倒序；数量 / 金额列点击表头可在当前页排序"),
-                ),
-        )
-        .child(div().w_full().px_4().py_2().child(table))
-        .child(
-            div()
-                .w_full()
-                .px_4()
-                .py_2()
-                .child(pagination::pagination_bar(
-                    view,
-                    theme,
-                    "order-info-pagination",
-                    page_state,
-                    &[DEFAULT_PAGE_SIZE],
-                    |this, page, cx| this.go_to_page(page, cx),
-                    |this, size, cx| this.set_page_size(size, cx),
-                )),
-        )
-        .child(
-            // 行数脚注（对齐 web「共 N 行 · 每页 50 行」）
-            div()
-                .px_4()
-                .pb_2()
-                .text_xs()
-                .text_color(theme.text_muted)
-                .child(SharedString::from(format!(
-                    "共 {} 行 · 每页 {} 行",
-                    fmt_int(total as i64),
-                    DEFAULT_PAGE_SIZE
-                ))),
-        )
+) -> gpui::AnyElement {
+    let _ = view;
+    div()
+        .id("order-info-list")
+        .size_full()
+        .min_h_0()
+        .p_2()
+        .child(table)
+        .into_any_element()
 }
 
 // ---------------------------------------------------------------------------

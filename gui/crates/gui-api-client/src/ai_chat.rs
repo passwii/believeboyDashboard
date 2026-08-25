@@ -60,6 +60,10 @@ pub struct AiChatMessageCreate {
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// 场景化 system prompt（客服交流等；空串 = 后端默认。backend
+    /// `MessageCreate.system_prompt` 字段，web 代理层由场景预设拼装）
+    #[serde(default = "String::new", skip_serializing_if = "String::is_empty")]
+    pub system_prompt: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub regenerate: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -283,6 +287,7 @@ mod tests {
         let payload = AiChatMessageCreate {
             content: "你好".into(),
             model: Some("believeboy-flash".into()),
+            system_prompt: String::new(),
             regenerate: false,
             enable_web_search: true,
         };

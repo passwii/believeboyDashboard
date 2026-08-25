@@ -37,8 +37,8 @@ use gui_domain::auto_upload::{ProjectReportStatus, ReportTypeStatus, RpaReportSt
 use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
-use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pattern_b::{pattern_b_shell, tabs_zone};
 use crate::widgets::state_views::{self, EmptyIcon, SkeletonBlock};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的报表自动化条目一致）
@@ -274,33 +274,33 @@ impl Render for AutoUploadView {
         let reduce = crate::motion::reduce_motion(cx);
         let view = cx.entity();
 
-        v_flex()
-            .id("auto-upload")
-            .size_full()
-            .gap_4()
-            .p_6()
-            .overflow_y_scroll()
-            .bg(theme.window_bg)
-            .child(
-                PageHeader::new("报表自动化")
-                    .subtitle("RPA 自动上传状态 · 项目 × 报表类型矩阵（只读）"),
-            )
-            .child(content_guard().child(render_filter_bar(
+        // BLF-803 套版：pattern_b_shell 骨架（页头 + 工具栏行 + 状态矩阵主体；
+        // 本页无图表区/子 Tab，占比传 0 关闭上半区）
+        let header = PageHeader::new("报表自动化")
+            .subtitle("RPA 自动上传状态 · 项目 × 报表类型矩阵（只读）");
+        let toolbar = h_flex()
+            .gap_2()
+            .items_center()
+            .px_2()
+            .child(render_filter_bar(
                 &view,
                 &theme,
                 country,
                 &date_str,
                 projects,
                 selected.clone(),
-            )))
-            .child(match state {
-                AutoUploadState::Loading => render_loading(&theme).into_any_element(),
-                AutoUploadState::Error(msg) => render_error(&view, &theme, &msg).into_any_element(),
-                AutoUploadState::Empty => render_empty(&view, &theme, &date_str).into_any_element(),
-                AutoUploadState::Loaded(resp) => {
-                    render_loaded(&theme, &resp, &selected, reduce).into_any_element()
-                }
-            })
+            ))
+            .child(div().flex_1());
+        let body: gpui::AnyElement = match state {
+            AutoUploadState::Loading => render_loading(&theme).into_any_element(),
+            AutoUploadState::Error(msg) => render_error(&view, &theme, &msg).into_any_element(),
+            AutoUploadState::Empty => render_empty(&view, &theme, &date_str).into_any_element(),
+            AutoUploadState::Loaded(resp) => {
+                render_loaded(&theme, &resp, &selected, reduce).into_any_element()
+            }
+        };
+        let tabs = tabs_zone(div(), body);
+        pattern_b_shell(&theme, "auto-upload", header, toolbar, 0.0, div(), div(), tabs)
     }
 }
 
