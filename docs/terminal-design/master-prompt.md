@@ -27,6 +27,7 @@
 6. 明暗两套主题都必须适配（`--term-*` 双套已存在，新增颜色必须同时补两套）。
 7. 每个 PR：先跑 `pnpm lint && pnpm build && pnpm test` 全绿；涉及公共组件/hook 用 CodeGraph 或全局搜索确认调用方；commit 信息中文 Conventional Commits。
 8. 移动端（<md）行为保持现状：L1/L2 收进左侧 Sheet 抽屉，Footer 隐藏。
+9. **顶部基准线贯通**：外壳各列（Rail / SubNav / Header 所在主列 / Inspector）顶部第一条横向分割线必须处于同一水平线上（见 §任务 1 的 Top Strip 规范）；任何新增的顶栏区块高度一律引用该常量，不得另起炉灶。
 
 ## 任务 0：全局放大一档（✅ 已完成，保留作历史参考）
 
@@ -72,9 +73,43 @@
 - [x] 1280×800 与 2560×1440 两档分辨率目测协调。
 - [x] 移动端 Sheet 抽屉回归完成。
 
+## 任务 1：顶部基准线对齐（⭐ 2026-08-25 用户复核提出，优先级最高）
+
+### 问题实态（grep 已核实）
+
+外壳四列的「顶部第一条横向分割线」目前各用各的高度，互不对齐：
+
+| 列 | 顶部区块 | 当前高度 | 来源 |
+|---|---|---|---|
+| L1 Rail | Logo 位 | **64px** | `style={{ height: TERMINAL_RAIL_WIDTH }}`（借用了宽度常量，语义错位） |
+| L2 SubNav | 组头（域名+折叠按钮） | **40px** | 组件内 `h-10` 字面量 |
+| 主列 Header | 整条 Header | **48px** | `TERMINAL_HEADER_HEIGHT` ✓ 唯一正确引用 |
+| Inspector | 标题条 | **40px** | 组件内 `h-10` 字面量 |
+
+结果：SubNav 组头下边框（y=40）、Header 下边框（y=48）、Inspector 标题下边框（y=40）、Rail Logo 下边框（y=64）四条横线在视觉上错位成锯齿——这正是「head 高度和 sidebar 顶部分割线是否对齐」要解决的问题。
+
+### 改造方案
+
+1. `terminal-constants.ts` 新增唯一来源常量：
+   ```ts
+   /** 顶部基准带高度：各列顶部第一个区块（Rail Logo / SubNav 组头 / Inspector 标题）统一引用，保证横向分割线贯通 */
+   export const TERMINAL_TOP_STRIP_HEIGHT = TERMINAL_HEADER_HEIGHT // = 48，跟随 Header 联动调整
+   ```
+   用 `= TERMINAL_HEADER_HEIGHT` 表达式绑定而非复制数值，未来调 Header 高度时三列自动跟随。
+2. 替换四处实现：
+   - `terminal-rail.tsx` Logo 位：`height: TERMINAL_RAIL_WIDTH` → `height: TERMINAL_TOP_STRIP_HEIGHT`（Logo 按钮 `h-10 w-10` 相应复核，48px 带内放 40px 按钮留 4px 上下呼吸即可）；
+   - `terminal-subnav.tsx` 组头：`h-10` → `style={{ height: TERMINAL_TOP_STRIP_HEIGHT }}`（注意保持 BLF-825 动效类与 stagger 不变，只改高度值）；
+   - `terminal-inspector.tsx` 标题条：`h-10` → `style={{ height: TERMINAL_TOP_STRIP_HEIGHT }}`；
+   - `terminal-header.tsx` 不动（已是 `TERMINAL_HEADER_HEIGHT`）。
+3. 测试护栏：`terminal-subnav.test.tsx` 补断言「组头高度 === TERMINAL_TOP_STRIP_HEIGHT」锁契约；rail / inspector 如无测试文件则随本项补最小单测。
+4. 验收：明暗两主题下目测四列顶部分割线连成一气；折叠 SubNav 后 Rail Logo 与 Header 分割线仍对齐（折叠不影响垂直尺寸）。
+
+> 注意与 BLF-804 / BLF-826 并行改造的协调：本项只动三个组件的**顶部区块高度**，不碰页面内容与筛选集成，冲突面极小；但若两者同分支排队，先合本项（纯外壳、零页面依赖）。
+
+
 ## 任务 2：各页面精细化打磨（放大完成后分批做）
 
-### 打磨单页 SOP（每页照此执行）
+### 打磨单页 SOP
 
 1. **盘点**：读目标页 `page.tsx` 及其子组件，列出旧风格残留（阴影、圆角、非 term 色、非 mono 数值、>12px 的 padding/gap、页面级滚动容器）。**同时检查页面级标题胶囊/筛选条是否与 Top Header 全局筛选重复**——重复的应移除，改接 `header-filter-suite` 组件族（BLF-824 已清一批，BLF-826 集中规划中，新页面直接按新范式写，不要再加页面级胶囊）。
 2. **替换**：面板容器换 `TermPanel`；数据表换 `TermTable`（或按 TermTable 的样式规范改造现有表格）；筛选条对齐首页 h-8 工具栏规格；数值全部 `font-mono tabular-nums` + 语义色。
@@ -100,9 +135,34 @@
 
 - ✅ Footer 多频道 ticker（BLF-816 已完成，#390）：汇率 / 全局快报 / 同步时刻 / 更新日志四频道，频道开关集中在 `TERMINAL_TICKER.channels`，新增/下线频道只改常量不动组件。
 - 🔶 Top Header 全局筛选四件套接入更多页面（BLF-819 试点完成；BLF-826 正在集中规划 HeaderSlot 集成方案，推进前先看该 issue 结论）。
-- ⬜ ⌘K 命令面板「最近访问」：数据侧已就绪——`readRecents()`/`pushRecent()` 已在 shell 与 Inspector 落地，但 `search-command.tsx` 尚未消费 recents，补上即可闭环。
-- ⬜ Inspector 内容源扩展：Live Stream / Quick Actions 接真实数据。
-- ⬜ SubNav 动效后续：BLF-825 已交付常驻挂载 + 壳层 width 过渡（260ms ease-out-expo 类），如需「窄图标列」形态另开 issue。
+
+### 3a. ⌘K 命令面板「最近访问」（⭐ 优先：数据侧已就绪，纯前端小改）
+
+**现状（grep 已核实）**：`readRecents()`/`pushRecent()` 已在两处落地——shell 路由变化即写入（`terminal-shell.tsx` useEffect），Inspector 已消费展示；但 `search-command.tsx` 完全未引用 recents，用户在 ⌘K 里看不到刚去过的页面。
+
+**改造要点**：
+1. `SearchCommand` 打开时（cmdk open 态或 Dialog onOpenChange）调一次 `readRecents()` 存入本地 state——不要订阅路由变化，避免每次导航重渲染面板；
+2. 在搜索结果列表顶部加「最近访问」分组（`CommandGroup heading="最近访问"`）：无输入词（`search === ''`）时展示全部 recents（最多 8 条）；有输入词时按标题/pathname 过滤后并入结果；
+3. 每项渲染 `item.title` + pathname 尾段（font-mono text-term-faint），回车跳转复用现有 router.push + 关闭逻辑；
+4. 空状态兜底：recents 为空时整个分组不渲染，不显示占位文案；
+5. 测试：`search-command` 如已有测试文件则补「打开面板 → 最近访问分组出现且顺序与 readRecents 一致」断言。
+
+### 3b. Inspector 内容源扩展（Live Stream / Quick Actions 接真实数据）
+
+**现状**：Live Stream 与 Quick Actions 区块仍是占位文案，Inspector 目前只有「最近访问」是真数据。
+
+**改造建议（按性价比排序）**：
+1. **Quick Actions 先做**：静态配置驱动即可闭环——快捷入口清单（新建订单 / 上传报表 / 汇率管理 / 补货分析等）直接映射到既有路由，点击跳转 + 收起 Inspector；无需新接口，半天工作量；
+2. **Live Stream 后做**：接「今日出单流」需要后端配合（轮询或 SSE 推送最近 N 条订单事件）。前端先把区块改成可配置数据源（props 传入 items + empty 占位），后端就绪前用空态 + 「同步中」骨架占位，避免硬编码假数据误导用户；
+3. 若需后端新端点，按职责边界在 issue 中 @后端工程师 提需求，不自己动 backend/。
+
+### 3c. Footer Ticker 新频道预案
+
+频道开关已收敛到 `TERMINAL_TICKER.channels`。下一个候选频道：**库存预警**（低于安全库存的 SKU 数，数据可复用现有 inventory API）。新增步骤只三步：常量加 key → footer 组件内加对应取数 hook + 渲染分支 → 测试补一条频道开关断言。等库存侧确认预警口径后再排期。
+
+### 3d. SubNav 动效后续
+
+BLF-825 已交付常驻挂载 + 壳层 width 过渡（260ms ease-out-expo 类）。如需「窄图标列」折叠形态另开 issue，不在当前批次内推进。
 
 ## 附录：关键文件速查
 
