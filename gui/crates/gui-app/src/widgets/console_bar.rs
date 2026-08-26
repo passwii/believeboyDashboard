@@ -25,7 +25,10 @@ use gpui::{
     SharedString, Styled,
 };
 use gpui_component::{
-    button::Button, h_flex, menu::{DropdownMenu, PopupMenuItem}, Icon, IconName, Sizable,
+    button::Button,
+    h_flex,
+    menu::{DropdownMenu, PopupMenuItem},
+    Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -67,6 +70,71 @@ impl ConsoleBarConfig {
     #[allow(dead_code)] // 公共 API 面（视图/测试消费，对齐 widgets 惯例）
     pub fn is_empty(self) -> bool {
         !self.project && !self.country && !self.date && !self.stat
+    }
+}
+
+/// BLF-831：控制条折行档位（按 Canvas 可用宽度阶梯收纳低频项）。
+///
+/// 折行优先级（从宽到窄）：统计 pill（最低频，页面内仍有同源数据）→
+/// 站点选择器 → 停。项目 + 日期 + ⋯ 溢出菜单是底线组合。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsoleBarMode {
+    /// 全量：四件套直出
+    Full,
+    /// 收纳：隐藏统计 pill
+    Compact { hide_stats: bool },
+    /// 极窄：再收站点选择器进 ⋯ 菜单
+    Minimal { hide_stats: bool },
+}
+
+impl ConsoleBarMode {
+    /// 本档位是否隐藏统计 pill 位
+    pub fn hide_stats(self) -> bool {
+        match self {
+            ConsoleBarMode::Full => false,
+            ConsoleBarMode::Compact { hide_stats } | ConsoleBarMode::Minimal { hide_stats } => {
+                hide_stats
+            }
+        }
+    }
+}
+
+/// 控制条可用空间档位阈值（px，按中央内容区可用宽度计）。
+///
+/// 物理口径：四件套全量（项目按钮~140 + 站点按钮~110 + 日期选择器~200 +
+/// 统计 pill 区~180 + 面包屑~80 + 间距）在 ~880px 内放得下；低于则逐级收纳。
+pub const CONSOLE_BAR_SPACE_FULL: f32 = 880.0;
+
+/// Compact 档下限：项目 + 站点 + 日期 + 面包屑的底线组合宽度。
+pub const CONSOLE_BAR_SPACE_COMPACT: f32 = 720.0;
+
+/// BLF-831 P4-1 纯函数：按 Canvas 可用宽度给出折行档位（阈值单调）。
+///
+/// 阶梯（从宽到窄）：
+/// - ≥ [`CONSOLE_BAR_SPACE_FULL`]：全量四件套
+/// - [`CONSOLE_BAR_SPACE_COMPACT`]..：收统计 pill
+/// - < [`CONSOLE_BAR_SPACE_COMPACT`]：再收站点选择器进 ⋯ 菜单，停在此档
+pub fn console_bar_mode_for_space(space: f32) -> ConsoleBarMode {
+    if space >= CONSOLE_BAR_SPACE_FULL {
+        ConsoleBarMode::Full
+    } else if space >= CONSOLE_BAR_SPACE_COMPACT {
+        ConsoleBarMode::Compact { hide_stats: true }
+    } else {
+        ConsoleBarMode::Minimal { hide_stats: true }
+    }
+}
+
+/// 本帧渲染档位：声明式配置 + [`crate::widgets::canvas_frame`] 快照共同决定
+/// （stat 未启用时 Compact 无意义 → 直接 Full/Minimal 两档）。
+fn render_mode(config: ConsoleBarConfig) -> ConsoleBarMode {
+    if config.is_empty() {
+        return ConsoleBarMode::Full;
+    }
+    let space = crate::widgets::canvas_frame::available_width();
+    let mode = console_bar_mode_for_space(space);
+    match mode {
+        ConsoleBarMode::Compact { .. } if !config.stat => ConsoleBarMode::Full,
+        other => other,
     }
 }
 
@@ -459,23 +527,25 @@ impl ConsoleBarView {
         self.projects_requested = true;
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            // 与各业务视图同一管线：专用 tokio runtime 上阻塞拉取（后台线程）
-            let projects = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(client.list_managed_projects())
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                // 与各业务视图同一管线：专用 tokio runtime 上阻塞拉取（后台线程）
+                let projects = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(client.list_managed_projects())
+                    })
+                    .await;
+                this.update(cx, |this, cx| {
+                    match projects {
+                        Ok(list) => this.projects = list,
+                        // 失败复位请求标志：否则下拉永远只有「全部项目」直到重启
+                        Err(_) => this.projects_requested = false,
+                    }
+                    cx.notify();
                 })
-                .await;
-            this.update(cx, |this, cx| {
-                match projects {
-                    Ok(list) => this.projects = list,
-                    // 失败复位请求标志：否则下拉永远只有「全部项目」直到重启
-                    Err(_) => this.projects_requested = false,
-                }
-                cx.notify();
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
     }
 
@@ -499,27 +569,33 @@ impl Render for ConsoleBarView {
     fn render(&mut self, _window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
         let config = self.config;
+        // BLF-831 P4-1：按本帧可用宽度取折行档位（统计 pill 先收、极窄再收站点）
+        let mode = render_mode(config);
+        let hide_stats = mode.hide_stats();
+        let hide_country = matches!(mode, ConsoleBarMode::Minimal { .. });
+        // 极窄档收进 ⋯ 菜单的项（站点选项；含当前选中态回显）
+        let country_in_overflow = hide_country && config.country;
         let projects_owned = self.projects.clone();
         let selected_project_id = self.filter.project_id;
         let country = self.filter.country;
         let entity_for_project = cx.entity();
         let entity_for_country = cx.entity();
+        let entity_for_overflow = cx.entity();
 
         h_flex()
             .id("console-bar-controls")
             .gap_2()
             .items_center()
             .min_w_0()
-            // 项目选择器：label + 下拉（选项 = Operator 可见项目，服务端过滤）
+            .overflow_hidden()
+            // 项目选择器：label + 下拉（选项 = Operator 可见项目，服务端过滤）；
+            // BLF-831：极窄档 label 收起（按钮文案自明），项目/日期永不收纳
             .when(config.project, |row| {
                 let label: SharedString = self.project_label().into();
                 let entity = entity_for_project;
-                row.child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("项目"),
-                )
+                row.when(!hide_country, |row| {
+                    row.child(div().text_xs().text_color(theme.text_muted).child("项目"))
+                })
                 .child(
                     Button::new("console-project-select")
                         .outline()
@@ -563,20 +639,51 @@ impl Render for ConsoleBarView {
                         ),
                 )
             })
-            // 站点选择器：label + 下拉（US/DE/UK/ALL）
-            .when(config.country, |row| {
+            // 站点选择器：label + 下拉（US/DE/UK/ALL）；BLF-831 极窄档收进 ⋯ 菜单
+            .when(config.country && !hide_country, |row| {
                 let entity = entity_for_country;
+                row.child(div().text_xs().text_color(theme.text_muted).child("站点"))
+                    .child(
+                        Button::new("console-country-select")
+                            .outline()
+                            .small()
+                            .label(SharedString::from(console_country_label(country)))
+                            .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
+                            .dropdown_menu_with_anchor(
+                                gpui::Corner::BottomLeft,
+                                move |menu, _window, _cx| {
+                                    let mut menu = menu;
+                                    for (value, label) in CONSOLE_COUNTRY_OPTIONS {
+                                        let checked = country == value;
+                                        menu = menu.item(
+                                            PopupMenuItem::new(label).checked(checked).on_click({
+                                                let view = entity.clone();
+                                                move |_, _, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.select_country(value, cx)
+                                                    });
+                                                }
+                                            }),
+                                        );
+                                    }
+                                    menu
+                                },
+                            ),
+                    )
+            })
+            // 日期区间：复用 DateRangePickerState 翻页模式（◀ 快捷/自定义区间 ▶）
+            .when(config.date, |row| row.child(self.date_picker.clone()))
+            // BLF-831：极窄档 ⋯ 溢出菜单（当前收纳的低频控件；选中态回显）
+            .when(country_in_overflow, |row| {
+                let entity = entity_for_overflow;
                 row.child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("站点"),
-                )
-                .child(
-                    Button::new("console-country-select")
+                    Button::new("console-overflow")
                         .outline()
                         .small()
-                        .label(SharedString::from(console_country_label(country)))
+                        .label(SharedString::from(format!(
+                            "⋯ {}",
+                            console_country_label(country)
+                        )))
                         .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
                         .dropdown_menu_with_anchor(
                             gpui::Corner::BottomLeft,
@@ -600,10 +707,9 @@ impl Render for ConsoleBarView {
                         ),
                 )
             })
-            // 日期区间：复用 DateRangePickerState 翻页模式（◀ 快捷/自定义区间 ▶）
-            .when(config.date, |row| row.child(self.date_picker.clone()))
-            // 统计 pill（视图未推送数据前不占位）
-            .when(config.stat, |row| {
+            // 统计 pill（视图未推送数据前不占位）；BLF-831 Compact 起隐藏
+            // （页面内仍有同源数据，控制条只留筛选控件）
+            .when(config.stat && !hide_stats, |row| {
                 row.when_some(self.stats, |inner, stats| {
                     inner.child(console_stat_bar(stats, &theme))
                 })
@@ -744,7 +850,8 @@ mod tests {
 
         cx2.update(|_, app| {
             host.update(app, |host, cx| {
-                host.bar.update(cx, |bar, cx| bar.select_project(Some(3), cx))
+                host.bar
+                    .update(cx, |bar, cx| bar.select_project(Some(3), cx))
             });
         });
         cx2.read(|app| {
@@ -755,7 +862,8 @@ mod tests {
         // 同值 no-op：last_event 不变（仍为第一次的事件）
         cx2.update(|_, app| {
             host.update(app, |host, cx| {
-                host.bar.update(cx, |bar, cx| bar.select_project(Some(3), cx))
+                host.bar
+                    .update(cx, |bar, cx| bar.select_project(Some(3), cx))
             });
         });
         cx2.read(|app| {
@@ -785,10 +893,7 @@ mod tests {
             });
         });
         cx2.read(|app| {
-            assert_eq!(
-                host.read(app).bar.read(app).snapshot().country,
-                "UK"
-            );
+            assert_eq!(host.read(app).bar.read(app).snapshot().country, "UK");
         });
     }
 
@@ -901,7 +1006,9 @@ mod tests {
         });
 
         // 复位后再次进入带 project 的页面（配置经空页往返）应重新发起请求
-        bar.update(cx, |bar, cx| bar.set_config(ConsoleBarConfig::default(), cx));
+        bar.update(cx, |bar, cx| {
+            bar.set_config(ConsoleBarConfig::default(), cx)
+        });
         bar.update(cx, |bar, cx| {
             bar.set_config(console_config_for_url(DAILY_ANALYSIS_URL), cx)
         });
@@ -933,5 +1040,81 @@ mod tests {
             assert_eq!(console_country_label(value), country_label(value));
             assert_eq!(console_country_label(value), label);
         }
+    }
+
+    // ---------- BLF-831 折行档位 ----------
+
+    use crate::widgets::canvas_frame::{set_frame, CanvasFrame};
+
+    fn with_window_width(width: f32, f: impl FnOnce()) {
+        set_frame(CanvasFrame {
+            window_width: width,
+            left_occupied: 0.0,
+            inspector_width: 0.0,
+        });
+        f();
+        set_frame(CanvasFrame {
+            window_width: f32::MAX,
+            left_occupied: 0.0,
+            inspector_width: 0.0,
+        });
+    }
+
+    /// 渲染帧契约：可用宽度充足 → Full；中等 → Compact 隐统计；极窄 → Minimal。
+    #[test]
+    fn render_mode_ladder_by_available_space() {
+        let config = ConsoleBarConfig {
+            project: true,
+            country: true,
+            date: true,
+            stat: true,
+        };
+        with_window_width(1280.0, || {
+            assert_eq!(render_mode(config), ConsoleBarMode::Full);
+        });
+        with_window_width(820.0, || {
+            assert_eq!(
+                render_mode(config),
+                ConsoleBarMode::Compact { hide_stats: true }
+            );
+        });
+        with_window_width(640.0, || {
+            assert_eq!(
+                render_mode(config),
+                ConsoleBarMode::Minimal { hide_stats: true }
+            );
+        });
+    }
+
+    /// 页面未启用统计位时 Compact 档无意义 → 直接从 Full 跳 Minimal
+    ///（hide_stats 语义只对已启用的 stat 位生效，不产生空档）。
+    #[test]
+    fn render_mode_skips_compact_when_stat_disabled() {
+        let config = ConsoleBarConfig {
+            project: true,
+            country: true,
+            date: true,
+            stat: false,
+        };
+        with_window_width(820.0, || {
+            assert_eq!(render_mode(config), ConsoleBarMode::Full);
+        });
+        with_window_width(700.0, || {
+            assert_eq!(
+                render_mode(config),
+                ConsoleBarMode::Minimal { hide_stats: true }
+            );
+        });
+    }
+
+    /// 空配置页恒为 Full（无控件可折）。
+    #[test]
+    fn render_mode_full_for_empty_config() {
+        with_window_width(400.0, || {
+            assert_eq!(
+                render_mode(ConsoleBarConfig::default()),
+                ConsoleBarMode::Full
+            );
+        });
     }
 }

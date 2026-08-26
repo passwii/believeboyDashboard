@@ -146,6 +146,66 @@ pub struct ColumnDef<T> {
     /// （JetBrains Mono），金额 / 数值 / 时间戳列应置 true（[`ColumnDef::number`]
     /// 构造器默认 true）
     pub numeric: bool,
+    /// BLF-831：列优先级（窄窗列隐藏规则的牺牲顺序；缺省 Primary =
+    /// 永不牺牲）。次要维度 / 派生指标列标 Secondary。
+    pub priority: ColumnPriority,
+}
+
+/// BLF-831：列优先级——窄窗列隐藏规则的牺牲顺序。
+///
+/// 主键（SKU/日期/单号）与核心金额列为 [`ColumnPriority::Primary`]：任何
+/// 宽度预算下都保留；次要维度（币种/包长宽高等派生列）为
+/// [`ColumnPriority::Secondary`]：空间不足时从右往左先隐藏。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ColumnPriority {
+    /// 永不牺牲（主键 / 金额列；缺省）
+    #[default]
+    Primary,
+    /// 空间不足时从右往左先隐藏（次要维度 / 派生列）
+    Secondary,
+}
+
+/// BLF-831：按宽度预算生成列可见性遮罩（纯函数，DataGrid/DataTable 共用）。
+///
+/// `budget` = 可见列数上限。规则：从右往左牺牲 [`ColumnPriority::Secondary`] 列
+/// （牺牲数 = Secondary 总数 − budget，下限 0）；Primary 列永不牺牲——
+/// 宁可横向滚动也不丢主键/金额列。
+pub fn column_visibility_mask(priorities: &[ColumnPriority], budget: usize) -> Vec<bool> {
+    let secondary_total = priorities
+        .iter()
+        .filter(|p| **p == ColumnPriority::Secondary)
+        .count();
+    let to_hide = secondary_total.saturating_sub(budget);
+    let mut hidden = 0usize;
+    priorities
+        .iter()
+        .rev()
+        .map(|p| {
+            if *p == ColumnPriority::Secondary && hidden < to_hide {
+                hidden += 1;
+                false
+            } else {
+                true
+            }
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect()
+}
+
+/// BLF-831 P4-3：按本帧 Canvas 可用宽度给出允许保留的 Secondary 列数
+/// （DataGrid/DataTable 渲染共用；宽窗全量，窄窗逐列收）。
+///
+/// 口径：可用 ≥ 880px 全量；每缺 90px 多隐 1 个 Secondary（下限 0）。
+pub fn secondary_budget_for_available_space(available: f32, secondary_count: usize) -> usize {
+    const FULL: f32 = 880.0;
+    const PER_COL: f32 = 90.0;
+    if available >= FULL || secondary_count == 0 {
+        return secondary_count;
+    }
+    let sacrifice = (((FULL - available) / PER_COL).ceil() as usize).min(secondary_count);
+    secondary_count - sacrifice
 }
 
 impl<T> ColumnDef<T> {
@@ -166,6 +226,7 @@ impl<T> ColumnDef<T> {
             render,
             render_element: None,
             numeric: false,
+            priority: ColumnPriority::default(),
         }
     }
 
@@ -187,6 +248,7 @@ impl<T> ColumnDef<T> {
             render,
             render_element: None,
             numeric: true,
+            priority: ColumnPriority::default(),
         }
     }
 
@@ -200,6 +262,13 @@ impl<T> ColumnDef<T> {
     /// 设置列宽（px）
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
+        self
+    }
+
+    /// BLF-831：设置列优先级（窄窗列隐藏规则的牺牲顺序；缺省 Primary）。
+    /// 次要维度/派生列标 Secondary，主键/金额列保持 Primary。
+    pub fn priority(mut self, priority: ColumnPriority) -> Self {
+        self.priority = priority;
         self
     }
 
@@ -384,6 +453,16 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
         let reduce = crate::motion::reduce_motion(cx);
         let display = self.sorted_rows();
         let empty = display.is_empty();
+        // BLF-831 P4-3：窄窗列优先级——表头与数据行共用同一遮罩
+        let available = crate::widgets::canvas_frame::available_width();
+        let secondary_count = self
+            .columns
+            .iter()
+            .filter(|c| c.priority == ColumnPriority::Secondary)
+            .count();
+        let budget = secondary_budget_for_available_space(available, secondary_count);
+        let priorities: Vec<ColumnPriority> = self.columns.iter().map(|c| c.priority).collect();
+        let visible_mask = column_visibility_mask(&priorities, budget);
 
         // 表头（BLF-792：固定 28px 行高 + 紧凑字号；水平度量与数据行共享）
         let header = table_row_metrics(
@@ -392,53 +471,60 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                 .h(px(TABLE_HEADER_HEIGHT))
                 .items_center()
                 .border_b_1()
-                .border_color(theme.separator).text_size(px(crate::theme::fs(FONT_XS)))
+                .border_color(theme.separator)
+                .text_size(px(crate::theme::fs(FONT_XS)))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.text_muted)
-                .children(self.columns.iter().enumerate().map(|(col_ix, col)| {
-                    let align = col.align;
-                    let sortable = col.sortable;
-                    let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
-                    let header_cell = div()
-                        .id(SharedString::from(col.id.clone()))
-                        .when(sortable, |this| this.cursor(CursorStyle::PointingHand))
-                        .when_align(align, col.width, &theme)
-                        .when(sortable && active, |this| {
-                            this.text_color(theme.text_primary)
-                        });
-                    let arrow = if sortable {
-                        let (icon, color) = match (active, self.sort) {
-                            (true, Some((_, SortDir::Ascending))) => {
-                                (gpui_component::IconName::ArrowUp, theme.accent)
-                            }
-                            (true, Some((_, SortDir::Descending))) => {
-                                (gpui_component::IconName::ArrowDown, theme.accent)
-                            }
-                            _ => (gpui_component::IconName::Minus, theme.text_muted),
-                        };
-                        Some(
-                            h_flex()
-                                .gap_1()
-                                .items_center()
-                                .child(div().child(col.title.clone()))
-                                .child(
-                                    gpui_component::Icon::new(icon)
-                                        .with_size(px(12.))
-                                        .text_color(color),
-                                ),
-                        )
-                    } else {
-                        None
-                    };
-                    header_cell
-                        .child(arrow.unwrap_or_else(|| div().child(col.title.clone())))
-                        .when(sortable, |this| {
-                            let sort_col_ix = col_ix;
-                            this.on_click(cx.listener(move |table, _, _, cx| {
-                                table.toggle_sort(sort_col_ix, cx);
-                            }))
-                        })
-                })),
+                .children(
+                    self.columns
+                        .iter()
+                        .enumerate()
+                        .filter(|(col_ix, _)| visible_mask[*col_ix])
+                        .map(|(col_ix, col)| {
+                            let align = col.align;
+                            let sortable = col.sortable;
+                            let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
+                            let header_cell = div()
+                                .id(SharedString::from(col.id.clone()))
+                                .when(sortable, |this| this.cursor(CursorStyle::PointingHand))
+                                .when_align(align, col.width, &theme)
+                                .when(sortable && active, |this| {
+                                    this.text_color(theme.text_primary)
+                                });
+                            let arrow = if sortable {
+                                let (icon, color) = match (active, self.sort) {
+                                    (true, Some((_, SortDir::Ascending))) => {
+                                        (gpui_component::IconName::ArrowUp, theme.accent)
+                                    }
+                                    (true, Some((_, SortDir::Descending))) => {
+                                        (gpui_component::IconName::ArrowDown, theme.accent)
+                                    }
+                                    _ => (gpui_component::IconName::Minus, theme.text_muted),
+                                };
+                                Some(
+                                    h_flex()
+                                        .gap_1()
+                                        .items_center()
+                                        .child(div().child(col.title.clone()))
+                                        .child(
+                                            gpui_component::Icon::new(icon)
+                                                .with_size(px(12.))
+                                                .text_color(color),
+                                        ),
+                                )
+                            } else {
+                                None
+                            };
+                            header_cell
+                                .child(arrow.unwrap_or_else(|| div().child(col.title.clone())))
+                                .when(sortable, |this| {
+                                    let sort_col_ix = col_ix;
+                                    this.on_click(cx.listener(move |table, _, _, cx| {
+                                        table.toggle_sort(sort_col_ix, cx);
+                                    }))
+                                })
+                        }),
+                ),
         );
 
         // 行（P4-7：hover 行态全行通用；斑马纹取暗态可见的 table_row_stripe；
@@ -476,22 +562,29 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                             },
                         ))
                     })
-                    .tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
+                    .tabular_nums()
+                    .text_size(px(crate::theme::fs(FONT_BASE)))
                     .text_color(theme.text_secondary)
-                    .children(self.columns.iter().map(|col| {
-                        // BLF-792：数字列单元格应用 JetBrains Mono 等宽 +
-                        // tabular-nums（金额 / 数值纵向数位对齐）
-                        let cell = div().when_align(col.align, col.width, &theme);
-                        let cell = if col.numeric {
-                            cell.mono_tabular_nums()
-                        } else {
-                            cell
-                        };
-                        match &col.render_element {
-                            Some(render) => cell.child(render(row, &theme)),
-                            None => cell.child((col.render)(row, &theme)),
-                        }
-                    })),
+                    .children(
+                        self.columns
+                            .iter()
+                            .enumerate()
+                            .filter(|&(col_ix, _)| visible_mask[col_ix])
+                            .map(|(_col_ix, col)| {
+                                // BLF-792：数字列单元格应用 JetBrains Mono 等宽 +
+                                // tabular-nums（金额 / 数值纵向数位对齐）
+                                let cell = div().when_align(col.align, col.width, &theme);
+                                let cell = if col.numeric {
+                                    cell.mono_tabular_nums()
+                                } else {
+                                    cell
+                                };
+                                match &col.render_element {
+                                    Some(render) => cell.child(render(row, &theme)),
+                                    None => cell.child((col.render)(row, &theme)),
+                                }
+                            }),
+                    ),
             )
         });
 

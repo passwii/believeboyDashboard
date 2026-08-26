@@ -32,8 +32,11 @@ use gpui::{
 use gpui_component::{h_flex, v_flex, Sizable};
 
 use crate::theme::{AppTheme, FONT_BASE, FONT_XS, TABLE_HEADER_HEIGHT};
-use crate::widgets::data_table::{CellAlign, ColumnDef, SortDir, TabularNumsExt, CELL_PX};
-use crate::widgets::pagination::{pagination_controls, page_size_select, PageState};
+use crate::widgets::data_table::{
+    column_visibility_mask, secondary_budget_for_available_space, CellAlign, ColumnDef,
+    ColumnPriority, SortDir, TabularNumsExt, CELL_PX,
+};
+use crate::widgets::pagination::{page_size_select, pagination_controls, PageState};
 
 /// 数据行高（px）：锁定规格区间 24~28px（26 = 20px 行高 + 2×3px 内边距，
 /// 与 data_table 的 ROW_LINE_HEIGHT/ROW_PY 组合一致）
@@ -57,7 +60,9 @@ pub const DEFAULT_COL_WIDTH: f32 = 120.0;
 
 /// 运行期列宽初始化：显式 width 优先，未指定回落默认宽；统一收敛到下限之上
 fn initial_width<T>(col: &ColumnDef<T>) -> f32 {
-    col.width.unwrap_or(DEFAULT_COL_WIDTH).clamp(MIN_COL_WIDTH, MAX_COL_WIDTH)
+    col.width
+        .unwrap_or(DEFAULT_COL_WIDTH)
+        .clamp(MIN_COL_WIDTH, MAX_COL_WIDTH)
 }
 
 // ---------------------------------------------------------------------------
@@ -72,11 +77,7 @@ struct GridColResize {
 }
 
 impl Render for GridColResize {
-    fn render(
-        &mut self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div()
     }
 }
@@ -279,12 +280,12 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
         let rows = &self.rows;
         if let Some(sort_value) = col.sort_value {
             match dir {
-                SortDir::Ascending => self.display.sort_by(|&a, &b| {
-                    sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))
-                }),
-                SortDir::Descending => self.display.sort_by(|&a, &b| {
-                    sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))
-                }),
+                SortDir::Ascending => self
+                    .display
+                    .sort_by(|&a, &b| sort_value(&rows[a]).total_cmp(&sort_value(&rows[b]))),
+                SortDir::Descending => self
+                    .display
+                    .sort_by(|&a, &b| sort_value(&rows[b]).total_cmp(&sort_value(&rows[a]))),
             }
             return;
         }
@@ -292,12 +293,12 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
             return;
         };
         match dir {
-            SortDir::Ascending => self.display.sort_by(|&a, &b| {
-                sort_value_dyn(&rows[a]).total_cmp(&sort_value_dyn(&rows[b]))
-            }),
-            SortDir::Descending => self.display.sort_by(|&a, &b| {
-                sort_value_dyn(&rows[b]).total_cmp(&sort_value_dyn(&rows[a]))
-            }),
+            SortDir::Ascending => self
+                .display
+                .sort_by(|&a, &b| sort_value_dyn(&rows[a]).total_cmp(&sort_value_dyn(&rows[b]))),
+            SortDir::Descending => self
+                .display
+                .sort_by(|&a, &b| sort_value_dyn(&rows[b]).total_cmp(&sort_value_dyn(&rows[a]))),
         }
     }
 
@@ -328,8 +329,8 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
                 self.resize.as_ref().expect("session 已写入")
             }
         };
-        let new_width =
-            (session.start_width + (position_x - session.origin_x)).clamp(MIN_COL_WIDTH, MAX_COL_WIDTH);
+        let new_width = (session.start_width + (position_x - session.origin_x))
+            .clamp(MIN_COL_WIDTH, MAX_COL_WIDTH);
         if (self.widths[col_ix] - new_width).abs() > f32::EPSILON {
             self.widths[col_ix] = new_width;
             true
@@ -433,16 +434,18 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
                     .bg(gpui::transparent_black())
                     .group_hover(group_id, |line| line.bg(theme.accent)),
             )
-            .on_drag_move(cx.listener(move |grid, e: &gpui::DragMoveEvent<GridColResize>, _, cx| {
-                let drag = e.drag(cx);
-                if drag.grid != grid_id || drag.col_ix != col_ix {
-                    return;
-                }
-                let position_x: f32 = e.event.position.x.into();
-                if grid.apply_resize(col_ix, position_x) {
-                    cx.notify();
-                }
-            }))
+            .on_drag_move(cx.listener(
+                move |grid, e: &gpui::DragMoveEvent<GridColResize>, _, cx| {
+                    let drag = e.drag(cx);
+                    if drag.grid != grid_id || drag.col_ix != col_ix {
+                        return;
+                    }
+                    let position_x: f32 = e.event.position.x.into();
+                    if grid.apply_resize(col_ix, position_x) {
+                        cx.notify();
+                    }
+                },
+            ))
             .on_drag(
                 GridColResize {
                     grid: grid_id,
@@ -463,8 +466,15 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
             )
     }
 
-    /// 单个数据行（固定高 + 固定宽单元格，水平度量与表头一致）
-    fn render_row(&self, pos: usize, row: &T, theme: &AppTheme) -> gpui::Stateful<gpui::Div> {
+    /// 单个数据行（固定高 + 固定宽单元格，水平度量与表头一致；
+    /// BLF-831：visible_mask 与表头共用同一列可见性遮罩）
+    fn render_row(
+        &self,
+        pos: usize,
+        row: &T,
+        visible_mask: &[bool],
+        theme: &AppTheme,
+    ) -> gpui::Stateful<gpui::Div> {
         let bg = if self.striped && pos % 2 == 1 {
             theme.table_row_stripe
         } else {
@@ -477,9 +487,13 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
             .flex_none()
             .bg(bg)
             .hover(|this| this.bg(theme.table_row_hover))
-            .tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
+            .tabular_nums()
+            .text_size(px(crate::theme::fs(FONT_BASE)))
             .text_color(theme.text_secondary);
         for (col_ix, col) in self.columns.iter().enumerate() {
+            if !visible_mask[col_ix] {
+                continue;
+            }
             let cell = div()
                 .w(px(self.widths[col_ix]))
                 .h_full()
@@ -509,6 +523,17 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
         let grid = cx.entity();
         let row_count = self.display.len();
         let empty_text = self.empty_text.clone();
+        // BLF-831 P4-3：窄窗列优先级——按本帧可用宽度生成可见性遮罩，
+        // 表头与数据行共用同一遮罩（列宽向量同步过滤，横滚总宽一致）
+        let available = crate::widgets::canvas_frame::available_width();
+        let secondary_count = self
+            .columns
+            .iter()
+            .filter(|c| c.priority == ColumnPriority::Secondary)
+            .count();
+        let budget = secondary_budget_for_available_space(available, secondary_count);
+        let priorities: Vec<ColumnPriority> = self.columns.iter().map(|c| c.priority).collect();
+        let visible_mask = column_visibility_mask(&priorities, budget);
         let total_width = self.total_width();
         let id = self.id;
         let empty = row_count == 0;
@@ -518,6 +543,9 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
         let header_cells: Vec<AnyElement> = {
             let mut cells = Vec::with_capacity(self.columns.len());
             for (col_ix, col) in self.columns.iter().enumerate() {
+                if !visible_mask[col_ix] {
+                    continue;
+                }
                 let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
                 cells.push(
                     h_flex()
@@ -532,6 +560,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
         // 虚拟化行列表：uniform_list 每帧只实例化可见区间行（10k 行 O(可见行) 开销）。
         // 渲染闭包只有 &mut App，经 Entity 句柄回读状态（Zed 惯用法）；
         // 行按展示索引序取引用，帧内零克隆。
+        let visible_mask = visible_mask.to_vec();
         let list = gpui::uniform_list(
             SharedString::from(format!("{id}-list")),
             row_count,
@@ -542,7 +571,9 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
                     .clone()
                     .filter_map(|pos| grid_ref.display_row(pos).map(|row| (pos, row)))
                     .map(|(pos, row)| {
-                        grid_ref.render_row(pos, row, &theme).into_any_element()
+                        grid_ref
+                            .render_row(pos, row, &visible_mask, &theme)
+                            .into_any_element()
                     })
                     .collect::<Vec<_>>()
             },
@@ -566,7 +597,8 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
                     .items_center()
                     .border_b_1()
                     .border_color(theme.separator)
-                    .bg(theme.panel_bg).text_size(px(crate::theme::fs(FONT_XS)))
+                    .bg(theme.panel_bg)
+                    .text_size(px(crate::theme::fs(FONT_XS)))
                     .font_weight(FontWeight::MEDIUM)
                     .children(header_cells),
             );
@@ -642,7 +674,11 @@ pub fn tone_text(
 /// 数字走 mono+tabular（规格：数值一律等宽）。
 pub fn change_indicator(change: Option<f64>, theme: &AppTheme) -> gpui::AnyElement {
     let (icon, color, text) = match change {
-        None => (gpui_component::IconName::Minus, theme.text_muted, "—".to_string()),
+        None => (
+            gpui_component::IconName::Minus,
+            theme.text_muted,
+            "—".to_string(),
+        ),
         Some(v) if v > 0.5 => (
             gpui_component::IconName::ArrowUp,
             theme.success,
@@ -653,7 +689,11 @@ pub fn change_indicator(change: Option<f64>, theme: &AppTheme) -> gpui::AnyEleme
             theme.danger,
             format!("{:.1}%", v.abs()),
         ),
-        Some(v) => (gpui_component::IconName::Minus, theme.text_muted, format!("{v:.1}%")),
+        Some(v) => (
+            gpui_component::IconName::Minus,
+            theme.text_muted,
+            format!("{v:.1}%"),
+        ),
     };
     h_flex()
         .w_full()
@@ -806,14 +846,17 @@ pub fn grid_footer_bar<V: 'static>(
                         )
                         .child(
                             div()
-                                .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
+                                .mono_tabular_nums()
+                                .text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(item.tone.color(theme))
                                 .child(item.value.clone()),
                         )
-                        .children(item.note.clone().map(|note| {
-                            div().text_xs().text_color(theme.warning).child(note)
-                        }))
+                        .children(
+                            item.note
+                                .clone()
+                                .map(|note| div().text_xs().text_color(theme.warning).child(note)),
+                        )
                         .into_any_element()
                 })),
         )
@@ -869,14 +912,17 @@ pub fn aggregate_strip(
                 )
                 .child(
                     div()
-                        .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
+                        .mono_tabular_nums()
+                        .text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(item.tone.color(theme))
                         .child(item.value.clone()),
                 )
-                .children(item.note.clone().map(|note| {
-                    div().text_xs().text_color(theme.warning).child(note)
-                }))
+                .children(
+                    item.note
+                        .clone()
+                        .map(|note| div().text_xs().text_color(theme.warning).child(note)),
+                )
         }))
 }
 
@@ -893,15 +939,23 @@ mod tests {
 
     fn demo_columns() -> Vec<ColumnDef<DemoRow>> {
         vec![
-            ColumnDef::text("name", "名称", |r: &DemoRow, _| SharedString::from(r.name.clone()))
-                .width(180.0),
-            ColumnDef::number("qty", "数量", |r: &DemoRow| r.qty as f64, |r: &_, _| {
-                SharedString::from(r.qty.to_string())
+            ColumnDef::text("name", "名称", |r: &DemoRow, _| {
+                SharedString::from(r.name.clone())
             })
+            .width(180.0),
+            ColumnDef::number(
+                "qty",
+                "数量",
+                |r: &DemoRow| r.qty as f64,
+                |r: &_, _| SharedString::from(r.qty.to_string()),
+            )
             .width(96.0),
-            ColumnDef::number("amount", "金额", |r: &DemoRow| r.amount, |r: &_, _| {
-                SharedString::from(format!("{:.2}", r.amount))
-            }),
+            ColumnDef::number(
+                "amount",
+                "金额",
+                |r: &DemoRow| r.amount,
+                |r: &_, _| SharedString::from(format!("{:.2}", r.amount)),
+            ),
         ]
     }
 
@@ -921,8 +975,8 @@ mod tests {
         assert_eq!(grid.widths(), &[180.0, 96.0, DEFAULT_COL_WIDTH]);
         assert_eq!(grid.total_width(), 180.0 + 96.0 + DEFAULT_COL_WIDTH);
         // 显式过窄宽度被抬到 MIN_COL_WIDTH
-        let narrow = ColumnDef::text("n", "窄", |_: &DemoRow, _| SharedString::from(""))
-            .width(20.0);
+        let narrow =
+            ColumnDef::text("n", "窄", |_: &DemoRow, _| SharedString::from("")).width(20.0);
         let g2 = DataGrid::new("g2", vec![narrow]);
         assert_eq!(g2.widths()[0], MIN_COL_WIDTH);
     }
@@ -934,12 +988,16 @@ mod tests {
         grid.rebuild_display();
         assert_eq!(grid.display_len(), 4);
         // 默认顺序保持原序
-        let qtys: Vec<_> = (0..4).map(|p| grid.display_row(p).expect("pos").qty).collect();
+        let qtys: Vec<_> = (0..4)
+            .map(|p| grid.display_row(p).expect("pos").qty)
+            .collect();
         assert_eq!(qtys, vec![0, 1, 2, 3]);
         // 数量降序 → 索引序 [3,2,1,0]（qty=i%97）
         grid.sort = Some((1, SortDir::Descending));
         grid.rebuild_display();
-        let qtys: Vec<_> = (0..4).map(|p| grid.display_row(p).expect("pos").qty).collect();
+        let qtys: Vec<_> = (0..4)
+            .map(|p| grid.display_row(p).expect("pos").qty)
+            .collect();
         assert_eq!(qtys, vec![3, 2, 1, 0]);
         // 越界安全
         assert!(grid.display_row(99).is_none());
@@ -1028,8 +1086,14 @@ mod tests {
         assert_eq!(grid.display_len(), 10_000);
         assert!(filtered_count > 0 && total > 0.0);
         // 各环节预算一帧 16ms；断言放宽到 ≤50ms 防 CI 抖动误报
-        assert!(generated.as_millis() <= 50, "生成 10k 行耗时过长: {generated:?}");
-        assert!(injected.as_millis() <= 50, "注入 10k 行耗时过长: {injected:?}");
+        assert!(
+            generated.as_millis() <= 50,
+            "生成 10k 行耗时过长: {generated:?}"
+        );
+        assert!(
+            injected.as_millis() <= 50,
+            "注入 10k 行耗时过长: {injected:?}"
+        );
         assert!(
             sorted_elapsed.as_millis() <= 50,
             "排序 10k 行耗时过长: {sorted_elapsed:?}"

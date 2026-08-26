@@ -1,5 +1,6 @@
 //! 可复用 UI 组件
 
+pub mod canvas_frame;
 pub mod chart_primitives;
 pub mod charts;
 pub mod console_bar;

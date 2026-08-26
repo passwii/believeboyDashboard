@@ -14,9 +14,7 @@
 //! 已知差异（有意保留）：web 页的导入 CSV / 同步头程 / 工厂信息编辑等写操作
 //! 属后续迁移批次（本页只读，对齐 Pattern A 原型验收范围）。
 
-use gpui::{
-    div, prelude::*, px, App, AsyncApp, Context, Entity, SharedString, WeakEntity, Window,
-};
+use gpui::{div, prelude::*, px, App, AsyncApp, Context, Entity, SharedString, WeakEntity, Window};
 use gpui_component::{
     button::Button,
     h_flex,
@@ -251,7 +249,10 @@ impl SkuInfoView {
     /// 项目名解析（选中 id → 项目名；None = 全部项目不限定）
     fn project_name(&self) -> Option<&str> {
         let id = self.selected_project_id?;
-        self.projects.iter().find(|p| p.id == id).map(|p| p.name.as_str())
+        self.projects
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| p.name.as_str())
     }
 
     /// BLF-795：Console Bar 筛选一键应用（项目 / 站点；本页无日期维度，
@@ -365,10 +366,7 @@ impl SkuInfoView {
             cx.notify();
             return;
         };
-        let total = data
-            .total
-            .map(|t| t as usize)
-            .unwrap_or(data.items.len());
+        let total = data.total.map(|t| t as usize).unwrap_or(data.items.len());
         self.page_state = PageState::new(self.page, self.page_size, total);
         let rows = data.items.clone();
         self.grid.update(cx, |g, cx| g.set_rows(rows, cx));
@@ -392,28 +390,30 @@ impl Render for SkuInfoView {
             let input =
                 cx.new(|cx| InputState::new(window, cx).placeholder("SKU 关键词，回车搜索…"));
             self.search_sub =
-                Some(cx.subscribe(&input, |this, _e, event: &InputEvent, cx| match event {
-                    InputEvent::PressEnter { .. } => {
-                        let value = this
-                            .search_input
-                            .as_ref()
-                            .map(|input| input.read(cx).value().to_string())
-                            .unwrap_or_default();
-                        this.commit_keyword(value, cx);
-                    }
-                    InputEvent::Change => {
-                        // cleanable 清空时 value 变空 → 提交重置；非空输入不打断输入法
-                        let value = this
-                            .search_input
-                            .as_ref()
-                            .map(|input| input.read(cx).value().to_string())
-                            .unwrap_or_default();
-                        if value.trim().is_empty() && !this.keyword.is_empty() {
+                Some(
+                    cx.subscribe(&input, |this, _e, event: &InputEvent, cx| match event {
+                        InputEvent::PressEnter { .. } => {
+                            let value = this
+                                .search_input
+                                .as_ref()
+                                .map(|input| input.read(cx).value().to_string())
+                                .unwrap_or_default();
                             this.commit_keyword(value, cx);
                         }
-                    }
-                    _ => {}
-                }));
+                        InputEvent::Change => {
+                            // cleanable 清空时 value 变空 → 提交重置；非空输入不打断输入法
+                            let value = this
+                                .search_input
+                                .as_ref()
+                                .map(|input| input.read(cx).value().to_string())
+                                .unwrap_or_default();
+                            if value.trim().is_empty() && !this.keyword.is_empty() {
+                                this.commit_keyword(value, cx);
+                            }
+                        }
+                        _ => {}
+                    }),
+                );
             self.search_input = Some(input);
         }
 
@@ -421,9 +421,7 @@ impl Render for SkuInfoView {
             SkuInfoState::Loading => render_loading(&app_theme).into_any_element(),
             SkuInfoState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
             SkuInfoState::Empty => render_empty(cx, &app_theme).into_any_element(),
-            SkuInfoState::Loaded(_) => {
-                self.render_loaded(&app_theme, cx).into_any_element()
-            }
+            SkuInfoState::Loaded(_) => self.render_loaded(&app_theme, cx).into_any_element(),
         }
     }
 }
@@ -479,7 +477,8 @@ impl SkuInfoView {
             "{} · {} · 共 {} 个 SKU",
             project_label,
             country_label,
-            total.map(|t| t.to_string())
+            total
+                .map(|t| t.to_string())
                 .unwrap_or_else(|| "—".to_string())
         ));
 
@@ -525,13 +524,11 @@ fn active_filter_menu(view: &Entity<SkuInfoView>, current: ActiveFilter) -> impl
             for (label, filter) in ActiveFilter::OPTIONS {
                 let checked = current == filter;
                 let view = view.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label)
-                        .checked(checked)
-                        .on_click(move |_, _window, cx| {
-                            view.update(cx, |this, cx| this.set_active_filter(filter, cx));
-                        }),
-                );
+                menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                    move |_, _window, cx| {
+                        view.update(cx, |this, cx| this.set_active_filter(filter, cx));
+                    },
+                ));
             }
             menu
         })
@@ -551,11 +548,18 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
             app_theme,
             &[SkeletonBlock::Title, SkeletonBlock::Filter(2)],
         ))
-        .child(state_views::skeleton_loading(app_theme, &[SkeletonBlock::Table(300.0)]))
+        .child(state_views::skeleton_loading(
+            app_theme,
+            &[SkeletonBlock::Table(300.0)],
+        ))
 }
 
 /// Error：卡片内 Alert + 重试按钮（公共组件 `state_views::error_state`）
-fn render_error(cx: &mut Context<SkuInfoView>, app_theme: &AppTheme, msg: &str) -> impl IntoElement {
+fn render_error(
+    cx: &mut Context<SkuInfoView>,
+    app_theme: &AppTheme,
+    msg: &str,
+) -> impl IntoElement {
     let view = cx.entity();
     v_flex()
         .id("sku-info-error")
@@ -621,6 +625,7 @@ pub fn sku_aggregates(data: &SkuInfoData) -> Vec<AggregateItem> {
 /// 网格列定义：档案主键文本列 + 成本/规格数值列（number 构造器 →
 /// JetBrains Mono + tnum 右对齐可排序）+ 启用状态语义色列
 fn sku_columns() -> Vec<ColumnDef<SkuRecordItem>> {
+    use crate::widgets::data_table::ColumnPriority;
     vec![
         ColumnDef::text("sku", "SKU", |_r: &SkuRecordItem, _| SharedString::from(""))
             .with_render_element(|r: &SkuRecordItem, theme| key_cell(&r.sku, theme))
@@ -641,10 +646,14 @@ fn sku_columns() -> Vec<ColumnDef<SkuRecordItem>> {
         ColumnDef::text("currency", "币种", |r: &SkuRecordItem, _| {
             SharedString::from(r.currency.clone())
         })
-        .width(52.0),
-        ColumnDef::number("fob_cost", "FOB 成本", |r: &SkuRecordItem| r.fob_unit_cost, |r: &_ , _| {
-            SharedString::from(format!("{:.2}", r.fob_unit_cost))
-        })
+        .width(52.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::number(
+            "fob_cost",
+            "FOB 成本",
+            |r: &SkuRecordItem| r.fob_unit_cost,
+            |r: &_, _| SharedString::from(format!("{:.2}", r.fob_unit_cost)),
+        )
         .width(96.0),
         ColumnDef::number(
             "first_leg",
@@ -653,46 +662,71 @@ fn sku_columns() -> Vec<ColumnDef<SkuRecordItem>> {
             |r: &_, _| SharedString::from(format!("{:.2}", r.first_leg_cost_rmb)),
         )
         .width(100.0),
-        ColumnDef::number("pkg_l", "包长 cm", |r: &SkuRecordItem| r.package_length_cm, |r: &_, _| {
-            SharedString::from(format!("{:.1}", r.package_length_cm))
+        ColumnDef::number(
+            "pkg_l",
+            "包长 cm",
+            |r: &SkuRecordItem| r.package_length_cm,
+            |r: &_, _| SharedString::from(format!("{:.1}", r.package_length_cm)),
+        )
+        .width(80.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::number(
+            "pkg_w",
+            "包宽 cm",
+            |r: &SkuRecordItem| r.package_width_cm,
+            |r: &_, _| SharedString::from(format!("{:.1}", r.package_width_cm)),
+        )
+        .width(80.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::number(
+            "pkg_h",
+            "包高 cm",
+            |r: &SkuRecordItem| r.package_height_cm,
+            |r: &_, _| SharedString::from(format!("{:.1}", r.package_height_cm)),
+        )
+        .width(80.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::number(
+            "weight",
+            "重量 kg",
+            |r: &SkuRecordItem| r.weight_kg,
+            |r: &_, _| SharedString::from(format!("{:.2}", r.weight_kg)),
+        )
+        .width(84.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::number(
+            "per_carton",
+            "装箱量",
+            |r: &SkuRecordItem| r.units_per_carton as f64,
+            |r: &_, _| {
+                if r.units_per_carton > 0 {
+                    SharedString::from(r.units_per_carton.to_string())
+                } else {
+                    SharedString::from("—")
+                }
+            },
+        )
+        .width(72.0)
+        .priority(ColumnPriority::Secondary),
+        ColumnDef::text("active", "状态", |_r: &SkuRecordItem, _| {
+            SharedString::from("")
         })
-        .width(80.0),
-        ColumnDef::number("pkg_w", "包宽 cm", |r: &SkuRecordItem| r.package_width_cm, |r: &_, _| {
-            SharedString::from(format!("{:.1}", r.package_width_cm))
-        })
-        .width(80.0),
-        ColumnDef::number("pkg_h", "包高 cm", |r: &SkuRecordItem| r.package_height_cm, |r: &_, _| {
-            SharedString::from(format!("{:.1}", r.package_height_cm))
-        })
-        .width(80.0),
-        ColumnDef::number("weight", "重量 kg", |r: &SkuRecordItem| r.weight_kg, |r: &_, _| {
-            SharedString::from(format!("{:.2}", r.weight_kg))
-        })
-        .width(84.0),
-        ColumnDef::number("per_carton", "装箱量", |r: &SkuRecordItem| r.units_per_carton as f64, |r: &_, _| {
-            if r.units_per_carton > 0 {
-                SharedString::from(r.units_per_carton.to_string())
+        .with_render_element(|r: &SkuRecordItem, theme| {
+            if r.is_active {
+                tone_text("启用", AggregateTone::Positive, theme)
             } else {
-                SharedString::from("—")
+                tone_text("停用", AggregateTone::Danger, theme)
             }
         })
-        .width(72.0),
-        ColumnDef::text("active", "状态", |_r: &SkuRecordItem, _| SharedString::from(""))
-            .with_render_element(|r: &SkuRecordItem, theme| {
-                if r.is_active {
-                    tone_text("启用", AggregateTone::Positive, theme)
-                } else {
-                    tone_text("停用", AggregateTone::Danger, theme)
-                }
-            })
-            .width(64.0),
+        .width(64.0),
     ]
 }
 
 /// 主键文本单元格（primary 色 + 截断）
 fn key_cell(text: &str, theme: &AppTheme) -> gpui::AnyElement {
     div()
-        .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
+        .truncate()
+        .text_size(px(crate::theme::fs(FONT_BASE)))
         .text_color(theme.text_primary)
         .child(SharedString::from(text.to_string()))
         .into_any_element()
@@ -975,8 +1009,7 @@ mod tests {
             });
         });
         // 首帧完整渲染路径：工具栏（含懒建 InputState）+ 虚拟化大表 + pinned 底条
-        let (_host, cx2) =
-            cx.add_window_view(|_window, _cx| SkuInfoHost { view: view.clone() });
+        let (_host, cx2) = cx.add_window_view(|_window, _cx| SkuInfoHost { view: view.clone() });
         cx2.read(|app| assert!(!crate::theme::AppTheme::current(app).is_dark()));
 
         cx2.update(|_window, app| {
@@ -988,8 +1021,7 @@ mod tests {
     #[gpui::test]
     async fn sku_info_error_empty_loading_render(cx: &mut gpui::TestAppContext) {
         let view = create_view(cx);
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| SkuInfoHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| SkuInfoHost { view: view.clone() });
 
         cx.update(|cx| {
             view.update(cx, |this, cx| {

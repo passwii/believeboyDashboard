@@ -49,19 +49,16 @@ use crate::views::crm_audit::{CrmAuditView, CRM_AUDIT_URL};
 use crate::views::crm_dashboard::{CrmDashboardView, CRM_DASHBOARD_URL};
 use crate::views::crm_follow_ups::{CrmFollowUpsView, CRM_FOLLOW_UPS_URL};
 // Stage13（BLF-804）：CRM 三页 + 设置 + 工具箱渲染 + 系统管理五页
-use crate::views::crm_customers::{CrmCustomersView, CRM_CUSTOMERS_URL};
-use crate::views::crm_leads::{CrmLeadsView, CRM_LEADS_URL};
-use crate::views::crm_tasks::{CrmTasksView, CRM_TASKS_URL};
-use crate::views::crm_settings::{CrmSettingsView, CRM_SETTINGS_URL};
 use crate::views::alerts_center::{AlertsCenterView, ALERTS_CENTER_URL};
 use crate::views::changelog::{ChangelogView, CHANGELOG_URL};
-use crate::views::database_status::{DatabaseStatusView, DATABASE_STATUS_URL};
-use crate::views::operator_management::{OperatorManagementView, OPERATOR_MANAGEMENT_URL};
-use crate::views::page_render::{PageRenderView, PAGE_RENDER_URL};
-use crate::views::project_info::{ProjectInfoView, PROJECT_INFO_URL};
+use crate::views::crm_customers::{CrmCustomersView, CRM_CUSTOMERS_URL};
+use crate::views::crm_leads::{CrmLeadsView, CRM_LEADS_URL};
+use crate::views::crm_settings::{CrmSettingsView, CRM_SETTINGS_URL};
+use crate::views::crm_tasks::{CrmTasksView, CRM_TASKS_URL};
 use crate::views::customer_service::{CustomerServiceView, CUSTOMER_SERVICE_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
+use crate::views::database_status::{DatabaseStatusView, DATABASE_STATUS_URL};
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
 use crate::views::footer::{FooterEvent, FooterView};
 use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
@@ -74,19 +71,22 @@ use crate::views::monthly_report::{MonthlyReportView, MONTHLY_REPORT_URL};
 use crate::views::new_product_calculation::{
     NewProductCalculationView, NEW_PRODUCT_CALCULATION_URL,
 };
+use crate::views::operator_management::{OperatorManagementView, OPERATOR_MANAGEMENT_URL};
 use crate::views::order_info::{OrderInfoView, ORDER_INFO_URL};
+use crate::views::page_render::{PageRenderView, PAGE_RENDER_URL};
 use crate::views::placeholder::PlaceholderView;
 use crate::views::platform_inspection::{PlatformInspectionView, PLATFORM_INSPECTION_URL};
 use crate::views::platform_revenue::{PlatformRevenueView, PLATFORM_REVENUE_URL};
 use crate::views::portfolio_overview::{PortfolioOverviewView, PORTFOLIO_URL};
 use crate::views::product_analysis::{ProductAnalysisView, PRODUCT_ANALYSIS_URL};
 use crate::views::project_goals::{ProjectGoalsView, PROJECT_GOALS_URL};
+use crate::views::project_info::{ProjectInfoView, PROJECT_INFO_URL};
 use crate::views::replenishment::{ReplenishmentView, REPLENISHMENT_URL};
 use crate::views::research_analysis::{ResearchAnalysisView, RESEARCH_ANALYSIS_URL};
 use crate::views::return_analysis::{ReturnAnalysisView, RETURN_ANALYSIS_URL};
 use crate::views::scheduled_reports::{ScheduledReportsView, SCHEDULED_REPORTS_URL};
 use crate::views::seasonal_replenishment::{SeasonalReplenishmentView, SEASONAL_REPLENISHMENT_URL};
-use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT};
+use crate::views::shell::{CONSOLE_BAR_HEIGHT, FOOTER_HEIGHT, RAIL_WIDTH};
 use crate::views::shipment_management::{ShipmentManagementView, SHIPMENT_MANAGEMENT_URL};
 use crate::views::shop_calculation::{ShopCalculationView, SHOP_CALCULATION_URL};
 use crate::views::site_navigation::{SiteNavigationView, SITE_NAV_URL};
@@ -3446,7 +3446,11 @@ impl RootView {
     ///
     /// rem_size 同步与全窗重绘由组合根（main.rs 订阅 [`RootViewEvent::
     /// DensityChanged`]）执行：窗口句柄操作归组合根，视图层不碰 Window。
-    pub(crate) fn apply_density(&mut self, level: crate::theme::DensityLevel, cx: &mut Context<Self>) {
+    pub(crate) fn apply_density(
+        &mut self,
+        level: crate::theme::DensityLevel,
+        cx: &mut Context<Self>,
+    ) {
         crate::theme::set_density_pref(level, cx);
         cx.emit(RootViewEvent::DensityChanged(level));
     }
@@ -3465,6 +3469,23 @@ impl Render for RootView {
         window.set_rem_size(crate::theme::rem_size_for_level(
             crate::theme::density_level(),
         ));
+
+        // BLF-831：本帧画布度量快照——Console Bar 折行档位 / Inspector 弹性
+        // 宽度 / 大表列优先级都以这一份快照为唯一宽度依据。左侧占用 = Rail
+        // + Sub-Nav 实际宽（折叠态为 0）；Inspector 取弹性后的实际宽。
+        {
+            let window_width: f32 = window.viewport_size().width.into();
+            let left_occupied = RAIL_WIDTH + self.sub_nav.read(cx).width();
+            let inspector_effective = self
+                .inspector
+                .read(cx)
+                .effective_width_for_frame(window_width, left_occupied);
+            crate::widgets::canvas_frame::set_frame(crate::widgets::canvas_frame::CanvasFrame {
+                window_width,
+                left_occupied,
+                inspector_width: inspector_effective,
+            });
+        }
 
         // BLF-793 六区外壳（尺寸常量见 views::shell）：
         //
@@ -6083,9 +6104,7 @@ mod tests {
         cx.read(|app| assert_eq!(view.read(app).view_key(), "crm-customers"));
 
         // 着陆页路由：回到 dashboard 且控制条配置为项目选择器单件
-        sub_nav.update(cx, |this, cx| {
-            this.select("/dashboard", "Dashboard", cx)
-        });
+        sub_nav.update(cx, |this, cx| this.select("/dashboard", "Dashboard", cx));
         cx.read(|app| assert_eq!(view.read(app).view_key(), "dashboard"));
     }
 
