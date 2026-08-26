@@ -12,7 +12,7 @@ import {
   type RecentPageEntry,
 } from '@/components/terminal/terminal-constants'
 
-/** 快捷操作：高频模块直达（后续 stage 可按模块形态切换为实时出单流 / AI 助手） */
+/** 快捷操作：高频模块直达 */
 const QUICK_ACTIONS = [
   { title: '销售数据', url: '/dashboard/operations/daily-analysis' },
   { title: '订单信息', url: '/dashboard/reports/order-info' },
@@ -22,16 +22,31 @@ const QUICK_ACTIONS = [
   { title: '数据库状态', url: '/dashboard/system/data-management' },
 ] as const
 
+/**
+ * Live Stream 单条事件（BLF-839）：后端「今日出单流」端点就绪前 items 恒为空，
+ * 渲染空态 + 「同步中」骨架；接入时由 shell/页面层传入真实数据。
+ */
+export interface LiveStreamItem {
+  /** 唯一键（如订单号或事件 id） */
+  id: string
+  /** 展示标题（订单摘要） */
+  title: string
+  /** 相对时间文案（由调用方格式化，Inspector 不持有时钟） */
+  timeLabel: string
+}
+
 interface TerminalInspectorProps {
   open: boolean
   onClose: () => void
+  /** 今日出单流事件列表；缺省/空数组均渲染空态 + 同步中骨架 */
+  liveStreamItems?: LiveStreamItem[]
 }
 
 /**
  * Right Inspector 上下文面板（360px，BLF-809；二档放大 2026-08-25）：Cmd/Ctrl+B 或 Header 按钮开关。
- * 本期承载快捷入口 + 最近访问；实时出单流 / AI 助手等内容形态留待后续 stage。
+ * 本期承载快捷入口 + 最近访问 + Live Stream 数据源插槽（BLF-839：后端端点就绪前空态占位）。
  */
-export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
+export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalInspectorProps) {
   const pathname = usePathname()
   const [recents, setRecents] = React.useState<RecentPageEntry[]>([])
 
@@ -67,6 +82,36 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
+        <section className="border-b border-term-border p-2">
+          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm font-semibold uppercase tracking-wider text-term-faint">
+            Live Stream · 今日出单
+          </h3>
+          {liveStreamItems === undefined || liveStreamItems.length === 0 ? (
+            <div aria-busy="true" data-testid="live-stream-empty">
+              <p className="px-1 pt-1 text-sm text-term-faint">暂无今日出单事件</p>
+              <p className="px-1 pb-1.5 text-xs text-term-faint/70">同步中…</p>
+              <div className="mt-1 space-y-1.5" role="status" aria-label="同步中">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-8 w-full animate-pulse bg-term-hover"
+                    style={{ opacity: 1 - i * 0.25 }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <ul className="px-1 py-1">
+              {liveStreamItems.map((item) => (
+                <li key={item.id} className="flex items-baseline justify-between gap-2 py-1 text-sm">
+                  <span className="min-w-0 truncate text-term-text">{item.title}</span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-term-faint">{item.timeLabel}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="border-b border-term-border p-2">
           <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm font-semibold uppercase tracking-wider text-term-faint">
             快捷操作
