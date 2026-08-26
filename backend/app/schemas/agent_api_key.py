@@ -28,6 +28,11 @@ class ApiKeyCreateRequest(BaseModel):
         max_length=128,
         description="绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空",
     )
+    item_key: str | None = Field(
+        default=None,
+        max_length=128,
+        description="外部 agent 平台身份引用（BLF-843，如 multica://<workspace>/agent/<id>）；仅标注不参与鉴权",
+    )
 
 
 class ApiKeyUpdateRequest(BaseModel):
@@ -50,6 +55,11 @@ class ApiKeyUpdateRequest(BaseModel):
         max_length=255,
         description="业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）",
     )
+    item_key: str | None = Field(
+        default=None,
+        max_length=128,
+        description="外部 agent 平台身份引用（空串清除标注）",
+    )
 
 
 class ApiKeyCreateResponse(BaseModel):
@@ -60,6 +70,7 @@ class ApiKeyCreateResponse(BaseModel):
     project_scope: str
     business_scope: str
     agent_id: str | None
+    item_key: str | None = None
     expires_at: datetime | None
     created_at: datetime
     # Shown exactly once — the stored row only holds the SHA-256 hash.
@@ -74,6 +85,7 @@ class ApiKeyItem(BaseModel):
     project_scope: str
     business_scope: str
     agent_id: str | None
+    item_key: str | None = None
     is_revoked: bool
     expires_at: datetime | None
     created_at: datetime
@@ -101,3 +113,43 @@ class ApiKeyActivateResponse(BaseModel):
 
     id: int
     is_revoked: bool
+
+
+class AgentProvisionKeyRequest(BaseModel):
+    """Agent 自助签发请求（BLF-843，``/api/v1/agent/provisioning/keys``）。
+
+    与 ``ApiKeyCreateRequest`` 的差异：
+
+    * ``agent_id`` **必填**——签发的就是 Agent 凭据；
+    * ``project_scope`` / ``business_scope`` **必填显式白名单**（禁 "*"，
+      服务端 ``_validate`` 再拦一道）；
+    * 不暴露 ``scope`` 列（服务端固定 "read"）。
+    """
+
+    model_config = {"extra": "forbid"}
+
+    label: str = Field(min_length=1, max_length=128, description="目标 Agent 中文名")
+    agent_id: str = Field(
+        min_length=3,
+        max_length=128,
+        description="目标 Agent 稳定标识（如 inventory-simon-v1）",
+    )
+    project_scope: str = Field(
+        min_length=1,
+        max_length=255,
+        description=",分隔的 project_id 白名单；禁止 '*'",
+    )
+    business_scope: str = Field(
+        min_length=1,
+        max_length=255,
+        description=",分隔的域 code 白名单；禁止 '*'",
+    )
+    item_key: str | None = Field(
+        default=None,
+        max_length=128,
+        description="外部 agent 平台身份引用（可空）",
+    )
+    expires_at: datetime | None = Field(
+        default=None,
+        description="ISO 过期时间；null = 永不过期（用户拍板默认永久）",
+    )

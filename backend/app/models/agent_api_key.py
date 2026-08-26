@@ -24,6 +24,7 @@ class AgentApiKey(Base):
         Index("idx_aak_key_hash", "key_hash", unique=True),
         Index("idx_aak_revoked_expires", "is_revoked", "expires_at"),
         Index("idx_aak_agent_id", "agent_id"),
+        Index("idx_aak_item_key", "item_key"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -59,6 +60,10 @@ class AgentApiKey(Base):
     business_scope: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="*"
     )
+    # 外部 agent 平台身份引用（BLF-843）：签发对象在外部 provider 侧的
+    # 身份标识（如 ``multica://<workspace-id>/agent/<agent-id>``），把凭据 ↔
+    # 外部身份对应起来。可空（存量 key 为 NULL）；仅标注用途，不参与鉴权。
+    item_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # 软删除 tombstone（BLF-468）：保留审计轨迹，鉴权判定 not_found 在
     # revoked 之前——已删除 Key 永不认证，即使 is_revoked 被误置回。
     deleted_at: Mapped[datetime | None] = mapped_column(
