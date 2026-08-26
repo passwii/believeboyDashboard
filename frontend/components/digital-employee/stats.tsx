@@ -14,22 +14,22 @@ export function DigitalEmployeeStats({ employees }: DigitalEmployeeStatsProps) {
   const failed = employees.filter((e) => e.status === 'FAILED').length
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
       <StatCard icon="🤖" label="全部" value={total} />
       <StatCard
         icon={null}
         label="运行中"
         value={running}
-        accent="text-blue-600"
+        accent="text-term-accent"
         highlight={running > 0}
         pulse={running > 0}
       />
-      <StatCard icon="✓" label="空闲" value={idle} accent="text-muted-foreground" />
+      <StatCard icon="✓" label="空闲" value={idle} accent="text-term-muted" />
       <StatCard
         icon="⚠"
         label="异常"
         value={failed}
-        accent={failed > 0 ? 'text-red-600' : 'text-emerald-600'}
+        accent={failed > 0 ? 'text-term-neg' : 'text-term-pos'}
         highlight={failed > 0}
       />
     </div>
@@ -54,11 +54,11 @@ function StatCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-        highlight ? 'border-primary/20 bg-primary/5' : 'border-border bg-card'
+        'flex items-center gap-3 rounded-none border px-3 py-2.5 transition-colors',
+        highlight ? 'border-term-accent/40 bg-term-bg' : 'border-term-border bg-term-panel'
       )}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised">
         {pulse ? (
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
@@ -69,7 +69,7 @@ function StatCard({
         )}
       </div>
       <div>
-        <p className={cn('text-2xl font-bold tabular-nums leading-none', accent)}>{value}</p>
+        <p className={cn('font-mono text-xl font-bold tabular-nums leading-none', accent)}>{value}</p>
         <p className="text-xs text-muted-foreground mt-1">{label}</p>
       </div>
     </div>

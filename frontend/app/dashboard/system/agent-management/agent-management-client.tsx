@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog,
   DialogContent,
@@ -169,21 +168,21 @@ function BusinessScopeField({
         type="button"
         onClick={() => handleToggleAll(!isAll)}
         className={cn(
-          'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
-          'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-          isAll && 'bg-accent'
+          'flex w-full items-center gap-2 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm transition-colors',
+          'hover:bg-term-hover focus:outline-none focus:border-term-border-strong',
+          isAll && 'bg-term-raised'
         )}
       >
         <div
           className={cn(
-            'flex h-4 w-4 items-center justify-center rounded-sm border',
-            isAll ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
+            'flex h-4 w-4 items-center justify-center rounded-none border border-term-border',
+            isAll ? 'bg-term-text text-term-bg' : 'border-term-border-strong'
           )}
         >
           {isAll && <Check className="h-3 w-3" />}
         </div>
         <span className="font-medium">全部业务域</span>
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="ml-auto font-mono text-xs text-term-faint">
           {isAll
             ? '该凭据可访问所有已接入业务域'
             : selectedIds.length > 0
@@ -434,75 +433,80 @@ export function AgentManagementClient() {
   }, [keys])
 
   return (
-    <div className="w-full space-y-6">
-      {/* ── 页面头部：仅操作区（BLF-824：eyebrow 与 Top Header 面包屑重复，已移除；标题/描述 BLF-493 已移除） ── */}
-      <PageHeader
-        actions={<Button onClick={() => setCreateOpen(true)}>创建凭据</Button>}
-      />
+    <div className="w-full space-y-4">
+      {/* BLF-838：页面标题由 Top Header 面包屑承载；仅保留操作区（终端规格） */}
+      <div className="flex justify-end">
+        <Button
+          onClick={() => setCreateOpen(true)}
+          className="h-8 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+        >
+          创建凭据
+        </Button>
+      </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
-          <TabsTrigger value="overview" className="min-h-10 px-5 py-2 text-sm">
-            <LayoutGrid className="mr-1.5 h-4 w-4" />
+        <TabsList className="h-8 w-fit max-w-full overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
+          <TabsTrigger value="overview" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <LayoutGrid className="h-3.5 w-3.5" />
             业务域概览
           </TabsTrigger>
-          <TabsTrigger value="credentials" className="min-h-10 px-5 py-2 text-sm">
-            <KeyRound className="mr-1.5 h-4 w-4" />
+          <TabsTrigger value="credentials" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <KeyRound className="h-3.5 w-3.5" />
             凭据管理
           </TabsTrigger>
-          <TabsTrigger value="guide" className="min-h-10 px-5 py-2 text-sm">
-            <BookOpen className="mr-1.5 h-4 w-4" />
+          <TabsTrigger value="guide" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <BookOpen className="h-3.5 w-3.5" />
             调用指南
           </TabsTrigger>
-          <TabsTrigger value="logs" className="min-h-10 px-5 py-2 text-sm">
-            <Activity className="mr-1.5 h-4 w-4" />
+          <TabsTrigger value="logs" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <Activity className="h-3.5 w-3.5" />
             访问日志
           </TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1 业务域概览 ─────────────────────────────────────── */}
-        <TabsContent value="overview" className="mt-6 space-y-4">
+        <TabsContent value="overview" className="mt-4 space-y-2">
           <DataTableCard>
             <DataTableCardHeader
               title="业务域接入一览"
               description="各业务域的 Agent API 接入状态与已授权凭据数"
             />
-            <DataTableCardBody className="p-5">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <DataTableCardBody className="p-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {domainStats.map(({ domain, keyCount }) => (
                   <div
                     key={domain.code}
                     className={cn(
-                      'rounded-xl border p-4',
+                      'rounded-none border p-3',
                       domain.status === 'live'
-                        ? 'border-emerald-500/30 bg-emerald-500/5'
-                        : 'border-dashed border-border/70 bg-muted/20'
+                        ? 'border-term-pos/40 bg-term-pos/5'
+                        : 'border-dashed border-term-border bg-term-bg'
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{domain.label}</span>
                       {domain.status === 'live' ? (
-                        <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                        <Badge variant="outline" className="rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos">
                           已接入
                         </Badge>
                       ) : (
-                        <Badge variant="secondary">规划中</Badge>
+                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-faint">规划中</Badge>
                       )}
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                    <p className="mt-2 text-xs text-term-muted line-clamp-2">
                       {domain.description}
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 font-mono text-xs">
                       {domain.status === 'live' && (
-                        <Badge variant="outline">{domain.routeCount} 路由</Badge>
+                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">{domain.routeCount} 路由</Badge>
                       )}
                       {domain.capabilities.read && (
-                        <Badge variant="outline">读</Badge>
+                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">读</Badge>
                       )}
                       {domain.capabilities.write && (
-                        <Badge variant="outline">写</Badge>
+                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">写</Badge>
                       )}
-                      <span className="ml-auto text-muted-foreground">
+                      <span className="ml-auto tabular-nums text-term-faint">
                         {domain.status === 'live' ? `${keyCount} 张凭据授权` : '待接入'}
                       </span>
                     </div>
@@ -530,7 +534,7 @@ export function AgentManagementClient() {
                       type="checkbox"
                       checked={includeDeleted}
                       onChange={(e) => setIncludeDeleted(e.target.checked)}
-                      className="h-4 w-4 rounded border-input accent-primary"
+                      className="h-4 w-4 rounded-none border-term-border accent-term-text"
                       aria-label="含已删除"
                     />
                     含已删除
@@ -538,7 +542,7 @@ export function AgentManagementClient() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value as KeyStatus | 'all')}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text"
                     aria-label="按状态筛选"
                   >
                     <option value="all">全部状态</option>
@@ -549,7 +553,7 @@ export function AgentManagementClient() {
                   <select
                     value={domainFilter}
                     onChange={(e) => setDomainFilter(e.target.value)}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text focus:outline-none focus:border-term-border-strong"
                     aria-label="按业务域筛选"
                   >
                     <option value="all">全部业务域</option>
@@ -565,12 +569,12 @@ export function AgentManagementClient() {
             <DataTableCardBody>
               {loading ? (
                 <div className="flex justify-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-6 w-6 animate-spin text-term-faint" />
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="hover:bg-transparent">
                       <TableHead className="w-[170px]">名称</TableHead>
                       <TableHead>Key 前缀</TableHead>
                       <TableHead>Agent</TableHead>
@@ -588,23 +592,23 @@ export function AgentManagementClient() {
                       return (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium">{item.label}</TableCell>
-                          <TableCell className="font-mono text-xs">
+                          <TableCell className="font-mono text-xs tabular-nums">
                             {item.key_prefix}…
                           </TableCell>
                           <TableCell>
                             {item.agent_id ? (
-                              <code className="font-mono text-xs">{item.agent_id}</code>
+                              <code className="font-mono text-xs text-term-muted">{item.agent_id}</code>
                             ) : (
-                              <span className="text-muted-foreground">—（未绑定）</span>
+                              <span className="text-term-faint">—（未绑定）</span>
                             )}
                           </TableCell>
                           <TableCell>
                             {formatProjectScope(item.project_scope, projects)}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="font-mono text-xs">
                             {formatBusinessScope(item.business_scope)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="font-mono text-xs tabular-nums text-term-muted">
                             {item.last_used_at
                               ? new Date(item.last_used_at).toLocaleString()
                               : '从未使用'}
@@ -641,7 +645,7 @@ export function AgentManagementClient() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-emerald-700 dark:text-emerald-300"
+                                    className="text-term-pos hover:text-term-pos"
                                     onClick={() => handleActivate(item)}
                                   >
                                     激活
@@ -679,11 +683,11 @@ export function AgentManagementClient() {
         {/* ── Tab 4 访问日志（读访问 / 写操作子 Tab） ─────────────── */}
         <TabsContent value="logs" className="mt-6">
           <Tabs defaultValue="read" className="w-full">
-            <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
-              <TabsTrigger value="read" className="min-h-9 px-4 py-2 text-sm">
+            <TabsList className="h-8 rounded-none border border-term-border bg-term-bg p-0">
+              <TabsTrigger value="read" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
                 读访问
               </TabsTrigger>
-              <TabsTrigger value="write" className="min-h-9 px-4 py-2 text-sm">
+              <TabsTrigger value="write" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
                 写操作
               </TabsTrigger>
             </TabsList>
@@ -715,7 +719,7 @@ export function AgentManagementClient() {
               <div>
                 <div className="text-muted-foreground mb-1">明文 Key</div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 break-all rounded bg-muted p-2 font-mono text-xs">
+                  <code className="flex-1 break-all rounded-none bg-term-raised p-2 font-mono text-xs">
                     {created.plaintext_key}
                   </code>
                   <Button variant="outline" size="sm" onClick={copyPlaintext}>
@@ -729,7 +733,7 @@ export function AgentManagementClient() {
               </div>
               <div>
                 <div className="text-muted-foreground mb-1">Agent</div>
-                <code className="rounded bg-muted p-1 font-mono text-xs">
+                <code className="rounded-none bg-term-raised p-1 font-mono text-xs">
                   {created.agent_id}
                 </code>
                 <span className="ml-2 text-sm text-foreground">
@@ -748,7 +752,7 @@ export function AgentManagementClient() {
                   {formatBusinessScope(created.business_scope)}
                 </span>
               </div>
-              <p className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              <p className="rounded-none border border-term-warn/50 bg-term-warn/10 p-2 font-sans text-term-warn">
                 ⚠ 明文仅展示一次，请妥善保存。调用时 Authorization 用明文 Key，
                 X-Agent-Id 用 Agent ID。
               </p>
@@ -865,7 +869,7 @@ export function AgentManagementClient() {
                   onChange={(e) => setEditLabel(e.target.value)}
                 />
               </div>
-              <div className="rounded bg-muted/40 p-3 text-sm">
+              <div className="rounded-none border border-term-border bg-term-bg p-3 text-sm">
                 <div className="text-muted-foreground">Agent ID（不可改，凭据绑定标识）</div>
                 <code className="font-mono text-xs">
                   {editing.agent_id ?? '—（未绑定）'}

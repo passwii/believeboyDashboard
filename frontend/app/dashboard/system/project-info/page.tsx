@@ -193,7 +193,7 @@ function OperatorMultiSelect({
               return (
                 <label
                   key={`operator-multi-${name}`}
-                  className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60"
+                  className="flex cursor-pointer items-center gap-3 rounded-none px-2 py-1.5 text-sm hover:bg-term-hover"
                 >
                   <Checkbox
                     checked={checked}
@@ -543,7 +543,7 @@ export default function StoreInfoPage() {
               <div className="flex min-w-0 flex-col gap-1">
                 <Badge
                   variant="outline"
-                  className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
+                  className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
                 >
                   系统管理 · 项目资料
                 </Badge>
@@ -816,7 +816,7 @@ export default function StoreInfoPage() {
                               <div className="flex items-center gap-2">
                                 {item.has_context && (
                                   <span
-                                    className="h-2 w-2 shrink-0 rounded-full bg-[hsl(var(--data-positive))]"
+                                    className="h-2 w-2 shrink-0 rounded-none bg-term-pos"
                                     title="已配置项目背景"
                                   />
                                 )}

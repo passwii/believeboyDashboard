@@ -125,42 +125,42 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
     label: '提成与绩效',
     description: '提成管理',
     prefixes: ['commission.', 'operator.performance.'],
-    className: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-accent',
   },
   {
     key: 'shipment',
     label: '发货管理',
     description: '发货管理',
     prefixes: ['shipment_schedules.'],
-    className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    className: 'rounded-none border-term-warn/40 font-mono text-[11px] text-term-warn',
   },
   {
     key: 'sku',
     label: 'SKU资料',
     description: 'SKU资料',
     prefixes: ['sku_info.'],
-    className: 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'project',
     label: '项目资料',
     description: '项目管理',
     prefixes: ['projects.'],
-    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    className: 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos',
   },
   {
     key: 'account',
     label: '账号权限',
     description: '账号权限',
     prefixes: ['users.'],
-    className: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+    className: 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg',
   },
   {
     key: 'auth',
     label: '用户登录',
     description: '用户登录',
     prefixes: ['auth.'],
-    className: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'inventory',
@@ -171,14 +171,14 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
       'inventory_replenishment.',
       'inventory_replenishment_settings.',
     ],
-    className: 'border-lime-500/30 bg-lime-500/10 text-lime-700 dark:text-lime-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'system',
     label: '系统运维',
     description: '系统运维',
     prefixes: ['system.'],
-    className: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'report',
@@ -194,7 +194,7 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
       'pricing_calculation.',
       'report_upload.',
     ],
-    className: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
+    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'other',
@@ -333,9 +333,9 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
 const RESULT_META = {
   success: {
     label: '成功',
-    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    className: 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos',
   },
-  failure: { label: '失败', className: 'border-destructive/30 bg-destructive/10 text-destructive' },
+  failure: { label: '失败', className: 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg' },
 } as const
 
 function formatDateTime(value: string | null): string {
@@ -617,21 +617,21 @@ export default function SystemOperationLogsPage() {
     if (code >= 500)
       return {
         label: `${code} · 服务端错误`,
-        className: 'border-rose-500/50 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
       }
     if (code >= 400)
       return {
         label: `${code} · 请求错误`,
-        className: 'border-orange-500/50 bg-orange-500/10 text-orange-600 dark:text-orange-400',
+        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
       }
     if (code >= 300)
       return {
         label: `${code} · 重定向`,
-        className: 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
       }
     return {
       label: `${code} · 成功`,
-      className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
     }
   }
 
@@ -696,14 +696,14 @@ export default function SystemOperationLogsPage() {
       onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
       className="w-full"
     >
-      <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
-        <TabsTrigger value="audit" className="min-h-10 px-5 py-2 text-sm">
+      <TabsList className="h-8 w-fit max-w-full overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
+        <TabsTrigger value="audit" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
           操作审计日志
         </TabsTrigger>
-        <TabsTrigger value="login" className="min-h-10 px-5 py-2 text-sm">
+        <TabsTrigger value="login" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
           登录日志
         </TabsTrigger>
-        <TabsTrigger value="agent" className="min-h-10 px-5 py-2 text-sm">
+        <TabsTrigger value="agent" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
           Agent 访问日志
         </TabsTrigger>
       </TabsList>
@@ -744,7 +744,7 @@ export default function SystemOperationLogsPage() {
               }
             />
             <DataTableCardBody>
-              <div className="border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+              <div className="border border-term-border bg-term-bg p-1.5">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -845,7 +845,7 @@ export default function SystemOperationLogsPage() {
             </DataTableCardBody>
           </DataTableCard>
 
-          <Card className="dashboard-surface">
+          <Card className="rounded-none border border-term-border bg-term-panel">
             <CardContent className="p-4">
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <Input
@@ -893,7 +893,7 @@ export default function SystemOperationLogsPage() {
           >
             <DialogContent
               aria-describedby="log-detail-dialog-description"
-              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-4xl"
+              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border-term-border bg-term-panel sm:max-w-4xl"
             >
               <span id="log-detail-dialog-description" className="sr-only">
                 日志详情查看
@@ -919,20 +919,20 @@ export default function SystemOperationLogsPage() {
                   </div>
                   <div className="space-y-2">
                     <p className="font-medium">变更前</p>
-                    <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                    <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs text-term-text">
                       {renderJson(activeRow.before_json)}
                     </pre>
                   </div>
                   <div className="space-y-2">
                     <p className="font-medium">变更后 / 返回结果</p>
-                    <pre className="overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 text-xs dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                    <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs text-term-text">
                       {renderJson(activeRow.after_json)}
                     </pre>
                   </div>
                   {activeRow.error_message ? (
                     <div className="space-y-2">
-                      <p className="font-medium text-destructive">失败原因</p>
-                      <pre className="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive dark:border-destructive/30 dark:bg-destructive/12">
+                      <p className="font-mono text-xs font-medium text-term-neg">失败原因</p>
+                      <pre className="overflow-x-auto rounded-none border border-term-neg/50 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
                         {activeRow.error_message}
                       </pre>
                     </div>
@@ -980,7 +980,7 @@ export default function SystemOperationLogsPage() {
               }
             />
             <DataTableCardBody>
-              <div className="border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+              <div className="border border-term-border bg-term-bg p-1.5">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1080,7 +1080,7 @@ export default function SystemOperationLogsPage() {
           >
             <DialogContent
               aria-describedby="login-log-detail-dialog-description"
-              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
+              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border-term-border bg-term-panel sm:max-w-3xl"
             >
               <span id="login-log-detail-dialog-description" className="sr-only">
                 登录日志详情查看
@@ -1119,7 +1119,7 @@ export default function SystemOperationLogsPage() {
 
                   <div className="space-y-2">
                     <p className="font-medium">设备信息</p>
-                    <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                    <div className="rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs">
                       {(() => {
                         const device = parseUserAgent(loginActiveRow.user_agent)
                         return (
@@ -1145,8 +1145,8 @@ export default function SystemOperationLogsPage() {
 
                   {loginActiveRow.error_message ? (
                     <div className="space-y-2">
-                      <p className="font-medium text-destructive">失败原因</p>
-                      <pre className="overflow-x-auto rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive dark:border-destructive/30 dark:bg-destructive/12">
+                      <p className="font-mono text-xs font-medium text-term-neg">失败原因</p>
+                      <pre className="overflow-x-auto rounded-none border border-term-neg/50 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
                         {loginActiveRow.error_message}
                       </pre>
                     </div>
@@ -1154,7 +1154,7 @@ export default function SystemOperationLogsPage() {
 
                   <div className="space-y-2">
                     <p className="font-medium">其他信息</p>
-                    <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                    <div className="rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs">
                       <p>
                         <span className="text-muted-foreground">Trace ID:</span>{' '}
                         <code className="font-mono text-xs">{loginActiveRow.trace_id || '-'}</code>

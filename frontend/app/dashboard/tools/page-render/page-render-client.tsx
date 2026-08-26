@@ -9,7 +9,8 @@ import { Copy, ExternalLink, Eye, FileCode2, Globe, Loader2, Trash2, Upload } fr
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_INPUT } from '@/components/terminal/term-controls'
 import { Input } from '@/components/ui/input'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
@@ -69,7 +70,7 @@ function MarkdownPreview({ content }: { content: string }) {
             return (
               <code
                 className={cn(
-                  'rounded-[0.4rem] bg-muted/70 px-1.5 py-0.5 font-mono text-[0.85em]',
+                  'rounded-none bg-term-raised px-1.5 py-0.5 font-mono text-[0.85em]',
                   className
                 )}
                 {...props}
@@ -240,27 +241,13 @@ export default function PageRenderClient() {
   return (
     <div className="flex flex-col gap-5">
       {/* 顶部：标题输入 + 上传区 */}
-      <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <CardTitle className="flex items-center gap-2">
-                <FileCode2 className="h-4 w-4 text-primary" />
-                上传 Markdown 或 HTML
-              </CardTitle>
-              <CardDescription>
-                支持 .md / .markdown / .html / .htm，最大 {MAX_SIZE_MB}{' '}
-                MB。上传后将生成公开链接，任何人凭链接可访问。
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="shrink-0">
-              特殊功能
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+      <TermPanel
+        title="上传 Markdown 或 HTML"
+        actions={<Badge variant="outline" className="rounded-none border-term-border font-mono text-[11px] uppercase tracking-wider text-term-faint">特殊功能</Badge>}
+        bodyClassName="flex flex-col gap-4 p-4"
+      >
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="page-render-title" className="text-sm font-medium text-foreground">
+            <label htmlFor="page-render-title" className="font-mono text-xs uppercase tracking-wider text-term-muted">
               页面标题（可选，留空使用文件名）
             </label>
             <Input
@@ -269,6 +256,7 @@ export default function PageRenderClient() {
               value={titleInput}
               onChange={(e) => setTitleInput(e.target.value)}
               maxLength={200}
+              className={TERM_INPUT}
             />
           </div>
           <UploadZone
@@ -278,31 +266,24 @@ export default function PageRenderClient() {
             uploadingText="正在上传..."
             onUpload={handleUpload}
           />
-        </CardContent>
-      </Card>
+      </TermPanel>
+
 
       {/* 即时预览 */}
       {previewContent && previewFormat ? (
-        <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Eye className="h-4 w-4 text-primary" />
-              即时预览 {previewFilename ? `· ${previewFilename}` : ''}
-            </CardTitle>
-            <CardDescription>仅在浏览器本地渲染，未上传前不会保存到 R2。</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <TermPanel title={`即时预览${previewFilename ? ` · ${previewFilename}` : ''}`} bodyClassName="p-4">
+            <p className="-mt-1 mb-3 font-sans text-xs text-term-faint">仅在浏览器本地渲染，未上传前不会保存到 R2。</p>
             {previewFormat === 'markdown' ? (
               <div
                 className={cn(
-                  'min-h-[60vh] overflow-y-auto rounded-2xl border border-border/70 bg-background/70 p-5 text-sm leading-7 text-foreground',
-                  '[&>blockquote]:border-l-primary/40 [&>blockquote]:bg-primary/5 [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-muted-foreground',
+                  'min-h-[60vh] overflow-y-auto rounded-none border border-term-border bg-term-bg p-5 text-sm leading-7 text-term-text',
+                  '[&>blockquote]:border-l-term-accent/50 [&>blockquote]:bg-term-bg [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-term-muted',
                   '[&>h1]:mb-3 [&>h1]:text-2xl [&>h1]:font-semibold [&>h1]:tracking-tight',
                   '[&>h2]:mb-3 [&>h2]:text-xl [&>h2]:font-semibold',
                   '[&>h3]:mb-2 [&>h3]:text-lg [&>h3]:font-semibold',
-                  '[&>table]:w-full [&>table]:overflow-hidden [&>table]:rounded-xl [&>table]:border [&>table]:border-border',
-                  '[&_th]:border [&_th]:border-border [&_th]:bg-muted/60 [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold',
-                  '[&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2',
+                  '[&>table]:w-full [&>table]:overflow-hidden [&>table]:rounded-none [&>table]:border [&>table]:border-term-border [&>table]:font-mono [&>table]:text-xs',
+                  '[&_th]:border [&_th]:border-term-border [&_th]:bg-term-raised [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted',
+                  '[&_td]:border [&_td]:border-term-border [&_td]:px-3 [&_td]:py-2',
                   '[&_ul]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:ml-5 [&_ol]:list-decimal [&>ol]:space-y-1'
                 )}
               >
@@ -313,28 +294,19 @@ export default function PageRenderClient() {
                 sandbox="allow-scripts"
                 srcDoc={previewContent}
                 title="HTML 预览"
-                className="w-full min-h-[60vh] rounded border border-border/70 bg-white"
+                className="w-full min-h-[60vh] rounded-none border border-term-border bg-white"
               />
             )}
-          </CardContent>
-        </Card>
+        </TermPanel>
+
       ) : null}
 
       {/* 公开链接卡片 */}
       {recentlyUploaded ? (
-        <Card className="border-primary/40 bg-primary/5 dark:border-primary/30 dark:bg-primary/10">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Globe className="h-4 w-4 text-primary" />
-              公开链接已生成
-            </CardTitle>
-            <CardDescription>
-              任何人打开下面的链接即可查看该页面（未登录也可访问）。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <TermPanel title="公开链接已生成" bodyClassName="p-4">
+            <p className="mb-3 font-sans text-xs text-term-faint">任何人打开下面的链接即可查看该页面（未登录也可访问）。</p>
             <div className="flex flex-wrap items-center gap-2">
-              <code className="flex-1 truncate rounded-md border border-border/70 bg-background px-3 py-2 text-xs">
+              <code className="flex-1 truncate rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-xs text-term-text">
                 {typeof window !== 'undefined'
                   ? `${window.location.origin}/p/${recentlyUploaded.id}`
                   : `/p/${recentlyUploaded.id}`}
@@ -350,38 +322,31 @@ export default function PageRenderClient() {
                 </a>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+        </TermPanel>
+
       ) : null}
 
       {/* 历史列表 */}
-      <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Upload className="h-4 w-4 text-primary" />
-                我的历史
-                <Badge variant="secondary" className="ml-1">
-                  {historyTotal}
-                </Badge>
-              </CardTitle>
-              <CardDescription>仅显示你上传的页面。</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={refreshHistory} disabled={isLoadingHistory}>
-              {isLoadingHistory ? <Loader2 className="h-4 w-4 animate-spin" /> : '刷新'}
+      <TermPanel
+        title="我的历史"
+        actions={
+          <>
+            <Badge variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] tabular-nums text-term-muted">{historyTotal}</Badge>
+            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={refreshHistory} disabled={isLoadingHistory}>
+              {isLoadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '刷新'}
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+          </>
+        }
+        bodyClassName="p-4"
+      >
           {historyRows.length === 0 ? (
-            <div className="flex h-32 flex-col items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-32 flex-col items-center justify-center font-mono text-xs text-term-faint">
               {isLoadingHistory ? '加载中...' : '暂无记录，上传一个文件试试'}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border/60">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs text-muted-foreground">
+            <div className="overflow-x-auto rounded-none border border-term-border">
+              <table className="w-full font-mono text-xs tabular-nums">
+                <thead className="bg-term-raised text-xs text-term-muted">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">标题</th>
                     <th className="px-3 py-2 text-left font-medium">格式</th>
@@ -393,22 +358,22 @@ export default function PageRenderClient() {
                 </thead>
                 <tbody>
                   {historyRows.map((row) => (
-                    <tr key={row.id} className="border-t border-border/60">
-                      <td className="max-w-[260px] truncate px-3 py-2 font-medium text-foreground">
+                    <tr key={row.id} className="border-t border-term-border transition-colors hover:bg-term-hover">
+                      <td className="max-w-[260px] truncate px-3 py-2 font-medium text-term-text">
                         {row.title}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant={row.source_format === 'markdown' ? 'secondary' : 'outline'}>
+                        <Badge variant="outline" className='rounded-none border-term-border font-mono text-[11px] text-term-muted'>
                           {row.source_format === 'markdown' ? 'Markdown' : 'HTML'}
                         </Badge>
                       </td>
-                      <td className="max-w-[240px] truncate px-3 py-2 text-xs text-muted-foreground">
+                      <td className="max-w-[240px] truncate px-3 py-2 text-xs text-term-faint">
                         {row.original_filename}
                       </td>
-                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                      <td className="px-3 py-2 text-right text-xs text-term-muted">
                         {formatBytes(row.file_size)}
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                      <td className="px-3 py-2 text-xs text-term-muted">
                         {formatDistanceToNow(new Date(row.created_at), {
                           addSuffix: true,
                           locale: zhCN,
@@ -446,8 +411,8 @@ export default function PageRenderClient() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </TermPanel>
+
     </div>
   )
 }

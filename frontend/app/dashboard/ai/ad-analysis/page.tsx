@@ -17,7 +17,6 @@ import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { PageHeader } from '@/components/ui/page-header'
 import {
   Tabs,
   TabsContent,
@@ -282,24 +281,20 @@ export default function AdAnalysisPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('history')
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="AI 广告分析"
-        description="基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 + 广告投放双专家，自主分析并给出可执行的调整建议。"
-      />
-
+    // BLF-838：页面标题由 Top Header 面包屑承载；Tab 切换终端规格
+    <div className="flex min-w-0 flex-col gap-2">
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as TabKey)}
-        className="space-y-4"
+        className="space-y-2"
       >
-        <TabsList>
-          <TabsTrigger value="history">
-            <FileText className="mr-1.5 h-4 w-4" />
+        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-bg p-0">
+          <TabsTrigger value="history" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
             历史记录
           </TabsTrigger>
-          <TabsTrigger value="schedules">
-            <Clock className="mr-1.5 h-4 w-4" />
+          <TabsTrigger value="schedules" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <Clock className="h-3.5 w-3.5" strokeWidth={1.75} />
             定时任务
           </TabsTrigger>
         </TabsList>

@@ -19,9 +19,9 @@ export default function AiLandingPage() {
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50">
         <Link
           href="/dashboard/ai/chat"
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-sm font-medium hover:bg-white/20 transition-all duration-300 hover:scale-105"
+          className="flex h-8 items-center gap-1.5 rounded-none border border-term-border bg-term-panel px-3 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
         >
-          <MessageSquare className="size-4" />
+          <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.75} />
           <span>进入 AI Chat</span>
         </Link>
       </div>

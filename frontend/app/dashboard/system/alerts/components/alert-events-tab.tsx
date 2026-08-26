@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -10,14 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import {
   acknowledgeEvent,
@@ -25,11 +16,21 @@ import {
   resolveEvent,
   type AlertEventItem,
 } from '@/lib/alerts-api'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_TRIGGER, TERM_SELECT_ITEM, TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
 
-const SEVERITY_TONE: Record<string, string> = {
-  critical: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
-  warning: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-  info: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+const SEVERITY_TONE: Record<string, TermTone> = {
+  critical: 'neg',
+  warning: 'warn',
+  info: 'info',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -94,82 +95,84 @@ export function AlertEventsTab() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex min-w-0 flex-col gap-2">
+      {/* BLF-838：筛选行 h-8 终端规格 */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger className={`w-32 ${TERM_TRIGGER}`}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="active">活跃</SelectItem>
-            <SelectItem value="acknowledged">已确认</SelectItem>
-            <SelectItem value="resolved">已解决</SelectItem>
-            <SelectItem value="all">全部状态</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="active">活跃</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="acknowledged">已确认</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="resolved">已解决</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="all">全部状态</SelectItem>
           </SelectContent>
         </Select>
         <Select value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger className={`w-32 ${TERM_TRIGGER}`}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="critical">严重</SelectItem>
-            <SelectItem value="warning">警告</SelectItem>
-            <SelectItem value="info">提示</SelectItem>
-            <SelectItem value="all">全部级别</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="critical">严重</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="warning">警告</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="info">提示</SelectItem>
+            <SelectItem className={TERM_SELECT_ITEM} value="all">全部级别</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="dashboard-surface rounded-xl">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>时间</TableHead>
-              <TableHead>指标</TableHead>
-              <TableHead>消息</TableHead>
-              <TableHead className="text-right">偏差</TableHead>
-              <TableHead>级别</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      <TermPanel bodyClassName="p-0 overflow-x-auto">
+        <TermTable>
+          <TermTHead>
+            <TermRow>
+              <TermHead>时间</TermHead>
+              <TermHead>指标</TermHead>
+              <TermHead>消息</TermHead>
+              <TermHead numeric>偏差</TermHead>
+              <TermHead>级别</TermHead>
+              <TermHead>状态</TermHead>
+              <TermHead numeric>操作</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
             {loading ? (
-              <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">加载中…</TableCell></TableRow>
+              <TermRow><TermCell colSpan={7} className="py-8 text-center text-term-faint">加载中…</TermCell></TermRow>
             ) : items.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">暂无告警事件</TableCell></TableRow>
+              <TermRow><TermCell colSpan={7} className="py-8 text-center text-term-faint">暂无告警事件</TermCell></TermRow>
             ) : (
               items.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                    {new Date(e.triggered_at).toLocaleString('zh-CN')}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{e.metric}</TableCell>
-                  <TableCell className="max-w-md truncate" title={e.message}>{e.message}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.deviation_pct.toFixed(1)}%</TableCell>
-                  <TableCell>
-                    <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${SEVERITY_TONE[e.severity] ?? ''}`}>
-                      {e.severity}
+                <TermRow key={e.id}>
+                  <TermCell className="text-term-muted">{new Date(e.triggered_at).toLocaleString('zh-CN')}</TermCell>
+                  <TermCell>{e.metric}</TermCell>
+                  <TermCell className="max-w-md truncate" title={e.message}>{e.message}</TermCell>
+                  <TermCell numeric tone={e.deviation_pct > 0 ? 'neg' : 'muted'}>{e.deviation_pct.toFixed(1)}%</TermCell>
+                  <TermCell>
+                    <span className={`font-mono text-[11px] ${
+                      e.severity === 'critical' ? 'text-term-neg' : e.severity === 'warning' ? 'text-term-warn' : 'text-term-text'
+                    }`}>
+                      {SEVERITY_TONE[e.severity] ? e.severity : e.severity}
                     </span>
-                  </TableCell>
-                  <TableCell>{STATUS_LABEL[e.status] ?? e.status}</TableCell>
-                  <TableCell className="text-right">
+                  </TermCell>
+                  <TermCell className="text-term-muted">{STATUS_LABEL[e.status] ?? e.status}</TermCell>
+                  <TermCell numeric>
                     {e.status === 'active' && (
-                      <Button size="sm" variant="outline" onClick={() => onAck(e.id)}>确认</Button>
+                      <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} onClick={() => onAck(e.id)}>确认</Button>
                     )}
                     {e.status !== 'resolved' && (
-                      <Button size="sm" variant="ghost" className="ml-1" onClick={() => onResolve(e.id)}>解决</Button>
+                      <Button size="sm" variant="ghost" className={`${TERM_BUTTON} border-transparent bg-transparent px-1.5`} onClick={() => onResolve(e.id)}>解决</Button>
                     )}
-                  </TableCell>
-                </TableRow>
+                  </TermCell>
+                </TermRow>
               ))
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </TermBody>
+        </TermTable>
+      </TermPanel>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      {/* 分页：终端规格（mono 计数 + h-8 按钮） */}
+      <div className="flex items-center justify-between font-mono text-xs text-term-muted">
         <span>共 {total} 条</span>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
-          <span>{page} / {totalPages}</span>
-          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</Button>
+          <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
+          <span className="tabular-nums">{page} / {totalPages}</span>
+          <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</Button>
         </div>
       </div>
     </div>

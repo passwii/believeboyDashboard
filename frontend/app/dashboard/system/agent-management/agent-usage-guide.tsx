@@ -897,7 +897,7 @@ export function AgentUsageGuide() {
   }
 
   return (
-    <Card className="dashboard-surface">
+    <Card className="rounded-none border border-term-border bg-term-panel">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BookOpen className="h-4 w-4" />
@@ -909,17 +909,17 @@ export function AgentUsageGuide() {
           <p className="text-sm text-muted-foreground">
             创建凭据后，把下面的说明复制给 Agent 作为调用配置。Agent
             每次请求都必须同时携带{' '}
-            <code className="rounded bg-muted px-1 font-mono text-xs">Authorization</code>{' '}
-            与 <code className="rounded bg-muted px-1 font-mono text-xs">X-Agent-Id</code>{' '}
+            <code className="rounded-none bg-term-raised px-1 font-mono text-xs">Authorization</code>{' '}
+            与 <code className="rounded-none bg-term-raised px-1 font-mono text-xs">X-Agent-Id</code>{' '}
             两个鉴权头。
             {baseUrl ? (
               <span className="mt-1 block">
                 后端地址已自动填入：
-                <code className="rounded bg-muted px-1 font-mono text-xs">{baseUrl}</code>
+                <code className="rounded-none bg-term-raised px-1 font-mono text-xs">{baseUrl}</code>
               </span>
             ) : (
               <span className="mt-1 block">
-                （<code className="rounded bg-muted px-1 font-mono text-xs">&lt;后端地址&gt;</code>{' '}
+                （<code className="rounded-none bg-term-raised px-1 font-mono text-xs">&lt;后端地址&gt;</code>{' '}
                 请替换为实际后端域名）
               </span>
             )}
@@ -943,7 +943,7 @@ export function AgentUsageGuide() {
             </Button>
           </div>
         </div>
-        <pre className="overflow-x-auto rounded bg-muted p-3 font-mono text-xs leading-relaxed">
+        <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs leading-relaxed">
           {buildUsageText({ baseUrl, domain })}
         </pre>
       </CardContent>

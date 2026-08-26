@@ -744,7 +744,7 @@ export default function OperatorManagementPage() {
             badge={
               <Badge
                 variant="outline"
-                className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
               >
                 系统管理
               </Badge>
@@ -779,12 +779,13 @@ export default function OperatorManagementPage() {
           onValueChange={(value) => handleTabChange(value as OperatorPageTab)}
           className="w-full"
         >
-          <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+          <TabsList className="h-8 w-full max-w-full justify-start overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
             <TabsMotionGroup id="operator-management-tabs">
               <SlidingTabsTrigger
                 value="role-info"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
+                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
               >
                 运营信息
               </SlidingTabsTrigger>
@@ -792,6 +793,7 @@ export default function OperatorManagementPage() {
                 value="performance"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
+                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
               >
                 运营绩效
               </SlidingTabsTrigger>
@@ -799,6 +801,7 @@ export default function OperatorManagementPage() {
                 value="commission"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
+                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
               >
                 运营佣金
               </SlidingTabsTrigger>
@@ -814,7 +817,7 @@ export default function OperatorManagementPage() {
               <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   {COMMON_ROLE_OPTIONS.map((item) => (
-                    <Badge key={item} variant="secondary" className="rounded-full">
+                    <Badge key={item} variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] text-term-muted">
                       {toRoleLabel(item)}
                     </Badge>
                   ))}
@@ -1335,7 +1338,7 @@ export default function OperatorManagementPage() {
                         reason: '',
                       }
                       return (
-                        <div key={row.id} className="dashboard-surface p-4 space-y-3">
+                        <div key={row.id} className="rounded-none border border-term-border bg-term-panel p-4 space-y-3">
                           {/* 头部：人员 + 项目 + 岗位 */}
                           <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
                             <div className="min-w-0">
@@ -1482,7 +1485,7 @@ export default function OperatorManagementPage() {
                 {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
                   <article
                     key={item.range}
-                    className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] dark:shadow-none"
+                    className="rounded-none border border-term-border bg-term-panel p-4"
                   >
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">
                       Tier {index + 1}
@@ -1493,11 +1496,11 @@ export default function OperatorManagementPage() {
                     <p className="mt-1 text-base font-semibold text-slate-900 dark:text-foreground">
                       {item.range}
                     </p>
-                    <div className="mt-4 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-500/12 dark:text-emerald-300 dark:ring-emerald-500/30">
+                    <div className="mt-4 inline-flex items-center rounded-none border border-term-pos/40 px-1.5 py-0.5 font-mono text-xs text-term-pos">
                       运营提成比例 {item.ratio}
                     </div>
                     {item.note ? (
-                      <p className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/12 dark:text-amber-300">
+                      <p className="mt-3 rounded-none border border-term-warn/40 bg-term-warn/5 px-3 py-2 font-sans text-xs leading-5 text-term-warn">
                         备注：{item.note}
                       </p>
                     ) : null}

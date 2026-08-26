@@ -129,8 +129,8 @@ function KpiCard({
   change?: string
 }) {
   return (
-    <div className="dashboard-surface p-4 text-center sm:p-5">
-      <p className={cn('text-4xl font-bold tabular-nums sm:text-5xl', accent)}>{value}</p>
+    <div className="rounded-none border border-term-border bg-term-panel p-4 text-center sm:p-5">
+      <p className={cn('font-mono text-4xl font-bold tabular-nums sm:text-5xl', accent)}>{value}</p>
       <p className="mt-1 text-base font-medium text-muted-foreground sm:text-lg">{label}</p>
       {sub && <p className="mt-0.5 text-sm text-muted-foreground/60">{sub}</p>}
       {change && <p className="mt-1 text-sm text-muted-foreground/80">{change}</p>}
@@ -150,8 +150,8 @@ function BigKpiCard({
   accent?: string
 }) {
   return (
-    <div className="dashboard-surface p-5 text-center sm:p-6">
-      <p className={cn('text-5xl font-bold tabular-nums sm:text-7xl', accent)}>{value}</p>
+    <div className="rounded-none border border-term-border bg-term-panel p-5 text-center sm:p-6">
+      <p className={cn('font-mono text-5xl font-bold tabular-nums sm:text-7xl', accent)}>{value}</p>
       <p className="mt-2 text-lg font-semibold text-muted-foreground sm:text-2xl">{label}</p>
       {sub && <p className="mt-1 text-lg text-muted-foreground/60">{sub}</p>}
     </div>
@@ -160,7 +160,7 @@ function BigKpiCard({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <h3 className="mb-4 text-xl font-semibold text-muted-foreground">{title}</h3>
       {children}
     </div>
@@ -433,7 +433,7 @@ export default function DigitalDisplayPage() {
           {/* ── Bottom row: Inventory + Shipment + Ads ── */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
             {/* Inventory */}
-            <div className="dashboard-surface p-5">
+            <div className="rounded-none border border-term-border bg-term-panel p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">库存概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -443,13 +443,13 @@ export default function DigitalDisplayPage() {
                   <p className="mt-1 text-base text-muted-foreground">在售 SKU</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-3 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
                     <p className="text-3xl font-bold tabular-nums text-amber-400">
                       {displayData.inventory.out_of_stock_count}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">缺货</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-3 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
                     <p className="text-3xl font-bold tabular-nums text-blue-400">
                       {fmtNum(displayData.inventory.available_qty)}
                     </p>
@@ -460,7 +460,7 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Shipment */}
-            <div className="dashboard-surface p-5">
+            <div className="rounded-none border border-term-border bg-term-panel p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">发货在途</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -469,7 +469,7 @@ export default function DigitalDisplayPage() {
                   </p>
                   <p className="mt-1 text-base text-muted-foreground">在途批次</p>
                 </div>
-                <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-3 text-center">
+                <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
                   <p className="text-3xl font-bold tabular-nums text-foreground">
                     {fmtNum(displayData.shipments.in_transit_qty)}
                   </p>
@@ -479,7 +479,7 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Return */}
-            <div className="dashboard-surface p-5">
+            <div className="rounded-none border border-term-border bg-term-panel p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">退货概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -494,13 +494,13 @@ export default function DigitalDisplayPage() {
                   <p className="mt-1 text-base text-muted-foreground">退货率</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-3 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
                     <p className="text-3xl font-bold tabular-nums text-foreground">
                       {displayData.returns.total_returns}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">退货单数</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-3 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
                     <p className="text-3xl font-bold tabular-nums text-foreground">
                       {displayData.returns.total_quantity}
                     </p>
@@ -516,23 +516,23 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Ads */}
-            <div className="dashboard-surface p-5">
+            <div className="rounded-none border border-term-border bg-term-panel p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">广告数据</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p className="text-2xl font-bold tabular-nums text-foreground">
                       {fmtMoney(displayData.ads.period_spend)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">花费</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p className="text-2xl font-bold tabular-nums text-emerald-400">
                       {displayData.ads.period_roas}x
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">ROAS</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p
                       className={cn(
                         'text-2xl font-bold tabular-nums',
@@ -545,19 +545,19 @@ export default function DigitalDisplayPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p className="text-2xl font-bold tabular-nums text-foreground">
                       {fmtNum(displayData.ads.period_impressions)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">展示</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p className="text-2xl font-bold tabular-nums text-foreground">
                       {fmtNum(displayData.ads.period_clicks)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">点击</p>
                   </div>
-                  <div className="rounded-xl border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--surface-subtle))] p-2 text-center">
+                  <div className="rounded-none border border-term-border bg-term-bg p-2 text-center">
                     <p className="text-2xl font-bold tabular-nums text-blue-400">
                       {displayData.ads.period_ctr}%
                     </p>

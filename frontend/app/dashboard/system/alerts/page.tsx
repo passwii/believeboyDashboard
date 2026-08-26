@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -9,6 +8,7 @@ import { AlertStatsBar } from './components/alert-stats-bar'
 import { AlertEventsTab } from './components/alert-events-tab'
 import { AlertRulesTab } from './components/alert-rules-tab'
 import { AlertPreferencesTab } from './components/alert-preferences-tab'
+import { TermPageShell } from '@/components/terminal/term-controls'
 
 interface ProjectOption {
   id: number
@@ -43,30 +43,32 @@ export default function AlertCenterPage() {
   const stableProjects = useMemo(() => projects, [projectsKey])
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="告警中心"
-        description="配置告警规则、跟踪异常事件、管理通知偏好"
-      />
-
+    // BLF-838：页面标题由 Top Header 面包屑承载；Tab 列表终端规格
+    <TermPageShell>
       <AlertStatsBar stats={stats} />
 
       <Tabs defaultValue="events">
-        <TabsList>
-          <TabsTrigger value="events">告警事件</TabsTrigger>
-          <TabsTrigger value="rules">告警规则</TabsTrigger>
-          <TabsTrigger value="preferences">通知偏好</TabsTrigger>
+        <TabsList className="h-8 rounded-none border border-term-border bg-term-bg p-0 text-term-muted">
+          <TabsTrigger value="events" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            告警事件
+          </TabsTrigger>
+          <TabsTrigger value="rules" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            告警规则
+          </TabsTrigger>
+          <TabsTrigger value="preferences" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            通知偏好
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="events" className="mt-4">
+        <TabsContent value="events" className="mt-2">
           <AlertEventsTab />
         </TabsContent>
-        <TabsContent value="rules" className="mt-4">
+        <TabsContent value="rules" className="mt-2">
           <AlertRulesTab projects={stableProjects} />
         </TabsContent>
-        <TabsContent value="preferences" className="mt-4">
+        <TabsContent value="preferences" className="mt-2">
           <AlertPreferencesTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </TermPageShell>
   )
 }

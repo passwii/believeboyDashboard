@@ -105,7 +105,7 @@ export default function DigitalOfficePage() {
             </span>
             <button
               onClick={exitPresentation}
-              className="min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground sm:min-h-[auto]"
+              className="min-h-[44px] rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text sm:min-h-[auto]"
             >
               ESC 退出
             </button>
@@ -148,7 +148,7 @@ export default function DigitalOfficePage() {
                 void document.documentElement.requestFullscreen?.()
                 window.location.href = '/dashboard/ai/digital-employees/office?mode=presentation'
               }}
-              className="min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:min-h-[auto]"
+              className="min-h-[44px] rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-xs text-term-muted transition-colors hover:border-term-accent/50 hover:text-term-text sm:min-h-[auto]"
             >
               🖥️ 投屏
             </button>
@@ -163,7 +163,7 @@ export default function DigitalOfficePage() {
       {employees.length === 0 ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full rounded-lg" />
+            <Skeleton key={i} className="h-48 w-full rounded-none border border-term-border" />
           ))}
         </div>
       ) : (
