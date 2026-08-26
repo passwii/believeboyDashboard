@@ -42,7 +42,7 @@ use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
 use gui_domain::auth::{LoginResponse, UserRoleType};
 use motion::{detect_system_reduce_motion, MotionPref};
-use theme::{set_theme_pref, ThemePreference};
+use theme::{apply_font_stack, set_theme_pref, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
@@ -108,6 +108,12 @@ fn main() -> anyhow::Result<()> {
             // 为唯一活跃外观）；浅色/跟随系统路径休眠保留（枚举不删、UI 不暴露
             // 切换入口）。窗口外观监听仍在（显式偏好下静默旁路）。
             set_theme_pref(ThemePreference::Dark, None, cx);
+
+            // BLF-829：跨平台字体链——必须在 set_theme_pref 之后调用
+            // （Theme::change 会用 ThemeConfig 重置 font_family/mono_font_family，
+            // 后调用才能保住覆盖）。把 UI 主族（SF Pro/Segoe UI Variable）与等宽族
+            // （JetBrains Mono）写入 gpui-component 全局主题，组件库文字同步切换。
+            apply_font_stack(cx);
 
             // P4-2（BLF-708）：动效偏好基线——启动时读取系统「减弱动态效果」，
             // 写入全局；所有动效路径据此降级为瞬时切换/无动画。

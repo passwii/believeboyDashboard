@@ -35,7 +35,7 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
-use crate::theme::{hex_color, AppTheme};
+use crate::theme::{hex_color, ui_font, AppTheme};
 use crate::views::account_management::{AccountManagementView, ACCOUNT_MANAGEMENT_URL};
 use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
@@ -3452,6 +3452,10 @@ impl Render for RootView {
             .flex_col()
             .size_full()
             .relative()
+            // BLF-829：跨平台字体链下发——根容器一次携带 fallbacks（CJK 族优先），
+            // 子树内未显式改族的文字全部继承（TextStyleRefinement 字段级合并）；
+            // 显式 mono（data_table / Inspector）只改族名，中文仍落雅黑/苹方。
+            .font(ui_font())
             // BLF-793 键盘可达：tab / shift-tab 在窗口内 tab stop 间前后遍历
             // （Master Rail 的分类图标与底部入口均为 tab stop；动作绑定见
             // main.rs，此处为全窗口唯一处理点——任意焦点下都会冒泡到根容器）
