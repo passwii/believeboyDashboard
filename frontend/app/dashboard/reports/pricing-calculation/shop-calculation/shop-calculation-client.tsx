@@ -609,13 +609,13 @@ export default function ShopCalculationPage() {
           {/* Decorative background gradient */}
           <div className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-40">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/6 via-transparent to-amber-500/5" />
-            <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[hsl(var(--primary)/0.06)] blur-3xl" />
+            
           </div>
 
           <div className="relative z-10 flex flex-col gap-0 px-6 py-4">
             {/* Top Row: Icon + Title + Snapshot Selector */}
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.1)]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <Calculator className="h-5 w-5 text-[hsl(var(--primary))]" strokeWidth={2} />
               </div>
               <div className="min-w-0 flex-1">
@@ -716,7 +716,7 @@ export default function ShopCalculationPage() {
                   站点
                 </span>
                 <div
-                  className="flex h-9 min-h-touch w-full items-stretch rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-px sm:w-48"
+                  className="flex h-8 w-full items-stretch gap-0 rounded-none border border-term-border bg-term-panel p-0 sm:w-48"
                   role="group"
                   aria-label="选择站点"
                 >
@@ -725,12 +725,10 @@ export default function ShopCalculationPage() {
                       key={opt.value}
                       onClick={() => setSelectedCountry(opt.value)}
                       className={cn(
-                        'flex h-full min-h-[calc(44px-2px)] min-w-0 flex-1 items-center justify-center rounded-md px-1.5 text-center text-xs font-semibold whitespace-nowrap transition-all duration-[160ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]/40',
+                        'flex h-full min-h-[calc(44px-2px)] min-w-0 flex-1 items-center justify-center rounded-none px-3 text-center font-mono text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none',
                         selectedCountry === opt.value
-                          ? opt.region === 'US'
-                            ? 'bg-[hsl(var(--primary))] text-primary-foreground shadow-sm'
-                            : 'bg-[hsl(var(--chart-3)/0.85)] text-amber-950 dark:text-amber-100 shadow-sm'
-                          : 'text-muted-foreground hover:bg-[hsl(var(--accent))] hover:text-foreground'
+                          ? 'bg-term-raised text-term-text'
+                          : 'text-term-muted hover:bg-term-hover hover:text-term-text'
                       )}
                       aria-pressed={selectedCountry === opt.value}
                     >

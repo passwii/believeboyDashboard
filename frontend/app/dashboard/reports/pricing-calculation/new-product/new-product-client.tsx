@@ -139,7 +139,7 @@ function PricingFieldSkeleton() {
 
 function PricingRunCardSkeleton() {
   return (
-    <div className="min-h-[112px] rounded-xl border border-border/70 p-3">
+    <div className="min-h-[112px] rounded-none border border-term-border bg-term-raised p-3">
       <Skeleton className="h-3 w-20" />
       <Skeleton className="mt-3 h-4 w-28" />
       <div className="mt-3 flex gap-2">
@@ -722,7 +722,7 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
       cardClassName:
         'border-violet-300 bg-violet-50/80 hover:border-violet-400 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-violet-950/25 dark:hover:border-violet-800 dark:hover:bg-violet-950/40',
       selectedClassName:
-        'border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-200 dark:border-violet-700 dark:bg-violet-950/60 dark:ring-violet-900/80',
+        'border-term-accent/60 bg-term-accent/10',
     }
   }
 
@@ -734,7 +734,7 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
       cardClassName:
         'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40',
       selectedClassName:
-        'border-emerald-400 bg-emerald-100 shadow-sm ring-1 ring-emerald-200 dark:border-emerald-700 dark:bg-emerald-950/60 dark:ring-emerald-900/80',
+        'border-term-pos/50 bg-term-pos/10',
     }
   }
 
@@ -746,7 +746,7 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
       cardClassName:
         'border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/25 dark:hover:border-amber-800 dark:hover:bg-amber-950/40',
       selectedClassName:
-        'border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-200 dark:border-amber-700 dark:bg-amber-950/60 dark:ring-amber-900/80',
+        'border-term-warn/50 bg-term-warn/10',
     }
   }
 
@@ -757,7 +757,7 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
     cardClassName:
       'border-sky-200 bg-sky-50/70 hover:border-sky-300 hover:bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/25 dark:hover:border-sky-800 dark:hover:bg-sky-950/40',
     selectedClassName:
-      'border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-200 dark:border-sky-700 dark:bg-sky-950/60 dark:ring-sky-900/80',
+      'border-term-border-strong bg-term-raised',
   }
 }
 
@@ -2350,7 +2350,7 @@ export default function PricingCalculationPage() {
     <div className="space-y-4">
       <>
         <div className="grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]">
-          <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+          <Card className="rounded-none border-term-border bg-term-panel shadow-none">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">测算输入</CardTitle>
             </CardHeader>
@@ -2361,7 +2361,7 @@ export default function PricingCalculationPage() {
                   onValueChange={(value) => setCalculationMode(value as CalculationMode)}
                 >
                   <TabsMotionGroup id="pricing-calculation-mode-tabs">
-                    <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                    <TabsList className="grid h-8 w-full grid-cols-2 gap-0 justify-start rounded-none border border-term-border bg-term-panel p-0 sm:grid-cols-4">
                       <SlidingTabsTrigger
                         value="profit-calc"
                         activeValue={calculationMode}
@@ -2479,7 +2479,7 @@ export default function PricingCalculationPage() {
                       </Field>
                     </div>
 
-                    <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                    <div className="rounded-none border border-term-border bg-term-raised p-3">
                       {calculationMode === 'fbm-calc' ? (
                         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
                           <div className="space-y-3">
@@ -2506,7 +2506,7 @@ export default function PricingCalculationPage() {
                               />
                             </Field>
                           </div>
-                          <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                          <div className="rounded-none border border-term-border bg-term-panel p-3">
                             <p className="text-xs text-muted-foreground">单个产品头程(RMB)</p>
                             <p className="mt-2 text-2xl font-semibold text-foreground">
                               {toNumber(form.full_container_quantity) > 0 &&
@@ -2542,7 +2542,7 @@ export default function PricingCalculationPage() {
                               {formatMetric(chargeableWeightKg, 3)} kg。
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                          <div className="rounded-none border border-term-border bg-term-panel p-3">
                             <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
                             <p className="mt-2 text-2xl font-semibold text-foreground">
                               {firstLegCostRmb.toFixed(2)}
@@ -2659,7 +2659,7 @@ export default function PricingCalculationPage() {
           </Card>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
-            <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+            <Card className="rounded-none border-term-border bg-term-panel shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">控制台</CardTitle>
               </CardHeader>
@@ -2763,7 +2763,7 @@ export default function PricingCalculationPage() {
                   {productKeyword ? <span>关键词: {productKeyword}</span> : null}
                 </div>
                 {error ? (
-                  <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                  <div className="flex items-start gap-3 rounded-none border border-term-neg/40 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{error}</span>
                   </div>
@@ -2771,7 +2771,7 @@ export default function PricingCalculationPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+            <Card className="rounded-none border-term-border bg-term-panel shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">最近测算</CardTitle>
               </CardHeader>
@@ -2788,7 +2788,7 @@ export default function PricingCalculationPage() {
                       <PricingRunCardSkeleton />
                     </>
                   ) : visibleRuns.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                    <div className="rounded-none border border-dashed border-term-border px-4 py-6 font-mono text-xs text-term-faint">
                       {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
                     </div>
                   ) : (
@@ -2814,7 +2814,7 @@ export default function PricingCalculationPage() {
                           role="button"
                           tabIndex={0}
                           className={cn(
-                            'group flex min-h-[110px] flex-col rounded-xl border px-3 py-2 text-left transition-all',
+                            'group flex min-h-[110px] flex-col rounded-none border px-3 py-2 text-left transition-colors',
                             isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
                           )}
                         >
@@ -2856,7 +2856,7 @@ export default function PricingCalculationPage() {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-9 w-9 rounded-full text-muted-foreground opacity-70 transition hover:bg-background/80 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400"
+                                className="h-8 w-8 rounded-none text-term-faint opacity-80 transition hover:bg-term-neg/10 hover:text-term-neg group-hover:opacity-100"
                                 disabled={deletingRunId === run.id}
                                 onClick={() => void handleDeleteRun(run.id)}
                                 title="删除此测算"
@@ -3003,7 +3003,7 @@ export default function PricingCalculationPage() {
           </div>
         </div>
 
-        <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <Card className="rounded-none border-term-border bg-term-panel shadow-none">
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">

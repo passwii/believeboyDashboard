@@ -304,7 +304,7 @@ function PDFUploadPanel({
       {/* Selected File Info */}
       {selectedFile && uploadState === 'idle' && (
         <div className="mt-4 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
             <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="text-center">
@@ -330,7 +330,7 @@ function PDFUploadPanel({
       {/* Success State */}
       {uploadState === 'success' && (
         <div className="mt-6 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <div className="flex h-10 w-10 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
             <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
@@ -484,7 +484,7 @@ function CSVUploadPanel({
 
       {selectedFile && uploadState === 'idle' && (
         <div className="mt-4 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
             <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="text-center">
@@ -508,7 +508,7 @@ function CSVUploadPanel({
 
       {uploadState === 'success' && (
         <div className="mt-6 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <div className="flex h-10 w-10 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
             <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
@@ -554,7 +554,7 @@ function RawFilesGroup({
   const csvAvailable = report.has_transaction_csv && !report.transaction_csv_missing
 
   return (
-    <div className="mt-6 rounded-lg border">
+    <div className="mt-6 rounded-none border-term-border">
       <div className="border-b px-4 py-3">
         <span className="text-sm font-medium text-muted-foreground">原始文件 / 数据</span>
       </div>
@@ -875,19 +875,19 @@ function DetailPanel({
             <>
               {/* Summary Stats */}
               <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-term-border bg-term-raised p-3">
                   <div className="text-sm text-muted-foreground">收入合计</div>
                   <div className="mt-1 font-mono text-xl font-semibold">
                     {formatCurrency(result.summary.db_total_income, country)}
                   </div>
                 </div>
-                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-term-border bg-term-raised p-3">
                   <div className="text-sm text-muted-foreground">支出合计</div>
                   <div className="mt-1 font-mono text-xl font-semibold">
                     {formatCurrency(result.summary.db_total_expense, country)}
                   </div>
                 </div>
-                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-term-border bg-term-raised p-3">
                   <div className="text-sm text-muted-foreground">净收款</div>
                   <div className="mt-1 font-mono text-xl font-semibold text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(result.summary.db_net_amount, country)}
@@ -899,7 +899,7 @@ function DetailPanel({
               <div className="mb-6 flex flex-wrap items-center gap-4">
                 <div
                   className={cn(
-                    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
+                    'flex items-center gap-2 rounded-none border px-3 py-1.5 font-mono text-xs',
                     result.match_rate === 100
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                       : result.match_rate >= 70
@@ -923,7 +923,7 @@ function DetailPanel({
               </div>
 
               {/* Detail Table */}
-              <div className="rounded-lg border overflow-x-auto">
+              <div className="rounded-none border border-term-border overflow-x-auto term-scroll">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -1542,7 +1542,7 @@ export default function AutoReconcileTab() {
 
       {/* Empty state before project selection */}
       {!projectId && (
-        <div className="rounded-lg border border-dashed p-8 text-center">
+        <div className="rounded-none border border-dashed border-term-border p-6 text-center font-mono text-xs text-term-faint">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <p className="mt-4 text-muted-foreground">请先选择项目和站点</p>
         </div>

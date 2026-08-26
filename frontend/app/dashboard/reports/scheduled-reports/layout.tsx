@@ -36,16 +36,21 @@ export default function ScheduledReportsLayout() {
     setActivatedTabs((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
   }, [])
 
+  // BLF-836 终端化：Tab 条换终端规格（h-8 / 零圆角 / 1px 边界），
+  // 保留 SlidingTabsTrigger 动效；激活态由 tab-motion 填充 term-raised 底。
+  const termTriggerClass =
+    'h-8 min-w-[7rem] rounded-none px-4 text-xs font-medium text-term-muted data-[state=active]:bg-transparent data-[state=active]:text-term-text'
+
   return (
-    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-      <div className="overflow-x-auto">
-        <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]/95 sm:w-fit">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-3">
+      <div className="flex items-center overflow-x-auto">
+        <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
           <TabsMotionGroup id="scheduled-reports-tabs">
             <SlidingTabsTrigger
               value="subscriptions"
               activeValue={activeTab}
               layoutId={TAB_LAYOUT_ID}
-              className="min-w-[7rem]"
+              className={termTriggerClass}
             >
               订阅管理
             </SlidingTabsTrigger>
@@ -53,7 +58,7 @@ export default function ScheduledReportsLayout() {
               value="ledger"
               activeValue={activeTab}
               layoutId={TAB_LAYOUT_ID}
-              className="min-w-[7rem]"
+              className={termTriggerClass}
             >
               调度记录
             </SlidingTabsTrigger>

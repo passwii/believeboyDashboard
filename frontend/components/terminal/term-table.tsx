@@ -64,14 +64,25 @@ export function TermRow({
   children,
   className,
   highlight,
+  onClick,
 }: {
   children: React.ReactNode
   className?: string
   /** 行 hover / 当日高亮 */
   highlight?: boolean
+  /** 可选行点击（如台账行打开详情）；传入时自动带 cursor-pointer */
+  onClick?: () => void
 }) {
   return (
-    <tr className={cn('transition-colors hover:bg-term-hover', highlight && 'bg-term-raised', className)}>
+    <tr
+      onClick={onClick}
+      className={cn(
+        'transition-colors hover:bg-term-hover',
+        highlight && 'bg-term-raised',
+        onClick && 'cursor-pointer',
+        className
+      )}
+    >
       {children}
     </tr>
   )
@@ -85,6 +96,7 @@ export function TermCell({
   title,
   colSpan,
   rowSpan,
+  onClick,
 }: {
   /** 纯 colSpan 占位单元格（合计行空位）时可为空 */
   children?: React.ReactNode
@@ -98,12 +110,15 @@ export function TermCell({
   colSpan?: number
   /** 跨行合并（项目名按站点合并行用） */
   rowSpan?: number
+  /** 可选单元格点击（操作列阻断行点击等场景） */
+  onClick?: (event: React.MouseEvent<HTMLTableCellElement>) => void
 }) {
   return (
     <td
       title={title}
       colSpan={colSpan}
       rowSpan={rowSpan}
+      onClick={onClick}
       className={cn(
         CELL_CN,
         numeric && 'text-right',

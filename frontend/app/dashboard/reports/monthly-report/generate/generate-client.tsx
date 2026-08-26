@@ -903,32 +903,32 @@ export default function GenerateTab() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
+              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
                 <p className="text-xs text-muted-foreground">识别</p>
                 <p className="mt-1 text-sm font-semibold">
                   {recognizedCount}/{UPLOAD_TYPES.length}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
+              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
                 <p className="text-xs text-muted-foreground">上传</p>
                 <p className="mt-1 text-sm font-semibold">
                   {uploadedCount}/{UPLOAD_TYPES.length}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
+              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
                 <p className="text-xs text-muted-foreground">表格生成</p>
                 <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>
                   {generationMeta.label}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
+              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
                 <p className="text-xs text-muted-foreground">数据同步</p>
                 <p className={cn('mt-1 text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>
               </div>
             </div>
 
             {formError ? (
-              <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <p className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
                 {formError}
               </p>
             ) : null}
@@ -943,7 +943,7 @@ export default function GenerateTab() {
             <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
               <div
                 className={cn(
-                  'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
+                  'flex flex-col rounded-none border-2 border-dashed p-4 text-center transition-colors',
                   dragActive
                     ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20'
                     : 'border-border bg-[hsl(var(--surface-subtle))]'
@@ -1004,11 +1004,11 @@ export default function GenerateTab() {
                   return (
                     <div
                       key={type}
-                      className="flex min-h-[120px] flex-col rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-3"
+                      className="flex min-h-[120px] flex-col rounded-none border border-term-border bg-term-panel p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
+                          <span className={cn('h-2.5 w-2.5 rounded-none', meta.dot)} />
                           <p className="text-sm font-semibold text-foreground">
                             {TYPE_LABEL[type]}
                           </p>
@@ -1016,7 +1016,7 @@ export default function GenerateTab() {
                         <span className="text-xs text-muted-foreground">{meta.text}</span>
                       </div>
 
-                      <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
+                      <div className="h-1 overflow-hidden rounded-none bg-term-raised">
                         <div
                           className={cn(
                             'h-full transition-all duration-200',
@@ -1061,7 +1061,7 @@ export default function GenerateTab() {
                 })}
 
                 {manualMatchRows.length > 0 ? (
-                  <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
+                  <div className="rounded-none border border-term-accent/40 bg-term-accent/10 p-3">
                     <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
                       手动匹配
                     </p>
@@ -1073,7 +1073,7 @@ export default function GenerateTab() {
                       {manualMatchRows.map((row) => (
                         <div
                           key={row.id}
-                          className="grid gap-2 rounded-md border border-blue-200/70 bg-[hsl(var(--surface-panel))] p-2 dark:border-blue-800/40 md:grid-cols-[1fr_190px]"
+                          className="grid gap-2 rounded-none border border-term-accent/40 bg-term-panel p-2 md:grid-cols-[1fr_190px]"
                         >
                           <div>
                             <p className="truncate text-sm font-medium text-foreground">
@@ -1112,7 +1112,7 @@ export default function GenerateTab() {
           <CardTitle className="text-lg">处理状态</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
+          <div className="space-y-3 rounded-none border border-term-border bg-term-raised p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 {submitState.status === 'submitting' ? (
@@ -1126,7 +1126,7 @@ export default function GenerateTab() {
                 {normalizeProgress(jobProgress?.progress ?? 0)}%
               </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
+            <div className="h-1 overflow-hidden rounded-none bg-term-raised">
               <div
                 className="h-full bg-blue-500 transition-all duration-300"
                 style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
@@ -1143,7 +1143,7 @@ export default function GenerateTab() {
                   <div key={label} className="flex items-center gap-2">
                     <span
                       className={cn(
-                        'h-2.5 w-2.5 rounded-full transition-colors',
+                        'h-2.5 w-2.5 rounded-none transition-colors',
                         done
                           ? 'bg-emerald-500'
                           : active
@@ -1177,7 +1177,7 @@ export default function GenerateTab() {
           </div>
 
           {submitState.status === 'error' ? (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
               <AlertCircle className="h-4 w-4" />
               {submitState.message}
             </div>

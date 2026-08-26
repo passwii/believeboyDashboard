@@ -17,7 +17,6 @@ import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -37,22 +36,21 @@ import { FREQUENCY_LABELS } from './ledger-constants'
 import { fetchLedgerItemByKey } from './api'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
 
+// BLF-836 终端化：状态区去渐变，改扁平 term 语义色（pos/neg/warn）
 const HERO_BG: Record<string, string> = {
-  sent: 'bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-background border-emerald-200 dark:border-emerald-800',
-  failed:
-    'bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-background border-red-200 dark:border-red-800',
-  missing:
-    'bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background border-amber-200 dark:border-amber-800',
+  sent: 'bg-term-pos/10 border-term-pos/40',
+  failed: 'bg-term-neg/10 border-term-neg/40',
+  missing: 'bg-term-warn/10 border-term-warn/40',
 }
 
 const HERO_LABEL: Record<string, { text: string; color: string }> = {
-  sent: { text: '✓ 发送成功', color: 'text-emerald-700 dark:text-emerald-300' },
-  failed: { text: '✗ 发送失败', color: 'text-red-700 dark:text-red-300' },
-  missing: { text: '⚠ 记录缺失', color: 'text-amber-700 dark:text-amber-300' },
+  sent: { text: '✓ 发送成功', color: 'text-term-pos' },
+  failed: { text: '✗ 发送失败', color: 'text-term-neg' },
+  missing: { text: '⚠ 记录缺失', color: 'text-term-warn' },
 }
 
 const SECTION_LABEL =
-  'text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2 block'
+  'font-mono text-[10px] uppercase tracking-wider text-term-muted mb-2 block'
 
 const MAX_VISIBLE_PROJECTS = 8
 
@@ -233,9 +231,8 @@ export function LedgerDetailDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            'max-w-[calc(100%-2rem)] sm:max-w-xl md:max-w-3xl p-0 gap-0',
-            'flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden',
-            'dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]'
+            'max-w-[calc(100%-2rem)] rounded-none border-term-border bg-term-panel sm:max-w-xl md:max-w-3xl p-0 gap-0',
+            'flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden'
           )}
         >
           {item ? (
@@ -259,7 +256,7 @@ export function LedgerDetailDialog({
                       variant="ghost"
                       onClick={handleManualRefresh}
                       disabled={manualRefreshing || item.ai_summary_status === 'generating'}
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      className="h-7 w-7 rounded-none text-term-muted hover:text-term-text"
                       aria-label="刷新 AI 摘要"
                       title="刷新 AI 摘要"
                     >
@@ -269,11 +266,11 @@ export function LedgerDetailDialog({
                     </Button>
                   )}
                 </div>
-                <DialogTitle className="text-xl font-semibold tracking-tight">
+                <DialogTitle className="font-mono text-lg font-semibold tabular-nums tracking-tight text-term-text">
                   {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span>📨 {item.email}</span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-term-muted">
+                  <span>{item.email}</span>
                   <span>{FREQUENCY_LABELS[item.frequency]}</span>
                   {countryList.length > 0 && (
                     <span>{countryList.map(getCountryLabel).join(' · ')}</span>
@@ -283,12 +280,12 @@ export function LedgerDetailDialog({
 
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {item.status === 'failed' && item.error_message && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:bg-red-950/30 dark:border-red-800">
-                    <div className="flex items-center gap-2 text-xs font-medium text-red-700 dark:text-red-300 mb-1.5">
-                      <AlertTriangle className="h-3.5 w-3.5" />
+                  <div className="border border-term-neg/40 bg-term-neg/10 p-2">
+                    <div className="mb-1 flex items-center gap-2 font-mono text-xs font-medium text-term-neg">
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                       错误信息
                     </div>
-                    <div className="font-mono text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
+                    <div className="whitespace-pre-wrap font-mono text-xs text-term-neg">
                       {item.error_message}
                     </div>
                   </div>
@@ -296,21 +293,17 @@ export function LedgerDetailDialog({
 
                 <div>
                   <span className={SECTION_LABEL}>报告范围</span>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-xs text-term-muted">
                     {visibleProjects.map((name, idx) => (
-                      <Badge
-                        key={`${name}-${idx}`}
-                        variant="secondary"
-                        className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 text-[11px] dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800"
-                      >
+                      <span key={`${name}-${idx}`} className="border border-term-border bg-term-raised px-1.5 py-px">
                         {name}
-                      </Badge>
+                      </span>
                     ))}
                     {hiddenCount > 0 && (
                       <button
                         type="button"
                         onClick={() => setShowAllProjects(true)}
-                        className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        className="tabular-nums text-term-accent underline-offset-2 hover:underline"
                       >
                         +{hiddenCount} 更多
                       </button>
@@ -319,19 +312,15 @@ export function LedgerDetailDialog({
                       <button
                         type="button"
                         onClick={() => setShowAllProjects(false)}
-                        className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        className="text-term-accent underline-offset-2 hover:underline"
                       >
                         收起
                       </button>
                     )}
                   </div>
                   {countryList.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {countryList.map((c) => (
-                        <Badge key={c} variant="outline" className="text-[11px]">
-                          {getCountryLabel(c)}
-                        </Badge>
-                      ))}
+                    <div className="mt-2 font-mono text-xs tabular-nums text-term-muted">
+                      {countryList.map(getCountryLabel).join(' · ')}
                     </div>
                   )}
                 </div>
@@ -343,7 +332,7 @@ export function LedgerDetailDialog({
                       <button
                         type="button"
                         onClick={() => setPreviewScreenshot(item.screenshot_r2_url)}
-                        className="group relative w-full aspect-[3/4] max-h-[60vh] overflow-hidden rounded-lg border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow bg-muted/30"
+                        className="group relative aspect-[3/4] max-h-[60vh] w-full overflow-hidden rounded-none border border-term-border transition-colors hover:border-term-border-strong bg-term-raised"
                       >
                         <Image
                           src={item.screenshot_r2_thumb_url || item.screenshot_r2_url}
@@ -357,8 +346,8 @@ export function LedgerDetailDialog({
                         </div>
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">
-                        <ImageIcon className="h-4 w-4" />
+                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                        <ImageIcon className="h-4 w-4" aria-hidden />
                         暂无截图
                       </div>
                     )}
@@ -374,7 +363,7 @@ export function LedgerDetailDialog({
                               <button
                                 type="button"
                                 disabled={regeneratingAiSummary || isLoadingModelConfig}
-                                className="flex items-center gap-1 text-[11px] text-violet-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-violet-400"
+                                className="flex items-center gap-1 font-mono text-[11px] text-term-accent hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                 aria-label={summaryActionLabel}
                               >
                                 {regeneratingAiSummary ? (
@@ -496,7 +485,7 @@ export function LedgerDetailDialog({
                       </div>
                     </div>
                     {item.ai_summary ? (
-                      <div className="rounded-lg border border-border/60 bg-muted/20 p-3 max-h-[60vh] overflow-y-auto">
+                      <div className="max-h-[60vh] overflow-y-auto rounded-none border border-term-border bg-term-raised p-3 term-scroll">
                         <div className="text-xs leading-relaxed prose prose-xs prose-neutral dark:prose-invert max-w-none [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold">
                           <ReactMarkdown remarkPlugins={[remarkBreaks]}>
                             {item.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
@@ -504,7 +493,7 @@ export function LedgerDetailDialog({
                         </div>
                       </div>
                     ) : item.ai_summary_status === 'generating' || regeneratingAiSummary ? (
-                      <div className="flex flex-col items-center gap-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-12 border border-violet-100 justify-center min-h-[200px] dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">
+                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-12 font-mono text-xs text-term-accent">
                         <div className="flex items-center gap-2">
                           {pollingState === 'timed_out' || pollingState === 'network_error' ? (
                             <AlertTriangle className="h-4 w-4" />
@@ -530,9 +519,9 @@ export function LedgerDetailDialog({
                                 onRegenerateAiSummary(item, fallbackModel || null)
                               }}
                               disabled={regeneratingAiSummary}
-                              className="text-violet-700 dark:text-violet-300"
+                              className="font-mono text-xs text-term-accent hover:bg-term-hover"
                             >
-                              <RotateCcw className="mr-1 h-3 w-3" />
+                              <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                               打断并重新生成
                             </Button>
                           )}
@@ -540,8 +529,8 @@ export function LedgerDetailDialog({
                     ) : item.ai_summary_status === 'pending' ? (
                       // BLF-822：pending = 报告已发送但摘要尚未生成（后端不再
                       // 自动生成），主行动是手动触发一次生成。
-                      <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground bg-violet-50 rounded-lg px-3 py-12 border border-dashed border-violet-200 justify-center min-h-[200px] dark:bg-violet-950/30 dark:border-violet-900">
-                        <Sparkles className="h-4 w-4 text-violet-500 dark:text-violet-300" />
+                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                        <Sparkles className="h-4 w-4 text-term-accent" aria-hidden />
                         <span>AI 摘要尚未生成</span>
                         {canRegenerateSummary && (
                           <Button
@@ -550,19 +539,19 @@ export function LedgerDetailDialog({
                             data-testid="generate-summary-cta"
                             disabled={isLoadingModelConfig}
                             onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                            className="mt-1 border-violet-300 text-violet-700 hover:bg-violet-100 hover:text-violet-800 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-900/40"
+                            className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
                           >
-                            <Sparkles className="mr-1 h-3 w-3" />
+                            <Sparkles className="mr-1 h-3 w-3" aria-hidden />
                             生成 AI 摘要
                           </Button>
                         )}
                       </div>
                     ) : item.ai_summary_status === 'failed' ? (
-                      <div className="flex flex-col items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-12 border border-red-100 justify-center min-h-[200px] dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
-                        <AlertTriangle className="h-4 w-4" />
+                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-12 font-mono text-xs text-term-neg">
+                        <AlertTriangle className="h-4 w-4" aria-hidden />
                         <span>AI 摘要生成失败</span>
                         {item.ai_summary_error && (
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-[11px] text-term-muted">
                             {item.ai_summary_error}
                           </span>
                         )}
@@ -573,16 +562,16 @@ export function LedgerDetailDialog({
                             data-testid="regenerate-summary-retry"
                             disabled={isLoadingModelConfig}
                             onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                            className="mt-1 border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-900/40"
+                            className="mt-1 font-mono text-xs text-term-neg hover:bg-term-hover"
                           >
-                            <RotateCcw className="mr-1 h-3 w-3" />
+                            <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                             重新生成
                           </Button>
                         )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">
-                        <FileText className="h-4 w-4" />
+                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                        <FileText className="h-4 w-4" aria-hidden />
                         暂无 AI 文案
                       </div>
                     )}
@@ -593,7 +582,7 @@ export function LedgerDetailDialog({
           ) : null}
 
           {canTrigger && item && (
-            <div className="shrink-0 border-t border-border/60 bg-background px-6 py-3 flex items-center justify-end gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-term-border bg-term-panel px-4 py-2.5">
               <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
                 取消
               </Button>

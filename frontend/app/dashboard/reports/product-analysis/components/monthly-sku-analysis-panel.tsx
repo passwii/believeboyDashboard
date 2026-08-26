@@ -6,7 +6,7 @@ import { AlertCircle, CalendarRange, CheckCircle2, Download, Loader2 } from 'luc
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
   DateRangePicker,
   formatDateInputValue,
@@ -555,16 +555,12 @@ export default function MonthlySkuAnalysisPanel() {
   }, [selectedProject, projectName, country, startDate, endDate, notify, cards])
 
   return (
-    <div className="space-y-4">
-      {/* ═══ Card 1: Parameters ═══ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">核算参数</CardTitle>
-          <CardDescription className="text-xs">
-            所有数据不写入数据库，临时核算完成后直接下载 Excel。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="space-y-3">
+      {/* ═══ Panel 1: Parameters ═══ */}
+      <TermPanel
+        title="核算参数"
+        bodyClassName="p-3 space-y-3 [&_label]:font-mono [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-term-muted"
+      >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             {/* Project */}
             <div className="space-y-1.5">
@@ -675,19 +671,19 @@ export default function MonthlySkuAnalysisPanel() {
               return (
                 <div
                   key={config.type}
-                  className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2"
+                  className="rounded-none border border-term-border bg-term-raised px-2 py-1.5"
                 >
-                  <p className="text-xs text-muted-foreground">{config.title}</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-term-faint">{config.title}</p>
                   <p
                     className={cn(
-                      'mt-1 text-sm font-semibold',
+                      'mt-1 font-mono text-sm font-semibold tabular-nums',
                       status === 'success'
-                        ? 'text-emerald-600'
+                        ? 'text-term-pos'
                         : status === 'saving'
-                          ? 'text-blue-600'
+                          ? 'text-term-accent'
                           : status === 'error'
-                            ? 'text-rose-600'
-                            : 'text-muted-foreground'
+                            ? 'text-term-neg'
+                            : 'text-term-muted'
                     )}
                   >
                     {status === 'success'
@@ -704,23 +700,15 @@ export default function MonthlySkuAnalysisPanel() {
           </div>
 
           {formError && (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               {formError}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </TermPanel>
 
-      {/* ═══ Card 2: File Upload & Recognition ═══ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">文件上传与识别</CardTitle>
-          <CardDescription className="text-xs">
-            上传业务报告、广告报告和付款报告，识别后即可触发「核算并导出」。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      {/* ═══ Panel 2: File Upload & Recognition ═══ */}
+      <TermPanel title="文件上传与识别" bodyClassName="p-3 space-y-4">
           <SimpleDropzone
             dragActive={dragActive}
             recognizing={recognizing}
@@ -812,13 +800,12 @@ export default function MonthlySkuAnalysisPanel() {
           </div>
 
           {runError && (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {runError}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </TermPanel>
     </div>
   )
 }

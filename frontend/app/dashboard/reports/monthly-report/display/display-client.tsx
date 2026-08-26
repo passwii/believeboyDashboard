@@ -1844,14 +1844,14 @@ export default function DisplayTab() {
           {/* 手机端：2列网格无标签 */}
           <div className="grid grid-cols-2 gap-2 lg:hidden">
             {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-lg" />
+              <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
             ) : (
               <Select
                 value={projectId}
                 onValueChange={setProjectId}
                 disabled={projects.length === 0}
               >
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-bg">
                   <SelectValue placeholder="选择店铺" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1866,7 +1866,7 @@ export default function DisplayTab() {
             <CountrySelect
               value={country}
               onChange={(value) => setCountry(value as ReportUploadCountry)}
-              triggerClassName="h-9 w-full rounded-lg"
+              triggerClassName="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs"
             />
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
@@ -1883,7 +1883,7 @@ export default function DisplayTab() {
               loading={loading}
               label="刷新"
               variant="outline"
-              className="col-span-2 h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              className="col-span-2 h-9 w-full rounded-none border-term-border bg-term-bg"
             />
           </div>
 
@@ -1900,7 +1900,7 @@ export default function DisplayTab() {
                   onValueChange={setProjectId}
                   disabled={projects.length === 0}
                 >
-                  <SelectTrigger className="h-9 w-[200px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectTrigger className="h-9 w-[200px] border-term-border bg-term-bg">
                     <SelectValue placeholder="请选择店铺" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1939,24 +1939,24 @@ export default function DisplayTab() {
               loading={loading}
               label="刷新数据"
               variant="outline"
-              className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              className="h-9 border-term-border bg-term-bg"
             />
           </div>
         </DataCardContent>
       </DataCard>
 
       {projectLoadError ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
           {projectLoadError}
         </div>
       ) : null}
       {error ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
           {error}
         </div>
       ) : null}
       {accountingError ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
           {accountingError}
         </div>
       ) : null}
@@ -2003,10 +2003,10 @@ export default function DisplayTab() {
                     income_sales: !prev.income_sales,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-none border px-2 py-1 font-mono text-[11px] font-medium transition-colors ${
                   visibleLines.income_sales
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                    ? 'border-term-pos/40 bg-term-pos/10 text-term-pos'
+                    : 'border-term-border bg-term-panel text-term-faint line-through'
                 }`}
               >
                 {visibleLines.income_sales ? (
@@ -2015,7 +2015,7 @@ export default function DisplayTab() {
                   <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className="h-2 w-2 rounded-full"
+                  className="h-2 w-2 rounded-none"
                   style={{ backgroundColor: 'hsl(var(--chart-2))' }}
                 />
                 销售额
@@ -2028,10 +2028,10 @@ export default function DisplayTab() {
                     income_refund: !prev.income_refund,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-none border px-2 py-1 font-mono text-[11px] font-medium transition-colors ${
                   visibleLines.income_refund
-                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                    ? 'border-term-neg/40 bg-term-neg/10 text-term-neg'
+                    : 'border-term-border bg-term-panel text-term-faint line-through'
                 }`}
               >
                 {visibleLines.income_refund ? (
@@ -2040,7 +2040,7 @@ export default function DisplayTab() {
                   <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className="h-2 w-2 rounded-full"
+                  className="h-2 w-2 rounded-none"
                   style={{ backgroundColor: 'hsl(var(--destructive))' }}
                 />
                 退款
@@ -2050,7 +2050,7 @@ export default function DisplayTab() {
         />
         <DataCardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
           {loading && data ? (
-            <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
               趋势图更新中...
             </div>
           ) : null}
@@ -2153,7 +2153,7 @@ export default function DisplayTab() {
               </AreaChart>
             </ChartContainer>
           ) : (
-            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
               暂无趋势数据
             </div>
           )}
@@ -2188,7 +2188,7 @@ export default function DisplayTab() {
                   }}
                   disabled={accountingMonthOptions.length === 0}
                 >
-                  <SelectTrigger className="h-8 w-[190px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                  <SelectTrigger className="h-8 w-[190px] border-term-border bg-term-bg">
                     <SelectValue placeholder="请选择月份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2257,17 +2257,17 @@ export default function DisplayTab() {
                 </Button>
               </>
             )}
-            <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+            <div className="inline-flex gap-0 rounded-none border border-term-border bg-term-panel p-0">
               <button
                 type="button"
-                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'financial' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                className={`h-8 rounded-none px-3 font-mono text-xs transition-colors ${activeTab === 'financial' ? 'bg-term-raised text-term-text' : 'text-term-muted hover:text-term-text'}`}
                 onClick={() => setActiveTab('financial')}
               >
                 月度汇总
               </button>
               <button
                 type="button"
-                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'accounting' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                className={`h-8 rounded-none px-3 font-mono text-xs transition-colors ${activeTab === 'accounting' ? 'bg-term-raised text-term-text' : 'text-term-muted hover:text-term-text'}`}
                 onClick={() => setActiveTab('accounting')}
               >
                 月度明细
@@ -2279,7 +2279,7 @@ export default function DisplayTab() {
           {activeTab === 'financial' ? (
             <>
               {loading && data ? (
-                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
                   财务明细更新中...
                 </div>
               ) : null}
@@ -2716,7 +2716,7 @@ export default function DisplayTab() {
                   </TableFooter>
                 </Table>
               ) : (
-                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
                   当前筛选条件暂无财务数据
                 </div>
               )}
@@ -2724,7 +2724,7 @@ export default function DisplayTab() {
           ) : (
             <>
               {accountingLoading && accountingRows.length > 0 ? (
-                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
                   月度明细更新中...
                 </div>
               ) : null}
@@ -2865,7 +2865,7 @@ export default function DisplayTab() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
                   {accountingMonth ? '当前月份暂无月度明细' : '请选择有源报表月份查看月度明细'}
                 </div>
               )}

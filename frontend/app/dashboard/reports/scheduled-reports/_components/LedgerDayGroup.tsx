@@ -5,25 +5,23 @@ import { format } from 'date-fns'
 import { ChevronDown, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  ColGroup,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTable,
+  TermTHead,
+} from '@/components/terminal/term-table'
 import { LedgerResendCell } from './LedgerResendCell'
-import {
-  FREQUENCY_COLORS,
-  FREQUENCY_LABELS,
-  STATUS_BG,
-  STATUS_LABELS,
-  WEEKDAY_LABELS_SUN_FIRST,
-} from './ledger-constants'
+import { STATUS_LABELS, WEEKDAY_LABELS_SUN_FIRST } from './ledger-constants'
+import { TermFrequencyTag, TermStatusPill } from './term-shared'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  daily: '每日',
+  weekly: '每周',
+  monthly: '每月',
+}
 
 interface LedgerDayGroupProps {
   date: string
@@ -80,89 +78,64 @@ export function LedgerDayGroup({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={expanded}
         className={cn(
-          'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-          'hover:bg-muted/60',
-          isAnchor ? 'bg-muted/40' : 'bg-muted/20',
-          'border-b border-border/60'
+          'flex w-full items-center gap-2 px-2 py-1.5 text-left font-mono text-xs transition-colors',
+          'hover:bg-term-hover',
+          isAnchor ? 'bg-term-raised' : 'bg-term-panel',
+          'border-b border-term-border'
         )}
       >
         <ChevronDown
           className={cn(
-            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            'h-3.5 w-3.5 shrink-0 text-term-muted transition-transform',
             !expanded && '-rotate-90'
           )}
         />
-        <span className="text-sm font-medium">{date}</span>
-        <span className="text-xs text-muted-foreground">· {weekday}</span>
+        <span className="tabular-nums font-medium text-term-text">{date}</span>
+        <span className="text-term-faint">· {weekday}</span>
         {isToday && (
-          <Badge
-            variant="secondary"
-            className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-[10px] px-1.5 py-0"
-          >
+          <span className="rounded-none border border-term-accent/50 px-1.5 py-px text-[10px] uppercase tracking-wider text-term-accent">
             今天
-          </Badge>
+          </span>
         )}
-        <span className="text-xs text-muted-foreground">{items.length} 条</span>
-        <span className="ml-auto flex items-center gap-1.5 text-[11px]">
+        <span className="tabular-nums text-term-faint">{items.length} 条</span>
+        <span className="ml-auto flex items-center gap-1.5">
           {counts.sent > 0 && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-                STATUS_BG.sent
-              )}
-            >
-              ✓ {counts.sent}
-            </span>
+            <TermStatusPill status="sent" label={counts.sent} className="py-0" />
           )}
           {counts.failed > 0 && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-                STATUS_BG.failed
-              )}
-            >
-              ✗ {counts.failed}
-            </span>
+            <TermStatusPill status="failed" label={counts.failed} className="py-0" />
           )}
           {counts.missing > 0 && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5',
-                STATUS_BG.missing
-              )}
-            >
-              ⚠ {counts.missing}
-            </span>
+            <TermStatusPill status="missing" label={counts.missing} className="py-0" />
           )}
         </span>
       </button>
 
       {expanded && (
-        <Table tableLayout="fixed">
-          <ColGroup
-            columns={[
-              { width: 96 },
-              { width: 176 },
-              { width: 80 },
-              { width: 176 },
-              { width: 80 },
-              { width: 112 },
-              { width: 176 },
-            ]}
-          />
-          <TableHeader>
-            <TableRow>
-              <TableHead>应发时间</TableHead>
-              <TableHead>项目</TableHead>
-              <TableHead>国家</TableHead>
-              <TableHead>邮箱</TableHead>
-              <TableHead>频率</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <TermTable className="table-fixed" aria-label="台账明细">
+          <colgroup>
+            <col style={{ width: 88 }} />
+            <col style={{ width: 168 }} />
+            <col style={{ width: 72 }} />
+            <col style={{ width: 168 }} />
+            <col style={{ width: 76 }} />
+            <col style={{ width: 104 }} />
+            <col />
+          </colgroup>
+          <TermTHead>
+            <TermRow>
+              <TermHead numeric>应发时间</TermHead>
+              <TermHead>项目</TermHead>
+              <TermHead>国家</TermHead>
+              <TermHead>邮箱</TermHead>
+              <TermHead>频率</TermHead>
+              <TermHead>状态</TermHead>
+              <TermHead numeric>操作</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
             {items.map((item) => {
               const projectNames =
                 item.project_names?.length > 0
@@ -199,71 +172,51 @@ export function LedgerDayGroup({
                 (item.ai_summary_status === 'pending' || item.ai_summary_status === 'failed')
 
               return (
-                <TableRow
+                <TermRow
                   key={item.ledger_key}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  className="cursor-pointer"
                   onClick={() => onRowClick(item)}
                 >
-                  <TableCell className="whitespace-nowrap tabular-nums">
+                  <TermCell numeric title={format(new Date(item.expected_at), 'HH:mm:ss')}>
                     {format(new Date(item.expected_at), 'HH:mm')}
-                  </TableCell>
-                  <TableCell className="truncate" title={projectsFullLabel}>
+                  </TermCell>
+                  <TermCell title={projectsFullLabel} className="truncate">
                     {projectsDisplayLabel}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                  </TermCell>
+                  <TermCell tone="muted" className="whitespace-nowrap">
                     {countryLabel}
-                  </TableCell>
-                  <TableCell
-                    className="truncate text-xs text-muted-foreground"
-                    title={item.email || ''}
-                  >
-                    {item.email || <span className="italic text-muted-foreground/70">未填写</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={cn(
-                        'whitespace-nowrap text-[10px]',
-                        FREQUENCY_COLORS[item.frequency]
-                      )}
-                    >
-                      {FREQUENCY_LABELS[item.frequency]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span
+                  </TermCell>
+                  <TermCell tone="muted" title={item.email || ''} className="truncate">
+                    {item.email || <span className="italic text-term-faint">未填写</span>}
+                  </TermCell>
+                  <TermCell>
+                    <TermFrequencyTag frequency={item.frequency} labels={FREQUENCY_LABELS} />
+                  </TermCell>
+                  <TermCell>
+                    <TermStatusPill
+                      status={item.status}
+                      label={STATUS_LABELS[item.status]}
                       title={item.status === 'failed' ? item.error_message || '发送失败' : undefined}
-                      className={cn(
-                        'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]',
-                        STATUS_BG[item.status]
-                      )}
-                    >
-                      {item.status === 'sent' && '✓'}
-                      {item.status === 'failed' && '✗'}
-                      {item.status === 'missing' && '⚠'}
-                      {STATUS_LABELS[item.status]}
-                    </span>
-                  </TableCell>
-                  <TableCell
-                    className="whitespace-nowrap text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                      className={cn('cursor-help', !STATUS_LABELS[item.status] && 'px-1')}
+                    />
+                  </TermCell>
+                  <TermCell numeric onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1.5">
                       {regeneratingSummary ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400">
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-term-accent">
+                          <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                           生成中
                         </span>
                       ) : showSummaryAction ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                        <button
+                          type="button"
                           data-testid="row-generate-summary"
-                          className="h-7 px-2 text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                          className="inline-flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-term-accent transition-colors hover:bg-term-hover disabled:cursor-not-allowed disabled:opacity-60"
                           onClick={() => onRegenerateSummary(item)}
                         >
-                          <Sparkles className="mr-0.5 h-3 w-3" />
+                          <Sparkles className="h-3 w-3" aria-hidden />
                           {item.ai_summary_status === 'failed' ? '重新生成' : '生成摘要'}
-                        </Button>
+                        </button>
                       ) : null}
                       {canTrigger ? (
                         <LedgerResendCell
@@ -278,15 +231,15 @@ export function LedgerDayGroup({
                           onSubmit={(overrideAiModel) => onResend(item, overrideAiModel)}
                         />
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="font-mono text-xs text-term-faint">—</span>
                       )}
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </TermCell>
+                </TermRow>
               )
             })}
-          </TableBody>
-        </Table>
+          </TermBody>
+        </TermTable>
       )}
     </div>
   )
