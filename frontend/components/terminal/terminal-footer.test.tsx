@@ -97,4 +97,27 @@ describe('TerminalFooter', () => {
     // 快报占位不崩溃
     expect(screen.getAllByText('--').length).toBeGreaterThan(0)
   })
+
+  it('BLF-832 A5：数值 span 含 font-mono，中文标签不含（去整条 mono）', () => {
+    mockTicker('ok', [
+      { currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: 1.2 },
+    ])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    render(<TerminalFooter />)
+
+    const footer = screen.getByTestId('terminal-footer')
+    // 整条 footer 不再 mono
+    expect(footer.className).not.toContain('font-mono')
+    // 数值 span：mono + tabular-nums
+    for (const value of ['7.1600', '$12,345']) {
+      const el = screen.getAllByText(value)[0]
+      expect(el.className).toContain('font-mono')
+      expect(el.className).toContain('tabular-nums')
+    }
+    // 中文标签：不含 mono
+    for (const label of ['GMV', '订单']) {
+      const el = screen.getAllByText(label)[0]
+      expect(el.className).not.toContain('font-mono')
+    }
+  })
 })

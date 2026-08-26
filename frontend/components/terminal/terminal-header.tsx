@@ -6,6 +6,7 @@ import { Bell, Loader2, LogOut, Menu, PanelLeft, PanelRight, RefreshCcw, Search,
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
+import { TermKbd } from '@/components/terminal/term-kbd'
 import {
   TERMINAL_HEADER_HEIGHT,
 } from '@/components/terminal/terminal-constants'
@@ -104,7 +105,7 @@ export function TerminalHeader({
           aria-label="打开导航菜单"
           className="flex h-8 w-8 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:hidden"
         >
-          <Menu className="h-[18px] w-[18px]" />
+          <Menu className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
         <button
           type="button"
@@ -113,13 +114,13 @@ export function TerminalHeader({
           aria-label={subnavCollapsed ? '展开侧栏' : '侧栏'}
           className="hidden h-8 w-8 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:flex"
         >
-          <PanelLeft className={cn('h-[18px] w-[18px]', !subnavCollapsed && 'text-term-text')} />
+          <PanelLeft className={cn('h-[18px] w-[18px]', !subnavCollapsed && 'text-term-text')} strokeWidth={1.75} />
         </button>
         <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1.5 text-sm">
           {activeGroup && (
             <>
               <span
-                className="shrink-0 uppercase tracking-wide text-term-faint transition-colors hover:text-term-muted"
+                className="shrink-0 uppercase tracking-wider text-term-faint transition-colors hover:text-term-muted"
                 title={activeGroup.label}
               >
                 {activeGroup.label}
@@ -185,9 +186,9 @@ export function TerminalHeader({
             data-testid="terminal-header-refresh"
             className="relative flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text disabled:pointer-events-none disabled:opacity-50"
           >
-            <RefreshCcw className="h-[18px] w-[18px]" />
+            <RefreshCcw className="h-[18px] w-[18px]" strokeWidth={1.75} />
             {refreshLoading && (
-              <Loader2 className="absolute h-[18px] w-[18px] animate-spin" aria-hidden />
+              <Loader2 className="absolute h-[18px] w-[18px] animate-spin" strokeWidth={1.75} aria-hidden />
             )}
           </button>
         )}
@@ -198,7 +199,7 @@ export function TerminalHeader({
           aria-label="全局搜索"
           className="flex h-8 items-center gap-1 px-1.5 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          <Search className="h-[18px] w-[18px]" />
+          <Search className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
 
         <Popover>
@@ -210,7 +211,7 @@ export function TerminalHeader({
               aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
               className="relative flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
             >
-              <Bell className="h-[18px] w-[18px]" />
+              <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
               {unreadCount > 0 && (
                 <span
                   data-testid="terminal-header-unread"
@@ -240,7 +241,7 @@ export function TerminalHeader({
           aria-pressed={inspectorOpen}
           className="hidden h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text lg:flex"
         >
-          <PanelRight className={cn('h-[18px] w-[18px]', inspectorOpen && 'text-term-text')} />
+          <PanelRight className={cn('h-[18px] w-[18px]', inspectorOpen && 'text-term-text')} strokeWidth={1.75} />
         </button>
 
         <span className="mx-1 hidden h-5 w-px bg-term-border sm:block" />
@@ -252,7 +253,7 @@ export function TerminalHeader({
               data-testid="terminal-header-user"
               className="flex h-8 items-center gap-1.5 px-1.5 text-sm text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
             >
-              <UserRound className="h-[18px] w-[18px]" />
+              <UserRound className="h-[18px] w-[18px]" strokeWidth={1.75} />
               <span className="hidden max-w-24 truncate sm:inline">{displayName}</span>
             </button>
           </DropdownMenuTrigger>
@@ -265,9 +266,7 @@ export function TerminalHeader({
               onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
             >
               全局搜索
-              <kbd className="ml-auto border border-term-border px-1 font-mono text-xs text-term-faint">
-                ⌘K
-              </kbd>
+              <TermKbd className="ml-auto">⌘K</TermKbd>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-term-border" />
             <DropdownMenuItem asChild className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
@@ -281,7 +280,7 @@ export function TerminalHeader({
               className="rounded-none text-sm focus:bg-term-hover focus:text-term-text"
               onClick={() => window.dispatchEvent(new CustomEvent('believeboy:logout'))}
             >
-              <LogOut className="mr-1 h-3.5 w-3.5" /> 退出登录
+              <LogOut className="mr-1 h-4 w-4" strokeWidth={1.75} /> 退出登录
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

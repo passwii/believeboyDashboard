@@ -105,13 +105,13 @@ export function TerminalFooter() {
               <span className="text-term-faint">{tick.currency}/CNY</span>
               <span
                 className={cn(
-                  'ml-1 tabular-nums',
+                  'ml-1 font-mono tabular-nums',
                   tick.rate == null ? 'text-term-faint' : 'text-term-text'
                 )}
               >
                 {tick.rate == null ? '--' : tick.rate.toFixed(4)}
               </span>
-              <span className={cn('ml-1 tabular-nums', changeColorClass(tick.changePct))}>
+              <span className={cn('ml-1 font-mono tabular-nums', changeColorClass(tick.changePct))}>
                 {tick.changePct == null ? '' : `${tick.changePct > 0 ? '▲' : tick.changePct < 0 ? '▼' : '—'}${Math.abs(tick.changePct).toFixed(2)}%`}
               </span>
             </span>
@@ -126,15 +126,15 @@ export function TerminalFooter() {
         <span key={`brief-${key++}`} className="flex shrink-0 items-center">
           <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">快报</span>
           <span className="text-term-faint">GMV</span>
-          <span className={cn('ml-1 mr-3 tabular-nums', !briefReady && 'text-term-faint')}>
+          <span className={cn('ml-1 mr-3 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.gmv != null ? formatMoney(brief.gmv) : '--'}
           </span>
           <span className="text-term-faint">订单</span>
-          <span className={cn('ml-1 mr-3 tabular-nums', !briefReady && 'text-term-faint')}>
+          <span className={cn('ml-1 mr-3 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.orders != null ? brief.orders : '--'}
           </span>
           <span className="text-term-faint">Pending</span>
-          <span className={cn('ml-1 tabular-nums', !briefReady && 'text-term-faint')}>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.pending != null ? brief.pending : '--'}
           </span>
         </span>
@@ -145,7 +145,7 @@ export function TerminalFooter() {
       items.push(
         <span key={`sync-${key++}`} className="flex shrink-0 items-center">
           <span className="text-term-faint">数据更新</span>
-          <span className="ml-1 tabular-nums">{lastSyncLabel ?? '--'}</span>
+          <span className="ml-1 font-mono tabular-nums">{lastSyncLabel ?? '--'}</span>
         </span>
       )
     }
@@ -217,7 +217,7 @@ export function TerminalFooter() {
     <footer
       style={{ height: TERMINAL_FOOTER_HEIGHT }}
       data-testid="terminal-footer"
-      className="hidden shrink-0 items-stretch overflow-hidden border-t border-term-border bg-term-panel font-mono text-sm leading-none text-term-muted sm:flex"
+      className="hidden shrink-0 items-stretch overflow-hidden border-t border-term-border bg-term-panel text-sm leading-none text-term-muted sm:flex"
     >
       {/* 多频道滚动 Ticker */}
       <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
@@ -263,12 +263,12 @@ export function TerminalFooter() {
       {unreadCount > 0 && (
         <div className="flex shrink-0 items-center gap-1 border-l border-term-border px-3 text-term-text">
           <Bell className="h-3.5 w-3.5" />
-          <span className="tabular-nums">{unreadCount}</span>
+          <span className="font-mono tabular-nums">{unreadCount}</span>
         </div>
       )}
 
       {/* 双时区时钟 */}
-      <div className="hidden shrink-0 items-center gap-2 border-l border-term-border px-3 tabular-nums lg:flex">
+      <div className="hidden shrink-0 items-center gap-2 border-l border-term-border px-3 font-mono tabular-nums lg:flex">
         <span>BJ {now ? formatClock(now, 'Asia/Shanghai') : '--:--'}</span>
         <span className="text-term-faint">·</span>
         <span>PT {now ? formatClock(now, 'America/Los_Angeles') : '--:--'}</span>

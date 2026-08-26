@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TERMINAL_RAIL_WIDTH } from '@/components/terminal/terminal-constants'
+import { TERMINAL_RAIL_WIDTH, TERMINAL_TOP_STRIP_HEIGHT } from '@/components/terminal/terminal-constants'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { cn } from '@/lib/utils'
 
@@ -44,9 +44,9 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
       style={{ width: TERMINAL_RAIL_WIDTH }}
       className="hidden h-full shrink-0 flex-col border-r border-term-border bg-term-panel md:flex"
     >
-      {/* Logo 位 */}
+      {/* Logo 位：高度引用顶部基准带常量（BLF-832），与 Header / SubNav / Inspector 顶部分割线贯通 */}
       <div
-        style={{ height: TERMINAL_RAIL_WIDTH }}
+        style={{ height: TERMINAL_TOP_STRIP_HEIGHT }}
         className="flex shrink-0 items-center justify-center border-b border-term-border"
       >
         <button

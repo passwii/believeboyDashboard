@@ -1217,6 +1217,14 @@
     will-change: auto;
   }
 
+  /* prefers-reduced-motion（BLF-832）：关闭持续滚动，静态截断展示（信息仍可读） */
+  @media (prefers-reduced-motion: reduce) {
+    .term-marquee-track {
+      animation: none;
+      will-change: auto;
+    }
+  }
+
   /* 终端画布滚动条：细、贴边、低对比 */
   .term-scroll {
     scrollbar-width: thin;
