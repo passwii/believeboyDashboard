@@ -80,6 +80,7 @@ def create_api_key(
         business_scope=body.business_scope,
         expires_at=body.expires_at,
         agent_id=body.agent_id,
+        item_key=body.item_key,
     )
     append_operation_audit_log(
         db,
@@ -100,6 +101,7 @@ def create_api_key(
         project_scope=record.project_scope,
         business_scope=record.business_scope,
         agent_id=record.agent_id,
+        item_key=record.item_key,
         expires_at=record.expires_at,
         created_at=record.created_at,
         plaintext_key=plaintext,
@@ -148,6 +150,7 @@ def update_api_key(
         label=body.label,
         project_scope=body.project_scope,
         business_scope=body.business_scope,
+        item_key=body.item_key,
     )
     if record is None:
         raise HTTPException(status_code=404, detail="API key not found")

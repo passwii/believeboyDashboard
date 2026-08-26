@@ -137,6 +137,7 @@ def create_api_key(
     business_scope: str = "*",
     expires_at: datetime | None = None,
     agent_id: str | None = None,
+    item_key: str | None = None,
 ) -> tuple[AgentApiKey, str]:
     """Create a key and return ``(record, plaintext)``.
 
@@ -147,6 +148,7 @@ def create_api_key(
     ``business_scope`` 为业务域范围白名单（"," 分隔域 code；"*" = 全部）；
     ``label`` 即「名称」，也是 Agent 的中文显示名（BLF-471：运营对接时在
     「名称」字段写好对应名称，日志与前端按 label 展示）。
+    ``item_key`` 为外部 agent 平台身份引用（BLF-843，可空、仅标注不鉴权）。
     校验逻辑见 ``app/api/agent/scope.py``。Caller commits.
     """
     plaintext, key_hash, key_prefix = generate_key()
@@ -160,6 +162,7 @@ def create_api_key(
         expires_at=expires_at,
         created_by=created_by[:128],
         agent_id=agent_id[:128] if agent_id else None,
+        item_key=item_key[:128] if item_key else None,
     )
     db.add(record)
     db.flush()  # populate record.id before the caller commits
@@ -200,13 +203,15 @@ def update_api_key(
     label: str | None = None,
     project_scope: str | None = None,
     business_scope: str | None = None,
+    item_key: str | None = None,
 ) -> AgentApiKey | None:
-    """编辑 Key 的权限与业务范围（BLF-480）。
+    """编辑 Key 的权限与业务范围（BLF-480；item_key 见 BLF-843）。
 
     * 已删除 Key（``deleted_at`` 非空）不可编辑 → 返回 None（调用方 404），
       与 deactivate / activate 的安全红线一致——删除是终态，不复活；
     * PATCH 语义：只更新显式传入的字段（None = 不改）；
     * ``project_scope`` / ``business_scope`` 空串归一为 ``*``（与 create 对齐）；
+      ``item_key`` 空串归一为 NULL（清除标注）；
     * ``label`` 传空串由 schema min_length 拦截，此处仅截断超长。
 
     Caller commits。返回的 record 已写入新值，鉴权路径每请求实时读列，
@@ -223,6 +228,8 @@ def update_api_key(
         record.project_scope = (project_scope or "*")[:255]
     if business_scope is not None:
         record.business_scope = (business_scope or "*")[:255]
+    if item_key is not None:
+        record.item_key = item_key[:128] if item_key else None
     return record
 
 

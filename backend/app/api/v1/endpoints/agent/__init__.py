@@ -9,31 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
-from app.api.v1.endpoints.agent.health import router as health_router
-from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.account_health import account_health_router
-from app.api.v1.endpoints.agent.new_product_calculations import (
-    new_product_calculations_router,
-)
-from app.api.v1.endpoints.agent.ad_campaigns import ad_campaigns_router
-from app.api.v1.endpoints.agent.sales import sales_router
-from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
-from app.api.v1.endpoints.agent.replenishment_analysis import (
-    replenishment_analysis_router,
-)
-from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
-from app.api.v1.endpoints.agent.shipments import shipments_router
-from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
-from app.api.v1.endpoints.agent.sku_info import sku_info_router
-from app.api.v1.endpoints.agent.projects import projects_router
-from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
-from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
-from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
-    pricing_snapshots_router,
-)
 
 # BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
 from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
+from app.api.v1.endpoints.agent.ad_campaigns import ad_campaigns_router
 from app.api.v1.endpoints.agent.ad_invalid_traffic import ad_invalid_traffic_router
 from app.api.v1.endpoints.agent.ad_placements import ad_placements_router
 from app.api.v1.endpoints.agent.ad_promoted_products import ad_promoted_products_router
@@ -46,6 +26,27 @@ from app.api.v1.endpoints.agent.ad_search_term_shares import (
 from app.api.v1.endpoints.agent.ad_search_terms import ad_search_terms_router
 from app.api.v1.endpoints.agent.ad_targets import ad_targets_router
 from app.api.v1.endpoints.agent.ad_time_trends import ad_time_trends_router
+from app.api.v1.endpoints.agent.health import router as health_router
+from app.api.v1.endpoints.agent.inventory import inventory_router
+from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
+from app.api.v1.endpoints.agent.new_product_calculations import (
+    new_product_calculations_router,
+)
+from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
+    pricing_snapshots_router,
+)
+from app.api.v1.endpoints.agent.projects import projects_router
+from app.api.v1.endpoints.agent.provisioning import provisioning_router
+from app.api.v1.endpoints.agent.replenishment_analysis import (
+    replenishment_analysis_router,
+)
+from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
+from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
+from app.api.v1.endpoints.agent.sales import sales_router
+from app.api.v1.endpoints.agent.shipments import shipments_router
+from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
+from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
+from app.api.v1.endpoints.agent.sku_info import sku_info_router
 
 agent_router = APIRouter(
     prefix="/agent",
@@ -196,6 +197,14 @@ agent_router.include_router(
 agent_router.include_router(
     pricing_snapshots_router,
     dependencies=[Depends(require_business_scope("shop_calculations"))],
+)
+# Agent 凭据自助签发域（BLF-843）：1 条写路由（confirm 两步），挂
+# business_scope("agent_provisioning")——只有持有该域的 provisioner key 能
+# 调用；业务 key 无此域铸不了 key，双向物理隔离。必须插在兜底路由之前，
+# 否则被静默吞成 404 壳。
+agent_router.include_router(
+    provisioning_router,
+    dependencies=[Depends(require_business_scope("agent_provisioning"))],
 )
 
 
