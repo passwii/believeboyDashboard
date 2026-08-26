@@ -38,6 +38,9 @@ class AgentApiAuditLog(Base):
     # BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析打标）。
     project_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     operation_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # BLF-845 国家维度：agent 各域读路由的 ``country`` query param（大写归一，
+    # 无参数为 NULL）。历史行与无国家请求均为 NULL，前端显示 '—'。
+    country: Mapped[str | None] = mapped_column(String(8), nullable=True)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -44,7 +44,9 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/pricing-snapshots", "shop_calculations"),
     ("/shop-calculation", "shop_calculations"),
     ("/return-analysis", "return_analysis"),
-    ("/replenishment-analysis", "inventory_ledger"),
+    # BLF-845：replenishment_analysis 是前端注册表中的独立域（BLF-502），
+    # 不再误归 inventory_ledger。
+    ("/replenishment-analysis", "replenishment_analysis"),
     ("/inventory-ledger", "inventory_ledger"),
     # BLF-582：sku-info 已原生化收口进 sku_info 域（原映射 inventory_ledger
     # 已修正）。
@@ -54,9 +56,27 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/sales/", "sales"),
     ("/ad-", "ad_analysis"),
     ("/shipments", "shipments"),
+    # BLF-845：report_upload_status / account_health 两域此前无映射，读访问
+    # 全落「其他」（操作类型中文缺失的另一根因），补齐。
+    ("/report-upload-status", "report_upload_status"),
+    ("/account-health", "account_health"),
 )
 
 _PROJECT_ID_RE = re.compile(r"/projects/(\d+)")
+
+
+def parse_audit_country(raw: str | None) -> str | None:
+    """从 query string 的 ``country`` 参数解析审计国家维度（BLF-845）。
+
+    大写归一便于聚合展示；截断到列宽 8；空串/纯空白归 None（落库 NULL）。
+    纯函数，便于单测。
+    """
+    if raw is None:
+        return None
+    normalized = raw.strip().upper()
+    if not normalized:
+        return None
+    return normalized[:8]
 
 
 def parse_audit_path_meta(path: str) -> tuple[int | None, str | None]:
@@ -93,6 +113,7 @@ def _write_audit(
     status_code: int,
     latency_ms: int,
     ip_address: str | None,
+    country: str | None = None,
 ) -> None:
     project_id, operation_type = parse_audit_path_meta(path)
     db = SessionLocal()
@@ -104,6 +125,7 @@ def _write_audit(
                 api_key_id=api_key_id,
                 project_id=project_id,
                 operation_type=operation_type,
+                country=country,
                 status_code=status_code,
                 latency_ms=latency_ms,
                 ip_address=ip_address,
@@ -152,4 +174,5 @@ def register_agent_api_audit_middleware(app: FastAPI) -> None:
                 status_code=status_code,
                 latency_ms=latency_ms,
                 ip_address=_client_ip(request),
+                country=parse_audit_country(request.query_params.get("country")),
             )

@@ -28,6 +28,8 @@ class AgentAccessLogItem(BaseModel):
     # 请求涉及的项目名（BLF-471）：由 project_id 查 projects 表还原，运营可读。
     project_name: str | None = None
     operation_type: str | None = None
+    # BLF-845 国家维度：query string country 参数（大写归一），历史行为 NULL。
+    country: str | None = None
 
 
 class AgentAccessLogsResponse(BaseModel):
