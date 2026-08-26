@@ -32,14 +32,14 @@
 
 ## 任务 0：全局放大一档（✅ 已完成，保留作历史参考）
 
-**状态：已完成且超额——实际执行了「两档」放大**（一档 commit 31117bdc，二档 3bed4693，PR #395）。下表为原始规划值，最终落地的常量以 `frontend/components/terminal/terminal-constants.ts` 为准：TERMINAL_RAIL_WIDTH=64、SUBNAV_WIDTH=256、HEADER_HEIGHT=48、FOOTER_HEIGHT=32、INSPECTOR_WIDTH=360；SubNav 折叠宽度有意归零（整列收起，仅以 BLF-825 动效呈现，非窄图标列）。后续任何尺寸调整一律以该文件为唯一来源，勿再回改本表数值。
+**状态：已完成且超额——实际执行了「两档」放大**（一档 commit 31117bdc，二档 3bed4693，PR #395）。下表为原始规划值，最终落地的常量以 `frontend/components/terminal/terminal-constants.ts` 为准：TERMINAL_RAIL_WIDTH=64、SUBNAV_WIDTH=224（BLF-844：256 观感过宽，2026-08-26 用户反馈回调至中间档）、HEADER_HEIGHT=48、FOOTER_HEIGHT=32、INSPECTOR_WIDTH=360；SubNav 折叠宽度有意归零（整列收起，仅以 BLF-825 动效呈现，非窄图标列）。后续任何尺寸调整一律以该文件为唯一来源，勿再回改本表数值。
 
 ### 0a. 结构尺寸（`frontend/components/terminal/terminal-constants.ts`）
 
 | 常量 | 现值 | 新值 |
 |---|---|---|
 | TERMINAL_RAIL_WIDTH | 50 | ~~56~~ → 最终 64 |
-| TERMINAL_SUBNAV_WIDTH | 200 | ~~224~~ → 最终 256 |
+| TERMINAL_SUBNAV_WIDTH | 200 | ~~224~~ → 256 → **224**（BLF-844 回调） |
 | TERMINAL_HEADER_HEIGHT | 36 | ~~40~~ → 最终 48 |
 | TERMINAL_FOOTER_HEIGHT | 24 | ~~28~~ → 最终 32 |
 | TERMINAL_INSPECTOR_WIDTH | 288 | ~~320~~ → 最终 360 |
