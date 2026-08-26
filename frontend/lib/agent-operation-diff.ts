@@ -88,15 +88,30 @@ function formatValue(value: unknown, key: string): string | null {
 }
 
 // ── action / target_type 中文标题 ─────────────────────────────────────
+// BLF-845 精细化：与后端 endpoints/agent/*.py 的 action= 字面量全集对齐
+// （grep 'action="' 全量核对），新增写端点时同步维护本表。
 const ACTION_TITLES: Record<string, string> = {
+  // 货件域（shipments）
   'shipment.create': '新建货件',
   'shipment.update': '更新货件',
   'shipment.items.replace': '替换货件明细',
   'shipment.status.transition': '货件状态变更',
   'shipment.recalculate_costs': '重算货件费用',
   'shipment.delete': '删除货件',
+  // 店铺测算 / 新品测算
   'shop_calculation.append': '追加店铺测算',
   'new_product_calculation.upsert': '保存新品测算',
+  // SKU 主数据（BLF-579：读3+写3 confirm 流 + FNSKU 标签上传 BLF-628）
+  'sku_info.upsert': '新建 SKU 主数据',
+  'sku_info.update': '更新 SKU 主数据',
+  'sku_info.status.transition': 'SKU 上下架',
+  'sku_info.upload_fnsku_label': '上传 FNSKU 标签',
+  // 补货分析设置（BLF-502 R6 设置写 confirm；两处历史拼写并存）
+  'replenishment_settings.upsert': '保存补货设置',
+  'inventory_replenishment_settings.upsert': '保存补货设置',
+  // Agent 凭据自助签发（BLF-843 provisioner；api_key.create 为内部别名）
+  'agent_key.create': '自助签发凭据',
+  'api_key.create': '创建凭据',
 }
 
 export function operationActionLabel(action: string): string {
@@ -107,6 +122,10 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   shipment_schedule: '货件',
   shop_calculation: '店铺测算',
   new_product_calculation: '新品测算',
+  // BLF-845：BLF-579 / BLF-502 / BLF-843 新增写对象的中文标签补齐
+  sku_info: 'SKU 主数据',
+  inventory_replenishment_setting: '补货设置',
+  agent_api_key: 'Agent 凭据',
 }
 
 export function targetTypeLabel(targetType: string | null | undefined): string {

@@ -16,6 +16,21 @@ describe('operationActionLabel', () => {
   it('未知 action 原样返回', () => {
     expect(operationActionLabel('mystery.op')).toBe('mystery.op')
   })
+
+  // BLF-845 精细化：与后端 endpoints/agent/*.py 的 action= 字面量全集对齐
+  it('BLF-845：SKU 主数据域写操作中文化（BLF-579/628）', () => {
+    expect(operationActionLabel('sku_info.upsert')).toBe('新建 SKU 主数据')
+    expect(operationActionLabel('sku_info.update')).toBe('更新 SKU 主数据')
+    expect(operationActionLabel('sku_info.status.transition')).toBe('SKU 上下架')
+    expect(operationActionLabel('sku_info.upload_fnsku_label')).toBe('上传 FNSKU 标签')
+  })
+
+  it('BLF-845：补货设置与凭据签发写操作中文化（BLF-502/843）', () => {
+    expect(operationActionLabel('replenishment_settings.upsert')).toBe('保存补货设置')
+    expect(operationActionLabel('inventory_replenishment_settings.upsert')).toBe('保存补货设置')
+    expect(operationActionLabel('agent_key.create')).toBe('自助签发凭据')
+    expect(operationActionLabel('api_key.create')).toBe('创建凭据')
+  })
 })
 
 describe('targetTypeLabel', () => {
@@ -27,6 +42,12 @@ describe('targetTypeLabel', () => {
 
   it('未知 target_type 原样返回', () => {
     expect(targetTypeLabel('weird_entity')).toBe('weird_entity')
+  })
+
+  it('BLF-845：新增写对象中文标签（sku_info / 补货设置 / 凭据）', () => {
+    expect(targetTypeLabel('sku_info')).toBe('SKU 主数据')
+    expect(targetTypeLabel('inventory_replenishment_setting')).toBe('补货设置')
+    expect(targetTypeLabel('agent_api_key')).toBe('Agent 凭据')
   })
 })
 

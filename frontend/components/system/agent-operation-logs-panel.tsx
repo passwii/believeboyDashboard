@@ -10,23 +10,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DataCard,
-  DataCardHeader,
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardStatBar,
-} from '@/components/ui/data-card'
-import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -35,14 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermTable,
+  TermTHead,
+  TermHead,
+  TermBody,
+  TermRow,
+  TermCell,
+} from '@/components/terminal/term-table'
 import { Eye, Loader2, RefreshCw, Search } from 'lucide-react'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
@@ -111,12 +102,79 @@ function resultMeta(result: string) {
   if (result === 'failure')
     return {
       label: '失败',
-      className: 'border-rose-500/50 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+      className: 'border-term-neg/50 bg-term-neg/10 text-term-neg',
     }
   return {
     label: '成功',
-    className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    className: 'border-term-pos/50 bg-term-pos/10 text-term-pos',
   }
+}
+
+// ── 终端化统计概览原语（BLF-845：与访问日志面板同规格） ─────────────
+
+/** 概览 KPI 磁贴：标签小字 faint + 主数值 mono 大号；tone 决定语义色。 */
+function OverviewStatTile({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  tone?: 'default' | 'pos' | 'neg'
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-1 flex-col gap-1 border border-term-border bg-term-bg px-3 py-2"
+      title={`${label} · ${value}`}
+    >
+      <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-faint">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'truncate font-mono text-lg leading-none tabular-nums',
+          tone === 'pos' && 'text-term-pos',
+          tone === 'neg' && 'text-term-neg',
+          tone === 'default' && 'text-term-text'
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+/** Top N 排行条：主标识 + mono 计数 + 占比条（宽度按 count/max 归一）。 */
+function RankBar({
+  primary,
+  secondary,
+  count,
+  max,
+}: {
+  primary: string
+  secondary?: string | null
+  count: number
+  max: number
+}) {
+  const pct = max > 0 ? Math.max(4, Math.round((count / max) * 100)) : 0
+  return (
+    <div className="flex min-w-0 items-center gap-2 py-1" title={`${primary} · ${count} 次`}>
+      <div className="min-w-0 flex-1 truncate text-xs text-term-text">
+        {primary}
+        {secondary ? (
+          <span className="ml-1.5 hidden font-mono text-[11px] text-term-faint sm:inline">
+            {secondary}
+          </span>
+        ) : null}
+      </div>
+      <div className="h-1.5 w-24 shrink-0 bg-term-raised sm:w-32">
+        <div className="h-full bg-term-accent/70" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-12 shrink-0 text-right font-mono text-xs tabular-nums text-term-muted">
+        ×{count.toLocaleString('zh-CN')}
+      </span>
+    </div>
+  )
 }
 
 export function AgentOperationLogsPanel() {
@@ -232,186 +290,293 @@ export function AgentOperationLogsPanel() {
     : null
 
   return (
-    <div className="space-y-6">
-      <DataCard>
-        <DataCardHeader
-          title="Agent 写操作统计概览"
-          description="当前筛选条件下 agent 写操作（confirm 两步确认落库，保留 90 天）"
-        />
-        <div className="px-6 py-5">
-          <DataTableCardStatBar
-            items={[
-              { label: '写操作总量', value: summary?.total ?? 0, highlight: true },
-              { label: '成功', value: summary?.success_count ?? 0 },
-              { label: '失败', value: summary?.failure_count ?? 0 },
-              { label: '活跃 Agent', value: summary?.unique_agent_count ?? 0 },
-            ]}
-          />
-          {summary && summary.top_actions.length > 0 ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {summary.top_actions.map((item) => (
-                <span
-                  key={item.action}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs text-violet-700 dark:text-violet-300"
-                  title={item.action}
-                >
-                  {operationActionLabel(item.action)}
-                  <span className="text-muted-foreground">×{item.count}</span>
-                </span>
-              ))}
+    <div className="space-y-4">
+      {/** BLF-845 概览重设计：KPI 磁贴行 + 双栏排行（Top Agent × 高频操作），终端化 */}
+      <TermPanel title="写操作统计概览">
+        <div className="space-y-3 p-3">
+          <div className="flex flex-wrap gap-2">
+            <OverviewStatTile
+              label="写操作总量"
+              value={(summary?.total ?? 0).toLocaleString('zh-CN')}
+            />
+            <OverviewStatTile
+              label="成功"
+              value={(summary?.success_count ?? 0).toLocaleString('zh-CN')}
+              tone="pos"
+            />
+            <OverviewStatTile
+              label="失败"
+              value={(summary?.failure_count ?? 0).toLocaleString('zh-CN')}
+              tone={summary && summary.failure_count > 0 ? 'neg' : 'default'}
+            />
+            <OverviewStatTile
+              label="成功率"
+              value={
+                summary && summary.total > 0
+                  ? `${Math.round((summary.success_count / summary.total) * 100)}%`
+                  : '—'
+              }
+              tone="pos"
+            />
+            <OverviewStatTile
+              label="活跃 AGENT"
+              value={(summary?.unique_agent_count ?? 0).toLocaleString('zh-CN')}
+            />
+          </div>
+          {summary && (summary.top_agents.length > 0 || summary.top_actions.length > 0) ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {summary.top_agents.length > 0 ? (
+                <div className="border border-term-border bg-term-bg p-2">
+                  <p className="mb-1 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+                    TOP AGENTS
+                  </p>
+                  {(() => {
+                    const maxCount = Math.max(...summary.top_agents.map((a) => a.count))
+                    return summary.top_agents.map((item) => (
+                      <RankBar
+                        key={item.agent_id}
+                        primary={item.agent_name || item.agent_id}
+                        secondary={item.agent_id}
+                        count={item.count}
+                        max={maxCount}
+                      />
+                    ))
+                  })()}
+                </div>
+              ) : null}
+              {summary.top_actions.length > 0 ? (
+                <div className="border border-term-border bg-term-bg p-2">
+                  <p className="mb-1 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+                    高频操作
+                  </p>
+                  {(() => {
+                    const maxCount = Math.max(...summary.top_actions.map((a) => a.count))
+                    return summary.top_actions.map((item) => (
+                      <RankBar
+                        key={item.action}
+                        primary={operationActionLabel(item.action)}
+                        secondary={item.action}
+                        count={item.count}
+                        max={maxCount}
+                      />
+                    ))
+                  })()}
+                </div>
+              ) : null}
             </div>
           ) : null}
+          <p className="font-mono text-[11px] text-term-faint">
+            agent 写操作（confirm 两步确认落库）· 保留 90 天
+          </p>
         </div>
-      </DataCard>
+      </TermPanel>
 
-      <DataTableCard>
-        <DataCardHeader
-          title="写操作记录"
-          action={
-            <Button type="button" variant="outline" onClick={() => void fetchLogs()} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {loading ? '刷新中...' : '刷新'}
-            </Button>
-          }
-        />
-        <DataTableCardBody>
-          <div className="border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[170px]">时间</TableHead>
-                  <TableHead className="w-[150px]">Agent</TableHead>
-                  <TableHead className="w-[130px]">操作</TableHead>
-                  <TableHead className="w-[150px]">项目</TableHead>
-                  <TableHead className="w-[150px]">对象</TableHead>
-                  <TableHead className="w-[80px]">结果</TableHead>
-                  <TableHead className="w-[80px] text-right">详情</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  loading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        加载中...
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <EmptyTableState colSpan={7} message="暂无 Agent 写操作记录" />
-                  )
-                ) : (
-                  rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{formatDateTime(row.created_at)}</TableCell>
-                      <TableCell>
-                        <AgentIdentityCell agentId={row.agent_id} agentName={row.agent_name} />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {operationActionLabel(row.action)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {formatProjectRef(row.project_id, row.project_name)}
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={row.target_label || row.target_id || '-'}>
-                        {targetTypeLabel(row.target_type)}
-                        {row.target_label ? (
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {' '}#{row.target_label}
-                          </span>
-                        ) : row.target_id ? (
-                          <span className="text-muted-foreground"> #{row.target_id}</span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={resultMeta(row.result).className}>
-                          {resultMeta(row.result).label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => setActiveRow(row)}>
-                          <Eye className="h-4 w-4" />
-                          查看
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+      {/** BLF-845：写操作记录表终端化（TermTable）+ 国家维度列位 */}
+      <TermPanel
+        title="写操作记录"
+        actions={
+          <button
+            type="button"
+            onClick={() => void fetchLogs()}
+            disabled={loading}
+            className="flex h-8 items-center gap-1 border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {loading ? '刷新中' : '刷新'}
+          </button>
+        }
+      >
+        <div className="max-h-[480px] overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <tr>
+                <TermHead className="w-[150px]">时间</TermHead>
+                <TermHead className="w-[150px]">Agent</TermHead>
+                <TermHead className="w-[120px]">操作</TermHead>
+                <TermHead className="w-[130px]">项目</TermHead>
+                <TermHead
+                  className="w-[52px]"
+                  title="操作涉及站点国家（后端字段就绪前显示 —，BLF-845）"
+                >
+                  国家
+                </TermHead>
+                <TermHead>对象</TermHead>
+                <TermHead className="w-[60px]">结果</TermHead>
+                <TermHead className="w-[56px]" numeric>
+                  详情
+                </TermHead>
+              </tr>
+            </TermTHead>
+            <TermBody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="h-24 text-center text-xs text-term-faint">
+                    {loading ? '加载中…' : '暂无 Agent 写操作记录'}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
+                  <TermRow key={row.id} onClick={() => setActiveRow(row)}>
+                    <TermCell tone="muted" title={formatDateTime(row.created_at)}>
+                      {formatDateTime(row.created_at)}
+                    </TermCell>
+                    <TermCell>
+                      <AgentIdentityCell agentId={row.agent_id} agentName={row.agent_name} />
+                    </TermCell>
+                    <TermCell>
+                      <span
+                        title={`action ${row.action}`}
+                        className="border border-term-accent/40 px-1 font-mono text-[10px] text-term-accent"
+                      >
+                        {operationActionLabel(row.action)}
+                      </span>
+                    </TermCell>
+                    <TermCell title={formatProjectRef(row.project_id, row.project_name)}>
+                      {formatProjectRef(row.project_id, row.project_name)}
+                    </TermCell>
+                    {/* BLF-845 ③：country 列位。operation_audit_logs 暂未落 country，
+                        就绪前恒显 '—'；字段透出后零改动生效。 */}
+                    <TermCell tone="muted">
+                      {'country' in row && (row as { country?: string | null }).country
+                        ? (row as { country: string }).country
+                        : '—'}
+                    </TermCell>
+                    <TermCell
+                      className="max-w-[150px] truncate"
+                      title={row.target_label || row.target_id || '-'}
+                    >
+                      {targetTypeLabel(row.target_type)}
+                      {row.target_label ? (
+                        <span className="ml-1 font-mono text-[11px] text-term-faint">
+                          #{row.target_label}
+                        </span>
+                      ) : row.target_id ? (
+                        <span className="text-term-faint"> #{row.target_id}</span>
+                      ) : null}
+                    </TermCell>
+                    <TermCell>
+                      <span
+                        className={cn(
+                          'border px-1 font-mono text-[10px]',
+                          resultMeta(row.result).className
+                        )}
+                      >
+                        {resultMeta(row.result).label}
+                      </span>
+                    </TermCell>
+                    <TermCell numeric>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setActiveRow(row)
+                        }}
+                        className="inline-flex items-center gap-0.5 border border-term-border bg-term-bg px-1 font-mono text-[11px] text-term-accent transition-colors hover:border-term-border-strong"
+                        aria-label={`查看 ${formatDateTime(row.created_at)} 的写操作明细`}
+                      >
+                        <Eye className="h-3 w-3" aria-hidden />
+                        查看
+                      </button>
+                    </TermCell>
+                  </TermRow>
+                ))
+              )}
+            </TermBody>
+          </TermTable>
+        </div>
 
-          <div className="flex items-center justify-between px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 条，当前第 {page} / {totalPages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1 || loading}
-              >
-                上一页
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setPage((prev) => prev + 1)}
-                disabled={!hasNext || loading}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        </DataTableCardBody>
-      </DataTableCard>
+        <div className="flex h-8 items-center justify-between border-t border-term-border bg-term-raised px-2 font-mono text-xs tabular-nums text-term-muted">
+          <span>
+            共 <span className="text-term-text">{total.toLocaleString('zh-CN')}</span> 条 · 第{' '}
+            <span className="text-term-text">{page}</span>/{totalPages} 页
+          </span>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page <= 1 || loading}
+              className="flex h-5 items-center border border-term-border bg-term-bg px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ◀ 上一页
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => prev + 1)}
+              disabled={!hasNext || loading}
+              className="flex h-5 items-center border border-term-border bg-term-bg px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              下一页 ▶
+            </button>
+          </span>
+        </div>
+      </TermPanel>
 
-      <Card className="dashboard-surface">
-        <CardContent className="p-4">
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-            <Input
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="关键词（Agent / 操作 / 对象 / 路径）"
-            />
-            <Input
-              value={agentIdInput}
-              onChange={(event) => setAgentIdInput(event.target.value)}
-              placeholder="Agent ID"
-            />
-            <Input
-              value={projectIdInput}
-              onChange={(event) => setProjectIdInput(event.target.value)}
-              placeholder="项目 ID（数字）"
-              inputMode="numeric"
-            />
-            <Input
-              value={actionInput}
-              onChange={(event) => setActionInput(event.target.value)}
-              placeholder="操作（如 shipment.status.transition）"
-            />
-            <Select value={resultInput} onValueChange={setResultInput}>
-              <SelectTrigger>
-                <SelectValue placeholder="操作结果" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部结果</SelectItem>
-                <SelectItem value="success">成功</SelectItem>
-                <SelectItem value="failure">失败</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button className="flex-1 sm:flex-none" onClick={applyFilters}>
-              <Search className="h-4 w-4" />
-              查询
-            </Button>
-            <Button type="button" variant="outline" onClick={resetFilters}>
-              重置
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/** 筛选工具栏：终端化 h-8 控件（与访问日志面板同规格） */}
+      <TermPanel title="筛选">
+        <div className="flex flex-wrap items-center gap-1 p-1.5">
+          <Input
+            value={keywordInput}
+            onChange={(event) => setKeywordInput(event.target.value)}
+            placeholder="关键词 Agent/操作/对象"
+            className="h-8 w-[170px] rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Input
+            value={agentIdInput}
+            onChange={(event) => setAgentIdInput(event.target.value)}
+            placeholder="Agent ID"
+            className="h-8 w-[130px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Input
+            value={projectIdInput}
+            onChange={(event) => setProjectIdInput(event.target.value)}
+            placeholder="项目 ID（数字）"
+            inputMode="numeric"
+            className="h-8 w-[110px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Input
+            value={actionInput}
+            onChange={(event) => setActionInput(event.target.value)}
+            placeholder="操作（如 shipment.status.transition）"
+            className="h-8 w-[200px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Select value={resultInput} onValueChange={setResultInput}>
+            <SelectTrigger className="h-8 w-[100px] rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong">
+              <SelectValue placeholder="操作结果" />
+            </SelectTrigger>
+            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+              <SelectItem value="all" className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+                全部结果
+              </SelectItem>
+              <SelectItem value="success" className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+                成功
+              </SelectItem>
+              <SelectItem value="failure" className="rounded-none text-xs focus:bg-term-hover focus:text-term-text">
+                失败
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
+          <button
+            type="button"
+            onClick={applyFilters}
+            className="flex h-8 items-center gap-1 border border-term-accent/50 bg-term-accent/10 px-2 font-mono text-xs text-term-accent transition-colors hover:bg-term-accent/20"
+          >
+            <Search className="h-3.5 w-3.5" aria-hidden />
+            查询
+          </button>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="flex h-8 items-center border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+          >
+            重置
+          </button>
+        </div>
+      </TermPanel>
 
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
         <DialogContent
@@ -454,6 +619,13 @@ export function AgentOperationLogsPanel() {
                 <p>
                   <span className="text-muted-foreground">项目:</span>{' '}
                   {formatProjectRef(activeRow.project_id, activeRow.project_name)}
+                </p>
+                {/* BLF-845 ③：国家字段位。后端 country 字段就绪前恒显 '—'。 */}
+                <p>
+                  <span className="text-muted-foreground">国家:</span>{' '}
+                  {'country' in activeRow && (activeRow as { country?: string | null }).country
+                    ? (activeRow as { country: string }).country
+                    : '—'}
                 </p>
                 <p>
                   <span className="text-muted-foreground">结果:</span>{' '}

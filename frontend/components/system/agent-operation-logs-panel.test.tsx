@@ -119,7 +119,17 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
   it('渲染统计概览与列表（操作语义化标签 / 项目 / Agent 中文名 / 结果）', async () => {
     render(<AgentOperationLogsPanel />)
 
+    // BLF-845 概览重设计：KPI 磁贴（总量/成功/失败/成功率/活跃）
     expect(await screen.findByText('写操作总量')).toBeTruthy()
+    expect(screen.getByText('成功率')).toBeTruthy()
+    expect(screen.getByText('活跃 AGENT')).toBeTruthy()
+    // 双栏排行：TOP AGENTS + 高频操作（RankBar 结构）
+    expect(screen.getByText('TOP AGENTS')).toBeTruthy()
+    expect(screen.getByText('高频操作')).toBeTruthy()
+    // 排行条 title = 「主标识 · N 次」
+    expect(screen.findByTitle !== undefined).toBeTruthy()
+    expect(screen.getByTitle('货件状态变更 · 2 次')).toBeTruthy()
+    expect(screen.getByTitle('追加店铺测算 · 1 次')).toBeTruthy()
     // 同一 Agent 在 top_agents 与列表行都可能出现 → 用 findAll 断言数量
     expect((await screen.findAllByText('shipment-assistant-prod')).length).toBeGreaterThanOrEqual(1)
     // BLF-471：Agent 中文名 + 项目名 + 货件编号对象标识
@@ -130,9 +140,6 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
     expect(screen.getByText('新建货件')).toBeTruthy()
     expect(screen.getAllByText('追加店铺测算').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('失败').length).toBeGreaterThanOrEqual(1)
-    // top_actions 徽标（title 唯一区分芯片与行内标签）
-    const transitionChip = await screen.findByTitle('shipment.status.transition')
-    expect(transitionChip.textContent).toContain('2')
   })
 
   it('筛选区提交 project_id / action / result 到请求参数', async () => {
