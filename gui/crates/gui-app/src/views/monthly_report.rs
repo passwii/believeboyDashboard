@@ -63,11 +63,8 @@ const DEFAULT_COUNTRY: &str = "US";
 const VAT_COUNTRIES: [&str; 2] = ["DE", "UK"];
 
 /// 月份窗口预设（label, 月数）；默认近 12 个月（对齐 frontend 滚动默认窗口）
-const MONTH_RANGE_OPTIONS: [(&str, u32); 3] = [
-    ("近 3 个月", 3),
-    ("近 6 个月", 6),
-    ("近 12 个月", 12),
-];
+const MONTH_RANGE_OPTIONS: [(&str, u32); 3] =
+    [("近 3 个月", 3), ("近 6 个月", 6), ("近 12 个月", 12)];
 const DEFAULT_MONTHS_BACK: u32 = 12;
 
 /// 站点展示名（未知值原样返回）
@@ -106,7 +103,10 @@ pub fn month_window(months_back: u32) -> (String, String) {
     let end = shift_month(now.year(), now.month(), -(1_i32));
     // start = end 再往前 (months_back - 1) 个月
     let start = shift_month(end.0, end.1, -(months_back as i32 - 1));
-    (format!("{:04}-{:02}", start.0, start.1), format!("{:04}-{:02}", end.0, end.1))
+    (
+        format!("{:04}-{:02}", start.0, start.1),
+        format!("{:04}-{:02}", end.0, end.1),
+    )
 }
 
 /// 月份平移（纯函数；delta 可为负）
@@ -303,8 +303,12 @@ impl MonthlyReportView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_monthly_report(&client, selected, country, months_back))
+                    crate::runtime::runtime().block_on(load_monthly_report(
+                        &client,
+                        selected,
+                        country,
+                        months_back,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -384,8 +388,12 @@ impl MonthlyReportView {
         if let Ok(data) = &result {
             if !data.is_empty() {
                 self.projects = data.projects.clone();
-                let rows: Vec<FinancialRowView> =
-                    data.response.rows.iter().map(FinancialRowView::from_row).collect();
+                let rows: Vec<FinancialRowView> = data
+                    .response
+                    .rows
+                    .iter()
+                    .map(FinancialRowView::from_row)
+                    .collect();
                 let rows = rows.clone();
                 self.detail_table
                     .update(cx, |widget, cx| widget.set_data(rows, cx));
@@ -475,9 +483,16 @@ impl Render for MonthlyReportView {
             TabItem::new("generate", "生成"),
             TabItem::new("reconcile", "对账"),
         ];
-        let strip = tab_bar(&view, &app_theme, "monthly-report", &tab_items, self.active_tab, |this, ix, cx| {
-            this.select_tab(ix, cx);
-        });
+        let strip = tab_bar(
+            &view,
+            &app_theme,
+            "monthly-report",
+            &tab_items,
+            self.active_tab,
+            |this, ix, cx| {
+                this.select_tab(ix, cx);
+            },
+        );
 
         let header;
         let toolbar;
@@ -558,8 +573,17 @@ impl Render for MonthlyReportView {
             }
         };
         let tabs = tabs_zone(strip, content);
-        pattern_b_shell(&app_theme, "monthly-report", header, toolbar, 0.0, div(), div(), tabs)
-            .into_any_element()
+        pattern_b_shell(
+            &app_theme,
+            "monthly-report",
+            header,
+            toolbar,
+            0.0,
+            div(),
+            div(),
+            tabs,
+        )
+        .into_any_element()
     }
 }
 
@@ -668,12 +692,18 @@ fn render_loaded(
             SheetCellData::number(fmt_money(row.expense_other_fees)),
             SheetCellData::computed(fmt_money(row.income_total)),
             SheetCellData::computed(fmt_money(row.expense_total)),
-            SheetCellData::computed(fmt_money(row.amazon_pay_back - row.credit_card_deduction_usd)),
+            SheetCellData::computed(fmt_money(
+                row.amazon_pay_back - row.credit_card_deduction_usd,
+            )),
             SheetCellData::number(fmt_money(row.amazon_pay_back)),
             SheetCellData::number(fmt_money(row.credit_card_deduction_usd)),
             SheetCellData::number(fmt_money(row.fob_cost_rmb)),
             SheetCellData::number(fmt_money(row.first_leg_cost_rmb)),
-            SheetCellData::text(if row.has_source_report { "\u{2713}" } else { "—" }),
+            SheetCellData::text(if row.has_source_report {
+                "\u{2713}"
+            } else {
+                "—"
+            }),
         ]);
     }
     // 合计行（口径与 trend 汇总一致）
@@ -758,7 +788,11 @@ fn fmt_money(v: f64) -> String {
     let abs = v.abs();
     let int_part = abs.trunc() as i64;
     let frac = ((abs - abs.trunc()) * 100.0).round() as i64;
-    let (int_part, frac) = if frac >= 100 { (int_part + 1, 0) } else { (int_part, frac) };
+    let (int_part, frac) = if frac >= 100 {
+        (int_part + 1, 0)
+    } else {
+        (int_part, frac)
+    };
     let digits = int_part.to_string();
     let mut grouped = String::new();
     for (i, ch) in digits.chars().enumerate() {
@@ -966,11 +1000,7 @@ fn summary_cards(
             format_money(trend.amazon_pay_back_sum, symbol),
             false,
         ),
-        (
-            "净额",
-            format_money(trend.net_amount_sum, symbol),
-            false,
-        ),
+        ("净额", format_money(trend.net_amount_sum, symbol), false),
     ];
     div()
         .id("monthly-report-summary")
@@ -998,7 +1028,11 @@ fn summary_cards(
                         } else {
                             FontWeight::MEDIUM
                         })
-                        .text_color(if *highlight { theme.accent } else { theme.text_primary })
+                        .text_color(if *highlight {
+                            theme.accent
+                        } else {
+                            theme.text_primary
+                        })
                         .child(value.clone()),
                 )
         }))
@@ -1042,92 +1076,81 @@ fn trend_card(rows: &[FinancialSeriesRow], country: &str, theme: &AppTheme) -> i
                         .text_color(theme.text_primary)
                         .child("月度趋势"),
                 )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.text_muted)
-                        .child(format!(
-                            "销售额 vs 退款（{} 计）",
-                            match country {
-                                "DE" => "欧元",
-                                "UK" => "英镑",
-                                _ => "美元",
-                            }
-                        )),
-                ),
+                .child(div().text_sm().text_color(theme.text_muted).child(format!(
+                    "销售额 vs 退款（{} 计）",
+                    match country {
+                        "DE" => "欧元",
+                        "UK" => "英镑",
+                        _ => "美元",
+                    }
+                ))),
         )
-        .child(
-            if points.is_empty() {
-                div()
-                    .w_full()
-                    .h(px(260.))
-                    .rounded(px(theme.radius))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .text_sm()
-                    .text_color(theme.text_muted)
-                    .child("暂无趋势数据")
-            } else {
-                // 图例（颜色点 + 名称）
-                let legend = h_flex()
-                    .gap_4()
-                    .child(
-                        h_flex()
-                            .gap_1p5()
-                            .items_center()
-                            .child(div().size_2p5().rounded_full().bg(theme.chart_primary))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.text_secondary)
-                                    .child("销售额"),
-                            ),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_1p5()
-                            .items_center()
-                            .child(div().size_2p5().rounded_full().bg(theme.danger))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.text_secondary)
-                                    .child("退款"),
-                            ),
-                    );
-                v_flex()
-                    .gap_2()
-                    .child(legend)
-                    .child(
-                        div().w_full().h(px(260.)).child(
-                            AreaChart::new(points.clone())
-                                .x(|p| p.label.clone())
-                                .y(|p| p.income_sales)
-                                .y(|p| p.income_refund)
-                                .stroke(theme.chart_primary)
-                                .stroke(theme.danger)
-                                .fill(theme.chart_primary.opacity(0.18))
-                                .fill(theme.danger.opacity(0.10))
-                                .linear()
-                                .linear()
-                                .tick_margin(1),
-                        ),
-                    )
-            },
-        )
-        .child(
+        .child(if points.is_empty() {
             div()
-                .text_xs()
+                .w_full()
+                .h(px(260.))
+                .rounded(px(theme.radius))
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_sm()
                 .text_color(theme.text_muted)
-                .child(format!(
-                    "最新月份：{}",
-                    points
-                        .last()
-                        .map(|p| format!("{} 销售额 {}", p.label, format_money(p.income_sales, symbol)))
-                        .unwrap_or_else(|| "—".to_string())
-                )),
-        )
+                .child("暂无趋势数据")
+        } else {
+            // 图例（颜色点 + 名称）
+            let legend = h_flex()
+                .gap_4()
+                .child(
+                    h_flex()
+                        .gap_1p5()
+                        .items_center()
+                        .child(div().size_2p5().rounded_full().bg(theme.chart_primary))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.text_secondary)
+                                .child("销售额"),
+                        ),
+                )
+                .child(
+                    h_flex()
+                        .gap_1p5()
+                        .items_center()
+                        .child(div().size_2p5().rounded_full().bg(theme.danger))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.text_secondary)
+                                .child("退款"),
+                        ),
+                );
+            v_flex().gap_2().child(legend).child(
+                div().w_full().h(px(260.)).child(
+                    AreaChart::new(points.clone())
+                        .x(|p| p.label.clone())
+                        .y(|p| p.income_sales)
+                        .y(|p| p.income_refund)
+                        .stroke(theme.chart_primary)
+                        .stroke(theme.danger)
+                        .fill(theme.chart_primary.opacity(0.18))
+                        .fill(theme.danger.opacity(0.10))
+                        .linear()
+                        .linear()
+                        .tick_margin(1),
+                ),
+            )
+        })
+        .child(div().text_xs().text_color(theme.text_muted).child(format!(
+                "最新月份：{}",
+                points
+                    .last()
+                    .map(|p| format!(
+                        "{} 销售额 {}",
+                        p.label,
+                        format_money(p.income_sales, symbol)
+                    ))
+                    .unwrap_or_else(|| "—".to_string())
+            )))
 }
 
 // ---------------------------------------------------------------------------
@@ -1172,23 +1195,41 @@ impl MonthlyTableDelegate {
 
     fn columns() -> Vec<Column> {
         vec![
-            Column::new("month", "年月").width(px(96.)).selectable(false),
+            Column::new("month", "年月")
+                .width(px(96.))
+                .selectable(false),
             Column::new("sales", "销售额").width(px(96.)).text_right(),
             Column::new("refund", "退款").width(px(80.)).text_right(),
             Column::new("adjust", "赔偿").width(px(80.)).text_right(),
-            Column::new("other_income", "其他收入").width(px(88.)).text_right(),
+            Column::new("other_income", "其他收入")
+                .width(px(88.))
+                .text_right(),
             Column::new("selling", "平台费").width(px(80.)).text_right(),
             Column::new("fba", "配送费").width(px(80.)).text_right(),
-            Column::new("inventory", "仓储费").width(px(80.)).text_right(),
+            Column::new("inventory", "仓储费")
+                .width(px(80.))
+                .text_right(),
             Column::new("service", "服务费").width(px(80.)).text_right(),
             Column::new("ad", "广告费").width(px(80.)).text_right(),
-            Column::new("other_expense", "其他费用").width(px(88.)).text_right(),
-            Column::new("income_total", "收入合计").width(px(92.)).text_right(),
-            Column::new("expense_total", "支出合计").width(px(92.)).text_right(),
-            Column::new("payback", "亚马逊回款").width(px(96.)).text_right(),
-            Column::new("credit_card", "信用卡扣款").width(px(92.)).text_right(),
+            Column::new("other_expense", "其他费用")
+                .width(px(88.))
+                .text_right(),
+            Column::new("income_total", "收入合计")
+                .width(px(92.))
+                .text_right(),
+            Column::new("expense_total", "支出合计")
+                .width(px(92.))
+                .text_right(),
+            Column::new("payback", "亚马逊回款")
+                .width(px(96.))
+                .text_right(),
+            Column::new("credit_card", "信用卡扣款")
+                .width(px(92.))
+                .text_right(),
             Column::new("fob", "FOB成本RMB").width(px(96.)).text_right(),
-            Column::new("first_leg", "头程成本RMB").width(px(104.)).text_right(),
+            Column::new("first_leg", "头程成本RMB")
+                .width(px(104.))
+                .text_right(),
             Column::new("source", "源报表").width(px(72.)),
         ]
     }
@@ -1259,33 +1300,23 @@ impl TableDelegate for MonthlyTableDelegate {
             COL_REFUND => {
                 muted_right_cell(format_money(row.income_refund, symbol), &theme).into_any_element()
             }
-            COL_ADJUST => {
-                muted_right_cell(format_money(row.income_adjustment, symbol), &theme)
-                    .into_any_element()
-            }
+            COL_ADJUST => muted_right_cell(format_money(row.income_adjustment, symbol), &theme)
+                .into_any_element(),
             COL_OTHER_INCOME => {
                 muted_right_cell(format_money(row.income_other, symbol), &theme).into_any_element()
             }
-            COL_SELLING => {
-                muted_right_cell(format_money(row.expense_selling_fee, symbol), &theme)
-                    .into_any_element()
-            }
-            COL_FBA => {
-                muted_right_cell(format_money(row.expense_fba_fee, symbol), &theme)
-                    .into_any_element()
-            }
+            COL_SELLING => muted_right_cell(format_money(row.expense_selling_fee, symbol), &theme)
+                .into_any_element(),
+            COL_FBA => muted_right_cell(format_money(row.expense_fba_fee, symbol), &theme)
+                .into_any_element(),
             COL_INVENTORY => {
                 muted_right_cell(format_money(row.expense_inventory_fee, symbol), &theme)
                     .into_any_element()
             }
-            COL_SERVICE => {
-                muted_right_cell(format_money(row.expense_service_fee, symbol), &theme)
-                    .into_any_element()
-            }
-            COL_AD => {
-                muted_right_cell(format_money(row.expense_advertising, symbol), &theme)
-                    .into_any_element()
-            }
+            COL_SERVICE => muted_right_cell(format_money(row.expense_service_fee, symbol), &theme)
+                .into_any_element(),
+            COL_AD => muted_right_cell(format_money(row.expense_advertising, symbol), &theme)
+                .into_any_element(),
             COL_OTHER_EXPENSE => {
                 muted_right_cell(format_money(row.expense_other_fees, symbol), &theme)
                     .into_any_element()
@@ -1293,20 +1324,15 @@ impl TableDelegate for MonthlyTableDelegate {
             COL_INCOME_TOTAL => {
                 strong_right_cell(format_money(row.income_total, symbol), &theme).into_any_element()
             }
-            COL_EXPENSE_TOTAL => {
-                strong_right_cell(format_money(row.expense_total, symbol), &theme).into_any_element()
-            }
-            COL_PAYBACK => {
-                strong_right_cell(format_money(row.amazon_pay_back, symbol), &theme)
-                    .into_any_element()
-            }
+            COL_EXPENSE_TOTAL => strong_right_cell(format_money(row.expense_total, symbol), &theme)
+                .into_any_element(),
+            COL_PAYBACK => strong_right_cell(format_money(row.amazon_pay_back, symbol), &theme)
+                .into_any_element(),
             COL_CREDIT_CARD => {
                 muted_right_cell(format_money(row.credit_card_deduction_usd, symbol), &theme)
                     .into_any_element()
             }
-            COL_FOB => {
-                muted_right_cell(format_rmb(row.fob_cost_rmb), &theme).into_any_element()
-            }
+            COL_FOB => muted_right_cell(format_rmb(row.fob_cost_rmb), &theme).into_any_element(),
             COL_FIRST_LEG => {
                 muted_right_cell(format_rmb(row.first_leg_cost_rmb), &theme).into_any_element()
             }
@@ -1594,9 +1620,8 @@ mod tests {
     async fn monthly_report_renders_loading(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let client = Client::new("http://127.0.0.1:1");
-        let (view, _window_cx) = cx.add_window_view(|_window, cx| {
-            MonthlyReportView::new(cx, client)
-        });
+        let (view, _window_cx) =
+            cx.add_window_view(|_window, cx| MonthlyReportView::new(cx, client));
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 assert_eq!(this.current_state(cx), MonthlyReportState::Loading);

@@ -492,6 +492,12 @@ fn c(hex: u32) -> Hsla {
     rgb(hex).into()
 }
 
+/// [`c`] 的 crate 内公开形式（BLF-828 起 root.rs caption buttons 等跨模块
+/// 消费规格色值；仍限本 crate，不对外暴露）
+pub(crate) fn hex_color(hex: u32) -> Hsla {
+    c(hex)
+}
+
 #[cfg(test)]
 mod tests {
     // 字号/间距 token 的单调性断言（FONT_2XS < FONT_XS < …）在编译期即为常量——
@@ -699,7 +705,10 @@ mod tests {
         assert!(FONT_BASE < FONT_TITLE);
         assert!(FONT_TITLE < FONT_TITLE_LG);
         // BLF-797：Footer 专用字号落在辅助级区间（≥ 徽标级、≤ 次级说明）
-        assert!((10.0..=12.0).contains(&FONT_FOOTER), "Footer 字号必须为辅助级 text_xs 口径，实际 {FONT_FOOTER}");
+        assert!(
+            (10.0..=12.0).contains(&FONT_FOOTER),
+            "Footer 字号必须为辅助级 text_xs 口径，实际 {FONT_FOOTER}"
+        );
     }
 
     /// BLF-792 回归锁：控件度量与最小间距 token——输入/按钮两档 24~28px、
