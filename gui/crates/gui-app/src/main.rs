@@ -20,6 +20,7 @@ mod icon;
 mod keychain;
 mod markdown_export;
 mod motion;
+mod platform;
 mod prefs;
 mod runtime;
 mod theme;
@@ -55,7 +56,16 @@ use views::root::{RootView, RootViewEvent, SessionInfo};
 // BLF-796：⌘B 切换右侧 Inspector 抽屉（同套无 key context 全局动作）。
 actions!(
     gui_app,
-    [Quit, TabNext, TabPrev, ToggleCommandPalette, ToggleSubNav, ToggleInspector, PaletteSelectPrev, PaletteSelectNext]
+    [
+        Quit,
+        TabNext,
+        TabPrev,
+        ToggleCommandPalette,
+        ToggleSubNav,
+        ToggleInspector,
+        PaletteSelectPrev,
+        PaletteSelectNext
+    ]
 );
 
 fn main() -> anyhow::Result<()> {
@@ -421,12 +431,12 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
 /// 免点击直达 Pattern A 原型页截图。
 fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user: LoginResponse) {
     let preview_url = std::env::var("BELIEVEBOY_GUI_PREVIEW_URL").ok();
-    let preview_title = std::env::var("BELIEVEBOY_GUI_PREVIEW_TITLE")
-        .unwrap_or_else(|_| "预览".to_string());
+    let preview_title =
+        std::env::var("BELIEVEBOY_GUI_PREVIEW_TITLE").unwrap_or_else(|_| "预览".to_string());
     // BLF-798：预览数据源可经 BELIEVEBOY_API_BASE 指向本地 mock（截图验证用）；
     // 未设置时保持不可达地址（仅警告横幅，不触碰真实数据）
-    let preview_base = std::env::var("BELIEVEBOY_API_BASE")
-        .unwrap_or_else(|_| "http://127.0.0.1:1".to_string());
+    let preview_base =
+        std::env::var("BELIEVEBOY_API_BASE").unwrap_or_else(|_| "http://127.0.0.1:1".to_string());
     let window = cx
         .open_window(
             WindowOptions {
@@ -454,9 +464,8 @@ fn open_preview_window(cx: &mut App, bounds_size: gpui::Size<gpui::Pixels>, user
     if let Some(url) = preview_url {
         window
             .update(cx, |root: &mut crate::views::root::RootView, _, cx| {
-                root.sub_nav.update(cx, |sub_nav, cx| {
-                    sub_nav.select(&url, &preview_title, cx)
-                });
+                root.sub_nav
+                    .update(cx, |sub_nav, cx| sub_nav.select(&url, &preview_title, cx));
             })
             .ok();
     }
