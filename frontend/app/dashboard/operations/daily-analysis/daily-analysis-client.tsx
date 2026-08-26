@@ -2,41 +2,34 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Check, ChevronsUpDown, FileDown, Loader2, SlidersHorizontal, Target } from 'lucide-react'
+import {
+  FileDown,
+  Loader2,
+  SlidersHorizontal,
+  Target,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
-import { CountrySelect } from '@/components/dashboard/console'
-import { Badge } from '@/components/ui/badge'
+import {
+  LegacyFallbackFilters,
+  SkuSearchField,
+} from '@/components/dashboard/daily-analysis-header-filters'
+import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import { Button } from '@/components/ui/button'
 import {
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
 } from '@/components/ui/data-card'
-import { DateRangePicker, COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
-import {
-  DirectionalTabTransition,
-  SlidingTabsTrigger,
-  TabsMotionGroup,
-} from '@/components/ui/tab-motion'
 import {
   Table,
   TableBody,
@@ -46,6 +39,11 @@ import {
   TableRow,
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -67,15 +65,8 @@ import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
-import { Skeleton } from '@/components/ui/skeleton'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 type CountryOption = 'US' | 'DE' | 'UK' | 'ALL'
 type ViewTab = 'summary' | 'details'
@@ -750,138 +741,6 @@ function formatYMD(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
-}
-
-function SearchableSkuField({
-  value,
-  options,
-  loading,
-  onChange,
-  disabled = false,
-  onOpen,
-}: {
-  value: string
-  options: ProjectSkuOption[]
-  loading: boolean
-  onChange: (value: string) => void
-  disabled?: boolean
-  /** BEL-423：打开选择器时回调（父级据此懒加载 SKU 列表）。 */
-  onOpen?: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const selectedSku = options.find((option) => option.sku === value)
-
-  const handleOpen = () => {
-    if (disabled) return
-    setOpen(true)
-    onOpen?.()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled}
-        className={cn(
-          'h-9 w-[200px] justify-between px-3 font-normal shadow-sm',
-          disabled && 'opacity-50 cursor-not-allowed'
-        )}
-        onClick={handleOpen}
-      >
-        <span
-          className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}
-        >
-          {selectedSku ? (
-            <span className="flex items-center gap-1.5">
-              <span className="truncate font-medium">{selectedSku.sku}</span>
-              {selectedSku.product_name && (
-                <span className="hidden truncate text-muted-foreground lg:inline">
-                  / {selectedSku.product_name}
-                </span>
-              )}
-            </span>
-          ) : loading ? (
-            'SKU 加载中...'
-          ) : (
-            '全部 SKU'
-          )}
-        </span>
-        <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
-      </Button>
-      <DialogContent
-        aria-describedby="sku-search-dialog-description"
-        className="overflow-hidden p-0 sm:max-w-xl"
-      >
-        <span id="sku-search-dialog-description" className="sr-only">
-          搜索并选择 SKU
-        </span>
-        <Command className="max-h-[70vh]">
-          <CommandInput placeholder="搜索 SKU" />
-          <CommandList>
-            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
-            <CommandItem
-              value="__all__"
-              onSelect={() => {
-                onChange('')
-                setOpen(false)
-              }}
-              className={cn('flex items-center gap-2', !value && 'bg-accent')}
-            >
-              <Check className={cn('h-4 w-4 shrink-0', !value ? 'opacity-100' : 'opacity-0')} />
-              <span className="font-medium">全部 SKU</span>
-            </CommandItem>
-            {options.map((option) => {
-              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
-              return (
-                <CommandItem
-                  key={option.sku}
-                  value={option.sku}
-                  disabled={missingUnits}
-                  onSelect={() => {
-                    if (!missingUnits) {
-                      onChange(option.sku)
-                      setOpen(false)
-                    }
-                  }}
-                  className={cn(missingUnits && 'opacity-50 cursor-not-allowed')}
-                >
-                  <Check
-                    className={cn(
-                      'h-4 w-4 shrink-0',
-                      value === option.sku ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate flex-1 font-medium">{option.sku}</span>
-                    {option.product_name && (
-                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
-                        {option.product_name}
-                      </span>
-                    )}
-                    {missingUnits && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                        未维护单箱数
-                      </span>
-                    )}
-                  </div>
-                </CommandItem>
-              )
-            })}
-          </CommandList>
-        </Command>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function FilterSkeleton() {
-  return (
-    <div className="space-y-1.5">
-      <Skeleton className="h-3 w-16" />
-      <Skeleton className="h-10 w-full" />
-    </div>
-  )
 }
 
 /**
@@ -1652,49 +1511,53 @@ export default function DailyAnalysisPage() {
     { loading }
   )
 
+  const handleSkuChange = (value: string) => {
+    selectedSkuRef.current = value
+    setSelectedSku(value)
+    setActiveTab('summary')
+    void loadData()
+  }
+
+  // BLF-832 follow-up：头部筛选去重 ——
+  // xl+ 由 Top Header 全局四件套（BLF-819）承担项目/站点/日期，插槽只渲染
+  // 页面独有的 SKU 搜索（终端规格）；md~xl 全局四件套不渲染，保留降级三件套兑底。
   const headerFilterControls = (
     <>
-      <Select value={projectId} onValueChange={setProjectId}>
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
-          <SelectValue placeholder="选择项目" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部项目</SelectItem>
-          {projects.map((item) => (
-            <SelectItem key={item.id} value={String(item.id)}>
-              {item.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <CountrySelect
-        value={country}
-        onChange={(value) => setCountry(value as CountryOption)}
-        triggerClassName="h-8 w-full border-term-border bg-term-panel text-xs md:w-[140px]"
-      />
-      <SearchableSkuField
-        value={selectedSku}
-        options={skuOptions}
-        loading={skuLoading}
-        disabled={country === 'ALL'}
-        onOpen={ensureSkuOptions}
-        onChange={(value) => {
-          selectedSkuRef.current = value
-          setSelectedSku(value)
-          setActiveTab('summary')
-          void loadData()
-        }}
-      />
-      <DateRangePicker
-        value={dateRange}
-        onChange={(range, meta) => {
-          setDateRange(range)
-          setDatePresetKey(meta?.presetKey)
-        }}
-        className="h-8 w-full border-term-border bg-term-panel font-mono text-xs md:w-[220px]"
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        onApply={() => void loadData()}
-      />
+      <div className="hidden items-center gap-1.5 xl:flex">
+        <SkuSearchField
+          value={selectedSku}
+          options={skuOptions}
+          loading={skuLoading}
+          disabled={country === 'ALL'}
+          onOpen={ensureSkuOptions}
+          onChange={handleSkuChange}
+        />
+      </div>
+      <div className="flex items-center gap-1.5 xl:hidden">
+        <LegacyFallbackFilters
+          projectId={projectId}
+          projects={projects.filter((p): p is { id: number; name: string } => p.id !== null)}
+          country={country}
+          dateRange={dateRange}
+          onProjectChange={setProjectId}
+          onCountryChange={(v) => setCountry(v as CountryOption)}
+          onDateRangeChange={(range) => {
+            setDateRange(range)
+            setDatePresetKey(undefined)
+          }}
+          onDateApply={() => void loadData()}
+        />
+      </div>
+      <div className="hidden items-center gap-1.5 md:flex xl:hidden">
+        <SkuSearchField
+          value={selectedSku}
+          options={skuOptions}
+          loading={skuLoading}
+          disabled={country === 'ALL'}
+          onOpen={ensureSkuOptions}
+          onChange={handleSkuChange}
+        />
+      </div>
     </>
   )
   const headerSlotPortal = useHeaderSlot(
