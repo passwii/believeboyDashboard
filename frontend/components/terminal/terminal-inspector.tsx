@@ -7,6 +7,7 @@ import { History, X } from 'lucide-react'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import {
   TERMINAL_INSPECTOR_WIDTH,
+  TERMINAL_TOP_STRIP_HEIGHT,
   readRecents,
   type RecentPageEntry,
 } from '@/components/terminal/terminal-constants'
@@ -47,7 +48,10 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
       data-testid="terminal-inspector"
       className="hidden h-full shrink-0 flex-col border-l border-term-border bg-term-panel lg:flex"
     >
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1">
+      <div
+        className="flex shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1"
+        style={{ height: TERMINAL_TOP_STRIP_HEIGHT }}
+      >
         <span className="min-w-0 flex-1 text-sm font-semibold uppercase tracking-wider text-term-muted">
           Inspector
         </span>
@@ -58,13 +62,13 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
           aria-label="收起 Inspector"
           className="flex h-8 w-8 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          <X className="h-[18px] w-[18px]" />
+          <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
         <section className="border-b border-term-border p-2">
-          <h3 className="px-1 pb-1.5 text-sm uppercase tracking-wider text-term-faint">
+          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm font-semibold uppercase tracking-wider text-term-faint">
             快捷操作
           </h3>
           <div className="grid grid-cols-2 gap-px bg-term-border">
@@ -81,8 +85,8 @@ export function TerminalInspector({ open, onClose }: TerminalInspectorProps) {
         </section>
 
         <section className="p-2">
-          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm uppercase tracking-wider text-term-faint">
-            <History className="h-4 w-4" /> 最近访问
+          <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm font-semibold uppercase tracking-wider text-term-faint">
+            <History className="h-4 w-4" strokeWidth={1.75} /> 最近访问
           </h3>
           {recents.length === 0 ? (
             <p className="px-1 py-2 text-sm text-term-faint">暂无记录</p>

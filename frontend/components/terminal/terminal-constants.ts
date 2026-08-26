@@ -31,6 +31,12 @@ export const TERMINAL_SUBNAV_MOTION = {
   maxStaggerDelayMs: 240,
 } as const
 export const TERMINAL_HEADER_HEIGHT = 48
+/**
+ * 顶部基准带高度（BLF-832 / master-prompt §任务 1）：各列顶部第一个区块
+ * （Rail Logo 位 / SubNav 组头 / Inspector 标题条）统一引用本常量，
+ * 保证四列第一条横向分割线贯通。表达式绑定 Header 高度，联动调整。
+ */
+export const TERMINAL_TOP_STRIP_HEIGHT = TERMINAL_HEADER_HEIGHT
 export const TERMINAL_FOOTER_HEIGHT = 32
 export const TERMINAL_INSPECTOR_WIDTH = 360
 

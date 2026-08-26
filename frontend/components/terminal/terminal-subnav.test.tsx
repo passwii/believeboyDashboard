@@ -6,6 +6,7 @@ import {
   TERMINAL_SUBNAV_COLLAPSED_WIDTH,
   TERMINAL_SUBNAV_MOTION,
   TERMINAL_SUBNAV_WIDTH,
+  TERMINAL_TOP_STRIP_HEIGHT,
 } from './terminal-constants'
 import { TerminalSubnav } from './terminal-subnav'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
@@ -132,6 +133,15 @@ describe('TerminalSubnav', () => {
       expect(link.className).not.toContain('pointer-events-none') // pointer-events 由 .term-subnav-collapsed 后代选择器统一接管
       expect(link.getAttribute('tabindex')).toBe('-1')
     }
+  })
+
+  it('BLF-832 组头高度引用顶部基准带常量（与 Header/Rail/Inspector 分割线贯通）', () => {
+    const { container } = renderSubnav({ collapsed: false })
+    const groupHeader = container.querySelector('aside .term-subnav-content') as HTMLElement
+    expect(groupHeader.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
+    // A3：折叠钮与 Header 图标钮同档 h-8
+    const collapseBtn = screen.getByRole('button', { name: '折叠侧栏' })
+    expect(collapseBtn.className).toContain('h-8 w-8')
   })
 
   it('BLF-825 入场 stagger：列表项级联延迟按 slot * step 递增且封顶', () => {

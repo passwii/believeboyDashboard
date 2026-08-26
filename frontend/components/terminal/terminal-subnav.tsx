@@ -5,10 +5,12 @@ import { PanelLeftClose, Search } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
+import { TermKbd } from '@/components/terminal/term-kbd'
 import {
   TERMINAL_SUBNAV_COLLAPSED_WIDTH,
   TERMINAL_SUBNAV_MOTION,
   TERMINAL_SUBNAV_WIDTH,
+  TERMINAL_TOP_STRIP_HEIGHT,
   isItemActive,
 } from '@/components/terminal/terminal-constants'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
@@ -60,8 +62,8 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
     >
       {/* 内容层统一包裹：收缩时整体淡出，展开时级联入场 */}
       <div className="flex h-full min-w-0 flex-1 flex-col" style={{ minWidth: TERMINAL_SUBNAV_WIDTH }}>
-        {/* 组头：域名 + 折叠按钮 */}
-        <div className="term-subnav-content flex h-10 shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1" style={{ ...contentStyle(0), minWidth: TERMINAL_SUBNAV_WIDTH }}>
+        {/* 组头：域名 + 折叠按钮（高度 = 顶部基准带，BLF-832；BLF-825 动效类不动） */}
+        <div className="term-subnav-content flex shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1" style={{ ...contentStyle(0), minWidth: TERMINAL_SUBNAV_WIDTH, height: TERMINAL_TOP_STRIP_HEIGHT }}>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wider text-term-muted">
             {activeGroup?.label ?? '导航'}
           </span>
@@ -71,9 +73,9 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
             title="折叠侧栏"
             aria-label="折叠侧栏"
             aria-expanded={!collapsed}
-            className="flex h-7 w-7 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
+            className="flex h-8 w-8 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
           >
-            <PanelLeftClose className="h-4 w-4" />
+            <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} />
           </button>
         </div>
 
@@ -85,11 +87,9 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
             onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
             className="flex w-full h-9 items-center gap-2 border border-term-border bg-term-raised px-2.5 text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-4 w-4" strokeWidth={1.75} />
             <span className="flex-1 text-left text-sm">搜索…</span>
-            <kbd className="border border-term-border px-1 font-mono text-xs leading-4 text-term-faint">
-              ⌘K
-            </kbd>
+            <TermKbd>⌘K</TermKbd>
           </button>
         </div>
 
