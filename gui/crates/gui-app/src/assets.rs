@@ -73,6 +73,12 @@ pub const ICON_PATHS: &[&str] = &[
     "icons/rotate-ccw.svg",
     "icons/search.svg",
     "icons/settings.svg",
+    // BLF-828：Windows caption buttons 四图标（最小化/最大化/还原/关闭；
+    // 形状对齐 Lucide minus / square / copy / x，stroke 惯例同目录其余图标）
+    "icons/window-close.svg",
+    "icons/window-maximize.svg",
+    "icons/window-minimize.svg",
+    "icons/window-restore.svg",
     "icons/shield.svg",
     "icons/shield-user.svg",
     "icons/shopping-bag.svg",
@@ -149,6 +155,10 @@ fn icon_file(path: &str) -> Option<Cow<'static, [u8]>> {
         "icons/warehouse.svg" => include_bytes!("../assets/icons/warehouse.svg"),
         "icons/wrench.svg" => include_bytes!("../assets/icons/wrench.svg"),
         "icons/zap.svg" => include_bytes!("../assets/icons/zap.svg"),
+        "icons/window-close.svg" => include_bytes!("../assets/icons/window-close.svg"),
+        "icons/window-maximize.svg" => include_bytes!("../assets/icons/window-maximize.svg"),
+        "icons/window-minimize.svg" => include_bytes!("../assets/icons/window-minimize.svg"),
+        "icons/window-restore.svg" => include_bytes!("../assets/icons/window-restore.svg"),
         _ => return None,
     };
     Some(Cow::Borrowed(data))

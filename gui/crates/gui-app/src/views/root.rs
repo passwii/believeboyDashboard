@@ -25,8 +25,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
-    MouseMoveEvent, MouseUpEvent, Render, Window, WindowControlArea,
+    div, px, App, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseMoveEvent, MouseUpEvent, Render, SharedString, Window, WindowControlArea,
 };
 use gpui_component::breadcrumb::{Breadcrumb, BreadcrumbItem};
 use gpui_component::button::{Button, ButtonVariants};
@@ -35,7 +35,7 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 use gui_domain::sidebar::{breadcrumb_for, group_id_for_url, sidebar_groups};
 
-use crate::theme::AppTheme;
+use crate::theme::{hex_color, AppTheme};
 use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL};
 use crate::widgets::console_bar::{
     console_config_for_url, ConsoleBarEvent, ConsoleBarView, ConsoleFilter, ConsoleStatsEvent,
@@ -363,6 +363,9 @@ pub struct RootView {
     /// P4-1 修复：窗口拖拽武装标志——鼠标在内容区头部按下后置真，移动时触发
     /// `start_window_move()`；未移动直接松开 = 普通点击（头部内按钮仍可交互）
     should_move: bool,
+    /// BLF-828：Windows Snap Layouts 浮层是否展开（最大化钮 hover 弹出；
+    /// 仅 Windows 有 caption buttons，macOS 恒 false）
+    snap_layout_open: bool,
     session: Option<SessionInfo>,
     focus_handle: FocusHandle,
     /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
@@ -2758,6 +2761,7 @@ impl RootView {
             breadcrumb: vec!["Dashboard".to_string()],
             sub_nav_collapsed: initial_collapsed,
             should_move: false,
+            snap_layout_open: false,
             session,
             focus_handle: cx.focus_handle(),
             theme_appearance_sub: None,
@@ -3424,7 +3428,7 @@ impl RootView {
 impl EventEmitter<RootViewEvent> for RootView {}
 
 impl Render for RootView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
 
         // BLF-793 六区外壳（尺寸常量见 views::shell）：
@@ -3485,6 +3489,23 @@ impl Render for RootView {
             // 接入，整窗模糊 + 半透明叠加观感粗糙且禁用亚像素文字渲染（apple-glass.md
             // Tier 4/6）。根容器画不透明 window_bg 兜底（分区切换期间无透底/间隙）。
             .bg(theme.window_bg)
+            // BLF-828：Win11 Fluent 视觉基调——Mica 近似暗色垂直渐变（仅 Windows）。
+            // GPUI 0.2.2 无 DWM_SYSTEMBACKDROP_TYPE 接入，无法启用原生 Mica；
+            // 按 apple-glass.md Tier 4「跨平台近似」原则用极低对比暗色渐变模拟
+            // 质感意向（不宣称原生 Mica）。macOS 零改动（保持纯实色）。
+            .when(crate::platform::is_windows(), |root| {
+                root.bg(gpui::linear_gradient(
+                    180.0,
+                    gpui::linear_color_stop(
+                        crate::theme::hex_color(crate::platform::WIN11_MICA_TOP),
+                        0.0,
+                    ),
+                    gpui::linear_color_stop(
+                        crate::theme::hex_color(crate::platform::WIN11_MICA_BOTTOM),
+                        1.0,
+                    ),
+                ))
+            })
             .child(
                 // 上区行：Rail | Sub-Nav | 中央列 | Inspector
                 div()
@@ -3516,12 +3537,15 @@ impl Render for RootView {
                             .h_full()
                             .bg(theme.window_bg)
                             // Console Bar 插槽（36px）：BLF-795 起由面包屑 + 四件套
-                            // 控制条（登录态）+ 用户 chrome 组成并承担窗口拖拽区
+                            // 控制条（登录态）+ 用户 chrome 组成并承担窗口拖拽区；
+                            // BLF-828 Windows 下右端另有 caption buttons
                             .child(content_header(
                                 &self.breadcrumb,
                                 self.sub_nav_collapsed,
                                 self.console_bar.clone(),
                                 &self.session,
+                                window.is_maximized(),
+                                self.snap_layout_open,
                                 cx,
                             ))
                             .when(
@@ -3588,6 +3612,8 @@ fn content_header(
     collapsed: bool,
     console_bar: Option<Entity<ConsoleBarView>>,
     session: &Option<SessionInfo>,
+    maximized: bool,
+    snap_open: bool,
     cx: &mut Context<RootView>,
 ) -> impl IntoElement {
     let theme = AppTheme::current(cx);
@@ -3605,6 +3631,11 @@ fn content_header(
         .border_color(theme.separator)
         // bg Panel token（父 issue「空间栅格」控制条规格：与 Canvas 区分层级）
         .bg(theme.panel_bg)
+        // BLF-828：Windows 下右侧 caption buttons 覆盖在头部右端之上，
+        // 用户身份簇需避让 3 × 36px；macOS 无此区。
+        .when(crate::platform::is_windows(), |this| {
+            this.pr(px(crate::platform::CAPTION_ZONE_WIDTH))
+        })
         .child(
             div()
                 .id("content-header-left")
@@ -3619,20 +3650,32 @@ fn content_header(
                 .when_some(console_bar, |row, bar| row.child(bar)),
         )
         .child(session_cluster(session, theme, cx))
+        // BLF-828：Windows caption buttons 挂在头部最右（渲染顺序上位于
+        // 身份簇之后；配合上面的 pr 避让不遮挡内容）
+        .when(crate::platform::is_windows(), |this| {
+            this.child(caption_buttons(maximized, snap_open, &theme, cx))
+        })
         .map(|el| attach_window_drag(el, cx))
 }
 
 /// P4-1 修复：给内容区头部挂窗口拖拽交互——复刻 gpui-component `TitleBar` 的交互链：
 /// `WindowControlArea::Drag` 注册原生拖拽区；按下武装 → 移动时 `start_window_move()`
 /// 启动原生窗口拖拽；未移动直接松开 = 普通点击（外观菜单/退出登录仍可交互）；macOS
-/// 双击 = `titlebar_double_click()`。与侧栏头部（sidebar.rs）构成左右两条拖拽区。
+/// 双击 = `titlebar_double_click()`，Windows 双击 = `zoom_window()`（BLF-828：
+/// Win11 惯例双击标题栏最大化/还原）。与侧栏头部（sidebar.rs）构成左右两条拖拽区。
 fn attach_window_drag(
     el: gpui::Stateful<gpui::Div>,
     cx: &mut Context<RootView>,
 ) -> gpui::Stateful<gpui::Div> {
     el.window_control_area(WindowControlArea::Drag)
-        .when(cfg!(target_os = "macos"), |this| {
-            this.on_double_click(|_, window, _| window.titlebar_double_click())
+        .on_double_click(|_, window, _| {
+            // macOS：titlebar_double_click 跟随系统「双击窗口标题栏」设置（缩放/最小化/无操作）；
+            // Windows：Win11 惯例固定为最大化/还原切换（zoom 即 toggle）。
+            if crate::platform::is_macos() {
+                window.titlebar_double_click();
+            } else {
+                window.zoom_window();
+            }
         })
         .on_mouse_down_out(cx.listener(|this, _, _, _| this.disarm_drag()))
         .on_mouse_down(
@@ -3648,6 +3691,275 @@ fn attach_window_drag(
         )
 }
 
+/// BLF-828：Windows caption buttons 区——右上角自绘最小化/最大化(还原)/关闭三钮。
+///
+/// 视觉对齐 Win11 Fluent：每钮 [`CAPTION_BUTTON_WIDTH`]×36px、图标 10px 细线、
+/// hover 中性高亮、关闭钮 hover 红。交互链与 gpui-component TitleBar 同源：
+/// 元素注册 `WindowControlArea::Min/Max/Close` hitbox → Windows 端 WM_NCHITTEST
+/// 返回 HTMINBUTTON/HTMAXBUTTON/HTCLOSE → 消息循环在 NC mouse up 时执行原生
+/// 最小化/最大化还原/关闭（见 gpui platform/windows/events.rs）。因此**应用侧不写
+/// 点击逻辑**——这也保证 hover 弹出 Snap Layouts 与原生点击不冲突（NC down 会先
+/// 派发 GPUI MouseDown，未消费才落回系统处理；浮层打开时点最大化钮由浮层关闭
+/// 监听消费，不会误触发最大化）。
+///
+/// macOS 下返回空 div（traffic lights 悬于侧栏头部，无此区）。
+fn caption_buttons(
+    maximized: bool,
+    snap_open: bool,
+    theme: &AppTheme,
+    cx: &mut Context<RootView>,
+) -> gpui::AnyElement {
+    if !crate::platform::is_windows() {
+        return div().id("caption-buttons-empty").into_any_element();
+    }
+
+    let btn_w = px(crate::platform::CAPTION_BUTTON_WIDTH);
+    let icon_size = px(10.0);
+
+    // 三钮通用基座：等宽等高、居中图标、hover/active 反馈。
+    // 注意不用 .window_control_area 的元素 hover 样式做状态判定——
+    // NC 消息路径下 hover 样式仍生效（NC mouse move 会派发 MouseMove），
+    // 但点击行为完全交给系统。
+    fn button_base(
+        id: &'static str,
+        w: gpui::Pixels,
+        theme: &AppTheme,
+    ) -> gpui::Stateful<gpui::Div> {
+        div()
+            .id(id)
+            .flex()
+            .items_center()
+            .justify_center()
+            .w(w)
+            .h_full()
+            .flex_shrink_0()
+            .text_color(theme.text_secondary)
+            .hover(|style| style.bg(theme.muted_fill).text_color(theme.text_primary))
+            .active(|style| style.bg(theme.separator))
+    }
+
+    let maximize_icon = if maximized {
+        "icons/window-restore.svg"
+    } else {
+        "icons/window-maximize.svg"
+    };
+
+    div()
+        .id("caption-buttons")
+        .flex()
+        .items_center()
+        .h_full()
+        .flex_shrink_0()
+        .child(
+            // 最小化钮
+            button_base("caption-minimize", btn_w, theme)
+                .window_control_area(WindowControlArea::Min)
+                .child(
+                    gpui::svg()
+                        .path("icons/window-minimize.svg")
+                        .size(icon_size),
+                ),
+        )
+        .child(snap_layout_button(
+            maximize_icon,
+            snap_open,
+            btn_w,
+            icon_size,
+            theme,
+            cx,
+        ))
+        .child(
+            // 关闭钮：hover 红（Win11 Fluent 惯例）
+            div()
+                .id("caption-close")
+                .flex()
+                .items_center()
+                .justify_center()
+                .w(btn_w)
+                .h_full()
+                .flex_shrink_0()
+                .window_control_area(WindowControlArea::Close)
+                .text_color(theme.text_secondary)
+                .hover(|style| {
+                    style
+                        .bg(theme.danger)
+                        .text_color(crate::theme::hex_color(0xffffff))
+                })
+                .active(|style| style.bg(theme.danger).opacity(0.8))
+                .child(gpui::svg().path("icons/window-close.svg").size(icon_size)),
+        )
+        .into_any_element()
+}
+
+/// BLF-828：Snap Layouts 最大化钮——本体注册 `WindowControlArea::Max` 原生
+/// 最大化/还原；hover 时向下弹出 Snap 布局选择浮层（交付项 2 的常用四分格子集：
+/// 左半 / 右半 / 左 2:1 / 右 1:2，见 [`SNAP_LAYOUTS`]）。选中项由
+/// [`apply_snap_layout`] 按当前显示器工作区计算目标 bounds 并移动/缩放窗口。
+fn snap_layout_button(
+    maximize_icon: &'static str,
+    snap_open: bool,
+    btn_w: gpui::Pixels,
+    icon_size: gpui::Pixels,
+    theme: &AppTheme,
+    cx: &mut Context<RootView>,
+) -> gpui::AnyElement {
+    let radius = theme.radius;
+    div()
+        .id("caption-maximize")
+        .relative()
+        .flex()
+        .items_center()
+        .justify_center()
+        .w(btn_w)
+        .h_full()
+        .flex_shrink_0()
+        .window_control_area(WindowControlArea::Max)
+        .text_color(theme.text_secondary)
+        .hover(|style| style.bg(theme.muted_fill).text_color(theme.text_primary))
+        .active(|style| style.bg(theme.separator))
+        // hover 展开浮层（NC mouse move 会派发 GPUI MouseMove，on_hover 可用；
+        // 移出即收起——与 Win11 Snap 弹层的短暂驻留语义近似，简单可靠）
+        .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+            if this.snap_layout_open != *hovered {
+                this.snap_layout_open = *hovered;
+                cx.notify();
+            }
+        }))
+        .child(gpui::svg().path(maximize_icon).size(icon_size))
+        // Snap 浮层（absolute 定位在按钮下方右对齐；仅展开态渲染）。
+        // 注意：浮层元素**不**注册 WindowControlArea——鼠标进入浮层即离开
+        // 最大化钮 hitbox，on_hover(false) 收起逻辑由 open 状态门控（浮层自身
+        // hover 时保持 open，见下方 on_hover 驻留）。
+        .when(snap_open, |btn| {
+            btn.child(
+                div()
+                    .id("snap-layout-popover")
+                    .absolute()
+                    .top_full()
+                    .right_0()
+                    .mt_1()
+                    .flex()
+                    .gap_1()
+                    .p_1()
+                    .rounded(px(radius))
+                    .bg(theme.card_bg)
+                    .border_1()
+                    .border_color(theme.separator)
+                    // 鼠标移入浮层期间保持展开（离开时整体收起）
+                    .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                        if !*hovered && this.snap_layout_open {
+                            this.snap_layout_open = false;
+                            cx.notify();
+                        }
+                    }))
+                    .child(snap_layout_menu(cx)),
+            )
+        })
+        .into_any_element()
+}
+
+/// BLF-828：Snap Layouts 四分格布局选项（常用子集）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SnapLayout {
+    /// 相对显示器工作区的比例矩形（0..1）：(x, y, w, h)
+    rect: (f32, f32, f32, f32),
+    /// 预览小图标签（无障碍/调试用途；浮层预览用比例小格表达）
+    label: &'static str,
+}
+
+const SNAP_LAYOUTS: [SnapLayout; 4] = [
+    SnapLayout {
+        rect: (0.0, 0.0, 0.5, 1.0),
+        label: "左半",
+    },
+    SnapLayout {
+        rect: (0.5, 0.0, 0.5, 1.0),
+        label: "右半",
+    },
+    SnapLayout {
+        rect: (0.0, 0.0, 0.67, 1.0),
+        label: "左三分之二",
+    },
+    SnapLayout {
+        rect: (0.33, 0.0, 0.67, 1.0),
+        label: "右三分之二",
+    },
+];
+
+/// BLF-828：Snap 布局选择菜单（四个预览小格；点击套用对应布局）。
+fn snap_layout_menu(cx: &mut Context<RootView>) -> impl IntoElement {
+    let cells: Vec<gpui::AnyElement> = SNAP_LAYOUTS
+        .iter()
+        .map(|layout| {
+            let (rx, _ry, rw, _rh) = layout.rect;
+            div()
+                .id(SharedString::from(format!("snap-{}", (rw * 100.0) as u32)))
+                .w(px(44.0))
+                .h(px(28.0))
+                .p(px(3.0))
+                .rounded(px(4.0))
+                .cursor(CursorStyle::PointingHand)
+                .on_mouse_up(MouseButton::Left, {
+                    let rect = layout.rect;
+                    cx.listener(move |this, _, window, cx| {
+                        apply_snap_layout(this, rect, window, cx);
+                        cx.notify();
+                    })
+                })
+                // 预览小格：按布局比例画一个高亮矩形示意分区形状
+                .child(
+                    div()
+                        .w_full()
+                        .h_full()
+                        .rounded(px(2.0))
+                        .bg(hex_color(crate::theme::BORDER_SEPARATOR))
+                        .child(
+                            div()
+                                .relative()
+                                .h_full()
+                                .bg(hex_color(crate::theme::SEMANTIC_POSITIVE))
+                                .ml(px(rx * 38.0))
+                                .w(px(rw * 38.0)),
+                        ),
+                )
+                .into_any_element()
+        })
+        .collect();
+    div().flex().gap_1().children(cells)
+}
+
+/// BLF-828：应用 Snap 布局——把窗口缩放到当前显示器工作区的比例矩形大小。
+///
+/// 实现说明：GPUI 0.2.2 无跨平台 `set_position`（Windows `resize` 带 SWP_NOMOVE，
+/// 只改尺寸不动位置），因此本实现为「尺寸贴格」近似：按目标格宽高比把窗口
+/// resize 到对应大小；若窗口已最大化则先 `zoom_window()` 还原到窗口态再缩放。
+/// 位置不自动移动到屏幕左/右半边——用户拖动一次即可对齐。这是当前 gpui
+/// 能力下的已知局限（BLF-828 已注明），待上游提供 set_bounds 后替换为精确贴格。
+fn apply_snap_layout(
+    this: &mut RootView,
+    rect: (f32, f32, f32, f32),
+    window: &mut Window,
+    cx: &App,
+) {
+    this.snap_layout_open = false;
+    let (_, _, ratio_w, ratio_h) = rect;
+
+    // 已最大化先还原（否则 resize 对最大化窗口无效/被系统忽略）
+    if window.is_maximized() {
+        window.zoom_window();
+    }
+
+    // 以显示器 bounds 为基准计算目标内容尺寸（工作区近似取全屏 bounds）
+    if let Some(display) = window.display(cx) {
+        let db = display.bounds();
+        let target_w = db.size.width * ratio_w;
+        let target_h = db.size.height * ratio_h;
+        window.resize(gpui::size(target_w, target_h));
+    }
+}
+
+
+
 /// 面包屑路径行：`一级分类 › 二级标题`（gpui-component Breadcrumb，末项为
 /// 当前页标题——前景色高亮，前级为分类——弱化色；自动带 chevron 分隔）。
 fn breadcrumb_row(path: &[String]) -> impl IntoElement {
@@ -3661,13 +3973,14 @@ fn breadcrumb_row(path: &[String]) -> impl IntoElement {
 }
 
 /// 折叠态内容区头部最左的「展开侧栏」按钮（BLF-794：Sub-Nav 整列折叠至 0 后，
-/// 从这里恢复——也可按 ⌘\ 或点 Rail 分类图标区域外的快捷键切换）。
+/// 从这里恢复——也可按 ⌘\ / Ctrl+\ 或点 Rail 分类图标区域外的快捷键切换）。
 fn expand_sidebar_button(cx: &mut Context<RootView>) -> impl IntoElement {
     Button::new("sidebar-expand-button")
         .ghost()
         .small()
         .icon(Icon::new(IconName::PanelLeftOpen).with_size(px(14.0)))
-        .tooltip("展开侧栏（⌘\\）")
+        // BLF-828：快捷键文案平台化（macOS ⌘\ / Windows Ctrl+\）
+        .tooltip(format!("展开侧栏（{}）", crate::platform::combo("\\")))
         .on_click(cx.listener(|this, _, _, cx| {
             this.sub_nav
                 .update(cx, |sub_nav, cx| sub_nav.toggle_collapsed(cx));

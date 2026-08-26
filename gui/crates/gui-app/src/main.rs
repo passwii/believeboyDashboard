@@ -20,6 +20,7 @@ mod icon;
 mod keychain;
 mod markdown_export;
 mod motion;
+mod platform;
 mod prefs;
 mod runtime;
 mod theme;

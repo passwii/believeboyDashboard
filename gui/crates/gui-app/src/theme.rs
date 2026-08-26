@@ -492,6 +492,12 @@ fn c(hex: u32) -> Hsla {
     rgb(hex).into()
 }
 
+/// [`c`] 的 crate 内公开形式（BLF-828 起 root.rs caption buttons 等跨模块
+/// 消费规格色值；仍限本 crate，不对外暴露）
+pub(crate) fn hex_color(hex: u32) -> Hsla {
+    c(hex)
+}
+
 #[cfg(test)]
 mod tests {
     // 字号/间距 token 的单调性断言（FONT_2XS < FONT_XS < …）在编译期即为常量——
