@@ -68,6 +68,7 @@ const readRow = {
   project_id: 12,
   project_name: '测试项目',
   operation_type: 'shipments',
+  country: 'US',
 }
 
 const otherRow = {
@@ -158,13 +159,14 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     expect(screen.getByTitle('货件助理 (生产) · 1 次')).toBeTruthy()
   })
 
-  it('BLF-845 ③：国家列位渲染（后端字段就绪前恒显 —）', async () => {
+  it('BLF-845 ③：国家列渲染（迁移 259 后端已透出 country；NULL 显 —）', async () => {
     render(<AgentAccessLogsPanel />)
 
-    // 表头有「国家」列；数据行 country 未就绪恒显 '—'
+    // 表头有「国家」列；mock 数据含一条 country='US' 的行 + 一条 NULL 行
     expect(await screen.findByText('国家')).toBeTruthy()
+    expect(screen.getAllByText('US').length).toBeGreaterThanOrEqual(1)
     const dashes = screen.getAllByText('—')
-    expect(dashes.length).toBeGreaterThanOrEqual(2)
+    expect(dashes.length).toBeGreaterThanOrEqual(1)
   })
 
   it('project_id / operation_type 筛选提交到请求参数', async () => {
