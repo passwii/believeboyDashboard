@@ -6,7 +6,6 @@ import { CrmLeadTable } from '@/components/crm/lead-table'
 import { CrmLeadForm } from '@/components/crm/crm-lead-form'
 import { ScopeToggle } from '../customers/components/scope-toggle'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
 import {
   Sheet,
   SheetContent,
@@ -31,29 +30,30 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      {/* §8.1 PageHeader 原语 */}
-      <PageHeader
-        kicker="CRM"
-        title="线索管理"
-        description="线索列表、详情、跟进与转化为客户"
-        actions={
-          <>
-            <ScopeToggle />
-            <Button size="sm" onClick={() => setOpen(true)}>
-              <Plus className="mr-1 h-4 w-4" /> 新建线索
-            </Button>
-          </>
-        }
-      />
-      <CrmLeadTable />
+    // BLF-837：页面标题已由 Top Header 面包屑承载（BLF-824 去重原则）
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
+        <ScopeToggle />
+        <Button
+          size="sm"
+          className="h-8 shrink-0 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+          onClick={() => setOpen(true)}
+        >
+          <Plus className="mr-0.5 h-4 w-4" /> 新建线索
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1">
+        <CrmLeadTable />
+      </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="w-full gap-0 p-0 sm:max-w-xl">
-          <SheetHeader className="border-b border-border/60 px-5 py-4">
-            <SheetTitle>新建线索</SheetTitle>
+        <SheetContent className="w-full gap-0 rounded-none p-0 sm:max-w-xl">
+          <SheetHeader className="rounded-none border-b border-term-border bg-term-panel px-3 py-2">
+            <SheetTitle className="text-sm uppercase tracking-wider text-term-muted">
+              新建线索
+            </SheetTitle>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto bg-term-panel px-3 py-3">
             <CrmLeadForm users={users} onSubmit={handleCreate} submitText="创建线索" />
           </div>
         </SheetContent>

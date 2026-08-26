@@ -1,31 +1,27 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, History, RefreshCcw, ShieldAlert } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ShieldAlert } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { AUDIT_ACTION_LABELS } from '@/lib/crm/types'
 import type { AuditAction, AuditLog } from '@/lib/crm/types'
-import { Badge } from '@/components/ui/badge'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import {
+  TERM_SELECT_NATIVE,
+  TermEnumPill,
+  AUDIT_ACTION_TERM,
+} from '@/components/crm/term-shared'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyState } from '@/components/ui/empty-state'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { ACTION_BADGE } from '@/components/crm/crm-audit-timeline'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /** 实体类型 → 中文标签（筛选用）。 */
 const ENTITY_LABELS: Record<string, string> = {
@@ -80,182 +76,162 @@ export default function CrmAuditPage() {
     void load()
   }, [load])
 
+  // —— BLF-837：全局刷新接入 Top Header（原页内刷新按钮移除，语义一致）——
+  const refreshRef = useRef(load)
+  refreshRef.current = load
+  useHeaderRefresh(() => refreshRef.current(), { loading })
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  return (
-    <div className="space-y-4 p-4 md:p-6">
-      {/* 页头 */}
-      {/* 总则 5：页头手机端 flex-wrap */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <History className="h-5 w-5 text-muted-foreground" />
-            操作日志
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            客户 / 线索 / 联系人的全部操作留痕（仅管理员可见）
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-        >
-          <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-          刷新
-        </button>
-      </div>
-
-      {/* 无权限（403）：非管理员访问时的兜底展示 */}
-      {forbidden ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-6 py-12 text-center">
-          <ShieldAlert className="h-8 w-8 text-amber-600 dark:text-amber-400" />
-          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+  if (forbidden) {
+    return (
+      <div className="flex min-w-0 flex-col">
+        <div className="flex flex-col items-center gap-2 border border-term-warn/40 bg-term-warn/5 px-6 py-12 text-center">
+          <ShieldAlert className="h-7 w-7 text-term-warn" />
+          <p className="font-mono text-xs uppercase tracking-wider text-term-warn">
             无权限查看操作日志（仅管理员）
           </p>
         </div>
-      ) : (
-        <>
-          {/* 筛选 + 总数（规则 2/9：手机 2 列网格内联标签，md+ 横向排列） */}
-          <div className="grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
-            <div className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1.5">
-              <span className="text-xs text-muted-foreground">对象</span>
-              <Select
-                value={entityType}
-                onValueChange={(v) => {
-                  setEntityType(v)
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger className="h-9 w-full md:h-8 md:w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>全部对象</SelectItem>
-                  {Object.entries(ENTITY_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1.5">
-              <span className="text-xs text-muted-foreground">操作</span>
-              <Select
-                value={action}
-                onValueChange={(v) => {
-                  setAction(v)
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger className="h-9 w-full md:h-8 md:w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>全部操作</SelectItem>
-                  {Object.entries(AUDIT_ACTION_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {!loading && (
-              <span className="col-span-2 text-xs text-muted-foreground md:ml-auto md:col-span-1">
-                共 {total} 条记录
-              </span>
+      </div>
+    )
+  }
+
+  return (
+    // BLF-837：页面标题已由 Top Header 面包屑承载；筛选行终端控件；刷新上移 Header
+    <div className="flex min-w-0 flex-col gap-1.5">
+      {/* 筛选 + 总数（规则 2/9：手机 2 列网格内联标签，md+ 横向排列） */}
+      <div className="grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">
+        <label className="flex flex-col gap-1 text-xs md:flex-row md:items-center md:gap-1.5">
+          <span className="font-mono uppercase tracking-wider text-term-muted">对象</span>
+          <select
+            aria-label="按对象筛选"
+            className={`${TERM_SELECT_NATIVE} w-full tabular-nums md:w-auto`}
+            value={entityType}
+            onChange={(e) => {
+              setEntityType(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value={ALL}>全部对象</option>
+            {Object.entries(ENTITY_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs md:flex-row md:items-center md:gap-1.5">
+          <span className="font-mono uppercase tracking-wider text-term-muted">操作</span>
+          <select
+            aria-label="按操作筛选"
+            className={`${TERM_SELECT_NATIVE} w-full tabular-nums md:w-auto`}
+            value={action}
+            onChange={(e) => {
+              setAction(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value={ALL}>全部操作</option>
+            {Object.entries(AUDIT_ACTION_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!loading && (
+          <span className="col-span-2 font-mono text-xs tabular-nums text-term-faint md:ml-auto md:col-span-1">
+            共 {total} 条记录
+          </span>
+        )}
+      </div>
+
+      {/* 日志表格（终端高密度） */}
+      <TermPanel bodyClassName="min-h-0 overflow-auto">
+        <TermTable>
+          <TermTHead>
+            <TermRow>
+              <TermHead>时间</TermHead>
+              <TermHead>对象</TermHead>
+              <TermHead>操作</TermHead>
+              <TermHead>操作人</TermHead>
+              <TermHead>变更</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TermRow key={i}>
+                  <TermCell colSpan={5} tone="muted" className="animate-pulse">
+                    <span className="inline-block h-3 w-full bg-term-raised" aria-hidden />
+                  </TermCell>
+                </TermRow>
+              ))
+            ) : items.length === 0 ? (
+              <TermRow>
+                <TermCell colSpan={5} className="h-20 text-center" tone="muted">
+                  暂无操作记录
+                </TermCell>
+              </TermRow>
+            ) : (
+              items.map((log) => (
+                <TermRow key={log.id}>
+                  <TermCell
+                    tone="muted"
+                    title={new Date(log.createdAt).toLocaleString('zh-CN')}
+                    className="whitespace-nowrap"
+                  >
+                    {new Date(log.createdAt).toLocaleString('zh-CN')}
+                  </TermCell>
+                  <TermCell className="whitespace-nowrap">
+                    {ENTITY_LABELS[log.entityType] ?? log.entityType}
+                    <span className="ml-1 font-mono text-term-faint">#{log.entityId}</span>
+                  </TermCell>
+                  <TermCell>
+                    <TermEnumPill
+                      tone={AUDIT_ACTION_TERM[log.action as AuditAction] ?? 'muted'}
+                      title={AUDIT_ACTION_LABELS[log.action as AuditAction] ?? log.action}
+                    >
+                      {AUDIT_ACTION_LABELS[log.action as AuditAction] ?? log.action}
+                    </TermEnumPill>
+                  </TermCell>
+                  <TermCell className="whitespace-nowrap">{log.actorName ?? '系统'}</TermCell>
+                  <TermCell tone="muted" className="max-w-[360px]" title={log.summary ?? '-'}>
+                    <span className="line-clamp-2">{log.summary ?? '-'}</span>
+                  </TermCell>
+                </TermRow>
+              ))
             )}
-          </div>
+          </TermBody>
+        </TermTable>
+      </TermPanel>
 
-          {/* 日志表格 */}
-          <Card>
-            <CardContent className="pt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[150px]">时间</TableHead>
-                    <TableHead className="w-[110px]">对象</TableHead>
-                    <TableHead className="w-[110px]">操作</TableHead>
-                    <TableHead className="w-[110px]">操作人</TableHead>
-                    <TableHead>变更</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 6 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={5} className="py-3">
-                          <Skeleton className="h-5 w-full" />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : items.length === 0 ? (
-                    <EmptyState colSpan={5} icon="file" message="暂无操作记录" />
-                  ) : (
-                    items.map((log) => (
-                      <TableRow key={log.id} className="transition-colors hover:bg-muted/40">
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {new Date(log.createdAt).toLocaleString('zh-CN')}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {ENTITY_LABELS[log.entityType] ?? log.entityType}
-                          <span className="ml-1 text-xs text-muted-foreground/70">
-                            #{log.entityId}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className={`font-normal ${ACTION_BADGE[log.action as AuditAction] ?? ''}`}
-                          >
-                            {AUDIT_ACTION_LABELS[log.action as AuditAction] ?? log.action}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {log.actorName ?? '系统'}
-                        </TableCell>
-                        <TableCell className="max-w-[360px] text-muted-foreground">
-                          <span className="line-clamp-2">{log.summary ?? '-'}</span>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* 分页 */}
-          <div className="flex items-center justify-end gap-2 text-sm">
-            <Button
-              variant="outline"
-              size="sm"
-              className="max-md:min-h-[44px]"
-              disabled={page <= 1 || loading}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              上一页
-            </Button>
-            <span className="px-1 text-muted-foreground">
-              第 {page} / {totalPages} 页
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="max-md:min-h-[44px]"
-              disabled={page >= totalPages || loading}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              下一页
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </>
-      )}
+      {/* 分页 */}
+      <div className="flex items-center justify-end gap-1.5 font-mono text-xs text-term-muted">
+        <Button
+          variant="outline"
+          size="sm"
+          className="max-md:min-h-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
+          disabled={page <= 1 || loading}
+          onClick={() => setPage((p) => p - 1)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          上一页
+        </Button>
+        <span className="px-1 tabular-nums">
+          第 {page} / {totalPages} 页
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="max-md:min-h-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
+          disabled={page >= totalPages || loading}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          下一页
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   )
 }

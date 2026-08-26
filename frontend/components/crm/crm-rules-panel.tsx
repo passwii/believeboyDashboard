@@ -103,19 +103,18 @@ export function CrmRulesPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* 页头 */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Workflow className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-            规则引擎
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            可视化配置「当 X 发生，做 Y」自动化规则（每日 09:05 自动扫描执行，仅管理员可见）
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    // BLF-837：规则面板终端规格（页面内嵌区块，标题降为 mono 小节头）
+    <div className="space-y-2">
+      {/* 区块头 */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <h2 className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-term-muted">
+          <Workflow className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          规则引擎
+          <span className="font-sans normal-case tracking-normal text-term-faint">
+            可视化配置「当 X 发生，做 Y」自动化规则（每日 09:05 自动扫描执行）
+          </span>
+        </h2>
+        <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="outline"
@@ -123,11 +122,18 @@ export function CrmRulesPanel() {
             onClick={() => void load()}
             disabled={loading}
             aria-label="刷新规则列表"
+            className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
           >
             <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
             刷新
           </Button>
-          <Button type="button" size="sm" onClick={openCreate} disabled={forbidden}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={openCreate}
+            disabled={forbidden}
+            className="h-8 rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+          >
             <Plus className="h-4 w-4" aria-hidden="true" />
             新建规则
           </Button>
@@ -136,9 +142,9 @@ export function CrmRulesPanel() {
 
       {/* 无权限（403）：非管理员访问时的兜底展示 */}
       {forbidden ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-6 py-12 text-center">
-          <ShieldAlert className="h-8 w-8 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+        <div className="flex flex-col items-center gap-2 border border-term-warn/40 bg-term-warn/5 px-6 py-12 text-center">
+          <ShieldAlert className="h-7 w-7 text-term-warn" aria-hidden="true" />
+          <p className="font-mono text-xs uppercase tracking-wider text-term-warn">
             无权限管理规则引擎（仅管理员）
           </p>
         </div>
@@ -149,22 +155,22 @@ export function CrmRulesPanel() {
               {[0, 1].map((i) => (
                 <div
                   key={i}
-                  className="h-24 animate-pulse rounded-lg border bg-muted/40"
+                  className="h-20 animate-pulse border border-term-border bg-term-raised"
                   aria-hidden="true"
                 />
               ))}
             </div>
           ) : rules.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-              <Workflow className="h-8 w-8 text-muted-foreground/60" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">还没有规则，点击「新建规则」开始配置</p>
+            <div className="flex flex-col items-center gap-2 border border-dashed border-term-border px-6 py-12 text-center">
+              <Workflow className="h-7 w-7 text-term-faint" strokeWidth={1.75} aria-hidden="true" />
+              <p className="font-mono text-xs text-term-faint">还没有规则，点击「新建规则」开始配置</p>
             </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-1.5">
               {rules.map((rule) => (
                 <li
                   key={rule.id}
-                  className="rounded-lg border bg-card p-4 transition-colors hover:border-border/80"
+                  className="border border-term-border bg-term-panel p-3 transition-colors hover:border-term-border-strong"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">

@@ -96,11 +96,14 @@ export function CrmOverviewDrawer<T extends object>({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border/60 px-5 py-4">
+      {/* BLF-837：抽屉终端规格——零圆角、term 边界与面板底色 */}
+      <SheetContent className="w-full gap-0 rounded-none border-term-border bg-term-panel p-0 sm:max-w-xl">
+        <SheetHeader className="rounded-none border-b border-term-border px-3 py-2">
           <div className="flex items-center justify-between gap-2 pr-8">
-            <SheetTitle className="truncate">{title}</SheetTitle>
-            <div className="flex items-center gap-2">
+            <SheetTitle className="truncate text-sm uppercase tracking-wider text-term-muted">
+              {title}
+            </SheetTitle>
+            <div className="flex items-center gap-1.5">
               {actions}
               {headerExtra}
             </div>
@@ -123,11 +126,11 @@ export function CrmOverviewDrawer<T extends object>({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             <TabsContent value="detail" className="mt-0">
               {entityType === 'customer' && (
-                <div className="mb-4">
+                <div className="mb-3">
                   <CrmValueProfileCard customer={data as any} />
-                  <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+                  <div className="mt-1.5 border border-term-border bg-term-raised px-3 py-2.5">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
+                      <span className="font-mono text-xs uppercase tracking-wider text-term-muted">
                         产品类目
                       </span>
                     </div>

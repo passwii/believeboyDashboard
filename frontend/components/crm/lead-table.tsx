@@ -23,6 +23,7 @@ import {
   LEAD_STATUS_LABELS,
 } from '@/lib/crm/enums/lead.enum'
 import { CUSTOMER_SOURCE_LABELS } from '@/lib/crm/enums/customer.enum'
+import { LEAD_INTENT_TERM, LEAD_STATUS_TERM, NEUTRAL_TERM } from '@/components/crm/term-shared'
 
 const columns: CrmColumnDef<Lead>[] = [
   { key: 'name', title: '联系人', sortable: true },
@@ -34,7 +35,7 @@ const columns: CrmColumnDef<Lead>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(LEAD_STATUS_LABELS) as Array<keyof typeof LEAD_STATUS_LABELS>).map((k) => [
         k,
-        { label: LEAD_STATUS_LABELS[k], color: LEAD_STATUS_COLORS[k] },
+        { label: LEAD_STATUS_LABELS[k], color: LEAD_STATUS_COLORS[k], tone: LEAD_STATUS_TERM[k] },
       ])
     ),
   },
@@ -45,7 +46,7 @@ const columns: CrmColumnDef<Lead>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(LEAD_INTENT_LABELS) as Array<keyof typeof LEAD_INTENT_LABELS>).map((k) => [
         k,
-        { label: LEAD_INTENT_LABELS[k], color: LEAD_INTENT_COLORS[k] },
+        { label: LEAD_INTENT_LABELS[k], color: LEAD_INTENT_COLORS[k], tone: LEAD_INTENT_TERM[k] },
       ])
     ),
   },
@@ -56,7 +57,7 @@ const columns: CrmColumnDef<Lead>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_SOURCE_LABELS) as Array<keyof typeof CUSTOMER_SOURCE_LABELS>).map((k) => [
         k,
-        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' },
+        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', tone: NEUTRAL_TERM },
       ])
     ),
   },

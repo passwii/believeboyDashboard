@@ -17,6 +17,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { ErrorState } from '@/components/ui/error-state'
+import { TermEnumPill, TERM_SELECT_NATIVE } from '@/components/crm/term-shared'
 import { cn } from '@/lib/utils'
 
 /**
@@ -57,6 +58,14 @@ function formatCell<T>(value: unknown, row: T, column: CrmColumnDef<T>): React.R
       const map = column.enumMap ?? {}
       const entry = map[String(value)]
       if (entry) {
+        // BLF-837：列定义带 tone 时走终端单色 pill；否则回退旧彩色胶囊（弹窗等非终端场景）
+        if (entry.tone) {
+          return (
+            <TermEnumPill tone={entry.tone} title={entry.label}>
+              {entry.label}
+            </TermEnumPill>
+          )
+        }
         return (
           <span
             className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', entry.color)}
@@ -101,10 +110,10 @@ function PageJump({ totalPages, onJump }: { totalPages: number; onJump: (p: numb
           if (e.key === 'Enter') commit()
         }}
         aria-label="跳转到页码"
-        className="h-7 w-14 rounded-md border border-input bg-background px-1 text-sm"
+        className="h-8 w-14 rounded-none border border-term-border bg-term-bg px-1 font-mono text-sm tabular-nums text-term-text focus:border-term-border-strong focus:outline-none"
         placeholder="页码"
       />
-      <Button variant="outline" size="sm" onClick={commit} disabled={!val}>
+      <Button variant="outline" size="sm" onClick={commit} disabled={!val} className="rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text">
         跳
       </Button>
     </span>
@@ -193,7 +202,7 @@ export function CrmTable<T extends { id?: string | number }>({
   if (table.loading && (!table.data || table.data.length === 0)) {
     return (
       <div
-        className="space-y-2"
+        className="space-y-2 rounded-none"
         role="status"
         aria-busy="true"
         aria-label="表格加载中"
@@ -218,8 +227,8 @@ export function CrmTable<T extends { id?: string | number }>({
   return (
     <div className="flex h-full flex-col">
       {(searchable || filterFields.length > 0) && (
-        // 移动规则 2/8：手机 2 列网格内联标签；桌面 md+ 恢复横向 flex 排列
-        <div className="mb-2 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
+        // 移动规则 2/8：手机 2 列网格内联标签；桌面 md+ 恢复横向 flex 排列（终端控件规格）
+        <div className="mb-1.5 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">
           {searchable && (
             <div className="col-span-2 md:col-span-1">
               <CrmSearchInput
@@ -232,12 +241,12 @@ export function CrmTable<T extends { id?: string | number }>({
           {filterFields.map((f) => (
             <label
               key={f.key}
-              className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1"
+              className="flex flex-col gap-1 text-xs md:flex-row md:items-center md:gap-1.5"
             >
-              <span className="text-xs text-muted-foreground md:text-sm">{f.label}</span>
+              <span className="font-mono uppercase tracking-wider text-term-muted">{f.label}</span>
               <select
                 aria-label={f.label}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm md:h-8 md:w-auto"
+                className={TERM_SELECT_NATIVE}
                 value={_filterSelectValue(table.filters, f.field ?? f.key)}
                 onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
               >
@@ -252,8 +261,9 @@ export function CrmTable<T extends { id?: string | number }>({
           ))}
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/60">
-        <Table>
+      {/* BLF-837：表格容器零圆角 + term 边界；行高密度由单元格覆盖类控制 */}
+      <div className="min-h-0 flex-1 overflow-auto border border-term-border">
+        <Table className="border-collapse font-mono text-xs tabular-nums [&_td]:h-9 [&_td]:border-term-border [&_td]:px-2 [&_td]:py-0 [&_td]:text-xs [&_td]:text-term-text [&_th]:h-9 [&_th]:rounded-none [&_th]:border-b [&_th]:border-term-border [&_th]:border-r-0 [&_th]:bg-term-raised [&_th]:px-2 [&_th]:py-0 [&_th]:font-mono [&_th]:text-xs [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted [&_tr:hover]:bg-term-hover [&_tr]:border-b-0 data-[state=selected]:bg-term-raised">
           <TableHeader className={STICKY_TOP_ROW}>
             <TableRow>
               {selectable && (
@@ -272,8 +282,7 @@ export function CrmTable<T extends { id?: string | number }>({
                 <TableHead
                   key={String(col.key)}
                   style={col.width ? { width: col.width } : undefined}
-                  className={col.headerClassName}
-                  data-sort={
+                  className={col.headerClassName}                  data-sort={
                     col.sortable
                       ? table.sortBy === col.key
                         ? (table.sortOrder ?? 'none')
@@ -284,7 +293,7 @@ export function CrmTable<T extends { id?: string | number }>({
                   {col.sortable ? (
                     <button
                       type="button"
-                      className="inline-flex items-center text-left text-sm font-medium hover:text-primary"
+                      className="inline-flex items-center text-left font-mono uppercase tracking-wider hover:text-term-text"
                       onClick={() => table.toggleSort(String(col.key))}
                     >
                       {col.title}
@@ -308,8 +317,7 @@ export function CrmTable<T extends { id?: string | number }>({
                   <TableRow
                     key={id}
                     data-state={isSelected ? 'selected' : undefined}
-                    className={cn(onRowClick && 'cursor-pointer')}
-                    onClick={(e) => {
+                    className={cn(onRowClick && 'cursor-pointer')}                    onClick={(e) => {
                       // 避免 checkbox 点击冒泡触发 onRowClick
                       const target = e.target as HTMLElement
                       if (target.closest('[data-no-row-click]')) return
@@ -339,16 +347,16 @@ export function CrmTable<T extends { id?: string | number }>({
       </div>
 
       {table.total > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 font-mono text-xs text-term-muted">
           <div className="flex items-center gap-3">
-            <span>共 {table.total} 条</span>
+            <span className="tabular-nums">共 {table.total} 条</span>
             <label className="flex items-center gap-1">
               每页
               <select
                 aria-label="每页条数"
                 value={table.pageSize}
                 onChange={(e) => table.setPageSize(Number(e.target.value))}
-                className="h-7 rounded-md border border-input bg-background px-1 text-sm"
+                className={TERM_SELECT_NATIVE}
               >
                 {[20, 50, 100].map((n) => (
                   <option key={n} value={n}>
@@ -360,19 +368,19 @@ export function CrmTable<T extends { id?: string | number }>({
           </div>
           <div className="flex items-center gap-1">
             {/* 移动规则 5：分页按钮触摸目标 ≥44px */}
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
               <ChevronsLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="px-1">
+            <span className="px-1 tabular-nums">
               第 {table.page} / {totalPages} 页
             </span>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
               <ChevronsRight className="h-4 w-4" />
             </Button>
             {totalPages > 1 && <PageJump totalPages={totalPages} onJump={table.setPage} />}

@@ -7,8 +7,8 @@ import { CrmRulesPanel } from '@/components/crm/crm-rules-panel'
 import { CrmCategoryManager } from '@/components/crm/crm-category-manager'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useNotifications } from '@/components/notifications'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -62,8 +62,7 @@ export default function SettingsPage() {
 
   if (sessionStatus === 'loading') {
     return (
-      <div className="space-y-4 p-4 md:p-6">
-        <h1 className="text-lg font-semibold tracking-tight">CRM 设置</h1>
+      <div className="flex min-w-0 flex-col gap-2">
         <Skeleton className="h-40 w-full max-w-2xl" />
       </div>
     )
@@ -71,18 +70,20 @@ export default function SettingsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
-        <ShieldAlert className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-        <h1 className="text-xl font-semibold tracking-tight">CRM 设置</h1>
-        <p className="text-sm text-muted-foreground">仅管理员可查看与修改设置</p>
+      <div className="flex min-w-0 flex-col">
+        <div className="flex flex-col items-center gap-2 border border-term-warn/40 bg-term-warn/5 px-6 py-12 text-center">
+          <ShieldAlert className="h-7 w-7 text-term-warn" aria-hidden="true" />
+          <p className="font-mono text-xs uppercase tracking-wider text-term-warn">
+            仅管理员可查看与修改设置
+          </p>
+        </div>
       </div>
     )
   }
 
   if (loading || !settings) {
     return (
-      <div className="space-y-4 p-4 md:p-6">
-        <h1 className="text-lg font-semibold tracking-tight">CRM 设置</h1>
+      <div className="flex min-w-0 flex-col gap-2">
         <Skeleton className="h-40 w-full max-w-2xl" />
       </div>
     )
@@ -117,30 +118,21 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">CRM 设置</h1>
-        <p className="text-sm text-muted-foreground">工作流自动化配置</p>
-      </div>
-
+    // BLF-837：页面标题已由 Top Header 面包屑承载；设置卡片走 TermPanel
+    <div className="flex min-w-0 flex-col gap-2">
       <CrmRulesPanel />
 
       <CrmCategoryManager />
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">7 天无跟进提醒</CardTitle>
-          <CardDescription>
-            客户/线索超过阈值天数无跟进时，自动给负责人发送提醒邮件
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
+      <TermPanel title="7 天无跟进提醒" bodyClassName="px-3 py-3 max-md:overflow-x-auto">
+        <p className="mb-3 font-mono text-xs text-term-faint">
+          客户/线索超过阈值天数无跟进时，自动给负责人发送提醒邮件
+        </p>
+        <div className="max-w-xl space-y-4">
+          <div className="flex items-center justify-between border-b border-term-border pb-3">
             <div>
               <Label>提醒邮件</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                关闭后不再发送无跟进提醒邮件
-              </p>
+              <p className="mt-1 text-xs text-term-faint">关闭后不再发送无跟进提醒邮件</p>
             </div>
             <Switch
               checked={settings.staleEmailEnabled}
@@ -152,9 +144,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="stale-days">无跟进天数</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                超过该天数未跟进即触发提醒（默认 7 天）
-              </p>
+              <p className="mt-1 text-xs text-term-faint">超过该天数未跟进即触发提醒（默认 7 天）</p>
             </div>
             <div className="flex items-center gap-2">
               <Input
@@ -162,21 +152,21 @@ export default function SettingsPage() {
                 type="number"
                 min={MIN_DAYS}
                 max={MAX_DAYS}
-                className="w-24"
+                className="w-24 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
               />
-              <span className="text-sm text-muted-foreground">天</span>
+              <span className="font-mono text-xs text-term-muted">天</span>
             </div>
           </div>
 
-          <div className="flex justify-end border-t pt-4">
-            <Button onClick={save} disabled={saving || !daysValid}>
+          <div className="flex justify-end border-t border-term-border pt-3">
+            <Button onClick={save} disabled={saving || !daysValid} className="rounded-none font-mono">
               {saving ? '保存中…' : '保存'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
     </div>
   )
 }

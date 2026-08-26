@@ -10,18 +10,21 @@ export default function SeaPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      {/* 总则 5：标题行手机端 flex-wrap，避免标题+按钮同行挤压 */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">客户公海</h1>
-          <p className="text-sm text-muted-foreground">无人认领的客户，可一键领取或批量导入</p>
-        </div>
-        <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-          <Upload className="mr-1 h-4 w-4" /> 导入客户
+    // BLF-837：页面标题已由 Top Header 面包屑承载（BLF-824 去重原则）
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="mr-0.5 h-4 w-4" /> 导入客户
         </Button>
       </div>
-      <CrmSeaTable key={refreshKey} />
+      <div className="min-h-0 flex-1">
+        <CrmSeaTable key={refreshKey} />
+      </div>
       <CrmImportSea
         open={importOpen}
         onOpenChange={setImportOpen}

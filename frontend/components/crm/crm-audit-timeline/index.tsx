@@ -10,8 +10,27 @@ import { ApiError } from '@/lib/crm/api/http-crm-client'
 import { AUDIT_ACTION_LABELS } from '@/lib/crm/types'
 import type { AuditAction, AuditLog } from '@/lib/crm/types'
 import { formatRelativeTime } from '@/lib/crm/method/format'
+import { cn } from '@/lib/utils'
+import {
+  AUDIT_ACTION_TERM,
+  TermEnumPill,
+} from '@/components/crm/term-shared'
 
-/** 动作 → 徽标配色（与跟进时间线 TYPE_BADGE 同风格，含暗色）。管理员页表格复用。 */
+/** 动作 → 时间线节点色（BLF-837 终端语义，与 AUDIT_ACTION_TERM 同源）。 */
+const ACTION_TERM_DOT: Record<string, string> = {
+  create: 'bg-term-pos',
+  complete: 'bg-term-pos',
+  convert: 'bg-term-pos',
+  claim: 'bg-term-pos',
+  delete: 'bg-term-neg',
+  move_sea: 'bg-term-neg',
+  cancel: 'bg-term-faint',
+  transfer: 'bg-term-accent',
+  update: 'bg-term-accent',
+  status: 'bg-term-accent',
+}
+
+/** 动作 → 徽标配色（旧彩色胶囊，audit 页已改走 AUDIT_ACTION_TERM 单色 pill；此处保留供非终端场景回退）。 */
 export const ACTION_BADGE: Record<AuditAction, string> = {
   create: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
   update: 'bg-sky-100 text-sky-800 dark:bg-sky-800/40 dark:text-sky-200',
@@ -136,29 +155,33 @@ export function CrmAuditTimeline({
 
   return (
     <ScrollArea className="h-[280px] pr-3">
-      <ol className="relative space-y-3 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-border/70 before:content-['']">
+      {/* BLF-837：时间线终端规格——term 轨道/节点/卡片、单色动作 pill */}
+      <ol className="relative space-y-2 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-term-border before:content-['']">
         {items.map((log) => (
           <li key={log.id} className="relative pl-6">
             {/* 时间线节点：覆盖在竖轨上的圆点 */}
-            <span className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-background bg-slate-300 dark:bg-slate-600" />
-            <div className="rounded-lg border border-border/60 p-3 transition-colors hover:bg-muted/40">
+            <span
+              className={cn(
+                'absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-term-bg',
+                ACTION_TERM_DOT[log.action] ?? 'bg-term-faint'
+              )}
+              aria-hidden
+            />
+            <div className="border border-term-border bg-term-panel p-2.5 transition-colors hover:bg-term-hover">
               <div className="mb-1 flex items-center justify-between gap-2">
-                <Badge
-                  variant="secondary"
-                  className={`font-normal ${ACTION_BADGE[log.action] ?? ''}`}
-                >
+                <TermEnumPill tone={AUDIT_ACTION_TERM[log.action] ?? 'muted'}>
                   {AUDIT_ACTION_LABELS[log.action] ?? log.action}
-                </Badge>
-                <span className="shrink-0 text-xs text-muted-foreground">
+                </TermEnumPill>
+                <span className="shrink-0 font-mono text-xs tabular-nums text-term-faint">
                   {log.actorName ?? '系统'} · {formatRelativeTime(log.createdAt)}
                 </span>
               </div>
               {log.summary ? (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-term-text">
                   {log.summary}
                 </p>
               ) : (
-                <p className="text-sm text-muted-foreground/70">（无变更详情）</p>
+                <p className="text-sm text-term-faint">（无变更详情）</p>
               )}
             </div>
           </li>

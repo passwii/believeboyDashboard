@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { FilterCondition, ListParams, Paginated } from '@/lib/crm/api/crm-client'
+import type { TermTone } from '@/components/crm/term-shared'
 
 export type CrmCellFormat = 'date' | 'datetime' | 'currency' | 'tag' | 'enum' | 'number'
 
@@ -10,7 +11,8 @@ export interface CrmColumnDef<T> {
   sortable?: boolean
   render?: (value: T[keyof T], row: T) => React.ReactNode
   format?: CrmCellFormat
-  enumMap?: Record<string, { label: string; color: string }>
+  /** BLF-837：终端单色语义 tone（传入时 enum 单元格走 TermEnumPill，忽略 color 彩色胶囊） */
+  enumMap?: Record<string, { label: string; color: string; tone?: TermTone }>
   className?: string
   headerClassName?: string
 }

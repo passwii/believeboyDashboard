@@ -23,6 +23,12 @@ import {
   CUSTOMER_STATUS_LABELS,
 } from '@/lib/crm/enums/customer.enum'
 import { daysSince } from '@/lib/crm/method/format'
+import { cn } from '@/lib/utils'
+import {
+  CUSTOMER_RATING_TERM,
+  CUSTOMER_STATUS_TERM,
+  NEUTRAL_TERM,
+} from '@/components/crm/term-shared'
 
 const columns: CrmColumnDef<Customer>[] = [
   { key: 'name', title: '客户名', sortable: true },
@@ -32,7 +38,7 @@ const columns: CrmColumnDef<Customer>[] = [
     format: 'enum',
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_RATING_LABELS) as Array<keyof typeof CUSTOMER_RATING_LABELS>).map(
-        (k) => [k, { label: CUSTOMER_RATING_LABELS[k], color: CUSTOMER_RATING_COLORS[k] }]
+        (k) => [k, { label: CUSTOMER_RATING_LABELS[k], color: CUSTOMER_RATING_COLORS[k], tone: CUSTOMER_RATING_TERM[k] }]
       )
     ),
   },
@@ -42,7 +48,7 @@ const columns: CrmColumnDef<Customer>[] = [
     format: 'enum',
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_STATUS_LABELS) as Array<keyof typeof CUSTOMER_STATUS_LABELS>).map(
-        (k) => [k, { label: CUSTOMER_STATUS_LABELS[k], color: CUSTOMER_STATUS_COLORS[k] }]
+        (k) => [k, { label: CUSTOMER_STATUS_LABELS[k], color: CUSTOMER_STATUS_COLORS[k], tone: CUSTOMER_STATUS_TERM[k] }]
       )
     ),
   },
@@ -52,7 +58,7 @@ const columns: CrmColumnDef<Customer>[] = [
     format: 'enum',
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_SOURCE_LABELS) as Array<keyof typeof CUSTOMER_SOURCE_LABELS>).map(
-        (k) => [k, { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' }]
+        (k) => [k, { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', tone: NEUTRAL_TERM }]
       )
     ),
   },
@@ -92,9 +98,9 @@ const columns: CrmColumnDef<Customer>[] = [
       const days = daysSince(v)
       const overdue = Number.isFinite(days) && days > 7
       return (
-        <span className={overdue ? 'text-rose-600 dark:text-rose-400' : ''}>
-          {new Date(v).toLocaleDateString('zh-CN')}
-          {overdue && <span className="ml-1 text-xs">· {days}天前</span>}
+        <span className={cn(overdue ? 'text-term-neg' : '')}>
+          <span className="tabular-nums">{new Date(v).toLocaleDateString('zh-CN')}</span>
+          {overdue && <span className="ml-1 tabular-nums">· {days}天前</span>}
         </span>
       )
     },
@@ -198,11 +204,9 @@ export function CrmCustomerTable() {
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          客户列表 · 勾选后可批量释放到公海
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
+      {/* BLF-837：工具行终端化（批量操作 + 导出），提示文案并入面包屑/空态 */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
+        <div className="flex flex-wrap items-center gap-1.5">
           {selectedIds.length > 0 && (
             <Button
               size="sm"
@@ -210,6 +214,7 @@ export function CrmCustomerTable() {
               onClick={handleBatchMoveToSea}
               disabled={moving}
               data-testid="batch-move-to-sea"
+              className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
             >
               {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
             </Button>
