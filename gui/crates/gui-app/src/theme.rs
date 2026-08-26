@@ -500,6 +500,100 @@ pub(crate) fn hex_color(hex: u32) -> Hsla {
     c(hex)
 }
 
+// ---------------------------------------------------------------------------
+// 跨平台字体栈（BLF-829）：正文 / 标题 / 等宽三组字体链
+//
+// 设计基调（父 issue P2 拍板）：macOS 与 Windows 各走本平台字系——
+// - macOS：SF Pro / 苹方系统栈（.AppleSystemUIFont 已含苹方中文级联，
+//   显式声明 PingFang SC 保证优先命中、不依赖系统级联顺序）；
+// - Windows：Segoe UI Variable（Win11 UI 字体；无 Variable 时回退 Segoe UI）
+//   + Microsoft YaHei UI（微软雅黑 UI，Win11 中文界面默认字系）。
+//
+// GPUI 的 FontFallbacks 双平台语义（third-party/gpui 实测源码）：
+// - macOS（platform/mac/open_type.rs）：CoreText cascade list——显式 fallback
+//   排最前，随后追加系统默认级联（CTFontCopyDefaultCascadeListForLanguages）；
+// - Windows（platform/windows/direct_write.rs）：DirectWrite 自定义 fallback
+//   映射——逐家族按 unicode range 建 AddMapping，再 AddMappings(系统 fallback)；
+//   主族未命中时 select_font 回退系统 UI 字体仍携带同组 fallbacks。
+//
+// TextStyleRefinement 为字段级合并（Refineable）：叶子节点只改 font_family
+// （如 data_table 的 mono 列）会继承祖先下发的 font_fallbacks——因此等宽
+// 场景的中文自动落到雅黑/苹方，无需逐点重复下发。
+// ---------------------------------------------------------------------------
+
+/// 正文 / 标题主族：macOS 走 SF Pro 系统栈，Windows 走 Segoe UI Variable。
+pub const FONT_UI_FAMILY: &str = if cfg!(target_os = "windows") {
+    "Segoe UI Variable"
+} else {
+    ".AppleSystemUIFont"
+};
+
+/// 等宽场景的中文回退家族（JetBrains Mono 无 CJK 字形，缺字时落到本族）：
+/// macOS 苹方 / Windows 微软雅黑 UI。
+pub const FONT_CJK_FAMILY: &str = if cfg!(target_os = "windows") {
+    "Microsoft YaHei UI"
+} else {
+    "PingFang SC"
+};
+
+/// 应用 UI 字体链（正文/标题共用主族；fallbacks 见 [`app_font_fallbacks`]）。
+///
+/// 消费点：
+/// - `apply_font_stack` 写入 gpui-component 全局 Theme（组件库 Root/tooltip/
+///   Input 等自 `.SystemUIFont` 默认值切到本链）；
+/// - root/login 窗口根容器经 [`ui_font`] 下发 TextStyle.font_fallbacks，
+///   视图层全部文字继承。
+pub fn app_font_fallbacks() -> gpui::FontFallbacks {
+    // 顺序即命中优先级：CJK 族在前保证中英混排的中文块稳定命中本平台雅黑/苹方；
+    // 系统默认级联由 GPUI 追加在后（macOS）/并入映射尾（Windows），兜底其余文种。
+    gpui::FontFallbacks::from_fonts(vec![
+        FONT_CJK_FAMILY.to_string(),
+        FONT_UI_FAMILY.to_string(),
+    ])
+}
+
+/// 构造应用 UI 字体（正文 / 标题）：主族 + 本平台 fallback 链。
+///
+/// 用 `.font(ui_font())` 替代裸 `.font_family(...)` 下发到**窗口根容器**，
+/// 子树内所有未显式改族的文字继承该链（TextStyleRefinement 字段级合并）。
+#[allow(dead_code)]
+pub fn ui_font() -> gpui::Font {
+    gpui::Font {
+        family: FONT_UI_FAMILY.into(),
+        fallbacks: Some(app_font_fallbacks()),
+        ..gpui::font(FONT_UI_FAMILY)
+    }
+}
+
+/// 构造等宽数字字体（JetBrains Mono 内嵌）+ 中文回退链。
+///
+/// JetBrains Mono 不含 CJK 字形：mono 单元格里出现中文（如状态列文案、
+/// 时间戳旁的备注）时按 fallback 链落[`FONT_CJK_FAMILY`]，避免豆腐块或
+/// 不可控的系统兜底。data_table mono 列 / Inspector 键值区等消费。
+#[allow(dead_code)]
+pub fn mono_font() -> gpui::Font {
+    gpui::Font {
+        family: FONT_MONO_FAMILY.into(),
+        fallbacks: Some(app_font_fallbacks()),
+        ..gpui::font(FONT_MONO_FAMILY)
+    }
+}
+
+/// 把跨平台字体链写入 gpui-component 全局主题（main 启动时调用一次，
+/// 在 `set_theme_pref` 之后——`Theme::change` 会用 ThemeConfig 重置字段，
+/// 后调用才能保住覆盖）。
+///
+/// 覆盖两处默认值：
+/// - `font_family`：`.SystemUIFont` → [`FONT_UI_FAMILY`]（gpui-component 的
+///   Root / tooltip / Input / context_menu 等组件读全局 theme 渲染文字）；
+/// - `mono_font_family`：Consolas/Menlo → JetBrains Mono（与数字等宽 token
+///   同族，组件库内 mono 场景与应用内一致）。
+pub fn apply_font_stack(cx: &mut App) {
+    let theme = gpui_component::Theme::global_mut(cx);
+    theme.font_family = FONT_UI_FAMILY.into();
+    theme.mono_font_family = FONT_MONO_FAMILY.into();
+}
+
 #[cfg(test)]
 mod tests {
     // 字号/间距 token 的单调性断言（FONT_2XS < FONT_XS < …）在编译期即为常量——
@@ -796,98 +890,4 @@ mod tests {
             assert!(!AppTheme::current(cx).is_dark());
         });
     }
-}
-
-// ---------------------------------------------------------------------------
-// 跨平台字体栈（BLF-829）：正文 / 标题 / 等宽三组字体链
-//
-// 设计基调（父 issue P2 拍板）：macOS 与 Windows 各走本平台字系——
-// - macOS：SF Pro / 苹方系统栈（.AppleSystemUIFont 已含苹方中文级联，
-//   显式声明 PingFang SC 保证优先命中、不依赖系统级联顺序）；
-// - Windows：Segoe UI Variable（Win11 UI 字体；无 Variable 时回退 Segoe UI）
-//   + Microsoft YaHei UI（微软雅黑 UI，Win11 中文界面默认字系）。
-//
-// GPUI 的 FontFallbacks 双平台语义（third-party/gpui 实测源码）：
-// - macOS（platform/mac/open_type.rs）：CoreText cascade list——显式 fallback
-//   排最前，随后追加系统默认级联（CTFontCopyDefaultCascadeListForLanguages）；
-// - Windows（platform/windows/direct_write.rs）：DirectWrite 自定义 fallback
-//   映射——逐家族按 unicode range 建 AddMapping，再 AddMappings(系统 fallback)；
-//   主族未命中时 select_font 回退系统 UI 字体仍携带同组 fallbacks。
-//
-// TextStyleRefinement 为字段级合并（Refineable）：叶子节点只改 font_family
-// （如 data_table 的 mono 列）会继承祖先下发的 font_fallbacks——因此等宽
-// 场景的中文自动落到雅黑/苹方，无需逐点重复下发。
-// ---------------------------------------------------------------------------
-
-/// 正文 / 标题主族：macOS 走 SF Pro 系统栈，Windows 走 Segoe UI Variable。
-pub const FONT_UI_FAMILY: &str = if cfg!(target_os = "windows") {
-    "Segoe UI Variable"
-} else {
-    ".AppleSystemUIFont"
-};
-
-/// 等宽场景的中文回退家族（JetBrains Mono 无 CJK 字形，缺字时落到本族）：
-/// macOS 苹方 / Windows 微软雅黑 UI。
-pub const FONT_CJK_FAMILY: &str = if cfg!(target_os = "windows") {
-    "Microsoft YaHei UI"
-} else {
-    "PingFang SC"
-};
-
-/// 应用 UI 字体链（正文/标题共用主族；fallbacks 见 [`app_font_fallbacks`]）。
-///
-/// 消费点：
-/// - `apply_font_stack` 写入 gpui-component 全局 Theme（组件库 Root/tooltip/
-///   Input 等自 `.SystemUIFont` 默认值切到本链）；
-/// - root/login 窗口根容器经 [`ui_font`] 下发 TextStyle.font_fallbacks，
-///   视图层全部文字继承。
-pub fn app_font_fallbacks() -> gpui::FontFallbacks {
-    // 顺序即命中优先级：CJK 族在前保证中英混排的中文块稳定命中本平台雅黑/苹方；
-    // 系统默认级联由 GPUI 追加在后（macOS）/并入映射尾（Windows），兜底其余文种。
-    gpui::FontFallbacks::from_fonts(vec![
-        FONT_CJK_FAMILY.to_string(),
-        FONT_UI_FAMILY.to_string(),
-    ])
-}
-
-/// 构造应用 UI 字体（正文 / 标题）：主族 + 本平台 fallback 链。
-///
-/// 用 `.font(ui_font())` 替代裸 `.font_family(...)` 下发到**窗口根容器**，
-/// 子树内所有未显式改族的文字继承该链（TextStyleRefinement 字段级合并）。
-#[allow(dead_code)]
-pub fn ui_font() -> gpui::Font {
-    gpui::Font {
-        family: FONT_UI_FAMILY.into(),
-        fallbacks: Some(app_font_fallbacks()),
-        ..gpui::font(FONT_UI_FAMILY)
-    }
-}
-
-/// 构造等宽数字字体（JetBrains Mono 内嵌）+ 中文回退链。
-///
-/// JetBrains Mono 不含 CJK 字形：mono 单元格里出现中文（如状态列文案、
-/// 时间戳旁的备注）时按 fallback 链落[`FONT_CJK_FAMILY`]，避免豆腐块或
-/// 不可控的系统兜底。data_table mono 列 / Inspector 键值区等消费。
-#[allow(dead_code)]
-pub fn mono_font() -> gpui::Font {
-    gpui::Font {
-        family: FONT_MONO_FAMILY.into(),
-        fallbacks: Some(app_font_fallbacks()),
-        ..gpui::font(FONT_MONO_FAMILY)
-    }
-}
-
-/// 把跨平台字体链写入 gpui-component 全局主题（main 启动时调用一次，
-/// 在 `set_theme_pref` 之后——`Theme::change` 会用 ThemeConfig 重置字段，
-/// 后调用才能保住覆盖）。
-///
-/// 覆盖两处默认值：
-/// - `font_family`：`.SystemUIFont` → [`FONT_UI_FAMILY`]（gpui-component 的
-///   Root / tooltip / Input / context_menu 等组件读全局 theme 渲染文字）；
-/// - `mono_font_family`：Consolas/Menlo → JetBrains Mono（与数字等宽 token
-///   同族，组件库内 mono 场景与应用内一致）。
-pub fn apply_font_stack(cx: &mut App) {
-    let theme = gpui_component::Theme::global_mut(cx);
-    theme.font_family = FONT_UI_FAMILY.into();
-    theme.mono_font_family = FONT_MONO_FAMILY.into();
 }
