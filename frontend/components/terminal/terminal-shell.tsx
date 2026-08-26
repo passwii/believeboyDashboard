@@ -15,6 +15,7 @@ import {
 import { TerminalFooter } from '@/components/terminal/terminal-footer'
 import { TerminalHeader } from '@/components/terminal/terminal-header'
 import { TerminalInspector } from '@/components/terminal/terminal-inspector'
+import { useLiveStream } from '@/components/terminal/use-live-stream'
 import { TerminalRail } from '@/components/terminal/terminal-rail'
 import { TerminalSubnav } from '@/components/terminal/terminal-subnav'
 import {
@@ -61,6 +62,9 @@ export function TerminalShell({ children }: TerminalShellProps) {
   ])
 
   const { subnavCollapsed, toggleSubnav, inspectorOpen, toggleInspector } = useTerminalLayout()
+
+  // BLF-839：今日出单流——仅 Inspector 打开时轮询，传入插槽点亮
+  const liveStreamItems = useLiveStream(inspectorOpen)
 
   // 最近访问记录：路由变化即写入 localStorage，供 Inspector 展示
   React.useEffect(() => {
@@ -122,7 +126,11 @@ export function TerminalShell({ children }: TerminalShellProps) {
           >
             <PageTransition>{children}</PageTransition>
           </main>
-          <TerminalInspector open={inspectorOpen} onClose={toggleInspector} />
+          <TerminalInspector
+            open={inspectorOpen}
+            onClose={toggleInspector}
+            liveStreamItems={liveStreamItems}
+          />
         </div>
 
         <TerminalFooter />
