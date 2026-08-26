@@ -237,14 +237,16 @@ function RpaStatusGrid({
   }, [selectedProjects])
 
   return (
-    <Card className="flex flex-1 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm">
-      <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:px-6 sm:py-4 shrink-0">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground sm:h-10 sm:w-10">
-              <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5" />
+    <Card className="flex flex-1 flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+      <CardHeader className="shrink-0 rounded-none border-b border-term-border bg-term-raised px-3 py-2.5">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-none border border-term-border bg-term-panel text-term-muted">
+              <LayoutDashboard className="h-4 w-4" aria-hidden />
             </div>
-            <CardTitle className="self-center text-base sm:text-lg">RPA 报表状态</CardTitle>
+            <CardTitle className="self-center font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
+              RPA 报表状态
+            </CardTitle>
           </div>
 
           {/* Mobile: 2-column grid; lg+: horizontal row */}
@@ -261,7 +263,7 @@ function RpaStatusGrid({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 w-full justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))] sm:h-10"
+                    className="h-8 w-full justify-start rounded-none border-term-border bg-term-bg text-left font-normal font-mono text-xs text-term-text sm:w-auto"
                   >
                     {projectFilterLabel}
                   </Button>
@@ -301,7 +303,7 @@ function RpaStatusGrid({
               </DropdownMenu>
 
               <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-9 w-full rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))] sm:h-10 sm:w-[140px]">
+                <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:w-[130px]">
                   <SelectValue placeholder="选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -320,24 +322,24 @@ function RpaStatusGrid({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
               </Button>
               <SimpleDatePicker
                 value={parseDateInputValue(statusDate)}
                 onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                className="h-9 w-full sm:h-10 sm:w-[170px] bg-background dark:bg-[hsl(var(--surface-soft))]"
+                className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs sm:w-[160px]"
               />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </Button>
             </div>
 
@@ -347,7 +349,7 @@ function RpaStatusGrid({
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-9 sm:h-10"
+                className="h-8 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:text-term-text"
                 onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
               >
                 今天
@@ -357,12 +359,12 @@ function RpaStatusGrid({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => void loadStatus()}
                 disabled={statusLoading}
                 title="刷新状态"
               >
-                <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+                <Loader2 className={cn('h-3.5 w-3.5', statusLoading && 'animate-spin')} />
               </Button>
             </div>
           </div>
@@ -370,7 +372,9 @@ function RpaStatusGrid({
       </CardHeader>
 
       <div className="flex min-h-0 flex-1 flex-col p-0 relative">
-        {statusError ? <p className="py-4 pl-6 text-sm text-rose-600">{statusError}</p> : null}
+        {statusError ? (
+          <p className="border-b border-term-neg/40 bg-term-neg/10 py-2 pl-3 font-mono text-xs text-term-neg">{statusError}</p>
+        ) : null}
 
         {showSkeleton ? (
           <div className="flex min-h-0 flex-1 flex-col space-y-3">
@@ -387,18 +391,18 @@ function RpaStatusGrid({
               style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
             >
               <div
-                className={`sticky left-0 z-20 flex items-center border border-b-0 border-r border-border/50 bg-[hsl(var(--surface-subtle))] px-3 ${TABLE_HEADER_HEIGHT_CLASS}`}
+                className={`sticky left-0 z-20 flex items-center border border-b-0 border-r border-term-border bg-term-raised px-2 ${TABLE_HEADER_HEIGHT_CLASS}`}
               >
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <span className="font-mono text-xs font-medium uppercase tracking-wider text-term-muted">
                   项目
                 </span>
               </div>
               {REPORT_TYPES.map((rt, colIdx) => (
                 <div
                   key={rt.key}
-                  className={`flex items-center justify-center border-b border-t border-border/50 px-1 ${TABLE_HEADER_HEIGHT_CLASS}${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}`}
+                  className={`flex items-center justify-center border-b border-t border-term-border px-1 ${TABLE_HEADER_HEIGHT_CLASS}${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}`}
                 >
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-center font-mono text-[11px] font-medium uppercase tracking-wider text-term-muted">
                     {rt.label}
                   </span>
                 </div>
@@ -417,11 +421,11 @@ function RpaStatusGrid({
                 {filteredRows.map((row) => (
                   <div
                     key={row.project_id}
-                    className={`grid border border-t-0 border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))] ${TABLE_ROW_HEIGHT_CLASS}`}
+                    className={`grid border border-t-0 border-term-border transition-colors hover:bg-term-hover ${TABLE_ROW_HEIGHT_CLASS}`}
                     style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
                   >
-                    <div className="sticky left-0 z-10 flex items-center border-r border-border/50 bg-[hsl(var(--surface-panel))] px-3">
-                      <span className="truncate text-sm font-medium">{row.project_name}</span>
+                    <div className="sticky left-0 z-10 flex items-center border-r border-term-border bg-term-panel px-2">
+                      <span className="truncate font-mono text-xs text-term-text">{row.project_name}</span>
                     </div>
                     {REPORT_TYPES.map((rt, colIdx) => {
                       const cell = row.statuses.find((s) => s.report_type === rt.key)
@@ -429,8 +433,8 @@ function RpaStatusGrid({
                       return (
                         <div
                           key={rt.key}
-                          className={`flex items-center justify-center border-border/50 px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
-                            isUploaded ? ' bg-emerald-600' : ' bg-rose-500'
+                          className={`flex items-center justify-center border-term-border px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
+                            isUploaded ? ' bg-term-pos/80' : ' bg-term-neg/70'
                           }`}
                         >
                           {isUploaded ? (
@@ -794,7 +798,7 @@ function AutoUploadContent({
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className="col-span-2 h-10 w-full rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] sm:col-span-1 sm:w-[160px]">
+          <SelectTrigger className="col-span-2 h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:col-span-1 sm:w-[150px]">
             <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>
@@ -831,16 +835,16 @@ function AutoUploadContent({
       </div>
 
       {/* Dropzone + File list */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr] flex-1 overflow-hidden">
+      <div className="grid flex-1 gap-3 overflow-hidden lg:grid-cols-[1fr_2fr]">
         {/* Dropzone */}
-        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm">
-          <CardContent className="!px-3 !py-3 sm:!px-4 sm:!py-4 flex h-full">
+        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+          <CardContent className="flex h-full !px-3 !py-3">
             <div
               className={cn(
-                'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 transition-[border-color,background-color] duration-200',
+                'relative flex w-full flex-col items-center justify-center rounded-none border border-dashed px-4 transition-[border-color,background-color] duration-200',
                 dragActive
-                  ? 'border-sky-500/70 bg-sky-500/8'
-                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
+                  ? 'border-term-accent/70 bg-term-accent/10'
+                  : 'border-term-border bg-term-raised'
               )}
               style={{ flex: 1 }}
               onDrop={(e) => {
@@ -869,16 +873,14 @@ function AutoUploadContent({
                 htmlFor="auto-upload-input"
                 className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm sm:h-14 sm:w-14">
-                  <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-sky-600 dark:text-sky-300" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-none border border-term-border bg-term-panel text-term-muted">
+                  <Upload className="h-5 w-5 text-term-accent" aria-hidden />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground sm:text-base">
+                  <p className="font-mono text-xs font-semibold uppercase tracking-wider text-term-text sm:text-sm">
                     拖拽文件到这里，或点击选择
                   </p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">
-                    支持 `txt`、`csv`、`xlsx`
-                  </p>
+                  <p className="font-mono text-[11px] text-term-faint">支持 .txt / .csv / .xlsx</p>
                 </div>
               </label>
               {recognizing ? (
@@ -892,14 +894,18 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className="flex flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm lg:h-[calc(100vh-22rem)]">
-          <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 pb-3 pt-4">
+        <Card className="flex flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+          <CardHeader className="rounded-none border-b border-term-border bg-term-raised px-3 pb-2.5 pt-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">本次识别文件</CardTitle>
-                <CardDescription className="text-xs">{queueItems.length} 个文件</CardDescription>
+                <CardTitle className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
+                  本次识别文件
+                </CardTitle>
+                <CardDescription className="font-mono text-[11px] tabular-nums text-term-faint">
+                  {queueItems.length} 个文件
+                </CardDescription>
               </div>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-sky-500" /> : null}
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-term-accent" aria-hidden /> : null}
             </div>
             <UploadProgressSummary
               recognitionDone={recognitionStats.done}
@@ -912,7 +918,7 @@ function AutoUploadContent({
             <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground">
+                  <div className="rounded-none border border-dashed border-term-border bg-term-raised px-4 py-8 text-center font-mono text-xs text-term-faint">
                     暂无文件
                   </div>
                 ) : null}
@@ -920,15 +926,13 @@ function AutoUploadContent({
                   <div
                     key={item.localId}
                     className={cn(
-                      'relative flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3 transition-colors duration-300',
-                      // 上传成功：整条绿色覆盖
-                      item.fileCommitStatus === 'success' &&
-                        'border-emerald-400/50 bg-emerald-500/15 dark:bg-emerald-500/20',
-                      // 保存中：淡蓝色
-                      item.fileCommitStatus === 'saving' &&
-                        'border-sky-400/40 bg-sky-500/10 dark:bg-sky-500/15',
-                      // 识别错误：淡红色
-                      item.recognitionStatus === 'error' && 'border-rose-400/40 bg-rose-500/10'
+                      'relative flex items-start justify-between gap-3 rounded-none border border-term-border bg-term-raised/85 px-3 py-2.5 transition-colors duration-300',
+                      // 上传成功：整条 pos 覆盖
+                      item.fileCommitStatus === 'success' && 'border-term-pos/50 bg-term-pos/10',
+                      // 保存中：accent
+                      item.fileCommitStatus === 'saving' && 'border-term-accent/40 bg-term-accent/10',
+                      // 识别错误：neg
+                      item.recognitionStatus === 'error' && 'border-term-neg/40 bg-term-neg/10'
                     )}
                   >
                     <div className="min-w-0 flex-1 space-y-1">
@@ -943,7 +947,7 @@ function AutoUploadContent({
                       {item.fileCommitStatus === 'success' && item.rowsIngested != null ? (
                         <p className="text-xs text-muted-foreground">
                           入库：
-                          <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-400">
+                          <span className="font-medium tabular-nums text-term-pos">
                             {item.rowsIngested.toLocaleString()}
                           </span>{' '}
                           行
@@ -954,7 +958,7 @@ function AutoUploadContent({
                           <p className="text-xs text-muted-foreground">
                             国家：
                             {item.isMultiCountry ? (
-                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                              <span className="font-medium text-term-accent">
                                 {getMultiCountryDisplay(item.detectedCountries)} (自动拆分)
                               </span>
                             ) : item.detectedCountry ? (
@@ -966,7 +970,7 @@ function AutoUploadContent({
                           {item.recognizedProject === '未匹配' ||
                           item.recognizedProject === null ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                              <span className="font-mono text-xs text-term-warn">
                                 项目：
                               </span>
                               <Select
@@ -981,7 +985,7 @@ function AutoUploadContent({
                                   )
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-[140px] rounded border-border/60 bg-background px-1.5 py-0.5 text-xs">
+                                <SelectTrigger className="h-6 w-[140px] rounded-none border-term-border bg-term-bg px-1.5 py-0.5 font-mono text-xs">
                                   <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1029,7 +1033,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="ml-1 rounded-md px-1.5 py-1 -my-1 text-[10px] text-sky-600 hover:bg-sky-500/10 hover:text-sky-700 dark:text-sky-400"
+                                      className="-my-1 ml-1 rounded-none px-1.5 py-1 font-mono text-[10px] text-term-accent hover:bg-term-accent/10"
                                     >
                                       {item.userReportStartDate ? '取消' : '编辑'}
                                     </button>
@@ -1054,7 +1058,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="ml-1 rounded-md px-1.5 py-1 -my-1 text-[10px] text-sky-600 hover:bg-sky-500/10 hover:text-sky-700 dark:text-sky-400"
+                                      className="-my-1 ml-1 rounded-none px-1.5 py-1 font-mono text-[10px] text-term-accent hover:bg-term-accent/10"
                                     >
                                       {item.userReportDate ? '取消' : '编辑'}
                                     </button>
@@ -1064,7 +1068,7 @@ function AutoUploadContent({
                               {item.reportType === 'payment_report' &&
                               item.userReportStartDate !== null ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="text-[10px] text-amber-600">起：</span>
+                                  <span className="font-mono text-[10px] text-term-warn">起：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportStartDate || '')}
                                     onChange={(date) => {
@@ -1081,7 +1085,7 @@ function AutoUploadContent({
                                     }}
                                     className="h-6 w-[130px] text-xs"
                                   />
-                                  <span className="text-[10px] text-amber-600">止：</span>
+                                  <span className="font-mono text-[10px] text-term-warn">止：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportEndDate || '')}
                                     onChange={(date) => {
@@ -1102,7 +1106,7 @@ function AutoUploadContent({
                               ) : item.userReportDate !== null &&
                                 item.reportType !== 'payment_report' ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="text-[10px] text-amber-600">日期：</span>
+                                  <span className="font-mono text-[10px] text-term-warn">日期：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportDate || '')}
                                     onChange={(date) => {
@@ -1121,7 +1125,7 @@ function AutoUploadContent({
                             </div>
                           ) : isDateRequired(item.reportType) ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                              <span className="font-mono text-xs text-term-warn">
                                 {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
                               </span>
                               {item.reportType === 'payment_report' ? (
@@ -1178,10 +1182,10 @@ function AutoUploadContent({
                             </div>
                           ) : null}
                           {item.error ? (
-                            <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p>
+                            <p className="font-mono text-xs text-term-neg">{item.error}</p>
                           ) : null}
                           {item.commitError ? (
-                            <p className="text-xs text-rose-600 dark:text-rose-300">
+                            <p className="font-mono text-xs text-term-neg">
                               {item.commitError}
                             </p>
                           ) : null}
@@ -1190,19 +1194,19 @@ function AutoUploadContent({
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-sky-600 dark:text-sky-300" />
+                        <Loader2 className="h-4 w-4 animate-spin text-term-accent" aria-hidden />
                       ) : null}
                       {item.fileCommitStatus === 'success' ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                        <CheckCircle2 className="h-4 w-4 text-term-pos" aria-hidden />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
-                        <CircleX className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                        <CircleX className="h-4 w-4 text-term-neg" aria-hidden />
                       ) : null}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => removeItem(item.localId)}
-                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                        className="h-8 w-8 shrink-0 rounded-none border border-transparent text-term-muted hover:border-term-neg/50 hover:text-term-neg"
                       >
                         <CircleX className="h-4 w-4" />
                         <span className="sr-only">移除</span>
@@ -1226,30 +1230,45 @@ export default function AutoUploadPage() {
   const [uploadSubTab, setUploadSubTab] = useState<UploadEndpoint>('report-upload')
   const [country, setCountry] = useState('US')
 
+  // BLF-836 终端化：Tab 条换终端规格（h-8 / 零圆角 / 1px 边界）。
+  const termTriggerClass =
+    'h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text'
+
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
       {/* Tab switcher */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}>
-        <TabsList>
-          <TabsTrigger value="upload">文件上传</TabsTrigger>
-          <TabsTrigger value="status">RPA 状态</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')} className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
+          <TabsTrigger value="upload" className={termTriggerClass}>
+            文件上传
+          </TabsTrigger>
+          <TabsTrigger value="status" className={termTriggerClass}>
+            RPA 状态
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab content */}
-        <TabsContent value="upload" className="mt-4">
-          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)}>
-            <TabsList>
-              <TabsTrigger value="report-upload">通用报表</TabsTrigger>
-              <TabsTrigger value="ad-upload">广告报表</TabsTrigger>
+        <TabsContent value="status" className="min-h-0 flex-1 space-y-0">
+          <RpaStatusGrid country={country} onCountryChange={setCountry} />
+        </TabsContent>
+        <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
+          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
+            <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
+              <TabsTrigger value="report-upload" className={termTriggerClass}>
+                通用报表
+              </TabsTrigger>
+              <TabsTrigger value="ad-upload" className={termTriggerClass}>
+                广告报表
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="report-upload" className="mt-4">
+            <TabsContent value="report-upload" className="min-h-0 flex-1 space-y-0">
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
                 endpoint="report-upload"
               />
             </TabsContent>
-            <TabsContent value="ad-upload" className="mt-4">
+            <TabsContent value="ad-upload" className="min-h-0 flex-1 space-y-0">
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
@@ -1257,9 +1276,6 @@ export default function AutoUploadPage() {
               />
             </TabsContent>
           </Tabs>
-        </TabsContent>
-        <TabsContent value="status" className="mt-4">
-          <RpaStatusGrid country={country} onCountryChange={setCountry} />
         </TabsContent>
       </Tabs>
     </div>

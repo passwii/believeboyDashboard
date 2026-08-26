@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
 import { Loader2, RotateCcw, Sparkles } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -14,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { DateRangePicker, parseDateRangeInputValue, parseDateInputValue } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
@@ -34,8 +32,21 @@ import {
 import { LedgerResendCell } from './LedgerResendCell'
 import { LedgerDayGroup } from './LedgerDayGroup'
 import { LedgerDetailDialog } from './LedgerDetailDialog'
-import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG } from './ledger-constants'
+import {
+  TERM_BUTTON,
+  TERM_INPUT,
+  TERM_SELECT_ITEM,
+  TERM_TRIGGER,
+  TermFrequencyTag,
+  TermStatusPill,
+} from './term-shared'
 import type { AIModelConfig } from './types'
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  daily: '每日',
+  weekly: '每周',
+  monthly: '每月',
+}
 
 export default function LedgerView() {
   const { data: session } = useSession()
@@ -319,81 +330,84 @@ export default function LedgerView() {
 
   return (
     <div className="space-y-3">
-      {/* 工具栏 */}
-      <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-        <CardContent className="p-4 space-y-4">
-          <div className="hidden md:flex gap-3 flex-wrap items-center">
+      {/* 工具栏（BLF-817 Console 规格） */}
+      <TermPanel title="调度记录">
+        <div className="border-b border-term-border p-1.5">
+          <div className="hidden flex-wrap items-center gap-1.5 md:flex">
             <DateRangePicker
               value={ledgerDateRangeValue}
               onChange={handleLedgerDateRangeChange}
-              className="h-9 w-[280px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
+              className="h-8 w-[240px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
             />
             <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
-              <SelectTrigger className="w-[120px] h-9">
+              <SelectTrigger className={cn(TERM_TRIGGER, 'w-[110px]')}>
                 <SelectValue placeholder="频率" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部频率</SelectItem>
-                <SelectItem value="daily">每日</SelectItem>
-                <SelectItem value="weekly">每周</SelectItem>
-                <SelectItem value="monthly">每月</SelectItem>
+              <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+                <SelectItem value="all" className={TERM_SELECT_ITEM}>全部频率</SelectItem>
+                <SelectItem value="daily" className={TERM_SELECT_ITEM}>每日</SelectItem>
+                <SelectItem value="weekly" className={TERM_SELECT_ITEM}>每周</SelectItem>
+                <SelectItem value="monthly" className={TERM_SELECT_ITEM}>每月</SelectItem>
               </SelectContent>
             </Select>
             <Select value={ledgerStatus} onValueChange={setLedgerStatus}>
-              <SelectTrigger className="w-[120px] h-9">
+              <SelectTrigger className={cn(TERM_TRIGGER, 'w-[110px]')}>
                 <SelectValue placeholder="状态" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="sent">成功</SelectItem>
-                <SelectItem value="failed">失败</SelectItem>
-                <SelectItem value="missing">缺失</SelectItem>
+              <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+                <SelectItem value="all" className={TERM_SELECT_ITEM}>全部状态</SelectItem>
+                <SelectItem value="sent" className={TERM_SELECT_ITEM}>成功</SelectItem>
+                <SelectItem value="failed" className={TERM_SELECT_ITEM}>失败</SelectItem>
+                <SelectItem value="missing" className={TERM_SELECT_ITEM}>缺失</SelectItem>
               </SelectContent>
             </Select>
             <Input
               placeholder="邮箱筛选"
               value={ledgerEmail}
               onChange={(e) => setLedgerEmail(e.target.value)}
-              className="w-[200px] h-9"
+              className={cn(TERM_INPUT, 'w-[180px]')}
             />
-            <div className="ml-auto">
-              <Button size="sm" onClick={loadLedger} disabled={ledgerLoading}>
-                {ledgerLoading ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="mr-1 h-4 w-4" />
-                )}
-                刷新台账
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={loadLedger}
+              disabled={ledgerLoading}
+              className={cn(TERM_BUTTON, 'ml-auto')}
+            >
+              {ledgerLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              )}
+              刷新台账
+            </button>
           </div>
-          <div className="md:hidden space-y-2">
+          <div className="space-y-1.5 md:hidden">
             <DateRangePicker
               value={ledgerDateRangeValue}
               onChange={handleLedgerDateRangeChange}
-              className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none text-xs"
+              className="h-8 w-full justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
             />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger className={TERM_TRIGGER}>
                   <SelectValue placeholder="频率" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="daily">每日</SelectItem>
-                  <SelectItem value="weekly">每周</SelectItem>
-                  <SelectItem value="monthly">每月</SelectItem>
+                <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+                  <SelectItem value="all" className={TERM_SELECT_ITEM}>全部</SelectItem>
+                  <SelectItem value="daily" className={TERM_SELECT_ITEM}>每日</SelectItem>
+                  <SelectItem value="weekly" className={TERM_SELECT_ITEM}>每周</SelectItem>
+                  <SelectItem value="monthly" className={TERM_SELECT_ITEM}>每月</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={ledgerStatus} onValueChange={setLedgerStatus}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger className={TERM_TRIGGER}>
                   <SelectValue placeholder="状态" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="sent">成功</SelectItem>
-                  <SelectItem value="failed">失败</SelectItem>
-                  <SelectItem value="missing">缺失</SelectItem>
+                <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+                  <SelectItem value="all" className={TERM_SELECT_ITEM}>全部</SelectItem>
+                  <SelectItem value="sent" className={TERM_SELECT_ITEM}>成功</SelectItem>
+                  <SelectItem value="failed" className={TERM_SELECT_ITEM}>失败</SelectItem>
+                  <SelectItem value="missing" className={TERM_SELECT_ITEM}>缺失</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -401,44 +415,52 @@ export default function LedgerView() {
               placeholder="邮箱筛选"
               value={ledgerEmail}
               onChange={(e) => setLedgerEmail(e.target.value)}
-              className="h-9"
+              className={TERM_INPUT}
             />
-            <Button size="sm" className="w-full" onClick={loadLedger} disabled={ledgerLoading}>
+            <button
+              type="button"
+              onClick={loadLedger}
+              disabled={ledgerLoading}
+              className={cn(TERM_BUTTON, 'w-full justify-center')}
+            >
               {ledgerLoading ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               ) : (
-                <RotateCcw className="mr-1 h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
               )}
               刷新台账
-            </Button>
+            </button>
           </div>
 
-          {ledgerError && <p className="text-sm text-destructive">{ledgerError}</p>}
+          {ledgerError && (
+            <p className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg">
+              {ledgerError}
+            </p>
+          )}
           {!ledgerError && ledgerTotal > ledgerItems.length && (
-            <p className="text-xs text-amber-600">
+            <p className="border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs tabular-nums text-term-warn">
               当前范围数据量较大，仅显示最新 {ledgerItems.length} 条（共 {ledgerTotal} 条）。请缩小时间范围或增加筛选条件以查看更早的记录。
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
 
       {/* 台账表格 */}
-      <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
-        <CardContent className="p-0">
+      <TermPanel>
           {/* 桌面端表格 */}
           <div className="hidden md:block">
             {ledgerLoading && ledgerItems.length === 0 ? (
-              <div className="space-y-3 p-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-11/12" />
-                <Skeleton className="h-10 w-4/5" />
+              <div className="space-y-3 p-3">
+                <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-9 w-11/12 rounded-none bg-term-raised" />
+                <Skeleton className="h-9 w-4/5 rounded-none bg-term-raised" />
               </div>
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <RotateCcw className="h-8 w-8 text-muted-foreground/30" />
-                <span className="text-sm text-muted-foreground">暂无台账记录</span>
-                <span className="text-xs text-muted-foreground/60">
+                <RotateCcw className="h-8 w-8 text-term-faint" />
+                <span className="font-mono text-sm text-term-muted">暂无台账记录</span>
+                <span className="text-xs text-term-faint">
                   调整筛选条件或点击「刷新台账」
                 </span>
               </div>
@@ -473,17 +495,17 @@ export default function LedgerView() {
           </div>
 
           {/* 手机端卡片列表 */}
-          <div className="md:hidden divide-y divide-border/60">
+          <div className="divide-y divide-term-border md:hidden">
             {ledgerLoading && ledgerItems.length === 0 ? (
-              <div className="space-y-3 p-4">
-                <Skeleton className="h-16 w-full rounded-lg" />
-                <Skeleton className="h-16 w-full rounded-lg" />
-                <Skeleton className="h-16 w-full rounded-lg" />
+              <div className="space-y-3 p-3">
+                <Skeleton className="h-16 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-16 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-16 w-full rounded-none bg-term-raised" />
               </div>
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <RotateCcw className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                <p className="text-sm text-muted-foreground">暂无台账记录</p>
+                <RotateCcw className="mb-2 h-8 w-8 text-term-faint" />
+                <p className="font-mono text-sm text-term-muted">暂无台账记录</p>
               </div>
             ) : (
               ledgerItems.map((item) => {
@@ -505,12 +527,12 @@ export default function LedgerView() {
                 return (
                   <div
                     key={item.ledger_key}
-                    className="p-4 active:bg-accent/50 transition-colors"
+                    className="p-3 transition-colors active:bg-term-hover"
                     onClick={() => openDetail(item)}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="text-xs text-muted-foreground">
+                        <div className="font-mono text-xs tabular-nums text-term-muted">
                           {new Date(item.expected_at).toLocaleString('zh-CN')}
                         </div>
                         <div
@@ -520,37 +542,27 @@ export default function LedgerView() {
                           {projectLabel}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>
-                          {FREQUENCY_LABELS[item.frequency]}
-                        </Badge>
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border',
-                            STATUS_BG[item.status]
-                          )}
-                        >
-                          {item.status === 'sent' ? '✓' : item.status === 'failed' ? '✗' : '⚠'}
-                        </span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <TermFrequencyTag frequency={item.frequency} labels={FREQUENCY_LABELS} />
+                        <TermStatusPill status={item.status} />
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         {summaryBusy ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-term-accent">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             生成中
                           </span>
                         ) : showSummaryAction ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                          <button
+                            type="button"
+                            className="inline-flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-term-accent transition-colors hover:bg-term-hover disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={() => handleQuickRegenerateSummary(item)}
                           >
-                            <Sparkles className="mr-0.5 h-3 w-3" />
+                            <Sparkles className="h-3 w-3" aria-hidden />
                             {item.ai_summary_status === 'failed' ? '重新生成' : '生成摘要'}
-                          </Button>
+                          </button>
                         ) : null}
                         {canTrigger ? (
                           <LedgerResendCell
@@ -579,8 +591,7 @@ export default function LedgerView() {
               })
             )}
           </div>
-        </CardContent>
-      </Card>
+      </TermPanel>
 
       {/* 台账详情 Dialog */}
       <LedgerDetailDialog

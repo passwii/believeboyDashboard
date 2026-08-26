@@ -144,7 +144,7 @@ export function SubscriptionForm({
 
       <Accordion type="multiple" defaultValue={['basic', 'scope']} className="space-y-2">
         {/* ── 基础设置 ── */}
-        <AccordionItem value="basic" className="border rounded-lg px-4">
+        <AccordionItem value="basic" className="rounded-none border-term-border bg-term-panel px-3">
           <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline [&[data-state=open]>svg]:text-foreground">
             基础设置
           </AccordionTrigger>
@@ -296,7 +296,7 @@ export function SubscriptionForm({
         </AccordionItem>
 
         {/* ── 范围设置 ── */}
-        <AccordionItem value="scope" className="border rounded-lg px-4">
+        <AccordionItem value="scope" className="rounded-none border-term-border bg-term-panel px-3">
           <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline">
             范围设置
           </AccordionTrigger>
@@ -315,7 +315,7 @@ export function SubscriptionForm({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="flex h-9 w-full items-center justify-between rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-sm text-term-text focus-visible:outline-none focus-visible:ring-0 data-[state=open]:border-term-border-strong"
                     >
                       <span className="truncate">
                         {formCountries.length === 0
@@ -334,7 +334,7 @@ export function SubscriptionForm({
                             key={opt.value}
                             type="button"
                             className={cn(
-                              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors',
+                              'flex w-full items-center gap-2 rounded-none px-2 py-1.5 text-sm hover:bg-term-hover transition-colors',
                               selected && 'bg-accent'
                             )}
                             onClick={() => {
@@ -347,7 +347,7 @@ export function SubscriptionForm({
                           >
                             <div
                               className={cn(
-                                'flex h-4 w-4 items-center justify-center rounded-sm border',
+                                'flex h-4 w-4 items-center justify-center rounded-none border-term-border-strong',
                                 selected
                                   ? 'bg-primary border-primary text-primary-foreground'
                                   : 'border-input'
@@ -378,7 +378,7 @@ export function SubscriptionForm({
         </AccordionItem>
 
         {/* ── AI 模型 ── */}
-        <AccordionItem value="ai" className="border rounded-lg px-4">
+        <AccordionItem value="ai" className="rounded-none border-term-border bg-term-panel px-3">
           <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline">
             AI 模型
             {formAiModel && (
@@ -446,16 +446,16 @@ export function SubscriptionForm({
 
       {/* 全局错误 */}
       {formError && (
-        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/5 rounded-lg px-4 py-2.5 mt-3 border border-destructive/20">
+        <div className="mt-3 flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
           <XCircle className="h-4 w-4 shrink-0" />
           {formError}
         </div>
       )}
 
       {/* 配置预览 */}
-      <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50">
-        <div className="text-xs text-muted-foreground mb-1">配置预览</div>
-        <div className="text-sm text-foreground/80 truncate" title={configPreview}>
+      <div className="mt-4 rounded-none border border-term-border bg-term-raised p-2.5">
+        <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-term-faint">配置预览</div>
+        <div className="truncate font-mono text-xs text-term-muted" title={configPreview}>
           {configPreview}
         </div>
       </div>

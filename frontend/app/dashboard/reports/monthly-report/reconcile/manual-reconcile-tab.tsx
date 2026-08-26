@@ -126,7 +126,7 @@ function SummaryCard({ result }: { result: ReconciliationResult }) {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+      <div className="rounded-none border-term-border bg-term-raised p-3">
         <div className="text-sm text-muted-foreground">收入合计</div>
         <div className="mt-1 font-mono text-2xl font-semibold">
           {formatCurrency(summary.excel_total_income)}
@@ -135,7 +135,7 @@ function SummaryCard({ result }: { result: ReconciliationResult }) {
           PDF: {formatCurrency(summary.pdf_total_income)}
         </div>
       </div>
-      <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+      <div className="rounded-none border-term-border bg-term-raised p-3">
         <div className="text-sm text-muted-foreground">支出合计</div>
         <div className="mt-1 font-mono text-2xl font-semibold">
           {formatCurrency(summary.excel_total_expense)}
@@ -144,7 +144,7 @@ function SummaryCard({ result }: { result: ReconciliationResult }) {
           PDF: {formatCurrency(summary.pdf_total_expense)}
         </div>
       </div>
-      <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+      <div className="rounded-none border-term-border bg-term-raised p-3">
         <div className="text-sm text-muted-foreground">净收款</div>
         <div className="mt-1 font-mono text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
           {formatCurrency(summary.excel_net_amount)}
@@ -251,7 +251,7 @@ export default function ManualReconcileTab() {
                 </p>
               </div>
               <div
-                className={`flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                className={`flex cursor-pointer items-center justify-center rounded-none border-2 border-dashed border-term-border p-6 transition-colors ${
                   excelFile
                     ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20'
                     : 'border-border hover:border-primary/50 hover:bg-[hsl(var(--surface-subtle))]'
@@ -292,7 +292,7 @@ export default function ManualReconcileTab() {
                 </p>
               </div>
               <div
-                className={`flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                className={`flex cursor-pointer items-center justify-center rounded-none border-2 border-dashed border-term-border p-6 transition-colors ${
                   pdfFile
                     ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20'
                     : 'border-border hover:border-primary/50 hover:bg-[hsl(var(--surface-subtle))]'

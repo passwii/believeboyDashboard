@@ -18,7 +18,7 @@ import { useSession } from 'next-auth/react'
 import React from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
   DateRangePicker,
   formatDateInputValue,
@@ -861,16 +861,12 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
 
   // ── Render ──
   return (
-    <div className="space-y-4">
-      {/* ═══ Card 1: Parameters ═══ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">核算参数</CardTitle>
-          <CardDescription className="text-xs">
-            选择项目、站点和日期范围，上传周期报表后执行核算。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="space-y-3">
+      {/* ═══ Panel 1: Parameters ═══ */}
+      <TermPanel
+        title="核算参数"
+        bodyClassName="p-3 space-y-3 [&_label]:font-mono [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-term-muted"
+      >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             {/* Project */}
             <div className="space-y-1.5">
@@ -982,19 +978,19 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
               return (
                 <div
                   key={config.type}
-                  className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2"
+                  className="rounded-none border border-term-border bg-term-raised px-2 py-1.5"
                 >
-                  <p className="text-xs text-muted-foreground">{config.title}</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-term-faint">{config.title}</p>
                   <p
                     className={cn(
-                      'mt-1 text-sm font-semibold',
+                      'mt-1 font-mono text-sm font-semibold tabular-nums',
                       status === 'success'
-                        ? 'text-emerald-600'
+                        ? 'text-term-pos'
                         : status === 'saving'
-                          ? 'text-blue-600'
+                          ? 'text-term-accent'
                           : status === 'error'
-                            ? 'text-rose-600'
-                            : 'text-muted-foreground'
+                            ? 'text-term-neg'
+                            : 'text-term-muted'
                     )}
                   >
                     {status === 'success'
@@ -1011,23 +1007,15 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
           </div>
 
           {formError && (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               {formError}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </TermPanel>
 
-      {/* ═══ Card 2: File Upload & Recognition ═══ */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">文件上传与识别</CardTitle>
-          <CardDescription className="text-xs">
-            上传业务报告、广告报告和付款报告。文件将自动识别类型并写入周期数据。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      {/* ═══ Panel 2: File Upload & Recognition ═══ */}
+      <TermPanel title="文件上传与识别" bodyClassName="p-3 space-y-4">
           <SimpleDropzone
             dragActive={dragActive}
             recognizing={recognizing}
@@ -1108,71 +1096,58 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
           </div>
 
           {checkError && (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               {checkError}
             </div>
           )}
 
           {runError && (
-            <div className="flex items-center gap-2 rounded-md border border-rose-300/60 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
               {runError}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </TermPanel>
 
-      {/* ═══ Card 3: Data Availability ═══ */}
+      {/* ═══ Panel 3: Data Availability ═══ */}
       {availability && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">数据可用性</CardTitle>
-            <CardDescription className="text-xs">
-              {startDate} — {endDate}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 border-t border-[hsl(var(--border))] pt-2.5">
+        <TermPanel title={`数据可用性 ${startDate} — ${endDate}`} bodyClassName="p-3 space-y-3">
+            <div className="flex items-center gap-2 border-t border-term-border pt-2 font-mono text-xs">
               {availability.has_minimum_data ? (
-                <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4" />
+                <div className="flex items-center gap-1.5 font-medium text-term-pos">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                   可执行核算
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-sm font-medium text-rose-600 dark:text-rose-300">
-                  <XCircle className="h-4 w-4" />
+                <div className="flex items-center gap-1.5 font-medium text-term-neg">
+                  <XCircle className="h-3.5 w-3.5" aria-hidden />
                   数据不足，无法执行核算（缺少核心报表数据）
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+        </TermPanel>
       )}
 
-      {/* ═══ Card 4: Results ═══ */}
+      {/* ═══ Panel 4: Results ═══ */}
       {runState === 'done' && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">核算结果</CardTitle>
-                <CardDescription className="text-xs">共 {periods.length} 个周期</CardDescription>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void handleExport()}
-                disabled={periods.length === 0}
-              >
-                <Download className="mr-1 h-4 w-4" />
-                导出 Excel
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+        <TermPanel
+          title={`核算结果 · 共 ${periods.length} 个周期`}
+          actions={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void handleExport()}
+              disabled={periods.length === 0}
+            >
+              <Download className="mr-1 h-4 w-4" aria-hidden />
+              导出 Excel
+            </Button>
+          }
+        >
+          <div className="p-3">
             {periods.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">无核算数据</div>
+              <div className="py-8 text-center font-mono text-sm text-term-faint">无核算数据</div>
             ) : (
               <div className="space-y-3">
                 {periods.map((period, idx) => {
@@ -1180,15 +1155,15 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                   return (
                     <div key={idx} className="space-y-1">
                       <div
-                        className={`flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        className={`flex flex-wrap items-center gap-2 rounded-none border px-2 py-1.5 font-mono text-xs transition-colors ${
                           isExpanded
-                            ? 'border-blue-300 bg-blue-50 dark:bg-blue-950/30'
-                            : 'hover:bg-muted/30'
+                            ? 'border-term-border-strong bg-term-raised text-term-text'
+                            : 'border-term-border bg-term-panel text-term-muted hover:bg-term-hover'
                         }`}
                         onClick={() => setExpandedIndex(isExpanded ? null : idx)}
                       >
                         <button
-                          className="rounded p-0.5 hover:bg-accent shrink-0"
+                          className="rounded-none p-0.5 hover:bg-term-hover shrink-0"
                           onClick={(e) => {
                             e.stopPropagation()
                             setExpandedIndex(isExpanded ? null : idx)
@@ -1202,16 +1177,18 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                         </button>
 
                         <span className="shrink-0 font-medium text-sm">
-                          {period.report_start_date} ~ {period.report_end_date}
+                          <span className="tabular-nums">
+                            {period.report_start_date} ~ {period.report_end_date}
+                          </span>
                           {period.persisted && (
-                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-medium leading-none text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" />
+                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-none border border-term-pos/40 px-1 py-px font-mono text-[10px] leading-none text-term-pos">
+                              <CheckCircle2 className="h-3 w-3" aria-hidden />
                               已写入PT1
                             </span>
                           )}
                         </span>
 
-                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 tabular-nums text-term-muted">
                           <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
                           <span>利润: {renderCell(period.summary['利润'])}</span>
                           <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>
@@ -1220,14 +1197,14 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                       </div>
 
                       {isExpanded && (
-                        <div className="overflow-x-auto rounded-md border">
-                          <table className="w-full text-xs">
+                        <div className="overflow-x-auto rounded-none border border-term-border term-scroll">
+                          <table className="w-full border-collapse font-mono text-xs tabular-nums">
                             <thead>
-                              <tr className="border-b bg-muted/50">
+                              <tr className="border-b border-term-border bg-term-raised">
                                 {DETAIL_DISPLAY_COLUMNS.map((col) => (
                                   <th
                                     key={col.key}
-                                    className="px-3 py-2 text-right font-semibold whitespace-nowrap"
+                                    className="h-9 px-2 text-right font-medium normal-case tracking-normal whitespace-nowrap text-term-muted"
                                   >
                                     {col.label}
                                   </th>
@@ -1248,7 +1225,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                                 period.details.map((detail, dIdx) => (
                                   <tr
                                     key={dIdx}
-                                    className="border-b border-[hsl(var(--border))] hover:bg-muted/20"
+                                    className="border-b border-term-border hover:bg-term-hover"
                                   >
                                     {DETAIL_DISPLAY_COLUMNS.map((col) => (
                                       <td
@@ -1270,8 +1247,8 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </TermPanel>
       )}
     </div>
   )

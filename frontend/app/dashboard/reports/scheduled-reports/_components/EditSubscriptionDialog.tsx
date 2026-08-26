@@ -117,7 +117,7 @@ export function EditSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-[540px] md:max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+      <DialogContent className="max-w-[calc(100%-2rem)] rounded-none border-term-border bg-term-panel sm:max-w-[540px] md:max-w-2xl p-4">
         <SubscriptionForm
           mode="edit"
           formEmail={formEmail}
