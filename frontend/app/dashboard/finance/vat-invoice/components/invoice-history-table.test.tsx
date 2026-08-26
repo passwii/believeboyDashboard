@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { InvoiceHistoryTable } from './invoice-history-table'
-import type { VatInvoiceListItem } from '../../lib/vat-history-api'
+import type { VatInvoiceListItem } from '../lib/vat-history-api'
 
 const baseRow: VatInvoiceListItem = {
   id: 1,

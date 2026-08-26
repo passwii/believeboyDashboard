@@ -4,7 +4,7 @@
 // 数据来自 /api/v1/vat-entities（vat-entity-api）；不再回退到 project_context JSON。
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -238,25 +238,38 @@ export function SellerCard({
   }
 
   return (
-    <Card className="dashboard-surface">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">1. 店铺与 Seller 信息</CardTitle>
-        {selectedProjectId != null && (
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="sm" onClick={openAddNew} disabled={loadingEntities}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
+    <TermPanel
+      title="1 · 店铺与 Seller"
+      actions={
+        selectedProjectId != null && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              onClick={openAddNew}
+              disabled={loadingEntities}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
               新增国家
             </Button>
             {selectedCountry && (
-              <Button variant="outline" size="sm" onClick={openEdit} disabled={loadingEntities}>
-                <Pencil className="mr-1 h-3.5 w-3.5" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+                onClick={openEdit}
+                disabled={loadingEntities}
+              >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                 编辑
               </Button>
             )}
           </div>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+        )
+      }
+    >
+      <div className="space-y-4 p-3">
         {/* 店铺下拉（vat_enabled 过滤） */}
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           <Label htmlFor="project-select" className="self-center">
@@ -365,7 +378,7 @@ export function SellerCard({
         ) : (
           <p className="text-sm text-muted-foreground">请先选择店铺以加载 Seller。</p>
         )}
-      </CardContent>
+      </div>
 
       {/* 编辑 / 新增 Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -494,6 +507,6 @@ export function SellerCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </TermPanel>
   )
 }

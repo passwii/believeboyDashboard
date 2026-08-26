@@ -1,23 +1,18 @@
 'use client'
 
 import {
-  STICKY_LEFT_CELL,
-  STICKY_LEFT_HEAD_CELL,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import { formatPercent } from './utils'
-
-const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
-const FULL_BLEED_TABLE_CONTAINER_CLASS = '-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none'
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -45,16 +40,13 @@ function getYearMonths(year: string): string[] {
 // 例如 0.999999... 应该显示绿色（≥100%），而不是橙色（50%~100%）
 const RATE_EPSILON = 1e-9
 
-// 回款率色块：映射到 --data-* token（自动适配 dark，与 StatusPill 同源）
-// ≥100% 绿 / ≥50% 橙 / ≥20% 黄 / <20% 红（黄档无专用 token，保留 yellow 硬编码 + dark 变体）
-function getReceiveRateColor(rate: number): string {
-  if (rate >= 1 - RATE_EPSILON)
-    return 'bg-[hsl(var(--data-positive)/0.14)] text-[hsl(var(--data-positive))]'
-  if (rate >= 0.5 - RATE_EPSILON)
-    return 'bg-[hsl(var(--data-warning)/0.16)] text-[hsl(var(--data-warning))]'
-  if (rate >= 0.2 - RATE_EPSILON)
-    return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-200'
-  return 'bg-[hsl(var(--data-negative)/0.12)] text-[hsl(var(--data-negative))]'
+// 回款率色块：term 语义色（≥100% pos 绿 / ≥50% warn 橙 / ≥20% warn / <20% neg 红）
+function getReceiveRateTone(
+  rate: number
+): 'pos' | 'warn' | 'neg' {
+  if (rate >= 1 - RATE_EPSILON) return 'pos'
+  if (rate >= 0.2 - RATE_EPSILON) return 'warn'
+  return 'neg'
 }
 
 interface MonthlyCollectionTabProps {
@@ -69,69 +61,78 @@ const DATA_COLS = TOTAL_MONTH_COLS + 1 // 12 months + annual summary
 // 骨架屏行（回款率色块样式）
 function MonthlyCollectionSkeletonRow() {
   return (
-    <TableRow className="animate-pulse">
-      {/* 项目名称列（sticky） */}
-      <TableCell className={STICKY_LEFT_CELL}>
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      {/* 数据列：12个月 + 1个汇总列 */}
-      {Array.from({ length: TOTAL_MONTH_COLS + 1 }).map((_, i) => (
-        <TableCell key={i} className="text-center">
-          <Skeleton className="h-6 w-12 mx-auto" />
-        </TableCell>
+    <TermRow className="animate-pulse hover:bg-transparent">
+      {Array.from({ length: DATA_COLS }).map((_, i) => (
+        <TermCell key={i}>
+          <Skeleton className="h-3.5 w-10 rounded-none" />
+        </TermCell>
       ))}
-    </TableRow>
+    </TermRow>
   )
 }
 
 // 骨架屏内容
 function MonthlyCollectionSkeletonContent() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <Table
-        className={FULL_BLEED_TABLE_CLASS}
-        containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
-      >
-        <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-          <TableRow>
-            <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
-              项目名称
-            </TableHead>
-            {getYearMonths(new Date().getFullYear().toString()).map((m) => (
-              <TableHead
-                key={m}
-                className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
-              >
-                {m.slice(5)}月
-              </TableHead>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="overflow-auto term-scroll">
+        <TermTable>
+          <TermTHead>
+            <TermRow className="hover:bg-transparent">
+              <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
+              {getYearMonths(new Date().getFullYear().toString()).map((m) => (
+                <TermHead key={m} numeric>
+                  {m.slice(5)}月
+                </TermHead>
+              ))}
+              <TermHead numeric>年度汇总</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <MonthlyCollectionSkeletonRow key={i} />
             ))}
-            <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-              年度汇总
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <MonthlyCollectionSkeletonRow key={i} />
-          ))}
-        </TableBody>
-      </Table>
+          </TermBody>
+        </TermTable>
+      </div>
 
       {/* 图例骨架 */}
-      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-12" />
-        <Skeleton className="h-4 w-12" />
-        <Skeleton className="h-4 w-12" />
-        <Skeleton className="h-4 w-12" />
+      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-term-border bg-term-panel px-4 py-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-3.5 w-16 rounded-none" />
+        ))}
       </div>
     </div>
   )
 }
 
 export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollectionTabProps) {
+  const renderRateCell = (rate: number | null, minW: string) => {
+    if (rate === null || rate <= 0) {
+      return (
+        <span className="inline-block rounded-none px-1.5 font-mono text-xs text-term-faint">
+          -
+        </span>
+      )
+    }
+    const tone = getReceiveRateTone(rate)
+    return (
+      <span
+        className={cn(
+          'inline-block rounded-none px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums',
+          minW,
+          tone === 'pos' && 'bg-term-pos/15 text-term-pos',
+          tone === 'warn' && 'bg-term-warn/15 text-term-warn',
+          tone === 'neg' && 'bg-term-neg/15 text-term-neg'
+        )}
+      >
+        {formatPercent(rate)}
+      </span>
+    )
+  }
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 骨架屏层 */}
       <div
         className="absolute inset-0 transition-opacity duration-200"
@@ -143,95 +144,70 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
 
       {/* 内容层 */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <Table
-          className={FULL_BLEED_TABLE_CLASS}
-          containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
-        >
-          <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-            <TableRow>
-              <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
-                项目名称
-              </TableHead>
-              {getYearMonths(year).map((m) => (
-                <TableHead
-                  key={m}
-                  className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
-                >
-                  {m.slice(5)}月
-                </TableHead>
-              ))}
-              <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-                年度汇总
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
-              <EmptyTableState colSpan={DATA_COLS} message={`${year}年暂无数据`} />
-            ) : (
-              items.map((project) => (
-                <TableRow key={project.project_id}>
-                  <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 font-medium text-center')}>
-                    {project.project_name}
-                  </TableCell>
-                  {getYearMonths(year).map((m) => {
-                    const monthData = project.months[m]
-                    return (
-                      <TableCell key={m} className="text-center">
-                    {monthData ? (
-                      <span
-                        className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate)}`}
-                      >
-                        {formatPercent(monthData.receive_rate)}
-                      </span>
-                    ) : (
-                          <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-[hsl(var(--surface-subtle))]">
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                    )
-                  })}
-                  <TableCell className="!pr-0 text-center">
-                    {project.receive_rate > 0 ? (
-                      <span
-                        className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate)}`}
-                      >
-                        {formatPercent(project.receive_rate)}
-                      </span>
-                    ) : (
-                      <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-[hsl(var(--surface-subtle))]">
-                        -
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <div className="flex-1 overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
+                {getYearMonths(year).map((m) => (
+                  <TermHead key={m} numeric>
+                    {m.slice(5)}月
+                  </TermHead>
+                ))}
+                <TermHead numeric>年度汇总</TermHead>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
+              {items.length === 0 ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={DATA_COLS} className="h-24 text-center" tone="muted">
+                    {year}年暂无数据
+                  </TermCell>
+                </TermRow>
+              ) : (
+                items.map((project) => (
+                  <TermRow key={project.project_id}>
+                    <TermCell
+                      title={project.project_name}
+                      className="sticky left-0 z-10 min-w-[140px] bg-term-panel font-medium"
+                    >
+                      {project.project_name}
+                    </TermCell>
+                    {getYearMonths(year).map((m) => {
+                      const monthData = project.months[m]
+                      return (
+                        <TermCell key={m} numeric>
+                          {monthData
+                            ? renderRateCell(monthData.receive_rate, 'min-w-[48px]')
+                            : '-'}
+                        </TermCell>
+                      )
+                    })}
+                    <TermCell numeric>{renderRateCell(project.receive_rate, 'min-w-[56px]')}</TermCell>
+                  </TermRow>
+                ))
+              )}
+            </TermBody>
+          </TermTable>
+        </div>
 
         {/* 图例 */}
-        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-          <span className="text-xs text-muted-foreground">回款率色块：</span>
+        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-term-border bg-term-panel px-4 py-2.5">
+          <span className="text-xs text-term-muted">回款率色块：</span>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-positive))]" />
-            <span className="text-xs text-foreground">≥100%</span>
+            <span className="inline-block h-3 w-10 bg-term-pos/40" />
+            <span className="font-mono text-xs text-term-muted">≥100%</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-warning))]" />
-            <span className="text-xs text-foreground">50%~70%</span>
+            <span className="inline-block h-3 w-10 bg-term-warn/40" />
+            <span className="font-mono text-xs text-term-muted">20%~100%</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-yellow-400 dark:bg-yellow-500" />
-            <span className="text-xs text-foreground">20%~50%</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-negative))]" />
-            <span className="text-xs text-foreground">&lt;20%</span>
+            <span className="inline-block h-3 w-10 bg-term-neg/40" />
+            <span className="font-mono text-xs text-term-muted">&lt;20%</span>
           </div>
         </div>
       </div>

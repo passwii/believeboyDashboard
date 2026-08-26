@@ -84,6 +84,7 @@ export function TermCell({
   tone,
   title,
   colSpan,
+  rowSpan,
 }: {
   /** 纯 colSpan 占位单元格（合计行空位）时可为空 */
   children?: React.ReactNode
@@ -95,11 +96,14 @@ export function TermCell({
   title?: string
   /** 跨列合并（状态行 / 合计行用） */
   colSpan?: number
+  /** 跨行合并（项目名按站点合并行用） */
+  rowSpan?: number
 }) {
   return (
     <td
       title={title}
       colSpan={colSpan}
+      rowSpan={rowSpan}
       className={cn(
         CELL_CN,
         numeric && 'text-right',
