@@ -41,7 +41,7 @@
 
 对两份文档与代码实态逐项比对后的结论：
 
-1. **任务 0 已超额完成**：实际落地两档放大（31117bdc / 3bed4693，#395），最终常量 64/256/48/32/360。master-prompt §任务 0 已改标「已完成」，并明确 `terminal-constants.ts` 为唯一尺寸来源，后续调整勿回改文档表格数值。
+1. **任务 0 已超额完成**：实际落地两档放大（31117bdc / 3bed4693，#395），二档最终常量 64/256/48/32/360（SubNav 后经 BLF-844 于 2026-08-26 用户反馈回调至 224）。master-prompt §任务 0 已改标「已完成」，并明确 `terminal-constants.ts` 为唯一尺寸来源，后续调整勿回改文档表格数值。
 2. **尺寸双源风险基本消除（原 P2）**：框架级尺寸（rail/subnav/header/footer/inspector）已全部收敛到 `terminal-constants.ts`，组件内已无 `w-[200px]` / `h-[36px]` 类框架尺寸硬编码（grep 验证）。局部元素仍有字面量（图标 `h-[18px] w-[18px]`、弹层 `w-[300px]`/`w-[340px]` 等），属元素级有意为之；唯一保留小字号是 header 未读徽标 text-[11px]，属角标语义有意为之，不算回退。**但顶部区块高度仍有一处双源残留**：Rail Logo 位借用 `TERMINAL_RAIL_WIDTH` 当高度、SubNav 组头与 Inspector 标题条硬编码 `h-10`，与 Header 的 48px 不一致——详见第六节 P6。
 3. **页面覆盖率仍低，且新增协调风险（原 P3 升级）**：Web 端仅 order-info / daily-analysis / ad-analysis 套用终端风格；桌面端 GUI Stage12 另有 20 模块迁移（#398）、Stage13 进行中（BLF-804），BLF-826 正在集中规划 Header 筛选集成。**剩余页面开工前必须先查这三个 issue 是否已覆盖该页**，否则会重复改造甚至互相冲突——这是当前最大的流程风险。
 4. **可访问性改善中（原 P4）**：Rail/SubNav 焦点态已有 term-hover 可见样式；9-10px 文本已随两档放大消除。剩余欠账：部分交互控件命中区仍待复核 ≥24px。

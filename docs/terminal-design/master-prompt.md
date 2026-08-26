@@ -14,7 +14,7 @@
 
 - 设计令牌：`frontend/app/globals.css` 中 `--term-*`（明暗两套）+ Tailwind `term` 色组
 - 外壳组件：`frontend/components/terminal/`（terminal-shell / terminal-rail / terminal-subnav / terminal-header / terminal-inspector / terminal-footer / term-panel / term-table / terminal-constants / header-filter-suite / global-filter-context）
-- 布局骨架：L1 主轨 64px → L2 子导航 256px（可折叠，折叠动效见 `TERMINAL_SUBNAV_MOTION`）→ Top Header 48px → Main Canvas（`#main-content` 独立滚动）→ Right Inspector 360px（⌘B）→ Global Footer 32px（多频道滚动 Ticker）
+- 布局骨架：L1 主轨 64px → L2 子导航 224px（可折叠，折叠动效见 `TERMINAL_SUBNAV_MOTION`）→ Top Header 48px → Main Canvas（`#main-content` 独立滚动）→ Right Inspector 360px（⌘B）→ Global Footer 32px（多频道滚动 Ticker）
 - 全局筛选：`global-filter-context.tsx` 提供 Project/Site/Date 全局态；页面经 `header-filter-suite.tsx` 的 Header 组件族消费，页面级重复胶囊/筛选条应逐步移除（BLF-826 集中规划中）
 - 页面试点：首页 `app/dashboard/page.tsx`、`reports/order-info`（Pattern A 高密度大表）、`operations/daily-analysis`（head 筛选集成）、`ad-analysis`（term-chrome）已终端化；桌面端 GUI 另有 20 模块套用同套模板
 
@@ -39,7 +39,7 @@
 | 常量 | 现值 | 新值 |
 |---|---|---|
 | TERMINAL_RAIL_WIDTH | 50 | ~~56~~ → 最终 64 |
-| TERMINAL_SUBNAV_WIDTH | 200 | ~~224~~ → 最终 256 |
+| TERMINAL_SUBNAV_WIDTH | 200 | ~~224~~ → 二档最终 256 → **BLF-844 回调 224**（2026-08-26 用户反馈：视觉过宽；以 `terminal-constants.ts` 实态为准） |
 | TERMINAL_HEADER_HEIGHT | 36 | ~~40~~ → 最终 48 |
 | TERMINAL_FOOTER_HEIGHT | 24 | ~~28~~ → 最终 32 |
 | TERMINAL_INSPECTOR_WIDTH | 288 | ~~320~~ → 最终 360 |

@@ -6,8 +6,9 @@ import type { SidebarSubItem, SidebarTopGroup } from '@/lib/sidebar-config'
  */
 
 // 全局放大两档后的规格（master-prompt §任务 0a 一档 56/224/40/28/320；二档 64/256/48/32/360）：
+// BLF-844（2026-08-26 用户反馈）：SubNav 视觉过宽，256 → 224 回调一档。
 export const TERMINAL_RAIL_WIDTH = 64
-export const TERMINAL_SUBNAV_WIDTH = 256
+export const TERMINAL_SUBNAV_WIDTH = 224
 /** SubNav 折叠宽度（BLF-825）：有意整列收起归零（与 BLF-809 旧行为等价），仅以动效呈现；非窄图标列 */
 export const TERMINAL_SUBNAV_COLLAPSED_WIDTH = 0
 

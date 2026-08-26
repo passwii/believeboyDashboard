@@ -39,7 +39,7 @@ interface TerminalShellProps {
 /**
  * Terminal 高密度交易终端外壳（BLF-809；二档放大 2026-08-25）。
  *
- * 桌面（md+）：L1 主轨 64px + L2 子导航 256px（可折叠）+ Top Header 48px +
+ * 桌面（md+）：L1 主轨 64px + L2 子导航 224px（可折叠，BLF-844 收窄）+ Top Header 48px +
  * Main Canvas（#main-content 独立滚动，document 不滚动）+ Right Inspector 360px
  * （⌘B 开关）+ Global Footer 32px。
  *
