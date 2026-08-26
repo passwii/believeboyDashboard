@@ -1,23 +1,18 @@
 'use client'
 
 import {
-  STICKY_LEFT_CELL,
-  STICKY_LEFT_HEAD_CELL,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import { formatRmb, formatPercent } from './utils'
-
-const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
-const FULL_BLEED_TABLE_CONTAINER_CLASS = '-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none'
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -53,59 +48,42 @@ const DATA_COLS = TOTAL_MONTH_COLS + 3 // 12 months + total commission + receive
 // 骨架屏行
 function ProjectSummarySkeletonRow() {
   return (
-    <TableRow className="animate-pulse">
-      {/* 项目名称列（sticky） */}
-      <TableCell className={STICKY_LEFT_CELL}>
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      {/* 数据列：12个月 + 3个汇总列 */}
-      {Array.from({ length: TOTAL_MONTH_COLS + 3 }).map((_, i) => (
-        <TableCell key={i} className="text-center">
-          <Skeleton className="h-4 w-16 mx-auto" />
-        </TableCell>
+    <TermRow className="animate-pulse hover:bg-transparent">
+      {Array.from({ length: 16 }).map((_, i) => (
+        <TermCell key={i}>
+          <Skeleton className="h-3.5 w-14 rounded-none" />
+        </TermCell>
       ))}
-    </TableRow>
+    </TermRow>
   )
 }
 
 // 骨架屏内容
 function ProjectSummarySkeletonContent() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <Table
-        className={FULL_BLEED_TABLE_CLASS}
-        containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
-      >
-        <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-          <TableRow>
-            <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
-              项目名称
-            </TableHead>
-            {getYearMonths(new Date().getFullYear().toString()).map((m) => (
-              <TableHead
-                key={m}
-                className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
-              >
-                {m.slice(5)}月
-              </TableHead>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="overflow-auto term-scroll">
+        <TermTable>
+          <TermTHead>
+            <TermRow className="hover:bg-transparent">
+              <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
+              {getYearMonths(new Date().getFullYear().toString()).map((m) => (
+                <TermHead key={m} numeric>
+                  {m.slice(5)}月
+                </TermHead>
+              ))}
+              <TermHead numeric>年度佣金合计</TermHead>
+              <TermHead numeric>年度回款</TermHead>
+              <TermHead numeric>回款率</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <ProjectSummarySkeletonRow key={i} />
             ))}
-            <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-              年度佣金合计
-            </TableHead>
-            <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-              年度回款
-            </TableHead>
-            <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-              回款率
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <ProjectSummarySkeletonRow key={i} />
-          ))}
-        </TableBody>
-      </Table>
+          </TermBody>
+        </TermTable>
+      </div>
     </div>
   )
 }
@@ -130,7 +108,7 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
   const totalsRate = totals.commission > 0 ? totals.received / totals.commission : 0
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 骨架屏层 */}
       <div
         className="absolute inset-0 transition-opacity duration-200"
@@ -142,92 +120,91 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
 
       {/* 内容层 */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <Table
-          className={FULL_BLEED_TABLE_CLASS}
-          containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
-        >
-          <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-            <TableRow>
-              <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
-                项目名称
-              </TableHead>
-              {getYearMonths(year).map((m) => (
-                <TableHead
-                  key={m}
-                  className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
-                >
-                  {m.slice(5)}月
-                </TableHead>
-              ))}
-              <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-                年度佣金合计
-              </TableHead>
-              <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-                年度回款
-              </TableHead>
-              <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
-                回款率
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
-              <EmptyTableState colSpan={DATA_COLS} message={`${year}年暂无数据`} />
-            ) : (
-              <>
-                {items.map((project) => (
-                  <TableRow key={project.project_id}>
-                    <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 font-medium text-center')}>
-                      {project.project_name}
-                    </TableCell>
-                    {getYearMonths(year).map((m) => {
-                      const monthData = project.months[m]
-                      return (
-                        <TableCell key={m} className="text-center tabular-nums text-xs">
-                          {monthData ? formatRmb(monthData.factory_commission_rmb) : '-'}
-                        </TableCell>
-                      )
-                    })}
-                    <TableCell className="text-center tabular-nums font-medium">
-                      {formatRmb(project.total_commission_rmb)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatRmb(project.total_received_rmb)}
-                    </TableCell>
-                    <TableCell className="!pr-0 text-center tabular-nums">
-                      {formatPercent(project.receive_rate)}
-                    </TableCell>
-                  </TableRow>
+        <div className="flex-1 overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
+                {getYearMonths(year).map((m) => (
+                  <TermHead key={m} numeric>
+                    {m.slice(5)}月
+                  </TermHead>
                 ))}
-                {/* 年度合计行（BLF-504 汇总行） */}
-                <TableRow className="border-t border-border/80 bg-muted/40 font-semibold">
-                  <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 text-center text-foreground')}>
-                    合计
-                  </TableCell>
-                  {getYearMonths(year).map((m) => (
-                    <TableCell key={m} className="text-center tabular-nums text-xs text-foreground">
-                      {totals.months[m] !== undefined && totals.months[m] > 0
-                        ? formatRmb(totals.months[m])
-                        : '-'}
-                    </TableCell>
+                <TermHead numeric>年度佣金合计</TermHead>
+                <TermHead numeric>年度回款</TermHead>
+                <TermHead numeric>回款率</TermHead>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
+              {items.length === 0 ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={DATA_COLS} className="h-24 text-center" tone="muted">
+                    {year}年暂无数据
+                  </TermCell>
+                </TermRow>
+              ) : (
+                <>
+                  {items.map((project) => (
+                    <TermRow key={project.project_id}>
+                      <TermCell
+                        title={project.project_name}
+                        className="sticky left-0 z-10 min-w-[140px] bg-term-panel font-medium group-hover:bg-term-hover"
+                      >
+                        {project.project_name}
+                      </TermCell>
+                      {getYearMonths(year).map((m) => {
+                        const monthData = project.months[m]
+                        return (
+                          <TermCell key={m} numeric tone="muted">
+                            {monthData ? formatRmb(monthData.factory_commission_rmb) : '-'}
+                          </TermCell>
+                        )
+                      })}
+                      <TermCell numeric className="font-medium">
+                        {formatRmb(project.total_commission_rmb)}
+                      </TermCell>
+                      <TermCell numeric>{formatRmb(project.total_received_rmb)}</TermCell>
+                      <TermCell
+                        numeric
+                        tone={
+                          project.receive_rate >= 1
+                            ? 'pos'
+                            : project.receive_rate < 0.2
+                              ? 'neg'
+                              : 'warn'
+                        }
+                      >
+                        {formatPercent(project.receive_rate)}
+                      </TermCell>
+                    </TermRow>
                   ))}
-                  <TableCell className="text-center tabular-nums text-foreground">
-                    {formatRmb(totals.commission)}
-                  </TableCell>
-                  <TableCell className="text-center tabular-nums text-foreground">
-                    {formatRmb(totals.received)}
-                  </TableCell>
-                  <TableCell className="!pr-0 text-center tabular-nums text-foreground">
-                    {formatPercent(totalsRate)}
-                  </TableCell>
-                </TableRow>
-              </>
-            )}
-          </TableBody>
-        </Table>
+                  {/* 年度合计行（BLF-504 汇总行） */}
+                  <TermRow
+                    highlight
+                    className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised [&>td]:!bg-term-raised"
+                  >
+                    <TermCell className="sticky left-0 z-10 min-w-[140px] !bg-term-raised text-center">
+                      合计
+                    </TermCell>
+                    {getYearMonths(year).map((m) => (
+                      <TermCell key={m} numeric>
+                        {totals.months[m] !== undefined && totals.months[m] > 0
+                          ? formatRmb(totals.months[m])
+                          : '-'}
+                      </TermCell>
+                    ))}
+                    <TermCell numeric>{formatRmb(totals.commission)}</TermCell>
+                    <TermCell numeric>{formatRmb(totals.received)}</TermCell>
+                    <TermCell numeric>{formatPercent(totalsRate)}</TermCell>
+                  </TermRow>
+                </>
+              )}
+            </TermBody>
+          </TermTable>
+        </div>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
 // 实时 VAT 汇总：useMemo 重算 summarizeByRate，展示按 VAT 率分桶的小计。
 
 import { useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Separator } from '@/components/ui/separator'
 import { computeInvoiceTotal, summarizeByRate } from '../lib/vat-calc'
 import { CURRENCY_OPTIONS, type InvoiceForm } from '../types'
@@ -25,13 +25,10 @@ export function InvoiceSummary({ form }: InvoiceSummaryProps) {
   const totalExcl = useMemo(() => rows.reduce((s, r) => s + r.itemExcl + r.shippingExcl, 0), [rows])
 
   return (
-    <Card className="dashboard-surface">
-      <CardHeader>
-        <CardTitle className="text-base">实时 VAT 汇总</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+    <TermPanel title="实时 VAT 汇总">
+      <div className="space-y-3 p-3 text-xs">
         {rows.length === 0 ? (
-          <p className="text-muted-foreground">
+          <p className="text-term-faint">
             添加商品行后开始计算（币种：{form.currency} {symbol}）。
           </p>
         ) : (
@@ -41,33 +38,33 @@ export function InvoiceSummary({ form }: InvoiceSummaryProps) {
               {rows.map((r) => (
                 <div
                   key={r.rate}
-                  className="rounded-md border border-border/60 bg-[hsl(var(--surface-subtle))] p-2"
+                  className="rounded-none border border-term-border bg-term-raised p-2"
                 >
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="font-medium">{r.rate}% VAT 桶</span>
-                    <span className="font-semibold tabular-nums">
+                    <span className="font-mono font-medium text-term-text">{r.rate}% VAT 桶</span>
+                    <span className="font-mono font-semibold tabular-nums text-term-text">
                       {symbol}
                       {r.total.toFixed(2)}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-term-muted">
                     <span>商品不含税</span>
-                    <span className="text-right tabular-nums">
+                    <span className="text-right font-mono tabular-nums">
                       {symbol}
                       {r.itemExcl.toFixed(2)}
                     </span>
                     <span>商品 VAT</span>
-                    <span className="text-right tabular-nums">
+                    <span className="text-right font-mono tabular-nums">
                       {symbol}
                       {r.itemVat.toFixed(2)}
                     </span>
                     <span>运费不含税</span>
-                    <span className="text-right tabular-nums">
+                    <span className="text-right font-mono tabular-nums">
                       {symbol}
                       {r.shippingExcl.toFixed(2)}
                     </span>
                     <span>运费 VAT</span>
-                    <span className="text-right tabular-nums">
+                    <span className="text-right font-mono tabular-nums">
                       {symbol}
                       {r.shippingVat.toFixed(2)}
                     </span>
@@ -79,32 +76,32 @@ export function InvoiceSummary({ form }: InvoiceSummaryProps) {
             <Separator className="my-3" />
 
             <div className="space-y-1 text-xs">
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-term-muted">
                 <span>Subtotal (excl. VAT)</span>
-                <span className="tabular-nums">
+                <span className="font-mono tabular-nums">
                   {symbol}
                   {totalExcl.toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-term-muted">
                 <span>Total VAT</span>
-                <span className="tabular-nums">
+                <span className="font-mono tabular-nums">
                   {symbol}
                   {totalVat.toFixed(2)}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-baseline justify-between rounded-md bg-primary/5 px-3 py-2">
-              <span className="text-sm font-semibold">Invoice Total</span>
-              <span className="text-lg font-bold tabular-nums">
+            <div className="flex items-baseline justify-between rounded-none border border-term-border bg-term-raised px-3 py-2">
+              <span className="text-sm font-semibold text-term-text">Invoice Total</span>
+              <span className="font-mono text-base font-bold tabular-nums text-term-text">
                 {symbol}
                 {total.toFixed(2)}
               </span>
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+    </div>
+  </TermPanel>
   )
 }

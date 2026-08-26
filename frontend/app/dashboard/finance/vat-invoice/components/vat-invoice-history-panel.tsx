@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -121,24 +121,13 @@ export function VatInvoiceHistoryPanel() {
   }, [projects])
 
   return (
-    <div className="space-y-4 px-1 py-1">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">VAT 发票历史</h1>
-        <p className="text-sm text-muted-foreground">
-          查看所有 VAT 店铺下的发票（草稿/已签发/作废），支持筛选与 CSV 导出。
-        </p>
-      </div>
-
-      <Card className="dashboard-surface">
-        <CardHeader>
-          <CardTitle className="text-base">筛选</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-3">
+      <TermPanel title="VAT 发票历史">
+        <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label htmlFor="project">店铺</Label>
               <Select value={projectId || 'all'} onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}>
-                <SelectTrigger id="project">
+                <SelectTrigger id="project" className="h-8 rounded-none border-term-border bg-term-panel text-xs shadow-none">
                   <SelectValue placeholder="全部" />
                 </SelectTrigger>
                 <SelectContent>
@@ -154,7 +143,7 @@ export function VatInvoiceHistoryPanel() {
             <div>
               <Label htmlFor="status">状态</Label>
               <Select value={status || 'all'} onValueChange={(v) => setStatus((v === 'all' ? '' : v) as StatusFilter)}>
-                <SelectTrigger id="status">
+                <SelectTrigger id="status" className="h-8 rounded-none border-term-border bg-term-panel text-xs shadow-none">
                   <SelectValue placeholder="全部" />
                 </SelectTrigger>
                 <SelectContent>
@@ -172,23 +161,27 @@ export function VatInvoiceHistoryPanel() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="INV-… 或 ORDER-…"
+                className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs shadow-none"
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={onExportCsv} variant="outline" className="w-full sm:w-auto">
-                <Download className="mr-1.5 h-4 w-4" />
+              <Button
+                onClick={onExportCsv}
+                variant="outline"
+                className="h-8 gap-1.5 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              >
+                <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
                 导出 CSV
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
 
-      <Card className="dashboard-surface">
-        <CardContent className="pt-6">
+      <TermPanel title="发票列表">
+        <div className="p-3">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 text-xs text-term-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
               加载发票列表…
             </div>
           ) : (
@@ -199,8 +192,8 @@ export function VatInvoiceHistoryPanel() {
               onVoid={onVoid}
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
 
       <InvoiceDetailDialog
         invoiceId={detailId}

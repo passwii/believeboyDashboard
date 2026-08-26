@@ -1,16 +1,14 @@
 'use client'
 
 import {
-  STICKY_TOP_ROW,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyTableState } from '@/components/ui/empty-state'
 import { formatUsd, formatRmb, formatPercent } from './utils'
 
 type CommissionYearlyMonthlySummaryItem = {
@@ -22,9 +20,6 @@ type CommissionYearlyMonthlySummaryItem = {
   receive_rate: number
 }
 
-const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
-const FULL_BLEED_TABLE_CONTAINER_CLASS = 'w-full'
-
 interface MonthlySummaryTabProps {
   items: CommissionYearlyMonthlySummaryItem[]
   year: string
@@ -34,66 +29,38 @@ interface MonthlySummaryTabProps {
 // 骨架屏行
 function MonthlySummarySkeletonRow() {
   return (
-    <TableRow className="animate-pulse">
-      <TableCell>
-        <Skeleton className="h-5 w-16 mx-auto" />
-      </TableCell>
-      <TableCell className="text-center">
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      <TableCell className="text-center">
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      <TableCell className="text-center">
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      <TableCell className="text-center">
-        <Skeleton className="h-5 w-20 mx-auto" />
-      </TableCell>
-      <TableCell className="text-center">
-        <Skeleton className="h-5 w-16 mx-auto" />
-      </TableCell>
-    </TableRow>
+    <TermRow className="animate-pulse hover:bg-transparent">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <TermCell key={i}>
+          <Skeleton className="h-3.5 w-16 rounded-none" />
+        </TermCell>
+      ))}
+    </TermRow>
   )
 }
 
 // 骨架屏内容
 function MonthlySummarySkeletonContent() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <div className="flex-1 overflow-auto">
-        <Table
-          className={FULL_BLEED_TABLE_CLASS}
-          containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
-        >
-          <TableHeader className={STICKY_TOP_ROW}>
-            <TableRow>
-              <TableHead className="!pl-0 text-center font-semibold text-foreground">
-                月份
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                销售收入(USD)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                工厂佣金(USD)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                工厂佣金(RMB)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                已回款(RMB)
-              </TableHead>
-              <TableHead className="!pr-0 text-center font-semibold text-foreground">
-                回款率
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto term-scroll">
+        <TermTable>
+          <TermTHead>
+            <TermRow className="hover:bg-transparent">
+              <TermHead>月份</TermHead>
+              <TermHead numeric>销售收入(USD)</TermHead>
+              <TermHead numeric>工厂佣金(USD)</TermHead>
+              <TermHead numeric>工厂佣金(RMB)</TermHead>
+              <TermHead numeric>已回款(RMB)</TermHead>
+              <TermHead numeric>回款率</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
             {Array.from({ length: 12 }).map((_, i) => (
               <MonthlySummarySkeletonRow key={i} />
             ))}
-          </TableBody>
-        </Table>
+          </TermBody>
+        </TermTable>
       </div>
     </div>
   )
@@ -113,7 +80,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
   const totalsRate = totals.commissionRmb > 0 ? totals.received / totals.commissionRmb : 0
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 骨架屏层 */}
       <div
         className="absolute inset-0 transition-opacity duration-200"
@@ -125,86 +92,67 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
 
       {/* 内容层 */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto">
-          <Table
-            className={FULL_BLEED_TABLE_CLASS}
-            containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
-          >
-            <TableHeader className={STICKY_TOP_ROW}>
-              <TableRow>
-                <TableHead className="!pl-0 text-center font-semibold text-foreground">
-                  月份
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  销售收入(USD)
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  工厂佣金(USD)
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  工厂佣金(RMB)
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  已回款(RMB)
-                </TableHead>
-                <TableHead className="!pr-0 text-center font-semibold text-foreground">
-                  回款率
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <div className="flex-1 overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead>月份</TermHead>
+                <TermHead numeric>销售收入(USD)</TermHead>
+                <TermHead numeric>工厂佣金(USD)</TermHead>
+                <TermHead numeric>工厂佣金(RMB)</TermHead>
+                <TermHead numeric>已回款(RMB)</TermHead>
+                <TermHead numeric>回款率</TermHead>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
               {items.length === 0 ? (
-                <EmptyTableState colSpan={6} message={`${year}年暂无数据`} />
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={6} className="h-24 text-center" tone="muted">
+                    {year}年暂无数据
+                  </TermCell>
+                </TermRow>
               ) : (
                 <>
                   {items.map((item) => (
-                    <TableRow key={item.report_month}>
-                      <TableCell className="!pl-0 text-center font-medium">
-                        {item.report_month}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {formatUsd(item.income_total_usd)}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {formatUsd(item.factory_commission_usd)}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {formatRmb(item.factory_commission_rmb)}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {formatRmb(item.received_rmb)}
-                      </TableCell>
-                      <TableCell className="!pr-0 text-center tabular-nums">
+                    <TermRow key={item.report_month}>
+                      <TermCell className="font-mono">{item.report_month}</TermCell>
+                      <TermCell numeric>{formatUsd(item.income_total_usd)}</TermCell>
+                      <TermCell numeric>{formatUsd(item.factory_commission_usd)}</TermCell>
+                      <TermCell numeric>{formatRmb(item.factory_commission_rmb)}</TermCell>
+                      <TermCell numeric>{formatRmb(item.received_rmb)}</TermCell>
+                      <TermCell
+                        numeric
+                        tone={
+                          item.receive_rate >= 1
+                            ? 'pos'
+                            : item.receive_rate < 0.2
+                              ? 'neg'
+                              : 'warn'
+                        }
+                      >
                         {formatPercent(item.receive_rate)}
-                      </TableCell>
-                    </TableRow>
+                      </TermCell>
+                    </TermRow>
                   ))}
                   {/* 年度合计行（BLF-504 汇总行） */}
-                  <TableRow className="border-t border-border/80 bg-muted/40 font-semibold">
-                    <TableCell className="!pl-0 text-center text-foreground">合计</TableCell>
-                    <TableCell className="text-center tabular-nums text-foreground">
-                      {formatUsd(totals.income)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-foreground">
-                      {formatUsd(totals.commissionUsd)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-foreground">
-                      {formatRmb(totals.commissionRmb)}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-foreground">
-                      {formatRmb(totals.received)}
-                    </TableCell>
-                    <TableCell className="!pr-0 text-center tabular-nums text-foreground">
-                      {formatPercent(totalsRate)}
-                    </TableCell>
-                  </TableRow>
+                  <TermRow
+                    highlight
+                    className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised"
+                  >
+                    <TermCell>合计</TermCell>
+                    <TermCell numeric>{formatUsd(totals.income)}</TermCell>
+                    <TermCell numeric>{formatUsd(totals.commissionUsd)}</TermCell>
+                    <TermCell numeric>{formatRmb(totals.commissionRmb)}</TermCell>
+                    <TermCell numeric>{formatRmb(totals.received)}</TermCell>
+                    <TermCell numeric>{formatPercent(totalsRate)}</TermCell>
+                  </TermRow>
                 </>
               )}
-            </TableBody>
-          </Table>
+            </TermBody>
+          </TermTable>
         </div>
       </div>
     </div>

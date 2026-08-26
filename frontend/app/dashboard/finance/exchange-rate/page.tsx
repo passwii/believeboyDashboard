@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -15,14 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -31,22 +23,36 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
-import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { TermPanel } from '@/components/terminal/term-panel'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Pencil,
   Trash2,
   Plus,
-  RotateCcw,
-  ImagePlus,
+  SlidersHorizontal,
   Loader2,
   X,
-  CheckCircle,
-  AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 
 // 预定义货币选项
 const CURRENCY_OPTIONS = [
@@ -122,32 +128,46 @@ interface FormValidation {
   rate: string | null
 }
 
+/** 币种 → mono 符号 + term 语义色（终端化：去渐变 Badge，走文本语义色） */
 const getCurrencyBadgeMeta = (currency: string) => {
   const normalizedCurrency = currency.trim().toUpperCase()
-
   switch (normalizedCurrency) {
     case 'USD':
-      return {
-        symbol: '$',
-        accent: '美元',
-        className:
-          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
-      }
+      return { symbol: '$', accent: '美元', tone: 'pos' as const }
     case 'EUR':
-      return {
-        symbol: '€',
-        accent: '欧元',
-        className:
-          'border-blue-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-blue-100',
-      }
+      return { symbol: '€', accent: '欧元', tone: undefined }
     default:
-      return {
-        symbol: '¤',
-        accent: '其他货币',
-        className:
-          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
-      }
+      return { symbol: '¤', accent: '其他货币', tone: 'muted' as const }
   }
+}
+
+/**
+ * BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
+ */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
 }
 
 export default function ExchangeRatePage() {
@@ -156,6 +176,8 @@ export default function ExchangeRatePage() {
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [rates, setRates] = useState<ExchangeRate[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const isMobile = useIsMobile()
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 12,
@@ -200,6 +222,7 @@ export default function ExchangeRatePage() {
   // 获取汇率列表
   const fetchRates = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const queryParams = new URLSearchParams({
         page: pagination.page.toString(),
@@ -220,11 +243,17 @@ export default function ExchangeRatePage() {
       setPagination(result.pagination)
     } catch (error) {
       console.error('Error fetching rates:', error)
-      // Error handling without toast
+      setLoadError(error instanceof Error ? error.message : '汇率数据加载失败')
     } finally {
       setLoading(false)
     }
   }, [filters, pagination.page, pagination.pageSize])
+
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义：当前筛选条件下重新拉取。
+  const fetchRef = useRef(fetchRates)
+  fetchRef.current = fetchRates
+  useHeaderRefresh(() => fetchRef.current())
 
   // 初始加载
   useEffect(() => {
@@ -443,348 +472,255 @@ export default function ExchangeRatePage() {
     return `${(size / (1024 * 1024)).toFixed(1)}MB`
   }
 
+  const filterControls = (
+    <>
+      <Select
+        value={filters.currency || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[160px]">
+          <SelectValue placeholder="全部货币" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部货币</SelectItem>
+          {CURRENCY_OPTIONS.map((currency) => (
+            <SelectItem key={currency.value} value={currency.value}>
+              {currency.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.year || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+          <SelectValue placeholder="全部年份" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
+          {getYearOptions().map((year) => (
+            <SelectItem key={year.value} value={year.value.toString()}>
+              {year.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.month || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[100px]">
+          <SelectValue placeholder="全部月份" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
+          {MONTH_OPTIONS.map((month) => (
+            <SelectItem key={month.value} value={month.value.toString()}>
+              {month.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={resetFilters}
+        className="h-7 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+      >
+        重置
+      </Button>
+    </>
+  )
+
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   return (
-    <div className="min-w-0 space-y-6 text-foreground">
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-        <DataCardHeader
-          title="汇率管理"
-          action={
-            isAdmin ? (
-              <Button onClick={handleAdd}>
-                <Plus className="mr-2 h-4 w-4" />
-                新增汇率
-              </Button>
-            ) : null
-          }
-        />
-        <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 lg:flex lg:flex-row lg:flex-wrap lg:gap-4">
-            <div className="hidden lg:block lg:flex-1">{/* Placeholder for layout balance */}</div>
-            <Select
-              value={filters.currency || ALL_FILTER_VALUE}
-              onValueChange={(value) =>
-                handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
-              }
-            >
-              <SelectTrigger className="w-full sm:w-[180px] dark:bg-[hsl(var(--surface-soft))]">
-                <SelectValue placeholder="全部货币" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER_VALUE}>全部货币</SelectItem>
-                {CURRENCY_OPTIONS.map((currency) => (
-                  <SelectItem key={currency.value} value={currency.value}>
-                    {currency.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
-            <Select
-              value={filters.year || ALL_FILTER_VALUE}
-              onValueChange={(value) =>
-                handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
-              }
-            >
-              <SelectTrigger className="w-full sm:w-[120px] dark:bg-[hsl(var(--surface-soft))]">
-                <SelectValue placeholder="全部年份" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
-                {getYearOptions().map((year) => (
-                  <SelectItem key={year.value} value={year.value.toString()}>
-                    {year.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={filters.month || ALL_FILTER_VALUE}
-              onValueChange={(value) =>
-                handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
-              }
-            >
-              <SelectTrigger className="w-full sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]">
-                <SelectValue placeholder="全部月份" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
-                {MONTH_OPTIONS.map((month) => (
-                  <SelectItem key={month.value} value={month.value.toString()}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+      {/* 数据表格 */}
+      <TermPanel
+        title="汇率管理"
+        bodyClassName="min-h-0 overflow-hidden"
+        actions={
+          isAdmin ? (
             <Button
-              variant="outline"
+              type="button"
               size="sm"
-              onClick={resetFilters}
-              className="w-full max-md:min-h-[44px] sm:w-auto"
+              variant="outline"
+              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              onClick={handleAdd}
             >
-              <RotateCcw className="mr-1 h-4 w-4" />
-              重置
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+              新增汇率
             </Button>
-          </div>
-        </DataCardContent>
-      </DataCard>
-
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-        <DataCardContent className="p-0">
-          <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
-            {/* 桌面端：完整表格 */}
-            <div className="hidden lg:block overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                  <TableRow>
-                    <TableHead>货币代码</TableHead>
-                    <TableHead>货币名称</TableHead>
-                    <TableHead>年份</TableHead>
-                    <TableHead>月份</TableHead>
-                    <TableHead className="text-right">汇率值</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead>更新时间</TableHead>
-                    {isAdmin ? <TableHead className="text-right">操作</TableHead> : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center">
-                        加载中...
-                      </TableCell>
-                    </TableRow>
-                  ) : rates.length === 0 ? (
-                    <EmptyTableState
-                      colSpan={isAdmin ? 8 : 7}
-                      message={isAdmin ? '暂无汇率数据，点击右上角按钮新增' : '暂无汇率数据'}
-                    />
-                  ) : (
-                    rates.map((rate) => (
-                      <TableRow key={rate.id}>
-                        <TableCell>
-                          {(() => {
-                            const badgeMeta = getCurrencyBadgeMeta(rate.currency)
-                            return (
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]',
-                                  badgeMeta.className
-                                )}
-                                title={`${rate.currency} - ${badgeMeta.accent}`}
-                              >
-                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                                <span>{rate.currency}</span>
-                              </Badge>
-                            )
-                          })()}
-                        </TableCell>
-                        <TableCell>{rate.currencyName}</TableCell>
-                        <TableCell>{rate.year}</TableCell>
-                        <TableCell>{rate.month}月</TableCell>
-                        <TableCell className="text-right font-mono text-sm">
-                          {Number(rate.rate).toFixed(6)}
-                        </TableCell>
-                        <TableCell className="max-w-[280px]">
-                          <div className="space-y-2">
-                            <p className="truncate text-sm">
-                              {rate.description || (rate.noteImages?.length > 0 ? '' : '-')}
-                            </p>
-                            {rate.noteImages?.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {rate.noteImages.slice(0, 4).map((image) => (
-                                  <button
-                                    key={image.id}
-                                    type="button"
-                                    className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                    onClick={() => setPreviewImage(image.url)}
-                                    title={image.filename}
-                                  >
-                                    <Image
-                                      src={image.thumbnailUrl || image.url}
-                                      alt={image.filename}
-                                      fill
-                                      className="object-cover"
-                                      unoptimized
-                                    />
-                                  </button>
-                                ))}
-                                {rate.noteImages.length > 4 && (
-                                  <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                                    +{rate.noteImages.length - 4}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(rate.updatedAt).toLocaleString('zh-CN')}
-                        </TableCell>
-                        {isAdmin ? (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleEdit(rate)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteClick(rate)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* 手机端：卡片列表 */}
-            <div className="lg:hidden space-y-3 p-4">
+          ) : null
+        }
+      >
+        {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}
+        <div className="max-h-[calc(100vh-280px)] min-h-[240px] overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead>货币代码</TermHead>
+                <TermHead>货币名称</TermHead>
+                <TermHead numeric>年份</TermHead>
+                <TermHead numeric>月份</TermHead>
+                <TermHead numeric>汇率值</TermHead>
+                <TermHead>备注</TermHead>
+                <TermHead>更新时间</TermHead>
+                {isAdmin ? <TermHead numeric>操作</TermHead> : null}
+              </TermRow>
+            </TermTHead>
+            <TermBody>
               {loading ? (
-                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
-              ) : rates.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">暂无汇率数据</div>
-              ) : (
-                rates.map((rate) => (
-                  <div key={rate.id} className="dashboard-surface p-4 space-y-3">
-                    {/* 头部：货币 + 汇率 */}
-                    <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
-                      <div>
-                        {(() => {
-                          const badgeMeta = getCurrencyBadgeMeta(rate.currency)
-                          return (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'gap-1.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.18em]',
-                                badgeMeta.className
-                              )}
-                            >
-                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                              <span>{rate.currency}</span>
-                            </Badge>
-                          )
-                        })()}
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {rate.currencyName}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-mono text-lg font-semibold">
-                          {Number(rate.rate).toFixed(4)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {rate.year}/{rate.month}月
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 备注 */}
-                    {rate.description && <div className="text-sm">{rate.description}</div>}
-
-                    {/* 截图缩略图（移动端） */}
-                    {rate.noteImages?.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {rate.noteImages.slice(0, 4).map((image) => (
-                          <button
-                            key={image.id}
-                            type="button"
-                            className="relative h-12 w-12 overflow-hidden rounded border border-border/70"
-                            onClick={() => setPreviewImage(image.url)}
-                            title={image.filename}
-                          >
-                            <Image
-                              src={image.thumbnailUrl || image.url}
-                              alt={image.filename}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </button>
-                        ))}
-                        {rate.noteImages.length > 4 && (
-                          <div className="flex h-12 w-12 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                            +{rate.noteImages.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 更新时间 */}
-                    <div className="text-xs text-muted-foreground">
-                      更新: {new Date(rate.updatedAt).toLocaleString('zh-CN')}
-                    </div>
-
-                    {/* 操作按钮 */}
-                    {isAdmin && (
-                      <div className="flex gap-2 pt-2 border-t border-border/70">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 min-h-[44px] flex-1"
-                          onClick={() => handleEdit(rate)}
-                        >
-                          <Pencil className="mr-1 h-4 w-4" />
-                          编辑
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 min-h-[44px] flex-1 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteClick(rate)}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" />
-                          删除
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TermRow key={'skeleton-' + i} className="hover:bg-transparent">
+                    {Array.from({ length: isAdmin ? 8 : 7 }).map((__, j) => (
+                      <TermCell key={j}>
+                        <Skeleton className="h-3.5 w-full max-w-[80px] rounded-none" />
+                      </TermCell>
+                    ))}
+                  </TermRow>
                 ))
+              ) : loadError ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center" tone="neg">
+                    <span className="inline-flex items-center justify-center gap-2">{loadError}</span>
+                  </TermCell>
+                </TermRow>
+              ) : rates.length === 0 ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={isAdmin ? 8 : 7} className="h-24 text-center" tone="muted">
+                    {isAdmin ? '暂无汇率数据，点击右上角「新增汇率」录入' : '暂无汇率数据'}
+                  </TermCell>
+                </TermRow>
+              ) : (
+                rates.map((rate) => {
+                  const meta = getCurrencyBadgeMeta(rate.currency)
+                  return (
+                    <TermRow key={rate.id}>
+                      <TermCell tone={meta.tone} title={rate.currency + ' - ' + meta.accent}>
+                        {meta.symbol} {rate.currency}
+                      </TermCell>
+                      <TermCell>{rate.currencyName}</TermCell>
+                      <TermCell numeric>{rate.year}</TermCell>
+                      <TermCell numeric>{rate.month}月</TermCell>
+                      <TermCell numeric className="font-medium">
+                        {Number(rate.rate).toFixed(6)}
+                      </TermCell>
+                      <TermCell className="max-w-[260px] truncate" title={rate.description || undefined}>
+                        {rate.description || (rate.noteImages?.length > 0 ? '' : '-')}
+                        {rate.noteImages?.length > 0 && (
+                          <span className="ml-1 inline-flex gap-0.5 align-middle">
+                            {rate.noteImages.slice(0, 3).map((image) => (
+                              <button
+                                key={image.id}
+                                type="button"
+                                className="relative h-5 w-5 shrink-0 overflow-hidden border border-term-border align-middle"
+                                onClick={() => setPreviewImage(image.url)}
+                                title={image.filename}
+                              >
+                                <Image
+                                  src={image.thumbnailUrl || image.url}
+                                  alt={image.filename}
+                                  fill
+                                  sizes="20px"
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                              </button>
+                            ))}
+                            {rate.noteImages.length > 3 && (
+                              <span className="font-mono text-[10px] text-term-muted">
+                                +{rate.noteImages.length - 3}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </TermCell>
+                      <TermCell tone="muted" className="font-mono">
+                        {new Date(rate.updatedAt).toLocaleString('zh-CN')}
+                      </TermCell>
+                      {isAdmin ? (
+                        <TermCell numeric>
+                          <span className="inline-flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-text"
+                              onClick={() => handleEdit(rate)}
+                              title="编辑"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-neg"
+                              onClick={() => handleDeleteClick(rate)}
+                              title="删除"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                            </Button>
+                          </span>
+                        </TermCell>
+                      ) : null}
+                    </TermRow>
+                  )
+                })
               )}
-            </div>
-          </div>
+            </TermBody>
+          </TermTable>
+        </div>
+      </TermPanel>
 
-          <div className="flex items-center justify-center gap-2 px-4 py-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="max-md:min-h-[44px]"
-              onClick={() =>
-                setPagination((prev) => ({
-                  ...prev,
-                  page: Math.max(1, prev.page - 1),
-                }))
-              }
-              disabled={pagination.page <= 1}
-            >
-              上一页
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="max-md:min-h-[44px]"
-              onClick={() =>
-                setPagination((prev) => ({
-                  ...prev,
-                  page: Math.min(prev.totalPages, prev.page + 1),
-                }))
-              }
-              disabled={pagination.page >= pagination.totalPages}
-            >
-              下一页
-            </Button>
-          </div>
-        </DataCardContent>
-      </DataCard>
+      {/* 分页：终端工具条规格 */}
+      <div className="flex items-center justify-center gap-2 font-mono text-xs tabular-nums text-term-muted">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+          onClick={() =>
+            setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
+          }
+          disabled={pagination.page <= 1}
+        >
+          上一页
+        </Button>
+        <span>
+          第 {pagination.page} / {pagination.totalPages} 页 · 共 {pagination.total} 条
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+          onClick={() =>
+            setPagination((prev) => ({
+              ...prev,
+              page: Math.min(prev.totalPages, prev.page + 1),
+            }))
+          }
+          disabled={pagination.page >= pagination.totalPages}
+        >
+          下一页
+        </Button>
+      </div>
+
+
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -3,7 +3,7 @@
 // 订单与买方表单（不含动态明细行）
 // 字段：币种、Order ID、发票日期、买方
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -33,11 +33,8 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
   return (
     <>
       {/* 2. 订单与买方 */}
-      <Card className="dashboard-surface">
-        <CardHeader>
-          <CardTitle className="text-base">2. 订单与买方</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <TermPanel title="2 · 订单与买方">
+        <div className="space-y-4 p-3">
           {/* 第一行：币种 / Order ID */}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-1.5">
@@ -134,8 +131,8 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
     </>
   )
 }

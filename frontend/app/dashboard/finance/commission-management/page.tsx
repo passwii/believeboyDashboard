@@ -1,18 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2, RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { MonthNavigation, RefreshButton, YearNavigation } from '@/components/dashboard/console'
 import { Button } from '@/components/ui/button'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
-  DataCard,
-  DataCardContent,
-  DataTableCard,
-  DataTableCardBody,
-} from '@/components/ui/data-card'
-import { formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
+  MonthPicker,
+  formatMonthInputValue,
+  parseMonthInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
@@ -21,6 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
+import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
@@ -124,6 +134,35 @@ function getCurrentYear(): string {
   return new Date().getFullYear().toString()
 }
 
+/**
+ * BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
+ */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+}
+
 export default function CommissionManagementPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
@@ -135,6 +174,7 @@ export default function CommissionManagementPage() {
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [recomputing, setRecomputing] = useState(false)
+  const isMobile = useIsMobile()
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
   const [monthlySummary, setMonthlySummary] = useState<CommissionYearlyMonthlySummaryItem[]>([])
@@ -416,6 +456,12 @@ export default function CommissionManagementPage() {
     void loadYearlySummary()
   }
 
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义：当前月份/年份与站点筛选下重新拉取。
+  const refreshRef = useRef(handleRefresh)
+  refreshRef.current = handleRefresh
+  useHeaderRefresh(() => refreshRef.current())
+
   const handleRecompute = async () => {
     setRecomputing(true)
     try {
@@ -453,175 +499,169 @@ export default function CommissionManagementPage() {
     }
   }
 
-  return (
-    <div className="dashboard-page-shell">
-      <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-4 pb-6">
-        <div className="flex">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as CommissionViewTab)}
-            className="w-full"
-          >
-            <TabsList className="min-h-12 flex-wrap rounded-2xl p-1.5">
-              <TabsTrigger value="detail" className="min-h-10 px-5 py-2 text-sm">
-                总览
-              </TabsTrigger>
-              <TabsTrigger value="monthly" className="min-h-10 px-5 py-2 text-sm">
-                年-月汇总
-              </TabsTrigger>
-              <TabsTrigger value="projectSummary" className="min-h-10 px-5 py-2 text-sm">
-                项目汇总
-              </TabsTrigger>
-              <TabsTrigger value="monthlyCollection" className="min-h-10 px-5 py-2 text-sm">
-                月度回款
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+  const filterControls = (
+    <>
+      {activeTab === 'detail' ? (
+        <MonthPicker
+          value={parseMonthInputValue(month)}
+          onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
+          className="h-8 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[150px]"
+        />
+      ) : (
+        <Select
+          value={summaryYear}
+          onValueChange={(value) => setSummaryYear(value)}
+        >
+          <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+            <SelectValue placeholder="年份" />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}年
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <Select
+        value={countryFilter}
+        onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
+          <SelectValue placeholder="站点" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">全部站点</SelectItem>
+          {SITE_ORDER.map((code) => (
+            <SelectItem key={code} value={code}>
+              {SITE_INFO[code].label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {activeTab === 'detail' ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void handleRecompute()}
+          disabled={recomputing || loading}
+          className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+        >
+          {recomputing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+          )}
+          核算
+        </Button>
+      ) : null}
+
+      {/* 本月/年度统计：head 内 mono 元信息（不占页面纵向空间） */}
+      {activeTab === 'detail' ? (
+        <div className="hidden h-8 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
+          <span className="uppercase tracking-wider text-term-faint">本月</span>
+          <span className="text-term-muted">
+            工厂佣金 <span className="text-term-text">{formatRmb(totalFactoryCommissionRmb)}</span>
+          </span>
+          <span className="text-term-muted">
+            已回款 <span className="text-term-text">{formatRmb(totalReceivedRmb)}</span>
+          </span>
         </div>
+      ) : null}
+      {(activeTab === 'monthly' || activeTab === 'projectSummary') ? (
+        <div className="hidden h-8 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
+          <span className="uppercase tracking-wider text-term-faint">{summaryYear}</span>
+          <span className="text-term-muted">
+            销售 <span className="text-term-text">{formatUsd(yearlyTotals.income)}</span>
+          </span>
+          <span className="text-term-muted">
+            佣金 <span className="text-term-text">{formatRmb(yearlyTotals.commission)}</span>
+          </span>
+          <span className="text-term-muted">
+            回款 <span className="text-term-text">{formatRmb(yearlyTotals.received)}</span>
+          </span>
+        </div>
+      ) : null}
+    </>
+  )
 
-        <DataCard className="shrink-0">
-          <DataCardContent className="space-y-3 p-5 md:p-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div className="flex flex-wrap items-end gap-3">
-                {activeTab === 'detail' ? (
-                  <>
-                    <MonthNavigation
-                      value={parseMonthInputValue(month)}
-                      onChange={(date) => setMonth(formatMonthInputValue(date))}
-                    />
-                  </>
-                ) : (
-                  <YearNavigation
-                    value={Number(summaryYear)}
-                    onChange={(year) => setSummaryYear(String(year))}
-                  />
-                )}
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
 
-                <RefreshButton
-                  onClick={handleRefresh}
-                  loading={activeTab === 'detail' ? loading : summaryLoading}
-                  disabled={recomputing}
-                />
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-826 阶段 C：月份/年份 + 站点 + 核算已上移 Top Header 中段插槽 */}
+      {headerSlotPortal}
 
-                {activeTab === 'detail' ||
-                activeTab === 'monthly' ||
-                activeTab === 'projectSummary' ||
-                activeTab === 'monthlyCollection' ? (
-                  <Select
-                    value={countryFilter}
-                    onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
-                  >
-                    <SelectTrigger className="w-[120px] shrink-0">
-                      <SelectValue placeholder="站点" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部站点</SelectItem>
-                      {SITE_ORDER.map((code) => (
-                        <SelectItem key={code} value={code}>
-                          <span className="flex items-center gap-2">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${SITE_INFO[code].dotClass}`}
-                            />
-                            {SITE_INFO[code].label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
+      {/* Tab 切换：终端规格（无圆角胶囊、term 色系） */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as CommissionViewTab)}
+        className="w-full"
+      >
+        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-panel p-0">
+          {(
+            [
+              ['detail', '总览'],
+              ['monthly', '年-月汇总'],
+              ['projectSummary', '项目汇总'],
+              ['monthlyCollection', '月度回款'],
+            ] as Array<[CommissionViewTab, string]>
+          ).map(([key, label]) => (
+            <TabsTrigger
+              key={key}
+              value={key}
+              className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-                {activeTab === 'detail' ? (
-                  <Button onClick={() => void handleRecompute()} disabled={recomputing || loading}>
-                    {recomputing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    核算
-                  </Button>
-                ) : null}
-              </div>
+      <TermPanel bodyClassName="flex min-h-0 flex-col overflow-hidden">
+        {loading && activeTab === 'detail' ? null : null}
+        {activeTab === 'detail' ? (
+          <DetailTab
+            projectRows={projectRows}
+            exchangeRates={exchangeRates}
+            projectMetaById={projectMetaById}
+            loading={loading}
+            updatingId={updatingId}
+            receivedDraftById={receivedDraftById}
+            onUpdateDraft={(id, value) =>
+              setReceivedDraftById((prev) => ({ ...prev, [id]: value }))
+            }
+            onUpdatePaymentStatus={updatePaymentStatus}
+            onUpdateReceivedAmount={updateReceivedAmount}
+          />
+        ) : activeTab === 'monthly' ? (
+          <MonthlySummaryTab
+            items={monthlySummary}
+            year={summaryYear}
+            loading={summaryLoading}
+          />
+        ) : activeTab === 'projectSummary' ? (
+          <ProjectSummaryTab
+            items={projectSummary}
+            year={summaryYear}
+            loading={summaryLoading}
+          />
+        ) : activeTab === 'monthlyCollection' ? (
+          <MonthlyCollectionTab
+            items={projectSummary}
+            year={summaryYear}
+            loading={summaryLoading}
+          />
+        ) : null}
+      </TermPanel>
 
-              <div className="grid min-w-[280px] grid-cols-[112px_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
-                {activeTab === 'detail' ? (
-                  <>
-                    <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">
-                      本月统计
-                    </div>
-                    <div className="text-muted-foreground">工厂佣金合计</div>
-                    <div className="font-semibold tabular-nums text-foreground">
-                      {formatRmb(totalFactoryCommissionRmb)}
-                    </div>
-                    <div className="text-muted-foreground">已回款</div>
-                    <div className="font-semibold tabular-nums text-foreground">
-                      {formatRmb(totalReceivedRmb)}
-                    </div>
-                  </>
-                ) : null}
-                {activeTab === 'monthly' || activeTab === 'projectSummary' ? (
-                  <>
-                    <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">
-                      年度统计
-                    </div>
-                    <div className="text-muted-foreground">年度销售</div>
-                    <div className="font-semibold tabular-nums text-foreground">
-                      {formatUsd(yearlyTotals.income)}
-                    </div>
-                    <div className="text-muted-foreground">年度工厂佣金</div>
-                    <div className="font-semibold tabular-nums text-foreground">
-                      {formatRmb(yearlyTotals.commission)}
-                    </div>
-                    <div className="text-muted-foreground">年度回款</div>
-                    <div className="font-semibold tabular-nums text-foreground">
-                      {formatRmb(yearlyTotals.received)}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          </DataCardContent>
-        </DataCard>
-
-        <DataTableCard className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <DataTableCardBody className="flex min-h-0 flex-1 flex-col p-0">
-            {activeTab === 'detail' ? (
-              <DetailTab
-                projectRows={projectRows}
-                exchangeRates={exchangeRates}
-                projectMetaById={projectMetaById}
-                loading={loading}
-                updatingId={updatingId}
-                receivedDraftById={receivedDraftById}
-                onUpdateDraft={(id, value) =>
-                  setReceivedDraftById((prev) => ({ ...prev, [id]: value }))
-                }
-                onUpdatePaymentStatus={updatePaymentStatus}
-                onUpdateReceivedAmount={updateReceivedAmount}
-              />
-            ) : activeTab === 'monthly' ? (
-              <MonthlySummaryTab
-                items={monthlySummary}
-                year={summaryYear}
-                loading={summaryLoading}
-              />
-            ) : activeTab === 'projectSummary' ? (
-              <ProjectSummaryTab
-                items={projectSummary}
-                year={summaryYear}
-                loading={summaryLoading}
-              />
-            ) : activeTab === 'monthlyCollection' ? (
-              <MonthlyCollectionTab
-                items={projectSummary}
-                year={summaryYear}
-                loading={summaryLoading}
-              />
-            ) : null}
-          </DataTableCardBody>
-        </DataTableCard>
-
-        <CommissionRulesCard />
-      </div>
+      <CommissionRulesCard />
     </div>
   )
 }

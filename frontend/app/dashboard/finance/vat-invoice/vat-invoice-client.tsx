@@ -5,7 +5,6 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
 import { FileText, Save } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useNotifications } from '@/components/notifications'
@@ -127,19 +126,23 @@ export default function VatInvoiceClient() {
   const invoiceTotal = useMemo(() => computeInvoiceTotal(form), [form])
 
   return (
-    <div className="dashboard-page-shell">
-      <div className="space-y-4">
-        {/* 页面 Header（BLF-505：收口为 PageHeader 原语 §8.1） */}
-        <PageHeader
-          title="VAT 发票"
-          description="为欧洲订单生成 VAT 发票，并查看已签发/草稿/作废的发票历史。"
-        />
-
-        <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList>
-            <TabsTrigger value="create">新建发票</TabsTrigger>
-            <TabsTrigger value="history">发票历史</TabsTrigger>
-          </TabsList>
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-835：页面标题由 TerminalHeader 面包屑承载，原 PageHeader 胶囊移除 */}
+      <Tabs defaultValue={defaultTab} className="w-full">
+        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-panel p-0">
+          <TabsTrigger
+            value="create"
+            className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
+          >
+            新建发票
+          </TabsTrigger>
+          <TabsTrigger
+            value="history"
+            className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
+          >
+            发票历史
+          </TabsTrigger>
+        </TabsList>
   
           <TabsContent value="create" className="mt-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -208,8 +211,7 @@ export default function VatInvoiceClient() {
           <TabsContent value="history" className="mt-4">
             <VatInvoiceHistoryPanel />
           </TabsContent>
-        </Tabs>
-      </div>
+      </Tabs>
     </div>
   )
 }

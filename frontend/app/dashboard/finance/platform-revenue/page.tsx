@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -15,15 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  STICKY_TOP_ROW,
-} from '@/components/ui/table'
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,12 +23,25 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
-import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Skeleton } from '@/components/ui/skeleton'
+import { TermPanel } from '@/components/terminal/term-panel'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { SlidersHorizontal } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
@@ -50,8 +54,6 @@ import {
   Pencil,
   Trash2,
   Plus,
-  RotateCcw,
-  ImagePlus,
   Loader2,
   X,
   Download,
@@ -202,120 +204,79 @@ const formatTotals = (totals: Record<string, number>) => {
     .join(' | ')
 }
 
-// 币种 Badge 元数据
+/** 币种 → mono 符号 + term 语义色（终端化：去渐变 Badge，走文本语义色） */
 const getCurrencyBadgeMeta = (currency: string) => {
   const normalizedCurrency = currency.trim().toUpperCase()
   switch (normalizedCurrency) {
     case 'USD':
-      return {
-        symbol: '$',
-        accent: '美元',
-        className:
-          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
-      }
+      return { symbol: '$', accent: '美元', tone: 'pos' as const }
     case 'GBP':
-      return {
-        symbol: '£',
-        accent: '英镑',
-        className:
-          'border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-100 text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-amber-800 dark:from-amber-950 dark:via-amber-900 dark:to-yellow-950 dark:text-amber-100',
-      }
+      return { symbol: '£', accent: '英镑', tone: 'warn' as const }
     case 'EUR':
-      return {
-        symbol: '€',
-        accent: '欧元',
-        className:
-          'border-sky-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-sky-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-sky-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-sky-100',
-      }
+      return { symbol: '€', accent: '欧元', tone: undefined }
     default:
-      return {
-        symbol: '¤',
-        accent: '其他货币',
-        className:
-          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
-      }
+      return { symbol: '¤', accent: '其他货币', tone: 'muted' as const }
   }
 }
 
-// 站点 Badge 元数据
+/** 站点代码（终端化：去 emoji 渐变 Badge，站点直接 mono 文本展示） */
 const getCountryBadgeMeta = (country: string) => {
   const normalizedCountry = country.trim().toUpperCase()
-  switch (normalizedCountry) {
-    case 'US':
-      return {
-        symbol: '🇺🇸',
-        accent: '美国',
-        className:
-          'border-rose-300 bg-gradient-to-r from-rose-50 via-red-100 to-orange-100 text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-rose-800 dark:from-rose-950 dark:via-red-950 dark:to-orange-950 dark:text-rose-100',
-      }
-    case 'UK':
-      return {
-        symbol: '🇬🇧',
-        accent: '英国',
-        className:
-          'border-violet-300 bg-gradient-to-r from-violet-50 via-purple-100 to-fuchsia-100 text-violet-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-violet-800 dark:from-violet-950 dark:via-purple-950 dark:to-fuchsia-950 dark:text-violet-100',
-      }
-    case 'DE':
-      return {
-        symbol: '🇩🇪',
-        accent: '德国',
-        className:
-          'border-cyan-300 bg-gradient-to-r from-cyan-50 via-blue-100 to-indigo-100 text-cyan-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-cyan-800 dark:from-cyan-950 dark:via-blue-950 dark:to-indigo-950 dark:text-cyan-100',
-      }
-    case 'CA':
-      return {
-        symbol: '🇨🇦',
-        accent: '加拿大',
-        className:
-          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-100 to-cyan-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950 dark:text-emerald-100',
-      }
-    case 'JP':
-      return {
-        symbol: '🇯🇵',
-        accent: '日本',
-        className:
-          'border-pink-300 bg-gradient-to-r from-pink-50 via-rose-100 to-fuchsia-100 text-pink-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-pink-800 dark:from-pink-950 dark:via-rose-950 dark:to-fuchsia-950 dark:text-pink-100',
-      }
-    case 'AU':
-      return {
-        symbol: '🇦🇺',
-        accent: '澳大利亚',
-        className:
-          'border-orange-300 bg-gradient-to-r from-orange-50 via-amber-100 to-yellow-100 text-orange-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-orange-800 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 dark:text-orange-100',
-      }
-    case 'MX':
-      return {
-        symbol: '🇲🇽',
-        accent: '墨西哥',
-        className:
-          'border-teal-300 bg-gradient-to-r from-teal-50 via-cyan-100 to-sky-100 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-teal-800 dark:from-teal-950 dark:via-cyan-950 dark:to-sky-950 dark:text-teal-100',
-      }
-    case 'BR':
-      return {
-        symbol: '🇧🇷',
-        accent: '巴西',
-        className:
-          'border-lime-300 bg-gradient-to-r from-lime-50 via-green-100 to-emerald-100 text-lime-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-lime-800 dark:from-lime-950 dark:via-green-950 dark:to-emerald-950 dark:text-lime-100',
-      }
-    default:
-      return {
-        symbol: '🏳️',
-        accent: '其他',
-        className:
-          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
-      }
+  const accents: Record<string, string> = {
+    US: '美国',
+    UK: '英国',
+    DE: '德国',
+    CA: '加拿大',
+    JP: '日本',
+    AU: '澳大利亚',
+    MX: '墨西哥',
+    BR: '巴西',
   }
+  return { code: normalizedCountry, accent: accents[normalizedCountry] ?? '其他' }
+}
+
+/**
+ * BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
+ * 拆出子组件是为了让 useHeaderSlot / useHeaderRefresh 的 hook 调用
+ * 都落在页面顶层（hooks 规则），控件 JSX 复用同一份。
+ */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
 }
 
 export default function PlatformRevenuePage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
+  const isMobile = useIsMobile()
   const isAdmin = Boolean(session?.user?.isAdmin)
 
   // 状态
   const [revenues, setRevenues] = useState<PlatformRevenue[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [pagination, setPagination] = useState({
     page: 1,
     page_size: 20,
@@ -374,6 +335,7 @@ export default function PlatformRevenuePage() {
   // 获取回款列表
   const fetchRevenues = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const queryParams = new URLSearchParams({
         page: pagination.page.toString(),
@@ -401,6 +363,7 @@ export default function PlatformRevenuePage() {
       })
     } catch (error) {
       console.error('Error fetching revenues:', error)
+      setLoadError(error instanceof Error ? error.message : '回款数据加载失败')
     } finally {
       setLoading(false)
     }
@@ -428,8 +391,14 @@ export default function PlatformRevenuePage() {
   }, [fetchProjects])
 
   useEffect(() => {
-    fetchRevenues()
+    void fetchRevenues()
   }, [fetchRevenues])
+
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义：当前筛选条件下重新拉取。
+  const fetchRef = useRef(fetchRevenues)
+  fetchRef.current = fetchRevenues
+  useHeaderRefresh(() => fetchRef.current())
 
   const handleFilterChange = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
@@ -753,18 +722,18 @@ export default function PlatformRevenuePage() {
         // 为站点单元格添加颜色
         const countryCell = row.getCell(3)
         const countryMeta = getCountryBadgeMeta(revenue.country)
-        if (countryMeta.symbol !== '🏳️') {
+        {
           const countryColorMap: Record<string, { bg: string; fg: string }> = {
-            '🇺🇸': { bg: 'FFF1F2', fg: 'BE123C' },
-            '🇬🇧': { bg: 'FAF5FF', fg: '7E22CE' },
-            '🇩🇪': { bg: 'ECFEFF', fg: '0369A1' },
-            '🇨🇦': { bg: 'ECFDF5', fg: '047857' },
-            '🇯🇵': { bg: 'FFF1F2', fg: 'BE123C' },
-            '🇦🇺': { bg: 'FFFBEB', fg: 'B45309' },
-            '🇲🇽': { bg: 'F0FDFA', fg: '0D9488' },
-            '🇧🇷': { bg: 'F0FDF4', fg: '15803D' },
+            US: { bg: 'FFF1F2', fg: 'BE123C' },
+            UK: { bg: 'FAF5FF', fg: '7E22CE' },
+            DE: { bg: 'ECFEFF', fg: '0369A1' },
+            CA: { bg: 'ECFDF5', fg: '047857' },
+            JP: { bg: 'FFF1F2', fg: 'BE123C' },
+            AU: { bg: 'FFFBEB', fg: 'B45309' },
+            MX: { bg: 'F0FDFA', fg: '0D9488' },
+            BR: { bg: 'F0FDF4', fg: '15803D' },
           }
-          const countryColors = countryColorMap[countryMeta.symbol] || {
+          const countryColors = countryColorMap[countryMeta.code] || {
             bg: 'F8FAFC',
             fg: '64748B',
           }
@@ -881,451 +850,319 @@ export default function PlatformRevenuePage() {
     }
   }
 
+  const filterControls = (
+    <>
+      <Select
+        value={filters.project_id || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[160px]">
+          <SelectValue placeholder="全部项目" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部项目</SelectItem>
+          {projects.map((project) => (
+            <SelectItem key={project.id} value={project.id.toString()}>
+              {project.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.year || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+          <SelectValue placeholder="全部年份" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
+          {getYearOptions().map((year) => (
+            <SelectItem key={year.value} value={year.value.toString()}>
+              {year.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.month || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[100px]">
+          <SelectValue placeholder="全部月份" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
+          {MONTH_OPTIONS.map((month) => (
+            <SelectItem key={month.value} value={month.value.toString()}>
+              {month.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.currency || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
+          <SelectValue placeholder="全部币种" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部币种</SelectItem>
+          {CURRENCY_OPTIONS.map((currency) => (
+            <SelectItem key={currency.value} value={currency.value}>
+              {currency.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.revenue_type || ALL_FILTER_VALUE}
+        onValueChange={(value) =>
+          handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
+        }
+      >
+        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
+          <SelectValue placeholder="全部类型" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>全部类型</SelectItem>
+          <SelectItem value="订单回款">订单回款</SelectItem>
+          <SelectItem value="B2B回款">B2B回款</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={resetFilters}
+        className="h-7 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+      >
+        重置
+      </Button>
+    </>
+  )
+
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   return (
-    <div className="min-w-0 space-y-6 text-foreground">
-      {/* 筛选区域 */}
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-        <DataCardHeader
-          title="平台回款"
-          description="记录各项目平台回款情况"
-          action={
-            <Button onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
-              新增回款
-            </Button>
-          }
-        />
-        <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-x-4 lg:gap-y-2">
-            <div className="flex items-center gap-2">
-              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">项目</Label>
-              <Select
-                value={filters.project_id || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[180px]">
-                  <SelectValue placeholder="全部项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部项目</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">年份</Label>
-              <Select
-                value={filters.year || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[120px]">
-                  <SelectValue placeholder="全部年份" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
-                  {getYearOptions().map((year) => (
-                    <SelectItem key={year.value} value={year.value.toString()}>
-                      {year.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">月份</Label>
-              <Select
-                value={filters.month || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[112px]">
-                  <SelectValue placeholder="全部月份" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
-                  {MONTH_OPTIONS.map((month) => (
-                    <SelectItem key={month.value} value={month.value.toString()}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">币种</Label>
-              <Select
-                value={filters.currency || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[140px]">
-                  <SelectValue placeholder="全部币种" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部币种</SelectItem>
-                  {CURRENCY_OPTIONS.map((currency) => (
-                    <SelectItem key={currency.value} value={currency.value}>
-                      {currency.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">回款类型</Label>
-              <Select
-                value={filters.revenue_type || ALL_FILTER_VALUE}
-                onValueChange={(value) =>
-                  handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[140px]">
-                  <SelectValue placeholder="全部类型" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部类型</SelectItem>
-                  <SelectItem value="订单回款">订单回款</SelectItem>
-                  <SelectItem value="B2B回款">B2B回款</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="col-span-2 flex items-center gap-2 lg:col-span-1 lg:gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetFilters}
-                className="flex-1 max-md:min-h-[44px] lg:flex-none"
-              >
-                <RotateCcw className="mr-1 h-4 w-4" />
-                重置
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={exporting}
-                className="flex-1 max-md:min-h-[44px] lg:flex-none"
-              >
-                {exporting ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-1 h-4 w-4" />
-                )}
-                导出
-              </Button>
-            </div>
-          </div>
-        </DataCardContent>
-      </DataCard>
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
       {/* 数据表格 */}
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-        <DataCardContent className="p-0">
-          <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
-            {/* 桌面端：完整表格（BLF-504：maxHeight 滚动体 + STICKY_TOP_ROW 粘性表头） */}
-            <div className="hidden lg:block">
-              <Table containerClassName="max-h-[calc(100vh-24rem)] overflow-auto">
-                <TableHeader className={STICKY_TOP_ROW}>
-                  <TableRow>
-                    <TableHead>回款日期</TableHead>
-                    <TableHead>项目</TableHead>
-                    <TableHead>站点</TableHead>
-                    <TableHead className="text-right">金额</TableHead>
-                    <TableHead>币种</TableHead>
-                    <TableHead>回款类型</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center">
-                        加载中...
-                      </TableCell>
-                    </TableRow>
-                  ) : revenues.length === 0 ? (
-                    <EmptyTableState colSpan={8} message="暂无回款数据，点击右上角按钮新增" />
-                  ) : (
-                    revenues.map((revenue) => (
-                      <TableRow key={revenue.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {new Date(revenue.received_date).toLocaleDateString('zh-CN')}
-                        </TableCell>
-                        <TableCell className="font-medium">{revenue.project_name}</TableCell>
-                        <TableCell>
-                          {(() => {
-                            const badgeMeta = getCountryBadgeMeta(revenue.country)
-                            return (
-                              <Badge
-                                className={cn(
-                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]',
-                                  badgeMeta.className
-                                )}
-                                title={`${revenue.country} - ${badgeMeta.accent}`}
-                              >
-                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                                <span>{revenue.country}</span>
-                              </Badge>
-                            )
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm font-medium">
+      <TermPanel
+        title="平台回款"
+        bodyClassName="min-h-0 overflow-hidden"
+        actions={
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              onClick={handleExport}
+              disabled={exporting || revenues.length === 0}
+            >
+              {exporting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+              ) : (
+                <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+              )}
+              {exporting ? '导出中...' : '导出 Excel'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              onClick={handleAdd}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+              新增回款
+            </Button>
+          </div>
+        }
+      >
+        {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}
+        <div className="max-h-[calc(100vh-280px)] min-h-[240px] overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead>回款日期</TermHead>
+                <TermHead>项目</TermHead>
+                <TermHead>站点</TermHead>
+                <TermHead numeric>金额</TermHead>
+                <TermHead>币种</TermHead>
+                <TermHead>回款类型</TermHead>
+                <TermHead>备注</TermHead>
+                <TermHead numeric>操作</TermHead>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TermRow key={`skeleton-${i}`} className="hover:bg-transparent">
+                    {Array.from({ length: 8 }).map((__, j) => (
+                      <TermCell key={j}>
+                        <Skeleton className="h-3.5 w-full max-w-[80px] rounded-none" />
+                      </TermCell>
+                    ))}
+                  </TermRow>
+                ))
+              ) : loadError ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={8} className="h-24 text-center" tone="neg">
+                    <span className="inline-flex items-center justify-center gap-2">{loadError}</span>
+                  </TermCell>
+                </TermRow>
+              ) : revenues.length === 0 ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={8} className="h-24 text-center" tone="muted">
+                    暂无回款数据，点击右上角「新增回款」录入
+                  </TermCell>
+                </TermRow>
+              ) : (
+                <>
+                  {revenues.map((revenue) => {
+                    const currencyMeta = getCurrencyBadgeMeta(revenue.currency)
+                    const countryMeta = getCountryBadgeMeta(revenue.country)
+                    return (
+                      <TermRow key={revenue.id}>
+                        <TermCell className="whitespace-nowrap font-mono">
+                          {revenue.received_date.slice(0, 10)}
+                        </TermCell>
+                        <TermCell title={revenue.project_name}>{revenue.project_name}</TermCell>
+                        <TermCell tone="muted" title={`${countryMeta.code} - ${countryMeta.accent}`}>
+                          {countryMeta.code}
+                        </TermCell>
+                        <TermCell numeric className="font-medium">
                           {formatCurrency(revenue.amount, revenue.currency)}
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const badgeMeta = getCurrencyBadgeMeta(revenue.currency)
-                            return (
-                              <Badge
-                                className={cn(
-                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]',
-                                  badgeMeta.className
-                                )}
-                                title={`${revenue.currency} - ${badgeMeta.accent}`}
-                              >
-                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                                <span>{revenue.currency}</span>
-                              </Badge>
-                            )
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`text-xs ${
-                              revenue.revenue_type === 'B2B回款'
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                            }`}
-                          >
-                            {revenue.revenue_type || '订单回款'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-[280px]">
-                          <div className="space-y-2">
-                            <p className="truncate text-sm">
-                              {revenue.note || (revenue.attachments?.length > 0 ? '' : '-')}
-                            </p>
-                            {revenue.attachments?.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {revenue.attachments.slice(0, 4).map((image) => (
-                                  <button
-                                    key={image.id}
-                                    type="button"
-                                    className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                    onClick={() => setPreviewImage(image.url)}
-                                    title={image.filename}
-                                  >
-                                    <Image
-                                      src={image.url}
-                                      alt={image.filename}
-                                      fill
-                                      className="object-cover"
-                                      unoptimized
-                                    />
-                                  </button>
-                                ))}
-                                {revenue.attachments.length > 4 && (
-                                  <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                                    +{revenue.attachments.length - 4}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(revenue)}>
-                              <Pencil className="h-4 w-4" />
+                        </TermCell>
+                        <TermCell tone={currencyMeta.tone} title={`${revenue.currency} - ${currencyMeta.accent}`}>
+                          {currencyMeta.symbol} {revenue.currency}
+                        </TermCell>
+                        <TermCell tone={revenue.revenue_type === 'B2B回款' ? 'warn' : undefined}>
+                          {revenue.revenue_type || '订单回款'}
+                        </TermCell>
+                        <TermCell
+                          className="max-w-[260px] truncate"
+                          title={revenue.note || undefined}
+                        >
+                          {revenue.note || (revenue.attachments?.length > 0 ? '' : '-')}
+                          {revenue.attachments?.length > 0 && (
+                            <span className="ml-1 inline-flex gap-0.5 align-middle">
+                              {revenue.attachments.slice(0, 3).map((image) => (
+                                <button
+                                  key={image.id}
+                                  type="button"
+                                  className="relative h-5 w-5 shrink-0 overflow-hidden border border-term-border align-middle"
+                                  onClick={() => setPreviewImage(image.url)}
+                                  title={image.filename}
+                                >
+                                  <Image
+                                    src={image.url}
+                                    alt={image.filename}
+                                    fill
+                                    sizes="20px"
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </button>
+                              ))}
+                              {revenue.attachments.length > 3 && (
+                                <span className="font-mono text-[10px] text-term-muted">
+                                  +{revenue.attachments.length - 3}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </TermCell>
+                        <TermCell numeric>
+                          <span className="inline-flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-text"
+                              onClick={() => handleEdit(revenue)}
+                              title="编辑"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="text-destructive hover:text-destructive"
+                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-neg"
                               onClick={() => handleDeleteClick(revenue)}
+                              title="删除"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                             </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                          </span>
+                        </TermCell>
+                      </TermRow>
+                    )
+                  })}
                   {/* 合计行 */}
-                  {!loading && revenues.length > 0 && (
-                    <TableRow className="bg-muted/50 font-medium">
-                      <TableCell className="py-3">合计</TableCell>
-                      <TableCell colSpan={2}></TableCell>
-                      <TableCell className="text-right">
-                        {formatTotals(calculateTotals(revenues))}
-                      </TableCell>
-                      <TableCell colSpan={4}></TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* 手机端：卡片列表 */}
-            <div className="lg:hidden space-y-3 p-4">
-              {loading ? (
-                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
-              ) : revenues.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">暂无回款数据</div>
-              ) : (
-                revenues.map((revenue) => (
-                  <div key={revenue.id} className="dashboard-surface p-4 space-y-3">
-                    {/* 头部：项目 + 金额 */}
-                    <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{revenue.project_name}</div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{new Date(revenue.received_date).toLocaleDateString('zh-CN')}</span>
-                          {(() => {
-                            const badgeMeta = getCountryBadgeMeta(revenue.country)
-                            return (
-                              <Badge
-                                className={cn(
-                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.1em]',
-                                  badgeMeta.className
-                                )}
-                                title={`${revenue.country} - ${badgeMeta.accent}`}
-                              >
-                                <span className="text-xs leading-none">{badgeMeta.symbol}</span>
-                                <span>{revenue.country}</span>
-                              </Badge>
-                            )
-                          })()}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-mono text-base font-semibold">
-                          {formatCurrency(revenue.amount, revenue.currency)}
-                        </div>
-                        <Badge
-                          className={`mt-1 text-[10px] ${
-                            revenue.revenue_type === 'B2B回款'
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                          }`}
-                        >
-                          {revenue.revenue_type || '订单回款'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* 备注 */}
-                    {revenue.note && <div className="text-sm">{revenue.note}</div>}
-
-                    {/* 截图缩略图（移动端） */}
-                    {revenue.attachments?.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {revenue.attachments.slice(0, 4).map((image) => (
-                          <button
-                            key={image.id}
-                            type="button"
-                            className="relative h-12 w-12 overflow-hidden rounded border border-border/70"
-                            onClick={() => setPreviewImage(image.url)}
-                            title={image.filename}
-                          >
-                            <Image
-                              src={image.url}
-                              alt={image.filename}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </button>
-                        ))}
-                        {revenue.attachments.length > 4 && (
-                          <div className="flex h-12 w-12 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                            +{revenue.attachments.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 操作按钮 */}
-                    <div className="flex gap-2 pt-2 border-t border-border/70">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 min-h-[44px] flex-1"
-                        onClick={() => handleEdit(revenue)}
-                      >
-                        <Pencil className="mr-1 h-4 w-4" />
-                        编辑
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 min-h-[44px] flex-1 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteClick(revenue)}
-                      >
-                        <Trash2 className="mr-1 h-4 w-4" />
-                        删除
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  <TermRow highlight className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised">
+                    <TermCell colSpan={3}>合计（当前页）</TermCell>
+                    <TermCell numeric>{formatTotals(calculateTotals(revenues))}</TermCell>
+                    <TermCell colSpan={4} />
+                  </TermRow>
+                </>
               )}
-            </div>
-          </div>
+            </TermBody>
+          </TermTable>
+        </div>
+      </TermPanel>
 
-          {/* 分页 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              共 {pagination.total} 条记录，第 {pagination.page}/{pagination.total_pages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-md:min-h-[44px]"
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.max(1, prev.page - 1),
-                  }))
-                }
-                disabled={pagination.page <= 1}
-              >
-                上一页
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-md:min-h-[44px]"
-                onClick={() =>
-                  setPagination((prev) => ({
-                    ...prev,
-                    page: Math.min(prev.total_pages, prev.page + 1),
-                  }))
-                }
-                disabled={pagination.page >= pagination.total_pages}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        </DataCardContent>
-      </DataCard>
+      {/* 分页：终端工具条规格 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs tabular-nums text-term-muted">
+        <span>
+          共 {pagination.total} 条 · 第 {pagination.page}/{pagination.total_pages} 页
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+            onClick={() =>
+              setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
+            }
+            disabled={pagination.page <= 1}
+          >
+            上一页
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+            onClick={() =>
+              setPagination((prev) => ({
+                ...prev,
+                page: Math.min(prev.total_pages, prev.page + 1),
+              }))
+            }
+            disabled={pagination.page >= pagination.total_pages}
+          >
+            下一页
+          </Button>
+        </div>
+      </div>
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

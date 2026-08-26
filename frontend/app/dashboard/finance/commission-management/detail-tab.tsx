@@ -3,14 +3,13 @@
 import * as React from 'react'
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import {
-  STICKY_TOP_ROW,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
 import {
   Select,
   SelectContent,
@@ -20,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyTableState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
 import {
   type CommissionProjectMonth,
   type ExchangeRate,
@@ -35,9 +34,6 @@ import {
   formatRmb,
   formatPercent,
 } from './utils'
-
-const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
-const FULL_BLEED_TABLE_CONTAINER_CLASS = 'w-full'
 
 interface DetailTabProps {
   projectRows: ProjectRow[]
@@ -54,32 +50,32 @@ interface DetailTabProps {
 // 骨架屏行
 function DetailSkeletonRow() {
   return (
-    <TableRow className="animate-pulse">
-      <TableCell>
-        <Skeleton className="h-4 w-32 mx-auto" />
-      </TableCell>
-      <TableCell>
+    <TermRow className="animate-pulse hover:bg-transparent">
+      <TermCell>
+        <Skeleton className="mx-auto h-3.5 w-32 rounded-none" />
+      </TermCell>
+      <TermCell>
         <div className="flex items-center justify-center gap-3">
-          <Skeleton className="h-2 w-2 rounded-full" />
-          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-1.5 w-1.5 rounded-none" />
+          <Skeleton className="h-3.5 w-10 rounded-none" />
         </div>
-      </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
-      </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-16" />
-      </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-5 w-20" />
-      </TableCell>
-      <TableCell className="text-right">
-        <Skeleton className="ml-auto h-9 w-[150px]" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-9 w-[140px]" />
-      </TableCell>
-    </TableRow>
+      </TermCell>
+      <TermCell numeric>
+        <Skeleton className="ml-auto h-3.5 w-16 rounded-none" />
+      </TermCell>
+      <TermCell numeric>
+        <Skeleton className="ml-auto h-3.5 w-12 rounded-none" />
+      </TermCell>
+      <TermCell numeric>
+        <Skeleton className="ml-auto h-3.5 w-16 rounded-none" />
+      </TermCell>
+      <TermCell numeric>
+        <Skeleton className="ml-auto h-7 w-[130px] rounded-none" />
+      </TermCell>
+      <TermCell>
+        <Skeleton className="h-7 w-[130px] rounded-none" />
+      </TermCell>
+    </TermRow>
   )
 }
 
@@ -93,35 +89,26 @@ function DetailSkeletonContent() {
   ]
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <div className="flex-1 overflow-auto">
-        <Table
-          className={FULL_BLEED_TABLE_CLASS}
-          containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
-        >
-          <TableHeader className={STICKY_TOP_ROW}>
-            <TableRow>
-              <TableHead className="text-center font-semibold text-foreground w-[200px]">
-                项目
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">销售收入</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                工厂佣金(RMB)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                已回款(RMB)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto term-scroll">
+        <TermTable>
+          <TermTHead>
+            <TermRow className="hover:bg-transparent">
+              <TermHead className="w-[180px]">项目</TermHead>
+              <TermHead>站点</TermHead>
+              <TermHead numeric>销售收入</TermHead>
+              <TermHead numeric>佣金比例</TermHead>
+              <TermHead numeric>工厂佣金(RMB)</TermHead>
+              <TermHead numeric>已回款(RMB)</TermHead>
+              <TermHead>回款状态</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
             {rows.map((_, i) => (
               <DetailSkeletonRow key={i} />
             ))}
-          </TableBody>
-        </Table>
+          </TermBody>
+        </TermTable>
       </div>
     </div>
   )
@@ -198,66 +185,66 @@ export function DetailTab({
     const country = record.country as 'US' | 'DE' | 'UK'
     const info = SITE_INFO[country]
 
+    const statusTone =
+      record.payment_status === 'paid'
+        ? 'pos'
+        : record.payment_status === 'unpaid'
+          ? 'neg'
+          : ('warn' as const)
+
     return (
-      <TableRow key={record.id} className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}>
+      <TermRow key={record.id} className={`border-l-[3px] ${SITE_BORDER_COLORS[country]}`}>
         {/* 项目名称列 - 使用 rowSpan 合并，只在第一行显示 */}
         {rowSpan > 0 && (
-          <TableCell className="text-center" rowSpan={rowSpan}>
-            <span className="text-sm font-medium">{projectName}</span>
-          </TableCell>
+          <TermCell rowSpan={rowSpan} title={projectName}>
+            <span className="font-medium">{projectName}</span>
+          </TermCell>
         )}
 
         {/* 站点列 */}
-        <TableCell className="text-center">
-          <div className="flex items-center justify-center gap-3">
-            <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
-            <span className="text-xs font-medium text-muted-foreground">{info.label}</span>
-          </div>
-        </TableCell>
+        <TermCell tone="muted" className="font-mono uppercase">
+          {info.label}
+        </TermCell>
 
         {/* 销售额列 - 显示本地货币 */}
-        <TableCell className="text-center tabular-nums">
-          {formatIncomeWithCurrency(record.income_total_usd, country)}
-        </TableCell>
+        <TermCell numeric>{formatIncomeWithCurrency(record.income_total_usd, country)}</TermCell>
 
         {/* 佣金比例 */}
-        <TableCell className="text-center tabular-nums">
+        <TermCell numeric tone="muted">
           {getCommissionRatioLabel(record)}
-        </TableCell>
+        </TermCell>
 
         {/* 工厂佣金 */}
-        <TableCell className="text-center tabular-nums font-medium">
+        <TermCell numeric className="font-medium">
           {formatRmb(record.factory_commission_rmb)}
-        </TableCell>
+        </TermCell>
 
         {/* 已回款 */}
-        <TableCell className="text-center">
-          <div className="flex items-center justify-center gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={receivedDraftById[record.id] ?? ''}
-              className="h-9 w-[150px] text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              onChange={(event) => {
-                onUpdateDraft(record.id, event.target.value)
-              }}
-              onBlur={() => {
+        <TermCell>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={receivedDraftById[record.id] ?? ''}
+            className="h-7 w-[130px] rounded-none border-term-border bg-term-panel text-right font-mono text-xs shadow-none [appearance:textfield] focus-visible:ring-term-border [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            onChange={(event) => {
+              onUpdateDraft(record.id, event.target.value)
+            }}
+            onBlur={() => {
+              onUpdateReceivedAmount(record)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
                 onUpdateReceivedAmount(record)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  onUpdateReceivedAmount(record)
-                }
-              }}
-              disabled={updatingId === record.id}
-            />
-          </div>
-        </TableCell>
+              }
+            }}
+            disabled={updatingId === record.id}
+          />
+        </TermCell>
 
         {/* 回款状态 */}
-        <TableCell className="text-center">
+        <TermCell>
           <Select
             value={record.payment_status}
             onValueChange={(value: PaymentStatus) => {
@@ -265,7 +252,14 @@ export function DetailTab({
             }}
             disabled={updatingId === record.id}
           >
-            <SelectTrigger className="w-[140px] mx-auto">
+            <SelectTrigger
+              className={cn(
+                'h-7 w-[120px] rounded-none border-term-border bg-term-panel text-xs shadow-none',
+                statusTone === 'pos' && 'text-term-pos',
+                statusTone === 'warn' && 'text-term-warn',
+                statusTone === 'neg' && 'text-term-neg'
+              )}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -274,13 +268,13 @@ export function DetailTab({
               <SelectItem value="unpaid">未回款</SelectItem>
             </SelectContent>
           </Select>
-        </TableCell>
-      </TableRow>
+        </TermCell>
+      </TermRow>
     )
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 骨架屏层 */}
       <div
         className="absolute inset-0 transition-opacity duration-200"
@@ -292,45 +286,34 @@ export function DetailTab({
 
       {/* 内容层 */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <div className="flex-1 overflow-auto">
-          <Table
-            className={FULL_BLEED_TABLE_CLASS}
-            containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
-          >
-          <TableHeader className={STICKY_TOP_ROW}>
-            <TableRow>
-              <TableHead className="text-center font-semibold text-foreground w-[200px]">
-                项目
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                销售收入
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                佣金比例
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                工厂佣金(RMB)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                已回款(RMB)
-              </TableHead>
-              <TableHead className="text-center font-semibold text-foreground">
-                回款状态
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-            <TableBody>
+        <div className="flex-1 overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead className="w-[180px]">项目</TermHead>
+                <TermHead>站点</TermHead>
+                <TermHead numeric>销售收入</TermHead>
+                <TermHead numeric>佣金比例</TermHead>
+                <TermHead numeric>工厂佣金(RMB)</TermHead>
+                <TermHead numeric>已回款(RMB)</TermHead>
+                <TermHead>回款状态</TermHead>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
               {projectRows.length === 0 ? (
-                <EmptyTableState colSpan={7} message="当前月份暂无数据，请先刷新核算" />
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={7} className="h-24 text-center" tone="muted">
+                    当前月份暂无数据，请先刷新核算
+                  </TermCell>
+                </TermRow>
               ) : (
                 displayData.map((row) => renderRow(row))
               )}
-            </TableBody>
-          </Table>
+            </TermBody>
+          </TermTable>
         </div>
       </div>
     </div>

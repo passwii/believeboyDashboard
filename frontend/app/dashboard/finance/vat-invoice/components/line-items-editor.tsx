@@ -4,7 +4,7 @@
 // 字段：Description / Qty / Unit Price (incl. VAT) / VAT% / Line Total (自动算)
 // 操作：每行删除 / 底部 + Add row / 运费行跟随第一行 VAT 率
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,15 +73,21 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
   }
 
   return (
-    <Card className="dashboard-surface">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">3. 商品明细</CardTitle>
-        <Button size="sm" variant="outline" onClick={addRow}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
+    <TermPanel
+      title="3 · 商品明细"
+      actions={
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+          onClick={addRow}
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
           添加行
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      }
+    >
+      <div className="space-y-3 p-3">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             暂无明细行。点击右上角「添加行」开始录入。
@@ -224,7 +230,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </TermPanel>
   )
 }
