@@ -28,12 +28,12 @@ export function CrmSearchInput({ value, onChange, placeholder = '搜索…' }: C
   return (
     // 移动规则 2：手机端搜索框全宽（网格 col-span-2），桌面 md+ 恢复 224px 固定宽
     <div className="relative w-full md:w-56">
-      <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-term-faint" />
       <Input
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={placeholder}
-        className="h-8 pl-7 pr-7"
+        className="h-8 rounded-none border-term-border bg-term-bg pl-7 pr-7 font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
         aria-label={placeholder}
       />
       {text && (
@@ -41,7 +41,7 @@ export function CrmSearchInput({ value, onChange, placeholder = '搜索…' }: C
           type="button"
           aria-label="清空搜索"
           onClick={() => setText('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-term-faint transition-colors hover:text-term-text"
         >
           <X className="h-3.5 w-3.5" />
         </button>

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import type { Task, TaskType } from '@/lib/crm/types'
 import { TASK_TYPE_LABELS } from '@/lib/crm/enums/task.enum'
 import { ScopeToggle } from '../customers/components/scope-toggle'
+import { TERM_SELECT_NATIVE } from '@/components/crm/term-shared'
 import { TaskKanban } from './components/task-kanban'
 import { TaskList } from './components/task-list'
 import { createDragEndHandler } from './board'
@@ -73,77 +74,75 @@ export default function TasksPage() {
   )
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">任务</h1>
-          <p className="text-sm text-muted-foreground">
-            拖拽卡片到目标列即可流转状态；已取消任务在列表视图可见
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 列头 type 筛选（设计 §8.2：看板可按 type 过滤） */}
-          <select
-            aria-label="按类型筛选"
-            data-testid="task-type-filter"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-            className="h-9 rounded-md border border-border/60 bg-background px-2.5 text-sm shadow-sm focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/20"
-          >
-            {TASK_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+    // BLF-837：页面标题已由 Top Header 面包屑承载；工具行终端控件
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
+        {/* 列头 type 筛选（设计 §8.2：看板可按 type 过滤） */}
+        <select
+          aria-label="按类型筛选"
+          data-testid="task-type-filter"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+          className={TERM_SELECT_NATIVE}
+        >
+          {TASK_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
 
-          {/* 看板 / 列表双视图切换 */}
-          <div
-            role="radiogroup"
-            aria-label="视图切换"
-            className="inline-flex rounded-md border border-border/60 bg-background p-0.5 text-sm shadow-sm"
+        {/* 看板 / 列表双视图切换（终端 Tab） */}
+        <div
+          role="radiogroup"
+          aria-label="视图切换"
+          className="inline-flex items-center rounded-none border border-term-border bg-term-bg p-0.5"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={view === 'board'}
+            data-testid="view-board"
+            onClick={() => setView('board')}
+            className={cn(
+              'flex items-center gap-1 px-2 py-0.5 font-mono text-xs transition-colors',
+              view === 'board'
+                ? 'bg-term-raised text-term-text'
+                : 'text-term-muted hover:text-term-text'
+            )}
           >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={view === 'board'}
-              data-testid="view-board"
-              onClick={() => setView('board')}
-              className={cn(
-                'flex items-center gap-1 rounded px-3 py-1.5 transition-colors',
-                view === 'board'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <KanbanSquare className="h-4 w-4" />
-              看板
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={view === 'list'}
-              data-testid="view-list"
-              onClick={() => setView('list')}
-              className={cn(
-                'flex items-center gap-1 rounded px-3 py-1.5 transition-colors',
-                view === 'list'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <List className="h-4 w-4" />
-              列表
-            </button>
-          </div>
-          <ScopeToggle />
+            <KanbanSquare className="h-4 w-4" />
+            看板
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={view === 'list'}
+            data-testid="view-list"
+            onClick={() => setView('list')}
+            className={cn(
+              'flex items-center gap-1 px-2 py-0.5 font-mono text-xs transition-colors',
+              view === 'list'
+                ? 'bg-term-raised text-term-text'
+                : 'text-term-muted hover:text-term-text'
+            )}
+          >
+            <List className="h-4 w-4" />
+            列表
+          </button>
         </div>
+        <ScopeToggle />
       </div>
 
       {loading && tasks.length === 0 ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">加载中…</div>
+        <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
       ) : error ? (
-        <div className="py-16 text-center text-sm text-rose-600">{error}</div>
+        <div
+          role="alert"
+          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+        >
+          ERR · {error}
+        </div>
       ) : view === 'board' ? (
         <TaskKanban tasks={tasks} onDragEnd={handleDragEnd} showOwner={scope === 'all'} />
       ) : (

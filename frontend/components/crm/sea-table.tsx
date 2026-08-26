@@ -22,6 +22,11 @@ import {
   CUSTOMER_STATUS_LABELS,
 } from '@/lib/crm/enums/customer.enum'
 import { daysSince } from '@/lib/crm/method/format'
+import {
+  CUSTOMER_RATING_TERM,
+  CUSTOMER_STATUS_TERM,
+  NEUTRAL_TERM,
+} from '@/components/crm/term-shared'
 
 const columns: CrmColumnDef<Customer>[] = [
   { key: 'name', title: '客户名', sortable: true },
@@ -32,7 +37,7 @@ const columns: CrmColumnDef<Customer>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_RATING_LABELS) as Array<keyof typeof CUSTOMER_RATING_LABELS>).map((k) => [
         k,
-        { label: CUSTOMER_RATING_LABELS[k], color: CUSTOMER_RATING_COLORS[k] },
+        { label: CUSTOMER_RATING_LABELS[k], color: CUSTOMER_RATING_COLORS[k], tone: CUSTOMER_RATING_TERM[k] },
       ])
     ),
   },
@@ -43,7 +48,7 @@ const columns: CrmColumnDef<Customer>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_STATUS_LABELS) as Array<keyof typeof CUSTOMER_STATUS_LABELS>).map((k) => [
         k,
-        { label: CUSTOMER_STATUS_LABELS[k], color: CUSTOMER_STATUS_COLORS[k] },
+        { label: CUSTOMER_STATUS_LABELS[k], color: CUSTOMER_STATUS_COLORS[k], tone: CUSTOMER_STATUS_TERM[k] },
       ])
     ),
   },
@@ -54,7 +59,7 @@ const columns: CrmColumnDef<Customer>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_SOURCE_LABELS) as Array<keyof typeof CUSTOMER_SOURCE_LABELS>).map((k) => [
         k,
-        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' },
+        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]', tone: NEUTRAL_TERM },
       ])
     ),
   },
@@ -68,7 +73,12 @@ const columns: CrmColumnDef<Customer>[] = [
       const v = value as string | undefined
       if (!v) return '-'
       const days = daysSince(v)
-      return Number.isFinite(days) ? `${days} 天前` : '-'
+      const stale = Number.isFinite(days) && days > 30
+      return (
+        <span className={stale ? 'text-term-warn' : ''}>
+          <span className="tabular-nums">{Number.isFinite(days) ? `${days} 天前` : '-'}</span>
+        </span>
+      )
     },
   },
 ]
@@ -150,8 +160,8 @@ export function CrmSeaTable() {
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">公海客户 · 可筛选 / 搜索 / 导出，点击行领取</p>
+      {/* BLF-837：工具行终端化（导出右对齐），提示文案并入面包屑/空态 */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
         <CrmExportButton entity="customers" scope="sea" keyword={keyword} />
       </div>
       <CrmTable<Customer>

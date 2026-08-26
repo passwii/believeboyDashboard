@@ -50,18 +50,18 @@ function formatDwell(days?: number): string {
 
 function LeadRow({ item, rank }: { item: StageLeadItem; rank: number }) {
   return (
-    <TableRow className={item.isStuck ? 'bg-[hsl(var(--data-warning)/0.05)]' : undefined}>
+    <TableRow className={item.isStuck ? 'bg-term-warn/[0.06]' : undefined}>
       <TableCell>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {rank <= 3 && (
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-[0.65rem] font-bold text-amber-600 dark:text-amber-400">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center border border-term-warn/40 font-mono text-[11px] tabular-nums text-term-warn">
               {rank}
             </span>
           )}
           <div className="min-w-0">
-            <div className="truncate font-medium text-foreground">{item.name}</div>
+            <div className="truncate font-medium text-term-text">{item.name}</div>
             {item.company && (
-              <div className="truncate text-xs text-muted-foreground">{item.company}</div>
+              <div className="truncate text-xs text-term-faint">{item.company}</div>
             )}
           </div>
         </div>
@@ -73,13 +73,13 @@ function LeadRow({ item, rank }: { item: StageLeadItem; rank: number }) {
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-1.5">
-          <Hourglass className="h-3.5 w-3.5 shrink-0 opacity-60" />
+        <div className="flex items-center gap-1">
+          <Hourglass className="h-3.5 w-3.5 shrink-0 opacity-60" strokeWidth={1.75} aria-hidden />
           <span
             className={
               item.isStuck
-                ? 'font-semibold text-[hsl(var(--data-warning))]'
-                : 'text-sm tabular-nums text-muted-foreground'
+                ? 'font-mono text-sm font-semibold tabular-nums text-term-warn'
+                : 'font-mono text-sm tabular-nums text-term-muted'
             }
           >
             {formatDwell(item.dwellDays)}
@@ -159,42 +159,46 @@ export function FunnelStageDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border/60 px-5 py-4">
+      {/* BLF-837：抽屉终端规格——零圆角、term 边界与面板底色 */}
+      <SheetContent className="w-full gap-0 rounded-none border-term-border bg-term-panel p-0 sm:max-w-xl">
+        <SheetHeader className="rounded-none border-b border-term-border px-3 py-2">
           <div className="flex items-center justify-between gap-2 pr-8">
-            <SheetTitle className="truncate">{stageLabel} · 复盘明细</SheetTitle>
+            <SheetTitle className="truncate text-sm uppercase tracking-wider text-term-muted">
+              {stageLabel} · 复盘明细
+            </SheetTitle>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => loadRef.current()}
               disabled={loading}
+              className="h-8 rounded-none font-mono text-xs text-term-muted hover:text-term-text"
             >
               <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
               刷新
             </Button>
           </div>
-          {/* 摘要：平均停留 · 卡住 N 条 · 本期流入/流出 */}
+          {/* 摘要：平均停留 · 卡住 N 条 · 本期流入/流出（终端单色 chips） */}
           {data && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2.5 py-0.5 text-muted-foreground">
-                <Hourglass className="h-3 w-3" />
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-xs">
+              <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
+                <Hourglass className="h-3 w-3" strokeWidth={1.75} aria-hidden />
                 平均停留 {data.avgDwellDays != null ? `${data.avgDwellDays} 天` : '—'}
               </span>
               <span
                 className={
                   data.stuckCount > 0
-                    ? 'inline-flex items-center gap-1 rounded-full bg-[hsl(var(--data-warning)/0.14)] px-2.5 py-0.5 font-medium text-[hsl(var(--data-warning))]'
-                    : 'inline-flex items-center gap-1 rounded-full bg-muted/70 px-2.5 py-0.5 text-muted-foreground'
+                    ? 'inline-flex items-center gap-1 border border-term-warn/40 px-1.5 py-0.5 tabular-nums text-term-warn'
+                    : 'inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted'
                 }
               >
                 卡住 {data.stuckCount} 条（超 {data.stuckDays} 天未动）
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2.5 py-0.5 text-muted-foreground">
+              <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
                 本期流入 {data.inflow}
               </span>
               {data.outflow != null && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2.5 py-0.5 text-muted-foreground">
+                <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
                   流出 {data.outflow}
                 </span>
               )}

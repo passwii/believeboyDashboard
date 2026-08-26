@@ -36,8 +36,15 @@ export function CrmExportButton({ entity, scope, keyword }: CrmExportButtonProps
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting} data-testid="crm-export-csv">
-      <Download className="mr-1 h-4 w-4" />
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={handleExport}
+      disabled={exporting}
+      data-testid="crm-export-csv"
+      className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+    >
+      <Download className="mr-0.5 h-4 w-4" />
       {exporting ? '导出中…' : '导出 CSV'}
     </Button>
   )

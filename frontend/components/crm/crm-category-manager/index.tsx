@@ -9,9 +9,9 @@ import { Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { Category } from '@/lib/crm/types'
 import { useNotifications } from '@/components/notifications'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function CrmCategoryManager() {
   const client = useCrmClient()
@@ -101,13 +101,11 @@ export function CrmCategoryManager() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">产品类目</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    // BLF-837：区块容器走 TermPanel（与规则引擎/工作流设置同规格）
+    <TermPanel title="产品类目">
+      <div className="space-y-3 px-3 py-3">
         {error && (
-          <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
+          <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg">
             {error}
           </div>
         )}
@@ -241,8 +239,8 @@ export function CrmCategoryManager() {
             ))}
           </ul>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </TermPanel>
   )
 }
 

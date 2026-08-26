@@ -33,8 +33,8 @@ describe('CrmSeaTable', () => {
     render(<CrmSeaTable />)
     // 导出按钮（外层工具栏，立即渲染）
     expect(screen.getByTestId('crm-export-csv')).toBeTruthy()
-    // 工具栏提示
-    expect(screen.getByText(/公海客户/)).toBeTruthy()
+    // BLF-837：工具栏提示文案已移除（页面标题由面包屑承载）；导出按钮仍终端规格渲染
+    expect(screen.getByTestId('crm-export-csv').className).toContain('font-mono')
     // 搜索框在 CrmTable 内，需等初始 fetch 完成（loading 结束）才渲染
     expect(await screen.findByPlaceholderText(/搜索客户名/)).toBeTruthy()
     // 进公海时长列（仅列头，唯一）

@@ -8,13 +8,12 @@ import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { CrmOverviewDrawer } from '../crm-overview-drawer'
 import { CrmLeadForm } from '../crm-lead-form'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import { LEAD_FIELD_DEFS } from '@/lib/crm/field-defs/lead'
 import {
-  CUSTOMER_RATING_COLORS,
-  CUSTOMER_RATING_LABELS,
   CUSTOMER_STATUS_COLORS,
   CUSTOMER_STATUS_LABELS,
 } from '@/lib/crm/enums/customer.enum'
@@ -43,9 +42,9 @@ function formatNextFollow(iso: string, group: GroupKey): string {
 }
 
 const GROUPS: Array<{ key: GroupKey; label: string; accent: string }> = [
-  { key: 'overdue', label: '逾期未跟进', accent: 'text-rose-600 dark:text-rose-400' },
-  { key: 'today', label: '今日待跟进', accent: 'text-amber-600 dark:text-amber-400' },
-  { key: 'thisWeek', label: '本周待跟进', accent: 'text-slate-600 dark:text-slate-300' },
+  { key: 'overdue', label: '逾期未跟进', accent: 'text-term-neg' },
+  { key: 'today', label: '今日待跟进', accent: 'text-term-warn' },
+  { key: 'thisWeek', label: '本周待跟进', accent: 'text-term-muted' },
 ]
 
 export function CrmFollowUpList() {
@@ -147,42 +146,54 @@ export function CrmFollowUpList() {
   }, [activeLead, client, notify])
 
   if (loading && !groups) {
-    return <div className="py-16 text-center text-sm text-muted-foreground">加载中…</div>
+    return <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
   }
   if (error) {
-    return <div className="py-16 text-center text-sm text-rose-600">{error}</div>
+    return (
+      <div
+        role="alert"
+        className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+      >
+        ERR · {error}
+      </div>
+    )
   }
   if (!groups || groups.totalCount === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 py-20 text-muted-foreground">
+      <div className="flex flex-col items-center gap-2 py-20 text-term-faint">
         <Inbox className="h-10 w-10" />
-        <p className="text-sm">暂无待跟进，太棒了 🎉</p>
+        <p className="font-mono text-xs">暂无待跟进，太棒了</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-w-0 flex-col gap-3">
       {GROUPS.map((g) => {
         const items = groups[g.key]
         if (items.length === 0) return null
         return (
           <section key={g.key}>
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-1.5 flex items-center gap-1.5">
               {g.key === 'overdue' ? (
-                <AlertCircle className="h-4 w-4 text-rose-600" />
+                <AlertCircle className="h-4 w-4 text-term-neg" strokeWidth={1.75} />
               ) : (
-                <CalendarClock className={`h-4 w-4 ${g.accent}`} />
+                <CalendarClock className={`h-4 w-4 ${g.accent}`} strokeWidth={1.75} />
               )}
-              <h2 className={`text-sm font-semibold ${g.accent}`}>{g.label}</h2>
-              <Badge
-                variant="secondary"
-                className={g.key === 'overdue' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : ''}
+              <h2 className={`font-mono text-xs uppercase tracking-wider ${g.accent}`}>
+                {g.label}
+              </h2>
+              <span
+                className={cn(
+                  'border border-term-border bg-term-panel px-1 font-mono text-xs tabular-nums',
+                  g.key === 'overdue' ? 'text-term-neg' : 'text-term-muted'
+                )}
               >
                 {items.length}
-              </Badge>
+              </span>
             </div>
-            <div className="divide-y divide-border/60 rounded-lg border border-border/60 bg-card">
+            {/* BLF-837：分组列表零圆角 + term 边界 */}
+            <div className="divide-y divide-term-border border border-term-border">
               {items.map((item) => (
                 <FollowUpRow
                   key={`${item.entityType}-${item.entityId}`}
@@ -269,44 +280,51 @@ function FollowUpRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-term-hover"
     >
-      <Badge
-        variant="outline"
-        className={
-          isCustomer ? 'border-blue-200 text-blue-700' : 'border-violet-200 text-violet-700'
-        }
+      <span
+        className={cn(
+          'shrink-0 border px-1 font-mono text-[11px]',
+          isCustomer ? 'border-term-accent/40 text-term-accent' : 'border-term-border text-term-muted'
+        )}
       >
         {isCustomer ? '客户' : '线索'}
-      </Badge>
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{item.name}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-term-text">{item.name}</span>
           {isCustomer && item.rating && (
-            <Badge
-              variant="secondary"
-              className={CUSTOMER_RATING_COLORS[item.rating as keyof typeof CUSTOMER_RATING_COLORS] ?? ''}
+            <span
+              className={cn(
+                'shrink-0 border border-term-border px-1 font-mono text-[11px]',
+                (item.rating as string) === 'A' ? 'text-term-accent' : 'text-term-muted'
+              )}
             >
-              {CUSTOMER_RATING_LABELS[item.rating as keyof typeof CUSTOMER_RATING_LABELS] ?? item.rating}
-            </Badge>
+              {item.rating}
+            </span>
           )}
           {item.subtitle && (
-            <span className="truncate text-xs text-muted-foreground">{item.subtitle}</span>
+            <span className="truncate text-xs text-term-faint">{item.subtitle}</span>
           )}
         </div>
         {item.lastFollowContent && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">上次：{item.lastFollowContent}</p>
+          <p className="mt-0.5 truncate text-xs text-term-faint">上次：{item.lastFollowContent}</p>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         <span
-          className={`text-xs font-medium ${group === 'overdue' ? 'text-rose-600' : 'text-muted-foreground'}`}
+          className={cn(
+            'font-mono text-xs tabular-nums',
+            group === 'overdue' ? 'font-medium text-term-neg' : 'text-term-muted'
+          )}
         >
           {formatNextFollow(item.nextFollowAt, group)}
         </span>
-        {item.ownerName && <span className="text-xs text-muted-foreground">{item.ownerName}</span>}
+        {item.ownerName && (
+          <span className="font-mono text-xs text-term-faint">{item.ownerName}</span>
+        )}
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-term-faint" strokeWidth={1.75} />
     </button>
   )
 }
