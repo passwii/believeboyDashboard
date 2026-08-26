@@ -226,8 +226,7 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                 .border_b_1()
                 .border_color(theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_TITLE))
+                    div().text_size(px(crate::theme::fs(FONT_TITLE)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.text_primary)
                         .child(format!("{} · {}", release.version, release.codename)),
@@ -260,8 +259,7 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                 .py_3()
                 .gap_2()
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .text_color(theme.text_secondary)
                         .child(release.summary),
                 )

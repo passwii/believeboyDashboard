@@ -319,8 +319,7 @@ fn render_history_list(
                         .min_w_0()
                         .gap_0p5()
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(if active {
                                     theme.text_primary

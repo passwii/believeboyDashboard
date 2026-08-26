@@ -41,6 +41,10 @@ pub struct UiPrefs {
     /// BLF-800：Pattern C 右上下文栏是否收起（默认展开）
     #[serde(default)]
     pub chat_context_collapsed: bool,
+    /// BLF-830：界面密度三档（compact/standard/relaxed 的字符串 key；
+    /// 缺省/未知值回退标准档——字符串协议避免旧文件炸解析）
+    #[serde(default)]
+    pub density: Option<String>,
 }
 
 impl Default for UiPrefs {
@@ -54,6 +58,7 @@ impl Default for UiPrefs {
             analysis_chart_ratio: None,
             chat_pinned_conversations: Vec::new(),
             chat_context_collapsed: false,
+            density: None,
         }
     }
 }
@@ -169,10 +174,12 @@ mod tests {
             inspector_width: Some(320),
             // BLF-799：Pattern B 分割比例记忆一并持久化（per-mille 400~500）
             analysis_chart_ratio: Some(470),
-            // BLF-800：Pattern C 置顶会话与右栏收起态一并持久化
-            chat_pinned_conversations: vec![7, 11],
-            chat_context_collapsed: true,
-        };
+        // BLF-800：Pattern C 置顶会话与右栏收起态一并持久化
+        chat_pinned_conversations: vec![7, 11],
+        chat_context_collapsed: true,
+        // BLF-830：密度档位一并持久化（宽松档示例）
+        density: Some("relaxed".into()),
+    };
         let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
         assert_eq!(back, prefs);
@@ -201,6 +208,20 @@ mod tests {
         // BLF-800：Pattern C 置顶列表缺省为空、右栏默认展开
         assert!(prefs.chat_pinned_conversations.is_empty());
         assert!(!prefs.chat_context_collapsed);
+        // BLF-830：密度缺省为标准档（None → 调用方回退）
+        assert!(prefs.density.is_none());
+    }
+
+    /// BLF-830：旧版偏好文件无 density 字段时正常解析；未知密度值保留原样
+    ///（解析归组合根，文件层只存字符串——保证协议向前兼容）。
+    #[test]
+    fn ui_prefs_legacy_file_without_density() {
+        let prefs: UiPrefs =
+            serde_json::from_str(r#"{"sub_nav_collapsed": true}"#).expect("旧格式应可解析");
+        assert!(prefs.density.is_none(), "旧文件无 density 字段应落 None");
+
+        let prefs: UiPrefs = serde_json::from_str(r#"{"density": "relaxed"}"#).expect("应可解析");
+        assert_eq!(prefs.density.as_deref(), Some("relaxed"));
     }
 
     /// 文件级往返：写入后再读取应得到同一份偏好（临时目录，不碰真实用户目录）。

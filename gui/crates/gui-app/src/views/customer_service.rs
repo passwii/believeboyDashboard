@@ -395,8 +395,7 @@ impl CustomerServiceView {
 
     fn render_scenario_pane(&self, theme: &AppTheme, cx: &Context<Self>) -> gpui::AnyElement {
         let header = pane_header_base(theme, "cs-scenario-header").child(
-            div()
-                .text_size(px(FONT_BASE))
+            div().text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("场景"),
@@ -406,15 +405,13 @@ impl CustomerServiceView {
             .py_2()
             .gap_1p5()
             .child(
-                div()
-                    .text_size(px(FONT_BASE))
+                div().text_size(px(crate::theme::fs(FONT_BASE)))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(theme.text_primary)
                     .child(OPS_REPORT_SCENARIO.label),
             )
             .child(
-                div()
-                    .text_size(px(FONT_XS))
+                div().text_size(px(crate::theme::fs(FONT_XS)))
                     .text_color(theme.text_muted)
                     .child(OPS_REPORT_SCENARIO.description),
             );
@@ -442,8 +439,7 @@ impl CustomerServiceView {
                         v_flex()
                             .min_w_0()
                             .child(
-                                div()
-                                    .text_size(px(FONT_BASE))
+                                div().text_size(px(crate::theme::fs(FONT_BASE)))
                                     .text_color(if selected {
                                         theme.text_primary
                                     } else {
@@ -452,8 +448,7 @@ impl CustomerServiceView {
                                     .child(*label),
                             )
                             .child(
-                                div()
-                                    .text_size(px(FONT_XS))
+                                div().text_size(px(crate::theme::fs(FONT_XS)))
                                     .text_color(theme.text_muted)
                                     .truncate()
                                     .child(*desc),
@@ -511,8 +506,7 @@ impl CustomerServiceView {
             .child(
                 pane_header_base(theme, "cs-center-header")
                     .child(
-                        div()
-                            .text_size(px(FONT_BASE))
+                        div().text_size(px(crate::theme::fs(FONT_BASE)))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.text_secondary)
                             .child(*tone_label),
@@ -644,8 +638,7 @@ impl CustomerServiceView {
     fn render_context_pane(&self, theme: &AppTheme, cx: &Context<Self>) -> gpui::AnyElement {
         let view = cx.entity();
         let header = pane_header_base(theme, "cs-context-header").child(
-            div()
-                .text_size(px(FONT_BASE))
+            div().text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("参数"),

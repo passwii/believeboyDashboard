@@ -282,8 +282,7 @@ fn render_card(
 
     let value_el = if let (Some(raw), false) = (raw, reduce) {
         // count-up：动画 id 编码 label，元素首次出现时从 0 计数到目标
-        div()
-            .text_size(px(FONT_TITLE_LG))
+        div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
             .font_semibold()
             .mono_tabular_nums()
             .text_color(value_color)
@@ -297,8 +296,7 @@ fn render_card(
             )
             .into_any_element()
     } else {
-        div()
-            .text_size(px(FONT_TITLE_LG))
+        div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
             .font_semibold()
             .mono_tabular_nums()
             .text_color(value_color)

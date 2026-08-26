@@ -63,7 +63,7 @@ use crate::views::customer_service::{CustomerServiceView, CUSTOMER_SERVICE_URL};
 use crate::views::daily_analysis::{DailyAnalysisView, DAILY_ANALYSIS_URL};
 use crate::views::dashboard::DashboardView;
 use crate::views::exchange_rate::{ExchangeRateView, EXCHANGE_RATE_URL};
-use crate::views::footer::FooterView;
+use crate::views::footer::{FooterEvent, FooterView};
 use crate::views::inspector::{mode_for_view, InspectorEvent, InspectorView};
 use crate::views::inventory_analysis::{InventoryAnalysisView, INVENTORY_ANALYSIS_URL};
 use crate::views::inventory_ledger::{InventoryLedgerView, INVENTORY_LEDGER_URL};
@@ -132,6 +132,9 @@ pub enum RootViewEvent {
     AiChatPinnedChanged(Vec<i64>),
     /// BLF-800：AI Chat 右上下文栏收起态变化（组合根持久化）
     AiChatContextCollapsed(bool),
+    /// BLF-830：界面密度档位切换（组合根持久化 + 窗口级 rem_size/refresh
+    /// 应用——窗口操作归组合根，视图层不碰 Window 句柄）
+    DensityChanged(crate::theme::DensityLevel),
 }
 
 /// 根视图：六区外壳（Rail + Sub-Nav + 控制条 + Canvas + Inspector + Footer）
@@ -151,6 +154,8 @@ pub struct RootView {
     console_stats_subs: Vec<gpui::Subscription>,
     /// BLF-795：控制条 Changed 事件订阅（必须持有，否则筛选变更不转发）
     _console_bar_changed_sub: Option<gpui::Subscription>,
+    /// BLF-830：Footer 事件订阅（密度切换上抛组合根；必须持有）
+    _footer_event_sub: Option<gpui::Subscription>,
     /// BLF-794：⌘K 命令面板（打开时才存在；None = 关闭）
     command_palette: Option<Entity<CommandPaletteView>>,
     /// BLF-793：Master Rail 主图标栏（六区最左列，绑定 gui-domain 8 分类）
@@ -399,6 +404,14 @@ impl RootView {
         let footer = session.as_ref().map(|s| {
             let client = s.client.clone();
             cx.new(|cx| FooterView::new(client, cx))
+        });
+        // BLF-830：Footer 密度分段控件切换 → 上抛组合根（持久化 + rem_size
+        // 同步 + 全窗重绘）；订阅句柄并入 footer_event_sub 保活。
+        let footer_event_sub = footer.as_ref().map(|footer| {
+            cx.subscribe(footer, |this, _footer, event: &FooterEvent, cx| {
+                let FooterEvent::DensityChanged(level) = event;
+                this.apply_density(*level, cx);
+            })
         });
         let console_bar_changed_sub = console_bar.as_ref().map(|bar| {
             cx.subscribe(bar, |this, _bar, event: &ConsoleBarEvent, cx| {
@@ -2643,6 +2656,7 @@ impl RootView {
             footer,
             console_stats_subs: Vec::new(),
             _console_bar_changed_sub: console_bar_changed_sub,
+            _footer_event_sub: footer_event_sub,
             command_palette: None,
             rail,
             content,
@@ -3427,6 +3441,15 @@ impl RootView {
             window.start_window_move();
         }
     }
+
+    /// BLF-830：应用密度档位——写全局偏好 + emit 持久化事件。
+    ///
+    /// rem_size 同步与全窗重绘由组合根（main.rs 订阅 [`RootViewEvent::
+    /// DensityChanged`]）执行：窗口句柄操作归组合根，视图层不碰 Window。
+    pub(crate) fn apply_density(&mut self, level: crate::theme::DensityLevel, cx: &mut Context<Self>) {
+        crate::theme::set_density_pref(level, cx);
+        cx.emit(RootViewEvent::DensityChanged(level));
+    }
 }
 
 impl EventEmitter<RootViewEvent> for RootView {}
@@ -3434,6 +3457,14 @@ impl EventEmitter<RootViewEvent> for RootView {}
 impl Render for RootView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
+
+        // BLF-830：密度档位 → 窗口 rem_size 每帧同步（间距工具类 rems() 的
+        // 缩放杠杆）。正常链路由组合根在 DensityChanged 时 set_rem_size +
+        // refresh；此处幂等重设是预览/测试直开 RootView 时的兑底，值相同
+        // 时无副作用（rem_size 是普通字段写入，不触发额外布局）。
+        window.set_rem_size(crate::theme::rem_size_for_level(
+            crate::theme::density_level(),
+        ));
 
         // BLF-793 六区外壳（尺寸常量见 views::shell）：
         //

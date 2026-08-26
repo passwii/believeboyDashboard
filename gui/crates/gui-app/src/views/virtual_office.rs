@@ -298,8 +298,7 @@ fn employee_card(e: &DigitalEmployeeItem, office_mode: bool, theme: &AppTheme) -
                         .items_center()
                         .child(div().size_2().flex_shrink_0().rounded_full().bg(dot_color))
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(theme.text_primary)
                                 .truncate()

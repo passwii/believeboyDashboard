@@ -552,10 +552,9 @@ pub fn site_card_selector<V: 'static>(
                     h_flex()
                         .gap_1()
                         .items_center()
-                        .child(div().text_size(px(FONT_BASE)).child(site.flag))
+                        .child(div().text_size(px(crate::theme::fs(FONT_BASE))).child(site.flag))
                         .child(
-                            div()
-                                .text_size(px(FONT_XS))
+                            div().text_size(px(crate::theme::fs(FONT_XS)))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(if selected {
                                     theme.text_primary
@@ -566,8 +565,7 @@ pub fn site_card_selector<V: 'static>(
                         ),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_XS))
+                    div().text_size(px(crate::theme::fs(FONT_XS)))
                         .mono_tabular_nums()
                         .text_color(theme.text_muted)
                         .child(summary),
@@ -600,8 +598,7 @@ pub fn sheet_header_row(theme: &AppTheme, cols: &[SheetColumn]) -> impl IntoElem
                 .h_full()
                 .flex()
                 .items_center()
-                .px_2()
-                .text_size(px(FONT_XS))
+                .px_2().text_size(px(crate::theme::fs(FONT_XS)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_muted)
                 .when(col.numeric, |el| el.justify_end())
@@ -692,8 +689,7 @@ pub fn computed_cell(
         .child(
             div()
                 .min_w_0()
-                .truncate()
-                .text_size(px(FONT_BASE))
+                .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
                 .when(cell.numeric, |el| el.mono_tabular_nums())
                 .font_weight(if cell.computed { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                 .text_color(text_color)
@@ -736,8 +732,7 @@ pub fn sheet_matrix(
                 .border_t_1()
                 .border_color(theme.danger)
                 .child(
-                    div()
-                        .text_size(px(FONT_XS))
+                    div().text_size(px(crate::theme::fs(FONT_XS)))
                         .text_color(theme.danger)
                         .child(summary.to_string()),
                 ),

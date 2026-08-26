@@ -281,15 +281,13 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
                         .items_center()
                         .gap_2()
                         .child(
-                            div()
-                                .text_size(px(FONT_TITLE_LG))
+                            div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(health_color)
                                 .child(health_label),
                         )
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .mono_text()
                                 .text_color(theme.text_secondary)
                                 .child(db.engine.clone()),
@@ -302,8 +300,7 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
                     .gap_1()
                     .child(div().text_xs().text_color(theme.text_muted).child("来源"))
                     .child(
-                        div()
-                            .text_size(px(FONT_BASE))
+                        div().text_size(px(crate::theme::fs(FONT_BASE)))
                             .mono_text()
                             .text_color(theme.text_primary)
                             .child(source),
@@ -320,8 +317,7 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
                         .child("检查时刻"),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .mono_text()
                         .text_color(theme.text_secondary)
                         .child(gui_domain::system_management::format_log_time(
@@ -365,8 +361,7 @@ fn render_summary_cards(
                 .border_color(theme.separator)
                 .bg(theme.card_bg)
                 .child(
-                    div()
-                        .text_size(px(FONT_TITLE_LG))
+                    div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .mono_tabular_nums_local()
                         .text_color(color)

@@ -563,6 +563,15 @@ impl PlatformWindow for WindowsWindow {
     }
 
     fn scale_factor(&self) -> f32 {
+        // BLF-830：预览基建——BELIEVEBOY_GUI_FORCE_SCALE_FACTOR 强制覆盖
+        //（与 mac 平台同语义；1.5 模拟 Windows 150% 缩放审计）。未设置时零影响。
+        if let Ok(force) = std::env::var("BELIEVEBOY_GUI_FORCE_SCALE_FACTOR") {
+            if let Ok(factor) = force.parse::<f32>() {
+                if factor > 0.0 {
+                    return factor;
+                }
+            }
+        }
         self.0.state.borrow().scale_factor
     }
 

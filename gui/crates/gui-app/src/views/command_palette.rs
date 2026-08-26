@@ -261,8 +261,7 @@ impl gpui::Render for CommandPaletteView {
                     .child(
                         div()
                             .min_w_0()
-                            .truncate()
-                            .text_size(px(FONT_BASE))
+                            .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
                             .text_color(if active {
                                 theme.text_primary
                             } else {
@@ -272,8 +271,7 @@ impl gpui::Render for CommandPaletteView {
                     )
                     .child(div().flex_1())
                     .child(
-                        div()
-                            .text_size(px(FONT_XS))
+                        div().text_size(px(crate::theme::fs(FONT_XS)))
                             .text_color(theme.text_muted)
                             .child(SharedString::from(entry.group_label.clone())),
                     )
@@ -298,8 +296,7 @@ impl gpui::Render for CommandPaletteView {
                 .child(
                     div()
                         .px_3()
-                        .py_2()
-                        .text_size(px(FONT_BASE))
+                        .py_2().text_size(px(crate::theme::fs(FONT_BASE)))
                         .text_color(theme.text_muted)
                         .child("无匹配模块"),
                 )
@@ -339,8 +336,7 @@ impl gpui::Render for CommandPaletteView {
                     .h(px(28.0))
                     .px_3()
                     .border_t_1()
-                    .border_color(theme.separator)
-                    .text_size(px(FONT_2XS))
+                    .border_color(theme.separator).text_size(px(crate::theme::fs(FONT_2XS)))
                     .text_color(theme.text_muted)
                     .child("↑↓ 选择 · ↵ 打开 · Esc 关闭"),
             );
