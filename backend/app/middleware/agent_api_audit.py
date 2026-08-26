@@ -48,6 +48,10 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     # 不再误归 inventory_ledger。
     ("/replenishment-analysis", "replenishment_analysis"),
     ("/inventory-ledger", "inventory_ledger"),
+    # BLF-845：库存信息域（BLF-478，当前库存快照）。必须排在 /inventory-ledger
+    # 之后——本表长片段优先匹配，/inventory 是 /inventory-ledger 的子串，
+    # 提前会误吞台账路径。
+    ("/inventory", "inventory"),
     # BLF-582：sku-info 已原生化收口进 sku_info 域（原映射 inventory_ledger
     # 已修正）。
     ("/sku-info", "sku_info"),
