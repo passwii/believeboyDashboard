@@ -60,6 +60,9 @@ export type AgentAccessLogItem = {
   /** 请求涉及的项目名（BLF-471 follow-up）：仅用名称（运营不用编号） */
   project_name: string | null
   operation_type: string | null
+  /** BLF-845 ③：审计国家维度（中间件从 query ?country= 解析，迁移 259 起
+   * 落库；历史行与无 country 参数的请求为 NULL） */
+  country?: string | null
 }
 
 type AgentAccessLogsResponse = {
@@ -432,13 +435,10 @@ export function AgentAccessLogsPanel() {
                     <TermCell title={formatProjectRef(row.project_id, row.project_name)}>
                       {formatProjectRef(row.project_id, row.project_name)}
                     </TermCell>
-                    {/* BLF-845 ③：country 列位。agent_api_audit_log 暂未落 country
-                        （需后端加列+中间件解析 query），就绪前恒显 '—'；字段透出后
-                        本列零改动生效（AgentAccessLogItem 补 country 可选字段即可）。 */}
+                    {/* BLF-845 ③：country 列。后端迁移 259 已落库并透出；
+                        历史行与未带 ?country= 的请求为 NULL，显 '—' */}
                     <TermCell tone="muted">
-                      {'country' in row && (row as { country?: string | null }).country
-                        ? (row as { country: string }).country
-                        : '—'}
+                      {row.country ?? '—'}
                     </TermCell>
                     <TermCell>
                       {row.operation_type ? (
@@ -650,12 +650,10 @@ export function AgentAccessLogsPanel() {
                   <span className="text-muted-foreground">项目:</span>{' '}
                   {formatProjectRef(activeRow.project_id, activeRow.project_name)}
                 </p>
-                {/* BLF-845 ③：国家字段位。后端 country 字段就绪前恒显 '—'。 */}
+                {/* BLF-845 ③：国家字段位（迁移 259 起后端已落库并透出） */}
                 <p>
                   <span className="text-muted-foreground">国家:</span>{' '}
-                  {'country' in activeRow && (activeRow as { country?: string | null }).country
-                    ? (activeRow as { country: string }).country
-                    : '—'}
+                  {activeRow.country ?? '—'}
                 </p>
                 <p>
                   <span className="text-muted-foreground">操作类型:</span>{' '}
