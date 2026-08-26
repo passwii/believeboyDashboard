@@ -1,14 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Filter, Loader2 } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
@@ -22,7 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { SlidersHorizontal } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
@@ -41,11 +48,47 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
   return query ? `${pathname}?${query}` : pathname
 }
 
+/** BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。 */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+}
+
+/**
+ * BLF-826 阶段 C：广告数据页全局筛选。
+ *
+ * 原「广告数据筛选区」Card（页面级标题胶囊 + Badge 摘要 + h-10 控件）已按 BLF-824/826
+ * 范式上移 Top Header 中段插槽 —— 标题由 TerminalHeader 面包屑承载，Badge 摘要删除
+ * （与控件信息重复），控件统一 h-8 终端规格。URL param 契约不变：
+ * projectId / country / dateFrom / dateTo，下游 AdDataExplorer 零改动消费。
+ */
 export function AdDataTopFilters() {
   const { data: session } = useSession()
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -55,8 +98,6 @@ export function AdDataTopFilters() {
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
   const dateTo = searchParams.get('dateTo') || ''
-
-  const selectedProjectName = projects.find((item) => String(item.id) === projectId)?.name || ''
 
   useEffect(() => {
     let active = true
@@ -109,109 +150,74 @@ export function AdDataTopFilters() {
     router.replace(buildHref(pathname, next), { scroll: false })
   }
 
-  return (
-    <Card className="dashboard-surface overflow-hidden">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <p className="dashboard-kicker">筛选区</p>
-            </div>
-            <div>
-              <CardTitle className="text-xl">广告数据筛选区</CardTitle>
-              <CardDescription className="mt-1">
-                先锁定项目、国家站点和日期范围，再在下方选择报表类型查看原始上传数据。
-              </CardDescription>
-            </div>
-          </div>
+  // 全局刷新语义：重放当前 URL 筛选下的拉取（router.replace 同 href 触发 explorer 重取）。
+  useHeaderRefresh(() => router.refresh())
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              项目：{selectedProjectName || '未选择'}
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              国家站点：{COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country}
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              日期范围：{dateFrom || '全部'} ~ {dateTo || '全部'}
-            </Badge>
-          </div>
+  const controls = (
+    <>
+      {projectsLoading ? (
+        <Skeleton className="h-8 w-full rounded-none md:w-[150px]" />
+      ) : (
+        <Select value={projectId} onValueChange={(value) => updateSearchParam('projectId', value)}>
+          <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[150px]">
+            <SelectValue placeholder="请选择项目" />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map((item) => (
+              <SelectItem key={item.id} value={String(item.id)}>
+                {item.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
+        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
+          <SelectValue placeholder="请选择国家站点" />
+        </SelectTrigger>
+        <SelectContent>
+          {COUNTRY_OPTIONS.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <DateRangePicker
+        value={parseDateRangeInputValue(dateFrom, dateTo)}
+        onChange={updateDateRange}
+        className="h-8 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[220px]"
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+      />
+
+      {projectsError ? (
+        <div className="flex h-8 items-center gap-1.5 border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
+          {projectsError}
         </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3 pt-0">
-        {/* BLF-611：手机端筛选项 2 列网格（总则 1 / 规则 2），日期范围占满一行；md+ 行为不变 */}
-        <div className="dashboard-toolbar grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              项目
-            </div>
-            {projectsLoading ? (
-              <Skeleton className="h-10 w-full rounded-lg" />
-            ) : (
-              <Select
-                value={projectId}
-                onValueChange={(value) => updateSearchParam('projectId', value)}
-              >
-                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="请选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              国家站点
-            </div>
-            <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
-              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                <SelectValue placeholder="请选择国家站点" />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="col-span-2 space-y-2 md:col-span-1">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              日期范围
-            </div>
-            <DateRangePicker
-              value={parseDateRangeInputValue(dateFrom, dateTo)}
-              onChange={updateDateRange}
-              className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              timezone={COUNTRY_TIMEZONE_MAP[country]}
-            />
-          </div>
-        </div>
-
-        {projectsError ? (
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {projectsError}
-          </div>
-        ) : null}
-
-        {projectsLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            正在准备项目筛选项...
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : null}
+    </>
   )
+
+  return (
+    <>
+      {/* BLF-826：筛选控件上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      <HeaderFilterControlsWrapper>{controls}</HeaderFilterControlsWrapper>
+      {/* explorer 经 useSearchParams 消费同一份 URL 参数；路由 replace 已触发其重取 */}
+      <HiddenRefreshBridge />
+    </>
+  )
+}
+
+/** portal 渲染宿主（useHeaderSlot 必须在组件体内调用） */
+function HeaderFilterControlsWrapper({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile()
+  const portal = useHeaderSlot(<HeaderFilterControls isMobileView={isMobile} controls={children} />)
+  return <>{portal}</>
+}
+
+/** 占位桥：保留组件树形状，未来刷新逻辑扩展点 */
+function HiddenRefreshBridge() {
+  return null
 }

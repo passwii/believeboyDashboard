@@ -1,21 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Boxes, Clock4, FileDown, Loader2, PackageSearch } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, FileDown, Loader2, SlidersHorizontal } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 
 import { Button } from '@/components/ui/button'
-import {
-  DataTableCard,
-  DataTableCardHeader,
-  DataTableCardBody,
-  DENSE_CELL,
-  DENSE_HEAD,
-} from '@/components/ui/data-card'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import {
   Select,
   SelectContent,
@@ -24,20 +15,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import {
-  numericCell,
-  numericHead,
-  StatusPill,
-  type TableStatus,
-} from '@/components/ui/table-presets'
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
@@ -46,7 +39,6 @@ import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
-import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { CountrySelect } from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
@@ -130,8 +122,10 @@ function formatBusinessDate(value: string | null): string {
   return `${year}年${month}月${day}日`
 }
 
-function stockStatus(status: string): TableStatus {
-  return status === 'out_of_stock' ? 'negative' : 'success'
+type CellTone = 'pos' | 'neg' | 'warn' | undefined
+
+function stockTone(status: string): CellTone {
+  return status === 'out_of_stock' ? 'neg' : 'pos'
 }
 
 function stockStatusLabel(status: string): string {
@@ -143,10 +137,10 @@ function stockExcelFontColor(status: string): string {
   return 'FF15803D'
 }
 
-function agingStatus(status: string): TableStatus {
-  if (status === 'over_aged') return 'negative'
-  if (status === 'aging') return 'warning'
-  return 'info'
+function agingTone(status: string): CellTone {
+  if (status === 'over_aged') return 'neg'
+  if (status === 'aging') return 'warn'
+  return undefined
 }
 
 function agingStatusLabel(status: string): string {
@@ -161,9 +155,65 @@ function agingExcelFontColor(status: string): string {
   return 'FF0369A1'
 }
 
+/** BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。 */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+}
+
+/** 统计条磁贴：终端规格（1px 边界、mono 数值、语义色） */
+function SummaryTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone?: CellTone
+}) {
+  const alert = tone === 'neg' && value > 0
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'font-mono text-base leading-6 tabular-nums',
+          alert ? 'text-term-neg' : 'text-term-text'
+        )}
+      >
+        {formatInt(value)}
+      </span>
+    </div>
+  )
+}
+
 export default function InventoryAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
+  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -194,6 +244,7 @@ export default function InventoryAnalysisPage() {
   })
   const [rows, setRows] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [shipmentColumns, setShipmentColumns] = useState<ShipmentColumn[]>([])
   const [shipmentColumnTotals, setShipmentColumnTotals] = useState<Record<string, number>>({})
@@ -250,46 +301,47 @@ export default function InventoryAnalysisPage() {
     }
   }, [notify, projectId, session])
 
-  useEffect(() => {
+  const loadData = async (force = false) => {
     if (!currentProjectId) return
-    let active = true
-    async function loadData() {
-      setLoading(true)
-      try {
-        const query = new URLSearchParams({
-          project_id: String(currentProjectId),
-          country,
-        })
-        if (selectedSnapshotDate !== 'current') {
-          query.set('report_date', selectedSnapshotDate)
-        }
-        const payload = await fetchOpsJsonCached<InventoryResponse>(
-          `${API_BASE}/inventory-analysis?${query.toString()}`,
-          { session, fallbackError: '库存分析加载失败' }
-        )
-        if (!active) return
-        setReportDate(payload.report_date)
-        setSummary(payload.summary)
-        setRows(payload.items)
-        setShipmentColumns(payload.shipment_columns || [])
-        setShipmentColumnTotals(payload.shipment_column_totals || {})
-      } catch (loadError) {
-        if (!active) return
-        notify({
-          type: 'error',
-          title: '库存分析加载失败',
-          message: loadError instanceof Error ? loadError.message : '库存分析加载失败',
-        })
-        setRows([])
-      } finally {
-        if (active) setLoading(false)
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const query = new URLSearchParams({
+        project_id: String(currentProjectId),
+        country,
+      })
+      if (selectedSnapshotDate !== 'current') {
+        query.set('report_date', selectedSnapshotDate)
       }
+      const payload = await fetchOpsJsonCached<InventoryResponse>(
+        `${API_BASE}/inventory-analysis?${query.toString()}`,
+        { session, fallbackError: '库存分析加载失败', force }
+      )
+      setReportDate(payload.report_date)
+      setSummary(payload.summary)
+      setRows(payload.items)
+      setShipmentColumns(payload.shipment_columns || [])
+      setShipmentColumnTotals(payload.shipment_column_totals || {})
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : '库存分析加载失败')
+      setRows([])
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     void loadData()
-    return () => {
-      active = false
-    }
-  }, [notify, country, currentProjectId, selectedSnapshotDate, session])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 筛选条件变化即拉取；手动刷新走 loadDataRef
+  }, [country, currentProjectId, selectedSnapshotDate])
+
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义：当前筛选条件下强刷（跳客户端缓存）。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
+  const { setLoading: setHeaderRefreshLoading } = useHeaderRefresh(() => loadDataRef.current(true), {
+    loading,
+  })
 
   // BEL-423 页内懒加载：业务日期选项推迟到下拉首次打开才取数。
   const [snapshotSelectOpen, setSnapshotSelectOpen] = useState(false)
@@ -367,6 +419,7 @@ export default function InventoryAnalysisPage() {
         key: column.key,
         width: column.width,
       }))
+      void lastColumn
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
@@ -489,286 +542,212 @@ export default function InventoryAnalysisPage() {
     }
   }
 
-  return (
-    <div className="space-y-4 lg:space-y-6">
-      {/* 控制台：筛选项统一 FilterToolbar（§8.2，桌面横向 / 手机 2 列网格）+ 统计条 */}
-      <div className="dashboard-surface overflow-hidden">
-        <FilterToolbar
-          actions={
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex h-9 min-h-[44px] w-full items-center gap-2 rounded-lg border border-input bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] px-3 dark:border-border/95 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))] md:w-auto">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
-                  <Clock4 className="h-3.5 w-3.5 shrink-0" />
-                  <span className="hidden sm:inline">业务日期</span>
-                </div>
-                <div className="min-w-0 truncate text-sm font-bold text-blue-900 dark:text-blue-100">
-                  {formatBusinessDate(reportDate)}
-                </div>
-              </div>
-            </div>
-          }
-        >
-          {/* 项目 */}
-          {projectsLoading ? (
-            <Skeleton className="h-9 w-full md:w-[140px]" />
-          ) : (
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
-                <SelectValue placeholder="请选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={String(project.id)}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {/* 国家站点 */}
-          <CountrySelect
-            value={country}
-            onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-            triggerClassName="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]"
-          />
-          {/* 业务日期 */}
-          <Select
-            value={selectedSnapshotDate}
-            onValueChange={setSelectedSnapshotDate}
-            open={snapshotSelectOpen}
-            onOpenChange={setSnapshotSelectOpen}
-          >
-            <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[180px]">
-              <SelectValue placeholder="选择业务日期" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="current">最新业务日期</SelectItem>
-              {snapshotOptions.map((option) => (
-                <SelectItem key={option.report_date} value={option.report_date}>
-                  {formatBusinessDate(option.report_date)}
-                  {option.is_current ? ' (当前)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterToolbar>
+  const filterControls = (
+    <>
+      <Select value={projectId} onValueChange={setProjectId}>
+        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
+          <SelectValue placeholder="请选择项目" />
+        </SelectTrigger>
+        <SelectContent>
+          {projects.map((project) => (
+            <SelectItem key={project.id} value={String(project.id)}>
+              {project.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <CountrySelect
+        value={country}
+        onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+        triggerClassName="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[160px]"
+      />
+      <Select
+        value={selectedSnapshotDate}
+        onValueChange={setSelectedSnapshotDate}
+        open={snapshotSelectOpen}
+        onOpenChange={setSnapshotSelectOpen}
+      >
+        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[180px]">
+          <SelectValue placeholder="选择业务日期" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="current">最新业务日期</SelectItem>
+          {snapshotOptions.map((option) => (
+            <SelectItem key={option.report_date} value={option.report_date}>
+              {formatBusinessDate(option.report_date)}
+              {option.is_current ? ' (当前)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {/* 业务日期徽标：数据快照口径提示，非筛选控件 */}
+      <div className="flex h-8 items-center gap-1.5 border border-term-border bg-term-panel px-2">
+        <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
+        <span className="truncate font-mono text-xs tabular-nums text-term-text">
+          {reportDate ? formatBusinessDate(reportDate) : '--'}
+        </span>
+      </div>
+    </>
+  )
 
-        {/* 统计条：手机 2×2 网格（各占一行两个）；桌面横向 divide 分隔 */}
-        <div className="grid grid-cols-2 gap-2 border-t border-border/50 px-4 py-4 sm:flex sm:flex-row sm:gap-0 sm:divide-x sm:divide-border/60 md:px-6">
-          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-              SKU 总数
-            </div>
-            <div className="mt-0.5 text-xl font-semibold leading-tight text-foreground">
-              {formatInt(summary.sku_count)}
-            </div>
-          </div>
-          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-              可售库存总量
-            </div>
-            <div className="mt-0.5 text-xl font-semibold leading-tight text-foreground">
-              {formatInt(summary.total_available_qty)}
-            </div>
-          </div>
-          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-              缺货 SKU
-            </div>
-            <div
-              className={cn(
-                'mt-0.5 text-xl font-semibold leading-tight',
-                summary.out_of_stock_count > 0
-                  ? 'text-rose-600 dark:text-rose-400'
-                  : 'text-foreground'
-              )}
-            >
-              {formatInt(summary.out_of_stock_count)}
-            </div>
-          </div>
-          <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-              365+ 库龄库存
-            </div>
-            <div
-              className={cn(
-                'mt-0.5 text-xl font-semibold leading-tight',
-                summary.total_age_365_plus_qty > 0
-                  ? 'text-rose-600 dark:text-rose-400'
-                  : 'text-foreground'
-              )}
-            >
-              {formatInt(summary.total_age_365_plus_qty)}
-            </div>
-          </div>
-        </div>
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
+  const colCount = 12 + shipmentColumns.length
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+
+      {/* 统计条：终端磁贴（mono 数值 + 语义色） */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <SummaryTile label="SKU 总数" value={summary.sku_count} />
+        <SummaryTile label="可售总量" value={summary.total_available_qty} />
+        <SummaryTile label="缺货 SKU" value={summary.out_of_stock_count} tone="neg" />
+        <SummaryTile label="365+ 库龄" value={summary.total_age_365_plus_qty} tone="neg" />
       </div>
 
-      <DataTableCard>
-        <DataTableCardHeader className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div>
-            <p className="dashboard-kicker">操作台账</p>
-            <div className="text-base font-semibold text-foreground">库存明细表</div>
-          </div>
+      <TermPanel
+        title="库存明细"
+        bodyClassName="min-h-0 overflow-hidden"
+        actions={
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="gap-1.5 shrink-0 w-full sm:w-auto"
+            className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none"
             onClick={exportToExcel}
             disabled={exporting || loading || rows.length === 0}
           >
             {exporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
             ) : (
-              <FileDown className="h-4 w-4" />
+              <FileDown className="h-3.5 w-3.5" strokeWidth={1.75} />
             )}
             {exporting ? '导出中...' : '导出 Excel'}
           </Button>
-        </DataTableCardHeader>
-        <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className={DENSE_HEAD}>SKU</TableHead>
-                <TableHead className={DENSE_HEAD}>ASIN</TableHead>
-                <TableHead className={DENSE_HEAD}>品名</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>库存</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>0-90天</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>91-180天</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>181-270天</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>271-365天</TableHead>
-                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>超过365天</TableHead>
-                <TableHead className={DENSE_HEAD}>建议操作</TableHead>
-                <TableHead className={DENSE_HEAD}>库存状态</TableHead>
-                <TableHead className={DENSE_HEAD}>库龄状态</TableHead>
+        }
+      >
+        {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}
+        <div className="max-h-[calc(100vh-320px)] min-h-[240px] overflow-auto term-scroll">
+          <TermTable>
+            <TermTHead>
+              <TermRow className="hover:bg-transparent">
+                <TermHead>SKU</TermHead>
+                <TermHead>ASIN</TermHead>
+                <TermHead>品名</TermHead>
+                <TermHead numeric>库存</TermHead>
+                <TermHead numeric>0-90天</TermHead>
+                <TermHead numeric>91-180天</TermHead>
+                <TermHead numeric>181-270天</TermHead>
+                <TermHead numeric>271-365天</TermHead>
+                <TermHead numeric>&gt;365天</TermHead>
+                <TermHead>建议操作</TermHead>
+                <TermHead>库存状态</TermHead>
+                <TermHead>库龄状态</TermHead>
                 {shipmentColumns.map((col) => (
-                  <TableHead
+                  <TermHead
                     key={col.shipment_no}
-                    className={`${numericHead} ${DENSE_HEAD}`}
-                    title={[
-                      col.shipment_no,
-                      col.eta_date ? `预计 ${col.eta_date.slice(5)} 到港` : '预计到港未知',
-                    ].join('\n')}
+                    numeric
+                    title={[col.shipment_no, col.eta_date ? `预计 ${col.eta_date.slice(5)} 到港` : '预计到港未知'].join('\n')}
                   >
                     {col.label}
-                  </TableHead>
+                  </TermHead>
                 ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+              </TermRow>
+            </TermTHead>
+            <TermBody>
               {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={12 + shipmentColumns.length}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={colCount} className="h-24 text-center" tone="muted">
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
                       正在加载库存数据...
                     </span>
-                  </TableCell>
-                </TableRow>
+                  </TermCell>
+                </TermRow>
+              ) : loadError ? (
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={colCount} className="h-24 text-center" tone="neg">
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                      {loadError}
+                    </span>
+                  </TermCell>
+                </TermRow>
               ) : rows.length === 0 ? (
-                <EmptyTableState
-                  colSpan={12 + shipmentColumns.length}
-                  message="当前筛选下暂无库存快照数据"
-                />
+                <TermRow className="hover:bg-transparent">
+                  <TermCell colSpan={colCount} className="h-24 text-center" tone="muted">
+                    当前筛选下暂无库存快照数据
+                  </TermCell>
+                </TermRow>
               ) : (
                 <>
-                  {rows.map((row) => {
-                    return (
-                      <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
-                        <TableCell className={`font-medium ${DENSE_CELL}`}>{row.sku}</TableCell>
-                        <TableCell className={DENSE_CELL}>{row.asin || '--'}</TableCell>
-                        <TableCell className={DENSE_CELL}>{row.product_name || '--'}</TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.available_qty)}
-                        </TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.age_0_90_qty)}
-                        </TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.age_91_180_qty)}
-                        </TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.age_181_270_qty)}
-                        </TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.age_271_365_qty)}
-                        </TableCell>
-                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                          {formatInt(row.age_365_plus_qty)}
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          {row.recommended_action_label || '--'}
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <StatusPill
-                            status={stockStatus(row.stock_status)}
-                            label={stockStatusLabel(row.stock_status)}
-                          />
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <StatusPill
-                            status={agingStatus(row.aging_status)}
-                            label={agingStatusLabel(row.aging_status)}
-                          />
-                        </TableCell>
-                        {shipmentColumns.map((col) => {
-                          const qty = row.shipment_quantities?.[col.shipment_no]
-                          return (
-                            <TableCell
-                              key={col.shipment_no}
-                              className={`${numericCell} ${DENSE_CELL}`}
-                            >
-                              {qty !== undefined ? formatInt(qty) : '--'}
-                            </TableCell>
-                          )
-                        })}
-                      </TableRow>
-                    )
-                  })}
-                  <TableRow className="bg-muted/40 font-semibold">
-                    <TableCell colSpan={3} className={DENSE_CELL}>
-                      合计
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.available_qty)}
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.age_0_90_qty)}
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.age_91_180_qty)}
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.age_181_270_qty)}
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.age_271_365_qty)}
-                    </TableCell>
-                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
-                      {formatInt(detailTotals.age_365_plus_qty)}
-                    </TableCell>
-                    <TableCell colSpan={3} className={DENSE_CELL} />
-                    {shipmentColumns.map((col) => (
-                      <TableCell
-                        key={col.shipment_no}
-                        className={`${numericCell} ${DENSE_CELL}`}
+                  {rows.map((row) => (
+                    <TermRow key={`${row.sku}::${row.asin || 'na'}`}>
+                      <TermCell>{row.sku}</TermCell>
+                      <TermCell tone="muted">{row.asin || '--'}</TermCell>
+                      <TermCell title={row.product_name || undefined}>
+                        {row.product_name || '--'}
+                      </TermCell>
+                      <TermCell numeric>{formatInt(row.available_qty)}</TermCell>
+                      <TermCell numeric>{formatInt(row.age_0_90_qty)}</TermCell>
+                      <TermCell numeric>{formatInt(row.age_91_180_qty)}</TermCell>
+                      <TermCell numeric>{formatInt(row.age_181_270_qty)}</TermCell>
+                      <TermCell numeric>{formatInt(row.age_271_365_qty)}</TermCell>
+                      <TermCell
+                        numeric
+                        tone={row.age_365_plus_qty > 0 ? 'neg' : undefined}
                       >
+                        {formatInt(row.age_365_plus_qty)}
+                      </TermCell>
+                      <TermCell>{row.recommended_action_label || '--'}</TermCell>
+                      <TermCell tone={stockTone(row.stock_status)}>
+                        {stockStatusLabel(row.stock_status)}
+                      </TermCell>
+                      <TermCell tone={agingTone(row.aging_status)}>
+                        {agingStatusLabel(row.aging_status)}
+                      </TermCell>
+                      {shipmentColumns.map((col) => {
+                        const qty = row.shipment_quantities?.[col.shipment_no]
+                        return (
+                          <TermCell key={col.shipment_no} numeric>
+                            {qty !== undefined ? formatInt(qty) : '--'}
+                          </TermCell>
+                        )
+                      })}
+                    </TermRow>
+                  ))}
+                  <TermRow highlight className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised">
+                    <TermCell colSpan={3}>合计</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.available_qty)}</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.age_0_90_qty)}</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.age_91_180_qty)}</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.age_181_270_qty)}</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.age_271_365_qty)}</TermCell>
+                    <TermCell numeric tone={detailTotals.age_365_plus_qty > 0 ? 'neg' : undefined}>
+                      {formatInt(detailTotals.age_365_plus_qty)}
+                    </TermCell>
+                    <TermCell colSpan={3} />
+                    {shipmentColumns.map((col) => (
+                      <TermCell key={col.shipment_no} numeric>
                         {shipmentColumnTotals[col.shipment_no]
                           ? formatInt(shipmentColumnTotals[col.shipment_no])
                           : '--'}
-                      </TableCell>
+                      </TermCell>
                     ))}
-                  </TableRow>
+                  </TermRow>
                 </>
               )}
-            </TableBody>
-          </Table>
-        </DataTableCardBody>
-      </DataTableCard>
+            </TermBody>
+          </TermTable>
+        </div>
+      </TermPanel>
+
+      {/* 加载骨架（首次进入 / 项目切换时统计条同步占位） */}
+      {projectsLoading && <Skeleton className="hidden h-8 w-full rounded-none" />}
     </div>
   )
 }

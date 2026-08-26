@@ -1,19 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { BarChart3 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 import { PortfolioFilters } from '@/components/dashboard/portfolio/portfolio-filters'
-import { PortfolioKPICards } from '@/components/dashboard/portfolio/portfolio-kpi-cards'
-import { PortfolioComparisonTable } from '@/components/dashboard/portfolio/portfolio-comparison-table'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { PageHeader } from '@/components/ui/page-header'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TermPanel } from '@/components/terminal/term-panel'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { SlidersHorizontal } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { usePortfolioData } from '@/lib/hooks/use-portfolio-data'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
+import { usePortfolioData, type ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
 type Tab = 'comparison' | 'trend' | 'contribution'
 
@@ -26,12 +36,8 @@ const LazyPortfolioTrendChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="dashboard-surface rounded-xl p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-8 w-32" />
-        </div>
-        <Skeleton className="h-[320px] w-full rounded-lg" />
+      <div className="border border-term-border bg-term-panel p-2">
+        <Skeleton className="h-[320px] w-full rounded-none" />
       </div>
     ),
   }
@@ -43,19 +49,166 @@ const LazyPortfolioPieChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="dashboard-surface rounded-xl p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-8 w-32" />
-        </div>
-        <Skeleton className="h-[320px] w-full rounded-lg" />
+      <div className="border border-term-border bg-term-panel p-2">
+        <Skeleton className="h-[320px] w-full rounded-none" />
       </div>
     ),
   }
 )
 
+const CURRENCY_SYMBOL: Record<string, string> = {
+  US: '$',
+  DE: '€',
+  UK: '£',
+}
+
+function formatMoneyShort(value: number, country: string): string {
+  const symbol = CURRENCY_SYMBOL[country] ?? '$'
+  if (value >= 10000) return `${symbol}${(value / 10000).toFixed(1)}万`
+  return `${symbol}${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatInt(value: number): string {
+  return value.toLocaleString('zh-CN')
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(2)}%`
+}
+
+/** KPI 终端磁贴：mono 数值 + 标签行（与 HeaderKpiTile / TermMetricTile 同规格） */
+function KpiTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
+        {label}
+      </span>
+      <span className="truncate font-mono text-base leading-6 tabular-nums text-term-text" title={value}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+/** BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。 */
+function HeaderFilterControls({
+  isMobileView,
+  controls,
+}: {
+  isMobileView: boolean
+  controls: React.ReactNode
+}) {
+  if (isMobileView) {
+    return (
+      <Popover>
+        <PopoverTrigger
+          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          aria-label="页面筛选"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          筛选
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+          <div className="grid grid-cols-1 gap-3">{controls}</div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+}
+
+/** 项目对比高密度表（TermTable 规范）：等宽数值右对齐、排序点击、跳详情 */
+function ComparisonTable({
+  projects,
+  country,
+  onSelectProject,
+}: {
+  projects: ProjectPortfolioKPI[]
+  country: string
+  onSelectProject: (projectId: number) => void
+}) {
+  const [sortKey, setSortKey] = useState<keyof ProjectPortfolioKPI>('sales_amount')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const sorted = useMemo(() => {
+    const rows = [...projects]
+    rows.sort((a, b) => {
+      const av = a[sortKey]
+      const bv = b[sortKey]
+      const cmp =
+        typeof av === 'number' && typeof bv === 'number'
+          ? av - bv
+          : String(av ?? '').localeCompare(String(bv ?? ''))
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return rows
+  }, [projects, sortKey, sortDir])
+
+  const toggleSort = (key: keyof ProjectPortfolioKPI) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
+
+  const currency = CURRENCY_SYMBOL[country] ?? '$'
+
+  return (
+    <div className="max-h-[420px] overflow-auto term-scroll">
+      <TermTable>
+        <TermTHead>
+          <TermRow className="hover:bg-transparent">
+            <TermHead onClick={() => toggleSort('project_name')}>项目</TermHead>
+            <TermHead numeric onClick={() => toggleSort('sales_amount')}>销售额</TermHead>
+            <TermHead numeric onClick={() => toggleSort('sales_contribution')}>占比</TermHead>
+            <TermHead numeric onClick={() => toggleSort('order_qty')}>订单量</TermHead>
+            <TermHead numeric onClick={() => toggleSort('ad_spend')}>广告费</TermHead>
+            <TermHead numeric onClick={() => toggleSort('cpc')}>CPC</TermHead>
+            <TermHead numeric onClick={() => toggleSort('conversion_rate')}>转化率</TermHead>
+            <TermHead numeric onClick={() => toggleSort('clicks')}>点击量</TermHead>
+            <TermHead numeric onClick={() => toggleSort('sessions')}>访问量</TermHead>
+            <TermHead />
+          </TermRow>
+        </TermTHead>
+        <TermBody>
+          {sorted.map((p) => (
+            <TermRow key={p.project_id}>
+              <TermCell>{p.project_name}</TermCell>
+              <TermCell numeric>{formatMoneyShort(p.sales_amount, country)}</TermCell>
+              <TermCell numeric tone="muted">{formatPercent(p.sales_contribution)}</TermCell>
+              <TermCell numeric>{formatInt(p.order_qty)}</TermCell>
+              <TermCell numeric>{formatMoneyShort(p.ad_spend, country)}</TermCell>
+              <TermCell numeric tone={p.clicks === 0 ? 'muted' : undefined}>
+                {p.clicks === 0 ? '--' : `${currency}${p.cpc.toFixed(2)}`}
+              </TermCell>
+              <TermCell numeric>{formatPercent(p.conversion_rate)}</TermCell>
+              <TermCell numeric>{formatInt(p.clicks)}</TermCell>
+              <TermCell numeric>{formatInt(p.sessions)}</TermCell>
+              <TermCell>
+                <button
+                  type="button"
+                  className="text-xs text-term-muted underline-offset-2 transition-colors hover:text-term-text hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectProject(p.project_id)
+                  }}
+                >
+                  详情
+                </button>
+              </TermCell>
+            </TermRow>
+          ))}
+        </TermBody>
+      </TermTable>
+    </div>
+  )
+}
+
 export default function PortfolioOverviewClient() {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const { data: session } = useSession()
   const [projectIds, setProjectIds] = useState<number[]>([])
   const [country, setCountry] = useState('US')
@@ -70,60 +223,116 @@ export default function PortfolioOverviewClient() {
     endDate,
   })
 
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义与原 RefreshButton 一致。
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
+  const { setLoading: setHeaderRefreshLoading } = useHeaderRefresh(() => refreshRef.current(), {
+    loading,
+  })
+
+  const filterControls = (
+    <PortfolioFilters
+      projectIds={projectIds}
+      onProjectIdsChange={setProjectIds}
+      country={country}
+      onCountryChange={setCountry}
+      startDate={startDate}
+      onStartDateChange={setStartDate}
+      endDate={endDate}
+      onEndDateChange={setEndDate}
+      onRefresh={refresh}
+      loading={loading}
+    />
+  )
+
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
+  useEffect(() => {
+    void session
+  }, [session])
+
+  const tabs: Array<{ key: Tab; label: string }> = [
+    { key: 'comparison', label: '项目对比' },
+    { key: 'trend', label: '趋势对比' },
+    { key: 'contribution', label: '贡献占比' },
+  ]
+
   return (
-    <div className="flex flex-col gap-4">
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <PageHeader
-          className="relative z-10"
-          title="组合分析"
-          description="跨项目 KPI 对比、趋势分析和贡献占比"
-        />
-      </section>
-      <FilterToolbar>
-        <PortfolioFilters
-          projectIds={projectIds}
-          onProjectIdsChange={setProjectIds}
-          country={country}
-          onCountryChange={setCountry}
-          startDate={startDate}
-          onStartDateChange={setStartDate}
-          endDate={endDate}
-          onEndDateChange={setEndDate}
-          onRefresh={refresh}
-          loading={loading}
-        />
-      </FilterToolbar>
+    <div className="flex min-w-0 flex-col gap-3">
+      {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+      {/* 页面级标题已由 TerminalHeader 面包屑承载；不再渲染 PageHeader 胶囊（BLF-824 去重原则） */}
 
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
+        <div
+          role="alert"
+          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+        >
+          ERR · {error}
         </div>
       )}
 
       {data && data.projects.length > 0 ? (
         <>
-          <PortfolioKPICards data={data} country={country} />
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
-            <TabsList>
-              <TabsTrigger value="comparison">项目对比</TabsTrigger>
-              <TabsTrigger value="trend">趋势对比</TabsTrigger>
-              <TabsTrigger value="contribution">贡献占比</TabsTrigger>
-            </TabsList>
-            <TabsContent value="comparison">
-              <PortfolioComparisonTable projects={data.projects} country={country} />
-            </TabsContent>
-            <TabsContent value="trend">
+          {/* KPI 统计条：终端磁贴 */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <KpiTile
+              label="总销售额"
+              value={formatMoneyShort(data.total_sales_amount, country)}
+            />
+            <KpiTile label="总订单量" value={formatInt(data.total_order_qty)} />
+            <KpiTile label="总广告费" value={formatMoneyShort(data.total_ad_spend, country)} />
+            <KpiTile
+              label="平均转化率"
+              value={formatPercent(data.avg_conversion_rate)}
+            />
+            <KpiTile label="项目数量" value={String(data.projects.length)} />
+          </div>
+
+          <TermPanel bodyClassName="min-h-0">
+            {/* 页内 Tab 切换条（h-9 标题带规格） */}
+            <div className="flex h-9 shrink-0 items-center gap-1 border-b border-term-border px-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  aria-selected={activeTab === tab.key}
+                  role="tab"
+                  className={
+                    activeTab === tab.key
+                      ? 'h-7 border border-term-border bg-term-raised px-2 text-xs font-semibold text-term-text'
+                      : 'h-7 border border-transparent px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'comparison' && (
+              <ComparisonTable
+                projects={data.projects}
+                country={country}
+                onSelectProject={(projectId) =>
+                  router.push(`/dashboard/operations/daily-analysis?project=${projectId}`)
+                }
+              />
+            )}
+            {activeTab === 'trend' && (
               <LazyPortfolioTrendChart projects={data.projects} country={country} />
-            </TabsContent>
-            <TabsContent value="contribution">
+            )}
+            {activeTab === 'contribution' && (
               <LazyPortfolioPieChart projects={data.projects} country={country} />
-            </TabsContent>
-          </Tabs>
+            )}
+          </TermPanel>
         </>
       ) : !loading && projectIds.length > 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground">
-          <BarChart3 className="mb-3 h-10 w-10 opacity-40" />
-          <p>暂无数据，请检查日期范围或项目选择</p>
+        <div className="flex flex-col items-center justify-center border border-dashed border-term-border py-16 font-mono text-xs text-term-faint">
+          暂无数据，请检查日期范围或项目选择
         </div>
       ) : null}
     </div>
