@@ -208,14 +208,14 @@
 
 ### 批次划分（按业务价值排序，每批一个 PR）
 
-> 进度标注（2026-08-25 复核）：批次 A 的 daily-analysis 已完成 head 筛选集成；批次 B 的 ad-analysis 已套 term-chrome；批次 D 的 order-info 已终端化。其余按表推进，**开工前先查 BLF-804 / BLF-826 是否已覆盖该页**，避免重复改造。
+> 进度标注（2026-08-26 复核）：批次 A–F 全部完成——批次 A 的 daily-analysis 已完成 head 筛选集成；批次 A 余量与批次 B/C/D/E/F 分别随 BLF-834/835/836/837/838 合入。**全站 52 模块终端化收官**，新页面直接按本 SOP + `term-controls` 原语写，开工前仍先查 BLF-804 / BLF-826 是否已覆盖该页，避免重复改造。
 
-- 批次 A（高频数据页）：`operations/daily-analysis` ✅ → `operations/inventory-analysis` ⬜ → `operations/portfolio-overview` ⬜
-- 批次 B（广告）：`advertising/ad-analysis` ✅（term-chrome）→ `advertising/ad-data` ⬜
-- 批次 C（财务）：`finance/platform-revenue` → `finance/exchange-rate` → `finance/commission-management` → `finance/vat-invoices`
-- 批次 D（报表）：`reports/scheduled-reports` ⬜ → `reports/order-info` ✅ → `reports/product-analysis` ⬜ → 其余 reports 页
-- 批次 E（CRM）：`crm/customers` → `crm/leads` → `crm/dashboard` → 其余 crm 页
-- 批次 F（系统/AI/工具）：`system/*` → `ai/*` → `tools/*`
+- 批次 A（高频数据页）：`operations/daily-analysis` ✅ → `operations/inventory-analysis` ✅ → `operations/portfolio-overview` ✅
+- 批次 B（广告）：`advertising/ad-analysis` ✅（term-chrome）→ `advertising/ad-data` ✅
+- 批次 C（财务）：`finance/platform-revenue` ✅ → `finance/exchange-rate` ✅ → `finance/commission-management` ✅ → `finance/vat-invoices` ✅
+- 批次 D（报表）：`reports/scheduled-reports` ✅ → `reports/order-info` ✅ → `reports/product-analysis` ✅ → 其余 reports 页 ✅
+- 批次 E（CRM）：`crm/customers` ✅ → `crm/leads` ✅ → `crm/dashboard` ✅ → 其余 crm 页 ✅
+- 批次 F（系统/AI/工具）：`system/*` ✅ → `ai/*` ✅ → `tools/*` ✅（BLF-838 收官；共享原语上收至 `components/terminal/term-controls.tsx`，附 7 条契约单测）
 
 每批次验收：该域下所有路由目测风格一致（截图对比）、无旧风格残留、测试全绿。
 
@@ -268,6 +268,7 @@ frontend/
 │   ├── header-filter-suite.tsx              # ★ Header 全局筛选组件族（Project/Country/DateRange/KPI 磁贴）
 │   ├── global-filter-context.tsx            # ★ 全局筛选态 Context（页面消费入口）
 │   ├── terminal-constants.ts                # ★ 全部结构尺寸/Ticker/动效常量（唯一尺寸来源）
+│   ├── term-controls.tsx                     # ★ 批次 F 上收的页面级控件基类（TERM_BUTTON/INPUT 等 + TermKpiTile/TermTabBar，BLF-838）
 │   ├── term-kbd.tsx                          # kbd 快捷键共享组件（§任务 1b-5 新增）
 │   └── use-terminal-layout.ts               # 折叠状态持久化 hook
 ├── components/dashboard/search-command.tsx  # ⌘K 命令面板（待接 readRecents 最近访问）

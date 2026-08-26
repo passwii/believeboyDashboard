@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Monitor, RefreshCw, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +14,7 @@ import { ActivityFeed } from '@/components/digital-employee/activity-feed'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
+import { TERM_BUTTON } from '@/components/terminal/term-controls'
 
 const STATUS_FILTERS = [
   { label: '全部', value: null },
@@ -47,65 +47,59 @@ export default function DigitalEmployeesPage() {
   const failedCount = employees.filter((e) => e.status === 'FAILED').length
 
   return (
-    <div className="space-y-6">
-      {/* Header（BLF-505：收口为 PageHeader 原语 §8.1） */}
-      <PageHeader
-        title="数字员工"
-        description="查看与启停后台数字员工（Agent），监控运行与异常状态。"
-        actions={
-          <>
-            {runningCount > 0 && (
-              <div className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-                </span>
-                {runningCount} 个运行中
-              </div>
-            )}
-            {failedCount > 0 && (
-              <div className="flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400">
-                ⚠ {failedCount} 个异常
-              </div>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open('/dashboard/ai/digital-employees/office', '_blank')}
-              className="gap-1.5"
-            >
-              <Monitor className="h-4 w-4" />
-              全屏展示
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void mutate()} className="gap-1.5">
-              <RefreshCw className="h-4 w-4" />
-              刷新
-            </Button>
-          </>
-        }
-      />
+    // BLF-838：页面标题由面包屑承载；运行/异常计数换终端 mono 徽标
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
+        {runningCount > 0 && (
+          <div className="flex items-center gap-1.5 rounded-none border border-term-accent/40 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-term-accent">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-term-accent opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-term-accent" />
+            </span>
+            {runningCount} 个运行中
+          </div>
+        )}
+        {failedCount > 0 && (
+          <div className="flex items-center gap-1.5 rounded-none border border-term-neg/40 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-term-neg">
+            ⚠ {failedCount} 个异常
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open('/dashboard/ai/digital-employees/office', '_blank')}
+          className={TERM_BUTTON}
+        >
+          <Monitor className="h-3.5 w-3.5" strokeWidth={1.75} />
+          全屏展示
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void mutate()} className={TERM_BUTTON}>
+          <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+          刷新
+        </Button>
+      </div>
 
       {showSkeleton ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 rounded-xl" />
+              <Skeleton key={i} className="h-14 rounded-none border border-term-border" />
             ))}
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-2xl border p-4 space-y-3">
-                <Skeleton className="h-5 w-28" />
-                <Skeleton className="h-16 w-16 rounded-2xl mx-auto" />
-                <Skeleton className="h-16 w-full rounded-lg" />
-                <Skeleton className="h-4 w-full" />
+              <div key={i} className="space-y-3 rounded-none border border-term-border p-4">
+                <Skeleton className="h-5 w-28 rounded-none" />
+                <Skeleton className="mx-auto h-16 w-16 rounded-none" />
+                <Skeleton className="h-16 w-full rounded-none" />
+                <Skeleton className="h-4 w-full rounded-none" />
               </div>
             ))}
           </div>
         </div>
       ) : error ? (
-        <div className="flex items-center justify-center rounded-xl border border-destructive/20 bg-destructive/5 p-8 text-destructive">
-          <p>加载失败：{error.message}</p>
+        <div role="alert" className="flex items-center justify-center rounded-none border border-term-neg/50 bg-term-neg/10 p-8 font-mono text-xs text-term-neg">
+          <p>ERR · 加载失败：{error.message}</p>
         </div>
       ) : (
         <div className="relative">
@@ -119,7 +113,7 @@ export default function DigitalEmployeesPage() {
                   placeholder="搜索数字员工..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
+                  className="h-8 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0 pl-10"
                 />
               </div>
               <div className="flex gap-1.5 flex-wrap">
@@ -133,8 +127,10 @@ export default function DigitalEmployeesPage() {
                       key={f.label}
                       variant={statusFilter === f.value ? 'default' : 'outline'}
                       className={cn(
-                        'cursor-pointer transition-all',
-                        statusFilter === f.value && 'shadow-sm'
+                        'cursor-pointer rounded-none border font-mono text-[11px] transition-colors',
+                        statusFilter === f.value
+                          ? 'border-term-border-strong bg-term-raised text-term-text'
+                          : 'border-term-border bg-term-bg text-term-muted hover:text-term-text'
                       )}
                       onClick={() => setStatusFilter(statusFilter === f.value ? null : f.value)}
                     >
@@ -149,7 +145,7 @@ export default function DigitalEmployeesPage() {
             <div className="mt-4 grid gap-6 lg:grid-cols-[1fr,360px]">
               <div>
                 {filtered.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed p-16 text-muted-foreground gap-3">
+                  <div className="flex flex-col items-center justify-center gap-3 rounded-none border border-dashed border-term-border p-16 text-term-faint">
                     <span className="text-4xl">🤖</span>
                     <p className="text-sm">暂无数字员工</p>
                   </div>
@@ -161,14 +157,14 @@ export default function DigitalEmployeesPage() {
                 )}
               </div>
 
-              <div className="hidden lg:flex flex-col rounded-2xl border bg-card/50 overflow-hidden">
-                <div className="flex items-center gap-2 border-b px-4 py-3">
+              <div className="hidden overflow-hidden rounded-none border border-term-border bg-term-panel lg:flex flex-col">
+                <div className="flex h-9 items-center gap-2 border-b border-term-border px-3">
                   <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-term-pos opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-term-pos" />
                   </span>
-                  <h2 className="text-sm font-semibold">实时动态</h2>
-                  <span className="ml-auto text-xs text-muted-foreground">15s 更新</span>
+                  <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">实时动态</h2>
+                  <span className="ml-auto font-mono text-[11px] text-term-faint">15s 更新</span>
                 </div>
                 <div className="flex-1 overflow-hidden px-3 py-3">
                   <ActivityFeed pollInterval={15000} maxHeight="calc(100vh - 320px)" compact />

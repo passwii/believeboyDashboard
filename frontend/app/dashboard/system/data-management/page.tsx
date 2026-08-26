@@ -123,13 +123,11 @@ function statusLabel(status: DataLifecycleStatus): string {
 }
 
 function tableStatusTone(status: TableHealthStatus): string {
-  if (status === 'healthy')
-    return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-  if (status === 'empty')
-    return 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
-  if (status === 'stale')
-    return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-  return 'bg-destructive/10 text-destructive border-destructive/30'
+  // BLF-838：终端单色语义（healthy=pos · empty=muted · stale=warn · 其余 neg）
+  if (status === 'healthy') return 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos'
+  if (status === 'empty') return 'rounded-none border-term-border font-mono text-[11px] text-term-muted'
+  if (status === 'stale') return 'rounded-none border-term-warn/40 font-mono text-[11px] text-term-warn'
+  return 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg'
 }
 
 function hasSummary(value: unknown): value is { summary: DataManagementOverview['summary'] } {
@@ -297,7 +295,7 @@ export default function SystemDataManagementPage() {
           badge={
             <Badge
               variant="outline"
-              className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
+              className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
             >
               系统管理
             </Badge>
@@ -395,7 +393,7 @@ export default function SystemDataManagementPage() {
                     <TableCell className={densityCell.compact}>
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full border px-2 py-0.5 text-xs',
+                          'inline-flex items-center border px-1.5 py-0.5',
                           tableStatusTone(item.status)
                         )}
                       >

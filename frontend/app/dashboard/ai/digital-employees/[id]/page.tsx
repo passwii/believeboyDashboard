@@ -18,12 +18,13 @@ import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
 import { LiveLog } from '@/components/digital-employee/live-log'
 import { cn } from '@/lib/utils'
 
+/** BLF-838：任务状态 → 终端单色语义（pill 底改 1px 边界） */
 const TASK_STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-muted/60 text-muted-foreground',
-  RUNNING: 'bg-blue-500/10 text-blue-600',
-  SUCCEEDED: 'bg-emerald-500/10 text-emerald-600',
-  FAILED: 'bg-red-500/10 text-red-600',
-  CANCELLED: 'bg-amber-500/10 text-amber-600',
+  PENDING: 'border-term-border bg-term-bg text-term-faint',
+  RUNNING: 'border-term-accent/40 text-term-accent',
+  SUCCEEDED: 'border-term-pos/40 text-term-pos',
+  FAILED: 'border-term-neg/40 text-term-neg',
+  CANCELLED: 'border-term-warn/40 text-term-warn',
 }
 
 const TASK_STATUS_ICON: Record<string, string> = {
@@ -92,15 +93,15 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-none border border-term-border" />
         <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
           <div className="space-y-4">
-            <Skeleton className="h-48 w-full rounded-xl" />
-            <Skeleton className="h-64 w-full rounded-xl" />
+            <Skeleton className="h-48 w-full rounded-none border border-term-border" />
+            <Skeleton className="h-64 w-full rounded-none border border-term-border" />
           </div>
           <div className="space-y-4">
-            <Skeleton className="h-64 w-full rounded-xl" />
-            <Skeleton className="h-48 w-full rounded-xl" />
+            <Skeleton className="h-64 w-full rounded-none border border-term-border" />
+            <Skeleton className="h-48 w-full rounded-none border border-term-border" />
           </div>
         </div>
       </div>
@@ -125,7 +126,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         返回列表
       </Button>
 
-      <div className="dashboard-surface p-4 sm:p-6">
+      <div className="rounded-none border border-term-border bg-term-panel p-4 sm:p-6">
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
           <EmployeeAvatar
             employeeType={employee.employee_type}
@@ -169,7 +170,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
         <div className="space-y-4">
           {runningTask && (
-            <div className="dashboard-surface p-5">
+            <div className="rounded-none border border-term-border bg-term-panel p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold">当前任务</h3>
                 <span className="text-xs text-muted-foreground">
@@ -177,20 +178,20 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 </span>
               </div>
               <p className="text-base font-medium mb-3">{runningTask.task_name}</p>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted mb-3">
+              <div className="mb-3 h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-700"
+                  className="h-full bg-term-accent transition-all duration-700"
                   style={{ width: `${runningTask.progress_percent}%` }}
                 />
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>{runningTask.current_step || '处理中…'}</span>
-                <span className="font-medium text-blue-600">{runningTask.progress_percent}%</span>
+                <span className="font-mono font-medium tabular-nums text-term-accent">{runningTask.progress_percent}%</span>
               </div>
             </div>
           )}
 
-          <div className="dashboard-surface p-5">
+          <div className="rounded-none border border-term-border bg-term-panel p-4">
             <h3 className="text-sm font-semibold mb-4">任务历史</h3>
             {tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">暂无任务记录</p>
@@ -199,7 +200,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 {tasks.slice(0, taskPage * 10).map((task) => (
                   <div
                     key={task.id}
-                    className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+                    className="flex items-center gap-3 rounded-none border border-term-border p-3 transition-colors hover:bg-term-hover"
                   >
                     <span className="text-base shrink-0">
                       {TASK_STATUS_ICON[task.status] || '⏳'}
@@ -209,12 +210,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                       <p className="text-xs text-muted-foreground">
                         {task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '—'}
                         {task.error_message && (
-                          <span className="text-red-500 ml-2">{task.error_message}</span>
+                          <span className="ml-2 text-term-neg">{task.error_message}</span>
                         )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={cn(TASK_STATUS_STYLES[task.status], 'text-[10px]')}>
+                      <Badge variant="outline" className={cn('rounded-none font-mono text-[10px]', TASK_STATUS_STYLES[task.status])}>
                         {task.status}
                       </Badge>
                       {task.status === 'RUNNING' && (
@@ -228,7 +229,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 {tasks.length > taskPage * 10 && (
                   <button
                     onClick={() => setTaskPage((p) => p + 1)}
-                    className="w-full mt-2 py-2 border border-dashed rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+                    className="mt-2 w-full rounded-none border border-dashed border-term-border py-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
                   >
                     加载更多
                   </button>
@@ -239,18 +240,18 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="space-y-4">
-          <div className="dashboard-surface p-5">
+          <div className="rounded-none border border-term-border bg-term-panel p-4">
             <div className="flex items-center gap-2 mb-4">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-term-pos opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-term-pos" />
               </span>
-              <h3 className="text-sm font-semibold">实时日志</h3>
+              <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">实时日志</h3>
             </div>
             <LiveLog employeeId={employeeId} maxItems={20} className="max-h-[400px]" />
           </div>
 
-          <div className="dashboard-surface p-5">
+          <div className="rounded-none border border-term-border bg-term-panel p-4">
             <h3 className="text-sm font-semibold mb-3">员工信息</h3>
             <div className="space-y-2.5 text-sm">
               <InfoRow

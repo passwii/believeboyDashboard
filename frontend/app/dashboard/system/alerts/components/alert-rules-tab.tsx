@@ -4,14 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import {
   deleteAlertRule,
@@ -20,10 +12,26 @@ import {
   type AlertRuleItem,
 } from '@/lib/alerts-api'
 import { AlertRuleDialog } from './alert-rule-dialog'
+import {
+  TermBody,
+  TermCell,
+  TermHead,
+  TermRow,
+  TermTHead,
+  TermTable,
+} from '@/components/terminal/term-table'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
 
 interface ProjectOption {
   id: number
   name: string
+}
+
+const SEVERITY_TONE: Record<string, TermTone> = {
+  critical: 'neg',
+  warning: 'warn',
+  info: 'info',
 }
 
 export function AlertRulesTab({ projects }: { projects: ProjectOption[] }) {
@@ -71,54 +79,61 @@ export function AlertRulesTab({ projects }: { projects: ProjectOption[] }) {
   const projectName = (id: number) => projects.find((p) => p.id === id)?.name ?? `#${id}`
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-w-0 flex-col gap-2">
+      {/* BLF-838：工具行右对齐终端控件 */}
       <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setDialogOpen(true) }}>
-          <Plus className="mr-1 h-4 w-4" /> 新建规则
+        <Button onClick={() => { setEditing(null); setDialogOpen(true) }} className={TERM_BUTTON}>
+          <Plus className="h-3.5 w-3.5" /> 新建规则
         </Button>
       </div>
 
-      <div className="dashboard-surface rounded-xl">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>项目</TableHead>
-              <TableHead>指标</TableHead>
-              <TableHead>条件</TableHead>
-              <TableHead className="text-right">阈值</TableHead>
-              <TableHead>级别</TableHead>
-              <TableHead className="text-center">启用</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      <TermPanel bodyClassName="p-0 overflow-x-auto">
+        <TermTable>
+          <TermTHead>
+            <TermRow>
+              <TermHead>名称</TermHead>
+              <TermHead>项目</TermHead>
+              <TermHead>指标</TermHead>
+              <TermHead>条件</TermHead>
+              <TermHead numeric>阈值</TermHead>
+              <TermHead>级别</TermHead>
+              <TermHead className="text-center">启用</TermHead>
+              <TermHead numeric>操作</TermHead>
+            </TermRow>
+          </TermTHead>
+          <TermBody>
             {loading ? (
-              <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">加载中…</TableCell></TableRow>
+              <TermRow><TermCell colSpan={8} className="py-8 text-center text-term-faint">加载中…</TermCell></TermRow>
             ) : rules.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">暂无规则，点击右上角新建</TableCell></TableRow>
+              <TermRow><TermCell colSpan={8} className="py-8 text-center text-term-faint">暂无规则，点击右上角新建</TermCell></TermRow>
             ) : (
               rules.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="max-w-[14rem] whitespace-normal font-medium">{r.name}</TableCell>
-                  <TableCell>{projectName(r.project_id)}</TableCell>
-                  <TableCell>{r.metric}</TableCell>
-                  <TableCell>{r.condition}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.threshold}%</TableCell>
-                  <TableCell>{r.severity}</TableCell>
-                  <TableCell className="text-center">
+                <TermRow key={r.id}>
+                  <TermCell className="max-w-[14rem] whitespace-normal font-sans">{r.name}</TermCell>
+                  <TermCell>{projectName(r.project_id)}</TermCell>
+                  <TermCell>{r.metric}</TermCell>
+                  <TermCell className="text-term-muted">{r.condition}</TermCell>
+                  <TermCell numeric tone={r.severity === 'critical' ? 'neg' : r.severity === 'warning' ? 'warn' : 'muted'}>{r.threshold}%</TermCell>
+                  <TermCell>
+                    <span className={`font-mono text-[11px] ${
+                      r.severity === 'critical' ? 'text-term-neg' : r.severity === 'warning' ? 'text-term-warn' : 'text-term-text'
+                    }`}>
+                      {SEVERITY_TONE[r.severity] ? r.severity : r.severity}
+                    </span>
+                  </TermCell>
+                  <TermCell className="text-center">
                     <Switch checked={r.is_active} onCheckedChange={() => toggleActive(r)} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => { setEditing(r); setDialogOpen(true) }}>编辑</Button>
-                    <Button size="sm" variant="ghost" className="ml-1 text-red-600" onClick={() => onDelete(r)}>删除</Button>
-                  </TableCell>
-                </TableRow>
+                  </TermCell>
+                  <TermCell numeric>
+                    <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} onClick={() => { setEditing(r); setDialogOpen(true) }}>编辑</Button>
+                    <Button size="sm" variant="ghost" className={`${TERM_BUTTON} border-transparent bg-transparent px-1.5 text-term-neg hover:text-term-neg`} onClick={() => onDelete(r)}>删除</Button>
+                  </TermCell>
+                </TermRow>
               ))
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </TermBody>
+        </TermTable>
+      </TermPanel>
 
       <AlertRuleDialog
         open={dialogOpen}

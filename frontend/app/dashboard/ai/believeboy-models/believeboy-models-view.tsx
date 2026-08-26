@@ -9,10 +9,9 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-import { Card, CardContent } from '@/components/ui/card'
-import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
 import { ArrowUpRight, FileText } from 'lucide-react'
+import { TermPanel } from '@/components/terminal/term-panel'
 
 type Props = {
   source: string
@@ -25,15 +24,10 @@ const DOC_META = [
 
 export function BelieveboyModelsView({ source }: Props) {
   return (
-    <div className="space-y-6 md:space-y-7">
-      <PageHeader
-        title="彼励扶 Believeboy 模型选型方案"
-        description="汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在 名称 / 架构 / 大小 / 上下文 / 背后模型 五个维度的差异，便于算力选型、 推理部署、对外展示时快速查阅。（最后更新 2026-07-07）"
-      />
-
-      <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <CardContent className="space-y-5 p-5 md:p-7">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-border/70 bg-background/72 px-4 py-3 text-xs text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
+    // BLF-838：页面标题由面包屑承载；Card 换 TermPanel
+    <div className="flex min-w-0 flex-col gap-2">
+      <TermPanel bodyClassName="space-y-4 p-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-none border border-dashed border-term-border bg-term-bg px-4 py-3 text-xs text-term-muted">
             {DOC_META.map((item) => (
               <div key={item.label} className="flex items-center gap-1.5">
                 <span className="font-mono uppercase tracking-[0.14em] text-[0.66rem] text-foreground/70">
@@ -46,11 +40,11 @@ export function BelieveboyModelsView({ source }: Props) {
               href="/docs/believeboy-models.md"
               target="_blank"
               rel="noreferrer"
-              className="ml-auto inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2.5 py-1 font-mono text-[0.7rem] text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.78)]"
+              className="ml-auto inline-flex h-7 items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
             >
-              <FileText className="h-3 w-3" />
+              <FileText className="h-3 w-3" strokeWidth={1.75} />
               查看原始 markdown
-              <ArrowUpRight className="h-3 w-3" />
+              <ArrowUpRight className="h-3 w-3" strokeWidth={1.75} />
             </a>
           </div>
 
@@ -68,7 +62,7 @@ export function BelieveboyModelsView({ source }: Props) {
               // —— 强调 ——
               '[&_strong]:font-semibold [&_strong]:text-foreground',
               // —— 引用 (放说明 / 注块) ——
-              '[&_blockquote]:my-4 [&_blockquote]:rounded-r-2xl [&_blockquote]:border-l-4 [&_blockquote]:border-primary/45 [&_blockquote]:bg-primary/5 [&_blockquote]:px-4 [&_blockquote]:py-3 [&_blockquote]:text-muted-foreground',
+              '[&_blockquote]:my-4 [&_blockquote]:rounded-none [&_blockquote]:border-l-4 [&_blockquote]:border-term-accent/50 [&_blockquote]:bg-term-bg [&_blockquote]:px-4 [&_blockquote]:py-3 [&_blockquote]:text-term-muted',
               '[&_blockquote_p]:my-1',
               // —— 列表 ——
               '[&_ul]:my-3 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-6',
@@ -76,16 +70,16 @@ export function BelieveboyModelsView({ source }: Props) {
               '[&_li]:leading-[1.8]',
               '[&_li_ul]:my-1',
               // —— 行内 code ——
-              '[&_:not(pre)>code]:rounded [&_:not(pre)>code]:bg-muted [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.85em] [&_:not(pre)>code]:text-foreground/85',
+              '[&_:not(pre)>code]:rounded-none [&_:not(pre)>code]:bg-term-raised [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.85em] [&_:not(pre)>code]:text-foreground/85',
               // —— 任务列表 (gfm) ——
               '[&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-primary',
               // —— 表格 (gfm) ——
-              '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-2xl [&_table]:border [&_table]:border-border/70 [&_table]:text-left [&_table]:text-[0.9em]',
-              '[&_thead]:bg-[hsl(var(--surface-soft)/0.85)]',
-              '[&_th]:border-b [&_th]:border-border/70 [&_th]:px-4 [&_th]:py-2.5 [&_th]:text-left [&_th]:font-semibold [&_th]:text-foreground [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-[0.12em]',
-              '[&_td]:border-b [&_td]:border-border/60 [&_td]:px-4 [&_td]:py-2.5 [&_td]:align-top [&_td]:text-foreground/90',
+              '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-none [&_table]:border [&_table]:border-term-border [&_table]:text-left [&_table]:font-mono [&_table]:text-xs [&_table]:tabular-nums',
+              '[&_thead]:bg-term-raised',
+              '[&_th]:border-b [&_th]:border-term-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted [&_th]:text-xs',
+              '[&_td]:border-b [&_td]:border-term-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-term-text',
               '[&_tr:last-child_td]:border-b-0',
-              '[&_tbody_tr]:transition-colors [&_tbody_tr]:hover:bg-primary/5',
+              '[&_tbody_tr]:transition-colors [&_tbody_tr]:hover:bg-term-hover',
               // —— hr ——
               '[&_hr]:my-6 [&_hr]:border-border/70'
             )}
@@ -104,8 +98,7 @@ export function BelieveboyModelsView({ source }: Props) {
               {source}
             </ReactMarkdown>
           </div>
-        </CardContent>
-      </Card>
+      </TermPanel>
     </div>
   )
 }

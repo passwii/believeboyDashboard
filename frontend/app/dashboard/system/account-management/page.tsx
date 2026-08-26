@@ -10,10 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +39,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
+import { TermPageShell, TERM_BUTTON } from '@/components/terminal/term-controls'
+import { TermPanel } from '@/components/terminal/term-panel'
 
 type UserRoleType = 'admin' | 'operator' | 'businessdev'
 
@@ -54,7 +54,7 @@ function RoleTypeBadge({ roleType }: { roleType: UserRoleType }) {
   const option = ROLE_TYPE_OPTIONS.find((o) => o.value === roleType)
   if (!option) return null
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+    <span className="inline-flex items-center gap-1 font-mono text-xs text-term-muted">
       {option.icon}
       {option.label}
     </span>
@@ -313,37 +313,30 @@ export default function AccountManagementPage() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      <DataCard>
-        <DataCardHeader
-          badge={
-            <Badge
-              variant="outline"
-              className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
-            >
-              系统管理
-            </Badge>
-          }
-          description="管理员可维护用户角色属性（管理员/运营/招商/工厂）及账号启停状态。"
-          action={
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => void load()} disabled={loading}>
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                刷新
-              </Button>
-              <Button onClick={() => setCreateOpen(true)}>新增账号</Button>
-            </div>
-          }
-        />
-        <DataCardContent className="p-0 space-y-0">
-          <div className="border-t border-border/70 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-            {/* 桌面端：完整表格 */}
-            <div className="hidden md:block">
-              <Table>
+    // BLF-838：页面标题由 Top Header 面包屑承载；面板走 TermPanel 终端规格
+    <TermPageShell>
+      <TermPanel
+        title="账号管理"
+        actions={
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className={TERM_BUTTON} onClick={() => void load()} disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              刷新
+            </Button>
+            <Button size="sm" className="h-8 rounded-none font-mono text-xs" onClick={() => setCreateOpen(true)}>
+              新增账号
+            </Button>
+          </div>
+        }
+        bodyClassName="p-0"
+      >
+        {/* 桌面端：完整表格 */}
+        <div className="hidden md:block">
+          <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>名称</TableHead>
@@ -369,24 +362,23 @@ export default function AccountManagementPage() {
                       const isProtected = isYaweiAccount(item)
                       return (
                         <TableRow key={item.id}>
-                          <TableCell>{getAccountDisplayName(item)}</TableCell>
+                          <TableCell className="font-medium">{getAccountDisplayName(item)}</TableCell>
                           <TableCell>{item.fullName || item.operatorNameZh || '-'}</TableCell>
-                          <TableCell>{item.email}</TableCell>
+                          <TableCell className="font-mono text-xs">{item.email}</TableCell>
                           <TableCell>
                             <RoleTypeBadge roleType={item.roleType} />
                           </TableCell>
                           <TableCell>
                             <span
-                              className={
-                                item.isActive
-                                  ? 'text-emerald-700 dark:text-emerald-300'
-                                  : 'text-red-600 dark:text-red-400'
-                              }
+                              className={cn(
+                                'font-mono text-xs',
+                                item.isActive ? 'text-term-pos' : 'text-term-neg'
+                              )}
                             >
                               {item.isActive ? '启用' : '停用'}
                             </span>
                           </TableCell>
-                          <TableCell>{fmtTime(item.updatedAt)}</TableCell>
+                          <TableCell className="font-mono text-xs tabular-nums text-term-muted">{fmtTime(item.updatedAt)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Button
@@ -447,9 +439,9 @@ export default function AccountManagementPage() {
                 items.map((item) => {
                   const isProtected = isYaweiAccount(item)
                   return (
-                    <div key={item.id} className="dashboard-surface p-4 space-y-3">
+                    <div key={item.id} className="space-y-3 border border-term-border bg-term-panel p-4">
                       {/* 头部 */}
-                      <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                      <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
                         <div>
                           <div className="font-semibold">{getAccountDisplayName(item)}</div>
                           <div className="text-xs text-muted-foreground">
@@ -469,22 +461,20 @@ export default function AccountManagementPage() {
                           <span className="text-xs text-muted-foreground">状态</span>
                           <span
                             className={cn(
-                              'text-sm font-medium',
-                              item.isActive
-                                ? 'text-emerald-700 dark:text-emerald-300'
-                                : 'text-red-600 dark:text-red-400'
+                              'font-mono text-sm font-medium tabular-nums',
+                              item.isActive ? 'text-term-pos' : 'text-term-neg'
                             )}
                           >
                             {item.isActive ? '启用' : '停用'}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="font-mono text-xs text-term-faint">
                           更新: {fmtTime(item.updatedAt)}
                         </div>
                       </div>
 
                       {/* 操作按钮 */}
-                      <div className="flex gap-2 pt-2 border-t border-border/70">
+                      <div className="flex gap-2 pt-2 border-t border-term-border">
                         <Button
                           variant={item.isActive ? 'outline' : 'default'}
                           size="sm"
@@ -509,9 +499,7 @@ export default function AccountManagementPage() {
                 })
               )}
             </div>
-          </div>
-        </DataCardContent>
-      </DataCard>
+      </TermPanel>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
@@ -752,6 +740,6 @@ export default function AccountManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </TermPageShell>
   )
 }

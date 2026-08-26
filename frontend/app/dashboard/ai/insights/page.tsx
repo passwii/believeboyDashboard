@@ -50,9 +50,9 @@ import { Clock } from 'lucide-react'
 const chartSvgRegistry = new Map<string, string>()
 
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
+import { TermPanel } from '@/components/terminal/term-panel'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
@@ -271,9 +271,9 @@ function GenerationProgress({
     <div className="space-y-6">
       {/* Status header */}
       {currentSubStatus && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-          <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
-          <span className="text-sm text-primary font-medium">
+        <div className="flex items-center gap-2 rounded-none border border-term-accent/40 bg-term-bg px-4 py-3">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-term-accent" />
+          <span className="font-mono text-xs font-medium text-term-accent">
             {SUB_STATUS_LABELS[currentSubStatus] ?? '处理中...'}
           </span>
         </div>
@@ -301,7 +301,7 @@ function GenerationProgress({
                   <div
                     className={cn(
                       'w-0.5 h-4 transition-colors duration-500',
-                      connectorFilled ? 'bg-primary' : 'bg-border'
+                      connectorFilled ? 'bg-term-accent' : 'bg-term-border'
                     )}
                   />
                 </div>
@@ -313,18 +313,18 @@ function GenerationProgress({
                 {/* Pulsing glow ring when this step is active (matches Loader2 spinner above) */}
                 {isActive && !isInSubSteps && (
                   <div
-                    className="absolute rounded-full bg-primary/20 animate-ping"
+                    className="absolute rounded-full bg-term-accent/30 animate-ping"
                     style={{ width: 20, height: 20, top: -7, left: -7 }}
                   />
                 )}
                 <div
                   className={cn(
-                    'flex items-center justify-center rounded-full border-2 transition-all duration-300',
+                    'flex items-center justify-center rounded-full border transition-all duration-300',
                     isCompleted
-                      ? 'border-primary bg-primary text-white'
+                      ? 'border-term-pos bg-term-pos text-term-bg'
                       : isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-muted text-muted-foreground',
+                        ? 'border-term-accent bg-term-bg text-term-accent'
+                        : 'border-term-border bg-term-bg text-term-faint',
                     isActive ? 'h-5 w-5' : 'h-5 w-5'
                   )}
                 >
@@ -356,9 +356,9 @@ function GenerationProgress({
                   className={cn(
                     'text-sm font-medium transition-colors duration-300',
                     isActive
-                      ? 'text-primary'
+                      ? 'text-term-accent'
                       : isCompleted
-                        ? 'text-foreground'
+                        ? 'text-term-text'
                         : 'text-muted-foreground'
                   )}
                 >
@@ -368,7 +368,7 @@ function GenerationProgress({
 
                 {/* Nested data sub-steps when in data_aggregating phase */}
                 {step.key === 'data_aggregating' && (
-                  <div className="mt-2 pl-2 border-l-2 border-primary/20 space-y-1.5">
+                  <div className="mt-2 space-y-1.5 border-l-2 border-term-border pl-2">
                     {DATA_STEPS.map((ds, di) => {
                       const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
                       const isDActive = effectiveSubStatus === ds.key
@@ -386,16 +386,16 @@ function GenerationProgress({
                             <div className="relative flex items-center justify-center w-3 h-3">
                               {/* Running dot for active step */}
                               {isDActive && (
-                                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                                <div className="absolute inset-0 rounded-full bg-term-accent/30 animate-ping" />
                               )}
                               <div
                                 className={cn(
                                   'h-1.5 w-1.5 rounded-full transition-colors duration-300',
                                   isDActive
-                                    ? 'bg-primary'
+                                    ? 'bg-term-accent'
                                     : isDCompleted
-                                      ? 'bg-primary'
-                                      : 'bg-border'
+                                      ? 'bg-term-pos'
+                                      : 'bg-term-border'
                                 )}
                               />
                             </div>
@@ -403,7 +403,7 @@ function GenerationProgress({
                               className={cn(
                                 'text-xs transition-colors duration-300',
                                 isDActive
-                                  ? 'text-primary font-semibold'
+                                  ? 'text-term-accent font-semibold'
                                   : isDCompleted
                                     ? 'text-foreground'
                                     : 'text-muted-foreground'
@@ -417,7 +417,7 @@ function GenerationProgress({
                                 {[0, 1, 2].map((i) => (
                                   <div
                                     key={i}
-                                    className="h-1 w-1 rounded-full bg-primary animate-bounce"
+                                    className="h-1 w-1 rounded-full bg-term-accent animate-bounce"
                                     style={{ animationDelay: `${i * 120}ms` }}
                                   />
                                 ))}
@@ -466,7 +466,7 @@ function GenerationProgress({
                     {[0, 1, 2].map((i) => (
                       <div
                         key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce"
+                        className="h-1.5 w-1.5 rounded-full bg-term-accent animate-bounce"
                         style={{ animationDelay: `${i * 150}ms` }}
                       />
                     ))}
@@ -513,28 +513,28 @@ function LivePreviewPanel({
     statusTone === 'success'
       ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-700'
       : statusTone === 'active'
-        ? 'border-primary/20 bg-primary/8 text-primary'
-        : 'border-border/70 bg-background/70 text-muted-foreground'
+        ? 'border-term-accent/40 bg-term-bg text-term-accent'
+        : 'border-term-border bg-term-bg text-term-faint'
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.58)]">
+    <div className="relative min-w-0 overflow-hidden rounded-none border border-term-border bg-term-panel">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_58%)]" />
       <div className="relative border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-term-faint">
               {eyebrow}
             </p>
             <p className="mt-1 text-sm font-semibold text-foreground">{title}</p>
           </div>
           <div
             className={cn(
-              'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium',
+              'inline-flex items-center gap-2 rounded-none border px-1.5 py-0.5 font-mono text-xs',
               toneClassName
             )}
           >
             {isStreaming && (
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse motion-reduce:animate-none" />
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse motion-reduce:animate-none" aria-hidden />
             )}
             <span>{statusLabel}</span>
           </div>
@@ -554,7 +554,7 @@ function LivePreviewPanel({
               {[0, 1, 2, 3].map((item) => (
                 <div
                   key={item}
-                  className="overflow-hidden rounded-2xl border border-border/60 bg-background/60 px-4 py-3"
+                  className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-3"
                 >
                   <div className="h-2.5 w-24 rounded-full bg-muted/70 animate-pulse motion-reduce:animate-none" />
                   <div className="mt-3 h-2 w-full rounded-full bg-muted/55 animate-pulse motion-reduce:animate-none" />
@@ -562,7 +562,7 @@ function LivePreviewPanel({
                 </div>
               ))}
             </div>
-            <div className="rounded-2xl border border-dashed border-primary/20 bg-primary/5 px-4 py-4 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-none border border-dashed border-term-accent/40 bg-term-bg px-4 py-4 font-sans text-sm leading-6 text-term-muted">
               {placeholderMessage}
             </div>
           </div>
@@ -571,15 +571,15 @@ function LivePreviewPanel({
             <MarkdownContent content={content} collectChartSvgs={collectChartSvgs} />
             {isStreaming && (
               <div className="pointer-events-none sticky bottom-0 flex justify-end px-3 pb-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/92 px-3 py-1 text-xs text-primary shadow-sm backdrop-blur-sm">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                <div className="inline-flex items-center gap-2 rounded-none border border-term-accent/40 bg-term-bg px-2 py-0.5 font-mono text-xs text-term-accent">
+                  <span className="h-1.5 w-1.5 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
                   Markdown 实时渲染中
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <div className="flex min-h-[320px] items-center justify-center rounded-[24px] border border-dashed border-border/70 bg-background/40 px-6 text-center text-sm leading-6 text-muted-foreground">
+          <div className="flex min-h-[320px] items-center justify-center rounded-none border border-dashed border-term-border bg-term-bg px-6 text-center text-sm leading-6 text-term-faint">
             {placeholderMessage}
           </div>
         )}
@@ -730,18 +730,18 @@ function FallbackCodeBlock({ code }: { code: string }) {
   }, [code])
 
   return (
-    <div className="not-prose my-5 w-full overflow-hidden rounded-[22px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_18px_60px_-40px_rgba(15,23,42,0.45)]">
+    <div className="not-prose my-5 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
       <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-overlay)/0.82)] px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
-          <span className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-term-faint">
             RAW BLOCK
           </span>
         </div>
         <button
           type="button"
           onClick={() => void handleCopy()}
-          className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex h-7 items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
         >
           {copied ? (
             <Check className="h-3.5 w-3.5 text-emerald-500" />
@@ -766,13 +766,13 @@ function AsciiCalloutBlock({ code }: { code: string }) {
   }
 
   return (
-    <div className="not-prose my-6 overflow-hidden rounded-[24px] border border-[hsl(var(--warning)/0.28)] bg-[linear-gradient(180deg,hsl(var(--warning)/0.12),hsl(var(--surface-panel)))] shadow-[0_24px_80px_-48px_rgba(245,158,11,0.35)]">
+    <div className="not-prose my-6 overflow-hidden rounded-none border border-term-warn/50 bg-term-warn/5">
       <div className="flex items-start gap-3 px-5 py-4">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--warning)/0.18)] text-[hsl(var(--warning))]">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-term-warn/40 bg-term-bg text-term-warn">
           <AlertTriangle className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[hsl(var(--warning))]">
+          <p className="font-mono text-xs font-semibold uppercase tracking-wider text-term-warn">
             Warning
           </p>
           <p className="mt-1 text-sm font-semibold text-foreground">{parsed.title}</p>
@@ -870,14 +870,14 @@ function ChartCodeBlock({
       const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
       chartSvgRegistry.set(chartId, url)
       return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
           <div className="border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                   Trend Chart
                 </p>
                 <p className="mt-1 text-sm font-semibold text-foreground">
@@ -899,14 +899,14 @@ function ChartCodeBlock({
     }
 
     return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
         <div className="border-b border-border/60 px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                 Trend Chart
               </p>
               <p className="mt-1 text-sm font-semibold text-foreground">
@@ -1003,9 +1003,9 @@ function ChartCodeBlock({
       chartSvgRegistry.set(pieId, url)
 
       return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
           <div className="border-b border-border/60 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
               Composition
             </p>
             <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
@@ -1019,10 +1019,10 @@ function ChartCodeBlock({
               {displayData.map((item, i) => (
                 <div
                   key={item.name}
-                  className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 px-3 py-2.5 text-sm"
+                  className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
                 >
                   <div
-                    className="h-3 w-3 shrink-0 rounded-sm"
+                    className="h-3 w-3 shrink-0 rounded-none"
                     style={{ backgroundColor: CHART_COLORS_HEX[i % CHART_COLORS_HEX.length] }}
                   />
                   <span className="break-words text-muted-foreground">{item.name}</span>
@@ -1039,9 +1039,9 @@ function ChartCodeBlock({
     }
 
     return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
         <div className="border-b border-border/60 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
             Composition
           </p>
           <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
@@ -1081,10 +1081,10 @@ function ChartCodeBlock({
             {displayData.map((item, i) => (
               <div
                 key={item.name}
-                className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/60 px-3 py-2.5 text-sm"
+                className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
               >
                 <div
-                  className="h-3 w-3 shrink-0 rounded-sm"
+                  className="h-3 w-3 shrink-0 rounded-none"
                   style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                 />
                 <span className="break-words text-muted-foreground">{item.name}</span>
@@ -1187,14 +1187,14 @@ function ChartCodeBlock({
       chartSvgRegistry.set(barId, url)
 
       return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
           <div className="border-b border-border/60 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                   Bar Chart
                 </p>
                 <p className="mt-1 text-sm font-semibold text-foreground">
@@ -1220,14 +1220,14 @@ function ChartCodeBlock({
     }))
 
     return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_24px_80px_-48px_rgba(15,23,42,0.55)]">
+      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
         <div className="border-b border-border/60 px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[hsl(var(--chart-1)/0.14)] text-[hsl(var(--chart-1))]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                 Bar Chart
               </p>
               <p className="mt-1 text-sm font-semibold text-foreground">
@@ -1285,7 +1285,7 @@ function ReportSectionTitle({ children, className, ...props }: ComponentPropsWit
       )}
       {...props}
     >
-      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-[hsl(var(--chart-1)/0.12)] text-[0.72rem] font-bold text-[hsl(var(--chart-1))]">
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised font-mono text-xs font-bold text-term-accent">
         {typeof children === 'string' ? children.slice(0, 1) : '章'}
       </span>
       <span>{children}</span>
@@ -1326,11 +1326,11 @@ const MarkdownContent = ({
   return (
     <div
       id="ai-insight-export-root"
-      className="dashboard-surface max-w-full min-w-0 overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))] shadow-[0_28px_90px_-56px_rgba(15,23,42,0.55)]"
+      className="max-w-full min-w-0 overflow-hidden rounded-none border border-term-border bg-term-panel"
     >
-      <div className="border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-6 py-5">
+      <div className="border-b border-term-border bg-term-raised px-4 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-term-faint">
             AI Insight Report
           </span>
         </div>
@@ -1339,7 +1339,7 @@ const MarkdownContent = ({
         <div
           className={cn(
             'max-w-full min-w-0 text-[15px] leading-7 text-foreground',
-            '[&_a]:font-medium [&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline',
+            '[&_a]:font-medium [&_a]:text-term-accent [&_a]:underline-offset-4 hover:[&_a]:underline',
             '[&_hr]:my-8 [&_hr]:border-border/70'
           )}
         >
@@ -1407,7 +1407,7 @@ const MarkdownContent = ({
                 return (
                   <blockquote
                     className={cn(
-                      'my-5 rounded-r-2xl border-l-4 border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3)/0.08)] px-4 py-3 text-muted-foreground',
+                      'my-5 rounded-none border-l-4 border-term-accent/50 bg-term-bg px-4 py-3 text-term-muted',
                       className
                     )}
                     {...props}
@@ -1416,7 +1416,7 @@ const MarkdownContent = ({
               },
               table({ className, ...props }: ComponentPropsWithoutRef<'table'>) {
                 return (
-                  <div className="my-6 overflow-x-auto rounded-[22px] border border-border/70 bg-[hsl(var(--surface-overlay)/0.72)]">
+                  <div className="my-6 overflow-x-auto rounded-none border border-term-border bg-term-bg">
                     <table
                       className={cn('min-w-full border-collapse text-sm', className)}
                       {...props}
@@ -1441,7 +1441,7 @@ const MarkdownContent = ({
                 return (
                   <th
                     className={cn(
-                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 break-words',
+                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-term-faint last:border-r-0 break-words',
                       className
                     )}
                     {...props}
@@ -1512,7 +1512,7 @@ const MarkdownContent = ({
                   return (
                     <code
                       className={cn(
-                        'rounded-md bg-[hsl(var(--surface-soft))] px-1.5 py-0.5 font-mono text-[0.85em]',
+                        'rounded-none bg-term-raised px-1.5 py-0.5 font-mono text-[0.85em]',
                         className
                       )}
                       {...props}
@@ -2365,14 +2365,14 @@ export default function AIInsightsPage() {
   return (
     <div className="space-y-6">
       {/* Tab Bar: 洞察记录 / 定时生成 */}
-      <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))] p-1 w-fit">
+      <div className="flex h-9 w-fit items-center gap-1 rounded-none border border-term-border bg-term-bg px-1">
         <button
           onClick={() => setActiveTab('insights')}
           className={cn(
-            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+            'flex h-7 items-center gap-2 rounded-none px-3 font-mono text-xs transition-colors',
             activeTab === 'insights'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border border-term-border bg-term-raised text-term-text'
+              : 'border border-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
           )}
         >
           <Sparkles className="h-4 w-4" />
@@ -2381,10 +2381,10 @@ export default function AIInsightsPage() {
         <button
           onClick={() => setActiveTab('schedules')}
           className={cn(
-            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+            'flex h-7 items-center gap-2 rounded-none px-3 font-mono text-xs transition-colors',
             activeTab === 'schedules'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border border-term-border bg-term-raised text-term-text'
+              : 'border border-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
           )}
         >
           <Clock className="h-4 w-4" />
@@ -2430,14 +2430,7 @@ export default function AIInsightsPage() {
       {/* Insights Tab */}
       {activeTab === 'insights' && (
         <>
-          <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                生成 AI 洞察
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <TermPanel title="生成 AI 洞察" bodyClassName="space-y-4 p-4">
               <div className="grid grid-cols-2 gap-2.5 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
                 {isLoadingProjects ? (
                   <Skeleton className="h-10 w-[180px]" />
@@ -2447,7 +2440,7 @@ export default function AIInsightsPage() {
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="outline"
-                          className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[180px]"
+                          className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[180px]"
                         >
                           {selectedProjectId === 'all'
                             ? '全部项目'
@@ -2460,7 +2453,7 @@ export default function AIInsightsPage() {
                         <DropdownMenuItem
                           key="all"
                           onClick={() => setSelectedProjectId('all')}
-                          className={cn(selectedProjectId === 'all' && 'bg-primary/10')}
+                          className={cn(selectedProjectId === 'all' && 'bg-term-hover text-term-text')}
                         >
                           全部项目
                         </DropdownMenuItem>
@@ -2468,7 +2461,7 @@ export default function AIInsightsPage() {
                           <DropdownMenuItem
                             key={p.id}
                             onClick={() => p.id !== null && setSelectedProjectId(p.id)}
-                            className={cn(selectedProjectId === p.id && 'bg-primary/10')}
+                            className={cn(selectedProjectId === p.id && 'bg-term-hover text-term-text')}
                           >
                             {p.name}
                           </DropdownMenuItem>
@@ -2479,7 +2472,7 @@ export default function AIInsightsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-10 w-fit px-3 text-muted-foreground hover:text-foreground"
+                        className="h-8 w-fit rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text"
                         onClick={() => {
                           window.location.href = `/dashboard/system/project-info?configure=${selectedProjectId}`
                         }}
@@ -2496,7 +2489,7 @@ export default function AIInsightsPage() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[140px]"
+                      className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[140px]"
                     >
                       {COUNTRY_OPTIONS.find((c) => c.value === selectedCountry)?.label ||
                         '国家站点'}
@@ -2508,7 +2501,7 @@ export default function AIInsightsPage() {
                       <DropdownMenuItem
                         key={c.value}
                         onClick={() => setSelectedCountry(c.value)}
-                        className={cn(selectedCountry === c.value && 'bg-primary/10')}
+                        className={cn(selectedCountry === c.value && 'bg-term-hover text-term-text')}
                       >
                         {c.label}
                       </DropdownMenuItem>
@@ -2520,7 +2513,7 @@ export default function AIInsightsPage() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[120px]"
+                      className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[120px]"
                     >
                       {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insightType)?.label || '类型'}
                       <ChevronDown className="h-4 w-4 opacity-50" />
@@ -2531,7 +2524,7 @@ export default function AIInsightsPage() {
                       <DropdownMenuItem
                         key={t.value}
                         onClick={() => setInsightType(t.value)}
-                        className={cn(insightType === t.value && 'bg-primary/10')}
+                        className={cn(insightType === t.value && 'bg-term-hover text-term-text')}
                       >
                         {t.label}
                       </DropdownMenuItem>
@@ -2544,7 +2537,7 @@ export default function AIInsightsPage() {
                   onValueChange={setSelectedModel}
                   disabled={isLoadingModelConfig || isGenerating || !modelConfig?.models.length}
                 >
-                  <SelectTrigger className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[220px]">
+                  <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[220px]">
                     <SelectValue
                       placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
                     />
@@ -2587,7 +2580,7 @@ export default function AIInsightsPage() {
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className="h-10 w-full lg:w-[240px]"
+                  className="h-8 w-full lg:w-[240px]"
                   timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
                 />
                 <Button
@@ -2599,7 +2592,7 @@ export default function AIInsightsPage() {
                     !dateRange?.to ||
                     isGenerating
                   }
-                  className="h-10 col-span-2 gap-2 w-full lg:col-span-1 lg:w-auto"
+                  className="h-8 col-span-2 gap-2 w-full rounded-none font-mono text-xs lg:col-span-1 lg:w-auto"
                 >
                   {isGenerating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2610,21 +2603,13 @@ export default function AIInsightsPage() {
                 </Button>
               </div>
 
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-term-muted">
                 选择项目、日期范围和洞察类型，系统将基于该时间段内的销售、广告、库存等数据生成 AI
                 经营洞察报告。 生成任务在后台运行，可以切换到其他页面，稍后再来查看结果。
               </p>
-            </CardContent>
-          </Card>
+          </TermPanel>
 
-          <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-primary" />
-                洞察记录
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <TermPanel title="洞察记录" bodyClassName="p-4">
               {isLoadingInsights ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map((i) => (
@@ -2632,8 +2617,8 @@ export default function AIInsightsPage() {
                   ))}
                 </div>
               ) : insights.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 bg-muted/10 h-24 text-center">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex h-24 flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-bg text-center">
+                  <p className="text-sm text-term-faint">
                     在左侧选择项目和时间范围，然后点击「生成洞察」按钮
                   </p>
                 </div>
@@ -2664,7 +2649,7 @@ export default function AIInsightsPage() {
                         <TableCell className="font-medium whitespace-nowrap max-w-[300px] truncate">
                           {insight.status === 'generating' || insight.status === 'pending' ? (
                             <span className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                              <span className="h-2 w-2 rounded-none bg-term-warn animate-pulse" />
                               <span className="text-muted-foreground">
                                 {SUB_STATUS_LABELS[
                                   insightSubStatusRef.current[insight.id] ??
@@ -2680,7 +2665,7 @@ export default function AIInsightsPage() {
                         <TableCell>{insight.project_name}</TableCell>
                         <TableCell>{insight.country}</TableCell>
                         <TableCell>
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs">
+                          <span className="rounded-none border border-term-border px-1.5 py-0.5 font-mono text-[11px] text-term-muted">
                             {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insight.insight_type)
                               ?.label || insight.insight_type}
                           </span>
@@ -2692,14 +2677,14 @@ export default function AIInsightsPage() {
                         <TableCell>
                           <span
                             className={cn(
-                              'rounded-full px-2 py-0.5 text-xs',
+                              'rounded-none border px-1.5 py-0.5 font-mono text-[11px]',
                               insight.status === 'completed'
-                                ? 'bg-emerald-500/10 text-emerald-600'
+                                ? 'border-term-pos/40 text-term-pos'
                                 : insight.status === 'failed'
-                                  ? 'bg-red-500/10 text-red-600'
+                                  ? 'border-term-neg/40 text-term-neg'
                                   : insight.status === 'pending'
-                                    ? 'bg-blue-500/10 text-blue-600 animate-pulse'
-                                    : 'bg-amber-500/10 text-amber-600 animate-pulse'
+                                    ? 'border-term-accent/40 text-term-accent animate-pulse'
+                                    : 'border-term-warn/40 text-term-warn animate-pulse'
                             )}
                           >
                             {insight.status === 'completed'
@@ -2744,8 +2729,7 @@ export default function AIInsightsPage() {
                   </TableBody>
                 </Table>
               )}
-            </CardContent>
-          </Card>
+          </TermPanel>
 
           {/* Live generation progress dialog */}
           {/* Use suppressHydrationWarning to handle SSR/CSR mismatch from Radix UI Dialog */}
@@ -2780,14 +2764,14 @@ export default function AIInsightsPage() {
                         currentSubStatus={currentSubStatus}
                         aggregationDetails={aggregationDetails}
                       />
-                      <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                      <div className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-4">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
+                          <span className="h-2 w-2 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
                           Live Session
                         </div>
                         <div className="mt-4 space-y-3">
-                          <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
                               Raw Stream
                             </p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
@@ -2795,8 +2779,8 @@ export default function AIInsightsPage() {
                             </p>
                             <p className="text-xs text-muted-foreground">已接收字符数</p>
                           </div>
-                          <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
                               Render State
                             </p>
                             <p className="mt-1 text-sm font-medium text-foreground">
@@ -2868,9 +2852,9 @@ export default function AIInsightsPage() {
                 {currentSubStatus === null && streamingContent && (
                   <div className="space-y-4">
                     {/* Header with status */}
-                    <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                      <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="text-sm text-emerald-700 font-medium">生成完成</span>
+                    <div className="flex items-center gap-2 rounded-none border border-term-pos/40 bg-term-pos/5 px-4 py-3">
+                      <Check className="h-4 w-4 shrink-0 text-term-pos" />
+                      <span className="font-mono text-xs font-medium text-term-pos">生成完成</span>
                     </div>
 
                     {/* Completed content */}
@@ -2959,7 +2943,7 @@ export default function AIInsightsPage() {
                       viewingInsight?.sub_status === 'queued' ||
                       viewLiveRefreshing ? (
                         <>
-                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <Loader2 className="h-5 w-5 animate-spin text-term-accent" />
                           {viewingInsight?.sub_status === 'queued'
                             ? '排队中...'
                             : '正在生成洞察...'}
@@ -2991,7 +2975,7 @@ export default function AIInsightsPage() {
                     viewingInsight?.sub_status === 'queued' ||
                     viewLiveRefreshing) && (
                     <div className="flex shrink-0 items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                      <div className="flex items-center gap-1.5 rounded-none border border-term-accent/40 px-1.5 py-0.5 font-mono text-xs text-term-accent">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         实时生成中
                       </div>
@@ -3050,14 +3034,14 @@ export default function AIInsightsPage() {
               <div className="mt-4">
                 {isLoadingDetail ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <Loader2 className="h-8 w-8 animate-spin text-term-accent" />
                     <span className="ml-3 text-muted-foreground">正在加载洞察内容...</span>
                   </div>
                 ) : isEditingDetail ? (
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ height: '70vh' }}>
-                    <div className="flex flex-col overflow-y-auto rounded-2xl border border-border/70 bg-background/60">
+                    <div className="flex flex-col overflow-y-auto rounded-none border border-term-border bg-term-bg">
                       <div className="sticky top-0 z-10 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-sm">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                           预览
                         </p>
                       </div>
@@ -3070,7 +3054,7 @@ export default function AIInsightsPage() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 min-h-0">
-                      <div className="shrink-0 flex flex-col gap-3 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <div className="shrink-0 flex flex-col gap-3 rounded-none border border-term-border bg-term-bg px-4 py-3 text-sm text-term-muted sm:flex-row sm:items-center sm:justify-between">
                         <span>
                           直接编辑 Markdown 内容，支持表格、
                           <code className="text-foreground">lineChart</code> /
@@ -3104,7 +3088,7 @@ export default function AIInsightsPage() {
                         value={editingContent}
                         onChange={(e) => setEditingContent(e.target.value)}
                         spellCheck={false}
-                        className="flex-1 w-full rounded-2xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-4 font-mono text-sm leading-6 text-foreground shadow-sm outline-none transition focus:border-primary resize-none"
+                        className="flex-1 w-full resize-none rounded-none border border-term-border bg-term-panel px-4 py-4 font-mono text-sm leading-6 text-term-text outline-none transition focus:border-term-border-strong"
                         placeholder="在此编辑 Markdown 内容..."
                       />
                     </div>
@@ -3119,14 +3103,14 @@ export default function AIInsightsPage() {
                         currentSubStatus={viewLiveSubStatus}
                         aggregationDetails={{}}
                       />
-                      <div className="overflow-hidden rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-soft)),hsl(var(--surface-panel)))] px-4 py-4 shadow-[0_20px_60px_-44px_rgba(15,23,42,0.55)]">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse motion-reduce:animate-none" />
+                      <div className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-4">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
+                          <span className="h-2 w-2 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
                           Live Session
                         </div>
                         <div className="mt-4 space-y-3">
-                          <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
                               Raw Stream
                             </p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
@@ -3135,12 +3119,12 @@ export default function AIInsightsPage() {
                             <p className="text-xs text-muted-foreground">已接收字符数</p>
                           </div>
                           {viewLiveError ? (
-                            <div className="rounded-2xl border border-red-500/20 bg-red-500/6 px-3 py-3 text-sm text-red-600">
+                            <div className="rounded-none border border-term-neg/40 bg-term-neg/5 px-3 py-3 text-sm text-term-neg">
                               {viewLiveError}
                             </div>
                           ) : (
-                            <div className="rounded-2xl border border-border/60 bg-background/70 px-3 py-3">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                            <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-wider text-term-faint">
                                 Render State
                               </p>
                               <p className="mt-1 text-sm font-medium text-foreground">
@@ -3218,7 +3202,7 @@ export default function AIInsightsPage() {
                     collectChartSvgs={collectChartSvgs}
                   />
                 ) : viewingInsight?.error_message ? (
-                  <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-600">
+                  <div className="rounded-none border border-term-neg/40 bg-term-neg/5 px-4 py-3 text-sm text-term-neg">
                     生成失败：{viewingInsight.error_message}
                   </div>
                 ) : (
