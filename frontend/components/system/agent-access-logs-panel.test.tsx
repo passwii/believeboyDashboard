@@ -131,13 +131,40 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     expect(await screen.findByText('项目')).toBeTruthy()
     // 表头 + 筛选下拉占位都有「操作类型」→ 用 getAll
     expect(screen.getAllByText('操作类型').length).toBeGreaterThanOrEqual(1)
-    // 有域的行 → 中文标签；无域的行 → '-'
+    // 有域的行 → 中文标签；无域的行 → '—'
     expect(screen.getAllByText('货件管理').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
     // 中文名即「名称」（key_label）
     expect(screen.getAllByText('货件助理 (生产)').length).toBeGreaterThanOrEqual(1)
     // 项目仅用名称（无 (id) 后缀）
     expect(screen.getAllByText('测试项目').length).toBeGreaterThanOrEqual(1)
+  })
+
+  // ── BLF-845 精细化三件套 ──────────────────────────────────────
+
+  it('BLF-845 ②：概览重设计为 KPI 磁贴 + TOP AGENTS 排行条', async () => {
+    render(<AgentAccessLogsPanel />)
+
+    // KPI 磁贴行（含新增的成功率）
+    expect(await screen.findByText('请求总量')).toBeTruthy()
+    expect(screen.getByText('成功 2XX')).toBeTruthy()
+    expect(screen.getByText('失败 ≥4XX')).toBeTruthy()
+    expect(screen.getByText('成功率')).toBeTruthy()
+    expect(screen.getByText('活跃 AGENT')).toBeTruthy()
+    // 成功率 = round(1/2*100) = 50%
+    expect(screen.getByText('50%')).toBeTruthy()
+    // TOP AGENTS 排行条（title = 「主标识 · N 次」）
+    expect(screen.getByText('TOP AGENTS（当前筛选范围）')).toBeTruthy()
+    expect(screen.getByTitle('货件助理 (生产) · 1 次')).toBeTruthy()
+  })
+
+  it('BLF-845 ③：国家列位渲染（后端字段就绪前恒显 —）', async () => {
+    render(<AgentAccessLogsPanel />)
+
+    // 表头有「国家」列；数据行 country 未就绪恒显 '—'
+    expect(await screen.findByText('国家')).toBeTruthy()
+    const dashes = screen.getAllByText('—')
+    expect(dashes.length).toBeGreaterThanOrEqual(2)
   })
 
   it('project_id / operation_type 筛选提交到请求参数', async () => {
