@@ -159,6 +159,9 @@ class TestParseAuditPathMeta:
                 5,
                 "inventory_ledger",
             ),
+            # BLF-845：库存信息域（BLF-478）补齐映射；/inventory 是
+            # /inventory-ledger 的子串，长片段必须优先命中。
+            ("/api/v1/agent/projects/1/inventory", 1, "inventory"),
             (
                 "/api/v1/agent/projects/5/shop-calculation/snapshots",
                 5,
@@ -225,6 +228,7 @@ class TestAgentPathDomainMapCoverage:
         "return_analysis",
         "replenishment_analysis",
         "inventory_ledger",
+        "inventory",
         "sku_info",
         "sales",
         "ad_analysis",
@@ -251,3 +255,15 @@ class TestAgentPathDomainMapCoverage:
                     f"domain {domain} 被 {fragment} 与 {seen[domain]} 重复映射"
                 )
             seen[domain] = fragment
+
+    def test_longer_fragment_precedes_substring(self):
+        """长片段必须排在子串片段之前（BLF-845 教训：/inventory 是
+        /inventory-ledger 的子串，短片段排前面会先命中、误吞台账路径）。"""
+        seen: list[tuple[str, str]] = []
+        for fragment, domain in AGENT_PATH_DOMAIN_MAP:
+            for prev_fragment, _ in seen:
+                assert prev_fragment not in fragment, (
+                    f"子串片段 {prev_fragment!r} 排在了长片段 {fragment!r} 之前，"
+                    "先到先得的顺序匹配会误吞长片段路径"
+                )
+            seen.append((fragment, domain))
