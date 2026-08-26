@@ -361,3 +361,94 @@ class TestAgentAccessLogsSummary:
             assert top["summary-agent-b"]["count"] == 1
         finally:
             _cleanup_logs()
+
+
+class TestAgentAccessLogsCountry:
+    """BLF-845 项目日志国家维度：列表端点透出 country 字段。
+
+    前端两面板表格与详情 Dialog 已留「国家」列位，后端字段透出后
+    前端零改动生效；历史行 country 为 NULL → 显示 '—'。
+    """
+
+    def test_list_exposes_country(self, client, make_api_key):
+        key = make_api_key(agent_id="country-agent")
+        _insert_logs(
+            [
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/projects/12/sales/summary?country=US",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                    "project_id": 12,
+                    "operation_type": "sales",
+                    "country": "US",
+                },
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/projects/12/sales/summary?country=de",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                    "project_id": 12,
+                    "operation_type": "sales",
+                    "country": "DE",
+                },
+                {
+                    # 历史行 / 无 country 参数请求：NULL 透传为 null
+                    "method": "GET",
+                    "path": "/api/v1/agent/health",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                },
+            ]
+        )
+        try:
+            resp = client.get("/api/v1/system-management/agent-access-logs")
+            assert resp.status_code == 200, resp.text
+            by_path = {item["path"]: item for item in resp.json()["items"]}
+            assert by_path["/api/v1/agent/projects/12/sales/summary?country=US"][
+                "country"
+            ] == "US"
+            assert by_path["/api/v1/agent/projects/12/sales/summary?country=de"][
+                "country"
+            ] == "DE"
+            assert by_path["/api/v1/agent/health"]["country"] is None
+
+            # 按 country 筛选（与 project_id 组合）
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?project_id=12&country=DE"
+            )
+            payload = resp.json()
+            assert payload["total"] == 1
+            assert payload["items"][0]["country"] == "DE"
+        finally:
+            _cleanup_logs()
+
+    def test_list_country_filter_no_match(self, client, make_api_key):
+        key = make_api_key(agent_id="country-filter-agent")
+        _insert_logs(
+            [
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/projects/1/shipments",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                    "country": "GB",
+                },
+            ]
+        )
+        try:
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?country=US"
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["total"] == 0
+        finally:
+            _cleanup_logs()

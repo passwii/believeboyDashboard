@@ -42,6 +42,7 @@ def _apply_filters(
     date_to: date | None,
     project_id: int | None = None,
     operation_type: str | None = None,
+    country: str | None = None,
 ):
     """应用 Agent 访问日志过滤条件。"""
     normalized_keyword = (keyword or "").strip()
@@ -80,6 +81,10 @@ def _apply_filters(
     normalized_op = (operation_type or "").strip()
     if normalized_op:
         stmt = stmt.where(_LOG.operation_type == normalized_op)
+    # BLF-845 国家维度筛选（与写入侧同规格大写归一）
+    normalized_country = (country or "").strip().upper()
+    if normalized_country:
+        stmt = stmt.where(_LOG.country == normalized_country)
 
     return stmt
 
@@ -124,6 +129,7 @@ def list_agent_access_logs(
     date_to: date | None = Query(default=None),
     project_id: int | None = Query(default=None, ge=1),
     operation_type: str | None = Query(default=None),
+    country: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> AgentAccessLogsResponse:
     kwargs = {
@@ -135,6 +141,7 @@ def list_agent_access_logs(
         "date_to": date_to,
         "project_id": project_id,
         "operation_type": operation_type,
+        "country": country,
     }
     stmt = _apply_filters(_base_stmt(), **kwargs)
     total_stmt = _apply_filters(
@@ -170,6 +177,7 @@ def list_agent_access_logs(
                 else None
             ),
             "operation_type": log.operation_type,
+            "country": log.country,
         }
         for log, agent_id, label in rows
     ]
@@ -192,6 +200,7 @@ def agent_access_logs_summary(
     date_to: date | None = Query(default=None),
     project_id: int | None = Query(default=None, ge=1),
     operation_type: str | None = Query(default=None),
+    country: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> AgentAccessLogsSummaryResponse:
     sub = _apply_filters(
@@ -204,6 +213,7 @@ def agent_access_logs_summary(
         date_to=date_to,
         project_id=project_id,
         operation_type=operation_type,
+        country=country,
     ).subquery()
 
     total = int(db.execute(select(func.count()).select_from(sub)).scalar() or 0)

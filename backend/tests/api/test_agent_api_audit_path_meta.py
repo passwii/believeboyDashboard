@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.middleware.agent_api_audit import parse_audit_path_meta
+from app.middleware.agent_api_audit import (
+    AGENT_PATH_DOMAIN_MAP,
+    parse_audit_country,
+    parse_audit_path_meta,
+)
 
 
 class TestParseAuditPathMeta:
@@ -106,15 +110,28 @@ class TestParseAuditPathMeta:
                 "ad_analysis",
             ),
             ("/api/v1/external/projects/4/ad-search-term-shares", 4, "ad_analysis"),
+            # BLF-582：sku-info 已原生化收口进 sku_info 域（审计映射已修正）
             (
-                "/api/v1/external/projects/5/inventory-ledger",
-                5,
-                "inventory_ledger",
+                "/api/v1/external/projects/7/sku-info",
+                7,
+                "sku_info",
             ),
+            # BLF-845：replenishment_analysis 是独立注册域，不再误归
+            # inventory_ledger；report_upload_status / account_health 补齐映射。
             (
                 "/api/v1/external/projects/6/replenishment-analysis",
                 6,
-                "inventory_ledger",
+                "replenishment_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/31/report-upload-status",
+                31,
+                "report_upload_status",
+            ),
+            (
+                "/api/v1/agent/projects/32/account-health",
+                32,
+                "account_health",
             ),
             # BLF-582：sku-info 已原生化收口进 sku_info 域（审计映射已修正）
             (
@@ -170,3 +187,67 @@ class TestParseAuditPathMeta:
         project_id, operation_type = parse_audit_path_meta(path)
         assert project_id == expected_project_id
         assert operation_type == expected_operation_type
+
+
+class TestParseAuditCountry:
+    """BLF-845 项目日志国家维度：query string country 参数解析纯函数。"""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            # 常规：大写归一，便于后续聚合
+            ("us", "US"),
+            ("US", "US"),
+            ("gb", "GB"),
+            # 超长截断到列宽 8
+            ("ABCDEFGH", "ABCDEFGH"),
+            ("ABCDEFGHI", "ABCDEFGH"),
+            # 无参数 / 空值 → None（落库 NULL）
+            (None, None),
+            ("", None),
+            ("   ", None),
+        ],
+    )
+    def test_parse_audit_country(self, raw: str | None, expected: str | None):
+        assert parse_audit_country(raw) == expected
+
+
+class TestAgentPathDomainMapCoverage:
+    """BLF-845：agent-domains.ts 已注册域必须在审计映射表中有条目。
+
+    防回归：前端注册表新增业务域时，后端 AGENT_PATH_DOMAIN_MAP 若漏配，
+    该域读访问会全落「其他」（本轮中文缺失的另一根因）。
+    """
+
+    KNOWN_DOMAINS = {
+        "new_product_calculations",
+        "shop_calculations",
+        "return_analysis",
+        "replenishment_analysis",
+        "inventory_ledger",
+        "sku_info",
+        "sales",
+        "ad_analysis",
+        "shipments",
+        "report_upload_status",
+        "account_health",
+    }
+
+    def test_all_registered_domains_have_path_fragments(self):
+        mapped = {domain for _, domain in AGENT_PATH_DOMAIN_MAP}
+        missing = self.KNOWN_DOMAINS - mapped
+        assert not missing, f"审计映射缺域: {missing}"
+
+    def test_no_duplicate_domain_alias(self):
+        """同一 domain 不得被两个不同 path 片段别名指向（历史撞车教训）。"""
+        seen: dict[str, str] = {}
+        for fragment, domain in AGENT_PATH_DOMAIN_MAP:
+            if domain in seen and seen[domain] != fragment:
+                # 允许 shop_calculations 双片段（/pricing-snapshots +
+                # /shop-calculation 是同一域的两条路由形态）。
+                if domain == "shop_calculations":
+                    continue
+                raise AssertionError(
+                    f"domain {domain} 被 {fragment} 与 {seen[domain]} 重复映射"
+                )
+            seen[domain] = fragment
