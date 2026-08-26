@@ -912,8 +912,7 @@ impl AiChatView {
         let header =
             pane_header_base(theme, "ai-chat-sessions-header")
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.text_secondary)
                         .child(format!("对话 · {}", self.conversations.len())),
@@ -941,8 +940,7 @@ impl AiChatView {
                         .px_4()
                         .gap_1()
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .text_color(theme.text_muted)
                                 .child("暂无会话"),
                         )
@@ -1036,8 +1034,7 @@ impl AiChatView {
                                                 div()
                                                     .flex_1()
                                                     .min_w_0()
-                                                    .truncate()
-                                                    .text_size(px(FONT_BASE))
+                                                    .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
                                                     .text_color(if selected {
                                                         theme.text_primary
                                                     } else {
@@ -1087,8 +1084,7 @@ impl AiChatView {
 
     fn render_context_pane(&self, theme: &AppTheme) -> gpui::AnyElement {
         let header = pane_header_base(theme, "ai-chat-context-header").child(
-            div()
-                .text_size(px(FONT_BASE))
+            div().text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("上下文"),

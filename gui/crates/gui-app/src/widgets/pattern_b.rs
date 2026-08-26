@@ -210,8 +210,7 @@ pub fn tab_bar<V: 'static>(
                 .relative()
                 .px_3()
                 .items_center()
-                .cursor(gpui::CursorStyle::PointingHand)
-                .text_size(px(FONT_BASE))
+                .cursor(gpui::CursorStyle::PointingHand).text_size(px(crate::theme::fs(FONT_BASE)))
                 .when(active, |this| {
                     this.font_weight(FontWeight::MEDIUM)
                         .text_color(theme.text_primary)

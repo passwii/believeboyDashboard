@@ -86,8 +86,7 @@ impl RenderOnce for PageHeader {
                     .gap_1()
                     .child(
                         gpui::div()
-                            .id("page-header-title")
-                            .text_size(px(FONT_TITLE_LG))
+                            .id("page-header-title").text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                             .font_semibold()
                             .text_color(theme.text_primary)
                             .child(self.title),
@@ -95,8 +94,7 @@ impl RenderOnce for PageHeader {
                     .when_some(subtitle, |col, sub| {
                         col.child(
                             gpui::div()
-                                .id("page-header-subtitle")
-                                .text_size(px(FONT_XS))
+                                .id("page-header-subtitle").text_size(px(crate::theme::fs(FONT_XS)))
                                 .text_color(theme.text_muted)
                                 .child(sub),
                         )

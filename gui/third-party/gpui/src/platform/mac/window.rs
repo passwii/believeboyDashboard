@@ -1568,6 +1568,18 @@ impl rwh::HasDisplayHandle for MacWindow {
 }
 
 fn get_scale_factor(native_window: id) -> f32 {
+    // BLF-830：预览基建——BELIEVEBOY_GUI_FORCE_SCALE_FACTOR 环境变量强制
+    // 覆盖窗口 scale_factor（如 1 / 1.5 / 2），供高分屏适配的 1x/2x 截图
+    // 对比与 1.5x（Windows 150% 缩放）模拟；未设置时零影响。仅开发预览用，
+    // 正常用户环境不设置该变量。
+    if let Ok(force) = std::env::var("BELIEVEBOY_GUI_FORCE_SCALE_FACTOR") {
+        if let Ok(factor) = force.parse::<f32>() {
+            if factor > 0.0 {
+                return factor;
+            }
+        }
+    }
+
     let factor = unsafe {
         let screen: id = msg_send![native_window, screen];
         if screen.is_null() {

@@ -243,8 +243,7 @@ fn render_forbidden(theme: &AppTheme) -> impl IntoElement {
         .border_1()
         .border_color(theme.warning)
         .child(
-            div()
-                .text_size(px(crate::theme::FONT_BASE))
+            div().text_size(px(crate::theme::fs(crate::theme::FONT_BASE)))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.warning)
                 .child("无权限查看 CRM 设置"),
@@ -417,8 +416,7 @@ fn render_workflow_card(workflow: Option<&CrmWorkflowSettings>, theme: &AppTheme
                                 .child("无跟进提醒阈值（天）"),
                         )
                         .child(
-                            div()
-                                .text_size(px(crate::theme::FONT_TITLE_LG))
+                            div().text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
                                 .mono_tabular_nums()
                                 .text_color(theme.text_primary)
                                 .child(threshold),
@@ -434,8 +432,7 @@ fn render_workflow_card(workflow: Option<&CrmWorkflowSettings>, theme: &AppTheme
                                 .child("提醒邮件"),
                         )
                         .child(
-                            div()
-                                .text_size(px(crate::theme::FONT_TITLE_LG))
+                            div().text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
                                 .text_color(email_color)
                                 .child(email_label),
                         ),

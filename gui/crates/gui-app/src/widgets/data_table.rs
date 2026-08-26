@@ -392,8 +392,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                 .h(px(TABLE_HEADER_HEIGHT))
                 .items_center()
                 .border_b_1()
-                .border_color(theme.separator)
-                .text_size(px(FONT_XS))
+                .border_color(theme.separator).text_size(px(crate::theme::fs(FONT_XS)))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.text_muted)
                 .children(self.columns.iter().enumerate().map(|(col_ix, col)| {
@@ -477,8 +476,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataTable<T> {
                             },
                         ))
                     })
-                    .tabular_nums()
-                    .text_size(px(FONT_BASE))
+                    .tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
                     .text_color(theme.text_secondary)
                     .children(self.columns.iter().map(|col| {
                         // BLF-792：数字列单元格应用 JetBrains Mono 等宽 +

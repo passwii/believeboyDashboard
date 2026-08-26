@@ -459,8 +459,7 @@ fn insight_row(
             div()
                 .flex_1()
                 .min_w_0()
-                .truncate()
-                .text_size(px(FONT_BASE))
+                .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
                 .text_color(theme.text_primary)
                 .child(item.title.clone()),
         )

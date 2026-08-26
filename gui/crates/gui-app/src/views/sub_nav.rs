@@ -278,8 +278,7 @@ impl Render for SubNavView {
                     .pr_2()
                     .flex_none()
                     .child(
-                        div()
-                            .text_size(px(FONT_XS))
+                        div().text_size(px(crate::theme::fs(FONT_XS)))
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .text_color(theme.text_primary)
                             .truncate()
@@ -287,8 +286,7 @@ impl Render for SubNavView {
                     )
                     .when(item_count_of(self) > 0, |header| {
                         header.child(
-                            div()
-                                .text_size(px(FONT_XS))
+                            div().text_size(px(crate::theme::fs(FONT_XS)))
                                 .font_family(FONT_MONO_FAMILY)
                                 .text_color(theme.text_muted)
                                 .child(SharedString::from(item_count_of(self).to_string())),
@@ -318,8 +316,7 @@ impl Render for SubNavView {
                     div()
                         .id("sub-nav-empty")
                         .px_3()
-                        .pt_2()
-                        .text_size(px(FONT_XS))
+                        .pt_2().text_size(px(crate::theme::fs(FONT_XS)))
                         .text_color(theme.text_muted)
                         .child("点左侧图标选择分类"),
                 )
@@ -408,8 +405,7 @@ impl SubNavView {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .truncate()
-                    .text_size(px(FONT_BASE))
+                    .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
                     .font_weight(if active {
                         gpui::FontWeight::MEDIUM
                     } else {
@@ -442,8 +438,7 @@ fn badge_pill(count: u32, theme: &AppTheme) -> impl IntoElement {
         .h(px(14.0))
         .px_1()
         .rounded(px(7.0))
-        .bg(theme.danger)
-        .text_size(px(FONT_2XS))
+        .bg(theme.danger).text_size(px(crate::theme::fs(FONT_2XS)))
         .font_family(FONT_MONO_FAMILY)
         .text_color(theme.on_accent)
         .child(SharedString::from(label))

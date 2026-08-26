@@ -692,8 +692,7 @@ fn sku_columns() -> Vec<ColumnDef<SkuRecordItem>> {
 /// 主键文本单元格（primary 色 + 截断）
 fn key_cell(text: &str, theme: &AppTheme) -> gpui::AnyElement {
     div()
-        .truncate()
-        .text_size(px(FONT_BASE))
+        .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
         .text_color(theme.text_primary)
         .child(SharedString::from(text.to_string()))
         .into_any_element()

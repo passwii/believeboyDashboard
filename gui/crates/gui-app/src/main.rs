@@ -42,7 +42,7 @@ use gui_api_client::client::AuthSession;
 use gui_api_client::Client;
 use gui_domain::auth::{LoginResponse, UserRoleType};
 use motion::{detect_system_reduce_motion, MotionPref};
-use theme::{apply_font_stack, set_theme_pref, ThemePreference};
+use theme::{apply_font_stack, set_theme_pref, DensityLevel, ThemePreference};
 
 use views::login::{LoginView, LoginViewEvent};
 use views::root::{RootView, RootViewEvent, SessionInfo};
@@ -114,6 +114,16 @@ fn main() -> anyhow::Result<()> {
             // 后调用才能保住覆盖）。把 UI 主族（SF Pro/Segoe UI Variable）与等宽族
             // （JetBrains Mono）写入 gpui-component 全局主题，组件库文字同步切换。
             apply_font_stack(cx);
+
+            // BLF-830：密度档位自偏好恢复（默认标准档）——必须在窗口打开前
+            // 写入全局偏好 + 进程原子量，首个 RootView render 才能同步到正确的
+            // rem_size 与字号半步进。
+            let saved_density = prefs::load_ui_prefs()
+                .density
+                .as_deref()
+                .and_then(DensityLevel::from_key)
+                .unwrap_or_default();
+            theme::set_density_pref(saved_density, cx);
 
             // P4-2（BLF-708）：动效偏好基线——启动时读取系统「减弱动态效果」，
             // 写入全局；所有动效路径据此降级为瞬时切换/无动画。
@@ -383,6 +393,19 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 let mut prefs = prefs::load_ui_prefs();
                 prefs.chat_context_collapsed = *collapsed;
                 prefs::save_ui_prefs(&prefs);
+            }
+            // BLF-830：密度档位切换 → 写偏好 + 同步窗口 rem_size + 全窗重绘
+            //（字号半步进经 fs() 读进程原子量，重绘后全部生效；间距经 rem_size）
+            RootViewEvent::DensityChanged(level) => {
+                let mut prefs = prefs::load_ui_prefs();
+                prefs.density = Some(level.key().to_string());
+                prefs::save_ui_prefs(&prefs);
+                // 窗口级生效：rem_size 同步（间距通道）+ refresh 全窗置脏
+                //（字号通道——fs() 读进程原子量，重绘后全部 text_size 重算）
+                let _ = main_window.update(cx, |_, window, _cx| {
+                    window.set_rem_size(crate::theme::rem_size_for_level(*level));
+                    window.refresh();
+                });
             }
         }
     })

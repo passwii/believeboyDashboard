@@ -826,8 +826,7 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                         .gap_0p5()
                         .when(b.count > 0, |this| {
                             this.child(
-                                div()
-                                    .text_size(px(crate::theme::FONT_XS))
+                                div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                                     .text_color(theme.text_muted)
                                     .child(b.count.to_string()),
                             )
@@ -850,8 +849,7 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                 .children(dist.buckets.iter().map(|b| {
                     div()
                         .flex_1()
-                        .text_center()
-                        .text_size(px(crate::theme::FONT_XS))
+                        .text_center().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .truncate()
                         .child(short_bucket_label(&b.label))
@@ -891,14 +889,12 @@ fn render_summary_chips(dist: &LifecycleDistribution, theme: &AppTheme) -> impl 
                 .py_0p5()
                 .bg(theme.muted_fill.opacity(0.6))
                 .child(
-                    div()
-                        .text_size(px(crate::theme::FONT_XS))
+                    div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .child(label.to_string()),
                 )
                 .child(
-                    div()
-                        .text_size(px(crate::theme::FONT_XS))
+                    div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(theme.text_primary)
                         .child(value),
@@ -930,8 +926,7 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                 .gap_2()
                 .child(
                     div()
-                        .w(px(52.0))
-                        .text_size(px(crate::theme::FONT_XS))
+                        .w(px(52.0)).text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_secondary)
                         .truncate()
                         .child(stage.label.clone()),
@@ -953,8 +948,7 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                 .child(
                     div()
                         .w(px(36.0))
-                        .text_right()
-                        .text_size(px(crate::theme::FONT_XS))
+                        .text_right().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .child(format!("{} 个", stage.value)),
                 )

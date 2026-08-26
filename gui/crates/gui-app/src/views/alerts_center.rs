@@ -470,8 +470,7 @@ fn render_stats_cards(stats: &AlertStats, theme: &AppTheme) -> gpui::AnyElement 
                 .border_color(theme.separator)
                 .bg(theme.card_bg)
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .mono_tabular_nums_text()
                         .text_color(color)

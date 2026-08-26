@@ -237,8 +237,7 @@ pub fn context_card(theme: &AppTheme, id: &'static str, title: &'static str) -> 
         .child(
             div()
                 .px_2()
-                .pt_1p5()
-                .text_size(px(FONT_XS))
+                .pt_1p5().text_size(px(crate::theme::fs(FONT_XS)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_muted)
                 .child(title),
@@ -257,11 +256,9 @@ pub fn context_stat_row(
         .items_center()
         .justify_between()
         .gap_2()
-        .px_2()
-        .text_size(px(FONT_BASE))
+        .px_2().text_size(px(crate::theme::fs(FONT_BASE)))
         .child(
-            div()
-                .text_size(px(FONT_XS))
+            div().text_size(px(crate::theme::fs(FONT_XS)))
                 .text_color(theme.text_muted)
                 .child(label),
         )
@@ -269,8 +266,7 @@ pub fn context_stat_row(
             div()
                 .min_w_0()
                 .truncate()
-                .mono_tabular_nums()
-                .text_size(px(FONT_XS))
+                .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_XS)))
                 .text_color(theme.text_secondary)
                 .child(value.into()),
         )

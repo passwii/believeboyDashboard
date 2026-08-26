@@ -585,15 +585,13 @@ impl InspectorView {
             .border_b_1()
             .border_color(theme.separator)
             .child(
-                div()
-                    .text_size(px(FONT_XS))
+                div().text_size(px(crate::theme::fs(FONT_XS)))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(theme.text_primary)
                     .child(mode.title()),
             )
             .child(
-                div()
-                    .text_size(px(FONT_2XS))
+                div().text_size(px(crate::theme::fs(FONT_2XS)))
                     .font_family(FONT_MONO_FAMILY)
                     .text_color(theme.text_muted)
                     .child(mode.badge()),
@@ -631,8 +629,7 @@ impl InspectorView {
                     .child(
                         div()
                             .flex_1()
-                            .min_w_0()
-                            .text_size(px(FONT_2XS))
+                            .min_w_0().text_size(px(crate::theme::fs(FONT_2XS)))
                             .font_family(FONT_MONO_FAMILY)
                             .text_color(theme.text_primary)
                             .truncate()
@@ -640,8 +637,7 @@ impl InspectorView {
                     )
                     .child(
                         div()
-                            .flex_none()
-                            .text_size(px(FONT_2XS))
+                            .flex_none().text_size(px(crate::theme::fs(FONT_2XS)))
                             .font_family(FONT_MONO_FAMILY)
                             .text_color(theme.text_muted)
                             .child(sku),
@@ -651,8 +647,7 @@ impl InspectorView {
                         div()
                             .flex_none()
                             .w(px(52.0))
-                            .text_right()
-                            .text_size(px(FONT_2XS))
+                            .text_right().text_size(px(crate::theme::fs(FONT_2XS)))
                             .font_family(FONT_MONO_FAMILY)
                             .text_color(theme.text_primary)
                             .child(format_money_usd(amount)),
@@ -676,16 +671,14 @@ impl InspectorView {
                     .child(
                         div()
                             .flex_1()
-                            .min_w_0()
-                            .text_size(px(FONT_2XS))
+                            .min_w_0().text_size(px(crate::theme::fs(FONT_2XS)))
                             .font_family(FONT_MONO_FAMILY)
                             .text_color(theme.text_primary)
                             .truncate()
                             .child(sku),
                     )
                     .child(
-                        div()
-                            .text_size(px(FONT_2XS))
+                        div().text_size(px(crate::theme::fs(FONT_2XS)))
                             .font_family(FONT_MONO_FAMILY)
                             .text_color(if stockout {
                                 theme.danger
@@ -699,8 +692,7 @@ impl InspectorView {
                             div()
                                 .px_1()
                                 .rounded(px(2.0))
-                                .bg(theme.danger_soft)
-                                .text_size(px(FONT_2XS))
+                                .bg(theme.danger_soft).text_size(px(crate::theme::fs(FONT_2XS)))
                                 .font_family(FONT_MONO_FAMILY)
                                 .text_color(theme.danger)
                                 .child("断货风险"),
@@ -722,8 +714,7 @@ impl InspectorView {
             .child(
                 div()
                     .px_3()
-                    .pt_2()
-                    .text_size(px(FONT_2XS))
+                    .pt_2().text_size(px(crate::theme::fs(FONT_2XS)))
                     .text_color(theme.text_muted)
                     .child("演示数据 · Pending/库存告警端点缺口见 BLF-796"),
             )
@@ -752,15 +743,13 @@ impl InspectorView {
                             .border_1()
                             .border_color(theme.separator)
                             .child(
-                                div()
-                                    .text_size(px(FONT_2XS))
+                                div().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .text_color(theme.text_muted)
                                     .truncate()
                                     .child(metric.label.clone()),
                             )
                             .child(
-                                div()
-                                    .text_size(px(FONT_XS))
+                                div().text_size(px(crate::theme::fs(FONT_XS)))
                                     .font_family(FONT_MONO_FAMILY)
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .text_color(theme.text_primary)
@@ -768,8 +757,7 @@ impl InspectorView {
                             )
                             .when_some(metric.helper.clone(), |card, helper| {
                                 card.child(
-                                    div()
-                                        .text_size(px(FONT_2XS))
+                                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                                         .text_color(theme.text_secondary)
                                         .truncate()
                                         .child(helper),
@@ -797,8 +785,7 @@ impl InspectorView {
                             .child(
                                 div()
                                     .flex_1()
-                                    .min_w_0()
-                                    .text_size(px(FONT_2XS))
+                                    .min_w_0().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .text_color(theme.text_primary)
                                     .truncate()
                                     .child(
@@ -809,24 +796,21 @@ impl InspectorView {
                             )
                             .child(
                                 div()
-                                    .flex_none()
-                                    .text_size(px(FONT_2XS))
+                                    .flex_none().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .font_family(FONT_MONO_FAMILY)
                                     .text_color(theme.text_muted)
                                     .child(SharedString::from(format!("{} 次点击", term.clicks))),
                             )
                             .child(
                                 div()
-                                    .flex_none()
-                                    .text_size(px(FONT_2XS))
+                                    .flex_none().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .font_family(FONT_MONO_FAMILY)
                                     .text_color(theme.text_primary)
                                     .child(format_money_usd(term.spend)),
                             )
                             .child(
                                 div()
-                                    .flex_none()
-                                    .text_size(px(FONT_2XS))
+                                    .flex_none().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .font_family(FONT_MONO_FAMILY)
                                     .text_color(if term.orders_7d == 0 {
                                         theme.danger
@@ -889,8 +873,7 @@ impl InspectorView {
                             .py_1()
                             .rounded(px(4.0))
                             .border_1()
-                            .border_color(theme.separator)
-                            .text_size(px(FONT_2XS))
+                            .border_color(theme.separator).text_size(px(crate::theme::fs(FONT_2XS)))
                             .when(is_user, |b| {
                                 b.bg(theme.panel_bg)
                                     .text_color(theme.text_secondary)
@@ -937,8 +920,7 @@ impl InspectorView {
                     .rounded(px(4.0))
                     .border_1()
                     .border_color(theme.separator)
-                    .bg(theme.panel_bg)
-                    .text_size(px(FONT_2XS))
+                    .bg(theme.panel_bg).text_size(px(crate::theme::fs(FONT_2XS)))
                     .text_color(theme.text_muted)
                     .child("Stage9 会话工作台接入后启用…"),
             )
@@ -953,8 +935,7 @@ fn hint_body(text: &str, theme: &AppTheme) -> Stateful<Div> {
         .items_center()
         .justify_center()
         .px_4()
-        .py_6()
-        .text_size(px(FONT_XS))
+        .py_6().text_size(px(crate::theme::fs(FONT_XS)))
         .text_color(theme.text_muted)
         .child(text.to_string())
 }
@@ -967,8 +948,7 @@ fn section_title(text: &str, theme: &AppTheme) -> Div {
         .w_full()
         .px_3()
         .pt_2()
-        .pb_1()
-        .text_size(px(FONT_2XS))
+        .pb_1().text_size(px(crate::theme::fs(FONT_2XS)))
         .font_family(FONT_MONO_FAMILY)
         .text_color(theme.text_muted)
         .child(SharedString::from(text.to_string()))
@@ -984,8 +964,7 @@ fn age_pill(age_min: i64, theme: &AppTheme) -> Div {
     div()
         .px_1()
         .rounded(px(2.0))
-        .bg(theme.warning.alpha(0.14))
-        .text_size(px(FONT_2XS))
+        .bg(theme.warning.alpha(0.14)).text_size(px(crate::theme::fs(FONT_2XS)))
         .font_family(FONT_MONO_FAMILY)
         .text_color(theme.warning)
         .child(SharedString::from(label))

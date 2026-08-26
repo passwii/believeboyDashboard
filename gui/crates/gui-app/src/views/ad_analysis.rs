@@ -1115,15 +1115,13 @@ fn chart_panel(
                 .border_b_1()
                 .border_color(app_theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_XS))
+                    div().text_size(px(crate::theme::fs(FONT_XS)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(app_theme.text_primary)
                         .child(title),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child(subtitle),
                 ),
@@ -1206,14 +1204,12 @@ fn render_item_tab(
                             .rounded(px(app_theme.radius))
                             .bg(app_theme.muted_fill.opacity(0.5))
                             .child(
-                                div()
-                                    .text_size(px(FONT_2XS))
+                                div().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .text_color(app_theme.text_muted)
                                     .child(label.clone()),
                             )
                             .child(
-                                div()
-                                    .text_size(px(FONT_BASE))
+                                div().text_size(px(crate::theme::fs(FONT_BASE)))
                                     .font_weight(FontWeight::MEDIUM)
                                     .mono_tabular_nums()
                                     .text_color(app_theme.text_primary)
@@ -1248,15 +1244,13 @@ fn aggregates_strip(app_theme: &AppTheme, aggregates: &[AggregateItem]) -> impl 
                     this.border_l_1().border_color(app_theme.separator).pl_3()
                 })
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child(item.label.clone()),
                 )
                 .child(
                     div()
-                        .mono_tabular_nums()
-                        .text_size(px(FONT_BASE))
+                        .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(item.tone.color(app_theme))
                         .child(item.value.clone()),
@@ -1351,22 +1345,19 @@ fn metric_cards(
                 .bg(app_theme.card_bg)
                 .hover(|this| this.bg(app_theme.muted_fill))
                 .child(
-                    div()
-                        .text_size(px(FONT_XS))
+                    div().text_size(px(crate::theme::fs(FONT_XS)))
                         .text_color(app_theme.text_muted)
                         .child(m.label.clone()),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_TITLE_LG))
+                    div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                         .font_semibold()
                         .mono_tabular_nums()
                         .text_color(value_color)
                         .child(m.display_value.clone()),
                 )
                 .children(m.helper.clone().map(|h| {
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child(h)
                 }))
@@ -1409,15 +1400,13 @@ fn comparison_card(comparison: &AdPeriodComparison, app_theme: &AppTheme) -> imp
                 .border_b_1()
                 .border_color(app_theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(app_theme.text_primary)
                         .child("周期对比"),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .mono_tabular_nums()
                         .text_color(app_theme.text_muted)
                         .child(format!("当前周期 {current} 对比上一周期 {previous}")),
@@ -1439,14 +1428,12 @@ fn comparison_card(comparison: &AdPeriodComparison, app_theme: &AppTheme) -> imp
                         .rounded(px(app_theme.radius))
                         .bg(app_theme.muted_fill.opacity(0.4))
                         .child(
-                            div()
-                                .text_size(px(FONT_2XS))
+                            div().text_size(px(crate::theme::fs(FONT_2XS)))
                                 .text_color(app_theme.text_muted)
                                 .child(*label),
                         )
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .mono_tabular_nums()
                                 .text_color(change_color(*ratio, app_theme))
@@ -1493,15 +1480,13 @@ fn top_table_card<T: Clone + PartialEq + 'static>(
                 .border_b_1()
                 .border_color(app_theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(app_theme.text_primary)
                         .child(title.to_string()),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child(subtitle.to_string()),
                 ),
@@ -1602,15 +1587,13 @@ fn narrative_card(sections: &[AdNarrativeSection], app_theme: &AppTheme) -> impl
                 .border_b_1()
                 .border_color(app_theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(app_theme.text_primary)
                         .child("结构化分析"),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child("AI 基于广告数据的结构化结论"),
                 ),
@@ -1628,28 +1611,24 @@ fn narrative_card(sections: &[AdNarrativeSection], app_theme: &AppTheme) -> impl
                         .rounded(px(app_theme.radius))
                         .bg(app_theme.muted_fill.opacity(0.4))
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(app_theme.text_primary)
                                 .child(s.title.clone()),
                         )
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .text_color(app_theme.text_secondary)
                                 .child(s.summary.clone()),
                         )
                         .children(s.evidence.iter().map(|e| {
-                            div()
-                                .text_size(px(FONT_2XS))
+                            div().text_size(px(crate::theme::fs(FONT_2XS)))
                                 .text_color(app_theme.text_muted)
                                 .child(format!("- {e}"))
                         }))
                         .when(s.action.is_some(), |this| {
                             this.child(
-                                div()
-                                    .text_size(px(FONT_2XS))
+                                div().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .text_color(app_theme.text_secondary)
                                     .child(format!(
                                         "动作:{}",
@@ -1682,15 +1661,13 @@ fn issue_card(issues: &[AdIssueCard], app_theme: &AppTheme) -> impl IntoElement 
                 .border_b_1()
                 .border_color(app_theme.separator)
                 .child(
-                    div()
-                        .text_size(px(FONT_BASE))
+                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(app_theme.text_primary)
                         .child("风险提醒"),
                 )
                 .child(
-                    div()
-                        .text_size(px(FONT_2XS))
+                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                         .text_color(app_theme.text_muted)
                         .child("需要关注的广告风险信号"),
                 ),
@@ -1717,29 +1694,25 @@ fn issue_card(issues: &[AdIssueCard], app_theme: &AppTheme) -> impl IntoElement 
                                         .text_color(app_theme.warning),
                                 )
                                 .child(
-                                    div()
-                                        .text_size(px(FONT_BASE))
+                                    div().text_size(px(crate::theme::fs(FONT_BASE)))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(app_theme.text_primary)
                                         .child(issue.title.clone()),
                                 )
                                 .child(
-                                    div()
-                                        .text_size(px(FONT_2XS))
+                                    div().text_size(px(crate::theme::fs(FONT_2XS)))
                                         .text_color(app_theme.text_muted)
                                         .child(issue.level.clone()),
                                 ),
                         )
                         .child(
-                            div()
-                                .text_size(px(FONT_BASE))
+                            div().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .text_color(app_theme.text_secondary)
                                 .child(issue.summary.clone()),
                         )
                         .when(issue.next_step.is_some(), |this| {
                             this.child(
-                                div()
-                                    .text_size(px(FONT_2XS))
+                                div().text_size(px(crate::theme::fs(FONT_2XS)))
                                     .text_color(app_theme.text_secondary)
                                     .child(format!(
                                         "下一步:{}",
@@ -1759,8 +1732,7 @@ fn hint_inline(app_theme: &AppTheme, text: &str) -> impl IntoElement {
     div()
         .px_2()
         .py_5()
-        .text_center()
-        .text_size(px(FONT_BASE))
+        .text_center().text_size(px(crate::theme::fs(FONT_BASE)))
         .text_color(app_theme.text_muted)
         .child(text.to_string())
 }
@@ -1800,8 +1772,7 @@ fn render_project_select(
         .gap_2()
         .items_center()
         .child(
-            div()
-                .text_size(px(FONT_XS))
+            div().text_size(px(crate::theme::fs(FONT_XS)))
                 .text_color(app_theme.text_muted)
                 .child("项目"),
         )
@@ -1846,8 +1817,7 @@ fn render_country_select(
         .gap_2()
         .items_center()
         .child(
-            div()
-                .text_size(px(FONT_XS))
+            div().text_size(px(crate::theme::fs(FONT_XS)))
                 .text_color(app_theme.text_muted)
                 .child("站点"),
         )

@@ -807,6 +807,39 @@ mod tests {
         );
     }
 
+    /// BLF-830 契约：三档密度——档位序数/持久化 key 往返、字号与 rem 步进
+    /// 方向一致（紧凑 -1 / 标准 0 / 宽松 +1）、rem 数值落在 15~17px。
+    #[test]
+    fn density_levels_roundtrip_and_step_monotonically() {
+        for level in DensityLevel::ALL {
+            assert_eq!(DensityLevel::from_key(level.key()), Some(level));
+        }
+        // 未知 key 不炸解析（旧文件兼容协议）
+        assert_eq!(DensityLevel::from_key("bogus"), None);
+
+        let (compact, standard, relaxed) = (
+            DensityLevel::Compact,
+            DensityLevel::Standard,
+            DensityLevel::Relaxed,
+        );
+        // 字号步进方向一致且单调（fs_for：显式档位注入，不依赖进程全局态）。
+        // 半步进对齐后相邻档差 0.5px：紧凑 12.5 / 标准 13.0 / 宽松 13.5。
+        assert!(fs_for(standard, 13.0) == fs_for(compact, 13.0) + 0.5);
+        assert!(fs_for(relaxed, 13.0) == fs_for(standard, 13.0) + 0.5);
+        // 半步进对齐：所有档位结果都落在 0.5px 栅格上
+        for level in [compact, standard, relaxed] {
+            for base in [10.0, 11.0, 12.0, 13.0, 14.0, 17.0] {
+                let v = fs_for(level, base);
+                assert_eq!(v * 2.0, (v * 2.0).round(), "字号必须对齐 0.5px 栅格");
+            }
+        }
+        // rem 档位数值：15 / 16 / 17
+        assert_eq!(rem_size_for_level(compact), 15.0);
+        assert_eq!(rem_size_for_level(standard), REM_SIZE_STANDARD);
+        assert_eq!(rem_size_for_level(standard), 16.0);
+        assert_eq!(rem_size_for_level(relaxed), 17.0);
+    }
+
     /// BLF-792 回归锁：控件度量与最小间距 token——输入/按钮两档 24~28px、
     /// 表头 28px、最小间距收敛 2/4/8px。
     #[test]
@@ -890,4 +923,162 @@ mod tests {
             assert!(!AppTheme::current(cx).is_dark());
         });
     }
+}
+
+// ---------------------------------------------------------------------------
+// 三档密度分档（BLF-830：高分辨率适配专项）
+//
+// 「一套缩放系数驱动全站」的双通道实现：
+// 1. **间距通道（rem）**：gpui 的间距工具类（`.p_2()` / `.gap_1()` 等）由宏生成
+//    为 `rems(n)`（gpui-macros styles.rs），绘制期乘 `window.rem_size()`——
+//    切档时改写窗口 rem_size（[`shell`] 六区尺寸常量保持逻辑锚点不动，
+//    由 RootView 每帧同步），全站间距/组件库控件高度即随档位缩放。
+// 2. **字号通道（显式 px token）**：紧凑字阶是显式 px 常量（不随 rem 缩放），
+//    经 [`fs`] 读进程级档位原子量换算后下发。半步进 [`DENSITY_FONT_QUANTUM`]
+//    = 0.5px：三档字号差在 10~17px 区间可感知且不为奇数像素栅格制造糊字。
+//
+// hairline 边界不受影响：gpui 宏的 `border_r_1()` 族生成固定 `px(1.)`，
+// 与 rem / 密度无关，任何档位下分隔线都保持 1 逻辑像素（见 BLF-830 审计结论）。
+// ---------------------------------------------------------------------------
+
+/// 界面密度三档（BLF-830）
+///
+/// 档位语义（factor 为字号半步进的方向系数；间距走 rem 步进同号）：
+/// - **Compact**：高分屏小窗 / 追求单屏数据量——字号 -0.5px、rem 15px；
+/// - **Standard**：默认档（mac Retina 基准）——字号 ±0、rem 16px；
+/// - **Relaxed**：「字偏小」反馈场景——字号 +0.5px、rem 17px。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DensityLevel {
+    /// 紧凑：信息密度优先
+    Compact,
+    /// 标准：默认档
+    #[default]
+    Standard,
+    /// 宽松：可读性优先
+    Relaxed,
+}
+
+impl DensityLevel {
+    /// 全部档位（设置入口渲染顺序）
+    pub const ALL: [DensityLevel; 3] = [
+        DensityLevel::Compact,
+        DensityLevel::Standard,
+        DensityLevel::Relaxed,
+    ];
+
+    /// 菜单显示名（Footer 密度分段控件用）
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Compact => "紧凑",
+            Self::Standard => "标准",
+            Self::Relaxed => "宽松",
+        }
+    }
+
+    /// 偏好持久化 key（ui-prefs.json 的字符串值；稳定契约，改名破坏旧文件兼容）
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Compact => "compact",
+            Self::Standard => "standard",
+            Self::Relaxed => "relaxed",
+        }
+    }
+
+    /// 从持久化 key 解析（未知值 → None，调用方回退默认档；
+    /// 字符串协议保证旧文件出现未知值时不炸整个 UiPrefs 解析）
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key {
+            "compact" => Some(Self::Compact),
+            "standard" => Some(Self::Standard),
+            "relaxed" => Some(Self::Relaxed),
+            _ => None,
+        }
+    }
+
+    /// 字号步进方向系数：-1 / 0 / +1（[`fs`] 的半步进乘数）
+    pub(crate) fn font_step(self) -> i32 {
+        match self {
+            Self::Compact => -1,
+            Self::Standard => 0,
+            Self::Relaxed => 1,
+        }
+    }
+
+    /// 间距 rem 步进方向系数：-1 / 0 / +1（[`rem_size_for_level`] 的像素步数）
+    pub(crate) fn rem_step(self) -> i32 {
+        self.font_step()
+    }
+}
+
+/// 标准档 rem 基准（GPUI 默认值；父 issue「内部间距锁 4/8px」的锚点）
+pub const REM_SIZE_STANDARD: f32 = 16.0;
+/// 密度每档的 rem 步进（±1px：紧凑 15 / 标准 16 / 宽松 17）
+///
+/// ±1px ≈ ±6%：间距工具类最小粒度 0.125rem（2px@标准）在紧凑档缩到
+/// 1.875px、宽松档放大到 2.125px——体感可辨但不破版（六区外壳常量为
+/// 逻辑锚点不动，缩放发生在容器内距与间隙上）。
+pub const REM_STEP_PER_LEVEL: f32 = 1.0;
+/// 字号半步进（±0.5px；10~17px 区间内三档可感知的最小安全步长）。
+/// 由 [`fs_for`] 内联使用（0.5 栅格对齐公式），常量保留为 grep 审计锚点。
+#[allow(dead_code)]
+pub const DENSITY_FONT_QUANTUM: f32 = 0.5;
+
+/// 当前窗口应使用的 rem_size（按全局密度档位换算；RootView 每帧同步）
+pub fn rem_size_for_level(level: DensityLevel) -> f32 {
+    REM_SIZE_STANDARD + (level.rem_step() as f32) * REM_STEP_PER_LEVEL
+}
+
+/// 进程级密度档位（`AtomicUsize` 存 [`DensityLevel`] 判别值索引）。
+///
+/// 为什么不用 GPUI Global：[`fs`] 在纯函数语境被大量调用（无 `App` 句柄），
+/// 进程原子量让字号 token 的消费点零接线成本；写入仅经
+/// [`set_density_pref`] 单点（组合根纪律），测试并发读写见模块测试注释。
+static DENSITY_LEVEL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+fn level_from_index(index: usize) -> DensityLevel {
+    match index {
+        0 => DensityLevel::Compact,
+        2 => DensityLevel::Relaxed,
+        _ => DensityLevel::Standard,
+    }
+}
+
+/// 当前生效的密度档位（全局偏好缺失时回退标准档）
+pub fn density_level() -> DensityLevel {
+    level_from_index(DENSITY_LEVEL.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// 全局密度偏好（GPUI 侧读取口；与进程原子量由 [`set_density_pref`]
+/// 单点同步写入——字段当前无直接消费方，保留为对称读取 API 面）
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DensityPref(#[allow(dead_code)] pub DensityLevel);
+
+impl gpui::Global for DensityPref {}
+
+/// 写入当前密度档位（全局偏好 + 进程原子量单点同步）。
+///
+/// 调用方（组合根）负责随后 `window.set_rem_size` + `refresh` 触发重排。
+pub fn set_density_pref(level: DensityLevel, cx: &mut App) {
+    let index = match level {
+        DensityLevel::Compact => 0usize,
+        DensityLevel::Standard => 1,
+        DensityLevel::Relaxed => 2,
+    };
+    DENSITY_LEVEL.store(index, std::sync::atomic::Ordering::SeqCst);
+    cx.set_global(DensityPref(level));
+}
+
+/// 字号密度换算（显式档位注入版；[`fs`] 的纯函数内核，单测不碰进程全局态）
+fn fs_for(level: DensityLevel, base: f32) -> f32 {
+    let step = level.font_step();
+    ((base * 2.0) + step as f32).round() / 2.0
+}
+
+/// 字号密度换算：基准 token × 当前档位半步进。
+///
+/// 结果对齐 0.5px 栅格（`(base*2 + step).round()/2`），防浮点尘埃产生
+/// 12.999999 渲染抖动。全部显式 px 字号 token 经本函数下发：
+/// `text_size(px(fs(FONT_BASE)))`。
+pub fn fs(base: f32) -> f32 {
+    fs_for(density_level(), base)
 }

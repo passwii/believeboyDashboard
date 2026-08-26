@@ -37,15 +37,22 @@
 //! 降级占位符 + `tracing::warn!`，绝不 unwrap 网络结果——footer 不 panic、
 //! 不白块（验收第 2 条）。
 
-use gpui::{div, prelude::*, px, Context, Render, SharedString, Styled};
+use gpui::{div, prelude::*, px, Context, EventEmitter, Render, SharedString, Styled};
 use gui_api_client::metrics;
 use gui_api_client::Client;
 use gui_domain::exchange_rate::ExchangeRateItem;
 
 use crate::icon::icon_path;
-use crate::theme::AppTheme;
+use crate::theme::{self, AppTheme};
 use crate::views::shell::FOOTER_HEIGHT;
 use crate::widgets::data_table::TabularNumsExt;
+
+/// BLF-830：Footer 事件（密度切换上抛组合根）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FooterEvent {
+    /// 用户在密度分段控件中选中了新档位
+    DensityChanged(theme::DensityLevel),
+}
 
 // ---------------------------------------------------------------------------
 // 轮询节奏常量（规格锚点）
@@ -429,14 +436,12 @@ impl FooterView {
                             .gap_1()
                             .flex_none()
                             .child(
-                                div()
-                                    .text_size(px(crate::theme::FONT_FOOTER))
+                                div().text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
                                     .text_color(theme.text_muted)
                                     .child(SharedString::from((*currency).to_string())),
                             )
                             .child(
-                                div()
-                                    .text_size(px(crate::theme::FONT_FOOTER))
+                                div().text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
                                     .text_color(theme.text_primary)
                                     .mono_tabular_nums()
                                     .child(value),
@@ -513,16 +518,14 @@ impl FooterView {
             )
             .child(
                 div()
-                    .id("footer-db-label")
-                    .text_size(px(crate::theme::FONT_FOOTER))
+                    .id("footer-db-label").text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
                     .text_color(theme.text_secondary)
                     .child(label),
             )
             .when(!checked_label.is_empty(), |seg| {
                 seg.child(
                     div()
-                        .id("footer-db-time")
-                        .text_size(px(crate::theme::FONT_FOOTER))
+                        .id("footer-db-time").text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
                         .text_color(theme.text_muted)
                         .mono_tabular_nums()
                         .child(checked_label),
@@ -543,8 +546,7 @@ impl FooterView {
                 .bg(theme.accent_soft)
                 .flex()
                 .items_center()
-                .justify_center()
-                .text_size(px(crate::theme::FONT_2XS))
+                .justify_center().text_size(px(crate::theme::fs(crate::theme::FONT_2XS)))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.accent)
                 .mono_tabular_nums()
@@ -580,8 +582,7 @@ impl FooterView {
             .px_2()
             .child(
                 div()
-                    .id("footer-latency-value")
-                    .text_size(px(crate::theme::FONT_FOOTER))
+                    .id("footer-latency-value").text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
                     .text_color(theme.text_secondary)
                     .mono_tabular_nums()
                     .child(text),
@@ -591,8 +592,7 @@ impl FooterView {
 
 /// 占位文字（加载中等场景的「--」口径；无 id——避免同层重复）
 fn placeholder_text(theme: &AppTheme, text: &str) -> gpui::AnyElement {
-    div()
-        .text_size(px(crate::theme::FONT_FOOTER))
+    div().text_size(px(crate::theme::fs(crate::theme::FONT_FOOTER)))
         .text_color(theme.text_muted)
         .child(SharedString::from(text.to_string()))
         .into_any_element()
@@ -613,6 +613,8 @@ fn svg_bell_icon(theme: &AppTheme) -> gpui::Svg {
         .size(px(11.0))
         .text_color(theme.text_secondary)
 }
+
+impl EventEmitter<FooterEvent> for FooterView {}
 
 impl Render for FooterView {
     fn render(&mut self, _window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -638,6 +640,50 @@ impl Render for FooterView {
             .child(self.unread_segment(&theme))
             .child(Self::v_divider(&theme))
             .child(self.latency_segment(&theme))
+            // BLF-830：密度分段控件（最右端；三档切换入口）
+            .child(Self::v_divider(&theme))
+            .child(self.density_segment(cx))
+    }
+}
+
+impl FooterView {
+    /// BLF-830：密度分段控件（紧凑 | 标准 | 宽松；选中档 accent 胶囊）。
+    ///
+    /// 放 Footer 的理由：常驻可见（任意页面一键切）、不占业务空间、与
+    /// 延迟/未读同类的「全局界面状态」语义；独立设置页会破坏 gui-domain
+    /// sidebar 与 frontend 52 项 1:1 契约（GUI 无私设页路由），完成评论已
+    /// 说明此取舍。
+    fn density_segment(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let current = theme::density_level();
+
+        div()
+            .id("footer-segment-density")
+            .flex()
+            .items_center()
+            .flex_none()
+            .h_full()
+            .px_2()
+            .gap_1()
+            .children(theme::DensityLevel::ALL.map(|level| {
+                let active = level == current;
+                let theme = AppTheme::current(cx);
+                div()
+                    .id(SharedString::from(format!("density-{}", level.key())))
+                    .on_click(cx.listener(move |this, _ev, _window, cx| {
+                        if theme::density_level() != level {
+                            cx.emit(FooterEvent::DensityChanged(level));
+                            let _ = this; // listener 签名要求；事件即交付
+                        }
+                    }))
+                    .cursor_pointer()
+                    .px_1()
+                    .rounded_sm().text_size(px(theme::fs(crate::theme::FONT_FOOTER)))
+                    .when(active, |el| {
+                        el.bg(theme.accent_soft).text_color(theme.accent)
+                    })
+                    .when(!active, |el| el.text_color(theme.text_muted))
+                    .child(level.label())
+            }))
     }
 }
 

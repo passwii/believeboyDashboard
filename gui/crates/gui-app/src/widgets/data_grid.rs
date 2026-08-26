@@ -477,8 +477,7 @@ impl<T: Clone + PartialEq + 'static> DataGrid<T> {
             .flex_none()
             .bg(bg)
             .hover(|this| this.bg(theme.table_row_hover))
-            .tabular_nums()
-            .text_size(px(FONT_BASE))
+            .tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
             .text_color(theme.text_secondary);
         for (col_ix, col) in self.columns.iter().enumerate() {
             let cell = div()
@@ -567,8 +566,7 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
                     .items_center()
                     .border_b_1()
                     .border_color(theme.separator)
-                    .bg(theme.panel_bg)
-                    .text_size(px(FONT_XS))
+                    .bg(theme.panel_bg).text_size(px(crate::theme::fs(FONT_XS)))
                     .font_weight(FontWeight::MEDIUM)
                     .children(header_cells),
             );
@@ -808,8 +806,7 @@ pub fn grid_footer_bar<V: 'static>(
                         )
                         .child(
                             div()
-                                .mono_tabular_nums()
-                                .text_size(px(FONT_BASE))
+                                .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(item.tone.color(theme))
                                 .child(item.value.clone()),
@@ -872,8 +869,7 @@ pub fn aggregate_strip(
                 )
                 .child(
                     div()
-                        .mono_tabular_nums()
-                        .text_size(px(FONT_BASE))
+                        .mono_tabular_nums().text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(item.tone.color(theme))
                         .child(item.value.clone()),
