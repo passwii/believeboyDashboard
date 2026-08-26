@@ -30,7 +30,7 @@ use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
 use crate::motion;
-use crate::theme::AppTheme;
+use crate::theme::{ui_font, AppTheme};
 
 /// 登录成功事件（携带带会话的 client + 用户信息）
 #[derive(Debug, Clone)]
@@ -327,6 +327,9 @@ impl Render for LoginView {
             .flex()
             .flex_col()
             .bg(theme.window_bg)
+            // BLF-829：跨平台字体链下发（同 root.rs 根容器；登录窗文字
+            // 中文回退到苹方/雅黑，与主窗口一致）
+            .font(ui_font())
             // 表单整体首次出现淡入（复用 P4-2 动效系统，自动尊重「减弱动态效果」）
             .child(div().flex_1().flex().items_center().justify_center().child(
                 motion::enter_fade_in("login-panel-fade".into(), form, motion::reduce_motion(cx)),
