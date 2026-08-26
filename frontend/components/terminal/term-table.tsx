@@ -28,16 +28,21 @@ export function TermHead({
   className,
   numeric,
   onClick,
+  title,
 }: {
-  children: React.ReactNode
+  /** 空操作列表头（无文字）时可为空 */
+  children?: React.ReactNode
   className?: string
   numeric?: boolean
   /** 可选点击（列排序）；传入时自动带 cursor + hover 反馈 */
   onClick?: () => void
+  /** 可选原生 title（截断表头的完整内容提示） */
+  title?: string
 }) {
   return (
     <th
       scope="col"
+      title={title}
       onClick={onClick}
       className={cn(
         HEAD_BASE,
@@ -78,18 +83,23 @@ export function TermCell({
   numeric,
   tone,
   title,
+  colSpan,
 }: {
-  children: React.ReactNode
+  /** 纯 colSpan 占位单元格（合计行空位）时可为空 */
+  children?: React.ReactNode
   className?: string
   numeric?: boolean
   /** 微语义色：pos 涨/有货 · warn 待处理 · neg 跌/缺货 */
   tone?: 'pos' | 'warn' | 'neg' | 'muted'
   /** 可选原生 title（截断单元格的完整内容提示） */
   title?: string
+  /** 跨列合并（状态行 / 合计行用） */
+  colSpan?: number
 }) {
   return (
     <td
       title={title}
+      colSpan={colSpan}
       className={cn(
         CELL_CN,
         numeric && 'text-right',
