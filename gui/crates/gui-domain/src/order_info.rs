@@ -142,8 +142,14 @@ pub fn order_status_label(status: &str) -> &str {
         s => {
             let key = format!(
                 "{}{}",
-                s.chars().next().map(|c| c.to_ascii_uppercase()).unwrap_or('_'),
-                s.chars().skip(1).map(|c| c.to_ascii_lowercase()).collect::<String>()
+                s.chars()
+                    .next()
+                    .map(|c| c.to_ascii_uppercase())
+                    .unwrap_or('_'),
+                s.chars()
+                    .skip(1)
+                    .map(|c| c.to_ascii_lowercase())
+                    .collect::<String>()
             );
             match key.as_str() {
                 "Pending" => "处理中",

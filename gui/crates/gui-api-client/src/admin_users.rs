@@ -12,9 +12,7 @@
 //!
 //! 未接入：`POST …/{id}/revoke-sessions`（web 账号管理页亦未暴露）。
 
-use gui_domain::admin_users::{
-    AdminUserItem, AdminUserMutationResponse, AdminUsersResponse,
-};
+use gui_domain::admin_users::{AdminUserItem, AdminUserMutationResponse, AdminUsersResponse};
 
 use crate::client::Client;
 use crate::error::ApiError;
@@ -67,9 +65,9 @@ impl Client {
         &self,
         body: &AdminUserCreateBody,
     ) -> Result<AdminUserItem, ApiError> {
-        let resp: AdminUserMutationResponse =
-            self.request_json(reqwest::Method::POST, USERS_PATH, &[], Some(body))
-                .await?;
+        let resp: AdminUserMutationResponse = self
+            .request_json(reqwest::Method::POST, USERS_PATH, &[], Some(body))
+            .await?;
         Ok(resp.item)
     }
 
@@ -80,9 +78,9 @@ impl Client {
         body: &AdminUserUpdateBody,
     ) -> Result<AdminUserItem, ApiError> {
         let path = format!("{USERS_PATH}/{user_id}");
-        let resp: AdminUserMutationResponse =
-            self.request_json(reqwest::Method::PATCH, &path, &[], Some(body))
-                .await?;
+        let resp: AdminUserMutationResponse = self
+            .request_json(reqwest::Method::PATCH, &path, &[], Some(body))
+            .await?;
         Ok(resp.item)
     }
 

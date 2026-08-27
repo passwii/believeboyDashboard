@@ -62,7 +62,9 @@ fn beijing_time(iso: &str) -> String {
         .or_else(|_| {
             chrono::NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S%.f").map(|naive| {
                 use chrono::TimeZone;
-                chrono::Utc.from_utc_datetime(&naive).with_timezone(&beijing)
+                chrono::Utc
+                    .from_utc_datetime(&naive)
+                    .with_timezone(&beijing)
             })
         });
     parsed
@@ -162,13 +164,10 @@ impl AccountManagementView {
     /// 新建视图：初始 Loading，由 root.rs 懒创建后触发 `reload_users`
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let table = cx.new(|_| {
-            DataTable::new(
-                "account-user-table",
-                user_columns(),
-            )
-            .striped(true)
-            .selectable(true)
-            .empty_text("暂无账号 — 点击右上角「新增账号」创建")
+            DataTable::new("account-user-table", user_columns())
+                .striped(true)
+                .selectable(true)
+                .empty_text("暂无账号 — 点击右上角「新增账号」创建")
         });
         Self {
             client,
@@ -210,8 +209,7 @@ impl AccountManagementView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(async { client.admin_user_list().await })
+                    crate::runtime::runtime().block_on(async { client.admin_user_list().await })
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -312,7 +310,9 @@ impl AccountManagementView {
     }
 
     fn input_value(input: Option<&Entity<InputState>>, cx: &Context<Self>) -> String {
-        input.map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default()
+        input
+            .map(|i| i.read(cx).value().trim().to_string())
+            .unwrap_or_default()
     }
 
     // ── 提交动作 ────────────────────────────────────────────
@@ -366,16 +366,18 @@ impl AccountManagementView {
         }
         let name_zh = Self::input_value(self.edit_name_input.as_ref(), cx);
         let body = AdminUserUpdateBody {
-            operator_name_zh: if name_zh.is_empty() { None } else { Some(name_zh) },
+            operator_name_zh: if name_zh.is_empty() {
+                None
+            } else {
+                Some(name_zh)
+            },
             role_type: Some(role),
             ..Default::default()
         };
         let label = user.display_name().to_string();
         let user_id = user.id;
         self.run_mutation(
-            move |client| {
-                Box::pin(async move { client.admin_user_update(&user_id, &body).await })
-            },
+            move |client| Box::pin(async move { client.admin_user_update(&user_id, &body).await }),
             &format!("账号已更新：{label}"),
             false,
             true,
@@ -407,9 +409,7 @@ impl AccountManagementView {
         let label = user.display_name().to_string();
         let user_id = user.id;
         self.run_mutation(
-            move |client| {
-                Box::pin(async move { client.admin_user_update(&user_id, &body).await })
-            },
+            move |client| Box::pin(async move { client.admin_user_update(&user_id, &body).await }),
             &format!("密码已重置：{label}"),
             false,
             true,
@@ -479,9 +479,7 @@ impl AccountManagementView {
         let label = user.display_name().to_string();
         let user_id = user.id;
         self.run_mutation(
-            move |client| {
-                Box::pin(async move { client.admin_user_update(&user_id, &body).await })
-            },
+            move |client| Box::pin(async move { client.admin_user_update(&user_id, &body).await }),
             &format!("{verb}成功：{label}"),
             false,
             false,
@@ -501,9 +499,15 @@ impl AccountManagementView {
         close_on_start: bool,
         close_on_success: bool,
         cx: &mut Context<Self>,
-    )     where
-        F: FnOnce(Client) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<AdminUserItem, gui_api_client::error::ApiError>> + Send>,
+    ) where
+        F: FnOnce(
+                Client,
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<AdminUserItem, gui_api_client::error::ApiError>,
+                        > + Send,
+                >,
             > + Send
             + 'static,
     {
@@ -518,9 +522,7 @@ impl AccountManagementView {
         let msg = success_msg.to_string();
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
-            let result = bg
-                .spawn(async move { call(client).await })
-                .await;
+            let result = bg.spawn(async move { call(client).await }).await;
             this.update(&mut *cx, |this, cx| {
                 this.busy = false;
                 match result {
@@ -617,7 +619,12 @@ fn status_pill(active: bool, theme: &AppTheme) -> gpui::AnyElement {
         .px_2()
         .py(px(1.))
         .child(
-            Icon::new(if active { IconName::Check } else { IconName::Close }).with_size(px(11.)),
+            Icon::new(if active {
+                IconName::Check
+            } else {
+                IconName::Close
+            })
+            .with_size(px(11.)),
         )
         .child(
             div()
@@ -646,11 +653,14 @@ impl Render for AccountManagementView {
                 }
                 if self.create_full_name_input.is_none() {
                     self.create_full_name_input =
-                        Some(cx.new(|cx| InputState::new(window, cx).placeholder("可选，后续可手动维护")));
+                        Some(cx.new(|cx| {
+                            InputState::new(window, cx).placeholder("可选，后续可手动维护")
+                        }));
                 }
                 if self.create_email_input.is_none() {
-                    self.create_email_input =
-                        Some(cx.new(|cx| InputState::new(window, cx).placeholder("name@example.com")));
+                    self.create_email_input = Some(
+                        cx.new(|cx| InputState::new(window, cx).placeholder("name@example.com")),
+                    );
                 }
                 if self.create_password_input.is_none() {
                     self.create_password_input = Some(cx.new(|cx| {
@@ -668,8 +678,8 @@ impl Render for AccountManagementView {
                         .or(user.operator_name_zh.clone())
                         .unwrap_or_default();
                     self.edit_name_input = Some(cx.new(|cx| {
-                        let mut s = InputState::new(window, cx)
-                            .placeholder("用于权限控制和操作记录");
+                        let mut s =
+                            InputState::new(window, cx).placeholder("用于权限控制和操作记录");
                         if !initial.is_empty() {
                             s = s.default_value(initial);
                         }
@@ -720,87 +730,87 @@ impl AccountManagementView {
         theme: &AppTheme,
     ) -> gpui::AnyElement {
         // 表格行注入（render 期幂等）
-        self.table.update(cx, |t, cx| t.set_rows_if_changed(&self.users, cx));
+        self.table
+            .update(cx, |t, cx| t.set_rows_if_changed(&self.users, cx));
 
         let selected = self.selected_user(cx);
         let reduce = crate::motion::reduce_motion(cx);
 
-        let body: gpui::AnyElement = match &self.users_state {
-            UserListState::Loading => state_views::skeleton_loading(
-                theme,
-                &[SkeletonBlock::Kpi(2), SkeletonBlock::Table(280.0)],
-            )
-            .into_any_element(),
-            UserListState::Error(msg) => state_views::error_state(
-                view,
-                theme,
-                "account-users-error",
-                "账号列表加载失败",
-                msg.clone(),
-                |this, cx| this.reload_users(cx),
-            )
-            .into_any_element(),
-            UserListState::Empty => state_views::empty_state_with_action_desc(
-                view,
-                theme,
-                "account-users-empty",
-                "icons/users.svg",
-                "暂无账号",
-                Some("点击「新增账号」创建第一个用户".to_string()),
-                "刷新",
-                |this, cx| this.reload_users(cx),
-            )
-            .into_any_element(),
-            UserListState::Loaded => {
-                let action_bar = render_selected_actions(selected.as_ref(), view, theme);
-                let table_card = v_flex()
-                    .id("account-users-card")
-                    .w_full()
-                    .rounded(px(theme.radius_lg))
-                    .bg(theme.card_bg)
-                    .shadow(vec![theme.card_shadow_box()])
-                    .child(
+        let body: gpui::AnyElement =
+            match &self.users_state {
+                UserListState::Loading => state_views::skeleton_loading(
+                    theme,
+                    &[SkeletonBlock::Kpi(2), SkeletonBlock::Table(280.0)],
+                )
+                .into_any_element(),
+                UserListState::Error(msg) => state_views::error_state(
+                    view,
+                    theme,
+                    "account-users-error",
+                    "账号列表加载失败",
+                    msg.clone(),
+                    |this, cx| this.reload_users(cx),
+                )
+                .into_any_element(),
+                UserListState::Empty => state_views::empty_state_with_action_desc(
+                    view,
+                    theme,
+                    "account-users-empty",
+                    "icons/users.svg",
+                    "暂无账号",
+                    Some("点击「新增账号」创建第一个用户".to_string()),
+                    "刷新",
+                    |this, cx| this.reload_users(cx),
+                )
+                .into_any_element(),
+                UserListState::Loaded => {
+                    let action_bar = render_selected_actions(selected.as_ref(), view, theme);
+                    let table_card =
                         v_flex()
-                            .gap_1()
-                            .px_4()
-                            .py_3()
-                            .border_b_1()
-                            .border_color(theme.separator)
+                            .id("account-users-card")
+                            .w_full()
+                            .rounded(px(theme.radius_lg))
+                            .bg(theme.card_bg)
+                            .shadow(vec![theme.card_shadow_box()])
                             .child(
-                                div()
-                                    .text_base()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(theme.text_primary)
-                                    .child("账号列表"),
+                                v_flex()
+                                    .gap_1()
+                                    .px_4()
+                                    .py_3()
+                                    .border_b_1()
+                                    .border_color(theme.separator)
+                                    .child(
+                                        div()
+                                            .text_base()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(theme.text_primary)
+                                            .child("账号列表"),
+                                    )
+                                    .child(div().text_xs().text_color(theme.text_muted).child(
+                                        "角色属性决定权限范围；停用账号立即吊销其全部登录会话",
+                                    )),
                             )
+                            .child(action_bar)
+                            .child(div().w_full().px_4().py_2().child(self.table.clone()))
                             .child(
                                 div()
+                                    .px_4()
+                                    .pb_2()
                                     .text_xs()
                                     .text_color(theme.text_muted)
-                                    .child("角色属性决定权限范围；停用账号立即吊销其全部登录会话"),
-                            ),
-                    )
-                    .child(action_bar)
-                    .child(div().w_full().px_4().py_2().child(self.table.clone()))
-                    .child(
-                        div()
-                            .px_4()
-                            .pb_2()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child(SharedString::from(format!(
+                                    .child(SharedString::from(format!(
                                 "共 {} 个账号 · 点击行选中后可在上方启停 / 编辑 / 重置密码 / 删除",
                                 self.users.len()
                             ))),
-                    );
-                crate::motion::enter_fade_in(
-                    SharedString::from("account-users-loaded-fade"),
-                    table_card,
-                    reduce,
-                )
-                .into_any_element()
-            }
-        };
+                            );
+                    crate::motion::enter_fade_in(
+                        SharedString::from("account-users-loaded-fade"),
+                        table_card,
+                        reduce,
+                    )
+                    .into_any_element()
+                }
+            };
 
         content_guard().child(body).into_any_element()
     }
@@ -838,7 +848,11 @@ fn notice_banner(theme: &AppTheme, is_err: bool, text: &str) -> gpui::AnyElement
     let (bg, fg, border) = if is_err {
         (theme.danger_soft, theme.danger, theme.danger.opacity(0.35))
     } else {
-        (theme.success_soft, theme.success, theme.success.opacity(0.35))
+        (
+            theme.success_soft,
+            theme.success,
+            theme.success.opacity(0.35),
+        )
     };
     h_flex()
         .id("account-notice-banner")
@@ -980,18 +994,14 @@ fn render_modal_overlay(
     match &this.open_dialog {
         Some(dialog) => overlay
             .child(match dialog {
-                OpenDialog::Create { role } => {
-                    render_create_dialog(this, *role, view, cx, theme)
-                }
+                OpenDialog::Create { role } => render_create_dialog(this, *role, view, cx, theme),
                 OpenDialog::Edit { user, role } => {
                     render_edit_dialog(this, user, *role, view, cx, theme)
                 }
                 OpenDialog::ResetPassword { user } => {
                     render_reset_dialog(this, user, view, cx, theme)
                 }
-                OpenDialog::DeleteConfirm { user } => {
-                    render_delete_confirm(user, view, theme)
-                }
+                OpenDialog::DeleteConfirm { user } => render_delete_confirm(user, view, theme),
             })
             .into_any_element(),
         None => overlay.into_any_element(),
@@ -1064,10 +1074,7 @@ fn role_segmented(
                 .when(!selected, |this| {
                     this.border_color(theme.separator)
                         .text_color(theme.text_secondary)
-                        .hover(|this| {
-                            this.bg(theme.muted_fill)
-                                .text_color(theme.text_primary)
-                        })
+                        .hover(|this| this.bg(theme.muted_fill).text_color(theme.text_primary))
                 })
                 .child(role_type_label(role))
                 .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
@@ -1163,7 +1170,11 @@ fn render_create_dialog(
                     Button::new("account-create-save")
                         .primary()
                         .small()
-                        .label(if saving { "创建中..." } else { "创建账号" })
+                        .label(if saving {
+                            "创建中..."
+                        } else {
+                            "创建账号"
+                        })
                         .disabled(saving)
                         .on_click(move |_, _, cx| {
                             v_save.update(cx, |this, cx| this.submit_create(cx));
@@ -1402,7 +1413,10 @@ mod tests {
 
     #[test]
     fn url_constant_matches_sidebar() {
-        assert_eq!(ACCOUNT_MANAGEMENT_URL, "/dashboard/system/account-management");
+        assert_eq!(
+            ACCOUNT_MANAGEMENT_URL,
+            "/dashboard/system/account-management"
+        );
         assert!(gui_domain::sidebar::sidebar_groups()
             .iter()
             .flat_map(|g| g.items.iter())
@@ -1456,10 +1470,7 @@ mod tests {
     #[test]
     fn reset_password_validation_enforces_min_length() {
         assert!(validate_password("short12").is_err());
-        assert_eq!(
-            validate_password("newpass123").expect("合法"),
-            "newpass123"
-        );
+        assert_eq!(validate_password("newpass123").expect("合法"), "newpass123");
     }
 }
 
@@ -1515,7 +1526,9 @@ mod gpui_tests {
                 this.set_dialog_role(UserRoleType::Businessdev, cx);
                 assert!(matches!(
                     this.open_dialog,
-                    Some(OpenDialog::Create { role: UserRoleType::Businessdev })
+                    Some(OpenDialog::Create {
+                        role: UserRoleType::Businessdev
+                    })
                 ));
                 this.close_dialog(cx);
                 assert!(this.open_dialog.is_none());
@@ -1555,7 +1568,10 @@ mod gpui_tests {
             // 保护账号删除入口双保险拦截
             this.open_delete_confirm(yawei, cx);
             assert!(this.open_dialog.is_none());
-            assert!(this.users.iter().all(|u| u.id == "u-yawei" || u.id == "u-ops"));
+            assert!(this
+                .users
+                .iter()
+                .all(|u| u.id == "u-yawei" || u.id == "u-ops"));
 
             // 普通账号可进删除确认
             let ops = this.users[1].clone();

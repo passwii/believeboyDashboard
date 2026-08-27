@@ -185,10 +185,7 @@ pub struct StreamDonePayload {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamEvent {
     /// `message_start`：一轮对话开始
-    MessageStart {
-        message_id: String,
-        model: String,
-    },
+    MessageStart { message_id: String, model: String },
     /// `content_block_start`：新内容块（tool_use → 联网搜索开始）
     ContentBlockStart { block: ContentBlock },
     /// `content_block_delta`：增量（text_delta / thinking_delta）
@@ -458,7 +455,9 @@ mod tests {
             Some(StreamEvent::MessageStop)
         );
         assert_eq!(
-            StreamEvent::from_json(&serde_json::json!({"type": "message_start", "message_id": "m", "model": "gpt"})),
+            StreamEvent::from_json(
+                &serde_json::json!({"type": "message_start", "message_id": "m", "model": "gpt"})
+            ),
             Some(StreamEvent::MessageStart {
                 message_id: "m".into(),
                 model: "gpt".into()
@@ -475,7 +474,10 @@ mod tests {
             Some(StreamEvent::Unknown("future_event".into()))
         );
         // 缺 type / 非 JSON → None（调用方跳过）
-        assert_eq!(StreamEvent::from_json(&serde_json::json!({"data": 1})), None);
+        assert_eq!(
+            StreamEvent::from_json(&serde_json::json!({"data": 1})),
+            None
+        );
     }
 
     #[test]

@@ -855,12 +855,19 @@ mod audit_tests {
     fn format_audit_time_uses_local_timezone() {
         // 本机时区 2026-08-21 15:30 → UTC 随偏移换算，格式化后回到同一本地时刻
         let local = Local.with_ymd_and_hms(2026, 8, 21, 15, 30, 0).unwrap();
-        assert_eq!(format_audit_time(local.with_timezone(&Utc)), "2026-08-21 15:30");
+        assert_eq!(
+            format_audit_time(local.with_timezone(&Utc)),
+            "2026-08-21 15:30"
+        );
 
         // 固定 UTC 时刻换算本机时区后仅锁格式形状（日期可能随偏移跨日界，不锁值）
         let utc = Utc.with_ymd_and_hms(2026, 8, 21, 15, 30, 0).unwrap();
         let formatted = format_audit_time(utc);
-        assert_eq!(formatted.len(), 16, "格式固定 YYYY-MM-DD HH:MM：{formatted}");
+        assert_eq!(
+            formatted.len(),
+            16,
+            "格式固定 YYYY-MM-DD HH:MM：{formatted}"
+        );
         assert_eq!(formatted.as_bytes()[4], b'-');
         assert_eq!(formatted.as_bytes()[10], b' ');
     }
@@ -1176,11 +1183,7 @@ impl CrmRuleItem {
 
     /// 执行动作中文摘要（MVP 仅提醒负责人）
     pub fn action_summary(&self) -> String {
-        if self
-            .actions
-            .iter()
-            .any(|a| a.action_type == "notify_owner")
-        {
+        if self.actions.iter().any(|a| a.action_type == "notify_owner") {
             "提醒负责人".to_string()
         } else {
             "自定义动作".to_string()
@@ -1242,7 +1245,8 @@ pub fn task_status_label(status: &str) -> String {
 }
 
 #[cfg(test)]
-mod crm_list_tests {    use super::*;
+mod crm_list_tests {
+    use super::*;
 
     /// 客户列表 snake_case 解析：可空字段缺省 + 联系人 join 字段
     #[test]

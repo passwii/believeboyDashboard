@@ -113,9 +113,7 @@ impl CategoryFilter {
     pub fn as_query(self) -> Option<&'static str> {
         match self {
             CategoryFilter::All | CategoryFilter::Other => None,
-            CategoryFilter::Known(key) => {
-                gui_domain::system_management::category_action_query(key)
-            }
+            CategoryFilter::Known(key) => gui_domain::system_management::category_action_query(key),
         }
     }
 
@@ -535,31 +533,37 @@ impl SystemLogsView {
         let result = self.audit_result.as_query().map(str::to_string);
         let page = self.audit_page.max(1);
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let fetched = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(async {
-                        let logs = client
-                            .system_audit_logs(
-                                None,
-                                action.as_deref(),
-                                None,
-                                page,
-                                AUDIT_PAGE_SIZE,
-                            )
-                            .await?;
-                        let summary = client
-                            .system_audit_logs_summary(None, action.as_deref(), result.as_deref())
-                            .await?;
-                        Ok((logs, summary))
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let fetched = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(async {
+                            let logs = client
+                                .system_audit_logs(
+                                    None,
+                                    action.as_deref(),
+                                    None,
+                                    page,
+                                    AUDIT_PAGE_SIZE,
+                                )
+                                .await?;
+                            let summary = client
+                                .system_audit_logs_summary(
+                                    None,
+                                    action.as_deref(),
+                                    result.as_deref(),
+                                )
+                                .await?;
+                            Ok((logs, summary))
+                        })
                     })
+                    .await;
+                this.update(&mut *cx, |this, cx| {
+                    this.apply_audit_result(request_id, fetched, cx);
                 })
-                .await;
-            this.update(&mut *cx, |this, cx| {
-                this.apply_audit_result(request_id, fetched, cx);
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
         cx.notify();
     }
@@ -569,7 +573,10 @@ impl SystemLogsView {
         &mut self,
         request_id: u64,
         result: Result<
-            (OperationAuditLogsResponse, OperationAuditLogsSummaryResponse),
+            (
+                OperationAuditLogsResponse,
+                OperationAuditLogsSummaryResponse,
+            ),
             ApiError,
         >,
         cx: &mut Context<Self>,
@@ -591,7 +598,8 @@ impl SystemLogsView {
                 };
                 self.audit_total = page.total.max(0) as usize;
                 self.audit_summary = Some(summary);
-                self.audit_table.update(cx, |table, cx| table.set_rows(rows, cx));
+                self.audit_table
+                    .update(cx, |table, cx| table.set_rows(rows, cx));
             }
             Err(err) => {
                 self.audit_phase = FetchPhase::Error(err.user_message());
@@ -608,25 +616,27 @@ impl SystemLogsView {
         let client = self.client.clone();
         let page = self.login_page.max(1);
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let fetched = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(async {
-                        let logs = client
-                            .system_audit_logs(None, Some("auth."), None, page, AUDIT_PAGE_SIZE)
-                            .await?;
-                        let summary = client
-                            .system_audit_logs_summary(None, Some("auth."), None)
-                            .await?;
-                        Ok((logs, summary))
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let fetched = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(async {
+                            let logs = client
+                                .system_audit_logs(None, Some("auth."), None, page, AUDIT_PAGE_SIZE)
+                                .await?;
+                            let summary = client
+                                .system_audit_logs_summary(None, Some("auth."), None)
+                                .await?;
+                            Ok((logs, summary))
+                        })
                     })
+                    .await;
+                this.update(&mut *cx, |this, cx| {
+                    this.apply_login_result(request_id, fetched, cx);
                 })
-                .await;
-            this.update(&mut *cx, |this, cx| {
-                this.apply_login_result(request_id, fetched, cx);
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
         cx.notify();
     }
@@ -635,7 +645,10 @@ impl SystemLogsView {
         &mut self,
         request_id: u64,
         result: Result<
-            (OperationAuditLogsResponse, OperationAuditLogsSummaryResponse),
+            (
+                OperationAuditLogsResponse,
+                OperationAuditLogsSummaryResponse,
+            ),
             ApiError,
         >,
         cx: &mut Context<Self>,
@@ -672,31 +685,37 @@ impl SystemLogsView {
         let result = self.agent_result.as_query().map(str::to_string);
         let page = self.agent_page.max(1);
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let fetched = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(async {
-                        let logs = client
-                            .agent_access_logs(
-                                None,
-                                method.as_deref(),
-                                result.as_deref(),
-                                page,
-                                AGENT_PAGE_SIZE,
-                            )
-                            .await?;
-                        let summary = client
-                            .agent_access_logs_summary(None, method.as_deref(), result.as_deref())
-                            .await?;
-                        Ok((logs, summary))
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let fetched = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(async {
+                            let logs = client
+                                .agent_access_logs(
+                                    None,
+                                    method.as_deref(),
+                                    result.as_deref(),
+                                    page,
+                                    AGENT_PAGE_SIZE,
+                                )
+                                .await?;
+                            let summary = client
+                                .agent_access_logs_summary(
+                                    None,
+                                    method.as_deref(),
+                                    result.as_deref(),
+                                )
+                                .await?;
+                            Ok((logs, summary))
+                        })
                     })
+                    .await;
+                this.update(&mut *cx, |this, cx| {
+                    this.apply_agent_result(request_id, fetched, cx);
                 })
-                .await;
-            this.update(&mut *cx, |this, cx| {
-                this.apply_agent_result(request_id, fetched, cx);
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
         cx.notify();
     }
@@ -749,8 +768,7 @@ impl Render for SystemLogsView {
             .overflow_y_scroll()
             .bg(app_theme.window_bg)
             .child(
-                PageHeader::new("日志查看")
-                    .subtitle("操作审计 / 登录 / Agent 访问的全量留痕检索"),
+                PageHeader::new("日志查看").subtitle("操作审计 / 登录 / Agent 访问的全量留痕检索"),
             )
             .child(tab_bar(view.clone(), self.tab))
             .child(match self.tab {
@@ -829,17 +847,14 @@ fn tab_bar(view: Entity<SystemLogsView>, active: LogTab) -> gpui::AnyElement {
         .gap_2()
         .children(LogTab::ALL.map(move |tab| {
             let view = view.clone();
-            Button::new(SharedString::from(format!(
-                "system-logs-tab-{}",
-                tab.id()
-            )))
-            .when(tab == active, |b| b.primary())
-            .when(tab != active, |b| b.outline())
-            .small()
-            .label(tab.label())
-            .on_click(move |_, _, cx| {
-                view.update(cx, |this, cx| this.set_tab(tab, cx));
-            })
+            Button::new(SharedString::from(format!("system-logs-tab-{}", tab.id())))
+                .when(tab == active, |b| b.primary())
+                .when(tab != active, |b| b.outline())
+                .small()
+                .label(tab.label())
+                .on_click(move |_, _, cx| {
+                    view.update(cx, |this, cx| this.set_tab(tab, cx));
+                })
         }))
         .into_any_element()
 }
@@ -860,9 +875,7 @@ fn audit_filter_bar(
         "分类",
         SharedString::from(category.label()),
         "system-logs-category-filter",
-        move |menu, _w, _cx| {
-            build_category_menu(menu, view_for_category.clone(), category)
-        },
+        move |menu, _w, _cx| build_category_menu(menu, view_for_category.clone(), category),
     ));
     bar = bar.child(filter_select(
         theme,
@@ -1031,8 +1044,7 @@ fn render_tab_body<T: Clone + PartialEq + 'static>(
     let _ = tab_id;
     match phase {
         FetchPhase::Loading => {
-            state_views::skeleton_loading(theme, &[SkeletonBlock::Table(240.0)])
-                .into_any_element()
+            state_views::skeleton_loading(theme, &[SkeletonBlock::Table(240.0)]).into_any_element()
         }
         FetchPhase::Error(message) => state_views::error_state(
             view,
@@ -1159,17 +1171,14 @@ fn summary_cards_audit(
     summary: &Option<OperationAuditLogsSummaryResponse>,
     theme: &AppTheme,
 ) -> gpui::AnyElement {
-    let (total, success, failure, operators) =
-        summary
-            .as_ref()
-            .map_or((0, 0, 0, 0), |s| {
-                (
-                    s.total,
-                    s.success_count,
-                    s.failure_count,
-                    s.unique_operator_count,
-                )
-            });
+    let (total, success, failure, operators) = summary.as_ref().map_or((0, 0, 0, 0), |s| {
+        (
+            s.total,
+            s.success_count,
+            s.failure_count,
+            s.unique_operator_count,
+        )
+    });
     stat_cards(
         "audit",
         vec![
@@ -1341,7 +1350,12 @@ fn device_cell(item: &OperationAuditLogItem, theme: &AppTheme) -> gpui::AnyEleme
         .gap_1()
         .child(div().text_sm().text_color(theme.text_primary).child(os))
         .child(div().text_xs().text_color(theme.text_muted).child("/"))
-        .child(div().text_sm().text_color(theme.text_primary).child(browser))
+        .child(
+            div()
+                .text_sm()
+                .text_color(theme.text_primary)
+                .child(browser),
+        )
         .into_any_element()
 }
 
@@ -1377,19 +1391,31 @@ fn audit_columns(view: Entity<SystemLogsView>) -> Vec<ColumnDef<OperationAuditLo
             SharedString::from(format_log_time(&item.created_at))
         })
         .width(150.0),
-        ColumnDef::text("operator", "操作人", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(item.operator.clone().unwrap_or_else(|| "-".to_string()))
-        })
+        ColumnDef::text(
+            "operator",
+            "操作人",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(item.operator.clone().unwrap_or_else(|| "-".to_string()))
+            },
+        )
         .width(100.0),
         ColumnDef::text("action", "分类 / 动作", |_, _| SharedString::from(""))
             .with_render_element(|item: &OperationAuditLogItem, theme| action_cell(item, theme)),
-        ColumnDef::text("target_type", "资源类型", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(target_type_label(&item.target_type).to_string())
-        })
+        ColumnDef::text(
+            "target_type",
+            "资源类型",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(target_type_label(&item.target_type).to_string())
+            },
+        )
         .width(110.0),
-        ColumnDef::text("target_id", "资源 ID", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(item.target_id.clone().unwrap_or_else(|| "-".to_string()))
-        })
+        ColumnDef::text(
+            "target_id",
+            "资源 ID",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(item.target_id.clone().unwrap_or_else(|| "-".to_string()))
+            },
+        )
         .numeric(true)
         .width(110.0),
         ColumnDef::text("result", "结果", |_, _| SharedString::from(""))
@@ -1415,17 +1441,29 @@ fn audit_columns(view: Entity<SystemLogsView>) -> Vec<ColumnDef<OperationAuditLo
 /// 登录七列表（登录时间 / 距现在 / 操作人 / 结果 / 设备·浏览器 / IP 地址 / 详情）
 fn login_columns(view: Entity<SystemLogsView>) -> Vec<ColumnDef<OperationAuditLogItem>> {
     vec![
-        ColumnDef::text("time", "登录时间", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(format_log_time(&item.created_at))
-        })
+        ColumnDef::text(
+            "time",
+            "登录时间",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(format_log_time(&item.created_at))
+            },
+        )
         .width(140.0),
-        ColumnDef::text("ago", "距现在", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(format_time_ago(&item.created_at))
-        })
+        ColumnDef::text(
+            "ago",
+            "距现在",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(format_time_ago(&item.created_at))
+            },
+        )
         .width(90.0),
-        ColumnDef::text("operator", "操作人", |item: &OperationAuditLogItem, _theme| {
-            SharedString::from(item.operator.clone().unwrap_or_else(|| "-".to_string()))
-        })
+        ColumnDef::text(
+            "operator",
+            "操作人",
+            |item: &OperationAuditLogItem, _theme| {
+                SharedString::from(item.operator.clone().unwrap_or_else(|| "-".to_string()))
+            },
+        )
         .width(120.0),
         ColumnDef::text("result", "结果", |_, _| SharedString::from(""))
             .width(80.0)
@@ -1433,9 +1471,11 @@ fn login_columns(view: Entity<SystemLogsView>) -> Vec<ColumnDef<OperationAuditLo
                 let (bg, fg) = result_pill_colors(&item.result, theme);
                 pill(result_label(&item.result).to_string(), bg, fg)
             }),
-        ColumnDef::text("device", "设备 · 浏览器", |_, _| SharedString::from(""))
-            .width(160.0)
-            .with_render_element(|item: &OperationAuditLogItem, theme| device_cell(item, theme)),
+        ColumnDef::text("device", "设备 · 浏览器", |_, _| {
+            SharedString::from("")
+        })
+        .width(160.0)
+        .with_render_element(|item: &OperationAuditLogItem, theme| device_cell(item, theme)),
         ColumnDef::text("ip", "IP 地址", |item: &OperationAuditLogItem, _theme| {
             SharedString::from(item.ip_address.clone().unwrap_or_else(|| "-".to_string()))
         })
@@ -1547,7 +1587,11 @@ fn detail_section_title(text: &str, danger: bool, theme: &AppTheme) -> gpui::Any
     div()
         .text_sm()
         .font_weight(FontWeight::MEDIUM)
-        .text_color(if danger { theme.danger } else { theme.text_primary })
+        .text_color(if danger {
+            theme.danger
+        } else {
+            theme.text_primary
+        })
         .child(text.to_string())
         .into_any_element()
 }
@@ -1575,12 +1619,7 @@ fn detail_code_block(text: String, theme: &AppTheme, danger: bool) -> gpui::AnyE
         .py_2()
         .max_h(px(160.0))
         .overflow_y_scroll()
-        .child(
-            div()
-                .text_xs()
-                .text_color(fg)
-                .child(text),
-        )
+        .child(div().text_xs().text_color(fg).child(text))
         .into_any_element()
 }
 
@@ -1653,7 +1692,11 @@ fn audit_detail_card(
         detail_field("动作", format_action_label(&row.action), theme),
         detail_field("原始动作标识", row.action.clone(), theme),
         detail_field("结果", result_label(&row.result).to_string(), theme),
-        detail_field("资源类型", target_type_label(&row.target_type).to_string(), theme),
+        detail_field(
+            "资源类型",
+            target_type_label(&row.target_type).to_string(),
+            theme,
+        ),
         detail_field(
             "资源 ID",
             row.target_id.clone().unwrap_or_else(|| "-".to_string()),
@@ -1818,7 +1861,9 @@ mod tests {
             request_method: Some("POST".into()),
             request_path: Some("/api/v1/shipment-schedules".into()),
             ip_address: Some("10.0.0.1".into()),
-            user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0.0.0".into()),
+            user_agent: Some(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/126.0.0.0".into(),
+            ),
             before_json: None,
             after_json: Some(serde_json::json!({"id": 42})),
             error_message: None,
@@ -2013,7 +2058,15 @@ mod tests {
         let titles: Vec<&str> = columns.iter().map(|c| c.title.as_ref()).collect();
         assert_eq!(
             titles,
-            ["时间", "操作人", "分类 / 动作", "资源类型", "资源 ID", "结果", "详情"]
+            [
+                "时间",
+                "操作人",
+                "分类 / 动作",
+                "资源类型",
+                "资源 ID",
+                "结果",
+                "详情"
+            ]
         );
         assert_eq!(columns[0].width, Some(150.0));
         assert!(columns[2].render_element.is_some(), "分类·动作为自定义渲染");
@@ -2032,7 +2085,15 @@ mod tests {
         let titles: Vec<&str> = columns.iter().map(|c| c.title.as_ref()).collect();
         assert_eq!(
             titles,
-            ["登录时间", "距现在", "操作人", "结果", "设备 · 浏览器", "IP 地址", "详情"]
+            [
+                "登录时间",
+                "距现在",
+                "操作人",
+                "结果",
+                "设备 · 浏览器",
+                "IP 地址",
+                "详情"
+            ]
         );
         assert!(columns[4].render_element.is_some(), "设备列为自定义渲染");
         assert!(columns[5].numeric, "IP 地址走等宽字体列");
@@ -2046,7 +2107,16 @@ mod tests {
         let titles: Vec<&str> = columns.iter().map(|c| c.title.as_ref()).collect();
         assert_eq!(
             titles,
-            ["时间", "方法", "路径", "Agent", "项目", "状态码", "耗时(ms)", "IP 地址"]
+            [
+                "时间",
+                "方法",
+                "路径",
+                "Agent",
+                "项目",
+                "状态码",
+                "耗时(ms)",
+                "IP 地址"
+            ]
         );
         assert!(columns[5].render_element.is_some(), "状态码徽标自定义渲染");
         assert!(columns[6].numeric, "耗时为数字列");
@@ -2111,8 +2181,7 @@ mod tests {
             gpui_component::init(cx);
             set_theme(false, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
 
         // Loaded：注入审计行 + 汇总
         view.update(cx2, |this, cx| {
@@ -2179,8 +2248,7 @@ mod tests {
     #[gpui::test]
     async fn other_category_filters_rows_client_side(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.set_audit_category(CategoryFilter::Other, cx);
             this.apply_audit_result(
@@ -2216,8 +2284,7 @@ mod tests {
     #[gpui::test]
     async fn stale_results_are_dropped(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.reload_audit(cx);
             let fresh = this.audit_request_id;
@@ -2257,8 +2324,7 @@ mod tests {
     #[gpui::test]
     async fn filters_and_pagination_guards(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             // 翻到第 3 页
@@ -2322,8 +2388,7 @@ mod tests {
     #[gpui::test]
     async fn detail_modal_open_close_and_mutex(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             this.open_login_detail(audit_row(7, "auth.login.failed", "failure"), cx);
@@ -2347,8 +2412,7 @@ mod tests {
     #[gpui::test]
     async fn login_tab_apply_result_lands(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.reload_login(cx);
             this.apply_login_result(
@@ -2382,8 +2446,7 @@ mod tests {
     #[gpui::test]
     async fn agent_tab_apply_result_lands(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.reload_agent(cx);
             this.apply_agent_result(
@@ -2416,8 +2479,7 @@ mod tests {
             gpui_component::init(cx);
             set_theme(true, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
 
         view.update(cx2, |this, cx| {
             let mut failed = audit_row(11, "commission.bonus.recompute", "failure");
@@ -2449,8 +2511,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| SystemLogsView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.apply_audit_result(
                 this.audit_request_id,

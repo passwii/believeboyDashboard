@@ -365,7 +365,8 @@ impl Render for DashboardView {
         match state {
             DashboardState::Loading => render_loading(&app_theme).into_any_element(),
             DashboardState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
-            DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),            DashboardState::Loaded(data) => {
+            DashboardState::Empty => render_empty(cx, &app_theme).into_any_element(),
+            DashboardState::Loaded(data) => {
                 render_loaded(window, cx, &app_theme, &data, top_projects).into_any_element()
             }
         }
@@ -489,7 +490,9 @@ fn render_loaded(
             // GUI-7：数字带（6 张 KPI 卡 + 环比 delta；宽窗受内容上限约束）
             .child(content_guard().child(stat_band(&kpi, &comparison, app_theme, window, cx)))
             // GUI-8 → P3-2：6 张真图表（gpui-component Line/Area/Pie/Bar）
-            .child(content_guard().child(crate::widgets::charts::render_chart_grid(data, app_theme)))
+            .child(
+                content_guard().child(crate::widgets::charts::render_chart_grid(data, app_theme)),
+            )
             // Top 项目列表（GUI-9 / 1.0-d）
             .child(content_guard().child(div().w_full().child(top_projects))),
         reduce,
@@ -988,8 +991,7 @@ mod tests {
                 this.apply_result(1, Ok(no_projects), cx);
             });
         });
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
     }
 
     /// P4-6（BLF-761）三态统一冒烟：Error 态（拉取失败 → 统一错误卡片）可渲染不 panic。
@@ -1006,8 +1008,7 @@ mod tests {
                 this.apply_result(1, Err("连接超时".to_string()), cx);
             });
         });
-        let (_host, _cx2) =
-            cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
+        let (_host, _cx2) = cx.add_window_view(|_window, _cx| DashboardHost { view: view.clone() });
     }
 
     /// 测试宿主：仅渲染 DashboardView（亮/暗渲染冒烟用）

@@ -30,8 +30,8 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Datelike, Local, NaiveDate, Utc};
 use gpui::{
-    div, prelude::*, px, AsyncApp, Context, CursorStyle, Entity, FontWeight, MouseButton,
-    Render, SharedString, WeakEntity, Window,
+    div, prelude::*, px, AsyncApp, Context, CursorStyle, Entity, FontWeight, MouseButton, Render,
+    SharedString, WeakEntity, Window,
 };
 use gpui_component::{
     button::Button,
@@ -46,9 +46,9 @@ use gui_domain::scheduled_reports::{LedgerItem, LedgerListResponse, Subscription
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::layout::content_guard;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::pattern_b::{pattern_b_shell, tab_bar, tabs_zone, TabItem};
 use crate::widgets::state_views::{self, EmptyIcon, SkeletonBlock};
-use crate::widgets::page_header::PageHeader;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的定时报告条目一致）
 pub const SCHEDULED_REPORTS_URL: &str = "/dashboard/reports/scheduled-reports";
@@ -185,7 +185,10 @@ pub fn resolve_project_label(project_ids: &str, projects: &[ManagedProject]) -> 
 pub fn group_ledger_by_day(items: &[LedgerItem]) -> Vec<(&str, Vec<&LedgerItem>)> {
     let mut buckets: HashMap<&str, Vec<&LedgerItem>> = HashMap::new();
     for item in items {
-        buckets.entry(item.expected_date.as_str()).or_default().push(item);
+        buckets
+            .entry(item.expected_date.as_str())
+            .or_default()
+            .push(item);
     }
     let mut days: Vec<(&str, Vec<&LedgerItem>)> = buckets.into_iter().collect();
     days.sort_by(|a, b| b.0.cmp(a.0));
@@ -194,7 +197,9 @@ pub fn group_ledger_by_day(items: &[LedgerItem]) -> Vec<(&str, Vec<&LedgerItem>)
 
 /// UTC 时间 → 本地时区展示（`yyyy-MM-dd HH:mm`；frontend `toLocaleString('zh-CN')` 等价）
 pub fn fmt_datetime(dt: DateTime<Utc>) -> String {
-    dt.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string()
+    dt.with_timezone(&Local)
+        .format("%Y-%m-%d %H:%M")
+        .to_string()
 }
 
 /// 日期串 → 「周X」展示名（台账按日分组的星期显示；解析失败返回空串）
@@ -411,10 +416,9 @@ impl ScheduledReportsView {
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_subscriptions(&client))
-                })
+                .spawn(
+                    async move { crate::runtime::runtime().block_on(load_subscriptions(&client)) },
+                )
                 .await;
             this.update(&mut *cx, |this, cx| {
                 this.apply_subs_result(request_id, result, cx);
@@ -441,8 +445,11 @@ impl ScheduledReportsView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_ledger(&client, frequency, status_filter))
+                    crate::runtime::runtime().block_on(load_ledger(
+                        &client,
+                        frequency,
+                        status_filter,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -502,10 +509,8 @@ impl ScheduledReportsView {
 async fn load_subscriptions(
     client: &Client,
 ) -> Result<(Vec<Subscription>, Vec<ManagedProject>), String> {
-    let (subs, projects) = tokio::join!(
-        client.list_subscriptions(),
-        client.list_managed_projects(),
-    );
+    let (subs, projects) =
+        tokio::join!(client.list_subscriptions(), client.list_managed_projects(),);
     let subs = subs.map_err(|e| e.user_message())?;
     let projects = projects.unwrap_or_default();
     Ok((subs.items, projects))
@@ -524,7 +529,14 @@ async fn load_ledger(
     let today = chrono::Local::now().date_naive();
     let (from, to) = last_7_days_window(today);
     client
-        .list_ledger(from, to, frequency, status_filter, None, LEDGER_WINDOW_DAYS as i64)
+        .list_ledger(
+            from,
+            to,
+            frequency,
+            status_filter,
+            None,
+            LEDGER_WINDOW_DAYS as i64,
+        )
         .await
         .map_err(|e| e.user_message())
 }
@@ -549,19 +561,27 @@ impl Render for ScheduledReportsView {
             ReportTab::Ledger => 1,
             _ => 0,
         };
-        let strip = tab_bar(&view, &theme, "scheduled-reports", &tab_items, active_ix, |this, ix, cx| {
-            this.select_tab(match ix {
-                1 => ReportTab::Ledger,
-                _ => ReportTab::Subscriptions,
-            }, cx);
-        });
+        let strip = tab_bar(
+            &view,
+            &theme,
+            "scheduled-reports",
+            &tab_items,
+            active_ix,
+            |this, ix, cx| {
+                this.select_tab(
+                    match ix {
+                        1 => ReportTab::Ledger,
+                        _ => ReportTab::Subscriptions,
+                    },
+                    cx,
+                );
+            },
+        );
         let body: gpui::AnyElement = match tab {
             ReportTab::Subscriptions => {
                 render_subs_panel(self, cx, &view, &theme).into_any_element()
             }
-            ReportTab::Ledger => {
-                render_ledger_panel(self, cx, &view, &theme).into_any_element()
-            }
+            ReportTab::Ledger => render_ledger_panel(self, cx, &view, &theme).into_any_element(),
         };
         let tabs = tabs_zone(strip, body);
         pattern_b_shell(
@@ -576,8 +596,6 @@ impl Render for ScheduledReportsView {
         )
     }
 }
-
-
 
 /// 订阅管理 tab 面板（四态；经 `&self` 读状态，不用 entity 自读——
 /// render 期间 entity 已被更新锁占用，`view.read(cx)` 会 panic）
@@ -635,14 +653,10 @@ fn render_ledger_panel(
     let reduce = crate::motion::reduce_motion(cx);
     match state {
         LedgerState::Loading => render_loading(theme).into_any_element(),
-        LedgerState::Error(msg) => render_error(
-            view,
-            theme,
-            "调度记录加载失败",
-            &msg,
-            ReportTab::Ledger,
-        )
-        .into_any_element(),
+        LedgerState::Error(msg) => {
+            render_error(view, theme, "调度记录加载失败", &msg, ReportTab::Ledger)
+                .into_any_element()
+        }
         LedgerState::Empty => render_ledger_empty(view, theme).into_any_element(),
         LedgerState::Loaded(resp) => render_ledger_loaded(
             view,
@@ -693,10 +707,7 @@ fn render_error(
 }
 
 /// 订阅空态：Icon + 文案 + 刷新（State 0 公共组件 `empty_state_with_action`）
-fn render_subs_empty(
-    view: &Entity<ScheduledReportsView>,
-    theme: &AppTheme,
-) -> impl IntoElement {
+fn render_subs_empty(view: &Entity<ScheduledReportsView>, theme: &AppTheme) -> impl IntoElement {
     state_views::empty_state_with_action(
         view,
         theme,
@@ -710,10 +721,7 @@ fn render_subs_empty(
 
 /// 台账空态：Icon + 文案 + 说明 + 刷新（State 0 公共组件
 /// `empty_state_with_action_desc`，保留「调整筛选条件」说明行）
-fn render_ledger_empty(
-    view: &Entity<ScheduledReportsView>,
-    theme: &AppTheme,
-) -> impl IntoElement {
+fn render_ledger_empty(view: &Entity<ScheduledReportsView>, theme: &AppTheme) -> impl IntoElement {
     state_views::empty_state_with_action_desc(
         view,
         theme,
@@ -797,26 +805,19 @@ fn render_subs_filter_bar(
                 .small()
                 .label(frequency_label)
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(
-                    gpui::Corner::BottomLeft,
-                    move |menu, _window, _cx| {
-                        let mut menu = menu;
-                        for (value, label) in SUB_FREQUENCY_FILTERS {
-                            let checked = frequency == value;
-                            let view = view_for_frequency.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view.update(cx, |this, cx| {
-                                            this.select_sub_frequency(value, cx)
-                                        });
-                                    },
-                                ),
-                            );
-                        }
-                        menu
-                    },
-                ),
+                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for (value, label) in SUB_FREQUENCY_FILTERS {
+                        let checked = frequency == value;
+                        let view = view_for_frequency.clone();
+                        menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                            move |_, _window, cx| {
+                                view.update(cx, |this, cx| this.select_sub_frequency(value, cx));
+                            },
+                        ));
+                    }
+                    menu
+                }),
         )
         .child(
             Button::new("scheduled-reports-subs-status-filter")
@@ -824,26 +825,19 @@ fn render_subs_filter_bar(
                 .small()
                 .label(status_label)
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(
-                    gpui::Corner::BottomLeft,
-                    move |menu, _window, _cx| {
-                        let mut menu = menu;
-                        for (value, label) in SUB_STATUS_FILTERS {
-                            let checked = status == value;
-                            let view = view_for_status.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view.update(cx, |this, cx| {
-                                            this.select_sub_status(value, cx)
-                                        });
-                                    },
-                                ),
-                            );
-                        }
-                        menu
-                    },
-                ),
+                .dropdown_menu_with_anchor(gpui::Corner::BottomLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for (value, label) in SUB_STATUS_FILTERS {
+                        let checked = status == value;
+                        let view = view_for_status.clone();
+                        menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                            move |_, _window, cx| {
+                                view.update(cx, |this, cx| this.select_sub_status(value, cx));
+                            },
+                        ));
+                    }
+                    menu
+                }),
         )
         .child(div().flex_1())
         .child(
@@ -880,9 +874,7 @@ fn render_subs_table(
                         .children(
                             subs.iter()
                                 .enumerate()
-                                .map(|(ix, sub)| {
-                                    subs_table_row(sub, projects, ix % 2 == 1, theme)
-                                }),
+                                .map(|(ix, sub)| subs_table_row(sub, projects, ix % 2 == 1, theme)),
                         )
                         .when(subs.is_empty(), |this| {
                             this.child(
@@ -932,12 +924,12 @@ fn subs_table_row(
     };
     let project_label = resolve_project_label(&sub.project_ids, projects);
     let email = sub.email.clone().unwrap_or_else(|| "—".to_string());
-    let model = sub
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| "默认".to_string());
+    let model = sub.ai_model.clone().unwrap_or_else(|| "默认".to_string());
     h_flex()
-        .id(SharedString::from(format!("scheduled-reports-subs-row-{}", sub.id)))
+        .id(SharedString::from(format!(
+            "scheduled-reports-subs-row-{}",
+            sub.id
+        )))
         .px_4()
         .py_1p5()
         .gap_3()
@@ -1055,12 +1047,7 @@ fn render_ledger_filter_bar(
             h_flex()
                 .gap_2()
                 .items_center()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.text_muted)
-                        .child("频率"),
-                )
+                .child(div().text_sm().text_color(theme.text_muted).child("频率"))
                 .child(
                     Button::new("scheduled-reports-ledger-frequency-filter")
                         .outline()
@@ -1093,12 +1080,7 @@ fn render_ledger_filter_bar(
             h_flex()
                 .gap_2()
                 .items_center()
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.text_muted)
-                        .child("状态"),
-                )
+                .child(div().text_sm().text_color(theme.text_muted).child("状态"))
                 .child(
                     Button::new("scheduled-reports-ledger-status-filter")
                         .outline()
@@ -1152,13 +1134,20 @@ fn render_ledger_summary(
         .child(summary_card("成功", summary.sent, theme.success, theme))
         .child(summary_card("失败", summary.failed, theme.danger, theme))
         .child(summary_card("缺失", summary.missing, theme.warning, theme))
-        .child(summary_card("可重发", summary.resendable, theme.text_secondary, theme))
+        .child(summary_card(
+            "可重发",
+            summary.resendable,
+            theme.text_secondary,
+            theme,
+        ))
 }
 
 /// 单张汇总卡
 fn summary_card(label: &str, value: i64, color: gpui::Hsla, theme: &AppTheme) -> impl IntoElement {
     v_flex()
-        .id(SharedString::from(format!("scheduled-reports-summary-{label}")))
+        .id(SharedString::from(format!(
+            "scheduled-reports-summary-{label}"
+        )))
         .flex_1()
         .items_center()
         .gap_1()
@@ -1220,21 +1209,18 @@ fn render_ledger_day<'a>(
         .shadow(vec![theme.card_shadow_box()])
         .child(
             h_flex()
-                .id(SharedString::from(format!("scheduled-reports-day-header-{date}")))
+                .id(SharedString::from(format!(
+                    "scheduled-reports-day-header-{date}"
+                )))
                 .px_4()
                 .py_2()
                 .gap_2()
                 .items_center()
                 .cursor(CursorStyle::PointingHand)
                 .hover(|this| this.bg(theme.muted_fill.opacity(0.5)))
-                .on_mouse_up(
-                    MouseButton::Left,
-                    move |_, _window, cx| {
-                        view_for_toggle.update(cx, |this, cx| {
-                            this.toggle_day(date_owned.clone(), cx)
-                        });
-                    },
-                )
+                .on_mouse_up(MouseButton::Left, move |_, _window, cx| {
+                    view_for_toggle.update(cx, |this, cx| this.toggle_day(date_owned.clone(), cx));
+                })
                 .child(
                     div()
                         .text_sm()
@@ -1243,12 +1229,7 @@ fn render_ledger_day<'a>(
                         .child(date.to_string()),
                 )
                 .when(!weekday.is_empty(), |this| {
-                    this.child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child(weekday),
-                    )
+                    this.child(div().text_xs().text_color(theme.text_muted).child(weekday))
                 })
                 .child(
                     div()
@@ -1269,14 +1250,11 @@ fn render_ledger_day<'a>(
         )
         .when(is_expanded, |this| {
             this.child(
-                div()
-                    .border_t_1()
-                    .border_color(theme.separator)
-                    .children(
-                        items
-                            .iter()
-                            .map(|item| render_ledger_row(view, theme, item, selected)),
-                    ),
+                div().border_t_1().border_color(theme.separator).children(
+                    items
+                        .iter()
+                        .map(|item| render_ledger_row(view, theme, item, selected)),
+                ),
             )
         })
 }
@@ -1321,30 +1299,16 @@ fn render_ledger_row(
                 .text_color(theme.text_secondary)
                 .cursor(CursorStyle::PointingHand)
                 .hover(|this| this.bg(theme.muted_fill.opacity(0.5)))
-                .on_mouse_up(
-                    MouseButton::Left,
-                    move |_, _window, cx| {
-                        view_for_row.update(cx, |this, cx| {
-                            this.toggle_ledger_item(key.clone(), cx)
-                        });
-                    },
-                )
+                .on_mouse_up(MouseButton::Left, move |_, _window, cx| {
+                    view_for_row.update(cx, |this, cx| this.toggle_ledger_item(key.clone(), cx));
+                })
                 .child(
                     h_flex()
                         .w(px(150.))
                         .gap_1p5()
                         .items_center()
-                        .child(
-                            div()
-                                .text_color(theme.text_primary)
-                                .child(expected_at),
-                        )
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(status_color)
-                                .child(mark),
-                        ),
+                        .child(div().text_color(theme.text_primary).child(expected_at))
+                        .child(div().text_xs().text_color(status_color).child(mark)),
                 )
                 .child(
                     div()
@@ -1359,17 +1323,13 @@ fn render_ledger_row(
                         .child(frequency_label(&item.frequency)),
                 )
                 .child(div().w(px(72.)).child(item.country.clone()))
-                .child(
-                    div()
-                        .flex_1()
-                        .child(if item.status == "failed" {
-                            item.error_message
-                                .clone()
-                                .unwrap_or_else(|| "发送失败".to_string())
-                        } else {
-                            format!("发送于 {sent_at}")
-                        }),
-                )
+                .child(div().flex_1().child(if item.status == "failed" {
+                    item.error_message
+                        .clone()
+                        .unwrap_or_else(|| "发送失败".to_string())
+                } else {
+                    format!("发送于 {sent_at}")
+                }))
                 .child(status_badge(&item.status, theme)),
         )
         .when(is_selected, |this| {
@@ -1382,7 +1342,9 @@ fn status_badge(status: &str, theme: &AppTheme) -> impl IntoElement {
     let (label, mark) = status_meta(status);
     let color = status_color(status, theme);
     h_flex()
-        .id(SharedString::from(format!("scheduled-reports-status-{status}")))
+        .id(SharedString::from(format!(
+            "scheduled-reports-status-{status}"
+        )))
         .items_center()
         .gap_1()
         .px_1p5()
@@ -1446,30 +1408,32 @@ fn render_ledger_detail(theme: &AppTheme, item: &LedgerItem) -> impl IntoElement
                     item.email.as_deref().unwrap_or("—"),
                     theme,
                 ))
-                .child(detail_row("AI 模型", item.ai_summary_model.as_deref().unwrap_or("—"), theme)),
+                .child(detail_row(
+                    "AI 模型",
+                    item.ai_summary_model.as_deref().unwrap_or("—"),
+                    theme,
+                )),
         )
         // 错误信息（失败 / 缺失时展示）
-        .when(!item.error_message.as_deref().unwrap_or("").is_empty(), |this| {
-            this.child(
-                v_flex()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.danger)
-                            .child("错误信息"),
-                    )
-                    .child(
-                        div()
-                            .px_3()
-                            .py_2()
-                            .rounded(px(theme.radius))
-                            .bg(theme.danger_soft)
-                            .text_color(theme.danger)
-                            .child(item.error_message.clone().unwrap_or_default()),
-                    ),
-            )
-        })
+        .when(
+            !item.error_message.as_deref().unwrap_or("").is_empty(),
+            |this| {
+                this.child(
+                    v_flex()
+                        .gap_1()
+                        .child(div().text_xs().text_color(theme.danger).child("错误信息"))
+                        .child(
+                            div()
+                                .px_3()
+                                .py_2()
+                                .rounded(px(theme.radius))
+                                .bg(theme.danger_soft)
+                                .text_color(theme.danger)
+                                .child(item.error_message.clone().unwrap_or_default()),
+                        ),
+                )
+            },
+        )
         // AI 摘要
         .child(
             v_flex()
@@ -1729,7 +1693,10 @@ mod tests {
         assert_eq!(resolve_project_label("1", &projects), "项目 A");
         assert_eq!(resolve_project_label("1,2", &projects), "项目 A, 项目2");
         assert_eq!(resolve_project_label("", &projects), "全部项目");
-        assert_eq!(resolve_project_label(" 1 , 1 ", &projects), "项目 A, 项目 A");
+        assert_eq!(
+            resolve_project_label(" 1 , 1 ", &projects),
+            "项目 A, 项目 A"
+        );
     }
 
     fn ledger_item(id: i64, date: &str, status: &str) -> LedgerItem {
@@ -1788,7 +1755,10 @@ mod tests {
 
     #[test]
     fn ai_summary_text_fallbacks() {
-        assert_eq!(ai_summary_text("done", Some("本周销售环比 +12%")), "本周销售环比 +12%");
+        assert_eq!(
+            ai_summary_text("done", Some("本周销售环比 +12%")),
+            "本周销售环比 +12%"
+        );
         assert_eq!(ai_summary_text("generating", None), "AI 摘要生成中…");
         assert_eq!(ai_summary_text("failed", None), "AI 摘要生成失败");
         assert_eq!(ai_summary_text("pending", None), "尚未生成 AI 摘要");
@@ -1801,17 +1771,11 @@ mod tests {
         cx.new(|cx| ScheduledReportsView::new(cx, Client::new("http://127.0.0.1:1")))
     }
 
-    fn read_subs(
-        cx: &gpui::TestAppContext,
-        view: &Entity<ScheduledReportsView>,
-    ) -> SubsState {
+    fn read_subs(cx: &gpui::TestAppContext, view: &Entity<ScheduledReportsView>) -> SubsState {
         cx.read(|app| view.read(app).subs.read(app).clone())
     }
 
-    fn read_ledger(
-        cx: &gpui::TestAppContext,
-        view: &Entity<ScheduledReportsView>,
-    ) -> LedgerState {
+    fn read_ledger(cx: &gpui::TestAppContext, view: &Entity<ScheduledReportsView>) -> LedgerState {
         cx.read(|app| view.read(app).ledger.read(app).clone())
     }
 
@@ -1861,7 +1825,10 @@ mod tests {
                 this.apply_subs_result(1, Ok((sample_subscriptions(), vec![])), cx);
             });
         });
-        assert_eq!(read_subs(cx, &view), SubsState::Loaded(sample_subscriptions()));
+        assert_eq!(
+            read_subs(cx, &view),
+            SubsState::Loaded(sample_subscriptions())
+        );
 
         // Empty：无订阅
         cx.update(|cx| {
@@ -1879,7 +1846,10 @@ mod tests {
                 this.apply_subs_result(3, Err("接口 500".to_string()), cx);
             });
         });
-        assert_eq!(read_subs(cx, &view), SubsState::Error("接口 500".to_string()));
+        assert_eq!(
+            read_subs(cx, &view),
+            SubsState::Error("接口 500".to_string())
+        );
     }
 
     #[gpui::test]

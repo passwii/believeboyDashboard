@@ -15,7 +15,6 @@
 //!   HTML 源码高亮预览不接（TextView markdown 渲染覆盖主场景，html 页面
 //!   展示源码原文）。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -97,8 +96,10 @@ impl PageRenderView {
                         .map_err(|e| e.user_message())
                 })
                 .await;
-            this.update(&mut *cx, |this, cx| this.apply_history(request_id, result, cx))
-                .ok();
+            this.update(&mut *cx, |this, cx| {
+                this.apply_history(request_id, result, cx)
+            })
+            .ok();
         })
         .detach();
     }
@@ -143,7 +144,11 @@ impl PageRenderView {
     }
 
     fn fetch_detail(&mut self, id: String, cx: &mut Context<Self>) {
-        if self.detail.as_ref().is_some_and(|(cached, _)| *cached == id) {
+        if self
+            .detail
+            .as_ref()
+            .is_some_and(|(cached, _)| *cached == id)
+        {
             return; // 已缓存
         }
         let client = self.client.clone();
@@ -242,21 +247,35 @@ impl Render for PageRenderView {
                 .overflow_y_scroll()
                 .bg(app_theme.window_bg)
                 .child(header)
-                .child(content_guard().child(state_views::empty_state_with_action_desc(
-                    &view,
-                    &app_theme,
-                    "page-render-empty-state",
-                    "icons/file-code.svg",
-                    "暂无已分享页面",
-                    Some("上传 Markdown/HTML 文件请走 web 端「工具箱」页".to_string()),
-                    "刷新",
-                    |this, cx| this.reload(cx),
-                ))),
+                .child(
+                    content_guard().child(state_views::empty_state_with_action_desc(
+                        &view,
+                        &app_theme,
+                        "page-render-empty-state",
+                        "icons/file-code.svg",
+                        "暂无已分享页面",
+                        Some("上传 Markdown/HTML 文件请走 web 端「工具箱」页".to_string()),
+                        "刷新",
+                        |this, cx| this.reload(cx),
+                    )),
+                ),
             PageRenderState::Loaded(items) => {
                 let selected = self.current_item(cx);
                 // 左列：历史行；右区：详情（markdown 渲染需要 window）
-                let list = render_history_list(&items, self.selected_id.as_deref(), view.clone(), &app_theme);
-                let detail = render_detail(selected.as_ref(), self.detail.as_ref(), view.clone(), window, cx, &app_theme);
+                let list = render_history_list(
+                    &items,
+                    self.selected_id.as_deref(),
+                    view.clone(),
+                    &app_theme,
+                );
+                let detail = render_detail(
+                    selected.as_ref(),
+                    self.detail.as_ref(),
+                    view.clone(),
+                    window,
+                    cx,
+                    &app_theme,
+                );
 
                 v_flex()
                     .id("page-render-loaded")
@@ -319,7 +338,8 @@ fn render_history_list(
                         .min_w_0()
                         .gap_0p5()
                         .child(
-                            div().text_size(px(crate::theme::fs(FONT_BASE)))
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_BASE)))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(if active {
                                     theme.text_primary
@@ -329,16 +349,11 @@ fn render_history_list(
                                 .text_ellipsis()
                                 .child(item.title.clone()),
                         )
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(theme.text_muted)
-                                .child(format!(
-                                    "{} · {}",
-                                    item.source_format.to_uppercase(),
-                                    gui_app_file_size(item.file_size),
-                                )),
-                        ),
+                        .child(div().text_xs().text_color(theme.text_muted).child(format!(
+                            "{} · {}",
+                            item.source_format.to_uppercase(),
+                            gui_app_file_size(item.file_size),
+                        ))),
                 )
                 .into_any_element()
         }))
@@ -388,14 +403,9 @@ fn render_detail(
     );
 
     let body: gpui::AnyElement = match content {
-        Some(text) => gpui_component::text::TextView::markdown(
-            "page-render-doc",
-            text,
-            window,
-            cx,
-        )
-        .selectable(true)
-        .into_any_element(),
+        Some(text) => gpui_component::text::TextView::markdown("page-render-doc", text, window, cx)
+            .selectable(true)
+            .into_any_element(),
         None => div()
             .p_4()
             .text_xs()

@@ -33,10 +33,7 @@ impl Client {
         limit: i64,
         offset: i64,
     ) -> Result<AiInsightListResponse, ApiError> {
-        let mut query = vec![
-            ("limit", limit.to_string()),
-            ("offset", offset.to_string()),
-        ];
+        let mut query = vec![("limit", limit.to_string()), ("offset", offset.to_string())];
         if let Some(id) = project_id {
             query.push(("project_id", id.to_string()));
         }
@@ -73,7 +70,9 @@ mod tests {
             role_type: gui_domain::auth::UserRoleType::Operator,
             is_admin: false,
         };
-        Client::new(base_url).with_session(session).with_api_key("k123")
+        Client::new(base_url)
+            .with_session(session)
+            .with_api_key("k123")
     }
 
     #[test]

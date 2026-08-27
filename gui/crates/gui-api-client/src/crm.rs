@@ -318,7 +318,10 @@ mod audit_tests {
                 "entity_type".into(),
                 "customer".into(),
             ))
-            .match_query(mockito::Matcher::UrlEncoded("action".into(), "create".into()))
+            .match_query(mockito::Matcher::UrlEncoded(
+                "action".into(),
+                "create".into(),
+            ))
             .match_query(mockito::Matcher::UrlEncoded("page".into(), "2".into()))
             .match_query(mockito::Matcher::UrlEncoded(
                 "page_size".into(),
@@ -519,7 +522,9 @@ impl Client {
     ) -> Result<TaskItem, ApiError> {
         let path = format!("{CRM_TASKS_PATH}/{task_id}/status");
         let body = serde_json::json!({ "status": status });
-        let item: TaskItem = self.request_json(reqwest::Method::POST, &path, &[], Some(&body)).await?;
+        let item: TaskItem = self
+            .request_json(reqwest::Method::POST, &path, &[], Some(&body))
+            .await?;
         Ok(item)
     }
 
@@ -575,7 +580,10 @@ mod crm_list_tests {
         let q = p.query();
         assert!(q.contains(&("scope", "all".to_string())));
         assert!(q.contains(&("page", "1".to_string())));
-        assert!(!q.iter().any(|(k, _)| *k == "keyword"), "无关键词不带 keyword");
+        assert!(
+            !q.iter().any(|(k, _)| *k == "keyword"),
+            "无关键词不带 keyword"
+        );
         // 带 keyword 时携带
         let mut p2 = CrmListParams::new();
         p2.keyword = Some("甲".to_string());
@@ -606,7 +614,10 @@ mod crm_list_tests {
             .create();
 
         let client = session_client(&server.url());
-        let resp = client.crm_customers(&CrmListParams::new()).await.expect("请求失败");
+        let resp = client
+            .crm_customers(&CrmListParams::new())
+            .await
+            .expect("请求失败");
         m.assert();
         assert_eq!(resp.items.len(), 1);
         assert_eq!(resp.items[0].owner_name.as_deref(), Some("张三"));

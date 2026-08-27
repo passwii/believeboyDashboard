@@ -46,18 +46,12 @@ use gpui::{
     SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    button::Button,
-    chart::AreaChart,
-    h_flex,
-    menu::PopupMenuItem,
-    skeleton::Skeleton,
-    v_flex, Disableable, Icon, IconName, Selectable, Sizable,
+    button::Button, chart::AreaChart, h_flex, menu::PopupMenuItem, skeleton::Skeleton, v_flex,
+    Disableable, Icon, IconName, Selectable, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
-use gui_domain::operations::weekly_product_analysis::{
-    Pt1DetailRow, WeeklyProductRow,
-};
+use gui_domain::operations::weekly_product_analysis::{Pt1DetailRow, WeeklyProductRow};
 
 use crate::theme::AppTheme;
 use crate::widgets::chart_primitives::chart_area;
@@ -250,7 +244,11 @@ pub fn fmt_general(value: f64) -> String {
 
 /// 汇总列格式化（对齐 web `formatSummaryCell`：缺失 → `-`；非数字原样；
 /// 百分比列 ×100 + `%`；整数列千分位；货币列币种符号；其余最多 4 位小数）
-pub fn format_summary_cell(column: &str, value: Option<&serde_json::Value>, country: &str) -> String {
+pub fn format_summary_cell(
+    column: &str,
+    value: Option<&serde_json::Value>,
+    country: &str,
+) -> String {
     if !has_value(value) {
         return "-".to_string();
     }
@@ -282,27 +280,56 @@ pub fn format_summary_cell(column: &str, value: Option<&serde_json::Value>, coun
 
 /// 周汇总指标分组（5 组 38 列；对齐 web `SUMMARY_COLUMN_GROUPS` 顺序）
 pub const SUMMARY_COLUMN_GROUPS: [(&str, &[&str]); 5] = [
-    ("销售", &["总销量", "总销售额", "页面浏览量", "总访客", "总转化"]),
+    (
+        "销售",
+        &["总销量", "总销售额", "页面浏览量", "总访客", "总转化"],
+    ),
     (
         "推广流量",
         &[
-            "广告展示量", "广告点击量", "广告点击率", "广告订单量", "广告单占比",
-            "广告转化率", "广告花费", "广告销售额", "CPC", "ACOS", "SP占比",
+            "广告展示量",
+            "广告点击量",
+            "广告点击率",
+            "广告订单量",
+            "广告单占比",
+            "广告转化率",
+            "广告花费",
+            "广告销售额",
+            "CPC",
+            "ACOS",
+            "SP占比",
         ],
     ),
-    ("自然流量", &["自然流量", "自然流量占比", "自然单", "自然单转化"]),
+    (
+        "自然流量",
+        &["自然流量", "自然流量占比", "自然单", "自然单转化"],
+    ),
     (
         "费用占比",
         &[
-            "产品FOB", "成本占比", "销售头程", "头程占比", "FBA配送费",
-            "配送费占比", "平台佣金", "佣金占比", "总成本", "总成本占比",
+            "产品FOB",
+            "成本占比",
+            "销售头程",
+            "头程占比",
+            "FBA配送费",
+            "配送费占比",
+            "平台佣金",
+            "佣金占比",
+            "总成本",
+            "总成本占比",
         ],
     ),
     (
         "财务结算",
         &[
-            "实际销售额", "实际销售量", "实际退款额", "实际退款量",
-            "平均售价", "退款率", "利润", "利润率",
+            "实际销售额",
+            "实际销售量",
+            "实际退款额",
+            "实际退款量",
+            "平均售价",
+            "退款率",
+            "利润",
+            "利润率",
         ],
     ),
 ];
@@ -320,28 +347,57 @@ pub const DETAIL_CORE_COLUMNS: [&str; 2] = ["日期", "SKU"];
 
 /// SKU 明细指标分组（6 组；对齐 web `DETAIL_COLUMN_GROUPS`：比汇总多「库存」组）
 pub const DETAIL_COLUMN_GROUPS: [(&str, &[&str]); 6] = [
-    ("销售", &["总销量", "总销售额", "页面浏览量", "总访客", "总转化"]),
+    (
+        "销售",
+        &["总销量", "总销售额", "页面浏览量", "总访客", "总转化"],
+    ),
     ("库存", &["库存"]),
     (
         "推广流量",
         &[
-            "广告展示量", "广告点击量", "广告点击率", "广告订单量", "广告单占比",
-            "广告转化率", "广告花费", "广告销售额", "CPC", "ACOS", "SP占比",
+            "广告展示量",
+            "广告点击量",
+            "广告点击率",
+            "广告订单量",
+            "广告单占比",
+            "广告转化率",
+            "广告花费",
+            "广告销售额",
+            "CPC",
+            "ACOS",
+            "SP占比",
         ],
     ),
-    ("自然流量", &["自然流量", "自然流量占比", "自然单", "自然单转化"]),
+    (
+        "自然流量",
+        &["自然流量", "自然流量占比", "自然单", "自然单转化"],
+    ),
     (
         "费用占比",
         &[
-            "产品FOB", "成本占比", "销售头程", "头程占比", "FBA配送费",
-            "配送费占比", "平台佣金", "佣金占比", "总成本", "总成本占比",
+            "产品FOB",
+            "成本占比",
+            "销售头程",
+            "头程占比",
+            "FBA配送费",
+            "配送费占比",
+            "平台佣金",
+            "佣金占比",
+            "总成本",
+            "总成本占比",
         ],
     ),
     (
         "财务结算",
         &[
-            "实际销售额", "实际销售量", "实际退款额", "实际退款量",
-            "平均售价", "退款率", "利润", "利润率",
+            "实际销售额",
+            "实际销售量",
+            "实际退款额",
+            "实际退款量",
+            "平均售价",
+            "退款率",
+            "利润",
+            "利润率",
         ],
     ),
 ];
@@ -357,21 +413,52 @@ pub fn detail_base_columns() -> Vec<&'static str> {
 
 /// 百分比列（×100 + `%`；对齐 web `SUMMARY_PERCENT_COLUMNS`）
 pub const SUMMARY_PERCENT_COLUMNS: [&str; 15] = [
-    "总转化", "广告点击率", "广告单占比", "广告转化率", "ACOS", "SP占比",
-    "自然流量占比", "自然单转化", "成本占比", "头程占比", "配送费占比",
-    "佣金占比", "总成本占比", "利润率", "退款率",
+    "总转化",
+    "广告点击率",
+    "广告单占比",
+    "广告转化率",
+    "ACOS",
+    "SP占比",
+    "自然流量占比",
+    "自然单转化",
+    "成本占比",
+    "头程占比",
+    "配送费占比",
+    "佣金占比",
+    "总成本占比",
+    "利润率",
+    "退款率",
 ];
 
 /// 货币列（币种符号 + 2 位小数；对齐 web `SUMMARY_CURRENCY_COLUMNS`）
 pub const SUMMARY_CURRENCY_COLUMNS: [&str; 13] = [
-    "总销售额", "广告花费", "广告销售额", "CPC", "产品FOB", "销售头程",
-    "FBA配送费", "平台佣金", "总成本", "利润", "实际销售额", "实际退款额", "平均售价",
+    "总销售额",
+    "广告花费",
+    "广告销售额",
+    "CPC",
+    "产品FOB",
+    "销售头程",
+    "FBA配送费",
+    "平台佣金",
+    "总成本",
+    "利润",
+    "实际销售额",
+    "实际退款额",
+    "平均售价",
 ];
 
 /// 整数列（千分位取整；对齐 web `SUMMARY_INTEGER_COLUMNS`）
 pub const SUMMARY_INTEGER_COLUMNS: [&str; 10] = [
-    "总销量", "页面浏览量", "总访客", "广告展示量", "广告点击量", "广告订单量",
-    "自然流量", "自然单", "实际销售量", "实际退款量",
+    "总销量",
+    "页面浏览量",
+    "总访客",
+    "广告展示量",
+    "广告点击量",
+    "广告订单量",
+    "自然流量",
+    "自然单",
+    "实际销售量",
+    "实际退款量",
 ];
 
 // ---------------------------------------------------------------------------
@@ -409,10 +496,7 @@ pub fn build_summary_totals(
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut totals: HashMap<&str, f64> = HashMap::new();
     for column in summary_columns() {
-        let sum: f64 = rows
-            .iter()
-            .map(|row| to_number(row.get(column)))
-            .sum();
+        let sum: f64 = rows.iter().map(|row| to_number(row.get(column))).sum();
         totals.insert(column, sum);
     }
     let get = |key: &str| totals.get(key).copied().unwrap_or(0.0);
@@ -540,13 +624,21 @@ pub fn trend_points(rows: &[WeeklyProductRow]) -> Vec<WeeklyTrendPoint> {
             let get = |key: &str| to_number(summary.get(key));
             let ad_impressions = {
                 let v = get("广告展示量");
-                if v == 0.0 { 1.0 } else { v }
+                if v == 0.0 {
+                    1.0
+                } else {
+                    v
+                }
             };
             let ad_clicks = get("广告点击量");
             let ad_spend = get("广告花费");
             let ad_sales = {
                 let v = get("广告销售额");
-                if v == 0.0 { 1.0 } else { v }
+                if v == 0.0 {
+                    1.0
+                } else {
+                    v
+                }
             };
             WeeklyTrendPoint {
                 label: iso_week_label(row.report_start_date),
@@ -572,11 +664,12 @@ pub struct WeeklyTotals {
 
 /// 区间合计计算
 pub fn weekly_totals(rows: &[WeeklyProductRow]) -> WeeklyTotals {
-    rows.iter().fold(WeeklyTotals::default(), |acc, row| WeeklyTotals {
-        sales_amount: acc.sales_amount + row.total_sales,
-        units_sold: acc.units_sold + row.total_units,
-        ad_spend: acc.ad_spend + row.total_ad_spend,
-    })
+    rows.iter()
+        .fold(WeeklyTotals::default(), |acc, row| WeeklyTotals {
+            sales_amount: acc.sales_amount + row.total_sales,
+            units_sold: acc.units_sold + row.total_units,
+            ad_spend: acc.ad_spend + row.total_ad_spend,
+        })
 }
 
 /// 环比（对齐 web `trends`：最后一周 vs 上一周的百分比变化；上一周为 0 → 0）
@@ -595,7 +688,13 @@ pub fn weekly_wow(rows: &[WeeklyProductRow]) -> WeeklyWoW {
     }
     let last = &sorted[sorted.len() - 1];
     let prev = &sorted[sorted.len() - 2];
-    let pct = |cur: f64, pre: f64| if pre != 0.0 { (cur - pre) / pre.abs() * 100.0 } else { 0.0 };
+    let pct = |cur: f64, pre: f64| {
+        if pre != 0.0 {
+            (cur - pre) / pre.abs() * 100.0
+        } else {
+            0.0
+        }
+    };
     WeeklyWoW {
         sales: pct(last.total_sales, prev.total_sales),
         units: pct(last.total_units as f64, prev.total_units as f64),
@@ -812,11 +911,7 @@ impl WeeklyProductAnalysisView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime().block_on(load_weekly(
-                        &client,
-                        selected,
-                        country,
-                        start_date,
-                        end_date,
+                        &client, selected, country, start_date, end_date,
                     ))
                 })
                 .await;
@@ -907,9 +1002,8 @@ impl WeeklyProductAnalysisView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime().block_on(load_details(
-                        &client, project_id, country, week_id,
-                    ))
+                    crate::runtime::runtime()
+                        .block_on(load_details(&client, project_id, country, week_id))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -1211,8 +1305,7 @@ async fn load_details(
 /// 明细表额外列（对齐 web `detailColumns`：raw_row 中基础列之外、非 ASIN 的
 /// 键，按首次出现顺序；列签名 = 额外列名序列）
 pub fn detail_extra_columns(rows: &[DetailTableRow]) -> Vec<String> {
-    let base: std::collections::HashSet<&str> =
-        detail_base_columns().into_iter().collect();
+    let base: std::collections::HashSet<&str> = detail_base_columns().into_iter().collect();
     let mut extra: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for row in rows {
@@ -1281,21 +1374,17 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                 .gap_3()
                 .children((0..4).map(|_| div().w(px(140.)).h_8().child(Skeleton::new()))),
         )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..3).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .child(div().w_6().h_4().child(Skeleton::new()))
-                        .child(div().w_16().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
+        .child(h_flex().gap_3().children((0..3).map(|_| {
+            v_flex()
+                .flex_1()
+                .gap_2()
+                .p_4()
+                .rounded(px(app_theme.radius_lg))
+                .bg(app_theme.card_bg)
+                .child(div().w_6().h_4().child(Skeleton::new()))
+                .child(div().w_16().h_7().child(Skeleton::new()))
+                .child(div().w_20().child(Skeleton::new()))
+        })))
         .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
@@ -1514,13 +1603,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1535,13 +1622,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(
-                            move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            },
-                        ),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1554,7 +1639,11 @@ fn render_filter_bar(
                 .outline()
                 .small()
                 .disabled(recomputing)
-                .label(if recomputing { "重新核算中…" } else { "重新核算" })
+                .label(if recomputing {
+                    "重新核算中…"
+                } else {
+                    "重新核算"
+                })
                 .on_click(move |_, _window, cx| {
                     view_for_recompute.update(cx, |this, cx| this.recompute_history(cx));
                 }),
@@ -1582,32 +1671,29 @@ fn stat_band(
     totals: &WeeklyTotals,
     wow: &WeeklyWoW,
 ) -> impl IntoElement {
-    h_flex()
-        .id("weekly-product-stats")
-        .gap_3()
-        .children(vec![
-            stat_card(
-                app_theme,
-                Icon::empty().path("icons/bar-chart-3.svg"),
-                "销售额合计",
-                fmt_currency(totals.sales_amount, country),
-                wow.sales,
-            ),
-            stat_card(
-                app_theme,
-                Icon::new(IconName::CircleCheck),
-                "销量合计",
-                fmt_int_thousands(totals.units_sold as f64),
-                wow.units,
-            ),
-            stat_card(
-                app_theme,
-                Icon::empty().path("icons/coins.svg"),
-                "广告花费合计",
-                fmt_currency(totals.ad_spend, country),
-                wow.ad,
-            ),
-        ])
+    h_flex().id("weekly-product-stats").gap_3().children(vec![
+        stat_card(
+            app_theme,
+            Icon::empty().path("icons/bar-chart-3.svg"),
+            "销售额合计",
+            fmt_currency(totals.sales_amount, country),
+            wow.sales,
+        ),
+        stat_card(
+            app_theme,
+            Icon::new(IconName::CircleCheck),
+            "销量合计",
+            fmt_int_thousands(totals.units_sold as f64),
+            wow.units,
+        ),
+        stat_card(
+            app_theme,
+            Icon::empty().path("icons/coins.svg"),
+            "广告花费合计",
+            fmt_currency(totals.ad_spend, country),
+            wow.ad,
+        ),
+    ])
 }
 
 /// 单张统计卡：图标 + 数值 + 标签 + 环比徽章（不足 2 周时环比为 0，中性展示）
@@ -1738,12 +1824,7 @@ fn trend_card(
                 h_flex()
                     .gap_2()
                     .items_center()
-                    .child(
-                        div()
-                            .size_2()
-                            .rounded_full()
-                            .bg(color),
-                    )
+                    .child(div().size_2().rounded_full().bg(color))
                     .child(
                         div()
                             .text_xs()
@@ -1796,15 +1877,11 @@ fn trend_card(
                         for (m, label) in WeeklyTrendMetric::ALL {
                             let checked = m == metric;
                             let view_m = view_for_metric.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label).checked(checked).on_click(
-                                    move |_, _window, cx| {
-                                        view_m.update(cx, |this, cx| {
-                                            this.select_trend_metric(m, cx)
-                                        });
-                                    },
-                                ),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_, _window, cx| {
+                                    view_m.update(cx, |this, cx| this.select_trend_metric(m, cx));
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1896,17 +1973,21 @@ fn details_card(
                                             iso_week_label(row.report_start_date),
                                             row.report_start_date,
                                             row.report_end_date,
-                                            if is_partial_row(row) { " · 数据不完整" } else { "" }
+                                            if is_partial_row(row) {
+                                                " · 数据不完整"
+                                            } else {
+                                                ""
+                                            }
                                         );
                                         let view_w = view_for_week.clone();
                                         menu = menu.item(
-                                            PopupMenuItem::new(label)
-                                                .checked(checked)
-                                                .on_click(move |_, _window, cx| {
+                                            PopupMenuItem::new(label).checked(checked).on_click(
+                                                move |_, _window, cx| {
                                                     view_w.update(cx, |this, cx| {
                                                         this.select_week(id, cx)
                                                     });
-                                                }),
+                                                },
+                                            ),
                                         );
                                     }
                                     menu
@@ -1917,7 +1998,11 @@ fn details_card(
                                     .outline()
                                     .small()
                                     .disabled(details_loading)
-                                    .label(if details_loading { "加载中…" } else { "刷新 SKU明细" })
+                                    .label(if details_loading {
+                                        "加载中…"
+                                    } else {
+                                        "刷新 SKU明细"
+                                    })
                                     .on_click(move |_, _window, cx| {
                                         view_for_details_refresh
                                             .update(cx, |this, cx| this.load_details(cx));
@@ -1931,9 +2016,8 @@ fn details_card(
                             "周汇总",
                             active_tab == WeeklyTab::Summary,
                             move |_, _window, cx| {
-                                view_for_summary_tab.update(cx, |this, cx| {
-                                    this.switch_tab(WeeklyTab::Summary, cx)
-                                });
+                                view_for_summary_tab
+                                    .update(cx, |this, cx| this.switch_tab(WeeklyTab::Summary, cx));
                             },
                         ))
                         .child(tab_button(
@@ -1942,9 +2026,8 @@ fn details_card(
                             "SKU明细",
                             active_tab == WeeklyTab::Details,
                             move |_, _window, cx| {
-                                view_for_details_tab.update(cx, |this, cx| {
-                                    this.switch_tab(WeeklyTab::Details, cx)
-                                });
+                                view_for_details_tab
+                                    .update(cx, |this, cx| this.switch_tab(WeeklyTab::Details, cx));
                             },
                         )),
                 ),
@@ -2071,11 +2154,8 @@ fn details_tab_body(
             .into_any_element();
     };
 
-    let summaries: Vec<serde_json::Map<String, serde_json::Value>> = payload
-        .rows
-        .iter()
-        .map(|row| row.raw.clone())
-        .collect();
+    let summaries: Vec<serde_json::Map<String, serde_json::Value>> =
+        payload.rows.iter().map(|row| row.raw.clone()).collect();
     let totals = build_summary_totals(&summaries);
 
     v_flex()
@@ -2094,7 +2174,11 @@ fn details_tab_body(
                         .child(format!(
                             "{} 行 · 库存快照：{}",
                             payload.rows.len(),
-                            if payload.inventory_covered { "已合并" } else { "无（库存列计 0）" }
+                            if payload.inventory_covered {
+                                "已合并"
+                            } else {
+                                "无（库存列计 0）"
+                            }
                         )),
                 )
                 .when(details_loading, |this| {
@@ -2152,7 +2236,10 @@ fn totals_footer_items(
         .into_iter()
         .map(|column| {
             let value = totals.get(column);
-            (column.to_string(), format_summary_cell(column, value, country))
+            (
+                column.to_string(),
+                format_summary_cell(column, value, country),
+            )
         })
         .collect()
 }
@@ -2265,14 +2352,16 @@ pub fn summary_table_columns(country: &str) -> Vec<ColumnDef<WeeklyProductRow>> 
                 ))
             })
             .width(96.0)
-            .align(if SUMMARY_INTEGER_COLUMNS.contains(&column)
-                || SUMMARY_CURRENCY_COLUMNS.contains(&column)
-                || SUMMARY_PERCENT_COLUMNS.contains(&column)
-            {
-                CellAlign::Right
-            } else {
-                CellAlign::Left
-            }),
+            .align(
+                if SUMMARY_INTEGER_COLUMNS.contains(&column)
+                    || SUMMARY_CURRENCY_COLUMNS.contains(&column)
+                    || SUMMARY_PERCENT_COLUMNS.contains(&column)
+                {
+                    CellAlign::Right
+                } else {
+                    CellAlign::Left
+                },
+            ),
         );
     }
     columns
@@ -2285,23 +2374,16 @@ pub fn summary_table_columns(country: &str) -> Vec<ColumnDef<WeeklyProductRow>> 
 /// `country` 用于货币列渲染（US=$ / DE=€ / UK=£），与 `summary_table_columns`
 /// 同模式——`country_owned.clone()` 透传到闭包，避免「写死 US」的
 /// BLF-723 review 阻塞项（参见 PR #343 review 反馈）。
-pub fn detail_columns(
-    country: &str,
-    extra: &[String],
-) -> Vec<ColumnDef<DetailTableRow>> {
+pub fn detail_columns(country: &str, extra: &[String]) -> Vec<ColumnDef<DetailTableRow>> {
     let country_owned = country.to_string();
     let mut columns: Vec<ColumnDef<DetailTableRow>> = vec![
-        ColumnDef::text(
-            "weekly-detail-date",
-            "日期",
-            |r: &DetailTableRow, _| SharedString::from(r.date.clone()),
-        )
+        ColumnDef::text("weekly-detail-date", "日期", |r: &DetailTableRow, _| {
+            SharedString::from(r.date.clone())
+        })
         .width(110.0),
-        ColumnDef::text(
-            "weekly-detail-sku",
-            "SKU",
-            |r: &DetailTableRow, _| SharedString::from(r.sku.clone()),
-        )
+        ColumnDef::text("weekly-detail-sku", "SKU", |r: &DetailTableRow, _| {
+            SharedString::from(r.sku.clone())
+        })
         .width(180.0),
     ];
     for column in detail_base_columns().into_iter().skip(2) {
@@ -2321,15 +2403,17 @@ pub fn detail_columns(
                 ))
             })
             .width(96.0)
-            .align(if SUMMARY_INTEGER_COLUMNS.contains(&column)
-                || SUMMARY_CURRENCY_COLUMNS.contains(&column)
-                || SUMMARY_PERCENT_COLUMNS.contains(&column)
-                || column == "库存"
-            {
-                CellAlign::Right
-            } else {
-                CellAlign::Left
-            }),
+            .align(
+                if SUMMARY_INTEGER_COLUMNS.contains(&column)
+                    || SUMMARY_CURRENCY_COLUMNS.contains(&column)
+                    || SUMMARY_PERCENT_COLUMNS.contains(&column)
+                    || column == "库存"
+                {
+                    CellAlign::Right
+                } else {
+                    CellAlign::Left
+                },
+            ),
         );
     }
     // 额外列（raw_row 中基础列之外的键；对齐 web extras）
@@ -2387,14 +2471,22 @@ mod tests {
     }
 
     /// 周行（summary_row 带中文键指标；total_* 与 summary 对齐）
-    fn week_row(id: i64, start: NaiveDate, sales: f64, units: i64, ad_spend: f64) -> WeeklyProductRow {
+    fn week_row(
+        id: i64,
+        start: NaiveDate,
+        sales: f64,
+        units: i64,
+        ad_spend: f64,
+    ) -> WeeklyProductRow {
         WeeklyProductRow {
             id,
             project_id: 1,
             project_name: "测试项目 A".into(),
             country: "US".into(),
             report_start_date: start,
-            report_end_date: start.checked_add_days(chrono::Days::new(6)).expect("合法日期"),
+            report_end_date: start
+                .checked_add_days(chrono::Days::new(6))
+                .expect("合法日期"),
             version: 1,
             is_current: true,
             row_count: 5,
@@ -2481,7 +2573,10 @@ mod tests {
         // 周一当天：本周一 = today → 终点 = 昨天（周日）
         let monday = NaiveDate::from_ymd_opt(2026, 8, 10).expect("合法日期");
         let range = default_week_range(monday);
-        assert_eq!(range.to, Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期")));
+        assert_eq!(
+            range.to,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期"))
+        );
     }
 
     /// toNumber / safeDiv / hasValue（对齐 web 同名函数）
@@ -2548,9 +2643,15 @@ mod tests {
         row.summary_row = Some(serde_json::json!({}));
         let summary = build_summary_for_row(&row);
         assert_eq!(summary.get("总销量").and_then(|v| v.as_i64()), Some(10));
-        assert_eq!(summary.get("总销售额").and_then(|v| v.as_f64()), Some(100.0));
+        assert_eq!(
+            summary.get("总销售额").and_then(|v| v.as_f64()),
+            Some(100.0)
+        );
         assert_eq!(summary.get("广告花费").and_then(|v| v.as_f64()), Some(20.0));
-        assert_eq!(summary.get("实际销售额").and_then(|v| v.as_f64()), Some(100.0));
+        assert_eq!(
+            summary.get("实际销售额").and_then(|v| v.as_f64()),
+            Some(100.0)
+        );
         // summary_row 为 None 也走回退
         row.summary_row = None;
         let summary = build_summary_for_row(&row);
@@ -2560,18 +2661,16 @@ mod tests {
     /// buildSummaryTotals 比率口径（对齐 web：合计后重算 17 个比率列）
     #[test]
     fn build_summary_totals_recomputes_ratios() {
-        let rows = vec![
-            serde_json::json!({
-                "总销量": 100, "页面浏览量": 1000,
-                "广告点击量": 50, "广告展示量": 500,
-                "广告花费": 100.0, "广告销售额": 500.0,
-                "实际销售额": 1000.0, "实际销售量": 100,
-                "利润": 200.0
-            })
-            .as_object()
-            .expect("对象")
-            .clone(),
-        ];
+        let rows = vec![serde_json::json!({
+            "总销量": 100, "页面浏览量": 1000,
+            "广告点击量": 50, "广告展示量": 500,
+            "广告花费": 100.0, "广告销售额": 500.0,
+            "实际销售额": 1000.0, "实际销售量": 100,
+            "利润": 200.0
+        })
+        .as_object()
+        .expect("对象")
+        .clone()];
         let totals = build_summary_totals(&rows);
         // 总转化 = 100/1000 = 0.1
         assert_eq!(totals.get("总转化").and_then(|v| v.as_f64()), Some(0.1));
@@ -2645,7 +2744,10 @@ mod tests {
             },
         ];
         let extra = detail_extra_columns(&rows);
-        assert_eq!(extra, vec!["自定义列A".to_string(), "自定义列B".to_string()]);
+        assert_eq!(
+            extra,
+            vec!["自定义列A".to_string(), "自定义列B".to_string()]
+        );
     }
 
     /// 列定义契约：周汇总 39 列（周次 + 38 指标）；明细基础 41 列（日期 + SKU + 40 指标）+ 额外列；id 唯一
@@ -2763,7 +2865,12 @@ mod tests {
         };
         let de_extra = detail_columns("DE", &["自定义指标".to_string()]);
         assert_eq!(
-            render_cell(&de_extra, "weekly-detail-extra-自定义指标", &row_extra, &theme),
+            render_cell(
+                &de_extra,
+                "weekly-detail-extra-自定义指标",
+                &row_extra,
+                &theme
+            ),
             "1,234.5678"
         );
     }

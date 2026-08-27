@@ -41,9 +41,7 @@
 //!   chart_* token（hex 集中在 theme.rs）。
 
 use chrono::{Datelike, NaiveDate};
-use gpui::{
-    div, prelude::*, px, IntoElement, ParentElement, Styled,
-};
+use gpui::{div, prelude::*, px, IntoElement, ParentElement, Styled};
 use gpui_component::{h_flex, v_flex};
 use gui_domain::dashboard::DailyAnalysisRow;
 
@@ -270,8 +268,11 @@ fn channel_card(
         if points.is_empty() {
             chart_empty("暂无销售数据", 320.0, theme).into_any_element()
         } else {
-            chart_area(320.0, dual_area_chart(&points, theme.chart_primary, theme.chart_secondary))
-                .into_any_element()
+            chart_area(
+                320.0,
+                dual_area_chart(&points, theme.chart_primary, theme.chart_secondary),
+            )
+            .into_any_element()
         },
     )
 }
@@ -350,7 +351,11 @@ fn stock_card(
     } else {
         v_flex()
             .gap_2()
-            .child(big_number(fmt_num_precise(current), "件 · 区间末快照", theme))
+            .child(big_number(
+                fmt_num_precise(current),
+                "件 · 区间末快照",
+                theme,
+            ))
             .child(chart_area(
                 256.0 - 44.0,
                 trend_area_chart(&points, theme.chart_tertiary, 0.22),

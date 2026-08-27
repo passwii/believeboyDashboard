@@ -45,12 +45,12 @@ use gui_api_client::Client;
 use gui_domain::agent_management::{
     parse_scope_parts, scope_has_domain, AgentApiKeyCreateResponse, AgentApiKeyItem,
     AgentDomainStatus, AgentKeyStatus, AgentOperationLogItem, AgentOperationLogsSummary,
-    BUSINESS_SCOPE_ALL, AGENT_DOMAINS,
+    AGENT_DOMAINS, BUSINESS_SCOPE_ALL,
 };
+use gui_domain::common::ManagedProject;
 use gui_domain::system_management::{
     AgentAccessLogItem, AgentAccessLogsResponse, AgentAccessLogsSummaryResponse,
 };
-use gui_domain::common::ManagedProject;
 
 use crate::theme::AppTheme;
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
@@ -80,12 +80,7 @@ pub enum AgentTab {
 }
 
 impl AgentTab {
-    pub const ALL: [Self; 4] = [
-        Self::Overview,
-        Self::Credentials,
-        Self::Guide,
-        Self::Logs,
-    ];
+    pub const ALL: [Self; 4] = [Self::Overview, Self::Credentials, Self::Guide, Self::Logs];
 
     fn id(self) -> &'static str {
         match self {
@@ -183,7 +178,9 @@ fn beijing_time(iso: Option<&str>) -> String {
         .or_else(|_| {
             chrono::NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S%.f").map(|naive| {
                 use chrono::TimeZone;
-                chrono::Utc.from_utc_datetime(&naive).with_timezone(&beijing)
+                chrono::Utc
+                    .from_utc_datetime(&naive)
+                    .with_timezone(&beijing)
             })
         });
     parsed
@@ -417,13 +414,10 @@ impl AgentManagementView {
     /// `reload_logs` / 项目列表拉取
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let table = cx.new(|_| {
-            DataTable::new(
-                "agent-key-table",
-                key_columns(),
-            )
-            .striped(true)
-            .selectable(true)
-            .empty_text("暂无凭据 — 点击右上角「创建凭据」开始接入")
+            DataTable::new("agent-key-table", key_columns())
+                .striped(true)
+                .selectable(true)
+                .empty_text("暂无凭据 — 点击右上角「创建凭据」开始接入")
         });
         Self {
             client,
@@ -911,9 +905,9 @@ impl AgentManagementView {
 
         let key_id = confirm.key_id();
         let key_label = match &confirm {
-            PendingConfirm::Deactivate(k) | PendingConfirm::Activate(k) | PendingConfirm::Delete(k) => {
-                k.label.clone()
-            }
+            PendingConfirm::Deactivate(k)
+            | PendingConfirm::Activate(k)
+            | PendingConfirm::Delete(k) => k.label.clone(),
         };
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
@@ -928,9 +922,7 @@ impl AgentManagementView {
                             PendingConfirm::Activate(_) => {
                                 client.agent_key_activate(key_id).await.map(|_| ())
                             }
-                            PendingConfirm::Delete(_) => {
-                                client.agent_key_delete(key_id).await
-                            }
+                            PendingConfirm::Delete(_) => client.agent_key_delete(key_id).await,
                         }
                     })
                 })
@@ -1060,30 +1052,34 @@ fn key_columns() -> Vec<ColumnDef<AgentApiKeyItem>> {
             SharedString::from(r.agent_id.clone().unwrap_or_else(|| "—（未绑定）".into()))
         })
         .width(180.0),
-        ColumnDef::text("key-project-scope", "项目范围", |_r, _| SharedString::from(""))
-            .with_render_element(|r: &AgentApiKeyItem, theme| {
-                // 项目名映射需要 projects —— 渲染期不可得，退化为 id 白名单文案；
-                // 全量映射在概览卡与对话框内完成
-                div()
-                    .text_sm()
-                    .text_color(theme.text_secondary)
-                    .child(SharedString::from(render_project_scope_compact(
-                        &r.project_scope,
-                    )))
-                    .into_any_element()
-            })
-            .width(140.0),
-        ColumnDef::text("key-business-scope", "业务域范围", |_r, _| SharedString::from(""))
-            .with_render_element(|r: &AgentApiKeyItem, theme| {
-                div()
-                    .text_sm()
-                    .text_color(theme.text_secondary)
-                    .child(SharedString::from(gui_domain::agent_management::format_business_scope(
-                        Some(&r.business_scope),
-                    )))
-                    .into_any_element()
-            })
-            .width(150.0),
+        ColumnDef::text("key-project-scope", "项目范围", |_r, _| {
+            SharedString::from("")
+        })
+        .with_render_element(|r: &AgentApiKeyItem, theme| {
+            // 项目名映射需要 projects —— 渲染期不可得，退化为 id 白名单文案；
+            // 全量映射在概览卡与对话框内完成
+            div()
+                .text_sm()
+                .text_color(theme.text_secondary)
+                .child(SharedString::from(render_project_scope_compact(
+                    &r.project_scope,
+                )))
+                .into_any_element()
+        })
+        .width(140.0),
+        ColumnDef::text("key-business-scope", "业务域范围", |_r, _| {
+            SharedString::from("")
+        })
+        .with_render_element(|r: &AgentApiKeyItem, theme| {
+            div()
+                .text_sm()
+                .text_color(theme.text_secondary)
+                .child(SharedString::from(
+                    gui_domain::agent_management::format_business_scope(Some(&r.business_scope)),
+                ))
+                .into_any_element()
+        })
+        .width(150.0),
         ColumnDef::text("key-last-used", "最近使用", |r: &AgentApiKeyItem, _| {
             SharedString::from(
                 r.last_used_at
@@ -1114,7 +1110,11 @@ fn render_project_scope_compact(scope: &str) -> String {
         if parts.len() > 3 {
             format!("{} 等 {} 个项目", parts[..3].join("/"), parts.len())
         } else {
-            parts.iter().map(|p| format!("#{p}")).collect::<Vec<_>>().join("/")
+            parts
+                .iter()
+                .map(|p| format!("#{p}"))
+                .collect::<Vec<_>>()
+                .join("/")
         }
     }
 }
@@ -1142,9 +1142,10 @@ fn status_pill(item: &AgentApiKeyItem, theme: &AppTheme) -> gpui::AnyElement {
             div()
                 .text_xs()
                 .font_weight(FontWeight::MEDIUM)
-                .when(status == AgentKeyStatus::Inactive || status == AgentKeyStatus::Deleted, |this| {
-                    this.opacity(0.75)
-                })
+                .when(
+                    status == AgentKeyStatus::Inactive || status == AgentKeyStatus::Deleted,
+                    |this| this.opacity(0.75),
+                )
                 .child(SharedString::from(status.label())),
         )
         .into_any_element()
@@ -1165,8 +1166,11 @@ impl Render for AgentManagementView {
             if self.label_input.is_none() {
                 let initial = editing.as_ref().map(|k| k.label.clone());
                 self.label_input = Some(cx.new(|cx| {
-                    let mut s = InputState::new(window, cx)
-                        .placeholder(if editing.is_some() { "" } else { "如：货件助理 (生产)" });
+                    let mut s = InputState::new(window, cx).placeholder(if editing.is_some() {
+                        ""
+                    } else {
+                        "如：货件助理 (生产)"
+                    });
                     if let Some(v) = initial {
                         s = s.default_value(v);
                     }
@@ -1184,7 +1188,8 @@ impl Render for AgentManagementView {
         if self.active_tab == AgentTab::Logs && self.log_keyword_input.is_none() {
             let initial = self.log_keyword_applied.clone();
             self.log_keyword_input = Some(cx.new(|cx| {
-                let mut s = InputState::new(window, cx).placeholder("关键词：Agent ID / 标签 / 路径");
+                let mut s =
+                    InputState::new(window, cx).placeholder("关键词：Agent ID / 标签 / 路径");
                 if !initial.is_empty() {
                     s = s.default_value(initial);
                 }
@@ -1207,9 +1212,7 @@ impl Render for AgentManagementView {
             .child(content_guard().child(render_tab_bar(&view, self.active_tab, &app_theme)))
             .child(match self.active_tab {
                 AgentTab::Overview => render_overview(self, cx, &app_theme).into_any_element(),
-                AgentTab::Credentials => {
-                    self.render_credentials_tab(window, cx, &view, &app_theme)
-                }
+                AgentTab::Credentials => self.render_credentials_tab(window, cx, &view, &app_theme),
                 AgentTab::Guide => render_guide(&view, &app_theme).into_any_element(),
                 AgentTab::Logs => self.render_logs_tab(cx, &view, &app_theme),
             })
@@ -1236,7 +1239,8 @@ impl AgentManagementView {
         let filtered = self.filtered_keys();
 
         // 表格行注入（render 期幂等）
-        self.table.update(cx, |t, cx| t.set_rows_if_changed(&filtered, cx));
+        self.table
+            .update(cx, |t, cx| t.set_rows_if_changed(&filtered, cx));
 
         // 选中行动作条数据
         let selected = self.selected_key(cx);
@@ -1348,16 +1352,22 @@ impl AgentManagementView {
 
         let top_chips = if read {
             render_top_agent_chips(
-                self.access_summary
-                    .as_ref()
-                    .map(|s| s.top_agents.iter().map(|a| (a.key_label.as_deref(), a.agent_id.as_str(), a.count)).collect()),
+                self.access_summary.as_ref().map(|s| {
+                    s.top_agents
+                        .iter()
+                        .map(|a| (a.key_label.as_deref(), a.agent_id.as_str(), a.count))
+                        .collect()
+                }),
                 theme,
             )
         } else {
             render_top_agent_chips(
-                self.op_summary
-                    .as_ref()
-                    .map(|s| s.top_agents.iter().map(|a| (a.agent_name.as_deref(), a.agent_id.as_str(), a.count)).collect()),
+                self.op_summary.as_ref().map(|s| {
+                    s.top_agents
+                        .iter()
+                        .map(|a| (a.agent_name.as_deref(), a.agent_id.as_str(), a.count))
+                        .collect()
+                }),
                 theme,
             )
         };
@@ -1443,12 +1453,8 @@ impl AgentManagementView {
                             },
                         )),
                 );
-            crate::motion::enter_fade_in(
-                SharedString::from("agent-logs-list-fade"),
-                card,
-                reduce,
-            )
-            .into_any_element()
+            crate::motion::enter_fade_in(SharedString::from("agent-logs-list-fade"), card, reduce)
+                .into_any_element()
         };
 
         v_flex()
@@ -1525,7 +1531,11 @@ fn render_tab_bar(
 // ---------------------------------------------------------------------------
 
 /// 业务域卡片栅格（flex wrap 三列节奏）
-fn render_overview(view: &AgentManagementView, cx: &Context<AgentManagementView>, theme: &AppTheme) -> impl IntoElement {
+fn render_overview(
+    view: &AgentManagementView,
+    cx: &Context<AgentManagementView>,
+    theme: &AppTheme,
+) -> impl IntoElement {
     let _ = cx;
     let now_ms = chrono::Utc::now().timestamp_millis();
     let cards: Vec<gpui::AnyElement> = AGENT_DOMAINS
@@ -1571,14 +1581,7 @@ fn render_overview(view: &AgentManagementView, cx: &Context<AgentManagementView>
                             .child("各业务域的 Agent API 接入状态与已授权凭据数"),
                     ),
             )
-            .child(
-                h_flex()
-                    .flex_wrap()
-                    .gap_3()
-                    .px_4()
-                    .pb_4()
-                    .children(cards),
-            ),
+            .child(h_flex().flex_wrap().gap_3().px_4().pb_4().children(cards)),
     )
 }
 
@@ -1590,7 +1593,10 @@ fn domain_card(
     theme: &AppTheme,
 ) -> gpui::AnyElement {
     let (border, bg) = if live {
-        (theme.success.opacity(0.35), theme.success_soft.opacity(0.35))
+        (
+            theme.success.opacity(0.35),
+            theme.success_soft.opacity(0.35),
+        )
     } else {
         (theme.separator, theme.muted_fill.opacity(0.35))
     };
@@ -1697,9 +1703,10 @@ fn render_credential_filters(
     let status = view.status_filter;
     let domain_filter = view.domain_filter.clone();
     let include_deleted = view.include_deleted;
-    let domains: Vec<(&'static str, &'static str)> = gui_domain::agent_management::live_agent_domains()
-        .map(|d| (d.code, d.label))
-        .collect();
+    let domains: Vec<(&'static str, &'static str)> =
+        gui_domain::agent_management::live_agent_domains()
+            .map(|d| (d.code, d.label))
+            .collect();
 
     filter_bar_layout(theme)
         .id("agent-key-filters")
@@ -1717,13 +1724,11 @@ fn render_credential_filters(
                     StatusFilter::Expired,
                 ] {
                     let view = v_status.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(f.label())
-                            .checked(status == f)
-                            .on_click(move |_ev, _w, cx| {
-                                view.update(cx, |this, cx| this.set_status_filter(f, cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(f.label()).checked(status == f).on_click(
+                        move |_ev, _w, cx| {
+                            view.update(cx, |this, cx| this.set_status_filter(f, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1755,16 +1760,12 @@ fn render_credential_filters(
                     let checked = domain_filter.as_deref() == Some(*code);
                     let label = (*label).to_string();
                     let value = (*code).to_string();
-                    menu = menu.item(
-                        PopupMenuItem::new(label)
-                            .checked(checked)
-                            .on_click(move |_ev, _w, cx| {
-                                let next = Some(value.clone());
-                                view.update(cx, |this, cx| {
-                                    this.set_domain_filter(next, cx)
-                                });
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_ev, _w, cx| {
+                            let next = Some(value.clone());
+                            view.update(cx, |this, cx| this.set_domain_filter(next, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1815,15 +1816,8 @@ fn toggle_pill(
             this.border_color(theme.separator)
                 .text_color(theme.text_secondary)
         })
-        .child(
-            Icon::new(if on { IconName::Check } else { IconName::Close })
-                .with_size(px(11.)),
-        )
-        .child(
-            div()
-                .text_sm()
-                .child(label.to_string()),
-        )
+        .child(Icon::new(if on { IconName::Check } else { IconName::Close }).with_size(px(11.)))
+        .child(div().text_sm().child(label.to_string()))
         .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
             let next = !on;
             view.update(cx, |this, cx| this.set_include_deleted(next, cx));
@@ -1836,7 +1830,11 @@ fn notice_banner(theme: &AppTheme, is_err: bool, text: &str) -> gpui::AnyElement
     let (bg, fg, border) = if is_err {
         (theme.danger_soft, theme.danger, theme.danger.opacity(0.35))
     } else {
-        (theme.success_soft, theme.success, theme.success.opacity(0.35))
+        (
+            theme.success_soft,
+            theme.success,
+            theme.success.opacity(0.35),
+        )
     };
     h_flex()
         .id("agent-notice-banner")
@@ -2180,7 +2178,11 @@ fn render_form_dialog(
     theme: &AppTheme,
 ) -> gpui::AnyElement {
     let is_edit = dialog.editing.is_some();
-    let title = if is_edit { "编辑凭据权限" } else { "创建 Agent 凭据" };
+    let title = if is_edit {
+        "编辑凭据权限"
+    } else {
+        "创建 Agent 凭据"
+    };
 
     let v_cancel = view.clone();
     let v_save = view.clone();
@@ -2382,7 +2384,8 @@ fn check_row(
         .px_2()
         .py_1p5()
         .when(checked, |this| {
-            this.border_color(theme.accent.opacity(0.5)).bg(theme.accent_soft)
+            this.border_color(theme.accent.opacity(0.5))
+                .bg(theme.accent_soft)
         })
         .when(!checked, |this| this.border_color(theme.separator))
         .child(check_square(theme, checked))
@@ -2413,17 +2416,15 @@ fn check_square(theme: &AppTheme, checked: bool) -> gpui::AnyElement {
         .rounded(px(3.))
         .border_1()
         .when(checked, |this| {
-            this.bg(theme.accent)
-                .border_color(theme.accent)
-                .child(
-                    div()
-                        .size_full()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(theme.on_accent)
-                        .child(Icon::new(IconName::Check).with_size(px(10.))),
-                )
+            this.bg(theme.accent).border_color(theme.accent).child(
+                div()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(theme.on_accent)
+                    .child(Icon::new(IconName::Check).with_size(px(10.))),
+            )
         })
         .when(!checked, |this| this.border_color(theme.separator))
         .into_any_element()
@@ -2501,32 +2502,39 @@ fn render_logs_sub_tabs(
         .gap_1()
         .rounded(px(theme.radius_lg))
         .bg(theme.muted_fill)
-        .children([LogsSubTab::Read, LogsSubTab::Write].into_iter().map(|tab| {
-            let view = view.clone();
-            let selected = active == tab;
-            div()
-                .id(SharedString::from(format!("agent-logs-subtab-{}", tab.label())))
-                .px_4()
-                .py_1p5()
-                .text_sm()
-                .rounded(px(theme.radius))
-                .cursor(CursorStyle::PointingHand)
-                .when(selected, |this| {
-                    this.bg(theme.card_bg)
-                        .text_color(theme.accent)
-                        .font_weight(FontWeight::MEDIUM)
-                })
-                .when(!selected, |this| {
-                    this.text_color(theme.text_secondary).hover(|this| {
-                        this.bg(theme.card_bg.opacity(0.5))
-                            .text_color(theme.text_primary)
-                    })
-                })
-                .child(tab.label().to_string())
-                .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
-                    view.update(cx, |this, cx| this.select_logs_sub_tab(tab, cx));
-                })
-        }))
+        .children(
+            [LogsSubTab::Read, LogsSubTab::Write]
+                .into_iter()
+                .map(|tab| {
+                    let view = view.clone();
+                    let selected = active == tab;
+                    div()
+                        .id(SharedString::from(format!(
+                            "agent-logs-subtab-{}",
+                            tab.label()
+                        )))
+                        .px_4()
+                        .py_1p5()
+                        .text_sm()
+                        .rounded(px(theme.radius))
+                        .cursor(CursorStyle::PointingHand)
+                        .when(selected, |this| {
+                            this.bg(theme.card_bg)
+                                .text_color(theme.accent)
+                                .font_weight(FontWeight::MEDIUM)
+                        })
+                        .when(!selected, |this| {
+                            this.text_color(theme.text_secondary).hover(|this| {
+                                this.bg(theme.card_bg.opacity(0.5))
+                                    .text_color(theme.text_primary)
+                            })
+                        })
+                        .child(tab.label().to_string())
+                        .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_logs_sub_tab(tab, cx));
+                        })
+                }),
+        )
 }
 
 /// 统计概览带（读访问四项：请求总量 / 成功 / 失败 / 活跃 Agent）
@@ -2535,7 +2543,12 @@ fn render_access_stats(
     theme: &AppTheme,
 ) -> gpui::AnyElement {
     let (total, ok, err, agents) = match summary {
-        Some(s) => (s.total, s.success_count, s.error_count, s.unique_agent_count),
+        Some(s) => (
+            s.total,
+            s.success_count,
+            s.error_count,
+            s.unique_agent_count,
+        ),
         None => (0, 0, 0, 0),
     };
     stat_band_card(
@@ -2557,7 +2570,12 @@ fn render_operation_stats(
     theme: &AppTheme,
 ) -> gpui::AnyElement {
     let (total, ok, fail, agents) = match summary {
-        Some(s) => (s.total, s.success_count, s.failure_count, s.unique_agent_count),
+        Some(s) => (
+            s.total,
+            s.success_count,
+            s.failure_count,
+            s.unique_agent_count,
+        ),
         None => (0, 0, 0, 0),
     };
     stat_band_card(
@@ -2660,9 +2678,7 @@ fn render_top_agent_chips(
                 .px_2()
                 .py(px(2.))
                 .when_some(label.filter(|l| !l.trim().is_empty()), |this, l| {
-                    this.child(
-                        div().text_xs().child(SharedString::from(l.to_string())),
-                    )
+                    this.child(div().text_xs().child(SharedString::from(l.to_string())))
                 })
                 .child(
                     div()
@@ -2740,14 +2756,12 @@ fn render_log_filters(
                         } else {
                             method.as_deref() == Some(value)
                         };
-                        menu = menu.item(
-                            PopupMenuItem::new(label)
-                                .checked(checked)
-                                .on_click(move |_ev, _w, cx| {
-                                    let next = (value != "all").then(|| value.to_string());
-                                    view.update(cx, |this, cx| this.set_log_method(next, cx));
-                                }),
-                        );
+                        menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                            move |_ev, _w, cx| {
+                                let next = (value != "all").then(|| value.to_string());
+                                view.update(cx, |this, cx| this.set_log_method(next, cx));
+                            },
+                        ));
                     }
                     menu
                 },
@@ -2776,14 +2790,12 @@ fn render_log_filters(
                     } else {
                         result.as_deref() == Some(value)
                     };
-                    menu = menu.item(
-                        PopupMenuItem::new(label)
-                            .checked(checked)
-                            .on_click(move |_ev, _w, cx| {
-                                let next = (value != "all").then(|| value.to_string());
-                                view.update(cx, |this, cx| this.set_log_result(next, cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_ev, _w, cx| {
+                            let next = (value != "all").then(|| value.to_string());
+                            view.update(cx, |this, cx| this.set_log_result(next, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -2852,7 +2864,12 @@ fn render_access_table(rows: &[AgentAccessLogItem], theme: &AppTheme) -> gpui::A
                 .border_b_1()
                 .border_color(theme.separator.opacity(0.6))
                 .hover(|this| this.bg(theme.table_row_hover))
-                .child(access_cell(theme, beijing_time(Some(&row.created_at)), 140., false))
+                .child(access_cell(
+                    theme,
+                    beijing_time(Some(&row.created_at)),
+                    140.,
+                    false,
+                ))
                 .child(access_cell(
                     theme,
                     agent_display(row.key_label.as_deref(), row.agent_id.as_deref()),
@@ -2875,11 +2892,11 @@ fn render_access_table(rows: &[AgentAccessLogItem], theme: &AppTheme) -> gpui::A
                     90.,
                     false,
                 ))
-                .child(
-                    div()
-                        .w(px(96.))
-                        .child(small_chip(theme, http_status_label(row.status_code), fg)),
-                )
+                .child(div().w(px(96.)).child(small_chip(
+                    theme,
+                    http_status_label(row.status_code),
+                    fg,
+                )))
                 .child(access_cell(
                     theme,
                     format!("{}ms", row.latency_ms),
@@ -2951,7 +2968,12 @@ fn render_operation_table(rows: &[AgentOperationLogItem], theme: &AppTheme) -> g
                 .border_b_1()
                 .border_color(theme.separator.opacity(0.6))
                 .hover(|this| this.bg(theme.table_row_hover))
-                .child(access_cell(theme, beijing_time(Some(&row.created_at)), 140., false))
+                .child(access_cell(
+                    theme,
+                    beijing_time(Some(&row.created_at)),
+                    140.,
+                    false,
+                ))
                 .child(access_cell(
                     theme,
                     agent_display(row.agent_name.as_deref(), row.agent_id.as_deref()),
@@ -2968,13 +2990,11 @@ fn render_operation_table(rows: &[AgentOperationLogItem], theme: &AppTheme) -> g
                     130.,
                     true,
                 ))
-                .child(
-                    div().w(px(70.)).child(if failed {
-                        small_chip(theme, "失败", theme.danger)
-                    } else {
-                        small_chip(theme, "成功", theme.success)
-                    }),
-                )
+                .child(div().w(px(70.)).child(if failed {
+                    small_chip(theme, "失败", theme.danger)
+                } else {
+                    small_chip(theme, "成功", theme.success)
+                }))
                 .child(access_cell(
                     theme,
                     row.project_name
@@ -3013,12 +3033,7 @@ fn render_operation_table(rows: &[AgentOperationLogItem], theme: &AppTheme) -> g
 }
 
 /// 表格单元格文本（mono 可选；溢出省略）
-fn access_cell(
-    theme: &AppTheme,
-    text: String,
-    width: f32,
-    mono: bool,
-) -> gpui::AnyElement {
+fn access_cell(theme: &AppTheme, text: String, width: f32, mono: bool) -> gpui::AnyElement {
     div()
         .w(px(width))
         .text_xs()
@@ -3166,7 +3181,10 @@ mod tests {
     #[test]
     fn tab_labels_match_web_tabs() {
         let labels: Vec<&str> = AgentTab::ALL.iter().map(|t| t.label()).collect();
-        assert_eq!(labels, vec!["业务域概览", "凭据管理", "调用指南", "访问日志"]);
+        assert_eq!(
+            labels,
+            vec!["业务域概览", "凭据管理", "调用指南", "访问日志"]
+        );
     }
 
     #[test]

@@ -162,18 +162,19 @@ impl StoreNavigationView {
 
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
-        cx.spawn(async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_store_navigation(&client))
+        cx.spawn(
+            async move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let result = bg
+                    .spawn(async move {
+                        crate::runtime::runtime().block_on(load_store_navigation(&client))
+                    })
+                    .await;
+                this.update(&mut *cx, |this, cx| {
+                    this.apply_result(request_id, result, cx);
                 })
-                .await;
-            this.update(&mut *cx, |this, cx| {
-                this.apply_result(request_id, result, cx);
-            })
-            .ok();
-        })
+                .ok();
+            },
+        )
         .detach();
     }
 
@@ -208,9 +209,7 @@ impl Render for StoreNavigationView {
         let state = self.state.read(cx).clone();
         match state {
             StoreNavState::Loading => render_loading(&app_theme).into_any_element(),
-            StoreNavState::Error(msg) => {
-                render_error(cx, &app_theme, msg).into_any_element()
-            }
+            StoreNavState::Error(msg) => render_error(cx, &app_theme, msg).into_any_element(),
             StoreNavState::Empty => render_empty(cx, &app_theme).into_any_element(),
             StoreNavState::Loaded(stores) => render_loaded(
                 cx,
@@ -325,8 +324,7 @@ fn render_loaded(
 
 /// 页面头部（P4-5：共享 PageHeader；四态统一接入，消除无头部页面）
 fn page_header() -> PageHeader {
-    PageHeader::new("店铺导航")
-        .subtitle("聚合团队所有店铺入口 · 一键直达各店铺后台与前台页面")
+    PageHeader::new("店铺导航").subtitle("聚合团队所有店铺入口 · 一键直达各店铺后台与前台页面")
 }
 
 // ---------------------------------------------------------------------------
@@ -501,13 +499,12 @@ fn section(
                 ),
         )
         .child(
-            div()
-                .grid()
-                .grid_cols(columns as u16)
-                .gap_2()
-                .children(stores.iter().enumerate().map(|(index, store)| {
-                    store_card(store, index, app_theme, cx)
-                })),
+            div().grid().grid_cols(columns as u16).gap_2().children(
+                stores
+                    .iter()
+                    .enumerate()
+                    .map(|(index, store)| store_card(store, index, app_theme, cx)),
+            ),
         )
 }
 
@@ -595,10 +592,7 @@ fn store_card(
                                 .p_1()
                                 .text_color(app_theme.text_muted)
                                 .hover(|this| this.text_color(label))
-                                .child(
-                                    Icon::new(IconName::ExternalLink)
-                                        .with_size(px(16.)),
-                                ),
+                                .child(Icon::new(IconName::ExternalLink).with_size(px(16.))),
                         ),
                 )
                 .child(
@@ -678,7 +672,9 @@ fn brand_pill(store: &ManagedProject, label: Hsla) -> impl IntoElement {
                 .text_xs()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(label)
-                .child(SharedString::from(store.brand_name.clone().unwrap_or_default())),
+                .child(SharedString::from(
+                    store.brand_name.clone().unwrap_or_default(),
+                )),
         )
 }
 
@@ -689,7 +685,12 @@ mod tests {
     use gui_domain::common::ManagedProject;
 
     /// 测试样例店铺（对齐 backend /projects/manage 响应形态）
-    fn sample_store(id: i64, name: &str, brand: Option<&str>, address: Option<&str>) -> ManagedProject {
+    fn sample_store(
+        id: i64,
+        name: &str,
+        brand: Option<&str>,
+        address: Option<&str>,
+    ) -> ManagedProject {
         ManagedProject {
             id,
             name: name.into(),
@@ -710,9 +711,19 @@ mod tests {
 
     fn sample_stores() -> Vec<ManagedProject> {
         vec![
-            sample_store(1, "店铺 A", Some("BelieveBoy"), Some("https://a.example.com")),
+            sample_store(
+                1,
+                "店铺 A",
+                Some("BelieveBoy"),
+                Some("https://a.example.com"),
+            ),
             sample_store(2, "店铺 B", None, None),
-            sample_store(3, "店铺 C", Some("BelieveBoy"), Some("https://c.example.com")),
+            sample_store(
+                3,
+                "店铺 C",
+                Some("BelieveBoy"),
+                Some("https://c.example.com"),
+            ),
             sample_store(4, "店铺 D", Some("OtherBrand"), None),
         ]
     }

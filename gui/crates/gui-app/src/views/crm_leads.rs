@@ -11,7 +11,6 @@
 //!   （converted 徽标 + 转化客户 id）、分页聚合条；
 //! - **精简**：新建/编辑/转化对话框等写链路不移植，走 web 端。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -287,7 +286,11 @@ impl Render for CrmLeadsView {
         // footer 聚合条（Loaded 态：总数 / 已转化数）
         let footer: gpui::AnyElement = match &state {
             LeadsState::Loaded(p) => {
-                let converted = p.items.iter().filter(|l| l.converted_to_customer_id.is_some()).count();
+                let converted = p
+                    .items
+                    .iter()
+                    .filter(|l| l.converted_to_customer_id.is_some())
+                    .count();
                 crate::widgets::data_grid::aggregate_strip(
                     &app_theme,
                     "crm-leads",
@@ -405,7 +408,9 @@ fn build_status_menu(
 
 fn columns() -> Vec<ColumnDef<LeadItem>> {
     vec![
-        ColumnDef::text("name", "线索名称", |r, _| SharedString::from(r.name.clone())),
+        ColumnDef::text("name", "线索名称", |r, _| {
+            SharedString::from(r.name.clone())
+        }),
         ColumnDef::text("company", "公司", |r: &LeadItem, _| {
             SharedString::from(r.company.clone().unwrap_or_else(|| "—".into()))
         }),

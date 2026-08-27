@@ -139,8 +139,7 @@ impl Client {
                 }
             }
         }
-        self.get_json(AGENT_ACCESS_LOGS_SUMMARY_PATH, &query)
-            .await
+        self.get_json(AGENT_ACCESS_LOGS_SUMMARY_PATH, &query).await
     }
 
     /// 数据管理状态（BLF-797 Footer 同步引擎段：主库连通性 pill + 检查时刻；
@@ -156,9 +155,7 @@ impl Client {
 
     /// `GET /system-management/data-management/overview` —— 表健康全景
     /// （表清单 + 最近系统状态；数据库状态页主数据）
-    pub async fn data_management_overview(
-        &self,
-    ) -> Result<DataManagementOverview, ApiError> {
+    pub async fn data_management_overview(&self) -> Result<DataManagementOverview, ApiError> {
         self.get_json(DATA_MANAGEMENT_OVERVIEW_PATH, &[]).await
     }
 
@@ -197,10 +194,7 @@ mod tests {
     /// 契约测试：路径锁定 backend 实际路由（防端点漂移）
     #[test]
     fn paths_match_backend_routes() {
-        assert_eq!(
-            AUDIT_LOGS_PATH,
-            "/api/v1/system-management/audit-logs"
-        );
+        assert_eq!(AUDIT_LOGS_PATH, "/api/v1/system-management/audit-logs");
         assert_eq!(
             AUDIT_LOGS_SUMMARY_PATH,
             "/api/v1/system-management/audit-logs/summary"
@@ -247,7 +241,10 @@ mod tests {
         let client = session_client(&server.url());
         let resp = client.data_management_status().await.expect("请求失败");
         m.assert();
-        assert!(!resp.database.healthy, "healthy=false 应原样透传（红 pill 依据）");
+        assert!(
+            !resp.database.healthy,
+            "healthy=false 应原样透传（红 pill 依据）"
+        );
         assert_eq!(resp.database.engine, "postgresql");
     }
 
@@ -500,7 +497,10 @@ mod tests {
         m.assert();
         assert_eq!(resp.summary.total_tables, 114);
         assert_eq!(resp.tables.len(), 2);
-        assert_eq!(resp.tables[0].status, gui_domain::system_management::TableHealthStatus::Healthy);
+        assert_eq!(
+            resp.tables[0].status,
+            gui_domain::system_management::TableHealthStatus::Healthy
+        );
         assert_eq!(resp.tables[0].status.label(), "健康");
         assert_eq!(
             resp.tables[1].status,

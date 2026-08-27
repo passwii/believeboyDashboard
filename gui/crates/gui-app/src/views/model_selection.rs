@@ -148,18 +148,20 @@ impl Render for ModelSelectionView {
             // 文档元信息条（归档位 / 归属 / 最后更新）
             .child(content_guard().child(meta_bar(&theme)))
             // markdown 全文（GFM 表格 / 任务列表；可选中文本便于复制）
-            .child(content_guard().child(
-                div()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(theme.separator)
-                    .bg(theme.card_bg)
-                    .p_6()
-                    .child(
-                        TextView::markdown("model-selection-doc", doc, window, cx)
-                            .selectable(true),
-                    ),
-            ))
+            .child(
+                content_guard().child(
+                    div()
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme.separator)
+                        .bg(theme.card_bg)
+                        .p_6()
+                        .child(
+                            TextView::markdown("model-selection-doc", doc, window, cx)
+                                .selectable(true),
+                        ),
+                ),
+            )
     }
 }
 

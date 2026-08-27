@@ -86,7 +86,10 @@ impl AdminUserItem {
         self.full_name
             .as_deref()
             .filter(|s| !s.trim().is_empty())
-            .or(self.operator_name_zh.as_deref().filter(|s| !s.trim().is_empty()))
+            .or(self
+                .operator_name_zh
+                .as_deref()
+                .filter(|s| !s.trim().is_empty()))
             .unwrap_or("-")
             .to_string()
     }

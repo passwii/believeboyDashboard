@@ -65,11 +65,7 @@ impl QueryBuilder {
     }
 
     /// 追加可选日期参数（ISO 格式 `YYYY-MM-DD`；`None` 跳过）
-    pub fn with_opt_date(
-        self,
-        key: &'static str,
-        value: Option<chrono::NaiveDate>,
-    ) -> Self {
+    pub fn with_opt_date(self, key: &'static str, value: Option<chrono::NaiveDate>) -> Self {
         self.with_opt(key, value.map(|d| d.to_string()))
     }
 
@@ -113,10 +109,7 @@ impl Client {
     /// 通用单条模板：`GET path` → 解析 `T`
     ///
     /// 适用于详情 / 包裹结构端点（对象或 `{...}` 响应体）。
-    pub async fn get_one<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
-    ) -> Result<T, ApiError> {
+    pub async fn get_one<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
         self.get_json(path, &[]).await
     }
 }
@@ -218,7 +211,13 @@ mod tests {
 
         m.assert();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0], LedgerItem { id: 1, name: "SKU-A".into() });
+        assert_eq!(
+            items[0],
+            LedgerItem {
+                id: 1,
+                name: "SKU-A".into()
+            }
+        );
     }
 
     #[tokio::test]
@@ -234,10 +233,7 @@ mod tests {
 
         let client = Client::new(server.url());
         let items: Vec<LedgerItem> = client
-            .list_with_filter(
-                "/api/v1/inventory/stock-ledger",
-                &QueryBuilder::new(),
-            )
+            .list_with_filter("/api/v1/inventory/stock-ledger", &QueryBuilder::new())
             .await
             .expect("请求失败");
         m.assert();
@@ -260,7 +256,13 @@ mod tests {
             .await
             .expect("请求失败");
         m.assert();
-        assert_eq!(item, LedgerItem { id: 3, name: "测试项目".into() });
+        assert_eq!(
+            item,
+            LedgerItem {
+                id: 3,
+                name: "测试项目".into()
+            }
+        );
     }
 
     #[tokio::test]

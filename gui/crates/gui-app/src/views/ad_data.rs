@@ -43,8 +43,8 @@ use crate::views::ad_analysis::ad_country_label;
 use crate::widgets::data_grid::{grid_footer_bar, pattern_a_shell, AggregateItem};
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::pagination::PageState;
-use crate::widgets::{filter_bar, state_views};
 use crate::widgets::state_views::SkeletonBlock;
+use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的广告数据条目一致）
 pub const AD_DATA_URL: &str = "/dashboard/advertising/ad-data";
@@ -182,8 +182,12 @@ impl AdDataView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_ad_data(&client, selected, country, selected_type))
+                    crate::runtime::runtime().block_on(load_ad_data(
+                        &client,
+                        selected,
+                        country,
+                        selected_type,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -231,7 +235,8 @@ impl AdDataView {
             .as_ref()
             .map(|input| input.read(cx).value().to_string())
             .unwrap_or_default();
-        self.table.update(cx, |widget, cx| widget.set_search(text, cx));
+        self.table
+            .update(cx, |widget, cx| widget.set_search(text, cx));
     }
 
     /// 应用拉取结果：竞态保护（过期响应丢弃）+ Loaded 落点前喂表格 + 记录筛选状态。
@@ -252,9 +257,8 @@ impl AdDataView {
                 if let Some(st) = &data.selected_type {
                     if let Some(config) = ad_report_type(st) {
                         let rows = data.rows.clone();
-                        self.table.update(cx, |widget, cx| {
-                            widget.set_data(&config, rows, cx)
-                        });
+                        self.table
+                            .update(cx, |widget, cx| widget.set_data(&config, rows, cx));
                     }
                 }
             }
@@ -323,7 +327,8 @@ async fn load_ad_data(
 
     let start = chrono::NaiveDate::parse_from_str(WIDE_START, "%Y-%m-%d")
         .expect("WIDE_START 必须是合法日期");
-    let end = chrono::NaiveDate::parse_from_str(WIDE_END, "%Y-%m-%d").expect("WIDE_END 必须是合法日期");
+    let end =
+        chrono::NaiveDate::parse_from_str(WIDE_END, "%Y-%m-%d").expect("WIDE_END 必须是合法日期");
     let raw = client
         .ad_data_raw(project_id, config.endpoint, country, start, end)
         .await
@@ -346,9 +351,7 @@ impl Render for AdDataView {
 
         // 搜索输入框懒建（首帧；InputState::new 需要 window）
         if self.search_input.is_none() {
-            let input = cx.new(|cx| {
-                InputState::new(window, cx).placeholder("按任意列内容过滤…")
-            });
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("按任意列内容过滤…"));
             self.search_sub = Some(cx.subscribe(&input, |this, _e, event: &InputEvent, cx| {
                 if let InputEvent::Change = event {
                     this.on_search_change(cx);
@@ -359,7 +362,12 @@ impl Render for AdDataView {
 
         let project_name = self
             .selected_project_id
-            .and_then(|id| self.projects.iter().find(|p| p.id == id).map(|p| p.name.clone()))
+            .and_then(|id| {
+                self.projects
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.name.clone())
+            })
             .unwrap_or_else(|| "广告数据".to_string());
 
         match &state {
@@ -389,22 +397,23 @@ impl Render for AdDataView {
                         self.search_input.clone(),
                     ))
                     .child(div().flex_1());
-                let (displayed, filtered_total, page, _page_count) =
-                    self.table.read(cx).stats(cx);
+                let (displayed, filtered_total, page, _page_count) = self.table.read(cx).stats(cx);
                 let page_size = self.table.read(cx).page_size;
-                let page_state = PageState::new(
-                    page,
-                    page_size.max(1) as usize,
-                    filtered_total,
-                );
+                let page_state = PageState::new(page, page_size.max(1) as usize, filtered_total);
                 let aggregates = vec![
-                    AggregateItem::new(
-                        "服务端总行数",
-                        format_count(data.total_rows),
-                    ),
+                    AggregateItem::new("服务端总行数", format_count(data.total_rows)),
                     AggregateItem::new(
                         "当前筛选",
-                        format!("第 {}-{} / 共 {} 行", if displayed == 0 { 0 } else { filtered_total.saturating_sub(displayed) + 1 }, filtered_total, format_count(filtered_total as i64)),
+                        format!(
+                            "第 {}-{} / 共 {} 行",
+                            if displayed == 0 {
+                                0
+                            } else {
+                                filtered_total.saturating_sub(displayed) + 1
+                            },
+                            filtered_total,
+                            format_count(filtered_total as i64)
+                        ),
                     ),
                 ];
                 let footer = grid_footer_bar(
@@ -431,10 +440,8 @@ impl Render for AdDataView {
                 .into_any_element()
             }
             _ => {
-                let header = PageHeader::new("广告数据").subtitle(format!(
-                    "{} · 按报表类型查看广告原始数据",
-                    project_name
-                ));
+                let header = PageHeader::new("广告数据")
+                    .subtitle(format!("{} · 按报表类型查看广告原始数据", project_name));
                 let toolbar = h_flex()
                     .gap_2()
                     .items_center()
@@ -450,11 +457,10 @@ impl Render for AdDataView {
                     ))
                     .child(div().flex_1());
                 let body: gpui::AnyElement = match state {
-                    AdDataState::Loading => state_views::skeleton_loading(
-                        &theme,
-                        &[SkeletonBlock::Table(320.0)],
-                    )
-                    .into_any_element(),
+                    AdDataState::Loading => {
+                        state_views::skeleton_loading(&theme, &[SkeletonBlock::Table(320.0)])
+                            .into_any_element()
+                    }
                     AdDataState::Error(msg) => state_views::error_state(
                         &view,
                         &theme,
@@ -485,8 +491,7 @@ impl Render for AdDataView {
                     }
                     AdDataState::Loaded(_) => unreachable!("Loaded 已在上层处理"),
                 };
-                pattern_a_shell(&theme, "ad-data", header, toolbar, body, div())
-                    .into_any_element()
+                pattern_a_shell(&theme, "ad-data", header, toolbar, body, div()).into_any_element()
             }
         }
     }
@@ -538,52 +543,72 @@ fn render_filter_bar(
     let view_for_refresh = view.clone();
 
     filter_bar::filter_bar_layout(app_theme)
-        .child(filter_bar::filter_select(app_theme, "项目", project_label, "ad-data-project-filter", move |menu, _window, _cx| {
-            let mut menu = menu;
-            for project in &projects_owned {
-                let checked = selected_project_id == Some(project.id);
-                let id = project.id;
-                let name = project.name.clone();
-                let view = view_for_project.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(name).checked(checked).on_click(move |_, _window, cx| {
-                        view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                    }),
-                );
-            }
-            menu
-        }))
-        .child(filter_bar::filter_select(app_theme, "站点", ad_country_label(country).into(), "ad-data-country-filter", move |menu, _window, _cx| {
-            let mut menu = menu;
-            for (value, label) in COUNTRY_OPTIONS {
-                let checked = country == value;
-                let view = view_for_country.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label).checked(checked).on_click(move |_, _window, cx| {
-                        view.update(cx, |this, cx| this.select_country(value, cx));
-                    }),
-                );
-            }
-            menu
-        }))
-        .child(filter_bar::filter_select(app_theme, "报表类型", type_label, "ad-data-type-filter", move |menu, _window, _cx| {
-            let mut menu = menu;
-            for t in &available_owned {
-                let checked = selected_type_owned.as_deref() == Some(t.as_str());
-                let Some(config) = ad_report_type(t) else { continue; };
-                let label = config.label.to_string();
-                let t_owned = t.clone();
-                let view = view_for_type.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label).checked(checked).on_click(move |_, _window, cx| {
-                        view.update(cx, |this, cx| {
-                            this.select_report_type(Some(t_owned.clone()), cx)
-                        });
-                    }),
-                );
-            }
-            menu
-        }))
+        .child(filter_bar::filter_select(
+            app_theme,
+            "项目",
+            project_label,
+            "ad-data-project-filter",
+            move |menu, _window, _cx| {
+                let mut menu = menu;
+                for project in &projects_owned {
+                    let checked = selected_project_id == Some(project.id);
+                    let id = project.id;
+                    let name = project.name.clone();
+                    let view = view_for_project.clone();
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
+                }
+                menu
+            },
+        ))
+        .child(filter_bar::filter_select(
+            app_theme,
+            "站点",
+            ad_country_label(country).into(),
+            "ad-data-country-filter",
+            move |menu, _window, _cx| {
+                let mut menu = menu;
+                for (value, label) in COUNTRY_OPTIONS {
+                    let checked = country == value;
+                    let view = view_for_country.clone();
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
+                }
+                menu
+            },
+        ))
+        .child(filter_bar::filter_select(
+            app_theme,
+            "报表类型",
+            type_label,
+            "ad-data-type-filter",
+            move |menu, _window, _cx| {
+                let mut menu = menu;
+                for t in &available_owned {
+                    let checked = selected_type_owned.as_deref() == Some(t.as_str());
+                    let Some(config) = ad_report_type(t) else {
+                        continue;
+                    };
+                    let label = config.label.to_string();
+                    let t_owned = t.clone();
+                    let view = view_for_type.clone();
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| {
+                                this.select_report_type(Some(t_owned.clone()), cx)
+                            });
+                        },
+                    ));
+                }
+                menu
+            },
+        ))
         // 搜索框
         .child(
             h_flex()
@@ -642,9 +667,7 @@ fn format_count(v: i64) -> String {
 fn row_number(row: &serde_json::Value, key: &str) -> f64 {
     match row.get(key) {
         Some(serde_json::Value::Number(n)) => n.as_f64().unwrap_or(f64::NEG_INFINITY),
-        Some(serde_json::Value::String(s)) => s
-            .parse::<f64>()
-            .unwrap_or(f64::NEG_INFINITY),
+        Some(serde_json::Value::String(s)) => s.parse::<f64>().unwrap_or(f64::NEG_INFINITY),
         _ => f64::NEG_INFINITY,
     }
 }
@@ -789,10 +812,8 @@ impl AdRawDelegate {
             self.sort_col = Some(col_ix);
             self.sort_dir = ColumnSort::Ascending;
         }
-        self.columns = Self::build_columns(
-            &self.config,
-            self.sort_col.map(|six| (six, self.sort_dir)),
-        );
+        self.columns =
+            Self::build_columns(&self.config, self.sort_col.map(|six| (six, self.sort_dir)));
         self.recompute();
     }
 
@@ -807,9 +828,7 @@ impl AdRawDelegate {
                 .filter(|row| {
                     self.config.columns.iter().any(|c| {
                         let raw = row.get(c.key).unwrap_or(&serde_json::Value::Null);
-                        format_ad_value(raw, c.format)
-                            .to_lowercase()
-                            .contains(&q)
+                        format_ad_value(raw, c.format).to_lowercase().contains(&q)
                     })
                 })
                 .collect()
@@ -902,18 +921,14 @@ impl TableDelegate for AdRawDelegate {
             }))
             .child(div().child(name))
             .child(match sort {
-                Some(ColumnSort::Ascending) => {
-                    Icon::new(IconName::SortAscending)
-                        .with_size(px(12.))
-                        .text_color(theme.accent)
-                        .into_any_element()
-                }
-                Some(ColumnSort::Descending) => {
-                    Icon::new(IconName::SortDescending)
-                        .with_size(px(12.))
-                        .text_color(theme.accent)
-                        .into_any_element()
-                }
+                Some(ColumnSort::Ascending) => Icon::new(IconName::SortAscending)
+                    .with_size(px(12.))
+                    .text_color(theme.accent)
+                    .into_any_element(),
+                Some(ColumnSort::Descending) => Icon::new(IconName::SortDescending)
+                    .with_size(px(12.))
+                    .text_color(theme.accent)
+                    .into_any_element(),
                 _ => Icon::new(IconName::ChevronsUpDown)
                     .with_size(px(12.))
                     .text_color(theme.text_muted.opacity(0.6))
@@ -931,11 +946,18 @@ impl TableDelegate for AdRawDelegate {
         let row = &self.display[row_ix];
         let col = &self.config.columns[col_ix];
         let theme = AppTheme::current(cx);
-        let text = format_ad_value(row.get(col.key).unwrap_or(&serde_json::Value::Null), col.format);
+        let text = format_ad_value(
+            row.get(col.key).unwrap_or(&serde_json::Value::Null),
+            col.format,
+        );
         let numeric = is_numeric_format(col.format);
         div()
             .text_sm()
-            .text_color(if numeric { theme.text_secondary } else { theme.text_primary })
+            .text_color(if numeric {
+                theme.text_secondary
+            } else {
+                theme.text_primary
+            })
             .when(numeric, |this| this.text_right())
             .child(text)
     }
@@ -991,7 +1013,12 @@ impl AdRawTable {
     }
 
     /// 注入报表类型 + 全量行（apply_result 时调用；类型变化 → 重建 TableState）
-    fn set_data(&mut self, config: &AdReportType, rows: Vec<serde_json::Value>, cx: &mut Context<Self>) {
+    fn set_data(
+        &mut self,
+        config: &AdReportType,
+        rows: Vec<serde_json::Value>,
+        cx: &mut Context<Self>,
+    ) {
         let config_changed = self.config.as_ref() != Some(config);
         self.config = Some(config.clone());
         self.rows = rows;
@@ -1111,7 +1138,6 @@ impl AdRawTable {
             .unwrap_or(0);
         (displayed, filtered_total, page, page_count)
     }
-
 }
 
 impl Default for AdRawTable {
@@ -1398,7 +1424,10 @@ mod tests {
             // 表格收到 3 行
             let widget = view.table.read(app);
             assert_eq!(widget.rows.len(), 3);
-            assert_eq!(widget.config.as_ref().map(|c| c.report_type), Some("ad_campaign_report"));
+            assert_eq!(
+                widget.config.as_ref().map(|c| c.report_type),
+                Some("ad_campaign_report")
+            );
         });
     }
 

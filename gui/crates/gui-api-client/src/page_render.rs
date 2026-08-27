@@ -54,9 +54,7 @@ impl From<PageRenderDetailRaw> for PageRenderDetail {
 
 impl Client {
     /// 已分享页面历史列表（对齐 web `loadHistory`，limit=50 同口径）
-    pub async fn page_render_history(
-        &self,
-    ) -> Result<Vec<PageRenderHistoryItem>, ApiError> {
+    pub async fn page_render_history(&self) -> Result<Vec<PageRenderHistoryItem>, ApiError> {
         let resp: PageRenderHistoryResponse = self
             .get_json(PAGE_RENDER_HISTORY_PATH, &[("limit", "50".to_string())])
             .await?;

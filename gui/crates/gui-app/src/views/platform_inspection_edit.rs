@@ -65,31 +65,116 @@ struct MetricField {
 
 /// 客服绩效字段（health_data 前 3 项）
 const SERVICE_FIELDS: [MetricField; 3] = [
-    MetricField { key: "negative_feedback", label: "负面反馈", default: 0.0, unit: "" },
-    MetricField { key: "a2z_claims", label: "亚马逊 A-to-Z", default: 0.0, unit: "" },
-    MetricField { key: "chargeback_claims", label: "信用卡拒付", default: 0.0, unit: "" },
+    MetricField {
+        key: "negative_feedback",
+        label: "负面反馈",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "a2z_claims",
+        label: "亚马逊 A-to-Z",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "chargeback_claims",
+        label: "信用卡拒付",
+        default: 0.0,
+        unit: "",
+    },
 ];
 
 /// 配送绩效字段（health_data 后 4 项）
 const SHIPPING_FIELDS: [MetricField; 4] = [
-    MetricField { key: "late_shipment_rate", label: "迟发率", default: 0.0, unit: "%" },
-    MetricField { key: "pre_fulfillment_cancel_rate", label: "配送前取消率", default: 0.0, unit: "%" },
-    MetricField { key: "valid_tracking_rate", label: "有效追踪率", default: 100.0, unit: "%" },
-    MetricField { key: "on_time_delivery_rate", label: "准时交付率", default: 100.0, unit: "%" },
+    MetricField {
+        key: "late_shipment_rate",
+        label: "迟发率",
+        default: 0.0,
+        unit: "%",
+    },
+    MetricField {
+        key: "pre_fulfillment_cancel_rate",
+        label: "配送前取消率",
+        default: 0.0,
+        unit: "%",
+    },
+    MetricField {
+        key: "valid_tracking_rate",
+        label: "有效追踪率",
+        default: 100.0,
+        unit: "%",
+    },
+    MetricField {
+        key: "on_time_delivery_rate",
+        label: "准时交付率",
+        default: 100.0,
+        unit: "%",
+    },
 ];
 
 /// 政策与合规字段（compliance_data 全 10 项）
 const COMPLIANCE_FIELDS: [MetricField; 10] = [
-    MetricField { key: "ip_infringement", label: "涉嫌侵犯知识产权", default: 0.0, unit: "" },
-    MetricField { key: "ip_complaints", label: "知识产权投诉", default: 0.0, unit: "" },
-    MetricField { key: "product_authenticity_complaints", label: "商品真实性投诉", default: 0.0, unit: "" },
-    MetricField { key: "product_condition_complaints", label: "商品状况投诉", default: 0.0, unit: "" },
-    MetricField { key: "food_product_safety", label: "食品商品安全", default: 0.0, unit: "" },
-    MetricField { key: "listing_policy_violations", label: "上架政策违规", default: 0.0, unit: "" },
-    MetricField { key: "restricted_product_violations", label: "受限商品违规", default: 0.0, unit: "" },
-    MetricField { key: "review_policy_violations", label: "评论政策违规", default: 0.0, unit: "" },
-    MetricField { key: "other_policy_violations", label: "其他违反政策", default: 0.0, unit: "" },
-    MetricField { key: "regulatory_compliance", label: "监管合规性", default: 0.0, unit: "" },
+    MetricField {
+        key: "ip_infringement",
+        label: "涉嫌侵犯知识产权",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "ip_complaints",
+        label: "知识产权投诉",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "product_authenticity_complaints",
+        label: "商品真实性投诉",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "product_condition_complaints",
+        label: "商品状况投诉",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "food_product_safety",
+        label: "食品商品安全",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "listing_policy_violations",
+        label: "上架政策违规",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "restricted_product_violations",
+        label: "受限商品违规",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "review_policy_violations",
+        label: "评论政策违规",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "other_policy_violations",
+        label: "其他违反政策",
+        default: 0.0,
+        unit: "",
+    },
+    MetricField {
+        key: "regulatory_compliance",
+        label: "监管合规性",
+        default: 0.0,
+        unit: "",
+    },
 ];
 
 /// 全部数字字段（输入实体创建顺序 = 此顺序；客服 3 + 配送 4 + 合规 10）
@@ -207,16 +292,14 @@ impl ReportEditForm {
         let compliance = report.as_ref().and_then(|r| r.compliance_data.clone());
         let mut inputs = Vec::with_capacity(ALL_FIELDS.len());
         for field in ALL_FIELDS {
-            let value = field_value(&field, health.as_ref(), compliance.as_ref())
-                .unwrap_or(field.default);
+            let value =
+                field_value(&field, health.as_ref(), compliance.as_ref()).unwrap_or(field.default);
             let text = if field.unit.is_empty() {
                 format!("{}", value.round() as i64)
             } else {
                 format!("{value}")
             };
-            let state = cx.new(|cx| {
-                InputState::new(window, cx).placeholder("0")
-            });
+            let state = cx.new(|cx| InputState::new(window, cx).placeholder("0"));
             state.update(cx, |state, cx| state.set_value(text, window, cx));
             inputs.push(state);
         }
@@ -224,9 +307,8 @@ impl ReportEditForm {
             .as_ref()
             .and_then(|r| r.status_summary.clone())
             .unwrap_or_default();
-        let summary_input = cx.new(|cx| {
-            InputState::new(window, cx).placeholder("填写本期状态说明（可选）")
-        });
+        let summary_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("填写本期状态说明（可选）"));
         summary_input.update(cx, |state, cx| state.set_value(summary, window, cx));
         self.inputs = Some(inputs);
         self.summary_input = Some(summary_input);
@@ -425,7 +507,12 @@ impl ReportEditForm {
                     .gap_3()
                     .items_center()
                     .child(self.render_ahr_select(theme, cx))
-                    .child(div().text_xs().text_color(theme.text_muted).child("客服绩效"))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.text_muted)
+                            .child("客服绩效"),
+                    )
                     .child(metric_inputs(theme, &inputs, 0, 3)),
             ))
             // 配送绩效：4 项
@@ -452,11 +539,7 @@ impl ReportEditForm {
     }
 
     /// AHR 下拉（filter_select；值存 self.ahr）
-    fn render_ahr_select(
-        &self,
-        theme: &AppTheme,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render_ahr_select(&self, theme: &AppTheme, cx: &mut Context<Self>) -> impl IntoElement {
         let current_ahr = self.ahr.clone();
         let current = current_ahr
             .as_deref()
@@ -474,16 +557,14 @@ impl ReportEditForm {
                     let checked = current_ahr.as_deref() == Some(value);
                     let view = view.clone();
                     let value = value.to_string();
-                    menu = menu.item(
-                        PopupMenuItem::new(label)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| {
-                                    this.ahr = Some(value.clone());
-                                    cx.notify();
-                                });
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| {
+                                this.ahr = Some(value.clone());
+                                cx.notify();
+                            });
+                        },
+                    ));
                 }
                 menu
             },
@@ -524,11 +605,7 @@ impl ReportEditForm {
 }
 
 /// 分组卡片外壳（标题 + 内容）
-fn section_card(
-    theme: &AppTheme,
-    title: &str,
-    content: impl IntoElement,
-) -> impl IntoElement {
+fn section_card(theme: &AppTheme, title: &str, content: impl IntoElement) -> impl IntoElement {
     v_flex()
         .gap_3()
         .p_4()
@@ -556,34 +633,39 @@ fn metric_inputs(
         .grid()
         .grid_cols(3)
         .gap_3()
-        .children(inputs.iter().skip(from).take(len).enumerate().map(
-            |(ix, state)| {
-                let field = ALL_FIELDS[from + ix];
-                v_flex()
-                    .gap_1p5()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child(field.label),
-                    )
-                    .child(
-                        h_flex()
-                            .items_center()
-                            .gap_2()
-                            .child(div().w(px(110.)).child(Input::new(state)))
-                            .child(if field.unit.is_empty() {
-                                div().into_any_element()
-                            } else {
-                                div()
-                                    .text_sm()
-                                    .text_color(theme.text_muted)
-                                    .child(field.unit)
-                                    .into_any_element()
-                            }),
-                    )
-            },
-        ))
+        .children(
+            inputs
+                .iter()
+                .skip(from)
+                .take(len)
+                .enumerate()
+                .map(|(ix, state)| {
+                    let field = ALL_FIELDS[from + ix];
+                    v_flex()
+                        .gap_1p5()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.text_muted)
+                                .child(field.label),
+                        )
+                        .child(
+                            h_flex()
+                                .items_center()
+                                .gap_2()
+                                .child(div().w(px(110.)).child(Input::new(state)))
+                                .child(if field.unit.is_empty() {
+                                    div().into_any_element()
+                                } else {
+                                    div()
+                                        .text_sm()
+                                        .text_color(theme.text_muted)
+                                        .child(field.unit)
+                                        .into_any_element()
+                                }),
+                        )
+                }),
+        )
 }
 
 /// 从报告取字段值（health/compliance 按 key 查找）
@@ -602,9 +684,9 @@ fn field_value(
         "on_time_delivery_rate" => health?.on_time_delivery_rate,
         "ip_infringement" => compliance?.ip_infringement.map(|v| v as f64),
         "ip_complaints" => compliance?.ip_complaints.map(|v| v as f64),
-        "product_authenticity_complaints" => {
-            compliance?.product_authenticity_complaints.map(|v| v as f64)
-        }
+        "product_authenticity_complaints" => compliance?
+            .product_authenticity_complaints
+            .map(|v| v as f64),
         "product_condition_complaints" => {
             compliance?.product_condition_complaints.map(|v| v as f64)
         }
@@ -695,8 +777,14 @@ mod tests {
             "合规从 compliance 读"
         );
         // 未填 → None（调用方回退默认值）
-        assert_eq!(field_value(&ALL_FIELDS[1], Some(&health), Some(&compliance)), None);
-        assert_eq!(field_value(&ALL_FIELDS[16], Some(&health), Some(&compliance)), None);
+        assert_eq!(
+            field_value(&ALL_FIELDS[1], Some(&health), Some(&compliance)),
+            None
+        );
+        assert_eq!(
+            field_value(&ALL_FIELDS[16], Some(&health), Some(&compliance)),
+            None
+        );
     }
 
     #[test]
@@ -704,8 +792,18 @@ mod tests {
         let mut health = HealthData::default();
         let mut compliance = ComplianceData::default();
         set_field_value("a2z_claims", Some(1.5), &mut health, &mut compliance);
-        set_field_value("on_time_delivery_rate", Some(98.4), &mut health, &mut compliance);
-        set_field_value("listing_policy_violations", Some(2.0), &mut health, &mut compliance);
+        set_field_value(
+            "on_time_delivery_rate",
+            Some(98.4),
+            &mut health,
+            &mut compliance,
+        );
+        set_field_value(
+            "listing_policy_violations",
+            Some(2.0),
+            &mut health,
+            &mut compliance,
+        );
         set_field_value("unknown_key", Some(1.0), &mut health, &mut compliance);
         assert_eq!(health.a2z_claims, Some(2), "浮点计数四舍五入");
         assert_eq!(health.on_time_delivery_rate, Some(98.4));

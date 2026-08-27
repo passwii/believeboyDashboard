@@ -16,7 +16,6 @@
 //! - **保留**：连通性卡、表健康表（状态语义色）、汇总三格；
 //! - **精简**：「清空缓存」写操作不移植——破坏性动作走 web 端二次确认。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -28,9 +27,7 @@ use gpui::{
 use gpui_component::button::Button;
 use gpui_component::{h_flex, v_flex, Sizable};
 use gui_api_client::Client;
-use gui_domain::system_management::{
-    DataManagementOverview, DataManagementStatus,
-};
+use gui_domain::system_management::{DataManagementOverview, DataManagementStatus};
 
 use crate::theme::{AppTheme, FONT_BASE, FONT_MONO_FAMILY, FONT_TITLE_LG};
 use crate::widgets::data_table::{ColumnDef, DataTable};
@@ -228,13 +225,7 @@ fn render_loaded(
                 cx.new(|_| DataTable::new("db-status-table", table_columns()).striped(true))
             });
             table.update(cx, |t, cx| t.set_rows_if_changed(&overview.tables, cx));
-            col = col.child(
-                div()
-                    .w_full()
-                    .px_0p5()
-                    .min_h_0()
-                    .child(table.clone()),
-            );
+            col = col.child(div().w_full().px_0p5().min_h_0().child(table.clone()));
         } else {
             col = col.child(
                 div()
@@ -250,7 +241,10 @@ fn render_loaded(
 }
 
 /// 主库连通性卡：引擎 / 来源 / 健康徽标 / 检查时刻
-fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &AppTheme) -> gpui::AnyElement {
+fn render_conn_card(
+    db: &gui_domain::system_management::DatabaseStatus,
+    theme: &AppTheme,
+) -> gpui::AnyElement {
     let (health_label, health_color) = if db.healthy {
         ("健康", theme.success)
     } else {
@@ -270,24 +264,21 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
         .child(
             v_flex()
                 .gap_1()
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("主库"),
-                )
+                .child(div().text_xs().text_color(theme.text_muted).child("主库"))
                 .child(
                     h_flex()
                         .items_center()
                         .gap_2()
                         .child(
-                            div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(health_color)
                                 .child(health_label),
                         )
                         .child(
-                            div().text_size(px(crate::theme::fs(FONT_BASE)))
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_BASE)))
                                 .mono_text()
                                 .text_color(theme.text_secondary)
                                 .child(db.engine.clone()),
@@ -300,7 +291,8 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
                     .gap_1()
                     .child(div().text_xs().text_color(theme.text_muted).child("来源"))
                     .child(
-                        div().text_size(px(crate::theme::fs(FONT_BASE)))
+                        div()
+                            .text_size(px(crate::theme::fs(FONT_BASE)))
                             .mono_text()
                             .text_color(theme.text_primary)
                             .child(source),
@@ -317,7 +309,8 @@ fn render_conn_card(db: &gui_domain::system_management::DatabaseStatus, theme: &
                         .child("检查时刻"),
                 )
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_BASE)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_BASE)))
                         .mono_text()
                         .text_color(theme.text_secondary)
                         .child(gui_domain::system_management::format_log_time(
@@ -334,8 +327,16 @@ fn render_summary_cards(
     theme: &AppTheme,
 ) -> gpui::AnyElement {
     let cards = [
-        ("总表数", summary.total_tables.to_string(), theme.text_primary),
-        ("总行数", format_rows(summary.total_rows), theme.text_primary),
+        (
+            "总表数",
+            summary.total_tables.to_string(),
+            theme.text_primary,
+        ),
+        (
+            "总行数",
+            format_rows(summary.total_rows),
+            theme.text_primary,
+        ),
         (
             "过期表",
             summary.stale_tables.to_string(),
@@ -361,18 +362,14 @@ fn render_summary_cards(
                 .border_color(theme.separator)
                 .bg(theme.card_bg)
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_TITLE_LG)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .mono_tabular_nums_local()
                         .text_color(color)
                         .child(value),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child(label),
-                )
+                .child(div().text_xs().text_color(theme.text_muted).child(label))
         }))
         .into_any_element()
 }
@@ -414,20 +411,46 @@ fn table_columns() -> Vec<ColumnDef<gui_domain::system_management::TableStatusIt
         ColumnDef::text("table_name", "表名", |r, _| {
             SharedString::from(r.table_name.clone())
         }),
-        ColumnDef::text("table_name_cn", "说明", |r: &gui_domain::system_management::TableStatusItem, _| {
-            SharedString::from(r.table_name_cn.clone().unwrap_or_else(|| "—".into()))
-        }),
-        ColumnDef::number("row_count", "行数", |r: &gui_domain::system_management::TableStatusItem| r.row_count.unwrap_or(0) as f64, |r, _| {
-            SharedString::from(r.row_count.map(|n| n.to_string()).unwrap_or_else(|| "—".into()))
-        })
+        ColumnDef::text(
+            "table_name_cn",
+            "说明",
+            |r: &gui_domain::system_management::TableStatusItem, _| {
+                SharedString::from(r.table_name_cn.clone().unwrap_or_else(|| "—".into()))
+            },
+        ),
+        ColumnDef::number(
+            "row_count",
+            "行数",
+            |r: &gui_domain::system_management::TableStatusItem| r.row_count.unwrap_or(0) as f64,
+            |r, _| {
+                SharedString::from(
+                    r.row_count
+                        .map(|n| n.to_string())
+                        .unwrap_or_else(|| "—".into()),
+                )
+            },
+        )
         .width(110.0),
-        ColumnDef::text("last_updated_at", "最近更新", |r: &gui_domain::system_management::TableStatusItem, _| {
-            SharedString::from(r.last_updated_at.as_deref().map(gui_domain::system_management::format_time_ago).unwrap_or_else(|| "—".into()))
-        })
+        ColumnDef::text(
+            "last_updated_at",
+            "最近更新",
+            |r: &gui_domain::system_management::TableStatusItem, _| {
+                SharedString::from(
+                    r.last_updated_at
+                        .as_deref()
+                        .map(gui_domain::system_management::format_time_ago)
+                        .unwrap_or_else(|| "—".into()),
+                )
+            },
+        )
         .width(120.0),
-        ColumnDef::text("status", "状态", |r: &gui_domain::system_management::TableStatusItem, _| {
-            SharedString::from(r.status.label())
-        })
+        ColumnDef::text(
+            "status",
+            "状态",
+            |r: &gui_domain::system_management::TableStatusItem, _| {
+                SharedString::from(r.status.label())
+            },
+        )
         .width(72.0),
     ]
 }

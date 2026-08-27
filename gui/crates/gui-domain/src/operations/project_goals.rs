@@ -62,10 +62,7 @@ impl ProjectGoalItem {
         if self.is_annual() {
             format!("{}年度目标", self.period_year)
         } else {
-            format!(
-                "{}月目标",
-                self.period_month.unwrap_or(0)
-            )
+            format!("{}月目标", self.period_month.unwrap_or(0))
         }
     }
 }
@@ -317,7 +314,11 @@ mod tests {
         };
         assert_eq!(monthly.display_name(), "8月目标");
         assert!(!monthly.is_annual());
-        let annual = ProjectGoalItem { goal_type: "annual".into(), period_month: None, ..monthly };
+        let annual = ProjectGoalItem {
+            goal_type: "annual".into(),
+            period_month: None,
+            ..monthly
+        };
         assert_eq!(annual.display_name(), "2026年度目标");
         assert!(annual.is_annual());
     }

@@ -99,8 +99,13 @@ impl Client {
 
     /// 删除目标（backend 返回 204 无内容，走 `request_discard` 丢弃响应体）。
     pub async fn delete_project_goal(&self, goal_id: i64) -> Result<(), ApiError> {
-        self.request_discard(reqwest::Method::DELETE, &project_goal_path(goal_id), &[], None::<()>.as_ref())
-            .await
+        self.request_discard(
+            reqwest::Method::DELETE,
+            &project_goal_path(goal_id),
+            &[],
+            None::<()>.as_ref(),
+        )
+        .await
     }
 }
 
@@ -112,7 +117,10 @@ mod tests {
     /// 契约测试：路径锁定 backend 实际路由
     #[test]
     fn paths_match_backend_routes() {
-        assert_eq!(PROJECT_GOALS_PROGRESS_PATH, "/api/v1/project-goals/progress");
+        assert_eq!(
+            PROJECT_GOALS_PROGRESS_PATH,
+            "/api/v1/project-goals/progress"
+        );
         assert_eq!(PROJECT_GOALS_PATH, "/api/v1/project-goals");
         assert_eq!(project_goal_path(7), "/api/v1/project-goals/7");
     }
@@ -261,7 +269,10 @@ mod tests {
             .create();
 
         let client = Client::new(server.url());
-        let resp = client.project_goals_list(1, "US", 2026).await.expect("请求失败");
+        let resp = client
+            .project_goals_list(1, "US", 2026)
+            .await
+            .expect("请求失败");
 
         m.assert();
         assert_eq!(resp.total, 2);
@@ -349,7 +360,10 @@ mod tests {
             .create();
 
         let client = Client::new(server.url());
-        let goal = client.update_project_goal(21, 52000.0).await.expect("更新失败");
+        let goal = client
+            .update_project_goal(21, 52000.0)
+            .await
+            .expect("更新失败");
 
         m.assert();
         assert_eq!(goal.target_amount, 52000.0);
@@ -410,7 +424,10 @@ mod tests {
             period_month: Some(8),
             target_amount: 100.0,
         };
-        let err = client.create_project_goal(&body).await.expect_err("应返回 409");
+        let err = client
+            .create_project_goal(&body)
+            .await
+            .expect_err("应返回 409");
 
         m.assert();
         assert_eq!(err.status(), Some(409));

@@ -585,8 +585,16 @@ pub fn ad_report_types() -> Vec<AdReportType> {
                 col("budget", "当前预算", AdFormat::Money),
                 col("suggested_budget", "建议预算", AdFormat::Money),
                 col("budget_utilization_rate", "预算利用率", AdFormat::Percent),
-                col("missed_impressions_min", "预计错失展示(最小)", AdFormat::Int),
-                col("missed_impressions_max", "预计错失展示(最大)", AdFormat::Int),
+                col(
+                    "missed_impressions_min",
+                    "预计错失展示(最小)",
+                    AdFormat::Int,
+                ),
+                col(
+                    "missed_impressions_max",
+                    "预计错失展示(最大)",
+                    AdFormat::Int,
+                ),
                 col("missed_clicks_min", "预计错失点击(最小)", AdFormat::Int),
                 col("missed_clicks_max", "预计错失点击(最大)", AdFormat::Int),
                 col("missed_sales_min", "预计错失销售(最小)", AdFormat::Money),
@@ -609,7 +617,11 @@ pub fn ad_report_types() -> Vec<AdReportType> {
                 col("target_text", "投放", AdFormat::Text),
                 col("match_type", "匹配类型", AdFormat::Text),
                 col("impressions", "展示量", AdFormat::Int),
-                col("top_of_search_impression_share", "首页首位展示量份额", AdFormat::Percent),
+                col(
+                    "top_of_search_impression_share",
+                    "首页首位展示量份额",
+                    AdFormat::Percent,
+                ),
                 col("clicks", "点击量", AdFormat::Int),
                 col("ctr", "点击率 CTR", AdFormat::Percent),
                 col("cpc", "单次点击成本 CPC", AdFormat::Money),
@@ -890,7 +902,11 @@ mod tests {
     #[test]
     fn report_types_cover_all_ten_endpoints() {
         let types = ad_report_types();
-        assert_eq!(types.len(), 10, "应与 frontend AD_DATA_REPORT_TYPES 的 10 种一致");
+        assert_eq!(
+            types.len(),
+            10,
+            "应与 frontend AD_DATA_REPORT_TYPES 的 10 种一致"
+        );
         // 路径段唯一 + report_type 唯一（表格选择器去重依据）
         let mut endpoints: Vec<&str> = types.iter().map(|t| t.endpoint).collect();
         endpoints.sort_unstable();
@@ -911,7 +927,10 @@ mod tests {
     fn format_ad_value_matches_frontend() {
         // int：千分位
         assert_eq!(format_ad_value(&v(1234567.0), AdFormat::Int), "1,234,567");
-        assert_eq!(format_ad_value(&serde_json::json!(4200), AdFormat::Int), "4,200");
+        assert_eq!(
+            format_ad_value(&serde_json::json!(4200), AdFormat::Int),
+            "4,200"
+        );
         // money：$ + 2 位小数 + 千分位
         assert_eq!(format_ad_value(&v(1234.5), AdFormat::Money), "$1,234.50");
         assert_eq!(format_ad_value(&v(0.0), AdFormat::Money), "$0.00");
@@ -930,11 +949,11 @@ mod tests {
             format_ad_value(&serde_json::json!("B0-A-001"), AdFormat::Text),
             "B0-A-001"
         );
-        assert_eq!(format_ad_value(&serde_json::Value::Null, AdFormat::Text), "-");
         assert_eq!(
-            format_ad_value(&serde_json::json!(""), AdFormat::Date),
+            format_ad_value(&serde_json::Value::Null, AdFormat::Text),
             "-"
         );
+        assert_eq!(format_ad_value(&serde_json::json!(""), AdFormat::Date), "-");
         // 字符串数字也能解析（后端宽松场景）
         assert_eq!(
             format_ad_value(&serde_json::json!("12.5"), AdFormat::Money),
@@ -1002,18 +1021,27 @@ mod tests {
         assert_eq!(resp.metrics[0].helper.as_deref(), Some("近 7 天"));
         assert_eq!(resp.metrics[1].helper, None);
         assert_eq!(resp.issue_cards[0].drill_to.as_deref(), Some("campaigns"));
-        assert_eq!(resp.narrative_sections[0].evidence, vec!["花费 +12%".to_string()]);
+        assert_eq!(
+            resp.narrative_sections[0].evidence,
+            vec!["花费 +12%".to_string()]
+        );
         let c = resp.comparison.expect("comparison 应有值");
         assert_eq!(c.current_start.as_deref(), Some("2026-08-07"));
         assert_eq!(c.spend_change_ratio, Some(0.12));
-        assert_eq!(resp.top_campaigns[0].campaign_name.as_deref(), Some("活动 A"));
+        assert_eq!(
+            resp.top_campaigns[0].campaign_name.as_deref(),
+            Some("活动 A")
+        );
         assert_eq!(resp.top_campaigns[0].acos, 0.0667);
         assert_eq!(resp.top_products[0].ad_sku.as_deref(), Some("B0-A-001"));
         assert_eq!(
             resp.top_waste_terms[0].search_term.as_deref(),
             Some("water bottle")
         );
-        assert_eq!(resp.trend_summary[0].report_date.as_deref(), Some("2026-08-13"));
+        assert_eq!(
+            resp.trend_summary[0].report_date.as_deref(),
+            Some("2026-08-13")
+        );
         assert_eq!(resp.trend_summary[0].spend, 18.0);
         assert_eq!(resp.trend_summary[0].spend_change_ratio, Some(0.12));
         // 缺省字段：top_cross_sell_products 未定型（忽略）；metrics 缺 helper → None
@@ -1116,10 +1144,9 @@ mod tests {
         assert_eq!(resp.items[0]["grade"], "A");
 
         // 缺省 narrative_sections / summary_cards → 空
-        let minimal: AdAnalysisTabResponse = serde_json::from_str(
-            r#"{"project_id": 1, "country": "US", "items": []}"#,
-        )
-        .expect("最小载荷应可解析");
+        let minimal: AdAnalysisTabResponse =
+            serde_json::from_str(r#"{"project_id": 1, "country": "US", "items": []}"#)
+                .expect("最小载荷应可解析");
         assert!(minimal.summary_cards.is_empty());
         assert!(minimal.narrative_sections.is_empty());
 
@@ -1135,14 +1162,16 @@ mod tests {
         assert_eq!(trend.summary.len(), 1);
         assert_eq!(trend.summary[0]["report_date"], "2026-08-13");
         assert_eq!(
-            trend.comparison.expect("comparison 应有值").spend_change_ratio,
+            trend
+                .comparison
+                .expect("comparison 应有值")
+                .spend_change_ratio,
             Some(0.05)
         );
         // comparison 可缺省
-        let trend_min: AdTimeTrendResponse = serde_json::from_str(
-            r#"{"project_id": 1, "country": "US", "summary": []}"#,
-        )
-        .expect("应可解析");
+        let trend_min: AdTimeTrendResponse =
+            serde_json::from_str(r#"{"project_id": 1, "country": "US", "summary": []}"#)
+                .expect("应可解析");
         assert!(trend_min.comparison.is_none());
     }
 

@@ -47,11 +47,11 @@ use gui_domain::operations::project_goals::{
 use crate::theme::AppTheme;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::state_views::SkeletonBlock;
 use crate::widgets::{
     data_table::{ColumnDef, DataTable},
     filter_bar, state_views,
 };
-use crate::widgets::state_views::SkeletonBlock;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的项目目标条目一致）
 pub const PROJECT_GOALS_URL: &str = "/dashboard/operations/project-goals";
@@ -295,7 +295,9 @@ impl ProjectGoalsView {
         } else {
             GoalType::Monthly
         };
-        let period_month = goal.period_month.unwrap_or_else(|| Local::now().month() as i32);
+        let period_month = goal
+            .period_month
+            .unwrap_or_else(|| Local::now().month() as i32);
         self.goal_dialog = Some(GoalDialogState {
             goal_type,
             period_month: period_month.clamp(1, 12),
@@ -373,10 +375,7 @@ impl ProjectGoalsView {
                 .spawn(async move {
                     crate::runtime::runtime().block_on(async {
                         if let Some(id) = editing_id {
-                            client
-                                .update_project_goal(id, amount)
-                                .await
-                                .map(|_| ())
+                            client.update_project_goal(id, amount).await.map(|_| ())
                         } else {
                             let body = ProjectGoalCreateBody {
                                 project_id,
@@ -504,9 +503,14 @@ async fn load_project_goals(
     };
 
     let (progress, goals): (Result<_, String>, Result<ProjectGoalListResponse, String>) = {
-        let p = client.project_goals_progress(project_id, country, year).await;
+        let p = client
+            .project_goals_progress(project_id, country, year)
+            .await;
         let g = client.project_goals_list(project_id, country, year).await;
-        (p.map_err(|e| e.user_message()), g.map_err(|e| e.user_message()))
+        (
+            p.map_err(|e| e.user_message()),
+            g.map_err(|e| e.user_message()),
+        )
     };
     let progress = progress?;
     let goals = goals?;
@@ -689,7 +693,12 @@ impl Render for ProjectGoalsView {
 
         let project_label: SharedString = self
             .selected_project_id
-            .and_then(|id| self.projects.iter().find(|p| p.id == id).map(|p| p.name.clone()))
+            .and_then(|id| {
+                self.projects
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.name.clone())
+            })
             .map(SharedString::from)
             .unwrap_or_else(|| SharedString::from("请选择项目"));
 
@@ -858,13 +867,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -879,11 +886,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
                             view.update(cx, |this, cx| this.select_country(value, cx));
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -994,9 +1001,7 @@ fn render_loaded(
                                     .shadow(vec![app_theme.card_shadow_box()])
                                     .p_5()
                                     .gap_5()
-                                    .child(concentric_rings_section(
-                                        m, symbol, app_theme, reduce,
-                                    ))
+                                    .child(concentric_rings_section(m, symbol, app_theme, reduce))
                                     .child(div().h_px().bg(app_theme.separator))
                                     .child(detail_cards(
                                         m,
@@ -1012,38 +1017,30 @@ fn render_loaded(
             // ── Tabs：进度概览 / 目标管理（表格 tab 保留全宽）──
             .child(content_guard().child(render_tab_bar(view, active_tab, app_theme)))
             .child(match active_tab {
-                GoalsTab::Progress => {
-                    v_flex()
-                        .id("project-goals-progress-tab")
-                        .child(progress_table.clone().unwrap_or_else(|| {
-                            cx.new(|_| DataTable::new("project-goals-progress-empty", vec![]))
-                        }))
-                        .into_any_element()
-                }
+                GoalsTab::Progress => v_flex()
+                    .id("project-goals-progress-tab")
+                    .child(progress_table.clone().unwrap_or_else(|| {
+                        cx.new(|_| DataTable::new("project-goals-progress-empty", vec![]))
+                    }))
+                    .into_any_element(),
                 GoalsTab::Goals => v_flex()
                     .id("project-goals-goals-tab")
                     .gap_3()
                     .child(
-                        h_flex()
-                            .justify_end()
-                            .child(
-                                Button::new("project-goals-add")
-                                    .primary()
-                                    .small()
-                                    .icon(Icon::new(IconName::Plus).with_size(px(14.)))
-                                    .label("新增月度目标")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.open_create(GoalType::Monthly, None, cx);
-                                    })),
-                            ),
+                        h_flex().justify_end().child(
+                            Button::new("project-goals-add")
+                                .primary()
+                                .small()
+                                .icon(Icon::new(IconName::Plus).with_size(px(14.)))
+                                .label("新增月度目标")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.open_create(GoalType::Monthly, None, cx);
+                                })),
+                        ),
                     )
-                    .child(
-                        goals_table
-                            .clone()
-                            .unwrap_or_else(|| {
-                                cx.new(|_| DataTable::new("project-goals-goals-empty", vec![]))
-                            }),
-                    )
+                    .child(goals_table.clone().unwrap_or_else(|| {
+                        cx.new(|_| DataTable::new("project-goals-goals-empty", vec![]))
+                    }))
                     .into_any_element(),
             }),
         reduce,
@@ -1112,12 +1109,9 @@ fn tab_button(
             this.text_color(theme.text_secondary)
                 .hover(|this| this.bg(theme.card_bg.opacity(0.5)))
         })
-        .on_mouse_up(
-            gpui::MouseButton::Left,
-            move |_, _window, cx| {
-                view.update(cx, |this, cx| this.select_tab(tab, cx));
-            },
-        )
+        .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
+            view.update(cx, |this, cx| this.select_tab(tab, cx));
+        })
         .child(label)
 }
 
@@ -1241,14 +1235,12 @@ fn concentric_rings(items: &[RingItem; 3], theme: &AppTheme, reduce: bool) -> im
                 .items_center()
                 .justify_center()
                 .child(
-                    div()
-                        .size(px(size))
-                        .child(
-                            PieChart::new(data)
-                                .value(|s| s.value)
-                                .color(|s| s.color)
-                                .inner_radius(inner),
-                        ),
+                    div().size(px(size)).child(
+                        PieChart::new(data)
+                            .value(|s| s.value)
+                            .color(|s| s.color)
+                            .inner_radius(inner),
+                    ),
                 )
         }))
         // 减弱动态：无入场动画（enter_fade_in 由外层控制，这里不再重复）
@@ -1279,7 +1271,14 @@ fn metric_block(item: &RingItem, theme: &AppTheme) -> impl IntoElement {
         .flex_1()
         .items_start()
         .gap_2()
-        .child(div().mt_1p5().size_2p5().flex_shrink_0().rounded_full().bg(item.color))
+        .child(
+            div()
+                .mt_1p5()
+                .size_2p5()
+                .flex_shrink_0()
+                .rounded_full()
+                .bg(item.color),
+        )
         .child(
             v_flex()
                 .min_w_0()
@@ -1365,10 +1364,7 @@ fn detail_cards(
                 div()
                     .text_xs()
                     .text_color(theme.text_muted)
-                    .child(format!(
-                        "目标 {symbol}{}",
-                        format_money(a.target_amount)
-                    )),
+                    .child(format!("目标 {symbol}{}", format_money(a.target_amount))),
             )
             .into_any_element()
     } else {
@@ -1376,21 +1372,15 @@ fn detail_cards(
             .gap_2()
             .items_center()
             .justify_between()
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(theme.text_muted)
-                    .child("未设置"),
-            )
+            .child(div().text_sm().text_color(theme.text_muted).child("未设置"))
             .child(
                 Button::new("project-goals-set-annual")
                     .outline()
                     .small()
                     .label("设置")
                     .on_click(move |_, _, cx| {
-                        view_annual.update(cx, |this, cx| {
-                            this.open_create(GoalType::Annual, None, cx)
-                        });
+                        view_annual
+                            .update(cx, |this, cx| this.open_create(GoalType::Annual, None, cx));
                     }),
             )
             .into_any_element()
@@ -1418,12 +1408,7 @@ fn detail_cards(
             .gap_2()
             .items_center()
             .justify_between()
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(theme.text_muted)
-                    .child("未设置"),
-            )
+            .child(div().text_sm().text_color(theme.text_muted).child("未设置"))
             .child(
                 Button::new("project-goals-goto-goals")
                     .outline()
@@ -1442,82 +1427,59 @@ fn detail_cards(
         .id("project-goals-detail-cards")
         .gap_2()
         .child(
-            h_flex()
-                .gap_2()
-                .children([
-                    detail_card(
-                        "年度完成率",
-                        "icons/trending-up.svg",
-                        theme,
-                        annual_card,
-                    ),
-                    detail_card(
-                        "本月已达成",
-                        "icons/dollar-sign.svg",
-                        theme,
-                        v_flex()
-                            .gap_0p5()
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(theme.text_primary)
-                                    .child(format!(
-                                        "{symbol} {}",
-                                        format_money(m.achieved_amount)
-                                    )),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.text_muted)
-                                    .child("当月实际销售额（截至今日）"),
-                            )
-                            .into_any_element(),
-                    ),
-                ]),
+            h_flex().gap_2().children([
+                detail_card("年度完成率", "icons/trending-up.svg", theme, annual_card),
+                detail_card(
+                    "本月已达成",
+                    "icons/dollar-sign.svg",
+                    theme,
+                    v_flex()
+                        .gap_0p5()
+                        .child(
+                            div()
+                                .text_lg()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(theme.text_primary)
+                                .child(format!("{symbol} {}", format_money(m.achieved_amount))),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.text_muted)
+                                .child("当月实际销售额（截至今日）"),
+                        )
+                        .into_any_element(),
+                ),
+            ]),
         )
         .child(
-            h_flex()
-                .gap_2()
-                .children([
-                    detail_card(
-                        "月度目标",
-                        "icons/target.svg",
-                        theme,
-                        monthly_card,
-                    ),
-                    detail_card(
-                        "日目标",
-                        "icons/calendar-range.svg",
-                        theme,
-                        v_flex()
-                            .gap_0p5()
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(theme.text_primary)
-                                    .child(format!(
-                                        "{symbol} {}",
-                                        format_money(m.daily_target)
-                                    )),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.text_muted)
-                                    .child(format!(
-                                        "第 {} / {} 天 · 目标 ÷ 天数",
-                                        m.today_day, m.days_in_month
-                                    )),
-                            )
-                            .into_any_element(),
-                    ),
-                ]),
+            h_flex().gap_2().children([
+                detail_card("月度目标", "icons/target.svg", theme, monthly_card),
+                detail_card(
+                    "日目标",
+                    "icons/calendar-range.svg",
+                    theme,
+                    v_flex()
+                        .gap_0p5()
+                        .child(
+                            div()
+                                .text_lg()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(theme.text_primary)
+                                .child(format!("{symbol} {}", format_money(m.daily_target))),
+                        )
+                        .child(div().text_xs().text_color(theme.text_muted).child(format!(
+                            "第 {} / {} 天 · 目标 ÷ 天数",
+                            m.today_day, m.days_in_month
+                        )))
+                        .into_any_element(),
+                ),
+            ]),
         )
         // 「去设置」切换 tab 后仍可返回进度概览——view_goals_tab 仅占位保持闭包完整
-        .when(false, |this| this.child(view_goals_tab.clone().into_any_element()))
+        .when(false, |this| {
+            this.child(view_goals_tab.clone().into_any_element())
+        })
 }
 
 fn detail_card(
@@ -1619,9 +1581,8 @@ fn render_modal_overlay(
                                     .small()
                                     .label("删除")
                                     .on_click(move |_, _, cx| {
-                                        view_confirm.update(cx, |this, cx| {
-                                            this.confirm_delete_goal(cx)
-                                        });
+                                        view_confirm
+                                            .update(cx, |this, cx| this.confirm_delete_goal(cx));
                                     }),
                             ),
                     ),
@@ -1743,8 +1704,7 @@ fn render_modal_overlay(
                                                                         &mut this.goal_dialog
                                                                     {
                                                                         d.period_month =
-                                                                            (d.period_month
-                                                                                % 12)
+                                                                            (d.period_month % 12)
                                                                                 + 1;
                                                                         cx.notify();
                                                                     }
@@ -1769,9 +1729,9 @@ fn render_modal_overlay(
                         )
                         .when(amount_input.is_some(), |this| {
                             this.child(
-                                div().w_full().child(
-                                    Input::new(amount_input.as_ref().expect("已判 Some")),
-                                ),
+                                div()
+                                    .w_full()
+                                    .child(Input::new(amount_input.as_ref().expect("已判 Some"))),
                             )
                         })
                         .child(
@@ -1839,17 +1799,25 @@ fn progress_columns() -> Vec<ColumnDef<ProgressRow>> {
             }
         })
         .width(110.0),
-        ColumnDef::number("pg-target", "目标金额", |r: &ProgressRow| r.item.target_amount, |r: &ProgressRow, _| {
-            if r.item.target_amount > 0.0 {
-                SharedString::from(format_money(r.item.target_amount))
-            } else {
-                SharedString::from("—")
-            }
-        })
+        ColumnDef::number(
+            "pg-target",
+            "目标金额",
+            |r: &ProgressRow| r.item.target_amount,
+            |r: &ProgressRow, _| {
+                if r.item.target_amount > 0.0 {
+                    SharedString::from(format_money(r.item.target_amount))
+                } else {
+                    SharedString::from("—")
+                }
+            },
+        )
         .width(110.0),
-        ColumnDef::number("pg-achieved", "已完成", |r: &ProgressRow| r.item.achieved_amount, |r: &ProgressRow, _| {
-            SharedString::from(format_money(r.item.achieved_amount))
-        })
+        ColumnDef::number(
+            "pg-achieved",
+            "已完成",
+            |r: &ProgressRow| r.item.achieved_amount,
+            |r: &ProgressRow, _| SharedString::from(format_money(r.item.achieved_amount)),
+        )
         .width(110.0),
         ColumnDef::text("pg-progress", "月度完成进度", |r: &ProgressRow, _| {
             if r.item.target_amount > 0.0 {
@@ -1871,7 +1839,11 @@ fn progress_columns() -> Vec<ColumnDef<ProgressRow>> {
                 v_flex()
                     .gap_1()
                     .w_full()
-                    .child(progress_bar(r.item.completion_vs_monthly, is_past_incomplete, theme))
+                    .child(progress_bar(
+                        r.item.completion_vs_monthly,
+                        is_past_incomplete,
+                        theme,
+                    ))
                     .child(
                         h_flex()
                             .justify_between()
@@ -1879,15 +1851,11 @@ fn progress_columns() -> Vec<ColumnDef<ProgressRow>> {
                             .text_xs()
                             .text_color(theme.text_muted)
                             .child(format_percent(r.item.completion_vs_monthly))
-                            .child(
-                                div()
-                                    .truncate()
-                                    .child(format!(
-                                        "{} / {}",
-                                        format_money(r.item.achieved_amount),
-                                        format_money(r.item.target_amount)
-                                    )),
-                            ),
+                            .child(div().truncate().child(format!(
+                                "{} / {}",
+                                format_money(r.item.achieved_amount),
+                                format_money(r.item.target_amount)
+                            ))),
                     )
                     .into_any_element()
             } else {
@@ -1915,9 +1883,11 @@ fn progress_columns() -> Vec<ColumnDef<ProgressRow>> {
                 div().into_any_element()
             }
         }),
-        ColumnDef::text("pg-operators", "运营（包含助理）", |r: &ProgressRow, _| {
-            SharedString::from(r.operators.clone())
-        })
+        ColumnDef::text(
+            "pg-operators",
+            "运营（包含助理）",
+            |r: &ProgressRow, _| SharedString::from(r.operators.clone()),
+        )
         .width(130.0),
     ]
 }
@@ -1930,28 +1900,48 @@ fn goal_columns(view: &Entity<ProjectGoalsView>) -> Vec<ColumnDef<GoalRow>> {
     vec![
         ColumnDef::text("gg-month", "月份", move |r: &GoalRow, _| {
             if r.is_current_month {
-                SharedString::from(format!("{}年{}（本月）", Local::now().year(), MONTH_NAMES[(r.month - 1) as usize]))
+                SharedString::from(format!(
+                    "{}年{}（本月）",
+                    Local::now().year(),
+                    MONTH_NAMES[(r.month - 1) as usize]
+                ))
             } else {
-                SharedString::from(format!("{}年{}", Local::now().year(), MONTH_NAMES[(r.month - 1) as usize]))
+                SharedString::from(format!(
+                    "{}年{}",
+                    Local::now().year(),
+                    MONTH_NAMES[(r.month - 1) as usize]
+                ))
             }
         })
         .width(130.0),
-        ColumnDef::number("gg-target", "目标金额", |r: &GoalRow| {
-            r.goal.as_ref().map(|g| g.target_amount).unwrap_or(0.0)
-        }, |r, _| {
-            match &r.goal {
+        ColumnDef::number(
+            "gg-target",
+            "目标金额",
+            |r: &GoalRow| r.goal.as_ref().map(|g| g.target_amount).unwrap_or(0.0),
+            |r, _| match &r.goal {
                 Some(g) => SharedString::from(format_money(g.target_amount)),
                 None => SharedString::from("—"),
-            }
-        })
+            },
+        )
         .width(110.0),
-        ColumnDef::number("gg-achieved", "已达成", |r: &GoalRow| {
-            r.progress.as_ref().map(|p| p.achieved_amount).unwrap_or(0.0)
-        }, |r, _| {
-            SharedString::from(format_money(
-                r.progress.as_ref().map(|p| p.achieved_amount).unwrap_or(0.0),
-            ))
-        })
+        ColumnDef::number(
+            "gg-achieved",
+            "已达成",
+            |r: &GoalRow| {
+                r.progress
+                    .as_ref()
+                    .map(|p| p.achieved_amount)
+                    .unwrap_or(0.0)
+            },
+            |r, _| {
+                SharedString::from(format_money(
+                    r.progress
+                        .as_ref()
+                        .map(|p| p.achieved_amount)
+                        .unwrap_or(0.0),
+                ))
+            },
+        )
         .width(110.0),
         ColumnDef::text("gg-progress", "月度进度", |r: &GoalRow, _| {
             match (&r.goal, &r.progress) {
@@ -1976,14 +1966,11 @@ fn goal_columns(view: &Entity<ProjectGoalsView>) -> Vec<ColumnDef<GoalRow>> {
             }
         })
         .width(80.0)
-        .with_render_element(|r: &GoalRow, theme| {
-            match (&r.goal, &r.progress) {
-                (Some(g), Some(p)) if g.target_amount > 0.0 => {
-                    completion_badge(r.month_status, p.completion_vs_monthly, theme)
-                        .into_any_element()
-                }
-                _ => div().into_any_element(),
+        .with_render_element(|r: &GoalRow, theme| match (&r.goal, &r.progress) {
+            (Some(g), Some(p)) if g.target_amount > 0.0 => {
+                completion_badge(r.month_status, p.completion_vs_monthly, theme).into_any_element()
             }
+            _ => div().into_any_element(),
         }),
         ColumnDef::text("gg-actions", "操作", move |r: &GoalRow, _| {
             // 文本占位；真正按钮由 render_element 渲染（避免空列）
@@ -2011,9 +1998,7 @@ fn goal_columns(view: &Entity<ProjectGoalsView>) -> Vec<ColumnDef<GoalRow>> {
                             .icon(Icon::new(IconName::CircleX).with_size(px(13.)))
                             .label("编辑")
                             .on_click(move |_, _, cx| {
-                                view_e.update(cx, |this, cx| {
-                                    this.open_edit(goal_e.clone(), cx)
-                                });
+                                view_e.update(cx, |this, cx| this.open_edit(goal_e.clone(), cx));
                             }),
                     )
                     .child(
@@ -2024,9 +2009,8 @@ fn goal_columns(view: &Entity<ProjectGoalsView>) -> Vec<ColumnDef<GoalRow>> {
                             .icon(Icon::new(IconName::Delete).with_size(px(13.)))
                             .label("删除")
                             .on_click(move |_, _, cx| {
-                                view_d.update(cx, |this, cx| {
-                                    this.request_delete(goal_d.clone(), cx)
-                                });
+                                view_d
+                                    .update(cx, |this, cx| this.request_delete(goal_d.clone(), cx));
                             }),
                     )
                     .into_any_element()
@@ -2295,13 +2279,12 @@ mod tests {
                 this.goal_dialog = None;
                 this.open_edit(sample_goals()[0].clone(), cx);
                 assert_eq!(
-                    this.goal_dialog.as_ref().and_then(|d| d.editing.as_ref().map(|g| g.id)),
+                    this.goal_dialog
+                        .as_ref()
+                        .and_then(|d| d.editing.as_ref().map(|g| g.id)),
                     Some(11)
                 );
-                assert_eq!(
-                    this.goal_dialog.as_ref().map(|d| d.period_month),
-                    Some(8)
-                );
+                assert_eq!(this.goal_dialog.as_ref().map(|d| d.period_month), Some(8));
 
                 // 删除确认
                 this.goal_dialog = None;
@@ -2341,10 +2324,7 @@ mod tests {
                 this.apply_result(1, Ok(data), cx);
                 assert_eq!(this.selected_project_id, Some(1));
                 assert_eq!(this.latest_request_id, 2);
-                assert!(matches!(
-                    this.current_state(cx),
-                    ProjectGoalsState::Loading
-                ));
+                assert!(matches!(this.current_state(cx), ProjectGoalsState::Loading));
             });
         });
     }
@@ -2373,9 +2353,7 @@ mod tests {
     async fn project_goals_loading_state_renders(cx: &mut TestAppContext) {
         let view = create_view(cx);
         cx.update(|cx| cx.new(|_| Host { view: view.clone() }));
-        cx.add_window_view(|_window, _cx| Host {
-            view: view.clone(),
-        });
+        cx.add_window_view(|_window, _cx| Host { view: view.clone() });
     }
 
     #[gpui::test]
@@ -2387,9 +2365,7 @@ mod tests {
                 this.apply_result(1, Err("接口 500".to_string()), cx);
             });
         });
-        cx.add_window_view(|_window, _cx| Host {
-            view: view.clone(),
-        });
+        cx.add_window_view(|_window, _cx| Host { view: view.clone() });
     }
 
     #[gpui::test]
@@ -2402,9 +2378,7 @@ mod tests {
                 this.apply_result(1, Ok(sample_data()), cx);
             });
         });
-        cx.add_window_view(|_window, _cx| Host {
-            view: view.clone(),
-        });
+        cx.add_window_view(|_window, _cx| Host { view: view.clone() });
     }
 
     #[gpui::test]
@@ -2413,9 +2387,8 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
         });
-        let view = cx.update(|cx| {
-            cx.new(|cx| ProjectGoalsView::new(cx, Client::new("http://127.0.0.1:1")))
-        });
+        let view = cx
+            .update(|cx| cx.new(|cx| ProjectGoalsView::new(cx, Client::new("http://127.0.0.1:1"))));
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 this.selected_project_id = Some(1);
@@ -2423,9 +2396,7 @@ mod tests {
                 this.apply_result(1, Ok(sample_data()), cx);
             });
         });
-        cx.add_window_view(|_window, _cx| Host {
-            view: view.clone(),
-        });
+        cx.add_window_view(|_window, _cx| Host { view: view.clone() });
         cx.update(|cx| assert!(crate::theme::AppTheme::current(cx).is_dark()));
     }
 
@@ -2438,9 +2409,7 @@ mod tests {
             });
         });
         // 打开对话框后渲染（金额输入在 render 期懒建，需要 window）
-        cx.add_window_view(|_window, _cx| Host {
-            view: view.clone(),
-        });
+        cx.add_window_view(|_window, _cx| Host { view: view.clone() });
         cx.read(|app| assert!(view.read(app).goal_dialog.is_some()));
     }
 }

@@ -104,9 +104,27 @@ pub struct SiteSpec {
 
 /// 支持站点（对齐 web COUNTRY_OPTIONS：US / DE / UK 三站）
 pub const SITES: [SiteSpec; 3] = [
-    SiteSpec { code: "US", flag: "🇺🇸", label: "美国站", currency: "USD", vat_rate_pct: 0.0 },
-    SiteSpec { code: "DE", flag: "🇩🇪", label: "德国站", currency: "EUR", vat_rate_pct: 19.0 },
-    SiteSpec { code: "UK", flag: "🇬🇧", label: "英国站", currency: "GBP", vat_rate_pct: 20.0 },
+    SiteSpec {
+        code: "US",
+        flag: "🇺🇸",
+        label: "美国站",
+        currency: "USD",
+        vat_rate_pct: 0.0,
+    },
+    SiteSpec {
+        code: "DE",
+        flag: "🇩🇪",
+        label: "德国站",
+        currency: "EUR",
+        vat_rate_pct: 19.0,
+    },
+    SiteSpec {
+        code: "UK",
+        flag: "🇬🇧",
+        label: "英国站",
+        currency: "GBP",
+        vat_rate_pct: 20.0,
+    },
 ];
 
 /// 按站点码取规格（未知码回落 US）
@@ -227,7 +245,11 @@ pub fn currency_symbol(currency: &str) -> &'static str {
 
 /// 金额格式化（符号前缀 + 千分位两位小数）：-12.5 USD → "$-12.50"
 pub fn format_amount(value: f64, currency: &str) -> String {
-    format!("{}{}", currency_symbol(currency), format_thousands(value, 2))
+    format!(
+        "{}{}",
+        currency_symbol(currency),
+        format_thousands(value, 2)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +272,11 @@ pub enum CellRule {
 impl CellRule {
     /// 数值规则便捷构造（必填、无界）
     pub const fn required_number() -> Self {
-        CellRule::Number { required: true, min: None, max: None }
+        CellRule::Number {
+            required: true,
+            min: None,
+            max: None,
+        }
     }
 }
 
@@ -311,7 +337,12 @@ pub struct SheetColumn {
 
 impl SheetColumn {
     pub const fn new(key: &'static str, label: &'static str, numeric: bool) -> Self {
-        SheetColumn { key, label, width: None, numeric }
+        SheetColumn {
+            key,
+            label,
+            width: None,
+            numeric,
+        }
     }
 
     pub const fn fixed(mut self, px_width: f32) -> Self {
@@ -334,15 +365,27 @@ pub struct SheetCellData {
 
 impl SheetCellData {
     pub fn text(text: impl Into<String>) -> Self {
-        SheetCellData { text: text.into(), ..Default::default() }
+        SheetCellData {
+            text: text.into(),
+            ..Default::default()
+        }
     }
 
     pub fn computed(text: impl Into<String>) -> Self {
-        SheetCellData { text: text.into(), computed: true, numeric: true, ..Default::default() }
+        SheetCellData {
+            text: text.into(),
+            computed: true,
+            numeric: true,
+            ..Default::default()
+        }
     }
 
     pub fn number(text: impl Into<String>) -> Self {
-        SheetCellData { text: text.into(), numeric: true, ..Default::default() }
+        SheetCellData {
+            text: text.into(),
+            numeric: true,
+            ..Default::default()
+        }
     }
 
     pub fn with_error(mut self) -> Self {
@@ -394,35 +437,53 @@ pub fn move_selection(
             if clamped.row == 0 {
                 return None;
             }
-            SheetSelection { row: clamped.row - 1, ..clamped }
+            SheetSelection {
+                row: clamped.row - 1,
+                ..clamped
+            }
         }
         NavStep::Down => {
             if clamped.row + 1 >= rows {
                 return None;
             }
-            SheetSelection { row: clamped.row + 1, ..clamped }
+            SheetSelection {
+                row: clamped.row + 1,
+                ..clamped
+            }
         }
         NavStep::Left => {
             if clamped.col == 0 {
                 return None;
             }
-            SheetSelection { col: clamped.col - 1, ..clamped }
+            SheetSelection {
+                col: clamped.col - 1,
+                ..clamped
+            }
         }
         NavStep::Right => {
             if clamped.col + 1 >= cols {
                 return None;
             }
-            SheetSelection { col: clamped.col + 1, ..clamped }
+            SheetSelection {
+                col: clamped.col + 1,
+                ..clamped
+            }
         }
         NavStep::Next => {
             let flat = clamped.row * cols + clamped.col;
             let next_flat = (flat + 1) % (rows * cols);
-            SheetSelection { row: next_flat / cols, col: next_flat % cols }
+            SheetSelection {
+                row: next_flat / cols,
+                col: next_flat % cols,
+            }
         }
         NavStep::Prev => {
             let flat = clamped.row * cols + clamped.col;
             let prev_flat = (flat + rows * cols - 1) % (rows * cols);
-            SheetSelection { row: prev_flat / cols, col: prev_flat % cols }
+            SheetSelection {
+                row: prev_flat / cols,
+                col: prev_flat % cols,
+            }
         }
     };
     Some(next)
@@ -537,7 +598,8 @@ pub fn site_card_selector<V: 'static>(
                 .cursor_pointer()
                 .border_1()
                 .when(selected, |el| {
-                    el.border_color(theme.accent).bg(theme.sidebar_item_active_bg)
+                    el.border_color(theme.accent)
+                        .bg(theme.sidebar_item_active_bg)
                 })
                 .when(!selected, |el| {
                     el.border_color(theme.separator)
@@ -552,9 +614,14 @@ pub fn site_card_selector<V: 'static>(
                     h_flex()
                         .gap_1()
                         .items_center()
-                        .child(div().text_size(px(crate::theme::fs(FONT_BASE))).child(site.flag))
                         .child(
-                            div().text_size(px(crate::theme::fs(FONT_XS)))
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_BASE)))
+                                .child(site.flag),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_XS)))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(if selected {
                                     theme.text_primary
@@ -565,7 +632,8 @@ pub fn site_card_selector<V: 'static>(
                         ),
                 )
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_XS)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_XS)))
                         .mono_tabular_nums()
                         .text_color(theme.text_muted)
                         .child(summary),
@@ -598,7 +666,8 @@ pub fn sheet_header_row(theme: &AppTheme, cols: &[SheetColumn]) -> impl IntoElem
                 .h_full()
                 .flex()
                 .items_center()
-                .px_2().text_size(px(crate::theme::fs(FONT_XS)))
+                .px_2()
+                .text_size(px(crate::theme::fs(FONT_XS)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_muted)
                 .when(col.numeric, |el| el.justify_end())
@@ -684,14 +753,21 @@ pub fn computed_cell(
         .items_center()
         .px_2()
         .rounded_sm()
-        .when(cell.computed && !cell.error, |el| el.bg(theme.muted_fill.opacity(0.5)))
+        .when(cell.computed && !cell.error, |el| {
+            el.bg(theme.muted_fill.opacity(0.5))
+        })
         .when(cell.numeric, |el| el.justify_end())
         .child(
             div()
                 .min_w_0()
-                .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
+                .truncate()
+                .text_size(px(crate::theme::fs(FONT_BASE)))
                 .when(cell.numeric, |el| el.mono_tabular_nums())
-                .font_weight(if cell.computed { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                .font_weight(if cell.computed {
+                    FontWeight::SEMIBOLD
+                } else {
+                    FontWeight::NORMAL
+                })
                 .text_color(text_color)
                 .child(cell.text),
         )
@@ -732,7 +808,8 @@ pub fn sheet_matrix(
                 .border_t_1()
                 .border_color(theme.danger)
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_XS)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_XS)))
                         .text_color(theme.danger)
                         .child(summary.to_string()),
                 ),
@@ -762,7 +839,11 @@ mod tests {
     fn parse_number_tolerates_currency_and_thousands() {
         assert_eq!(parse_number("1,234.5"), Some(1234.5));
         assert_eq!(parse_number("$1,234"), Some(1234.0));
-        assert_eq!(parse_number("€ 99,90"), Some(99.9), "欧式小数逗号（1~2 位尾组）");
+        assert_eq!(
+            parse_number("€ 99,90"),
+            Some(99.9),
+            "欧式小数逗号（1~2 位尾组）"
+        );
         assert_eq!(parse_number("1,234"), Some(1234.0), "3 位尾组按千分位");
         assert_eq!(parse_number("99.90 EUR"), Some(99.9));
         assert_eq!(parse_number("usd12"), Some(12.0));
@@ -808,10 +889,21 @@ mod tests {
         assert_eq!(validate_cell("售价", &rule, "$1,000"), Ok(1000.0));
         assert!(validate_cell("售价", &rule, "").is_err(), "必填空值报错");
         assert!(validate_cell("售价", &rule, "abc").is_err());
-        let bounded = CellRule::Number { required: false, min: Some(0.0), max: Some(100.0) };
-        assert_eq!(validate_cell("费率", &bounded, ""), Ok(0.0), "非必填空值放行");
+        let bounded = CellRule::Number {
+            required: false,
+            min: Some(0.0),
+            max: Some(100.0),
+        };
+        assert_eq!(
+            validate_cell("费率", &bounded, ""),
+            Ok(0.0),
+            "非必填空值放行"
+        );
         assert!(validate_cell("费率", &bounded, "-1").is_err(), "越下界报错");
-        assert!(validate_cell("费率", &bounded, "101").is_err(), "越上界报错");
+        assert!(
+            validate_cell("费率", &bounded, "101").is_err(),
+            "越上界报错"
+        );
         assert!(validate_cell("名称", &CellRule::Text, "").is_ok());
     }
 
@@ -819,7 +911,11 @@ mod tests {
     fn move_selection_walks_and_wraps() {
         let start = SheetSelection { row: 0, col: 0 };
         // 方向键边界截停
-        assert_eq!(move_selection(3, 2, start, NavStep::Up), None, "顶行向上不动 → None");
+        assert_eq!(
+            move_selection(3, 2, start, NavStep::Up),
+            None,
+            "顶行向上不动 → None"
+        );
         assert_eq!(
             move_selection(3, 2, start, NavStep::Left),
             None,
@@ -872,7 +968,11 @@ mod tests {
     }
 
     impl gpui::Render for ShellHost {
-        fn render(&mut self, _window: &mut gpui::Window, cx: &mut Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            cx: &mut Context<Self>,
+        ) -> impl IntoElement {
             let theme = AppTheme::current(cx);
             let view = cx.entity();
             let cols = [
@@ -880,10 +980,7 @@ mod tests {
                 SheetColumn::new("amount", "金额", true).fixed(120.0),
             ];
             let rows = vec![
-                vec![
-                    SheetCellData::text("售价"),
-                    SheetCellData::number("$29.99"),
-                ],
+                vec![SheetCellData::text("售价"), SheetCellData::number("$29.99")],
                 vec![
                     SheetCellData::text("利润率"),
                     SheetCellData::computed("18.2%"),
@@ -897,7 +994,13 @@ mod tests {
                 div().child("toolbar"),
                 true,
                 sites,
-                sheet_matrix(&theme, "host-sheet", &cols, &rows, Some("售价：必填，请填写数值")),
+                sheet_matrix(
+                    &theme,
+                    "host-sheet",
+                    &cols,
+                    &rows,
+                    Some("售价：必填，请填写数值"),
+                ),
             )
         }
     }

@@ -47,10 +47,7 @@ use gpui::{
     SharedString, WeakEntity, Window,
 };
 use gpui_component::{
-    button::Button,
-    h_flex,
-    menu::PopupMenuItem,
-    v_flex, Icon, IconName, Sizable,
+    button::Button, h_flex, menu::PopupMenuItem, v_flex, Icon, IconName, Sizable,
 };
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
@@ -60,13 +57,11 @@ use gui_domain::operations::inventory::{
 };
 
 use crate::theme::AppTheme;
-use crate::widgets::data_grid::{
-    aggregate_strip, pattern_a_shell, AggregateItem, DataGrid,
-};
+use crate::widgets::data_grid::{aggregate_strip, pattern_a_shell, AggregateItem, DataGrid};
 use crate::widgets::data_table::{CellAlign, ColumnDef};
+use crate::widgets::filter_bar;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
-use crate::widgets::{filter_bar};
 use crate::widgets::top_projects::fmt_num_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
@@ -372,9 +367,7 @@ impl Render for InventoryAnalysisView {
         let grid = self.grid.clone();
         match state {
             InventoryState::Loading => render_loading(&app_theme).into_any_element(),
-            InventoryState::Error(msg) => {
-                render_error(cx, &app_theme, &msg).into_any_element()
-            }
+            InventoryState::Error(msg) => render_error(cx, &app_theme, &msg).into_any_element(),
             InventoryState::Empty => render_empty(cx, &app_theme).into_any_element(),
             InventoryState::Loaded(payload) => {
                 let view = cx.entity();
@@ -499,11 +492,7 @@ fn render_loaded(
         resp.report_date,
     );
     // pinned 底部聚合条：合计口径（原合计条数值同源；数字 mono）
-    let footer = aggregate_strip(
-        app_theme,
-        "inventory-analysis",
-        &inventory_totals(resp),
-    );
+    let footer = aggregate_strip(app_theme, "inventory-analysis", &inventory_totals(resp));
     // 统计卡带（4 张库存统计卡）置于网格上方
     let body = v_flex()
         .id("inventory-analysis-body")
@@ -526,7 +515,14 @@ fn render_loaded(
 
     crate::motion::enter_fade_in(
         SharedString::from("inventory-analysis-loaded-fade"),
-        pattern_a_shell(app_theme, "inventory-analysis", header, toolbar, body, footer),
+        pattern_a_shell(
+            app_theme,
+            "inventory-analysis",
+            header,
+            toolbar,
+            body,
+            footer,
+        ),
         reduce,
     )
 }
@@ -609,13 +605,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -630,13 +624,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(
-                            move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            },
-                        ),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -667,14 +659,14 @@ fn render_filter_bar(
                     }
                     let checked = snapshot_owned == value;
                     let view = view_for_snapshot.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
                             let value = value.clone();
                             view.update(cx, |this, cx| {
                                 this.select_snapshot(SharedString::from(value), cx);
                             });
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -693,10 +685,7 @@ fn render_filter_bar(
 }
 
 /// 「业务日期」chip：显示数据是几号的（后端响应回带；`None` = 暂无快照）
-fn business_date_chip(
-    app_theme: &AppTheme,
-    report_date: Option<NaiveDate>,
-) -> impl IntoElement {
+fn business_date_chip(app_theme: &AppTheme, report_date: Option<NaiveDate>) -> impl IntoElement {
     h_flex()
         .id("inventory-analysis-business-date")
         .gap_2()
@@ -869,19 +858,13 @@ fn aging_pill(row: &InventoryAnalysisItem, theme: &AppTheme) -> AnyElement {
 /// （`render` 位置放占位 fn，被覆盖）。
 pub fn inventory_columns(shipments: &[ShipmentColumn]) -> Vec<ColumnDef<InventoryAnalysisItem>> {
     let mut columns = vec![
-        ColumnDef::text(
-            "inventory-sku",
-            "SKU",
-            |r: &InventoryAnalysisItem, _| SharedString::from(r.sku.clone()),
-        )
+        ColumnDef::text("inventory-sku", "SKU", |r: &InventoryAnalysisItem, _| {
+            SharedString::from(r.sku.clone())
+        })
         .width(150.0),
-        ColumnDef::text(
-            "inventory-asin",
-            "ASIN",
-            |r: &InventoryAnalysisItem, _| {
-                SharedString::from(r.asin.clone().unwrap_or_else(|| "--".to_string()))
-            },
-        )
+        ColumnDef::text("inventory-asin", "ASIN", |r: &InventoryAnalysisItem, _| {
+            SharedString::from(r.asin.clone().unwrap_or_else(|| "--".to_string()))
+        })
         .width(110.0),
         ColumnDef::text(
             "inventory-product",
@@ -936,13 +919,11 @@ pub fn inventory_columns(shipments: &[ShipmentColumn]) -> Vec<ColumnDef<Inventor
             "inventory-action",
             "建议操作",
             |r: &InventoryAnalysisItem, _| {
-                SharedString::from(
-                    if r.recommended_action_label.is_empty() {
-                        "--".to_string()
-                    } else {
-                        r.recommended_action_label.clone()
-                    },
-                )
+                SharedString::from(if r.recommended_action_label.is_empty() {
+                    "--".to_string()
+                } else {
+                    r.recommended_action_label.clone()
+                })
             },
         )
         .width(120.0),
@@ -973,20 +954,14 @@ pub fn inventory_columns(shipments: &[ShipmentColumn]) -> Vec<ColumnDef<Inventor
             )
             .align(CellAlign::Right)
             .width(96.0)
-            .with_render_element(
-                move |r: &InventoryAnalysisItem, theme: &AppTheme| {
-                    let qty = r
-                        .shipment_quantities
-                        .get(&no)
-                        .copied()
-                        .unwrap_or_default();
-                    div()
-                        .text_right()
-                        .text_color(theme.text_secondary)
-                        .child(fmt_num_precise(qty))
-                        .into_any_element()
-                },
-            ),
+            .with_render_element(move |r: &InventoryAnalysisItem, theme: &AppTheme| {
+                let qty = r.shipment_quantities.get(&no).copied().unwrap_or_default();
+                div()
+                    .text_right()
+                    .text_color(theme.text_secondary)
+                    .child(fmt_num_precise(qty))
+                    .into_any_element()
+            }),
         );
     }
     columns
@@ -996,18 +971,13 @@ pub fn inventory_columns(shipments: &[ShipmentColumn]) -> Vec<ColumnDef<Inventor
 mod tests {
     use super::*;
     use gpui::TestAppContext;
-    use gui_domain::operations::inventory::{
-        InventoryAnalysisSummary, ShipmentColumn,
-    };
+    use gui_domain::operations::inventory::{InventoryAnalysisSummary, ShipmentColumn};
     use std::collections::HashMap;
 
     // ---------- 测试数据 ----------
 
     fn sample_projects() -> Vec<ManagedProject> {
-        vec![
-            project(1, "测试项目 A"),
-            project(2, "测试项目 B"),
-        ]
+        vec![project(1, "测试项目 A"), project(2, "测试项目 B")]
     }
 
     fn project(id: i64, name: &str) -> ManagedProject {
@@ -1236,8 +1206,7 @@ mod tests {
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
         let (_view, _cx) = cx.add_window_view(|_window, cx| {
-            let mut view =
-                InventoryAnalysisView::new(cx, Client::new("http://127.0.0.1:1"));
+            let mut view = InventoryAnalysisView::new(cx, Client::new("http://127.0.0.1:1"));
             view.reload(cx);
             view
         });

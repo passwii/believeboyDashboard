@@ -18,24 +18,24 @@
 //! - `system`      系统管理
 
 pub mod admin_users;
-pub mod agent_management;
-pub mod ai_chat;
-pub mod auth;
 pub mod advertising;
-pub mod alerts;
+pub mod agent_management;
 /// AI 智能域类型（BLF-803：AI洞察 / 数字员工 / 虚拟办公室）
 pub mod ai;
+pub mod ai_chat;
+pub mod alerts;
+pub mod auth;
 pub mod auto_upload;
 pub mod commission;
 pub mod common;
 pub mod crm;
-pub mod filter;
 pub mod dashboard;
 pub mod exchange_rate;
+pub mod filter;
 pub mod finance;
+pub mod notification;
 pub mod operations;
 pub mod order_info;
-pub mod notification;
 pub mod page_render;
 pub mod reports;
 pub mod scheduled_reports;

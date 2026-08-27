@@ -83,13 +83,8 @@ impl Client {
     /// 非管理员只能删自己创建的记录（backend `delete_pricing_run` 权限校验，
     /// 越权 403 → `user_message` 透传 detail）。
     pub async fn delete_pricing_run(&self, run_id: i64) -> Result<(), ApiError> {
-        self.request_discard::<()>(
-            reqwest::Method::DELETE,
-            &run_delete_path(run_id),
-            &[],
-            None,
-        )
-        .await
+        self.request_discard::<()>(reqwest::Method::DELETE, &run_delete_path(run_id), &[], None)
+            .await
     }
 
     /// 利润核算（对齐 web `requestPricingCalculation` 的 `profit-calc` 分支：
@@ -144,9 +139,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gui_domain::operations::new_product_calculation::{
-        CalculationType, InboundPlacementMode,
-    };
+    use gui_domain::operations::new_product_calculation::{CalculationType, InboundPlacementMode};
     use mockito::Matcher;
 
     /// 构造一个带会话的 client（会话 header 断言用；与 product_analysis.rs 同款）
@@ -224,17 +217,17 @@ mod tests {
     fn pricing_paths_match_backend_routes() {
         assert_eq!(RUNS_LIST_PATH, "/api/v1/pricing-calculation/runs");
         assert_eq!(QUOTE_PATH, "/api/v1/pricing-calculation/quote");
-        assert_eq!(REVERSE_QUOTE_PATH, "/api/v1/pricing-calculation/reverse-quote");
-        assert_eq!(REVERSE_COST_PATH, "/api/v1/pricing-calculation/reverse-cost");
+        assert_eq!(
+            REVERSE_QUOTE_PATH,
+            "/api/v1/pricing-calculation/reverse-quote"
+        );
+        assert_eq!(
+            REVERSE_COST_PATH,
+            "/api/v1/pricing-calculation/reverse-cost"
+        );
         assert_eq!(FBM_QUOTE_PATH, "/api/v1/pricing-calculation/fbm-quote");
-        assert_eq!(
-            run_delete_path(42),
-            "/api/v1/pricing-calculation/runs/42"
-        );
-        assert_eq!(
-            EU_QUOTE_PATH,
-            "/api/v1/pricing-calculation/eu-quote"
-        );
+        assert_eq!(run_delete_path(42), "/api/v1/pricing-calculation/runs/42");
+        assert_eq!(EU_QUOTE_PATH, "/api/v1/pricing-calculation/eu-quote");
     }
 
     /// mock HTTP：runs 列表带分页 + keyword query；会话身份头携带；
@@ -290,7 +283,10 @@ mod tests {
             .create();
 
         let client = Client::new(server.url());
-        let resp = client.list_pricing_runs(1, 12, Some("   ")).await.expect("请求失败");
+        let resp = client
+            .list_pricing_runs(1, 12, Some("   "))
+            .await
+            .expect("请求失败");
         m.assert();
         assert!(resp.items.is_empty());
         assert_eq!(resp.total, 0);
@@ -309,7 +305,10 @@ mod tests {
             .create();
 
         let client = Client::new(server.url());
-        let err = client.list_pricing_runs(1, 12, None).await.expect_err("应返回错误");
+        let err = client
+            .list_pricing_runs(1, 12, None)
+            .await
+            .expect_err("应返回错误");
         m.assert();
         assert_eq!(err.status(), Some(500));
         assert_eq!(err.user_message(), "测算记录加载失败");

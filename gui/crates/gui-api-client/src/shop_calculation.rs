@@ -75,8 +75,13 @@ impl Client {
         &self,
         payload: &ShopCalculationCreateRequest,
     ) -> Result<ShopCalculationItem, ApiError> {
-        self.request_json(reqwest::Method::POST, SHOP_CALCULATION_PATH, &[], Some(payload))
-            .await
+        self.request_json(
+            reqwest::Method::POST,
+            SHOP_CALCULATION_PATH,
+            &[],
+            Some(payload),
+        )
+        .await
     }
 }
 

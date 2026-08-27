@@ -85,21 +85,19 @@ pub fn toolbar_search_input(
     id: &'static str,
     width: f32,
 ) -> impl IntoElement {
-    div()
-        .id(SharedString::from(id))
-        .child(
-            gpui_component::input::Input::new(state)
-                .with_size(Size::Small)
-                .h(px(26.))
-                .w(px(width))
-                .cleanable(true)
-                .prefix(
-                    gpui::svg()
-                        .path("icons/search.svg")
-                        .size(px(13.))
-                        .text_color(theme.text_muted),
-                ),
-        )
+    div().id(SharedString::from(id)).child(
+        gpui_component::input::Input::new(state)
+            .with_size(Size::Small)
+            .h(px(26.))
+            .w(px(width))
+            .cleanable(true)
+            .prefix(
+                gpui::svg()
+                    .path("icons/search.svg")
+                    .size(px(13.))
+                    .text_color(theme.text_muted),
+            ),
+    )
 }
 
 #[cfg(test)]
@@ -124,7 +122,11 @@ mod tests {
             });
             struct FilterBarHost;
             impl gpui::Render for FilterBarHost {
-                fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+                fn render(
+                    &mut self,
+                    _window: &mut gpui::Window,
+                    cx: &mut gpui::Context<Self>,
+                ) -> impl IntoElement {
                     let theme = AppTheme::current(cx);
                     filter_bar_layout(&theme)
                         .child(filter_select(
@@ -141,20 +143,12 @@ mod tests {
                             "test-country-filter",
                             |menu, _w, _cx| menu,
                         ))
-                        .child(
-                            Button::new("test-refresh")
-                                .outline()
-                                .small()
-                                .label("刷新"),
-                        )
+                        .child(Button::new("test-refresh").outline().small().label("刷新"))
                 }
             }
             let (_host, cx2) = cx.add_window_view(|_window, _cx| FilterBarHost);
             cx2.read(|app| {
-                assert_eq!(
-                    crate::theme::AppTheme::current(app).is_dark(),
-                    dark
-                );
+                assert_eq!(crate::theme::AppTheme::current(app).is_dark(), dark);
             });
         }
     }

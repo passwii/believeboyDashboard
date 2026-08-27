@@ -139,20 +139,20 @@ impl Client {
             #[serde(skip_serializing_if = "Option::is_none")]
             title: Option<String>,
         }
-        self.request_json(reqwest::Method::POST, CONVERSATIONS_PATH, &[], Some(&Body { title }))
-            .await
+        self.request_json(
+            reqwest::Method::POST,
+            CONVERSATIONS_PATH,
+            &[],
+            Some(&Body { title }),
+        )
+        .await
     }
 
     /// 删除会话（204 空响应体）
     pub async fn ai_conversation_delete(&self, conversation_id: i64) -> Result<(), ApiError> {
         let path = format!("{CONVERSATIONS_PATH}/{conversation_id}");
-        self.request_discard::<AiChatMessageCreate>(
-            reqwest::Method::DELETE,
-            &path,
-            &[],
-            None,
-        )
-        .await
+        self.request_discard::<AiChatMessageCreate>(reqwest::Method::DELETE, &path, &[], None)
+            .await
     }
 
     /// 历史消息（按 created_at 正序）
@@ -167,13 +167,8 @@ impl Client {
     /// 取消进行中的流式对话（跨 worker 生效；取消失败不影响 UI——流可能已结束）
     pub async fn ai_stream_cancel(&self, conversation_id: i64) -> Result<(), ApiError> {
         let path = format!("{CONVERSATIONS_PATH}/{conversation_id}{CANCEL_PATH_SUFFIX}");
-        self.request_discard::<AiChatMessageCreate>(
-            reqwest::Method::POST,
-            &path,
-            &[],
-            None,
-        )
-        .await
+        self.request_discard::<AiChatMessageCreate>(reqwest::Method::POST, &path, &[], None)
+            .await
     }
 
     /// V2 SSE 流式对话：发送一条消息并消费流，解析出的事件逐个推入 `tx`。
@@ -222,7 +217,8 @@ impl Client {
                         match serde_json::from_str::<serde_json::Value>(&frame.data) {
                             Ok(value) => {
                                 if let Some(event) = StreamEvent::from_json(&value) {
-                                    if matches!(event, StreamEvent::Done(_) | StreamEvent::Error(_)) {
+                                    if matches!(event, StreamEvent::Done(_) | StreamEvent::Error(_))
+                                    {
                                         saw_terminal = true;
                                     }
                                     if tx.send(Ok(event)).is_err() {
@@ -269,7 +265,9 @@ mod tests {
             role_type: gui_domain::auth::UserRoleType::Operator,
             is_admin: false,
         };
-        Client::new(base_url).with_session(session).with_api_key("k123")
+        Client::new(base_url)
+            .with_session(session)
+            .with_api_key("k123")
     }
 
     // ---------- 契约测试 ----------
@@ -401,7 +399,9 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let m = server
             .mock("POST", CONVERSATIONS_PATH)
-            .match_body(Matcher::PartialJson(serde_json::json!({"title": "测试会话"})))
+            .match_body(Matcher::PartialJson(
+                serde_json::json!({"title": "测试会话"}),
+            ))
             .with_status(201)
             .with_header("content-type", "application/json")
             .with_body(
@@ -516,7 +516,14 @@ mod tests {
         assert!(matches!(events[0], StreamEvent::MessageStart { .. }));
         match &events[1] {
             StreamEvent::ContentBlockDelta { delta } => {
-                assert_eq!(*delta, StreamDelta { kind: "text_delta".into(), text: "你".into(), partial_json: String::new() });
+                assert_eq!(
+                    *delta,
+                    StreamDelta {
+                        kind: "text_delta".into(),
+                        text: "你".into(),
+                        partial_json: String::new()
+                    }
+                );
             }
             other => panic!("应为 text delta：{other:?}"),
         }
@@ -545,7 +552,10 @@ mod tests {
         let payload = AiChatMessageCreate::default();
         let result = client.ai_stream_message(404, &payload, tx).await;
         assert!(result.is_err(), "HTTP 层应返回 Err");
-        let msg = rx.try_recv().expect("错误应推入通道").expect_err("应为 Err");
+        let msg = rx
+            .try_recv()
+            .expect("错误应推入通道")
+            .expect_err("应为 Err");
         assert_eq!(msg, "Conversation not found");
         m.assert();
     }

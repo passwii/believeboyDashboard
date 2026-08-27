@@ -27,12 +27,12 @@
 //! `Loading`（首屏 / 筛选切换 / 换页）→ `Loaded`（有数据）/ `Empty`（列表空，
 //! 两档提示：筛选无结果 / 暂无数据）/ `Error`（请求失败）。
 
+use chrono::Datelike;
 use gpui::prelude::*;
 use gpui::{
-    div, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
-    WeakEntity, Window,
+    div, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString, WeakEntity,
+    Window,
 };
-use chrono::Datelike;
 use gpui_component::button::Button;
 use gpui_component::menu::PopupMenuItem;
 use gpui_component::{h_flex, v_flex, Sizable};
@@ -92,13 +92,12 @@ fn beijing_time(iso: &str) -> String {
     let parsed = chrono::DateTime::parse_from_rfc3339(trimmed)
         .map(|dt| dt.with_timezone(&beijing))
         .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f")
-                .map(|naive| {
-                    use chrono::TimeZone;
-                    chrono::Utc
-                        .from_utc_datetime(&naive)
-                        .with_timezone(&beijing)
-                })
+            chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f").map(|naive| {
+                use chrono::TimeZone;
+                chrono::Utc
+                    .from_utc_datetime(&naive)
+                    .with_timezone(&beijing)
+            })
         });
     parsed
         .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
@@ -138,13 +137,9 @@ fn currency_pill(item: &ExchangeRateItem, theme: &AppTheme) -> gpui::AnyElement 
         .bg(bg)
         .px_2()
         .py_0p5()
-        .child(
-            div()
-                .text_sm()
-                .child(SharedString::from(
-                    currency_symbol(&item.currency).to_string(),
-                )),
-        )
+        .child(div().text_sm().child(SharedString::from(
+            currency_symbol(&item.currency).to_string(),
+        )))
         .child(
             div()
                 .text_xs()
@@ -256,9 +251,7 @@ impl ExchangeRateView {
 
     /// 是否有任何筛选生效（空态两档提示用）
     fn has_active_filters(&self) -> bool {
-        self.currency_filter.is_some()
-            || self.year_filter.is_some()
-            || self.month_filter.is_some()
+        self.currency_filter.is_some() || self.year_filter.is_some() || self.month_filter.is_some()
     }
 
     /// 重新拉取：首屏 / 筛选切换 / 换页 / 错误重试 / 空态刷新共用入口
@@ -280,8 +273,9 @@ impl ExchangeRateView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(async { client.exchange_rate_list(&filter, page, page_size).await })
+                    crate::runtime::runtime().block_on(async {
+                        client.exchange_rate_list(&filter, page, page_size).await
+                    })
                 })
                 .await;
             let result = match result {
@@ -387,14 +381,18 @@ impl ExchangeRateView {
 /// 汇率表 7 列（对齐 web 桌面端表格；「操作」列随写入走 web 端精简移除）
 fn rate_columns() -> Vec<ColumnDef<ExchangeRateItem>> {
     vec![
-        ColumnDef::text("currency", "货币代码", |_r: &ExchangeRateItem, _theme| {
-            SharedString::from("")
-        })
+        ColumnDef::text(
+            "currency",
+            "货币代码",
+            |_r: &ExchangeRateItem, _theme| SharedString::from(""),
+        )
         .with_render_element(currency_pill)
         .width(110.0),
-        ColumnDef::text("currency-name", "货币名称", |r: &ExchangeRateItem, _| {
-            SharedString::from(r.display_name().to_string())
-        })
+        ColumnDef::text(
+            "currency-name",
+            "货币名称",
+            |r: &ExchangeRateItem, _| SharedString::from(r.display_name().to_string()),
+        )
         .width(110.0),
         ColumnDef::text("year", "年份", |r: &ExchangeRateItem, _| {
             SharedString::from(
@@ -427,15 +425,13 @@ fn rate_columns() -> Vec<ColumnDef<ExchangeRateItem>> {
             v_flex()
                 .gap_0p5()
                 .child(
-                    div()
-                        .text_sm()
-                        .child(SharedString::from(
-                            r.description
-                                .as_deref()
-                                .filter(|s| !s.trim().is_empty())
-                                .unwrap_or("—")
-                                .to_string(),
-                        )),
+                    div().text_sm().child(SharedString::from(
+                        r.description
+                            .as_deref()
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or("—")
+                            .to_string(),
+                    )),
                 )
                 .when(image_count > 0, |this| {
                     this.child(
@@ -482,10 +478,7 @@ impl Render for ExchangeRateView {
                     &view,
                     &app_theme,
                     "exchange-rate",
-                    &[AggregateItem::new(
-                        "总条数",
-                        fmt_int(total as i64),
-                    )],
+                    &[AggregateItem::new("总条数", fmt_int(total as i64))],
                     &page_state,
                     &[DEFAULT_PAGE_SIZE],
                     |this, page, cx| this.go_to_page(page, cx),
@@ -608,9 +601,7 @@ fn render_filter_card(
                             PopupMenuItem::new("全部货币")
                                 .checked(currency_filter.is_none())
                                 .on_click(move |_ev, _w, cx| {
-                                    view_all.update(cx, |this, cx| {
-                                        this.select_currency(None, cx)
-                                    });
+                                    view_all.update(cx, |this, cx| this.select_currency(None, cx));
                                 }),
                         );
                         for (value, label) in CURRENCY_OPTIONS.iter() {
@@ -618,16 +609,14 @@ fn render_filter_card(
                             let value = value.to_string();
                             let checked = currency_filter.as_deref() == Some(value.as_str());
                             let label = label.to_string();
-                            menu = menu.item(
-                                PopupMenuItem::new(label)
-                                    .checked(checked)
-                                    .on_click(move |_ev, _w, cx| {
-                                        let value = value.clone();
-                                        view.update(cx, |this, cx| {
-                                            this.select_currency(Some(value), cx)
-                                        });
-                                    }),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_ev, _w, cx| {
+                                    let value = value.clone();
+                                    view.update(cx, |this, cx| {
+                                        this.select_currency(Some(value), cx)
+                                    });
+                                },
+                            ));
                         }
                         menu
                     },
@@ -751,7 +740,16 @@ fn list_section(
                 .text_color(theme.text_muted)
                 .child("后端按年月倒序 + 货币正序排列；每货币每月仅一条"),
         )
-        .child(div().id("exchange-rate-table").flex_1().min_h_0().px_2().pb_2().overflow_y_scroll().child(table))
+        .child(
+            div()
+                .id("exchange-rate-table")
+                .flex_1()
+                .min_h_0()
+                .px_2()
+                .pb_2()
+                .overflow_y_scroll()
+                .child(table),
+        )
         .when(total == 0, |this| this.child(div()))
         .into_any_element()
 }
@@ -895,11 +893,14 @@ mod tests {
     #[test]
     fn build_filter_reflects_selection() {
         // 空筛选 → 全空（year_month 不携带）
-        assert_eq!(ExchangeRateFilter::default(), ExchangeRateFilter {
-            currency: None,
-            year: None,
-            month: None,
-        });
+        assert_eq!(
+            ExchangeRateFilter::default(),
+            ExchangeRateFilter {
+                currency: None,
+                year: None,
+                month: None,
+            }
+        );
 
         // 年 + 月同时指定 → year_month 归一（api-client 契约在视图侧的镜像断言）
         let filter = ExchangeRateFilter {

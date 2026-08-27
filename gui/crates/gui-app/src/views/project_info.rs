@@ -13,7 +13,6 @@
 //! - **精简**：新建 / 编辑 / 项目上下文（ProjectContextDrawer）等写链路与
 //!   配置抽屉不移植——GUI 无表单弹层先例，维护走 web 端。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -309,12 +308,7 @@ fn columns() -> Vec<ColumnDef<ManagedProject>> {
         .width(64.0)
         .numeric(true),
         ColumnDef::text("status", "状态", |r: &ManagedProject, _| {
-            if r.is_active {
-                "启用"
-            } else {
-                "停用"
-            }
-            .into()
+            if r.is_active { "启用" } else { "停用" }.into()
         })
         .width(64.0),
     ]

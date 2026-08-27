@@ -54,7 +54,6 @@ use gui_domain::operations::product_analysis::{
 };
 
 use crate::theme::AppTheme;
-use crate::widgets::pattern_b::pattern_b_shell;
 use crate::views::weekly_product_analysis::{
     country_label, format_summary_cell, iso_week_label, resolve_project_id,
 };
@@ -62,6 +61,7 @@ use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pattern_b::pattern_b_shell;
 use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
@@ -81,7 +81,15 @@ const DEFAULT_COUNTRY: &str = "US";
 /// SKU 明细展示列（对齐 web `DETAIL_DISPLAY_COLUMNS`：SKU / ASIN +
 /// 7 指标列；格式化走 weekly 视图 `format_summary_cell` 同一口径）
 pub const DETAIL_DISPLAY_COLUMNS: [&str; 9] = [
-    "SKU", "ASIN", "总销量", "总销售额", "广告花费", "广告销售额", "ACOS", "利润", "利润率",
+    "SKU",
+    "ASIN",
+    "总销量",
+    "总销售额",
+    "广告花费",
+    "广告销售额",
+    "ACOS",
+    "利润",
+    "利润率",
 ];
 
 /// 周期汇总展示指标列（对齐 web 周期摘要行 `renderCell(period.summary[...])`
@@ -122,7 +130,13 @@ pub fn missing_summary_line(label: &str, dates: &[String]) -> String {
     let shown: Vec<&str> = dates.iter().take(7).map(String::as_str).collect();
     let more = dates.len().saturating_sub(7);
     if more > 0 {
-        format!("{}：缺失 {} 天（{} 等 {} 天）", label, dates.len(), shown.join("、"), more)
+        format!(
+            "{}：缺失 {} 天（{} 等 {} 天）",
+            label,
+            dates.len(),
+            shown.join("、"),
+            more
+        )
     } else {
         format!("{}：缺失 {} 天（{}）", label, dates.len(), shown.join("、"))
     }
@@ -352,9 +366,7 @@ impl ProductAnalysisView {
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(load_projects(&client))
-                })
+                .spawn(async move { crate::runtime::runtime().block_on(load_projects(&client)) })
                 .await;
             this.update(&mut *cx, |this, cx| {
                 this.apply_result(request_id, result, cx);
@@ -489,9 +501,7 @@ impl ProductAnalysisView {
                 .spawn(async move {
                     crate::runtime::runtime().block_on(async move {
                         client
-                            .product_analysis_run(
-                                project_id, country, start_date, end_date, true,
-                            )
+                            .product_analysis_run(project_id, country, start_date, end_date, true)
                             .await
                             .map_err(|e| e.user_message())
                     })
@@ -574,7 +584,11 @@ impl ProductAnalysisView {
                 self.sync_period_table(&resp, cx);
                 // 默认展开第一个周期（对齐 web expandedIndex 初始 null → 用户
                 // 点击展开；GUI 明细表常驻，默认选中首周期减少一步操作）
-                self.selected_period_ix = if resp.periods.is_empty() { None } else { Some(0) };
+                self.selected_period_ix = if resp.periods.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
                 self.run_phase = RunPhase::Done(Box::new(resp));
                 self.sync_details_table(cx);
             }
@@ -600,20 +614,19 @@ impl ProductAnalysisView {
         }
         let rows = resp.weekly_availability.clone();
         let table = cx.new(|_| {
-            DataTable::new("product-analysis-availability-table", availability_columns())
-                .striped(true)
-                .max_height(320.0)
+            DataTable::new(
+                "product-analysis-availability-table",
+                availability_columns(),
+            )
+            .striped(true)
+            .max_height(320.0)
         });
         table.update(cx, |t, cx| t.set_rows(rows, cx));
         self.availability_table = Some(table);
     }
 
     /// 构建 / 刷新周期汇总表（country 变化后旧表已随作废清空，此处总是重建）
-    fn sync_period_table(
-        &mut self,
-        resp: &ProductAnalysisRunResponse,
-        cx: &mut Context<Self>,
-    ) {
+    fn sync_period_table(&mut self, resp: &ProductAnalysisRunResponse, cx: &mut Context<Self>) {
         if resp.periods.is_empty() {
             self.period_table = None;
             return;
@@ -636,9 +649,7 @@ impl ProductAnalysisView {
     /// 视图层走「无 SKU 明细」兜底文案）
     fn sync_details_table(&mut self, cx: &mut Context<Self>) {
         let period = match &self.run_phase {
-            RunPhase::Done(resp) => self
-                .selected_period_ix
-                .and_then(|ix| resp.periods.get(ix)),
+            RunPhase::Done(resp) => self.selected_period_ix.and_then(|ix| resp.periods.get(ix)),
             _ => None,
         };
         let Some(period) = period else {
@@ -653,10 +664,13 @@ impl ProductAnalysisView {
             period.details.iter().map(build_period_detail_row).collect();
         let country = self.country;
         let table = cx.new(|_| {
-            DataTable::new("product-analysis-details-table", period_detail_columns(country))
-                .striped(true)
-                .empty_text("当前周期暂无 SKU 明细")
-                .max_height(420.0)
+            DataTable::new(
+                "product-analysis-details-table",
+                period_detail_columns(country),
+            )
+            .striped(true)
+            .empty_text("当前周期暂无 SKU 明细")
+            .max_height(420.0)
         });
         table.update(cx, |t, cx| t.set_rows(rows, cx));
         self.details_table = Some(table);
@@ -791,10 +805,7 @@ fn render_error(
 
 /// Empty（项目列表为空）：Icon + 文案 + 刷新按钮（Stage 0
 /// `empty_state_with_action`）
-fn render_empty(
-    cx: &mut Context<ProductAnalysisView>,
-    app_theme: &AppTheme,
-) -> impl IntoElement {
+fn render_empty(cx: &mut Context<ProductAnalysisView>, app_theme: &AppTheme) -> impl IntoElement {
     let view = cx.entity();
     v_flex()
         .id("product-analysis-empty")
@@ -869,19 +880,16 @@ fn render_loaded(
                 &run_phase,
                 date_range,
             )))
-            .when(
-                matches!(&check_phase, CheckPhase::Failed(_)),
-                |this| {
-                    let CheckPhase::Failed(msg) = &check_phase else {
-                        return this;
-                    };
-                    this.child(content_guard().child(phase_banner(
-                        app_theme,
-                        "product-analysis-check-error",
-                        &format!("检查数据失败：{msg}"),
-                    )))
-                },
-            )
+            .when(matches!(&check_phase, CheckPhase::Failed(_)), |this| {
+                let CheckPhase::Failed(msg) = &check_phase else {
+                    return this;
+                };
+                this.child(content_guard().child(phase_banner(
+                    app_theme,
+                    "product-analysis-check-error",
+                    &format!("检查数据失败：{msg}"),
+                )))
+            })
             .when(matches!(&check_phase, CheckPhase::Done(_)), |this| {
                 let CheckPhase::Done(resp) = &check_phase else {
                     return this;
@@ -976,13 +984,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -997,13 +1003,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(
-                            move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            },
-                        ),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1016,7 +1020,11 @@ fn render_filter_bar(
                 .outline()
                 .small()
                 .disabled(!can_check)
-                .label(if checking { "检查中…" } else { "检查数据" })
+                .label(if checking {
+                    "检查中…"
+                } else {
+                    "检查数据"
+                })
                 .on_click(move |_, _window, cx| {
                     view_for_check.update(cx, |this, cx| this.check_data(cx));
                 }),
@@ -1025,7 +1033,11 @@ fn render_filter_bar(
             Button::new("product-analysis-run")
                 .small()
                 .disabled(!can_run)
-                .label(if running { "核算中…" } else { "执行核算" })
+                .label(if running {
+                    "核算中…"
+                } else {
+                    "执行核算"
+                })
                 .on_click(move |_, _window, cx| {
                     view_for_run.update(cx, |this, cx| this.run_calculation(cx));
                 }),
@@ -1250,13 +1262,11 @@ fn results_card(
                         let ix = *ix;
                         let label = label.clone();
                         let view_p = view_for_period.clone();
-                        menu = menu.item(
-                            PopupMenuItem::new(label)
-                                .checked(checked)
-                                .on_click(move |_, _window, cx| {
-                                    view_p.update(cx, |this, cx| this.select_period(ix, cx));
-                                }),
-                        );
+                        menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                            move |_, _window, cx| {
+                                view_p.update(cx, |this, cx| this.select_period(ix, cx));
+                            },
+                        ));
                     }
                     menu
                 },
@@ -1328,11 +1338,7 @@ fn results_card(
                 })
                 // 选中周期元信息 + SKU 明细
                 .when_some(selected_period, |this, period| {
-                    this.child(period_detail_section(
-                        app_theme,
-                        period,
-                        details_table,
-                    ))
+                    this.child(period_detail_section(app_theme, period, details_table))
                 })
                 .into_any_element(),
         })
@@ -1443,7 +1449,11 @@ pub fn availability_columns() -> Vec<ColumnDef<WeeklyAvailabilityItem>> {
             "pa-avail-payment",
             "回款",
             |r: &WeeklyAvailabilityItem, _| {
-                SharedString::from(if r.payment_covered { "已覆盖" } else { "未覆盖" })
+                SharedString::from(if r.payment_covered {
+                    "已覆盖"
+                } else {
+                    "未覆盖"
+                })
             },
         )
         .width(80.0),
@@ -1459,7 +1469,11 @@ pub fn availability_columns() -> Vec<ColumnDef<WeeklyAvailabilityItem>> {
             "pa-avail-partial",
             "完整性",
             |r: &WeeklyAvailabilityItem, _| {
-                SharedString::from(if r.is_partial { "部分缺失" } else { "完整" })
+                SharedString::from(if r.is_partial {
+                    "部分缺失"
+                } else {
+                    "完整"
+                })
             },
         )
         .width(90.0),
@@ -1476,10 +1490,7 @@ pub fn period_summary_columns(country: &str) -> Vec<ColumnDef<CalculationPeriodI
             "pa-period-range",
             "周期",
             |r: &CalculationPeriodItem, _| {
-                SharedString::from(format!(
-                    "{} ~ {}",
-                    r.report_start_date, r.report_end_date
-                ))
+                SharedString::from(format!("{} ~ {}", r.report_start_date, r.report_end_date))
             },
         )
         .width(200.0),
@@ -1519,17 +1530,13 @@ pub fn period_summary_columns(country: &str) -> Vec<ColumnDef<CalculationPeriodI
 pub fn period_detail_columns(country: &str) -> Vec<ColumnDef<PeriodDetailRow>> {
     let country_owned = country.to_string();
     let mut columns: Vec<ColumnDef<PeriodDetailRow>> = vec![
-        ColumnDef::text(
-            "pa-detail-sku",
-            "SKU",
-            |r: &PeriodDetailRow, _| SharedString::from(r.sku.clone()),
-        )
+        ColumnDef::text("pa-detail-sku", "SKU", |r: &PeriodDetailRow, _| {
+            SharedString::from(r.sku.clone())
+        })
         .width(180.0),
-        ColumnDef::text(
-            "pa-detail-asin",
-            "ASIN",
-            |r: &PeriodDetailRow, _| SharedString::from(r.asin.clone()),
-        )
+        ColumnDef::text("pa-detail-asin", "ASIN", |r: &PeriodDetailRow, _| {
+            SharedString::from(r.asin.clone())
+        })
         .width(140.0),
     ];
     for column in DETAIL_DISPLAY_COLUMNS.iter().skip(2) {
@@ -1596,7 +1603,13 @@ mod tests {
         }
     }
 
-    fn week_item(start: &str, end: &str, business_days: i64, can: bool, partial: bool) -> WeeklyAvailabilityItem {
+    fn week_item(
+        start: &str,
+        end: &str,
+        business_days: i64,
+        can: bool,
+        partial: bool,
+    ) -> WeeklyAvailabilityItem {
         WeeklyAvailabilityItem {
             iso_year: 2026,
             iso_week: 32,
@@ -1710,13 +1723,25 @@ mod tests {
         // 周日当天（JS getDay()=0 分支）：2026-08-16 → 本周一 2026-08-10 → 上周 08-03 ~ 08-09
         let sunday = NaiveDate::from_ymd_opt(2026, 8, 16).expect("合法日期");
         let range = default_last_week_range(sunday);
-        assert_eq!(range.from, Some(NaiveDate::from_ymd_opt(2026, 8, 3).expect("合法日期")));
-        assert_eq!(range.to, Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期")));
+        assert_eq!(
+            range.from,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 3).expect("合法日期"))
+        );
+        assert_eq!(
+            range.to,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期"))
+        );
         // 周一当天：本周一 = today → 上周 = today-7 ~ today-1
         let monday = NaiveDate::from_ymd_opt(2026, 8, 10).expect("合法日期");
         let range = default_last_week_range(monday);
-        assert_eq!(range.from, Some(NaiveDate::from_ymd_opt(2026, 8, 3).expect("合法日期")));
-        assert_eq!(range.to, Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期")));
+        assert_eq!(
+            range.from,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 3).expect("合法日期"))
+        );
+        assert_eq!(
+            range.to,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 9).expect("合法日期"))
+        );
     }
 
     /// 缺失汇总行：无缺失 / ≤7 天全列 / >7 天省略
@@ -1737,7 +1762,10 @@ mod tests {
     /// 周期状态标签：已写入PT1 / 部分（含完整性天数）/ 组合 / 空
     #[test]
     fn period_status_label_variants() {
-        assert_eq!(period_status_label(&sample_period(true, false)), "已写入PT1");
+        assert_eq!(
+            period_status_label(&sample_period(true, false)),
+            "已写入PT1"
+        );
         assert_eq!(
             period_status_label(&sample_period(false, true)),
             "部分 6/7天"
@@ -1862,16 +1890,25 @@ mod tests {
 
         // —— US 基线 ——
         let us = period_detail_columns("US");
-        assert_eq!(render_cell(&us, "pa-detail-总销售额", &row, &theme), "-$1,234.57");
+        assert_eq!(
+            render_cell(&us, "pa-detail-总销售额", &row, &theme),
+            "-$1,234.57"
+        );
         assert_eq!(render_cell(&us, "pa-detail-利润", &row, &theme), "$500.00");
         assert_eq!(render_cell(&us, "pa-detail-ACOS", &row, &theme), "25.00%");
         // —— DE：闭包必须用传入的 country 而非硬编码 US ——
         let de = period_detail_columns("DE");
-        assert_eq!(render_cell(&de, "pa-detail-总销售额", &row, &theme), "-€1,234.57");
+        assert_eq!(
+            render_cell(&de, "pa-detail-总销售额", &row, &theme),
+            "-€1,234.57"
+        );
         assert_eq!(render_cell(&de, "pa-detail-利润", &row, &theme), "€500.00");
         // —— UK ——
         let uk = period_detail_columns("UK");
-        assert_eq!(render_cell(&uk, "pa-detail-总销售额", &row, &theme), "-£1,234.57");
+        assert_eq!(
+            render_cell(&uk, "pa-detail-总销售额", &row, &theme),
+            "-£1,234.57"
+        );
         assert_eq!(render_cell(&uk, "pa-detail-利润", &row, &theme), "£500.00");
         // 非货币列（整数 / 百分比）不受 country 影响
         assert_eq!(render_cell(&us, "pa-detail-总销量", &row, &theme), "10");
@@ -1916,8 +1953,14 @@ mod tests {
             "€15,320.50"
         );
         // 百分比列不受 country 影响
-        assert_eq!(render_cell(&us, "pa-period-利润率", &period, &theme), "20.00%");
-        assert_eq!(render_cell(&de, "pa-period-利润率", &period, &theme), "20.00%");
+        assert_eq!(
+            render_cell(&us, "pa-period-利润率", &period, &theme),
+            "20.00%"
+        );
+        assert_eq!(
+            render_cell(&de, "pa-period-利润率", &period, &theme),
+            "20.00%"
+        );
     }
 
     /// 状态转移：项目空 → Empty；有数据 → Loaded；错误 → Error

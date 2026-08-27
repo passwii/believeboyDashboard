@@ -46,16 +46,14 @@ use gui_domain::order_info::{
 };
 
 use crate::theme::AppTheme;
-use crate::widgets::data_grid::{
-    grid_footer_bar, pattern_a_shell, AggregateItem,
-};
+use crate::widgets::data_grid::{grid_footer_bar, pattern_a_shell, AggregateItem};
 
 use crate::widgets::data_table::{ColumnDef, DataTable};
-use crate::widgets::pagination::PageState;
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::filter_bar;
 use crate::widgets::filter_bar::toolbar_spacer;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::pagination::PageState;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// sidebar「报表中心 → 订单信息」URL（数据权威 gui-domain::sidebar）
@@ -676,8 +674,7 @@ impl OrderInfoView {
     /// 懒建关键字输入（首帧；`InputState::new` 需要 window）+ 回车订阅
     fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.order_id_input.is_none() {
-            let input =
-                cx.new(|cx| InputState::new(window, cx).placeholder("例如 111-3084457-…"));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("例如 111-3084457-…"));
             let sub = cx.subscribe(&input, |this, _entity, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::PressEnter { .. }) {
                     this.apply_keywords(cx);
@@ -687,8 +684,7 @@ impl OrderInfoView {
             self._subscriptions.push(sub);
         }
         if self.sku_input.is_none() {
-            let input =
-                cx.new(|cx| InputState::new(window, cx).placeholder("例如 JDB-4341-29PCS"));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("例如 JDB-4341-29PCS"));
             let sub = cx.subscribe(&input, |this, _entity, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::PressEnter { .. }) {
                     this.apply_keywords(cx);
@@ -855,7 +851,10 @@ fn order_columns() -> Vec<ColumnDef<OrderInfoItem>> {
                     div()
                         .text_xs()
                         .text_color(theme.text_muted)
-                        .child(SharedString::from(format!("ASIN {}", text_or_dash(&r.asin)))),
+                        .child(SharedString::from(format!(
+                            "ASIN {}",
+                            text_or_dash(&r.asin)
+                        ))),
                 )
                 .into_any_element()
         })
@@ -1020,7 +1019,10 @@ impl Render for OrderInfoView {
                         "order-info-empty",
                         "icons/shopping-bag.svg",
                         message,
-                        Some("调整筛选条件或点击刷新；CSV 导出与 FBM 补录请在 web 端操作".to_string()),
+                        Some(
+                            "调整筛选条件或点击刷新；CSV 导出与 FBM 补录请在 web 端操作"
+                                .to_string(),
+                        ),
                         "刷新",
                         |this, cx| this.reload(cx),
                     ),
@@ -1188,9 +1190,7 @@ fn render_filter_card(
                             PopupMenuItem::new("全部店铺")
                                 .checked(project_filter.is_none())
                                 .on_click(move |_ev, _w, cx| {
-                                    view_all.update(cx, |this, cx| {
-                                        this.select_project(None, cx)
-                                    });
+                                    view_all.update(cx, |this, cx| this.select_project(None, cx));
                                 }),
                         );
                         for project in &projects {
@@ -1222,9 +1222,8 @@ fn render_filter_card(
                             PopupMenuItem::new("全部类型")
                                 .checked(fulfillment_filter.is_none())
                                 .on_click(move |_ev, _w, cx| {
-                                    view_all.update(cx, |this, cx| {
-                                        this.select_fulfillment(None, cx)
-                                    });
+                                    view_all
+                                        .update(cx, |this, cx| this.select_fulfillment(None, cx));
                                 }),
                         );
                         for (value, label) in FULFILLMENT_OPTIONS.iter() {
@@ -1266,19 +1265,14 @@ fn render_filter_card(
                         for option in &statuses {
                             let view = view_for_status.clone();
                             let value = option.value.clone();
-                            let checked =
-                                status_filter.as_deref() == Some(option.value.as_str());
+                            let checked = status_filter.as_deref() == Some(option.value.as_str());
                             let label = option.label.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label)
-                                    .checked(checked)
-                                    .on_click(move |_ev, _w, cx| {
-                                        let value = value.clone();
-                                        view.update(cx, |this, cx| {
-                                            this.select_status(Some(value), cx)
-                                        });
-                                    }),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_ev, _w, cx| {
+                                    let value = value.clone();
+                                    view.update(cx, |this, cx| this.select_status(Some(value), cx));
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1295,9 +1289,7 @@ fn render_filter_card(
                             PopupMenuItem::new("全部国家")
                                 .checked(country_filter.is_none())
                                 .on_click(move |_ev, _w, cx| {
-                                    view_all.update(cx, |this, cx| {
-                                        this.select_country(None, cx)
-                                    });
+                                    view_all.update(cx, |this, cx| this.select_country(None, cx));
                                 }),
                         );
                         for (value, label) in COUNTRY_FILTER_OPTIONS.iter() {
@@ -1333,27 +1325,22 @@ fn render_filter_card(
                             })
                             .checked(currency_filter.is_none())
                             .on_click(move |_ev, _w, cx| {
-                                view_all.update(cx, |this, cx| {
-                                    this.select_currency(None, cx)
-                                });
+                                view_all.update(cx, |this, cx| this.select_currency(None, cx));
                             }),
                         );
                         for option in &currencies {
                             let view = view_for_currency.clone();
                             let value = option.value.clone();
-                            let checked =
-                                currency_filter.as_deref() == Some(option.value.as_str());
+                            let checked = currency_filter.as_deref() == Some(option.value.as_str());
                             let label = option.label.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label)
-                                    .checked(checked)
-                                    .on_click(move |_ev, _w, cx| {
-                                        let value = value.clone();
-                                        view.update(cx, |this, cx| {
-                                            this.select_currency(Some(value), cx)
-                                        });
-                                    }),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_ev, _w, cx| {
+                                    let value = value.clone();
+                                    view.update(cx, |this, cx| {
+                                        this.select_currency(Some(value), cx)
+                                    });
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1439,11 +1426,8 @@ fn order_stat_aggregates(overview: &OrderInfoOverview) -> Vec<AggregateItem> {
     vec![
         AggregateItem::new("订单数", fmt_int(stats.total_orders)),
         AggregateItem::new("总数量", fmt_int(stats.total_quantity)),
-        AggregateItem::new(
-            "总金额",
-            fmt_fixed(stats.total_amount, 2),
-        )
-        .note(stats.currency.clone().unwrap_or_else(|| "—".into())),
+        AggregateItem::new("总金额", fmt_fixed(stats.total_amount, 2))
+            .note(stats.currency.clone().unwrap_or_else(|| "—".into())),
         AggregateItem::new("FBA 行数", fmt_int(stats.fba_count)),
         AggregateItem::new("FBM 行数", fmt_int(stats.fbm_count)),
     ]
@@ -1712,8 +1696,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data();
             this.projects = data.projects.clone();
@@ -1733,8 +1716,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let mut fbm = sample_item(3);
             fbm.fulfillment_channel = "Merchant".into();
@@ -1759,8 +1741,7 @@ mod tests {
     #[gpui::test]
     async fn renders_error_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = OrderInfoState::Error("服务不可用".into());
@@ -1771,8 +1752,7 @@ mod tests {
     #[gpui::test]
     async fn renders_empty_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = OrderInfoState::Empty;
@@ -1786,8 +1766,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data();
             this.table.update(cx, |t, cx| {
@@ -1806,8 +1785,7 @@ mod tests {
     #[gpui::test]
     async fn filter_actions_reset_page_and_noop_on_same_value(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             // 预置非首页 + 已选店铺
             this.page = 3;
@@ -1881,8 +1859,7 @@ mod tests {
     #[gpui::test]
     async fn apply_keywords_guards_and_commits(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             // 输入未懒建（值空）且 committed 为空 → no-op
             let before = this.latest_request_id;
@@ -1902,8 +1879,7 @@ mod tests {
     #[gpui::test]
     async fn clear_filters_resets_everything(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.project_filter = Some(3);
             this.fulfillment_filter = Some("Amazon");
@@ -1941,8 +1917,7 @@ mod tests {
     #[gpui::test]
     async fn empty_message_follows_three_tiers(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| OrderInfoView::new(cx, dummy_client()));
         view.update(cx2, |view, _| {
             // 第一档：首屏拉取完成（auto_select_done）且项目列表为空 → 权限提示
             view.auto_select_done = true;

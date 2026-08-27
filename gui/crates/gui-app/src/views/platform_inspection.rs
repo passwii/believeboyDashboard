@@ -29,15 +29,9 @@ use gpui::{
     div, prelude::*, px, App, AsyncApp, Context, CursorStyle, Entity, FontWeight, MouseButton,
     Render, SharedString, WeakEntity, Window,
 };
-use gpui_component::{
-    h_flex,
-    menu::PopupMenuItem,
-    v_flex, Icon, IconName, Sizable, StyledExt,
-};
+use gpui_component::{h_flex, menu::PopupMenuItem, v_flex, Icon, IconName, Sizable, StyledExt};
 use gui_api_client::Client;
-use gui_domain::operations::platform_inspection::{
-    InspectionOverviewItem, InspectionPeriod,
-};
+use gui_domain::operations::platform_inspection::{InspectionOverviewItem, InspectionPeriod};
 
 use crate::theme::AppTheme;
 use crate::views::platform_inspection_edit::{ReportEditEvent, ReportEditForm};
@@ -51,7 +45,11 @@ pub const PLATFORM_INSPECTION_URL: &str = "/dashboard/operations/platform-inspec
 
 /// 概览卡片网格列数（对齐 frontend `sm:grid-cols-2 lg:grid-cols-3`：窄窗 2 列，宽窗 3 列）
 pub fn overview_columns(window_width: f32) -> usize {
-    if window_width >= 1100.0 { 3 } else { 2 }
+    if window_width >= 1100.0 {
+        3
+    } else {
+        2
+    }
 }
 
 /// 概览 tab / 历史 tab（对齐 frontend `INSPECTION_TAB_ORDER = ['overview', 'history']`）
@@ -257,7 +255,9 @@ pub struct HistoryRow {
 }
 
 impl HistoryRow {
-    pub fn from_item(item: &gui_domain::operations::platform_inspection::InspectionHistoryItem) -> Self {
+    pub fn from_item(
+        item: &gui_domain::operations::platform_inspection::InspectionHistoryItem,
+    ) -> Self {
         Self {
             id: item.id,
             project_name: item.project_name.clone(),
@@ -397,8 +397,7 @@ impl PlatformInspectionView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_inspection_history(&client, period_id))
+                    crate::runtime::runtime().block_on(load_inspection_history(&client, period_id))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -426,9 +425,8 @@ impl PlatformInspectionView {
             return;
         };
         let client = self.client.clone();
-        let form = cx.new(|cx| {
-            ReportEditForm::new(cx, client, period_id, project_id, project_name)
-        });
+        let form =
+            cx.new(|cx| ReportEditForm::new(cx, client, period_id, project_id, project_name));
         self.edit_sub = Some(cx.subscribe(&form, |this, _, event: &ReportEditEvent, cx| {
             match event {
                 ReportEditEvent::Changed => {
@@ -512,11 +510,7 @@ async fn load_inspection_history(
         .inspection_history(Some(period_id), None, Some(100), None)
         .await
         .map_err(|e| e.user_message())?;
-    Ok(resp
-        .items
-        .iter()
-        .map(HistoryRow::from_item)
-        .collect())
+    Ok(resp.items.iter().map(HistoryRow::from_item).collect())
 }
 
 impl Render for PlatformInspectionView {
@@ -547,10 +541,7 @@ impl Render for PlatformInspectionView {
             .overflow_y_scroll()
             .bg(theme.window_bg)
             // 页面头部（P4-5：共享 PageHeader 统一结构）
-            .child(
-                PageHeader::new("平台巡检")
-                    .subtitle("定期记录账户健康状态、截图和状态说明"),
-            )
+            .child(PageHeader::new("平台巡检").subtitle("定期记录账户健康状态、截图和状态说明"))
             // tab 栏：概览 / 历史记录（宽窗受内容上限约束）
             .child(content_guard().child(render_tab_bar(&view, self.active_tab, &theme)))
             // tab 内容
@@ -675,8 +666,7 @@ fn render_overview_tab(
                     .child(edit.clone())
                     .into_any_element()
             } else {
-                render_overview_loaded(window, view, theme, data)
-                    .into_any_element()
+                render_overview_loaded(window, view, theme, data).into_any_element()
             }
         }
     }
@@ -694,17 +684,11 @@ fn render_loading(theme: &AppTheme) -> impl IntoElement {
                 .h(px(110.))
                 .child(gpui_component::skeleton::Skeleton::new()),
         )
-        .child(
+        .child(div().grid().grid_cols(2).gap_3().children((0..4).map(|_| {
             div()
-                .grid()
-                .grid_cols(2)
-                .gap_3()
-                .children((0..4).map(|_| {
-                    div()
-                        .h(px(240.))
-                        .child(gpui_component::skeleton::Skeleton::new())
-                })),
-        )
+                .h(px(240.))
+                .child(gpui_component::skeleton::Skeleton::new())
+        })))
 }
 
 /// Loaded：周期摘要卡 + 预警横幅 + 项目卡片网格（风险排序）
@@ -792,9 +776,7 @@ fn period_summary_card(
         .rounded(px(theme.radius_lg))
         .bg(theme.card_bg)
         .shadow(vec![theme.card_shadow_box()])
-        .when(overdue, |this| {
-            this.border_t_2().border_color(theme.danger)
-        })
+        .when(overdue, |this| this.border_t_2().border_color(theme.danger))
         .child(
             h_flex()
                 .items_center()
@@ -820,13 +802,12 @@ fn period_summary_card(
                                 .items_center()
                                 .text_sm()
                                 .text_color(theme.text_muted)
-                                .child(format!("截止时间: {}", format_datetime(Some(period.deadline))))
+                                .child(format!(
+                                    "截止时间: {}",
+                                    format_datetime(Some(period.deadline))
+                                ))
                                 .when(overdue, |this| {
-                                    this.child(
-                                        div()
-                                            .text_color(theme.danger)
-                                            .child("(已逾期)"),
-                                    )
+                                    this.child(div().text_color(theme.danger).child("(已逾期)"))
                                 }),
                         ),
                 )
@@ -1027,15 +1008,13 @@ fn project_card(
                 .pt_3()
                 .text_xs()
                 .text_color(theme.text_muted)
-                .child(
-                    match (submitted_by, submitted_at) {
-                        (Some(by), Some(at)) => {
-                            div().child(format!("{by} · {}", format_datetime(Some(at))))
-                        }
-                        (Some(by), None) => div().child(by),
-                        _ => div().child("未提交"),
-                    },
-                )
+                .child(match (submitted_by, submitted_at) {
+                    (Some(by), Some(at)) => {
+                        div().child(format!("{by} · {}", format_datetime(Some(at))))
+                    }
+                    (Some(by), None) => div().child(by),
+                    _ => div().child("未提交"),
+                })
                 .child(
                     h_flex()
                         .gap_2()
@@ -1098,12 +1077,7 @@ fn ahr_badge(theme: &AppTheme, rating: Option<&str>) -> impl IntoElement {
                 .border_1()
                 .border_color(bg)
                 .bg(bg)
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("AHR"),
-                )
+                .child(div().text_xs().text_color(theme.text_muted).child("AHR"))
                 .child(
                     div()
                         .text_xs()
@@ -1120,12 +1094,7 @@ fn ahr_badge(theme: &AppTheme, rating: Option<&str>) -> impl IntoElement {
             .rounded_full()
             .border_1()
             .border_color(theme.separator)
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(theme.text_muted)
-                    .child("AHR —"),
-            ),
+            .child(div().text_xs().text_color(theme.text_muted).child("AHR —")),
     }
 }
 
@@ -1145,12 +1114,7 @@ fn service_pill(theme: &AppTheme, total: i64) -> impl IntoElement {
         .border_1()
         .border_color(bg)
         .bg(bg)
-        .child(
-            div()
-                .text_xs()
-                .text_color(theme.text_muted)
-                .child("客服"),
-        )
+        .child(div().text_xs().text_color(theme.text_muted).child("客服"))
         .child(
             div()
                 .text_xs()
@@ -1181,7 +1145,12 @@ fn metric_badge(
         .py_1p5()
         .rounded(px(theme.radius))
         .bg(bg)
-        .child(div().text_xs().text_color(theme.text_muted).child(label.to_string()))
+        .child(
+            div()
+                .text_xs()
+                .text_color(theme.text_muted)
+                .child(label.to_string()),
+        )
         .child(
             h_flex()
                 .gap_1()
@@ -1366,10 +1335,13 @@ fn render_period_selector(
     let selected = this.selected_period_id;
     let current_label: SharedString = selected
         .and_then(|id| {
-            periods
-                .iter()
-                .find(|p| p.id == id)
-                .map(|p| format!("{} - {}", format_date(p.week_start), format_date(p.week_end)))
+            periods.iter().find(|p| p.id == id).map(|p| {
+                format!(
+                    "{} - {}",
+                    format_date(p.week_start),
+                    format_date(p.week_end)
+                )
+            })
         })
         .map(SharedString::from)
         .unwrap_or_else(|| SharedString::from("选择周期"));
@@ -1390,13 +1362,11 @@ fn render_period_selector(
                 );
                 let period_id = period.id; // Copy；闭包不借用 period 引用
                 let view = view.clone();
-                menu = menu.item(
-                    PopupMenuItem::new(label)
-                        .checked(checked)
-                        .on_click(move |_, _window, cx| {
-                            view.update(cx, |this, cx| this.select_period(period_id, cx));
-                        }),
-                );
+                menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                    move |_, _window, cx| {
+                        view.update(cx, |this, cx| this.select_period(period_id, cx));
+                    },
+                ));
             }
             menu
         },
@@ -1566,33 +1536,96 @@ mod tests {
     fn card_severity_priority() {
         // Critical 优先
         assert_eq!(
-            card_severity(&item(1, "submitted", Some("Critical"), Some(0), None, None, None, (0, 0, 0))),
+            card_severity(&item(
+                1,
+                "submitted",
+                Some("Critical"),
+                Some(0),
+                None,
+                None,
+                None,
+                (0, 0, 0)
+            )),
             CardSeverity::Critical
         );
         assert_eq!(
-            card_severity(&item(2, "submitted", Some("Good"), Some(3), None, None, None, (0, 0, 0))),
+            card_severity(&item(
+                2,
+                "submitted",
+                Some("Good"),
+                Some(3),
+                None,
+                None,
+                None,
+                (0, 0, 0)
+            )),
             CardSeverity::Critical
         );
         assert_eq!(
-            card_severity(&item(3, "submitted", Some("Good"), Some(0), Some(5.0), None, None, (0, 0, 0))),
+            card_severity(&item(
+                3,
+                "submitted",
+                Some("Good"),
+                Some(0),
+                Some(5.0),
+                None,
+                None,
+                (0, 0, 0)
+            )),
             CardSeverity::Critical
         );
         // Warning
         assert_eq!(
-            card_severity(&item(4, "draft", Some("At Risk"), Some(0), None, None, None, (0, 0, 0))),
+            card_severity(&item(
+                4,
+                "draft",
+                Some("At Risk"),
+                Some(0),
+                None,
+                None,
+                None,
+                (0, 0, 0)
+            )),
             CardSeverity::Warning
         );
         assert_eq!(
-            card_severity(&item(5, "draft", Some("Good"), Some(1), None, None, None, (0, 0, 0))),
+            card_severity(&item(
+                5,
+                "draft",
+                Some("Good"),
+                Some(1),
+                None,
+                None,
+                None,
+                (0, 0, 0)
+            )),
             CardSeverity::Warning
         );
         assert_eq!(
-            card_severity(&item(6, "draft", Some("Good"), Some(0), None, None, None, (1, 0, 0))),
+            card_severity(&item(
+                6,
+                "draft",
+                Some("Good"),
+                Some(0),
+                None,
+                None,
+                None,
+                (1, 0, 0)
+            )),
             CardSeverity::Warning
         );
         // Normal
         assert_eq!(
-            card_severity(&item(7, "submitted", Some("Good"), Some(0), Some(1.0), Some(98.0), Some(98.0), (0, 0, 0))),
+            card_severity(&item(
+                7,
+                "submitted",
+                Some("Good"),
+                Some(0),
+                Some(1.0),
+                Some(98.0),
+                Some(98.0),
+                (0, 0, 0)
+            )),
             CardSeverity::Normal
         );
     }
@@ -1600,9 +1633,36 @@ mod tests {
     #[test]
     fn sort_by_severity_orders_critical_warning_normal() {
         let items = vec![
-            item(1, "submitted", Some("Good"), Some(0), None, None, None, (0, 0, 0)),
-            item(2, "submitted", Some("Critical"), Some(0), None, None, None, (0, 0, 0)),
-            item(3, "draft", Some("At Risk"), Some(0), None, None, None, (0, 0, 0)),
+            item(
+                1,
+                "submitted",
+                Some("Good"),
+                Some(0),
+                None,
+                None,
+                None,
+                (0, 0, 0),
+            ),
+            item(
+                2,
+                "submitted",
+                Some("Critical"),
+                Some(0),
+                None,
+                None,
+                None,
+                (0, 0, 0),
+            ),
+            item(
+                3,
+                "draft",
+                Some("At Risk"),
+                Some(0),
+                None,
+                None,
+                None,
+                (0, 0, 0),
+            ),
         ];
         let sorted = sort_by_severity(&items);
         assert_eq!(sorted[0].project_id, 2, "Critical 应排最前");
@@ -1613,11 +1673,17 @@ mod tests {
     #[test]
     fn deadline_overdue_compares_against_now() {
         let deadline = Utc.with_ymd_and_hms(2026, 8, 16, 2, 0, 0).single().unwrap();
-        let before = Utc.with_ymd_and_hms(2026, 8, 16, 1, 59, 0).single().unwrap();
+        let before = Utc
+            .with_ymd_and_hms(2026, 8, 16, 1, 59, 0)
+            .single()
+            .unwrap();
         let after = Utc.with_ymd_and_hms(2026, 8, 16, 2, 0, 1).single().unwrap();
         assert!(!is_deadline_overdue(deadline, before));
         assert!(is_deadline_overdue(deadline, after));
-        assert!(is_deadline_overdue(deadline, deadline), "等于截止时间视为逾期");
+        assert!(
+            is_deadline_overdue(deadline, deadline),
+            "等于截止时间视为逾期"
+        );
     }
 
     #[test]
@@ -1693,9 +1759,8 @@ mod tests {
             });
             // client 指向 127.0.0.1:1（必拒绝连接）→ 首屏拉取快速进入 Error 态
             let (_host, cx2) = cx.add_window_view(|_window, cx| {
-                let view = cx.new(|cx| {
-                    PlatformInspectionView::new(cx, Client::new("http://127.0.0.1:1"))
-                });
+                let view =
+                    cx.new(|cx| PlatformInspectionView::new(cx, Client::new("http://127.0.0.1:1")));
                 PiHost { view }
             });
             cx2.read(|app| {
@@ -1711,9 +1776,8 @@ mod tests {
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
         let (host, cx2) = cx.add_window_view(|_window, cx| {
-            let view = cx.new(|cx| {
-                PlatformInspectionView::new(cx, Client::new("http://127.0.0.1:1"))
-            });
+            let view =
+                cx.new(|cx| PlatformInspectionView::new(cx, Client::new("http://127.0.0.1:1")));
             PiHost { view }
         });
         let view = cx2.read(|app| host.read(app).view.clone());

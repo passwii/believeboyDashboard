@@ -270,8 +270,7 @@ mod tests {
     /// `summary_row_text`：数字编码（FastAPI jsonable Decimal → float 路径）也容忍
     #[test]
     fn summary_row_text_handles_numeric_encoding() {
-        let row: serde_json::Value =
-            serde_json::json!({"rate": 19, "total": 41.98, "note": null});
+        let row: serde_json::Value = serde_json::json!({"rate": 19, "total": 41.98, "note": null});
         assert_eq!(summary_row_text(&row, "rate"), "19");
         assert_eq!(summary_row_text(&row, "total"), "41.98");
         assert_eq!(summary_row_text(&row, "note"), "");

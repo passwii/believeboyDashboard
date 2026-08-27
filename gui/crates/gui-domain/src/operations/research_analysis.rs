@@ -627,7 +627,10 @@ mod tests {
             Some(NaiveDate::from_ymd_opt(2026, 8, 12).expect("合法日期"))
         );
         assert_eq!(rows[0].row_count_products, 420);
-        assert_eq!(rows[0].quality_warnings.get("missing_brand"), Some(&serde_json::json!(5)));
+        assert_eq!(
+            rows[0].quality_warnings.get("missing_brand"),
+            Some(&serde_json::json!(5))
+        );
         // 缺省字段容错（version=2 的旧记录）
         assert_eq!(rows[1].file_size_bytes, None);
         assert!(!rows[1].is_current);
@@ -752,7 +755,10 @@ mod tests {
         assert_eq!(resp.price_sales_points.len(), 1);
         assert_eq!(resp.advanced_metrics.brand_monopoly.risk_level, "medium");
         assert_eq!(resp.advanced_metrics.seller_monopoly.top_sellers.len(), 1);
-        assert_eq!(resp.advanced_metrics.market_growth.growth_tier, "fast_growing");
+        assert_eq!(
+            resp.advanced_metrics.market_growth.growth_tier,
+            "fast_growing"
+        );
         assert_eq!(
             resp.advanced_metrics.seasonality.recommended_entry_months,
             vec!["3月", "9月"]
@@ -829,7 +835,10 @@ mod tests {
         assert_eq!(resp.rows.len(), 2);
         assert_eq!(resp.rows[0].asin.as_deref(), Some("B0TEST123"));
         assert_eq!(resp.rows[0].monthly_sales, 120);
-        assert_eq!(resp.rows[0].extracted_dimensions.get("color"), Some(&"purple".to_string()));
+        assert_eq!(
+            resp.rows[0].extracted_dimensions.get("color"),
+            Some(&"purple".to_string())
+        );
         // 缺省字段容错
         assert_eq!(resp.rows[1].asin, None);
         assert!(resp.rows[1].is_amazon);

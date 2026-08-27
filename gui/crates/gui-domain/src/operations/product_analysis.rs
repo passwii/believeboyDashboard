@@ -285,8 +285,7 @@ mod tests {
                 }
             ]
         }"#;
-        let resp: ProductAnalysisCheckResponse =
-            serde_json::from_str(json).expect("反序列化失败");
+        let resp: ProductAnalysisCheckResponse = serde_json::from_str(json).expect("反序列化失败");
         assert_eq!(resp.business_report_missing, vec!["2026-08-03".to_string()]);
         assert!(resp.ad_report_missing.is_empty());
         assert_eq!(resp.inventory_missing.len(), 2);

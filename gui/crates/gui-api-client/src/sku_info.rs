@@ -52,7 +52,6 @@ impl Client {
     }
 }
 
-
 /// 构造 `GET /api/v1/sku-info` 的 query 对（纯函数；`None` 字段不下发）
 fn sku_info_query(
     project_name: Option<&str>,
@@ -175,7 +174,15 @@ mod tests {
             ]
         );
         // 全参数形态：键序稳定、值正确
-        let q = sku_info_query(Some("项目 A"), Some("BB"), Some("US"), Some(false), 2, 100, false);
+        let q = sku_info_query(
+            Some("项目 A"),
+            Some("BB"),
+            Some("US"),
+            Some(false),
+            2,
+            100,
+            false,
+        );
         assert_eq!(
             q,
             vec![

@@ -39,8 +39,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, AsyncApp, Context, Entity, FontWeight, Hsla, IntoElement, Render,
-    SharedString, WeakEntity, Window,
+    div, px, App, AsyncApp, Context, Entity, FontWeight, Hsla, IntoElement, Render, SharedString,
+    WeakEntity, Window,
 };
 use gpui_component::button::Button;
 use gpui_component::menu::PopupMenuItem;
@@ -132,12 +132,20 @@ fn fmt_money(value: f64) -> String {
 
 /// USD 金额（对齐 web `formatUsd`：负号在 `$` 前）
 fn format_usd(value: f64) -> String {
-    format!("{}${}", if value < 0.0 { "-" } else { "" }, fmt_money(value))
+    format!(
+        "{}${}",
+        if value < 0.0 { "-" } else { "" },
+        fmt_money(value)
+    )
 }
 
 /// RMB 金额（对齐 web `formatRmb`：负号在 `¥` 前）
 fn format_rmb(value: f64) -> String {
-    format!("{}¥{}", if value < 0.0 { "-" } else { "" }, fmt_money(value))
+    format!(
+        "{}¥{}",
+        if value < 0.0 { "-" } else { "" },
+        fmt_money(value)
+    )
 }
 
 /// 销售收入本地货币文本（对齐 web `formatIncomeWithCurrency`：`$1,234.56 USD`）
@@ -204,9 +212,7 @@ fn rate_pill_colors(level: ReceiveRateLevel, theme: &AppTheme) -> (Hsla, Hsla) {
         ReceiveRateLevel::Warning => (theme.warning.opacity(0.16), theme.warning),
         // 收尾清点 BLF-804：裸 hex（yellow-500）收敛到 theme.warning——
         // 与 Warning 档靠底色透明度区分（0.28 vs 0.16），语义同属「预警黄」
-        ReceiveRateLevel::Yellow => {
-            (theme.warning.opacity(0.28), theme.warning)
-        }
+        ReceiveRateLevel::Yellow => (theme.warning.opacity(0.28), theme.warning),
         ReceiveRateLevel::Negative => (theme.danger.opacity(0.12), theme.danger),
     }
 }
@@ -522,8 +528,12 @@ impl CommissionView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_main(&client, projects_cache, month_filter, year_filter))
+                    crate::runtime::runtime().block_on(load_main(
+                        &client,
+                        projects_cache,
+                        month_filter,
+                        year_filter,
+                    ))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -567,7 +577,8 @@ impl CommissionView {
                 t.set_rows(project_rows, cx);
             });
         } else {
-            self.detail_table.update(cx, |t, cx| t.set_rows(Vec::new(), cx));
+            self.detail_table
+                .update(cx, |t, cx| t.set_rows(Vec::new(), cx));
             self.monthly_table
                 .update(cx, |t, cx| t.set_rows(Vec::new(), cx));
             self.project_table
@@ -741,9 +752,11 @@ fn detail_columns() -> Vec<ColumnDef<DetailRow>> {
 /// (USD)/工厂佣金(RMB)/已回款(RMB)/回款率）
 fn monthly_columns() -> Vec<ColumnDef<CommissionYearlyMonthlySummaryItem>> {
     vec![
-        ColumnDef::text("month", "月份", |r: &CommissionYearlyMonthlySummaryItem, _| {
-            SharedString::from(r.report_month.clone())
-        })
+        ColumnDef::text(
+            "month",
+            "月份",
+            |r: &CommissionYearlyMonthlySummaryItem, _| SharedString::from(r.report_month.clone()),
+        )
         .width(96.0),
         ColumnDef::number(
             "income",
@@ -796,10 +809,13 @@ fn monthly_columns() -> Vec<ColumnDef<CommissionYearlyMonthlySummaryItem>> {
 /// 项目汇总矩阵列：项目名称 + 12 个月佣金 + 年度佣金合计 + 年度回款 + 回款率
 /// （对齐 web ProjectSummaryTab；月度格为只读金额文本，无数据 → 「-」）
 fn project_summary_columns() -> Vec<ColumnDef<ProjectSummaryRow>> {
-    let mut columns = vec![ColumnDef::text("project", "项目名称", |r: &ProjectSummaryRow, _| {
-        SharedString::from(r.project_name.clone())
-    })
-    .width(140.0)];
+    let mut columns =
+        vec![
+            ColumnDef::text("project", "项目名称", |r: &ProjectSummaryRow, _| {
+                SharedString::from(r.project_name.clone())
+            })
+            .width(140.0),
+        ];
     for (ix, label) in month_labels().into_iter().enumerate() {
         columns.push(
             ColumnDef::text(
@@ -808,12 +824,13 @@ fn project_summary_columns() -> Vec<ColumnDef<ProjectSummaryRow>> {
                 |_r: &ProjectSummaryRow, _| SharedString::from("-"),
             )
             .with_render_element(move |r: &ProjectSummaryRow, _theme| {
-                div().child(SharedString::from(
-                    r.month_commission[ix]
-                        .map(format_rmb)
-                        .unwrap_or_else(|| "-".to_string()),
-                ))
-                .into_any_element()
+                div()
+                    .child(SharedString::from(
+                        r.month_commission[ix]
+                            .map(format_rmb)
+                            .unwrap_or_else(|| "-".to_string()),
+                    ))
+                    .into_any_element()
             })
             .align(CellAlign::Right)
             .width(76.0),
@@ -854,10 +871,13 @@ fn project_summary_columns() -> Vec<ColumnDef<ProjectSummaryRow>> {
 /// 月度回款矩阵列：项目名称 + 12 个月回款率色块 + 年度汇总
 /// （对齐 web MonthlyCollectionTab；无数据 → 灰「-」）
 fn collection_columns() -> Vec<ColumnDef<ProjectSummaryRow>> {
-    let mut columns = vec![ColumnDef::text("project", "项目名称", |r: &ProjectSummaryRow, _| {
-        SharedString::from(r.project_name.clone())
-    })
-    .width(140.0)];
+    let mut columns =
+        vec![
+            ColumnDef::text("project", "项目名称", |r: &ProjectSummaryRow, _| {
+                SharedString::from(r.project_name.clone())
+            })
+            .width(140.0),
+        ];
     for (ix, label) in month_labels().into_iter().enumerate() {
         columns.push(
             ColumnDef::text(
@@ -865,20 +885,22 @@ fn collection_columns() -> Vec<ColumnDef<ProjectSummaryRow>> {
                 label,
                 |_r: &ProjectSummaryRow, _| SharedString::from("-"),
             )
-            .with_render_element(move |r: &ProjectSummaryRow, theme| match r.month_rates[ix] {
-                Some(rate) => rate_pill(rate, theme),
-                None => div()
-                    .min_w(px(48.0))
-                    .text_center()
-                    .rounded(px(theme.radius))
-                    .bg(theme.muted_fill)
-                    .px_1p5()
-                    .py_1()
-                    .text_xs()
-                    .text_color(theme.text_muted)
-                    .child("-")
-                    .into_any_element(),
-            })
+            .with_render_element(
+                move |r: &ProjectSummaryRow, theme| match r.month_rates[ix] {
+                    Some(rate) => rate_pill(rate, theme),
+                    None => div()
+                        .min_w(px(48.0))
+                        .text_center()
+                        .rounded(px(theme.radius))
+                        .bg(theme.muted_fill)
+                        .px_1p5()
+                        .py_1()
+                        .text_xs()
+                        .text_color(theme.text_muted)
+                        .child("-")
+                        .into_any_element(),
+                },
+            )
             .align(CellAlign::Center)
             .width(72.0),
         );
@@ -946,7 +968,14 @@ impl Render for CommissionView {
                 0.0,
                 div(),
                 div(),
-                state_views::error_state(&view, &app_theme, "commission-error", "佣金数据加载失败", msg, |this, cx| this.reload(cx)),
+                state_views::error_state(
+                    &view,
+                    &app_theme,
+                    "commission-error",
+                    "佣金数据加载失败",
+                    msg,
+                    |this, cx| this.reload(cx),
+                ),
             )
             .into_any_element(),
             CommissionState::Empty => pattern_b_shell(
@@ -982,9 +1011,16 @@ impl Render for CommissionView {
                     .iter()
                     .position(|t| *t == self.active_tab)
                     .unwrap_or(0);
-                let strip = tab_bar(&view, &app_theme, "commission", &tab_items, active_ix, |this, ix, cx| {
-                    this.select_tab(CommissionTab::ALL[ix], cx);
-                });
+                let strip = tab_bar(
+                    &view,
+                    &app_theme,
+                    "commission",
+                    &tab_items,
+                    active_ix,
+                    |this, ix, cx| {
+                        this.select_tab(CommissionTab::ALL[ix], cx);
+                    },
+                );
                 // 筛选控件行（Tab 相关的年/月/站点下拉）
                 let filter_row = h_flex()
                     .gap_2()
@@ -1018,7 +1054,10 @@ impl Render for CommissionView {
                             self.collection_table.clone(),
                         ))
                         .when(
-                            matches!(self.active_tab, CommissionTab::Detail | CommissionTab::MonthlyCollection),
+                            matches!(
+                                self.active_tab,
+                                CommissionTab::Detail | CommissionTab::MonthlyCollection
+                            ),
                             |this| this.child(content_rules_footer(&app_theme)),
                         )
                         .when(data.is_empty(), |this| {
@@ -1032,8 +1071,17 @@ impl Render for CommissionView {
                     crate::motion::reduce_motion(cx),
                 );
                 let tabs = tabs_zone(strip, content);
-                pattern_b_shell(&app_theme, "commission", header, filter_row, 0.0, div(), div(), tabs)
-                    .into_any_element()
+                pattern_b_shell(
+                    &app_theme,
+                    "commission",
+                    header,
+                    filter_row,
+                    0.0,
+                    div(),
+                    div(),
+                    tabs,
+                )
+                .into_any_element()
             }
         }
     }
@@ -1043,7 +1091,6 @@ impl Render for CommissionView {
 fn content_rules_footer(theme: &AppTheme) -> gpui::AnyElement {
     render_rules_card(theme)
 }
-
 
 /// 筛选卡（总览：年 + 月下拉；汇总：年下拉；均含站点下拉 + 刷新）
 fn render_filter_card(
@@ -1104,15 +1151,11 @@ fn render_filter_card(
                     let mut menu = menu;
                     for month in 1u32..=12 {
                         let view = view_for_month.clone();
-                        menu = menu.item(
-                            PopupMenuItem::new(format!("{month}月")).on_click(
-                                move |_ev, _w, cx| {
-                                    view.update(cx, |this, cx| {
-                                        this.select_detail_month(month, cx)
-                                    });
-                                },
-                            ),
-                        );
+                        menu = menu.item(PopupMenuItem::new(format!("{month}月")).on_click(
+                            move |_ev, _w, cx| {
+                                view.update(cx, |this, cx| this.select_detail_month(month, cx));
+                            },
+                        ));
                     }
                     menu
                 },
@@ -1129,15 +1172,11 @@ fn render_filter_card(
                     let mut menu = menu;
                     for year in year_options() {
                         let view = view_for_summary_year.clone();
-                        menu = menu.item(
-                            PopupMenuItem::new(format!("{year}年")).on_click(
-                                move |_ev, _w, cx| {
-                                    view.update(cx, |this, cx| {
-                                        this.select_summary_year(year, cx)
-                                    });
-                                },
-                            ),
-                        );
+                        menu = menu.item(PopupMenuItem::new(format!("{year}年")).on_click(
+                            move |_ev, _w, cx| {
+                                view.update(cx, |this, cx| this.select_summary_year(year, cx));
+                            },
+                        ));
                     }
                     menu
                 },
@@ -1162,13 +1201,11 @@ fn render_filter_card(
                 for site in SITE_ORDER {
                     let view = view_for_country.clone();
                     let checked = country == Some(site);
-                    menu = menu.item(
-                        PopupMenuItem::new(site)
-                            .checked(checked)
-                            .on_click(move |_ev, _w, cx| {
-                                view.update(cx, |this, cx| this.select_country(Some(site), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(site).checked(checked).on_click(
+                        move |_ev, _w, cx| {
+                            view.update(cx, |this, cx| this.select_country(Some(site), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -1268,7 +1305,11 @@ fn render_loaded(
                 .child(table_card(
                     "commission-monthly-card",
                     "年-月汇总",
-                    &format!("{} 年 · 共 {} 个月", data.summary_year, data.monthly_summary.len()),
+                    &format!(
+                        "{} 年 · 共 {} 个月",
+                        data.summary_year,
+                        data.monthly_summary.len()
+                    ),
                     theme,
                     monthly_table,
                     None,
@@ -1353,7 +1394,10 @@ fn render_loaded(
 }
 
 /// 统计数字带（label + value 卡片；对齐 web「本月统计 / 年度统计」栅格）
-fn stat_cards(cards: Vec<(&'static str, String, Option<Hsla>)>, theme: &AppTheme) -> impl IntoElement {
+fn stat_cards(
+    cards: Vec<(&'static str, String, Option<Hsla>)>,
+    theme: &AppTheme,
+) -> impl IntoElement {
     h_flex()
         .id("commission-stats")
         .gap_3()
@@ -1436,10 +1480,22 @@ fn table_card<T: Clone + PartialEq + 'static>(
 /// 月度回款图例（对齐 web 图例行；文案按代码实际阈值标注）
 fn collection_legend(theme: &AppTheme) -> impl IntoElement {
     let entries: Vec<(Hsla, &'static str)> = vec![
-        (rate_pill_colors(ReceiveRateLevel::Positive, theme).1, "≥100%"),
-        (rate_pill_colors(ReceiveRateLevel::Warning, theme).1, "50%~100%"),
-        (rate_pill_colors(ReceiveRateLevel::Yellow, theme).1, "20%~50%"),
-        (rate_pill_colors(ReceiveRateLevel::Negative, theme).1, "<20%"),
+        (
+            rate_pill_colors(ReceiveRateLevel::Positive, theme).1,
+            "≥100%",
+        ),
+        (
+            rate_pill_colors(ReceiveRateLevel::Warning, theme).1,
+            "50%~100%",
+        ),
+        (
+            rate_pill_colors(ReceiveRateLevel::Yellow, theme).1,
+            "20%~50%",
+        ),
+        (
+            rate_pill_colors(ReceiveRateLevel::Negative, theme).1,
+            "<20%",
+        ),
     ];
     h_flex()
         .id("commission-collection-legend")
@@ -1475,7 +1531,12 @@ fn collection_legend(theme: &AppTheme) -> impl IntoElement {
 
 /// 工厂佣金结算规则卡（静态；对齐 web CommissionRulesCard 两规则）
 fn render_rules_card(theme: &AppTheme) -> gpui::AnyElement {
-    let tiers = ["40% - 50% → 7%", "50% - 60% → 10%", "60% - 70% → 13%", "70% 以上 → 15%"];
+    let tiers = [
+        "40% - 50% → 7%",
+        "50% - 60% → 10%",
+        "60% - 70% → 13%",
+        "70% 以上 → 15%",
+    ];
     v_flex()
         .id("commission-rules")
         .w_full()
@@ -1590,22 +1651,17 @@ fn rule_item(
 
 /// 总览合计（工厂佣金合计, 已回款合计；对齐 web 本月统计）
 fn detail_totals(rows: &[CommissionProjectMonthItem]) -> (f64, f64) {
-    rows.iter().fold(
-        (0.0, 0.0),
-        |(commission, received), row| {
-            (
-                commission + row.factory_commission_rmb,
-                received + row.received_rmb,
-            )
-        },
-    )
+    rows.iter().fold((0.0, 0.0), |(commission, received), row| {
+        (
+            commission + row.factory_commission_rmb,
+            received + row.received_rmb,
+        )
+    })
 }
 
 /// 年-月合计（销售收入, 工厂佣金(USD), 工厂佣金(RMB), 已回款；对齐 web
 /// BLF-504 合计行）
-fn monthly_totals(
-    items: &[CommissionYearlyMonthlySummaryItem],
-) -> (f64, f64, f64, f64) {
+fn monthly_totals(items: &[CommissionYearlyMonthlySummaryItem]) -> (f64, f64, f64, f64) {
     items.iter().fold(
         (0.0, 0.0, 0.0, 0.0),
         |(income, commission_usd, commission_rmb, received), item| {
@@ -1622,16 +1678,15 @@ fn monthly_totals(
 /// 项目汇总合计（工厂佣金(RMB), 已回款, 销售收入(USD)；对齐 web 项目汇总
 /// 合计行）
 fn project_totals(items: &[CommissionProjectYearlySummaryItem]) -> (f64, f64, f64) {
-    items.iter().fold(
-        (0.0, 0.0, 0.0),
-        |(commission, received, income), item| {
+    items
+        .iter()
+        .fold((0.0, 0.0, 0.0), |(commission, received, income), item| {
             (
                 commission + item.total_commission_rmb,
                 received + item.total_received_rmb,
                 income + item.total_income_usd,
             )
-        },
-    )
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -1915,10 +1970,8 @@ mod tests {
 
     #[test]
     fn totals_match_web_summation() {
-        let (commission, received) = detail_totals(&[
-            sample_month_item(1, 3, "DE"),
-            sample_month_item(2, 3, "UK"),
-        ]);
+        let (commission, received) =
+            detail_totals(&[sample_month_item(1, 3, "DE"), sample_month_item(2, 3, "UK")]);
         assert!((commission - 2.0 * 892.61).abs() < 1e-9);
         assert!((received - 800.0).abs() < 1e-9);
 
@@ -1985,8 +2038,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data();
             let detail_rows = build_detail_rows(&data.detail_rows, &data.projects);
@@ -1995,12 +2047,14 @@ mod tests {
                 .iter()
                 .map(|item| ProjectSummaryRow::from_item(item, &data.summary_year))
                 .collect();
-            this.detail_table.update(cx, |t, cx| t.set_rows(detail_rows, cx));
+            this.detail_table
+                .update(cx, |t, cx| t.set_rows(detail_rows, cx));
             this.monthly_table
                 .update(cx, |t, cx| t.set_rows(data.monthly_summary.clone(), cx));
             this.project_table
                 .update(cx, |t, cx| t.set_rows(project_rows.clone(), cx));
-            this.collection_table.update(cx, |t, cx| t.set_rows(project_rows, cx));
+            this.collection_table
+                .update(cx, |t, cx| t.set_rows(project_rows, cx));
             this.state.update(cx, |state, _| {
                 *state = CommissionState::Loaded(Box::new(data));
             });
@@ -2014,8 +2068,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         // 四个 Tab 各渲染一次（Loaded 态）
         for tab in CommissionTab::ALL {
             view.update(cx2, |this, cx| {
@@ -2027,12 +2080,14 @@ mod tests {
                     .iter()
                     .map(|item| ProjectSummaryRow::from_item(item, &data.summary_year))
                     .collect();
-                this.detail_table.update(cx, |t, cx| t.set_rows(detail_rows, cx));
+                this.detail_table
+                    .update(cx, |t, cx| t.set_rows(detail_rows, cx));
                 this.monthly_table
                     .update(cx, |t, cx| t.set_rows(data.monthly_summary.clone(), cx));
                 this.project_table
                     .update(cx, |t, cx| t.set_rows(project_rows.clone(), cx));
-                this.collection_table.update(cx, |t, cx| t.set_rows(project_rows, cx));
+                this.collection_table
+                    .update(cx, |t, cx| t.set_rows(project_rows, cx));
                 this.state.update(cx, |state, _| {
                     *state = CommissionState::Loaded(Box::new(data));
                 });
@@ -2044,8 +2099,7 @@ mod tests {
     #[gpui::test]
     async fn renders_error_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CommissionState::Error("服务不可用".into());
@@ -2056,8 +2110,7 @@ mod tests {
     #[gpui::test]
     async fn renders_empty_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = CommissionState::Empty;
@@ -2071,8 +2124,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data();
             let project_rows: Vec<ProjectSummaryRow> = data
@@ -2095,8 +2147,7 @@ mod tests {
     #[gpui::test]
     async fn filter_actions_reload_and_noop_on_same_value(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             // 同值 no-op
             let before = this.latest_request_id;
@@ -2145,13 +2196,16 @@ mod tests {
     #[gpui::test]
     async fn empty_message_tracks_filters(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| CommissionView::new(cx, dummy_client()));
         view.update(cx2, |view, _| {
             view.report_month = "2025-12".into();
             view.summary_year = "2024".into();
-            assert!(empty_message(CommissionTab::Detail, &view.report_month, &view.summary_year)
-                .starts_with("2025-12"));
+            assert!(empty_message(
+                CommissionTab::Detail,
+                &view.report_month,
+                &view.summary_year
+            )
+            .starts_with("2025-12"));
             assert!(empty_message(
                 CommissionTab::ProjectSummary,
                 &view.report_month,
