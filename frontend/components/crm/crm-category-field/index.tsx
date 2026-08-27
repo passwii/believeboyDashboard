@@ -91,22 +91,22 @@ export function CrmCategoryField({
       <div className="flex flex-wrap items-center gap-1.5">
         {(customer.categories ?? []).length > 0 ? (
           (customer.categories ?? []).map((c) => (
-            <Badge key={c.id} variant="secondary" className="font-normal">
+            <Badge key={c.id} variant="secondary" className="rounded-none border border-term-border bg-term-raised font-mono text-xs text-term-muted">
               {c.name}
             </Badge>
           ))
         ) : (
-          <span className="text-sm text-muted-foreground">未设置</span>
+          <span className="font-mono text-xs text-term-faint">未设置</span>
         )}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs">
+            <Button variant="ghost" size="sm" className="h-6 gap-1 rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-xs text-term-muted hover:text-term-text">
               <Plus className="h-3 w-3" />
               编辑
               <ChevronsUpDown className="h-3 w-3 opacity-60" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-56 p-0">
+          <PopoverContent align="start" className="w-56 rounded-none border-term-border bg-term-panel p-0">
             <div className="max-h-60 overflow-y-auto p-1.5">
               {loading ? (
                 <div className="flex items-center justify-center py-4 text-muted-foreground">
@@ -123,7 +123,7 @@ export function CrmCategoryField({
                 categories.map((c) => (
                   <label
                     key={c.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                    className="flex cursor-pointer items-center gap-2 rounded-none px-2 py-1.5 font-mono text-xs text-term-text hover:bg-term-hover"
                   >
                     <Checkbox
                       checked={selected.has(c.id)}
@@ -137,7 +137,7 @@ export function CrmCategoryField({
                 ))
               )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-border/60 p-2">
+            <div className="flex justify-end gap-2 border-t border-term-border p-2">
               <Button
                 size="sm"
                 variant="ghost"

@@ -75,19 +75,19 @@ export function CrmValueProfileCard({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border/60 p-4">
+    <div className="space-y-3 rounded-none border border-term-border bg-term-panel p-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          价值画像
+        <div className="flex items-center gap-2 text-sm font-medium text-term-text">
+          <span className="font-mono text-xs uppercase tracking-wider text-term-muted">价值画像</span>
           {customer.rating ? (
             <Badge className={GRADE_COLOR[customer.rating as Grade]} variant="secondary">
               综合档 {customer.rating}
             </Badge>
           ) : (
-            <span className="text-xs text-muted-foreground">评分待完善</span>
+            <span className="font-mono text-xs text-term-faint">评分待完善</span>
           )}
           {editing && liveRating && liveRating !== customer.rating && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="font-mono text-xs">
               预览 {liveRating}
             </Badge>
           )}
@@ -103,8 +103,8 @@ export function CrmValueProfileCard({
         {SCORE_FIELDS.map((f) => {
           const cur = editing ? draft[f.key] : (customer[KEY_TO_CUST[f.key]] as Grade | null)
           return (
-            <div key={f.key} className="flex items-center gap-2 text-sm">
-              <span>{f.label}</span>
+            <div key={f.key} className="flex items-center gap-2 text-sm text-term-text">
+              <span className="font-mono text-xs text-term-muted">{f.label}</span>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -125,10 +125,10 @@ export function CrmValueProfileCard({
                       aria-label={g}
                       aria-checked={cur === g}
                       onClick={() => setDraft((d) => ({ ...d, [f.key]: g }))}
-                      className={`h-6 w-6 rounded text-xs font-medium transition-colors ${
+                      className={`h-6 w-6 rounded-none border text-xs font-medium transition-colors ${
                         cur === g
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-accent'
+                          ? 'border-term-border bg-term-raised text-term-text'
+                          : 'border-term-border bg-term-bg text-term-muted hover:bg-term-hover'
                       }`}
                     >
                       {g}
@@ -136,11 +136,11 @@ export function CrmValueProfileCard({
                   ))}
                 </div>
               ) : cur ? (
-                <Badge variant="secondary" className={`ml-auto ${GRADE_COLOR[cur]}`}>
+                <Badge variant="secondary" className={`ml-auto font-mono ${GRADE_COLOR[cur]}`}>
                   {cur}
                 </Badge>
               ) : (
-                <span className="ml-auto text-xs text-muted-foreground">—</span>
+                <span className="ml-auto font-mono text-xs text-term-faint">—</span>
               )}
             </div>
           )

@@ -111,7 +111,7 @@ export function CrmTaskTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">关联任务 · {tasks?.length ?? 0}</p>
+        <p className="font-mono text-xs text-term-faint">关联任务 · {tasks?.length ?? 0}</p>
         <Button size="sm" onClick={() => setCreating(true)} data-testid="task-tab-create">
           <Plus className="mr-1 h-4 w-4" /> 新建任务
         </Button>
@@ -120,14 +120,14 @@ export function CrmTaskTab({
       {!tasks || tasks.length === 0 ? (
         <EmptyState message="暂无关联任务" />
       ) : (
-        <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+        <ul className="divide-y divide-term-border rounded-none border border-term-border">
           {tasks.map((task) => {
             const linked = task.customerName ?? task.leadName
             const linkedKind = task.customerName ? '客户' : task.leadName ? '线索' : undefined
             return (
               <li key={task.id} className="space-y-1.5 px-3 py-2.5" data-testid={`task-tab-row-${task.id}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-foreground">{task.title}</span>
+                  <span className="truncate text-sm font-medium text-term-text">{task.title}</span>
                   <Badge
                     variant="secondary"
                     className={cn('shrink-0 px-1.5 py-0 text-[11px]', TASK_STATUS_COLORS[task.status])}
@@ -135,11 +135,11 @@ export function CrmTaskTab({
                     {TASK_STATUS_LABELS[task.status]}
                   </Badge>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  <Badge variant="outline" className={cn('px-1.5 py-0 text-[11px]', TASK_TYPE_COLORS[task.type])}>
+                <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-term-faint">
+                  <Badge variant="outline" className={cn('rounded-none border-term-border px-1.5 py-0 font-mono text-[11px]', TASK_TYPE_COLORS[task.type])}>
                     {TASK_TYPE_LABELS[task.type]}
                   </Badge>
-                  <Badge variant="outline" className={cn('px-1.5 py-0 text-[11px]', TASK_PRIORITY_COLORS[task.priority])}>
+                  <Badge variant="outline" className={cn('rounded-none border-term-border px-1.5 py-0 font-mono text-[11px]', TASK_PRIORITY_COLORS[task.priority])}>
                     {TASK_PRIORITY_LABELS[task.priority]}
                   </Badge>
                   {task.dueDate && <span>{formatDueDate(task.dueDate) || '—'}</span>}
@@ -171,11 +171,11 @@ export function CrmTaskTab({
       )}
 
       <Sheet open={creating} onOpenChange={setCreating}>
-        <SheetContent className="w-full gap-0 p-0 sm:max-w-md">
-          <SheetHeader className="border-b border-border/60 px-5 py-4">
-            <SheetTitle>新建任务</SheetTitle>
+        <SheetContent className="w-full gap-0 rounded-none border-term-border bg-term-panel p-0 sm:max-w-md">
+          <SheetHeader className="rounded-none border-b border-term-border px-3 py-2">
+            <SheetTitle className="font-mono text-sm uppercase tracking-wider text-term-muted">新建任务</SheetTitle>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-3 py-3">
             <CrmTaskForm users={users} onSubmit={handleCreate} submitText="创建任务" />
           </div>
         </SheetContent>

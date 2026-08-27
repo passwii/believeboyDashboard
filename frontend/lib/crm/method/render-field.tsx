@@ -13,7 +13,7 @@ import { formatRelativeTime, isOverdueForFollow } from '@/lib/crm/method/format'
  */
 export function renderField(field: FieldDefinition, value: unknown): ReactNode {
   if (value === null || value === undefined || value === '') {
-    return <span className="text-muted-foreground">-</span>
+    return <span className="font-mono text-xs text-term-faint">-</span>
   }
 
   switch (field.type) {
@@ -24,7 +24,7 @@ export function renderField(field: FieldDefinition, value: unknown): ReactNode {
       return (
         <div className="flex flex-wrap gap-1">
           {labels.map((label) => (
-            <Badge key={label} variant="secondary" className="font-normal">
+            <Badge key={label} variant="secondary" className="rounded-none border border-term-border bg-term-raised font-mono text-xs text-term-muted">
               {label}
             </Badge>
           ))}
@@ -36,7 +36,7 @@ export function renderField(field: FieldDefinition, value: unknown): ReactNode {
       // 最后跟进等字段高亮过期
       if (field.key === 'lastFollowAt' && isOverdueForFollow(iso)) {
         return (
-          <span className="text-rose-600 dark:text-rose-400">
+          <span className="font-mono tabular-nums text-term-neg">
             {new Date(iso).toLocaleDateString('zh-CN')}
             <span className="ml-1 text-xs">· {formatRelativeTime(iso)}</span>
           </span>
@@ -65,7 +65,7 @@ export function renderField(field: FieldDefinition, value: unknown): ReactNode {
         </a>
       )
     case 'textarea':
-      return <p className="whitespace-pre-wrap text-sm leading-relaxed">{String(value)}</p>
+      return <p className="whitespace-pre-wrap text-sm leading-relaxed text-term-text">{String(value)}</p>
     case 'text':
     default:
       return <>{String(value)}</>

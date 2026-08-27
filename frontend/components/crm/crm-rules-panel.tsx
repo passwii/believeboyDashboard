@@ -175,19 +175,19 @@ export function CrmRulesPanel() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium leading-tight">{rule.name}</h3>
+                        <h3 className="font-medium leading-tight text-term-text">{rule.name}</h3>
                         <Badge
                           variant={rule.enabled ? 'default' : 'secondary'}
-                          className="text-xs"
+                          className="rounded-none font-mono text-xs"
                         >
                           {rule.enabled ? '启用中' : '已停用'}
                         </Badge>
                       </div>
-                      <p className="mt-1.5 text-sm text-muted-foreground">
+                      <p className="mt-1.5 font-mono text-xs text-term-muted">
                         {describeRule(rule)}
                       </p>
                       {rule.description && (
-                        <p className="mt-1 text-xs text-muted-foreground/80">{rule.description}</p>
+                        <p className="mt-1 font-mono text-xs text-term-faint">{rule.description}</p>
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
