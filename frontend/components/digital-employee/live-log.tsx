@@ -13,17 +13,17 @@ interface LiveLogProps {
 }
 
 const LEVEL_STYLES: Record<string, { dot: string; border: string; text: string }> = {
-  info: { dot: 'bg-blue-500', border: 'border-l-blue-500', text: 'text-foreground' },
+  info: { dot: 'bg-term-accent', border: 'border-l-term-accent', text: 'text-term-text' },
   warn: {
-    dot: 'bg-amber-500',
-    border: 'border-l-amber-500',
-    text: 'text-amber-700 dark:text-amber-400',
+    dot: 'bg-term-warn',
+    border: 'border-l-term-warn',
+    text: 'text-term-warn',
   },
-  error: { dot: 'bg-red-500', border: 'border-l-red-500', text: 'text-red-700 dark:text-red-400' },
+  error: { dot: 'bg-term-neg', border: 'border-l-term-neg', text: 'text-term-neg' },
   debug: {
-    dot: 'bg-muted-foreground',
-    border: 'border-l-muted-foreground',
-    text: 'text-muted-foreground',
+    dot: 'bg-term-faint',
+    border: 'border-l-term-border',
+    text: 'text-term-faint',
   },
 }
 
@@ -68,7 +68,7 @@ export function LiveLog({
     return (
       <div className={cn('space-y-2', className)}>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />
+          <div key={i} className="h-10 rounded-none border border-term-border bg-term-raised animate-pulse" />
         ))}
       </div>
     )
@@ -78,12 +78,12 @@ export function LiveLog({
     return (
       <div
         className={cn(
-          'flex flex-col items-center justify-center rounded-xl border border-dashed py-8 text-muted-foreground',
+          'flex flex-col items-center justify-center rounded-none border border-dashed border-term-border py-8 text-term-faint',
           className
         )}
       >
         <span className="text-2xl mb-2">📋</span>
-        <p className="text-sm">暂无日志记录</p>
+        <p className="font-mono text-xs">暂无日志记录</p>
       </div>
     )
   }
@@ -96,7 +96,7 @@ export function LiveLog({
           <div
             key={log.id}
             className={cn(
-              'rounded-lg border-l-2 bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50',
+              'rounded-none border border-term-border border-l-2 bg-term-bg px-3 py-2 transition-colors hover:bg-term-hover',
               style.border
             )}
           >

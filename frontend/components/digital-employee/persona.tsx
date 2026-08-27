@@ -129,7 +129,7 @@ export function EmployeeAvatar({
     <div className={cn('relative inline-flex', className)}>
       <div
         className={cn(
-          'flex items-center justify-center rounded-2xl border-2 shadow-sm',
+          'flex items-center justify-center rounded-none border-2 shadow-none',
           SIZE_MAP[size]
         )}
         style={{

@@ -40,7 +40,7 @@ export function InputPane({
 }) {
   if (!scenario) return null
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-[hsl(var(--surface-panel))] p-4">
+    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-none border border-term-border bg-term-panel p-3">
       {scenario.showFreeTextArea && (
         <Textarea
           value={freeText}
@@ -69,13 +69,13 @@ export function InputPane({
         </div>
       ))}
       <div className="mt-1 flex flex-wrap items-center gap-3">
-        <div className="flex overflow-hidden rounded-md border border-border">
+        <div className="flex overflow-hidden rounded-none border border-term-border">
           <button
             type="button"
             onClick={() => setLanguage('zh')}
             className={[
-              'px-3 py-1 text-sm',
-              language === 'zh' ? 'bg-primary/10 text-primary' : 'text-muted-foreground',
+              'px-3 py-1 font-mono text-xs leading-5 transition-colors',
+              language === 'zh' ? 'bg-term-raised text-term-text' : 'bg-term-bg text-term-muted hover:text-term-text',
             ].join(' ')}
           >
             中文
@@ -84,8 +84,8 @@ export function InputPane({
             type="button"
             onClick={() => setLanguage('en')}
             className={[
-              'px-3 py-1 text-sm',
-              language === 'en' ? 'bg-primary/10 text-primary' : 'text-muted-foreground',
+              'px-3 py-1 font-mono text-xs leading-5 transition-colors',
+              language === 'en' ? 'bg-term-raised text-term-text' : 'bg-term-bg text-term-muted hover:text-term-text',
             ].join(' ')}
           >
             English

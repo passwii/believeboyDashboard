@@ -15,11 +15,11 @@ const STATUS_BADGE: Record<DisplayStatus, { variant: 'info' | 'warning' | 'secon
 
 /** 状态点颜色 */
 const STATUS_DOT: Record<DisplayStatus, string> = {
-  WORKING: 'bg-blue-500',
-  PAUSING: 'bg-amber-400',
-  IDLE: 'bg-muted-foreground/40',
-  OFFLINE: 'bg-muted-foreground/20',
-  FAILED: 'bg-red-500',
+  WORKING: 'bg-term-accent',
+  PAUSING: 'bg-term-warn',
+  IDLE: 'bg-term-faint',
+  OFFLINE: 'bg-term-border',
+  FAILED: 'bg-term-neg',
 }
 
 export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
@@ -48,17 +48,11 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
         }
       }}
       className={cn(
-        // 基础
-        'dashboard-surface u-interactive group flex cursor-pointer flex-col gap-3 p-4',
-        'transition-all duration-300 ease-out',
-        // hover 上浮
-        'hover:-translate-y-1 hover:shadow-lg',
-        'focus-visible:outline-2 focus-visible:outline-primary',
-        // 忙碌：光晕环
-        busy && 'ring-1 ring-warning/40 shadow-raised',
-        // 失败：gentle 红色脉动
-        failed && 'office-fail-pulse ring-1 ring-destructive/30',
-        // 离线：降饱和压暗
+        'group flex cursor-pointer flex-col gap-3 rounded-none border border-term-border bg-term-panel p-4 shadow-none',
+        'transition-colors hover:bg-term-hover hover:border-term-border-strong',
+        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
+        busy && 'border-term-warn/40',
+        failed && 'border-term-neg/30',
         display_status === 'OFFLINE' && 'opacity-60 saturate-50',
       )}
     >
@@ -67,7 +61,7 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
         <div className="flex items-center gap-2.5">
           <div className="relative">
             <span
-              className="flex h-10 w-10 items-center justify-center rounded-xl border-2 text-xl shadow-sm"
+              className="flex h-10 w-10 items-center justify-center rounded-none border-2 text-xl shadow-none"
               style={{
                 background: getPersonaGradient(persona.color_key),
                 borderColor: getPersonaBorder(persona.color_key),
@@ -86,7 +80,7 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold">{employee.name}</p>
-            <p className="dashboard-kicker">{persona.tagline}</p>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-term-faint">{persona.tagline}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -97,27 +91,27 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
 
       {/* ── HERO 工作事项 ── */}
       <div className="min-h-[3.5rem]">
-        <p className="dashboard-kicker">
+        <p className="font-mono text-[11px] uppercase tracking-wider text-term-faint">
           {working ? '正在处理' : failed ? '遇到问题' : '当前状态'}
         </p>
-        <p className="dashboard-display text-foreground text-[clamp(1.25rem,2vw,1.6rem)]">
+        <p className="truncate text-sm font-semibold leading-tight text-term-text">
           {hero}
         </p>
       </div>
 
       {/* ── 进度条 ── */}
       <div>
-        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="relative h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
           <div
             className={cn(
-              'h-full rounded-full bg-primary transition-[width] duration-[2800ms] ease-linear',
+              'h-full rounded-none bg-term-accent transition-[width] duration-[2800ms] ease-linear',
               busy && working && 'office-busy-shimmer',
             )}
             style={{ width: `${Math.max(2, virtual_progress)}%` }}
           />
         </div>
         {/* 拟人化状态气泡 */}
-        <p className="mt-2 text-xs text-muted-foreground transition-opacity duration-700">
+        <p className="mt-2 font-mono text-xs leading-4 text-term-muted transition-opacity duration-700">
           {step_label}
         </p>
       </div>
@@ -125,7 +119,7 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
       {/* ── hover 展开：当前步骤细节 ── */}
       <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-h-20 group-hover:opacity-100">
         {employee.current_task && (
-          <div className="rounded-lg bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
             <p>任务：{employee.current_task.task_name}</p>
             <p>进度：{Math.round(virtual_progress)}% · 节奏：{employee.pace.toFixed(1)}x</p>
           </div>
@@ -133,10 +127,10 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
       </div>
 
       {/* ── footer 战绩 ── */}
-      <div className="flex items-center justify-between border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-term-border pt-2 font-mono text-[11px] text-term-faint">
         <span>今日 {today_done} 件 · 成功率 {Math.round(success_rate * 100)}%</span>
         {queued_count > 0 && (
-          <span className={cn('font-medium', busy ? 'text-warning' : 'text-muted-foreground')}>
+          <span className={cn('font-medium tabular-nums', busy ? 'text-term-warn' : 'text-term-muted')}>
             排队 {queued_count}
           </span>
         )}

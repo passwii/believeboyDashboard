@@ -16,7 +16,7 @@ import { useSession } from 'next-auth/react'
 import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
   Tabs,
   TabsContent,
@@ -122,9 +122,8 @@ function HistoryTab() {
   }, [])
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="pt-6">
+    <div className="space-y-3">
+      <TermPanel bodyClassName="p-3">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
             <div className="md:col-span-4">
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">项目</label>
@@ -188,8 +187,7 @@ function HistoryTab() {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </TermPanel>
 
       <HistoryList projectId={projectId} country={country} refreshTrigger={refreshTrigger} />
 
