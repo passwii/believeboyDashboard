@@ -55,31 +55,28 @@ export function SuggestionChips({
             key={item.label}
             type="button"
             onClick={() => onSelect(item.prompt)}
-            className="group relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] bb-anim-scale-in cursor-pointer"
+            className="group relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] bb-anim-scale-in cursor-pointer bg-white border border-slate-200 shadow-sm hover:border-slate-300 hover:shadow dark:bg-transparent dark:border-white/[0.06] dark:shadow-none"
             style={{
               animationDelay: `${2.8 + index * 0.12}s`,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))',
-              backdropFilter: 'blur(20px) saturate(140%)',
-              boxShadow:
-                'inset 0 1px rgba(255,255,255,0.15), inset 0 -1px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.06)',
             }}
           >
-            {/* Hover glow */}
+            {/* Light: subtle hover tint — dark: blue wash */}
             <span
-              className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+              className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none hidden dark:block"
               style={{
                 background: 'linear-gradient(135deg, rgba(20,136,252,0.15), rgba(99,102,241,0.08))',
               }}
             />
+            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none dark:hidden bg-slate-50" />
             <Icon
-              className="size-4 relative z-10 text-blue-400/70 group-hover:text-blue-300 transition-colors duration-200"
+              className="size-4 relative z-10 text-blue-500 dark:text-blue-400/70 group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors duration-200"
               aria-hidden
             />
-            <span className="relative z-10 text-[#c8c8cc] group-hover:text-white transition-colors duration-200 whitespace-nowrap">
+            <span className="relative z-10 text-slate-700 dark:text-[#c8c8cc] group-hover:text-slate-900 dark:group-hover:text-white transition-colors duration-200 whitespace-nowrap">
               {item.label}
             </span>
             <Sparkles
-              className="size-3 relative z-10 text-blue-400/30 group-hover:text-blue-400/60 transition-all duration-200"
+              className="size-3 relative z-10 text-blue-400/40 dark:text-blue-400/30 group-hover:text-blue-500/60 dark:group-hover:text-blue-400/60 transition-all duration-200"
               aria-hidden
             />
           </button>

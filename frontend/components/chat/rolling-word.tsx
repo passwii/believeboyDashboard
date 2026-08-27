@@ -11,7 +11,7 @@ import { useGSAP } from '@gsap/react'
  * visual jump.
  */
 export const HIGHLIGHT_WORD_CLASS =
-  'inline-block italic bg-gradient-to-b from-[#4da5fc] via-[#4da5fc] to-white bg-clip-text text-transparent'
+  'inline-block italic bg-gradient-to-b from-[#0ea5e9] via-[#2563eb] to-[#1e40af] dark:from-[#4da5fc] dark:via-[#4da5fc] dark:to-white bg-clip-text text-transparent'
 
 /**
  * RollingWord — vertical slot-machine word carousel.

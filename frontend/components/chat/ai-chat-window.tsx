@@ -767,7 +767,7 @@ export function AIChatWindow({
     <div
       ref={rootRef}
       data-testid="ai-chat-window"
-      className="relative h-full w-full overflow-hidden bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
+      className="relative h-full w-full overflow-hidden bg-[#f6f7fb] dark:bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
       style={{ ['--sidebar-width' as string]: '280px' }}
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
@@ -789,7 +789,7 @@ export function AIChatWindow({
         <button
           type="button"
           onClick={() => setShowSidebar(true)}
-          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-200 active:scale-95"
           aria-label="打开对话历史"
         >
           <PanelLeft className="size-4" />
@@ -843,7 +843,7 @@ export function AIChatWindow({
         {/* Greeting + suggestion chips — positioned between top badge and input */}
         <div className="absolute left-1/2 top-[22%] -translate-x-1/2 w-full max-w-[600px] px-6 sm:px-4">
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-[28px] sm:text-[36px] md:text-[42px] font-bold text-white tracking-tight leading-[1.15]">
+            <h1 className="text-[28px] sm:text-[36px] md:text-[42px] font-bold text-slate-900 dark:text-white tracking-tight leading-[1.15]">
               <TypewriterText
                 segments={[
                   { text: '今天想', speed: 80 },
@@ -866,7 +866,7 @@ export function AIChatWindow({
               />
             </h1>
             <p
-              className="mt-3 text-sm sm:text-base text-[#8a8a8f] bb-anim-fade-up"
+              className="mt-3 text-sm sm:text-base text-slate-500 dark:text-[#8a8a8f] bb-anim-fade-up"
               style={{ animationDelay: '2.5s' }}
             >
               用 AI 探索数据 — 销售趋势、运营指标、异常洞察
@@ -943,7 +943,7 @@ export function AIChatWindow({
 
             {loadingConversations && conversations.length === 0 && !loadingMessages && (
               <div className="mx-auto max-w-3xl mt-2">
-                <p className="text-xs text-[#5a5a5f]">正在加载历史会话…</p>
+                <p className="text-xs text-slate-400 dark:text-[#5a5a5f]">正在加载历史会话…</p>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -975,7 +975,7 @@ export function AIChatWindow({
                 ref={stopBtnRef}
                 type="button"
                 onClick={handleStopGeneration}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-200 active:scale-95"
                 style={{
                   animation: isStreaming ? 'bb-stop-pulse 1.5s ease-in-out infinite' : 'none',
                 }}

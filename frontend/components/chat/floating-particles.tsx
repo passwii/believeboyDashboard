@@ -95,17 +95,19 @@ export function FloatingParticles() {
       {particles.map((p, i) => (
         <div
           key={i}
-          className="absolute rounded-full bg-blue-400"
+          className="absolute rounded-full bg-blue-500 dark:bg-blue-400"
           style={{
             width: p.size,
             height: p.size,
             left: p.x,
             top: p.y,
-            opacity: p.opacity,
+            opacity: p.opacity * 0.6,
             animation: `bb-float-${i} ${p.dur}s ease-in-out ${p.delay}s infinite`,
           }}
         />
       ))}
+      {/* Dark: slightly higher opacity for visibility on dark */}
+      <style>{`.dark .absolute.rounded-full.bg-blue-500 { opacity: inherit; }`}</style>
     </div>
   )
 }
