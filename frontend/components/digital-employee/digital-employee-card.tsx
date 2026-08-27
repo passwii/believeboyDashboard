@@ -9,19 +9,19 @@ import { HeartbeatDot } from './heartbeat-dot'
 import { DataStream } from './data-stream'
 import { cn } from '@/lib/utils'
 
-const ACCENT_STYLES: Record<DigitalEmployeeStatus, string> = {
+const ACCENT_MAP: Record<DigitalEmployeeStatus, string> = {
   IDLE: '',
-  RUNNING: 'bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 de-animate-shimmer',
-  SUCCEEDED: 'bg-emerald-500',
-  FAILED: 'bg-red-500',
-  SUSPENDED: 'bg-amber-500',
+  RUNNING: 'bg-term-accent',
+  SUCCEEDED: 'bg-term-pos',
+  FAILED: 'bg-term-neg',
+  SUSPENDED: 'bg-term-warn',
 }
 
 const AVATAR_RING: Record<DigitalEmployeeStatus, string> = {
   IDLE: '',
-  RUNNING: 'ring-2 ring-blue-400/40',
+  RUNNING: 'ring-1 ring-term-accent/30',
   SUCCEEDED: '',
-  FAILED: 'ring-2 ring-red-400/30',
+  FAILED: 'ring-1 ring-term-neg/20',
   SUSPENDED: '',
 }
 
@@ -49,7 +49,7 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
   const router = useRouter()
   const [isHovered, setIsHovered] = useState(false)
   const persona = getPersona(employee.employee_type)
-  const accent = ACCENT_STYLES[employee.status]
+  const accent = ACCENT_MAP[employee.status]
   const avatarRing = AVATAR_RING[employee.status]
 
   function handleInfoClick(e: React.MouseEvent) {
@@ -60,14 +60,14 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
   return (
     <div
       className={cn(
-        'group relative rounded-2xl border bg-card transition-all duration-300 cursor-pointer',
-        'hover:shadow-md hover:-translate-y-0.5 hover:border-primary/20'
+        'group relative rounded-none border border-term-border bg-term-panel cursor-pointer transition-colors hover:bg-term-hover',
+        'hover:border-term-border-strong'
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick?.(employee.id)}
     >
-      {accent && <div className={cn('absolute inset-x-0 top-0 h-0.5 rounded-t-2xl', accent)} />}
+      {accent && <div className={cn('absolute inset-x-0 top-0 h-0.5', accent)} />}
 
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between">
@@ -80,9 +80,9 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
           <button
             onClick={handleInfoClick}
             className={cn(
-              'ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors',
-              'text-muted-foreground hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950',
-              isHovered ? 'border-blue-200' : 'border-border'
+              'ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-none border text-xs font-semibold transition-colors',
+              'text-term-muted hover:border-term-border-strong hover:text-term-text hover:bg-term-raised',
+              isHovered ? 'border-term-border-strong' : 'border-term-border'
             )}
             title="查看详情"
           >

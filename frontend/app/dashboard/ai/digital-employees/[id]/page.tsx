@@ -91,7 +91,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="flex min-w-0 flex-col gap-3">
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-32 w-full rounded-none border border-term-border" />
         <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
@@ -120,9 +120,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const runningTask = tasks.find((t) => t.status === 'RUNNING')
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5">
-        <ArrowLeft className="h-4 w-4" />
+    <div className="flex min-w-0 flex-col gap-3">
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-7 w-fit gap-1.5 rounded-none border border-transparent font-mono text-xs leading-5 text-term-muted hover:border-term-border hover:text-term-text">
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
         返回列表
       </Button>
 
@@ -134,8 +134,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             status={employee.status}
           />
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold tracking-tight">{employee.name}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h1 className="truncate text-base font-semibold text-term-text">{employee.name}</h1>
+            <p className="mt-1 font-mono text-xs text-term-muted">
               {employee.employee_type.replace(/_/g, ' ').toLowerCase()} · {persona.tagline}
             </p>
             <div className="flex items-center gap-3 mt-2">
@@ -167,34 +167,34 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-3">
+        <div className="space-y-3">
           {runningTask && (
-            <div className="rounded-none border border-term-border bg-term-panel p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold">当前任务</h3>
-                <span className="text-xs text-muted-foreground">
+            <div className="rounded-none border border-term-border bg-term-panel p-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">当前任务</h3>
+                <span className="font-mono text-xs text-term-faint">
                   进行中 {runningTask.started_at ? formatDuration(runningTask.started_at) : ''}
                 </span>
               </div>
-              <p className="text-base font-medium mb-3">{runningTask.task_name}</p>
-              <div className="mb-3 h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
+              <p className="mb-2 truncate text-sm font-medium text-term-text">{runningTask.task_name}</p>
+              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
                 <div
                   className="h-full bg-term-accent transition-all duration-700"
                   style={{ width: `${runningTask.progress_percent}%` }}
                 />
               </div>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>{runningTask.current_step || '处理中…'}</span>
-                <span className="font-mono font-medium tabular-nums text-term-accent">{runningTask.progress_percent}%</span>
+              <div className="flex justify-between gap-2 font-mono text-xs text-term-muted">
+                <span className="truncate">{runningTask.current_step || '处理中…'}</span>
+                <span className="shrink-0 font-medium tabular-nums text-term-accent">{runningTask.progress_percent}%</span>
               </div>
             </div>
           )}
 
-          <div className="rounded-none border border-term-border bg-term-panel p-4">
-            <h3 className="text-sm font-semibold mb-4">任务历史</h3>
+          <div className="rounded-none border border-term-border bg-term-panel p-3">
+            <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">任务历史</h3>
             {tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">暂无任务记录</p>
+              <p className="py-4 text-center font-mono text-xs text-term-faint">暂无任务记录</p>
             ) : (
               <div className="space-y-2">
                 {tasks.slice(0, taskPage * 10).map((task) => (
@@ -239,9 +239,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-none border border-term-border bg-term-panel p-4">
-            <div className="flex items-center gap-2 mb-4">
+        <div className="space-y-3">
+          <div className="rounded-none border border-term-border bg-term-panel p-3">
+            <div className="flex items-center gap-2 mb-3">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-term-pos opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-term-pos" />
@@ -251,8 +251,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <LiveLog employeeId={employeeId} maxItems={20} className="max-h-[400px]" />
           </div>
 
-          <div className="rounded-none border border-term-border bg-term-panel p-4">
-            <h3 className="text-sm font-semibold mb-3">员工信息</h3>
+          <div className="rounded-none border border-term-border bg-term-panel p-3">
+            <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">员工信息</h3>
             <div className="space-y-2.5 text-sm">
               <InfoRow
                 label="类型"
@@ -278,9 +278,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5 border-b border-border/50 last:border-0">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className="text-right truncate">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-term-border py-1.5 last:border-0">
+      <span className="shrink-0 font-mono text-xs text-term-muted">{label}</span>
+      <span className="truncate text-right font-mono text-xs text-term-text">{value}</span>
     </div>
   )
 }

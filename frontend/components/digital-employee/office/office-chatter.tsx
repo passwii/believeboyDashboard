@@ -26,7 +26,7 @@ export function OfficeChatterTicker({ feed }: { feed: ChatterEvent[] }) {
   const recent = feed.slice(0, 8)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+    <div className="overflow-hidden rounded-none border border-term-border bg-term-bg px-3 py-2">
       <div className="flex items-center gap-4 overflow-x-auto scrollbar-none">
         {recent.map((evt, i) => (
           <span
@@ -73,12 +73,12 @@ export function OfficeSpotlightToast({ feed }: { feed: ChatterEvent[] }) {
   return (
     <div
       className={cn(
-        'fixed bottom-6 left-4 right-4 z-50 flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg',
+        'fixed bottom-6 left-4 right-4 z-50 flex items-center gap-3 rounded-none border px-4 py-3 shadow-none',
         'animate-in slide-in-from-bottom-2 fade-in duration-300',
         'sm:left-auto sm:right-6',
         isFail
-          ? 'border-destructive/30 bg-destructive/10 text-destructive'
-          : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+          ? 'border-term-neg/40 bg-term-bg text-term-neg'
+          : 'border-term-pos/40 bg-term-bg text-term-pos',
       )}
       role="status"
       aria-live="polite"

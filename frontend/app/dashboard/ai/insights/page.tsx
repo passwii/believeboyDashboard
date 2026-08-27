@@ -731,7 +731,7 @@ function FallbackCodeBlock({ code }: { code: string }) {
 
   return (
     <div className="not-prose my-5 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-      <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-overlay)/0.82)] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-term-border bg-term-raised px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
           <span className="font-mono text-xs font-semibold uppercase tracking-wider text-term-faint">
@@ -3040,7 +3040,7 @@ export default function AIInsightsPage() {
                 ) : isEditingDetail ? (
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ height: '70vh' }}>
                     <div className="flex flex-col overflow-y-auto rounded-none border border-term-border bg-term-bg">
-                      <div className="sticky top-0 z-10 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-sm">
+                      <div className="sticky top-0 z-10 border-b border-term-border bg-term-bg px-4 py-2.5">
                         <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
                           预览
                         </p>

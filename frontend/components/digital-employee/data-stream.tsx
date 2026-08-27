@@ -68,24 +68,24 @@ function buildMessages(
 
 const VARIANT_STYLES: Record<string, { border: string; bg: string; text: string }> = {
   default: {
-    border: 'border-border/50',
-    bg: 'bg-muted/30',
-    text: 'text-foreground/80',
+    border: 'border-term-border',
+    bg: 'bg-term-bg',
+    text: 'text-term-text',
   },
   success: {
-    border: 'border-emerald-200 dark:border-emerald-800',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    text: 'text-emerald-700 dark:text-emerald-400',
+    border: 'border-term-pos/40',
+    bg: 'bg-term-pos/5',
+    text: 'text-term-pos',
   },
   error: {
-    border: 'border-red-200 dark:border-red-800',
-    bg: 'bg-red-50 dark:bg-red-950/30',
-    text: 'text-red-700 dark:text-red-400',
+    border: 'border-term-neg/40',
+    bg: 'bg-term-neg/5',
+    text: 'text-term-neg',
   },
   warning: {
-    border: 'border-amber-200 dark:border-amber-800',
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-term-warn/40',
+    bg: 'bg-term-warn/5',
+    text: 'text-term-warn',
   },
 }
 
@@ -129,7 +129,7 @@ export function DataStream({
     <div className={cn('space-y-2', className)}>
       <div
         className={cn(
-          'rounded-lg border px-3 py-2.5 min-h-[72px] transition-all duration-300',
+          'rounded-none border px-3 py-2.5 min-h-[72px] transition-all duration-300',
           variantStyle.border,
           variantStyle.bg,
           fadeState === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
@@ -138,16 +138,16 @@ export function DataStream({
         <p className={cn('text-sm leading-relaxed', variantStyle.text)}>{current.text}</p>
         {current.showProgress && current.progress !== undefined && (
           <div className="mt-2">
-            <div className="h-1 w-full overflow-hidden rounded-full bg-background/50">
+            <div className="h-1 w-full overflow-hidden rounded-none bg-term-border">
               <div
-                className="h-full rounded-full bg-blue-500 transition-all duration-700"
+                className="h-full rounded-none bg-term-accent transition-all duration-700"
                 style={{ width: `${Math.min(100, Math.max(0, current.progress))}%` }}
               />
             </div>
           </div>
         )}
         {current.subtext && !current.showProgress && (
-          <p className="mt-1 text-xs text-muted-foreground">{current.subtext}</p>
+          <p className="mt-1 font-mono text-xs text-term-muted">{current.subtext}</p>
         )}
       </div>
 

@@ -1,6 +1,5 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -132,17 +131,17 @@ export function ToneCard({
   }
 
   return (
-    <Card className="shrink-0">
-      <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-        <div>
-          <CardTitle className="text-sm">{tone.label}</CardTitle>
-          <p className="text-xs text-muted-foreground">{tone.description}</p>
+    <section className="flex min-w-0 shrink-0 flex-col rounded-none border border-term-border bg-term-panel shadow-none">
+      <header className="flex shrink-0 flex-col gap-1 border-b border-term-border px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-term-text">{tone.label}</h3>
+          <p className="text-xs leading-4 text-term-muted">{tone.description}</p>
         </div>
-        <div className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={copy} disabled={!output}>
+        <div className="flex shrink-0 gap-1">
+          <Button size="sm" variant="ghost" onClick={copy} disabled={!output} className="h-7 rounded-none border border-transparent font-mono text-xs text-term-muted hover:border-term-border hover:text-term-text">
             复制
           </Button>
-          <Button size="sm" variant="ghost" onClick={exportMd} disabled={!output}>
+          <Button size="sm" variant="ghost" onClick={exportMd} disabled={!output} className="h-7 rounded-none border border-transparent font-mono text-xs text-term-muted hover:border-term-border hover:text-term-text">
             导出
           </Button>
           <Button
@@ -150,27 +149,28 @@ export function ToneCard({
             variant="outline"
             onClick={() => void generate()}
             disabled={isStreaming}
+            className="h-7 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
           >
             重生成
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
+      </header>
+      <div className="p-3">
         {error ? (
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-term-neg">{error}</p>
         ) : isStreaming && !output ? (
           <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-full rounded-none border border-term-border" />
+            <Skeleton className="h-4 w-5/6 rounded-none border border-term-border" />
           </div>
         ) : (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+          <div className="whitespace-pre-wrap text-sm leading-6 text-term-text">
             {output || (
-              <span className="text-muted-foreground">点击「生成」后在此查看{tone.label}。</span>
+              <span className="text-term-faint">点击「生成」后在此查看{tone.label}。</span>
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

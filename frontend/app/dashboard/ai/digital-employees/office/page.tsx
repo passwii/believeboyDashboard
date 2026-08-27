@@ -135,27 +135,27 @@ export default function DigitalOfficePage() {
 
   // ── 普通模式布局 ──
   return (
-    <div className="dashboard-page-shell space-y-6">
-      <header className="space-y-2">
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="dashboard-display">虚拟办公室</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
-              {connected ? '🟢 实时同步中' : '🔌 连接中…'}
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="truncate text-sm font-semibold uppercase tracking-wider text-term-muted">虚拟办公室</p>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-term-faint">
+              {connected ? '● 实时同步中' : '○ 连接中…'}
             </span>
             <button
               onClick={() => {
                 void document.documentElement.requestFullscreen?.()
                 window.location.href = '/dashboard/ai/digital-employees/office?mode=presentation'
               }}
-              className="min-h-[44px] rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-xs text-term-muted transition-colors hover:border-term-accent/50 hover:text-term-text sm:min-h-[auto]"
+              className="min-h-[44px] rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text sm:min-h-[auto]"
             >
-              🖥️ 投屏
+              投屏
             </button>
           </div>
         </div>
         {employees.length > 0 && <OfficeOverview employees={employees} />}
-      </header>
+      </div>
 
       {/* P3-B: 办公室 chatter 信息流 */}
       <OfficeChatterTicker feed={chatterFeed} />

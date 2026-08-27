@@ -72,7 +72,7 @@ export function BelieveboyModelsView({ source }: Props) {
               // —— 行内 code ——
               '[&_:not(pre)>code]:rounded-none [&_:not(pre)>code]:bg-term-raised [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.85em] [&_:not(pre)>code]:text-foreground/85',
               // —— 任务列表 (gfm) ——
-              '[&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-primary',
+              '[&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-term-accent',
               // —— 表格 (gfm) ——
               '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-none [&_table]:border [&_table]:border-term-border [&_table]:text-left [&_table]:font-mono [&_table]:text-xs [&_table]:tabular-nums',
               '[&_thead]:bg-term-raised',
