@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TERMINAL_RAIL_WIDTH, TERMINAL_TOP_STRIP_HEIGHT } from '@/components/terminal/terminal-constants'
+import { TERMINAL_RAIL_WIDTH, TERMINAL_TOP_STRIP_HEIGHT, TERMINAL_RAIL_ICON_SIZE } from '@/components/terminal/terminal-constants'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { cn } from '@/lib/utils'
 
@@ -82,7 +82,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               {isActive && (
                 <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 bg-term-accent" />
               )}
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              <Icon className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} strokeWidth={1.75} />
             </button>
           )
         })}
@@ -97,7 +97,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
           className="flex h-9 w-9 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
         >
-          {isDark ? <SunMedium className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+          {isDark ? <SunMedium className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} /> : <Moon className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} />}
         </button>
 
         <DropdownMenu>

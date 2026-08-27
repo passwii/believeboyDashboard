@@ -130,8 +130,9 @@
 | L-图标 | `h-[18px] w-[18px]` | **1.75** | 独立图标按钮（Header 工具钮、Rail 业务域图标）——按钮内的主视觉图标 |
 | M-图标 | `h-4 w-4`（16px） | **1.75** | 行内伴随图标（SubNav 列表项前缀、Inspector 区块标题前缀、菜单项前缀） |
 | S-例外 | `h-3.5 w-3.5`（14px） | 1.75 | 仅限 Footer Ticker 行内小图标（32px 高度带内的贴身装饰），其他位置禁用 |
+| **L-图标(Rail)** | `h-[20px] w-[20px]`（常量 `TERMINAL_RAIL_ICON_SIZE`） | **1.75** | **仅限** L1 Rail 主轨：8 大业务域图标 + 底部主题切换图标（BLF-850，2026-08-27 用户要求整体放大一档） |
 
-规则：① strokeWidth 全域统一 1.75，**不允许依赖 lucide 默认值 2**（当前 Header 全部图标都没显式设置，见审计表 A1）；② 尺寸写在图标 className 上，但档位以本表为准，禁止出现 17px / 20px 等中间值。
+规则：① strokeWidth 全域统一 1.75，**不允许依赖 lucide 默认值 2**（当前 Header 全部图标都没显式设置，见审计表 A1）；② 尺寸写在图标 className 上，但档位以本表为准，禁止出现 17px / 20px 等中间值——**唯一例外：L1 Rail 图标经 2026-08-27 用户要求放大至 20px，单源由 `TERMINAL_RAIL_ICON_SIZE` 常量驱动（terminal-constants.ts），仅限 L1 Rail，其余 L-图标（Header 工具钮）仍维持 18px**。
 
 ### 1b-3. 控件高度阶梯
 
