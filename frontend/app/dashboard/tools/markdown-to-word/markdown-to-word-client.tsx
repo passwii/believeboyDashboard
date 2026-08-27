@@ -215,7 +215,7 @@ export default function MarkdownToWordClient() {
             <div
               className={cn(
                 'min-h-0 flex-1 overflow-y-auto rounded-none border border-term-border bg-term-bg p-5 text-sm leading-7 text-term-text',
-                'markdown-preview [&>blockquote]:border-l-primary/40 [&>blockquote]:bg-primary/5 [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-muted-foreground',
+                'markdown-preview [&>blockquote]:border-l-term-accent/40 [&>blockquote]:bg-term-bg [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-term-muted',
                 '[&>code]:rounded-none [&>code]:bg-term-raised [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:font-mono [&>pre]:overflow-x-auto [&>pre]:rounded-none [&>pre]:border [&>pre]:border-term-border [&>pre]:bg-term-bg [&>pre]:p-4',
                 '[&>h1]:mb-3 [&>h1]:text-2xl [&>h1]:font-semibold [&>h1]:tracking-tight [&>h2]:mb-3 [&>h2]:text-xl [&>h2]:font-semibold [&>h2]:tracking-tight [&>h3]:mb-2 [&>h3]:text-lg [&>h3]:font-semibold',
                 '[&>ul]:ml-5 [&>ul]:list-disc [&>ul]:space-y-1 [&>ol]:ml-5 [&>ol]:list-decimal [&>ol]:space-y-1 [&>table]:w-full [&>table]:overflow-hidden [&>table]:rounded-none [&>table]:border [&>table]:border-term-border [&>table]:font-mono [&>table]:text-xs',

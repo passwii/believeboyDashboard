@@ -142,12 +142,12 @@ export default function DigitalEmployeesPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-6 lg:grid-cols-[1fr,360px]">
+            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr,360px]">
               <div>
                 {filtered.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center gap-3 rounded-none border border-dashed border-term-border p-16 text-term-faint">
-                    <span className="text-4xl">🤖</span>
-                    <p className="text-sm">暂无数字员工</p>
+                  <div className="flex flex-col items-center justify-center gap-3 rounded-none border border-dashed border-term-border p-10 font-mono text-xs text-term-faint">
+                    <span className="text-2xl">○</span>
+                    <p>暂无数字员工</p>
                   </div>
                 ) : (
                   <DigitalEmployeeGrid
