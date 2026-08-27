@@ -765,13 +765,13 @@ function HeaderFilterControls({
           <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
           筛选
         </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
+        <PopoverContent align="start" sideOffset={6} className="w-[320px] rounded-none border border-term-border bg-term-panel p-3 text-term-text">
           <div className="grid grid-cols-1 gap-3">{controls}</div>
         </PopoverContent>
       </Popover>
     )
   }
-  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
+  return <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">{controls}</div>
 }
 
 /**
