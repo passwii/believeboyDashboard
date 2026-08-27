@@ -250,14 +250,20 @@ const RELEASES: ReleaseVersion[] = [
   },
   {
     version: 'V5',
-    codename: '终端与原生体验',
+    codename: '面向智能体运营',
     status: 'current',
     startDate: '2026-08-11',
     endDate: '2026-08-27',
     summary:
-      '面向高密度终端与原生体验的收官版本：以交易终端外壳与四类视图模板为基座，完成 9 批终端化打磨、Inspector 与 Ticker 情报化，并打通 Agent 凭据与 Live Stream 的运营实时面。',
-    focus: ['终端外壳与密度', '视图模板 ABCD', '终端化批次打磨', 'Inspector 与 Ticker', 'Agent 凭据与审计', '实时与细节收尾'],
+      '以“面向智能体的运营”为核心的收官版本：运营范式从“人盯屏”转向“人与智能体协同”——在交易终端外壳与四类视图模板的基座上，完成 9 批终端化打磨与 Inspector/Ticker 情报化，并通过 Agent 凭据自助签发、Live Stream 实时出单流与使用指南闭环，让智能体可直接在 Dashboard 上完成查询、预警与执行。',
+    focus: ['面向智能体运营', '终端外壳与密度', '视图模板 ABCD', 'Inspector 与 Ticker', 'Agent 凭据与审计', '实时与原生体验'],
     highlights: [
+      {
+        area: 'Agent',
+        title: '面向智能体的运营',
+        detail:
+          '运营范式升级为人/智能体协同：新增 provisioner 自助签发与 item_key 身份列，补齐 usage-guide 四步确认与 /inventory 审计域及国家维度，结合 Live Stream 30s 轮询实时出单流与 Inspector 可配置数据源，让智能体可在终端内自主完成查询、监控与运营执行。',
+      },
       {
         area: 'Shell',
         title: '高密度交易终端外壳定版',
@@ -269,24 +275,19 @@ const RELEASES: ReleaseVersion[] = [
         detail: '模板 A 超密度网格、B 双轴分析画布、C 分屏工作台、D 财务矩阵批量套版到销售/广告/财务等 20+ 模块。',
       },
       {
-        area: 'Polish',
-        title: '终端化 9 批次集中打磨',
-        detail: 'Stage 1 原子组件→Stage 9 库存预警频道，覆盖 Dashboard、Operations、财务、报表、CRM、系统/AI/工具全域抛光。',
-      },
-      {
         area: 'Intelligence',
         title: 'Inspector 与 Footer Ticker 情报化',
         detail: 'Inspector 接可配置数据源与 Live Stream 轮询（30s、隐藏暂停、8s 静默降级），Footer 双拷贝 Ticker 常驻汇率与预警。',
       },
       {
-        area: 'Agent',
-        title: 'Agent 凭据与审计增强',
-        detail: '新增 provisioner 自助签发与 item_key 身份列，补齐 usage-guide 四步确认与 /inventory 审计域及国家维度。',
+        area: 'Polish',
+        title: '终端化 9 批次集中打磨',
+        detail: 'Stage 1 原子组件→Stage 9 库存预警频道，覆盖 Dashboard、Operations、财务、报表、CRM、系统/AI/工具全域抛光。',
       },
       {
-        area: 'Mobile',
-        title: '移动端与细节收尾',
-        detail: '完成 CRM/运营/报表/AI/系统域移动端适配与 W4 FNSKU 指南、pending_order_qty 真值接线与细节抛光。',
+        area: 'Experience',
+        title: '原生体验与细节收尾',
+        detail: '完成 CRM/运营/报表/AI/系统域移动端适配与 W4 FNSKU 指南、pending_order_qty 真值接线与细节抛光，收口高密度终端的原生体验。',
       },
     ],
     sourceLogs: [
