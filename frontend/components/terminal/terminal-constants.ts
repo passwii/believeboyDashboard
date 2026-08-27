@@ -8,6 +8,13 @@ import type { SidebarSubItem, SidebarTopGroup } from '@/lib/sidebar-config'
 // 全局放大两档后的规格（master-prompt §任务 0a 一档 56/224/40/28/320；二档 64/256/48/32/360）：
 // BLF-844：SubNav 256 观感过宽（用户反馈 2026-08-26），回调至中间档 224。
 export const TERMINAL_RAIL_WIDTH = 64
+/**
+ * L1 Rail 主轨图标尺寸（BLF-850，2026-08-27 用户要求整体放大一档）：
+ * 8 大业务域图标 + 底部主题切换图标统一引用本常量（20px），
+ * 取代早前写死的 18px。单源驱动，改尺寸只动此处。
+ * 仅限 L1 Rail；其余 L-图标（Header 工具钮）维持 18px（见 master-prompt §1b-2）。
+ */
+export const TERMINAL_RAIL_ICON_SIZE = 20
 export const TERMINAL_SUBNAV_WIDTH = 224
 /** SubNav 折叠宽度（BLF-825）：有意整列收起归零（与 BLF-809 旧行为等价），仅以动效呈现；非窄图标列 */
 export const TERMINAL_SUBNAV_COLLAPSED_WIDTH = 0
