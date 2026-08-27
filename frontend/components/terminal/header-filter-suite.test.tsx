@@ -3,8 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   HeaderCountrySelect,
-  HeaderKpiTile,
   HeaderProjectSelect,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+  TERM_SELECT_CONTENT,
 } from './header-filter-suite'
 import {
   TerminalGlobalFilterProvider,
@@ -47,8 +51,6 @@ function Suite() {
     <div>
       <HeaderProjectSelect value={ctx.projectId} onChange={ctx.setProjectId} />
       <HeaderCountrySelect value={ctx.country} onChange={ctx.setCountry} />
-      <HeaderKpiTile label="GMV" value="$12,345" />
-      <HeaderKpiTile label="ORD" value={null} />
     </div>
   )
 }
@@ -118,15 +120,22 @@ describe('header-filter-suite', () => {
     expect(document.body.textContent).toContain('英国站 (UK)')
   })
 
-  it('KPI 磁贴：有值显示数值、无值显示 -- 占位', async () => {
-    fetchManagedProjectsCachedMock.mockResolvedValue([])
-    renderSuite()
-    await vi.waitFor(() => expect(screen.getByText('$12,345')).toBeInTheDocument())
-    expect(screen.getByText('--')).toBeInTheDocument()
+  it('Stage 4 三区常量：TERM_HEADER_TRIGGER / 4 档宽度 / 弹层 tokens 单源收敛', () => {
+    expect(TERM_HEADER_TRIGGER).toContain('h-9')
+    expect(TERM_HEADER_TRIGGER).toContain('border-term-border')
+    expect(TERM_HEADER_W_SM).toBe('w-[130px]')
+    expect(TERM_HEADER_W_MD).toBe('w-[150px]')
+    expect(TERM_HEADER_W_XL).toBe('w-[240px]')
+    expect(TERM_SELECT_CONTENT).toContain('border-term-border')
+    expect(TERM_SELECT_CONTENT).toContain('bg-term-panel')
   })
 
-  it('KPI 磁贴：loading 态显示 ··· 占位动画文本', () => {
-    render(<HeaderKpiTile label="GMV" value={null} loading />)
-    expect(screen.getByText('···')).toBeInTheDocument()
+  it('头部三区已无 FieldLabel：全局筛选四件套不再渲染 mono 标签（Stage 4 去标签化）', async () => {
+    fetchManagedProjectsCachedMock.mockResolvedValue([{ id: 1, name: '店铺甲' }])
+    renderSuite()
+    await vi.waitFor(() => expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument())
+    expect(screen.queryByText('项目')).not.toBeInTheDocument()
+    expect(screen.queryByText('站点')).not.toBeInTheDocument()
+    expect(screen.queryByText('日期')).not.toBeInTheDocument()
   })
 })
