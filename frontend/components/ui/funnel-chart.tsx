@@ -157,8 +157,8 @@ function hSegmentPath(
   straight = false
 ) {
   const my = H / 2
-  const h0 = normStart * H * 0.44 * layerScale
-  const h1 = normEnd * H * 0.44 * layerScale
+  const h0 = normStart * H * 0.38 * layerScale
+  const h1 = normEnd * H * 0.38 * layerScale
 
   if (straight) {
     return `M 0 ${my - h0} L ${segW} ${my - h1} L ${segW} ${my + h1} L 0 ${my + h0} Z`
@@ -179,8 +179,8 @@ function vSegmentPath(
   straight = false
 ) {
   const mx = W / 2
-  const w0 = normStart * W * 0.44 * layerScale
-  const w1 = normEnd * W * 0.44 * layerScale
+  const w0 = normStart * W * 0.38 * layerScale
+  const w1 = normEnd * W * 0.38 * layerScale
 
   if (straight) {
     return `M ${mx - w0} 0 L ${mx - w1} ${segH} L ${mx + w1} ${segH} L ${mx + w0} 0 Z`
@@ -211,7 +211,7 @@ function HRing({
   ringIndex: number
   totalRings: number
 }) {
-  const extraScale = 1 + (ringIndex / Math.max(totalRings - 1, 1)) * 0.12
+  const extraScale = 1 + (ringIndex / Math.max(totalRings - 1, 1)) * 0.06
   const ringSpring = {
     stiffness: 300 - ringIndex * 60,
     damping: 24 - ringIndex * 3,
@@ -249,7 +249,7 @@ function VRing({
   ringIndex: number
   totalRings: number
 }) {
-  const extraScale = 1 + (ringIndex / Math.max(totalRings - 1, 1)) * 0.12
+  const extraScale = 1 + (ringIndex / Math.max(totalRings - 1, 1)) * 0.06
   const ringSpring = {
     stiffness: 300 - ringIndex * 60,
     damping: 24 - ringIndex * 3,
@@ -331,7 +331,7 @@ function HSegment({
 
   return (
     <motion.div
-      className="pointer-events-none relative shrink-0 overflow-visible"
+      className="pointer-events-none relative shrink-0 overflow-hidden"
       style={{
         width: segW,
         height: fullH,
@@ -340,7 +340,7 @@ function HSegment({
       }}
     >
       <motion.div
-        className="absolute inset-0 overflow-visible"
+        className="absolute inset-0 overflow-hidden"
         style={{
           scaleX: entranceScaleX,
           scaleY: entranceScaleY,
@@ -349,7 +349,7 @@ function HSegment({
       >
         <svg
           aria-hidden="true"
-          className="absolute inset-0 h-full w-full overflow-visible"
+          className="absolute inset-0 h-full w-full overflow-hidden"
           preserveAspectRatio="none"
           role="presentation"
           viewBox={`0 0 ${segW} ${fullH}`}
@@ -458,7 +458,7 @@ function VSegment({
 
   return (
     <motion.div
-      className="pointer-events-none relative shrink-0 overflow-visible"
+      className="pointer-events-none relative shrink-0 overflow-hidden"
       style={{
         width: fullW,
         height: segH,
@@ -467,7 +467,7 @@ function VSegment({
       }}
     >
       <motion.div
-        className="absolute inset-0 overflow-visible"
+        className="absolute inset-0 overflow-hidden"
         style={{
           scaleY: entranceScaleY,
           scaleX: entranceScaleX,
@@ -476,7 +476,7 @@ function VSegment({
       >
         <svg
           aria-hidden="true"
-          className="absolute inset-0 h-full w-full overflow-visible"
+          className="absolute inset-0 h-full w-full overflow-hidden"
           preserveAspectRatio="none"
           role="presentation"
           viewBox={`0 0 ${fullW} ${segH}`}
@@ -736,7 +736,7 @@ export function FunnelChart({
   // SSR / 首屏尚未测量时，用与 aspectRatio 一致的标称尺寸先行渲染，避免漏斗区
   // 空白一闪再弹出（用户反馈"效果非常差"的主因）；挂载后 ResizeObserver 会立即
   // 校正为真实像素尺寸。初始客户端状态与 SSR 一致（同取标称值），无 hydration 失配。
-  const nominal = horiz ? { w: 660, h: 300 } : { w: 300, h: 540 }
+  const nominal = horiz ? { w: 700, h: 250 } : { w: 300, h: 540 }
   const W = sz.w > 0 ? sz.w : nominal.w
   const H = sz.h > 0 ? sz.h : nominal.h
 
@@ -756,10 +756,10 @@ export function FunnelChart({
 
   return (
     <div
-      className={cn('relative w-full select-none overflow-visible', className)}
+      className={cn('relative w-full select-none overflow-hidden', className)}
       ref={ref}
       style={{
-        aspectRatio: horiz ? '2.2 / 1' : '1 / 1.8',
+        aspectRatio: horiz ? '2.8 / 1' : '1 / 1.8',
         ...style,
       }}
     >
@@ -808,7 +808,7 @@ export function FunnelChart({
           {/* Segments */}
           <div
             className={cn(
-              'absolute inset-0 flex overflow-visible',
+              'absolute inset-0 flex overflow-hidden',
               horiz ? 'flex-row' : 'flex-col'
             )}
             style={{ gap }}
