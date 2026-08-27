@@ -170,6 +170,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
+  it('agent_provisioning 已接入且 routeCount=1、只写（BLF-861）', () => {
+    const domain = getAgentDomain('agent_provisioning')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('凭据签发')
+    expect(domain?.routeCount).toBe(1)
+    expect(domain?.capabilities).toEqual({ read: false, write: true })
+  })
+
   it('注册表有规划中域（roadmap 待迁移）', () => {
     expect(AGENT_DOMAINS.some((d) => d.status === 'planned')).toBe(true)
   })
