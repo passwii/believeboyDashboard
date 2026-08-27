@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -284,18 +284,14 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
     (item.negative_feedback ?? 0) + (item.a2z_claims ?? 0) + (item.chargeback_claims ?? 0)
 
   return (
-    <Card
-      className={`dashboard-surface cursor-pointer hover-lift ${CARD_SEVERITY_STYLES[cardSeverity]}`}
-      onClick={onClick}
+    <TermPanel
+      title={item.project_name}
+      actions={<Badge className={style.badge}>{style.label}</Badge>}
+      className={`cursor-pointer transition-colors hover:bg-term-hover ${CARD_SEVERITY_STYLES[cardSeverity]}`}
+      bodyClassName="space-y-3 p-3"
     >
-      {/* HEAD */}
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-        <span className="font-semibold text-foreground">{item.project_name}</span>
-        <Badge className={style.badge}>{style.label}</Badge>
-      </CardHeader>
-
-      {/* BODY */}
-      <CardContent className="space-y-3 pt-0">
+      <button type="button" onClick={onClick} className="absolute inset-0 z-0" aria-label={`编辑 ${item.project_name}`} />
+      <div className="relative z-10 space-y-3">
         {/* Section: 账号健康 + 客户服务 */}
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
@@ -397,18 +393,17 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
             </div>
           </div>
         </div>
-      </CardContent>
+      </div>
 
-      {/* FOOTER */}
-      <CardFooter className="flex items-center justify-between border-t border-border/50 px-6 pt-5 pb-4 md:px-7 md:pt-5 md:pb-4">
-        <p className="text-xs text-muted-foreground">
+      <div className="relative z-10 flex items-center justify-between border-t border-term-border px-3 py-2">
+        <p className="font-mono text-[11px] text-term-muted">
           {item.submitted_by ? (
             <>
               {item.submitted_by}
               {item.submitted_at && ` · ${formatDatetime(item.submitted_at)}`}
             </>
           ) : (
-            <span className="italic text-muted-foreground/50">未提交</span>
+            <span className="italic text-term-faint">未提交</span>
           )}
         </p>
         <div className="flex items-center gap-1">
@@ -428,34 +423,32 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
           />
           <StatusSummaryIndicator content={item.status_summary} />
         </div>
-      </CardFooter>
-    </Card>
+      </div>
+    </TermPanel>
   )
 }
 
 function ProjectCardSkeleton() {
   return (
-    <Card className="dashboard-surface border-border/70">
-      <div className="space-y-3 p-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-5 w-16" />
-        </div>
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-3 w-12" />
-        <div className="grid grid-cols-2 gap-1.5">
-          <Skeleton className="h-7 w-full" />
-          <Skeleton className="h-7 w-full" />
-          <Skeleton className="h-7 w-full" />
-          <Skeleton className="h-7 w-full" />
-        </div>
-        <div className="flex items-center justify-between border-t border-border/50 pt-3">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-5 w-14" />
-        </div>
+    <TermPanel bodyClassName="space-y-3 p-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-5 w-16" />
       </div>
-    </Card>
+      <Skeleton className="h-3 w-12" />
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-3 w-12" />
+      <div className="grid grid-cols-2 gap-1.5">
+        <Skeleton className="h-7 w-full" />
+        <Skeleton className="h-7 w-full" />
+        <Skeleton className="h-7 w-full" />
+        <Skeleton className="h-7 w-full" />
+      </div>
+      <div className="flex items-center justify-between border-t border-term-border pt-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-5 w-14" />
+      </div>
+    </TermPanel>
   )
 }
 
