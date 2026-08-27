@@ -61,6 +61,8 @@ export const TERMINAL_TICKER = {
     syncTime: true,
     /** 更新日志最新一条摘要（本地 changelog 快照，无网络开销） */
     changelog: true,
+    /** 库存预警：低于安全库存（断货风险/短期断货/长期断货）的 SKU 数，复用补货分析 summary.out_of_stock_risk_count */
+    inventoryAlert: true,
   },
 } as const
 

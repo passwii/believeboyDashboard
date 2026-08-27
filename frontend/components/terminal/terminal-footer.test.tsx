@@ -2,6 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TerminalFooter } from './terminal-footer'
+import { TERMINAL_TICKER } from './terminal-constants'
 
 const { tickerMock } = vi.hoisted(() => ({ tickerMock: vi.fn() }))
 vi.mock('@/lib/hooks/use-exchange-rate-ticker', () => ({
@@ -18,11 +19,24 @@ vi.mock('@/components/notifications/server-notifications-context', () => ({
   useServerNotifications: unreadMock,
 }))
 
+const { alertMock } = vi.hoisted(() => ({ alertMock: vi.fn() }))
+vi.mock('@/lib/hooks/use-inventory-alert', () => ({
+  useInventoryAlert: alertMock,
+}))
+
+// 默认：库存预警频道加载中（不渲染具体数字），保证其余用例不被影响
+alertMock.mockReturnValue({ count: null, status: 'loading' })
+
+function mockAlert(count: number | null, status: 'loading' | 'ok' | 'error' = 'ok') {
+  alertMock.mockReturnValue({ count, status })
+}
+
 afterEach(() => {
   cleanup()
   tickerMock.mockReset()
   briefMock.mockReset()
   unreadMock.mockReset()
+  alertMock.mockReset().mockReturnValue({ count: null, status: 'loading' })
 })
 
 function mockTicker(
@@ -118,6 +132,44 @@ describe('TerminalFooter', () => {
     for (const label of ['GMV', '订单']) {
       const el = screen.getAllByText(label)[0]
       expect(el.className).not.toContain('font-mono')
+    }
+  })
+
+  it('BLF-840 库存预警频道按约定渲染：label + 数量 + 风险高亮', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlert(3, 'ok')
+    render(<TerminalFooter />)
+    // 双拷贝：label 与风险文案各出现两次
+    expect(screen.getAllByText('库存预警').length).toBeGreaterThan(0)
+    const riskEls = screen.getAllByText('3 SKU 低于安全库存')
+    expect(riskEls.length).toBeGreaterThan(0)
+    // 风险态（count>0）高亮为 term-neg
+    expect(riskEls[0].className).toContain('text-term-neg')
+  })
+
+  it('BLF-840 库存预警频道无风险时显示「正常」且低调（faint）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlert(0, 'ok')
+    render(<TerminalFooter />)
+    const okEls = screen.getAllByText('正常')
+    expect(okEls.length).toBeGreaterThan(0)
+    expect(okEls[0].className).toContain('text-term-faint')
+  })
+
+  it('BLF-840 频道开关关闭时库存预警不渲染（契约断言）', () => {
+    const channels = TERMINAL_TICKER.channels as { inventoryAlert: boolean }
+    const prev = channels.inventoryAlert
+    channels.inventoryAlert = false
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+      mockAlert(3, 'ok')
+      render(<TerminalFooter />)
+      expect(screen.queryByText('库存预警')).toBeNull()
+    } finally {
+      channels.inventoryAlert = prev
     }
   })
 })
