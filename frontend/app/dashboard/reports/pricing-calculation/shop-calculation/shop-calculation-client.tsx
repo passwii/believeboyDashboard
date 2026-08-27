@@ -730,8 +730,6 @@ export default function ShopCalculationPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
       </div>
 
       {/* Card 2: DataTableCard with Stats */}
