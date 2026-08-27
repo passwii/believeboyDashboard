@@ -168,6 +168,42 @@ class OrderInfoExportResponse(BaseModel):
     content_base64: str  # utf-8 csv 内容 base64 编码
 
 
+class OrderLiveStreamItem(BaseModel):
+    """今日出单流单条事件（BLF-839）。
+
+    对齐前端 ``TerminalInspector`` 的 ``LiveStreamItem`` 插槽契约
+    （PR #425：``{ id, title, timeLabel }``），并附带扩展上下文字段
+    （shell 层按需取用，多带不破坏最小集）：
+
+    * ``id`` → LiveStreamItem.id（唯一键，``{project}:{order}``）；
+    * ``title`` → LiveStreamItem.title（订单摘要，服务端拼好金额）；
+    * ``time_label`` → LiveStreamItem.timeLabel（北京时间 ``HH:MM``；
+      前端也可用 ``occurred_at`` 自行格式化）；
+    * ``occurred_at`` 强制以 UTC ISO 序列化（同 :class:`OrderInfoItem` 口径）。
+    """
+
+    id: str
+    title: str
+    time_label: str
+    occurred_at: datetime
+    project_id: int
+    project_name: str | None = None
+    country: str | None = None
+    currency: str | None = None
+    amount: float = 0.0
+    quantity: int = 0
+    order_status: str | None = None
+
+    @field_serializer("occurred_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        """强制 UTC ISO 输出，避免 PG session TZ 影响（与 OrderInfoItem 同口径）。"""
+        if value is None:
+            return ""
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+
+
 class OrderInfoUpdate(BaseModel):
     """FBM 订单补录/编辑请求体。所有字段可选，未传入则不改。
 

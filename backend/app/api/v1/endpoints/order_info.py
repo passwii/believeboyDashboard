@@ -27,6 +27,7 @@ from app.schemas.order_info import (
     OrderInfoExportResponse,
     OrderInfoFilterOptions,
     OrderInfoItem,
+    OrderLiveStreamItem,
     OrderInfoListResponse,
     OrderInfoOverview,
     OrderInfoPageData,
@@ -258,6 +259,32 @@ def get_filter_options(
     _ensure_operator_header(operator, bool(is_admin))
     return order_info_service.collect_filter_options(
         db, operator=operator, is_admin=bool(is_admin)
+    )
+
+
+@router.get("/live-stream", response_model=list[OrderLiveStreamItem])
+def get_order_live_stream(
+    project_ids: list[int] | None = Query(default=None),
+    countries: list[str] | None = Query(default=None),
+    limit: int = order_info_service.DEFAULT_LIVE_STREAM_LIMIT,
+    db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> list[OrderLiveStreamItem]:
+    """今日出单流：按订单去重的最近 N 条出单事件（BLF-839）。
+
+    供终端 Inspector Live Stream 区块轮询（建议 30s–60s 间隔）。
+    字段最小集 ``id`` / ``title`` / ``time_label`` 对齐前端
+    ``LiveStreamItem`` 插槽（PR #425）；权限与 order-info 列表页同口径。
+    """
+    _ensure_operator_header(operator, bool(is_admin))
+    return order_info_service.query_order_live_stream(
+        db,
+        project_ids=project_ids or None,
+        countries=countries,
+        limit=limit,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
 
 

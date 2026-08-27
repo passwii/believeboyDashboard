@@ -26,11 +26,14 @@ from app.models.product_analysis_source import (
     AnalysisSourceFile,
 )
 from app.models.project import Project
+from app.utils.country import SUPPORTED_COUNTRIES, get_today_for_country
+from app.utils.math_utils import round_money
 from app.utils.sales_amount import sales_amount_expr_by_row
 from app.schemas.order_info import (
     FilterOption,
     OrderInfoFilterOptions,
     OrderInfoItem,
+    OrderLiveStreamItem,
     OrderInfoListResponse,
     OrderInfoOverview,
     OrderInfoPageData,
@@ -101,6 +104,15 @@ def _to_pt_str(value: datetime | None) -> str:
     if not isinstance(value, datetime):
         return ""
     return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _beijing_hhmm(value: datetime | None) -> str:
+    """UTC 瞬间 → 北京时间 ``HH:MM``（Live Stream 时间标签用，BLF-839）。"""
+    if not isinstance(value, datetime):
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(BEIJING_TZ).strftime("%H:%M")
 
 
 def serialize_order_row(
@@ -958,6 +970,128 @@ def parse_date_input(value: str | None) -> date | None:
         return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
     except (TypeError, ValueError):
         return None
+
+
+# ===== Live Stream · 今日出单流（BLF-839） =====
+
+
+DEFAULT_LIVE_STREAM_LIMIT = 10
+MAX_LIVE_STREAM_LIMIT = 50
+
+
+def query_order_live_stream(
+    db: Session,
+    *,
+    project_ids: list[int] | None = None,
+    countries: Iterable[str] | None = None,
+    limit: int = DEFAULT_LIVE_STREAM_LIMIT,
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> list[OrderLiveStreamItem]:
+    """今日出单流：按订单去重后的最近 N 条出单事件（BLF-839）。
+
+        口径（与 order-info 列表页 / ``counted_sales_where`` 一致）：
+
+        * 只取 ``is_counted_sales`` 行，排除 Cancelled，含 Pending/Unshipped
+          （已下单未发货也算出单事件）；
+        * 窗口 = 各站点本地「今天」（``get_today_for_country``，US=PT/DE=Berlin/
+      UK=London），打在 ``purchase_date_pt`` 上；
+        * 同一订单多 SKU 行合并为一条事件（金额求和、数量求和）；
+    * 排序键取组内最晚 ``purchase_at_utc``（真实购买瞬间，NOT NULL）；
+    * 仅 ``is_current`` 版本 source_file 的行参与（复用 ``_build_base_query``）。
+
+        权限：复用 :func:`_ensure_project_access_for_orders`——admin 不限项目，
+        非 admin 缩到自己运营的项目；无权限返回空列表。
+
+        响应字段对齐前端 ``TerminalInspector`` 的 ``LiveStreamItem`` 插槽
+        （PR #425）：``id`` / ``title`` / ``time_label`` 为最小集，其余为扩展上下文。
+    """
+    safe_limit = min(
+        max(int(limit or DEFAULT_LIVE_STREAM_LIMIT), 1), MAX_LIVE_STREAM_LIMIT
+    )
+
+    scoped_project_ids = _ensure_project_access_for_orders(
+        db,
+        candidate_project_ids=project_ids,
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if scoped_project_ids is not None and not scoped_project_ids:
+        return []
+
+    # 各站点本地「今天」：窗口下界取最早的站点今天，避免跨站点时漏掉
+    # 已进入当地今天的行；上界用 date.max 兜底未来日期行（正常数据不会有）。
+    today_min = min(get_today_for_country(c) for c in sorted(SUPPORTED_COUNTRIES))
+
+    latest_utc = func.max(AnalysisSalesOrderRow.purchase_at_utc).label("latest_utc")
+    stmt = (
+        _build_base_query()
+        .with_only_columns(
+            AnalysisSalesOrderRow.project_id,
+            AnalysisSalesOrderRow.amazon_order_id,
+            latest_utc,
+            func.sum(AnalysisSalesOrderRow.quantity).label("quantity"),
+            func.sum(sales_amount_expr_by_row()).label("amount"),
+            func.min(AnalysisSalesOrderRow.currency).label("currency"),
+            func.min(AnalysisSalesOrderRow.country).label("country"),
+            func.min(AnalysisSalesOrderRow.order_status).label("order_status"),
+        )
+        .where(AnalysisSalesOrderRow.is_counted_sales.is_(True))
+        .where(AnalysisSalesOrderRow.order_status != "Cancelled")
+        .where(AnalysisSalesOrderRow.purchase_date_pt >= today_min)
+        .group_by(
+            AnalysisSalesOrderRow.project_id,
+            AnalysisSalesOrderRow.amazon_order_id,
+        )
+        .order_by(latest_utc.desc())
+        .limit(safe_limit)
+    )
+    if scoped_project_ids is not None:
+        stmt = stmt.where(AnalysisSalesOrderRow.project_id.in_(scoped_project_ids))
+
+    country_list = [c for c in (countries or []) if c]
+    if country_list:
+        stmt = stmt.where(AnalysisSalesOrderRow.country.in_(country_list))
+
+    rows = db.execute(stmt).all()
+    if not rows:
+        return []
+
+    project_names = {
+        p.id: p.project_name
+        for p in db.query(Project)
+        .filter(Project.id.in_({r.project_id for r in rows}))
+        .all()
+    }
+
+    items: list[OrderLiveStreamItem] = []
+    for r in rows:
+        amount_value = r.amount if r.amount is not None else Decimal("0")
+        currency = (r.currency or "").strip()
+        amount_text = f"{round_money(amount_value):,.2f}"
+        title = (
+            f"订单 #{r.amazon_order_id} · {currency} {amount_text}"
+            if currency
+            else f"订单 #{r.amazon_order_id} · {amount_text}"
+        )
+        items.append(
+            OrderLiveStreamItem(
+                id=f"{r.project_id}:{r.amazon_order_id}",
+                title=title,
+                # 北京时间 HH:MM（与订单信息页展示口径一致）
+                time_label=_beijing_hhmm(r.latest_utc),
+                # timestamptz 真实瞬间；serializer 统一转 UTC ISO 输出
+                occurred_at=r.latest_utc,
+                project_id=int(r.project_id),
+                project_name=project_names.get(int(r.project_id)),
+                country=(r.country or "").upper() or None,
+                currency=currency or None,
+                amount=round_money(amount_value),
+                quantity=int(r.quantity or 0),
+                order_status=r.order_status or None,
+            )
+        )
+    return items
 
 
 # ===== Mutation (FBM 补录) =====
