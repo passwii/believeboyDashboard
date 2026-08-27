@@ -13,7 +13,6 @@ import {
 import {
   HeaderCountrySelect,
   HeaderDateRangePicker,
-  HeaderKpiTile,
   HeaderProjectSelect,
 } from '@/components/terminal/header-filter-suite'
 import {
@@ -24,7 +23,6 @@ import {
   isGlobalFilterPilotRoute,
   useTerminalGlobalFilter,
 } from '@/components/terminal/global-filter-context'
-import { useHeaderKpis } from '@/lib/hooks/use-header-kpis'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import {
@@ -58,7 +56,7 @@ interface TerminalHeaderProps {
 /**
  * Top Header 全局控制台条（固定 48px，BLF-809；二档放大 2026-08-25）。
  * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）。
- * 中：全局筛选四件套 + KPI 磁贴（BLF-819，仅试点路由激活；未接入页面零变化）。
+ * 中：HeaderSlot 唯一操作区 + 全局筛选四件套（BLF-819，仅试点路由激活；BLF-874 已移除 KPI 磁贴）。
  * 右：⌘K 搜索、通知、Inspector 开关、用户菜单。
  */
 export function TerminalHeader({
@@ -79,13 +77,9 @@ export function TerminalHeader({
   const { refreshRegistered, refreshLoading, triggerRefresh } = useTerminalHeaderSlot()
 
   // BLF-819 全局筛选四件套：仅试点路由渲染，其余页面头部行为零变化
+  // BLF-874 Stage 1：KPI 磁贴（GMV/ORD/PND）已下线，正文 MetricSwitcherCard 已覆盖，移除 useHeaderKpis 依赖
   const globalFilter = useTerminalGlobalFilter()
   const pilotActive = isGlobalFilterPilotRoute(pathname)
-  const { kpis, loading: kpisLoading } = useHeaderKpis()
-  const formatMoney0 = React.useCallback(
-    (v: number | null) => (v == null ? null : `$${Math.round(v).toLocaleString('en-US')}`),
-    []
-  )
 
   const activeGroup = groups.find((g) => g.id === activeGroupId)
   const pageTitle = React.useMemo(() => getDashboardPageTitle(pathname), [pathname])
@@ -96,8 +90,8 @@ export function TerminalHeader({
       style={{ height: TERMINAL_HEADER_HEIGHT }}
       className="flex shrink-0 items-stretch rounded-none border-b border-term-border bg-term-panel shadow-none"
     >
-      {/* 左段：subnav 切换 + 面包屑 */}
-      <div className="flex min-w-0 flex-1 items-center gap-1 px-2">
+      {/* 左段：subnav 切换 + 面包屑（BLF-874：flex-1 min-w-0 + overflow-x-auto term-scroll，超宽横向滚动不挤占中/右） */}
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 term-scroll">
         <button
           type="button"
           onClick={onOpenMobileNav}
@@ -116,7 +110,7 @@ export function TerminalHeader({
         >
           <PanelLeft className={cn('h-[18px] w-[18px]', !subnavCollapsed && 'text-term-text')} strokeWidth={1.75} />
         </button>
-        <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1.5 text-sm">
+        <nav aria-label="面包屑" className="flex min-w-0 shrink-0 items-center gap-1.5 text-sm">
           {activeGroup && (
             <>
               <span
@@ -139,7 +133,7 @@ export function TerminalHeader({
         </nav>
       </div>
 
-      {/* 中段：页面级 HeaderSlot（BLF-826）+ 全局筛选四件套（BLF-819，试点路由） */}
+      {/* 中段：页面级 HeaderSlot 唯一容器（BLF-874/826，hidden md:flex gap-1.5 overflow-hidden 48px 对齐） */}
       <HeaderSlotMount className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
       {pilotActive && globalFilter.ready ? (
         <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex">
@@ -157,20 +151,6 @@ export function TerminalHeader({
             country={globalFilter.country}
             onChange={globalFilter.setDateRange}
           />
-          <span className="mx-0.5 hidden h-4 w-px bg-term-border 2xl:block" aria-hidden />
-          <div className="hidden items-center gap-1.5 2xl:flex">
-            <HeaderKpiTile label="GMV" value={formatMoney0(kpis.gmv)} loading={kpisLoading} />
-            <HeaderKpiTile
-              label="ORD"
-              value={kpis.orders == null ? null : kpis.orders.toLocaleString('en-US')}
-              loading={kpisLoading}
-            />
-            <HeaderKpiTile
-              label="PND"
-              value={kpis.pending == null ? null : kpis.pending.toLocaleString('en-US')}
-              loading={kpisLoading}
-            />
-          </div>
         </div>
       ) : null}
 
