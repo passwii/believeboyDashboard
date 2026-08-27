@@ -609,16 +609,21 @@ export const SIDEBAR_TOP_GROUPS = [
         let groups = parse_ts_groups(src);
         assert_eq!(groups.len(), 1);
         let g = &groups[0];
-        assert_eq!((g.id.as_str(), g.label.as_str(), g.icon.as_str()), ("operations", "运营", "LayoutDashboard"));
+        assert_eq!(
+            (g.id.as_str(), g.label.as_str(), g.icon.as_str()),
+            ("operations", "运营", "LayoutDashboard")
+        );
         assert_eq!(g.items.len(), 3);
         assert_eq!(
             g.items[0],
-            TsItem { title: "站点导航".into(), url: "/a".into(), match_prefixes: vec![], icon: "Store".into() }
+            TsItem {
+                title: "站点导航".into(),
+                url: "/a".into(),
+                match_prefixes: vec![],
+                icon: "Store".into()
+            }
         );
-        assert_eq!(
-            g.items[1].match_prefixes,
-            vec!["/b".to_string()]
-        );
+        assert_eq!(g.items[1].match_prefixes, vec!["/b".to_string()]);
         assert_eq!(g.items[2].match_prefixes, vec!["/c", "/sea"]);
     }
 
@@ -741,9 +746,7 @@ export const SIDEBAR_TOP_GROUPS = [
             }
             if line.starts_with("url:") {
                 if let Some(it) = current_item.as_mut() {
-                    it.url = quoted_after(line, "url:")
-                        .unwrap_or_default()
-                        .to_string();
+                    it.url = quoted_after(line, "url:").unwrap_or_default().to_string();
                 }
                 continue;
             }

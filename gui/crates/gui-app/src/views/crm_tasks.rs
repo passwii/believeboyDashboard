@@ -13,14 +13,13 @@
 //! - **精简**：新建/编辑任务对话框不移植；提醒 SSE 流不移植（GUI 无长驻流式
 //!   先例），到期信号由 due_date 着色承载。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
 use gpui::prelude::*;
 use gpui::{
-    div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
-    Styled, WeakEntity, Window,
+    div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString, Styled,
+    WeakEntity, Window,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{h_flex, v_flex, Sizable};
@@ -247,7 +246,9 @@ impl CrmTasksView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime()
-                        .block_on(async { client.crm_tasks(&params, task_type.as_deref(), None).await })
+                        .block_on(async {
+                            client.crm_tasks(&params, task_type.as_deref(), None).await
+                        })
                         .map_err(|e| e.user_message())
                 })
                 .await;
@@ -357,7 +358,9 @@ impl CrmTasksView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime()
-                        .block_on(async { client.crm_set_task_status(task_id, target_status).await })
+                        .block_on(async {
+                            client.crm_set_task_status(task_id, target_status).await
+                        })
                         .map_err(|e| e.user_message())
                 })
                 .await;
@@ -399,8 +402,16 @@ impl Render for CrmTasksView {
         let toolbar = h_flex()
             .gap_2()
             .items_center()
-            .child(mode_button(view.clone(), TasksViewMode::List, self.view_mode))
-            .child(mode_button(view.clone(), TasksViewMode::Board, self.view_mode))
+            .child(mode_button(
+                view.clone(),
+                TasksViewMode::List,
+                self.view_mode,
+            ))
+            .child(mode_button(
+                view.clone(),
+                TasksViewMode::Board,
+                self.view_mode,
+            ))
             .child(filter_select(
                 &app_theme,
                 "类型",
@@ -436,7 +447,8 @@ impl Render for CrmTasksView {
         let rows = self.visible_rows(cx);
 
         // footer 聚合（Loaded 态）
-        let footer: gpui::AnyElement = if matches!(state, TasksState::Loaded(_)) && !rows.is_empty() {
+        let footer: gpui::AnyElement = if matches!(state, TasksState::Loaded(_)) && !rows.is_empty()
+        {
             let pending = rows.iter().filter(|t| t.status == "pending").count();
             let in_progress = rows.iter().filter(|t| t.status == "in_progress").count();
             let done = rows.iter().filter(|t| t.status == "done").count();
@@ -515,15 +527,18 @@ fn mode_button(
     mode: TasksViewMode,
     active: TasksViewMode,
 ) -> gpui::AnyElement {
-    Button::new(SharedString::from(format!("crm-tasks-mode-{}", mode.label())))
-        .when(mode == active, |b| b.primary())
-        .when(mode != active, |b| b.outline())
-        .small()
-        .label(mode.label())
-        .on_click(move |_ev, _w, cx| {
-            view.update(cx, |this, cx| this.set_view_mode(mode, cx));
-        })
-        .into_any_element()
+    Button::new(SharedString::from(format!(
+        "crm-tasks-mode-{}",
+        mode.label()
+    )))
+    .when(mode == active, |b| b.primary())
+    .when(mode != active, |b| b.outline())
+    .small()
+    .label(mode.label())
+    .on_click(move |_ev, _w, cx| {
+        view.update(cx, |this, cx| this.set_view_mode(mode, cx));
+    })
+    .into_any_element()
 }
 
 fn build_type_menu(
@@ -584,11 +599,18 @@ fn column_meta(key: &str, theme: &AppTheme) -> (&'static str, gpui::Hsla) {
         "pending" => ("待处理", theme.warning),
         "in_progress" => ("进行中", theme.accent),
         "done" => ("已完成", theme.success),
-        other => (Box::leak(other.to_string().into_boxed_str()), theme.text_secondary),
+        other => (
+            Box::leak(other.to_string().into_boxed_str()),
+            theme.text_secondary,
+        ),
     }
 }
 
-fn render_board(rows: Vec<TaskItem>, view: Entity<CrmTasksView>, theme: &AppTheme) -> gpui::AnyElement {
+fn render_board(
+    rows: Vec<TaskItem>,
+    view: Entity<CrmTasksView>,
+    theme: &AppTheme,
+) -> gpui::AnyElement {
     h_flex()
         .id("crm-tasks-board")
         .size_full()
@@ -599,8 +621,7 @@ fn render_board(rows: Vec<TaskItem>, view: Entity<CrmTasksView>, theme: &AppThem
         .overflow_x_scroll()
         .children(BOARD_COLUMNS.map(|key| {
             let (label, accent) = column_meta(key, theme);
-            let column_tasks: Vec<&TaskItem> =
-                rows.iter().filter(|t| t.status == key).collect();
+            let column_tasks: Vec<&TaskItem> = rows.iter().filter(|t| t.status == key).collect();
             let view_for_cards = view.clone();
             let theme = theme.clone_for_card();
             render_board_column(key, label, accent, column_tasks, view_for_cards, &theme)
@@ -665,16 +686,22 @@ fn render_board_column(
                         .child(count.to_string()),
                 ),
         )
-        .children(tasks.into_iter().map(|t| {
-            render_task_card(t, view.clone(), theme)
-        }))
+        .children(
+            tasks
+                .into_iter()
+                .map(|t| render_task_card(t, view.clone(), theme)),
+        )
         .into_any_element()
 }
 
 /// 单张任务卡：标题 + 元信息行（类型/优先级/负责人/关联实体）+ 动作按钮
 /// （移动到下一状态；GUI 无 dnd-kit 等价拖拽基建，用显式「右移」按钮承载
 /// 同一 setTaskStatus 契约——PR 说明注明取舍）
-fn render_task_card(task: &TaskItem, view: Entity<CrmTasksView>, theme: &AppTheme) -> gpui::AnyElement {
+fn render_task_card(
+    task: &TaskItem,
+    view: Entity<CrmTasksView>,
+    theme: &AppTheme,
+) -> gpui::AnyElement {
     let next_status: Option<&'static str> = match task.status.as_str() {
         "pending" => Some("in_progress"),
         "in_progress" => Some("done"),
@@ -757,7 +784,9 @@ fn card_meta_line(task: &TaskItem) -> String {
 
 fn columns() -> Vec<ColumnDef<TaskItem>> {
     vec![
-        ColumnDef::text("title", "标题", |r, _| SharedString::from(r.title.clone())),
+        ColumnDef::text("title", "标题", |r, _| {
+            SharedString::from(r.title.clone())
+        }),
         ColumnDef::text("status", "状态", |r: &TaskItem, _| {
             SharedString::from(task_status_label(&r.status))
         })

@@ -86,7 +86,8 @@ impl RenderOnce for PageHeader {
                     .gap_1()
                     .child(
                         gpui::div()
-                            .id("page-header-title").text_size(px(crate::theme::fs(FONT_TITLE_LG)))
+                            .id("page-header-title")
+                            .text_size(px(crate::theme::fs(FONT_TITLE_LG)))
                             .font_semibold()
                             .text_color(theme.text_primary)
                             .child(self.title),
@@ -94,7 +95,8 @@ impl RenderOnce for PageHeader {
                     .when_some(subtitle, |col, sub| {
                         col.child(
                             gpui::div()
-                                .id("page-header-subtitle").text_size(px(crate::theme::fs(FONT_XS)))
+                                .id("page-header-subtitle")
+                                .text_size(px(crate::theme::fs(FONT_XS)))
                                 .text_color(theme.text_muted)
                                 .child(sub),
                         )
@@ -314,10 +316,7 @@ mod tests {
                 include_str!("../views/seasonal_replenishment.rs"),
                 "views/seasonal_replenishment.rs",
             ),
-            (
-                include_str!("../views/sub_nav.rs"),
-                "views/sub_nav.rs",
-            ),
+            (include_str!("../views/sub_nav.rs"), "views/sub_nav.rs"),
             (
                 include_str!("../views/command_palette.rs"),
                 "views/command_palette.rs",

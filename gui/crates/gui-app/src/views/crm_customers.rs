@@ -13,7 +13,6 @@
 //!   JSON）不移植——GUI 无表单弹层先例，v1 只读主面覆盖「看客户」核心信号；
 //!   写操作走 web 端。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -283,16 +282,13 @@ impl Render for CrmCustomersView {
                 "crm-customers-scope-filter",
                 build_scope_menu(view.clone(), self.scope),
             ))
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(app_theme.text_muted)
-                    .child(if self.keyword.is_empty() {
-                        "未设关键词".to_string()
-                    } else {
-                        format!("关键词：{}", self.keyword)
-                    }),
-            )
+            .child(div().text_xs().text_color(app_theme.text_muted).child(
+                if self.keyword.is_empty() {
+                    "未设关键词".to_string()
+                } else {
+                    format!("关键词：{}", self.keyword)
+                },
+            ))
             .child(div().flex_1())
             .child({
                 let view = view.clone();
@@ -400,8 +396,7 @@ fn aggregate_items(rows: &[CustomerItem], total: usize) -> Vec<AggregateItem> {
 fn columns() -> Vec<ColumnDef<CustomerItem>> {
     vec![
         ColumnDef::text("name", "客户名称", name_cell),
-        ColumnDef::text("rating", "等级", rating_pill)
-            .width(64.0),
+        ColumnDef::text("rating", "等级", rating_pill).width(64.0),
         ColumnDef::text("status", "状态", |r: &CustomerItem, _| {
             SharedString::from(status_label(&r.status))
         })

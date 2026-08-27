@@ -14,7 +14,7 @@
 //! - **失焦**：订阅 `InputEvent::Blur` 自动关闭。
 
 use gpui::{
-    div, prelude::*, px, Context, Entity, EventEmitter, Focusable, FocusHandle, KeyDownEvent,
+    div, prelude::*, px, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
     SharedString, Window,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -75,9 +75,7 @@ pub(crate) fn filter_entries(entries: &[PaletteEntry], query: &str) -> Vec<usize
     for (i, e) in entries.iter().enumerate() {
         if e.title.to_lowercase().contains(&q) {
             by_title.push(i);
-        } else if e.group_label.to_lowercase().contains(&q)
-            || e.url.to_lowercase().contains(&q)
-        {
+        } else if e.group_label.to_lowercase().contains(&q) || e.url.to_lowercase().contains(&q) {
             by_other.push(i);
         }
     }
@@ -261,7 +259,8 @@ impl gpui::Render for CommandPaletteView {
                     .child(
                         div()
                             .min_w_0()
-                            .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
+                            .truncate()
+                            .text_size(px(crate::theme::fs(FONT_BASE)))
                             .text_color(if active {
                                 theme.text_primary
                             } else {
@@ -271,7 +270,8 @@ impl gpui::Render for CommandPaletteView {
                     )
                     .child(div().flex_1())
                     .child(
-                        div().text_size(px(crate::theme::fs(FONT_XS)))
+                        div()
+                            .text_size(px(crate::theme::fs(FONT_XS)))
                             .text_color(theme.text_muted)
                             .child(SharedString::from(entry.group_label.clone())),
                     )
@@ -296,7 +296,8 @@ impl gpui::Render for CommandPaletteView {
                 .child(
                     div()
                         .px_3()
-                        .py_2().text_size(px(crate::theme::fs(FONT_BASE)))
+                        .py_2()
+                        .text_size(px(crate::theme::fs(FONT_BASE)))
                         .text_color(theme.text_muted)
                         .child("无匹配模块"),
                 )
@@ -336,7 +337,8 @@ impl gpui::Render for CommandPaletteView {
                     .h(px(28.0))
                     .px_3()
                     .border_t_1()
-                    .border_color(theme.separator).text_size(px(crate::theme::fs(FONT_2XS)))
+                    .border_color(theme.separator)
+                    .text_size(px(crate::theme::fs(FONT_2XS)))
                     .text_color(theme.text_muted)
                     .child("↑↓ 选择 · ↵ 打开 · Esc 关闭"),
             );

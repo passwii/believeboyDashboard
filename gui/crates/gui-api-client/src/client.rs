@@ -212,8 +212,7 @@ impl Client {
                 return Err(ApiError::from_response(status.as_u16(), &body));
             }
 
-            serde_json::from_slice(&bytes)
-                .map_err(|e| ApiError::Deserialize(e.to_string()))
+            serde_json::from_slice(&bytes).map_err(|e| ApiError::Deserialize(e.to_string()))
         }
         .await;
         crate::metrics::record_latency(started.elapsed().as_secs_f64() * 1000.0);
@@ -429,7 +428,9 @@ mod tests {
             role_type: UserRoleType::Admin,
             is_admin: true,
         };
-        let client = Client::new(server.url()).with_api_key("k123").with_session(session);
+        let client = Client::new(server.url())
+            .with_api_key("k123")
+            .with_session(session);
         let result: Vec<serde_json::Value> = client
             .get_json("/api/v1/projects/manage", &[])
             .await

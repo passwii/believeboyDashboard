@@ -55,10 +55,7 @@ pub const LEDGER_TREND_MONTHS: i64 = 6;
 
 impl Client {
     /// 可用月份列表（`period` 下拉数据源；返回每月 1 号日期，倒序由后端给出）
-    pub async fn ledger_months(
-        &self,
-        project_id: i64,
-    ) -> Result<LedgerMonthsResponse, ApiError> {
+    pub async fn ledger_months(&self, project_id: i64) -> Result<LedgerMonthsResponse, ApiError> {
         let query = QueryBuilder::new().with("project_id", project_id);
         self.get_json(LEDGER_MONTHS_PATH, &query.clone().into_pairs())
             .await

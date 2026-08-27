@@ -33,7 +33,10 @@
 //! （`detail_loading` / `detail_error`），不阻塞列表态。
 
 use gpui::prelude::*;
-use gpui::{div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString, WeakEntity, Window};
+use gpui::{
+    div, px, App, AsyncApp, Context, Entity, FontWeight, IntoElement, Render, SharedString,
+    WeakEntity, Window,
+};
 use gpui_component::button::Button;
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::menu::PopupMenuItem;
@@ -42,7 +45,7 @@ use gui_api_client::vat_invoice::VatInvoiceFilter;
 use gui_api_client::Client;
 use gui_domain::common::ManagedProject;
 use gui_domain::vat_invoice::{
-    status_label, summary_row_text, currency_symbol, VatInvoiceDetail, VatInvoiceListItem,
+    currency_symbol, status_label, summary_row_text, VatInvoiceDetail, VatInvoiceListItem,
     STATUS_ISSUED, STATUS_OPTIONS, STATUS_VOIDED,
 };
 
@@ -283,7 +286,9 @@ impl VatInvoiceView {
 
     /// 是否有任何筛选生效（空态两档提示用）
     fn has_active_filters(&self) -> bool {
-        self.project_filter.is_some() || self.status_filter.is_some() || !self.committed_keyword.is_empty()
+        self.project_filter.is_some()
+            || self.status_filter.is_some()
+            || !self.committed_keyword.is_empty()
     }
 
     /// 重新拉取：首屏 / 筛选切换 / 错误重试 / 空态刷新共用入口（竞态保护；
@@ -313,8 +318,7 @@ impl VatInvoiceView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(load_main(&client, projects_cache, filter))
+                    crate::runtime::runtime().block_on(load_main(&client, projects_cache, filter))
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -482,8 +486,7 @@ impl VatInvoiceView {
     /// 懒建关键字输入（首帧；`InputState::new` 需要 window）+ 回车订阅
     fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.keyword_input.is_none() {
-            let input =
-                cx.new(|cx| InputState::new(window, cx).placeholder("INV-… 或 ORDER-…"));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("INV-… 或 ORDER-…"));
             let sub = cx.subscribe(&input, |this, _entity, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::PressEnter { .. }) {
                     this.apply_keyword(cx);
@@ -621,17 +624,13 @@ fn line_columns() -> Vec<ColumnDef<gui_domain::vat_invoice::VatInvoiceLine>> {
             "line-qty",
             "数量",
             |r: &gui_domain::vat_invoice::VatInvoiceLine| r.qty as f64,
-            |r: &gui_domain::vat_invoice::VatInvoiceLine, _| {
-                SharedString::from(r.qty.to_string())
-            },
+            |r: &gui_domain::vat_invoice::VatInvoiceLine, _| SharedString::from(r.qty.to_string()),
         )
         .width(64.0),
         ColumnDef::number(
             "line-unit-price",
             "含税单价",
-            |r: &gui_domain::vat_invoice::VatInvoiceLine| {
-                dec_f64(&r.unit_price_incl_vat)
-            },
+            |r: &gui_domain::vat_invoice::VatInvoiceLine| dec_f64(&r.unit_price_incl_vat),
             |r: &gui_domain::vat_invoice::VatInvoiceLine, _| {
                 SharedString::from(text_or_dash(&r.unit_price_incl_vat))
             },
@@ -666,24 +665,32 @@ fn summary_columns() -> Vec<ColumnDef<serde_json::Value>> {
             SharedString::from(summary_row_text(row, "rate"))
         })
         .width(64.0),
-        ColumnDef::text("sum-item-excl", "商品不含税", |row: &serde_json::Value, _| {
-            SharedString::from(summary_row_text(row, "item_excl"))
-        })
+        ColumnDef::text(
+            "sum-item-excl",
+            "商品不含税",
+            |row: &serde_json::Value, _| SharedString::from(summary_row_text(row, "item_excl")),
+        )
         .align(CellAlign::Right)
         .width(100.0),
-        ColumnDef::text("sum-item-vat", "商品 VAT", |row: &serde_json::Value, _| {
-            SharedString::from(summary_row_text(row, "item_vat"))
-        })
+        ColumnDef::text(
+            "sum-item-vat",
+            "商品 VAT",
+            |row: &serde_json::Value, _| SharedString::from(summary_row_text(row, "item_vat")),
+        )
         .align(CellAlign::Right)
         .width(96.0),
-        ColumnDef::text("sum-ship-excl", "运费不含税", |row: &serde_json::Value, _| {
-            SharedString::from(summary_row_text(row, "shipping_excl"))
-        })
+        ColumnDef::text(
+            "sum-ship-excl",
+            "运费不含税",
+            |row: &serde_json::Value, _| SharedString::from(summary_row_text(row, "shipping_excl")),
+        )
         .align(CellAlign::Right)
         .width(100.0),
-        ColumnDef::text("sum-ship-vat", "运费 VAT", |row: &serde_json::Value, _| {
-            SharedString::from(summary_row_text(row, "shipping_vat"))
-        })
+        ColumnDef::text(
+            "sum-ship-vat",
+            "运费 VAT",
+            |row: &serde_json::Value, _| SharedString::from(summary_row_text(row, "shipping_vat")),
+        )
         .align(CellAlign::Right)
         .width(96.0),
         ColumnDef::text("sum-total", "合计", |row: &serde_json::Value, _| {
@@ -727,46 +734,46 @@ impl Render for VatInvoiceView {
                 .gap_4()
                 .p_4()
                 .overflow_y_scroll()
-            .child(match state {
-                VatInvoiceState::Loading => render_loading(&app_theme).into_any_element(),
-                VatInvoiceState::Error(msg) => state_views::error_state(
-                    &view,
-                    &app_theme,
-                    "vat-invoice-error",
-                    "VAT 发票加载失败",
-                    msg,
-                    |this, cx| this.reload(cx),
-                )
-                .into_any_element(),
-                VatInvoiceState::Empty => {
-                    let message = empty_message(self);
-                    state_views::empty_state_with_action_desc(
+                .child(match state {
+                    VatInvoiceState::Loading => render_loading(&app_theme).into_any_element(),
+                    VatInvoiceState::Error(msg) => state_views::error_state(
                         &view,
                         &app_theme,
-                        "vat-invoice-empty",
-                        "icons/receipt.svg",
-                        message,
-                        Some("新建发票、作废与 CSV 导出请在 web 端操作".to_string()),
-                        "刷新",
+                        "vat-invoice-error",
+                        "VAT 发票加载失败",
+                        msg,
                         |this, cx| this.reload(cx),
                     )
-                    .into_any_element()
-                }
-                VatInvoiceState::Loaded(data) => render_loaded(
-                    &view,
-                    cx,
-                    &app_theme,
-                    &data,
-                    self.selected_id,
-                    self.detail.clone(),
-                    self.detail_loading,
-                    self.detail_error.clone(),
-                    self.list_table.clone(),
-                    self.lines_table.clone(),
-                    self.summary_table.clone(),
-                )
-                .into_any_element(),
-            }),
+                    .into_any_element(),
+                    VatInvoiceState::Empty => {
+                        let message = empty_message(self);
+                        state_views::empty_state_with_action_desc(
+                            &view,
+                            &app_theme,
+                            "vat-invoice-empty",
+                            "icons/receipt.svg",
+                            message,
+                            Some("新建发票、作废与 CSV 导出请在 web 端操作".to_string()),
+                            "刷新",
+                            |this, cx| this.reload(cx),
+                        )
+                        .into_any_element()
+                    }
+                    VatInvoiceState::Loaded(data) => render_loaded(
+                        &view,
+                        cx,
+                        &app_theme,
+                        &data,
+                        self.selected_id,
+                        self.detail.clone(),
+                        self.detail_loading,
+                        self.detail_error.clone(),
+                        self.list_table.clone(),
+                        self.lines_table.clone(),
+                        self.summary_table.clone(),
+                    )
+                    .into_any_element(),
+                }),
         )
     }
 }
@@ -931,10 +938,7 @@ fn render_filter_card(
 fn render_loading(theme: &AppTheme) -> impl IntoElement {
     state_views::skeleton_loading(
         theme,
-        &[
-            SkeletonBlock::Table(320.0),
-            SkeletonBlock::Table(200.0),
-        ],
+        &[SkeletonBlock::Table(320.0), SkeletonBlock::Table(200.0)],
     )
 }
 
@@ -1199,7 +1203,9 @@ fn detail_meta_grid(
         ),
         (
             "货币",
-            format!("{} {}", detail.currency, currency_symbol(&detail.currency)).trim().to_string(),
+            format!("{} {}", detail.currency, currency_symbol(&detail.currency))
+                .trim()
+                .to_string(),
         ),
         ("订单号", text_or_dash(&detail.order_id)),
         ("开票日期", text_or_dash(&detail.invoice_date)),
@@ -1258,15 +1264,12 @@ fn detail_meta_grid(
         .filter(|s| !s.is_empty())
     {
         grid = grid.child(
-            v_flex()
-                .gap_1()
-                .col_span(4)
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.danger)
-                        .child(SharedString::from(format!("作废原因：{reason}"))),
-                ),
+            v_flex().gap_1().col_span(4).child(
+                div()
+                    .text_xs()
+                    .text_color(theme.danger)
+                    .child(SharedString::from(format!("作废原因：{reason}"))),
+            ),
         );
     }
 
@@ -1325,7 +1328,10 @@ mod tests {
     #[test]
     fn status_filter_options_align_with_domain() {
         assert_eq!(STATUS_FILTER_OPTIONS.len(), 3);
-        assert_eq!(STATUS_FILTER_OPTIONS[0].0, gui_domain::vat_invoice::STATUS_DRAFT);
+        assert_eq!(
+            STATUS_FILTER_OPTIONS[0].0,
+            gui_domain::vat_invoice::STATUS_DRAFT
+        );
         assert_eq!(STATUS_FILTER_OPTIONS[1].0, STATUS_ISSUED);
         assert_eq!(STATUS_FILTER_OPTIONS[2].0, STATUS_VOIDED);
     }
@@ -1529,8 +1535,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Light, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data(vec![sample_item(1), sample_item(2)]);
             this.list_table.update(cx, |t, cx| {
@@ -1550,8 +1555,7 @@ mod tests {
             gpui_component::init(cx);
             crate::theme::set_theme_pref(crate::theme::ThemePreference::Dark, None, cx);
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data(vec![sample_item(1)]);
             this.list_table.update(cx, |t, cx| {
@@ -1576,8 +1580,7 @@ mod tests {
     #[gpui::test]
     async fn renders_error_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = VatInvoiceState::Error("服务不可用".into());
@@ -1588,8 +1591,7 @@ mod tests {
     #[gpui::test]
     async fn renders_empty_state(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             this.state.update(cx, |state, _| {
                 *state = VatInvoiceState::Empty;
@@ -1603,8 +1605,7 @@ mod tests {
             gpui_component::init(cx);
             cx.set_global(crate::motion::MotionPref(true));
         });
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             let data = sample_data(vec![sample_item(1)]);
             this.list_table.update(cx, |t, cx| {
@@ -1623,8 +1624,7 @@ mod tests {
     #[gpui::test]
     async fn filter_actions_reload_and_noop_on_same_value(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |this, cx| {
             // 同值 no-op
             let before = this.latest_request_id;
@@ -1669,8 +1669,7 @@ mod tests {
     #[gpui::test]
     async fn empty_message_follows_two_tiers(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |view, _| {
             // 第一档：有筛选条件 → 筛选无结果提示
             view.project_filter = Some(3);
@@ -1687,8 +1686,7 @@ mod tests {
     #[gpui::test]
     async fn build_filter_reflects_selection(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
-        let (view, cx2) =
-            cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
+        let (view, cx2) = cx.add_window_view(|_window, cx| VatInvoiceView::new(cx, dummy_client()));
         view.update(cx2, |view, _| {
             assert_eq!(view.build_filter(), VatInvoiceFilter::default());
             view.project_filter = Some(3);

@@ -131,7 +131,10 @@ mod tests {
         assert_eq!(item.note, None);
         assert_eq!(item.attachments.len(), 1);
         assert_eq!(item.attachments[0].filename, "回款截图.png");
-        assert_eq!(item.attachments[0].stored_path.as_deref(), Some("platform-revenue/att-1.png"));
+        assert_eq!(
+            item.attachments[0].stored_path.as_deref(),
+            Some("platform-revenue/att-1.png")
+        );
     }
 
     /// 老数据无 currency / revenue_type / attachments 时也能反序列化（Pydantic 默认值）

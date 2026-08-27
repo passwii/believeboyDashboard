@@ -181,7 +181,11 @@ impl ChatBubble {
             return None;
         }
         match self.duration_ms {
-            Some(ms) => Some(format!("{} tokens · {:.1}s", self.total_tokens, ms as f64 / 1000.0)),
+            Some(ms) => Some(format!(
+                "{} tokens · {:.1}s",
+                self.total_tokens,
+                ms as f64 / 1000.0
+            )),
             None => Some(format!("{} tokens", self.total_tokens)),
         }
     }
@@ -300,7 +304,10 @@ impl AiChatView {
             let result = bg
                 .spawn(async move {
                     crate::runtime::runtime().block_on(async {
-                        let config = client.ai_chat_config().await.map_err(|e| e.user_message())?;
+                        let config = client
+                            .ai_chat_config()
+                            .await
+                            .map_err(|e| e.user_message())?;
                         let conversations = client
                             .ai_conversation_list()
                             .await
@@ -345,10 +352,9 @@ impl AiChatView {
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this, cx: &mut AsyncApp| {
-            let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(client.ai_conversation_list())
+            let result =
+                bg.spawn(async move {
+                    crate::runtime::runtime().block_on(client.ai_conversation_list())
                 })
                 .await;
             this.update(cx, |this, cx| {
@@ -389,8 +395,7 @@ impl AiChatView {
         cx.spawn(async move |this, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(client.ai_message_list(conversation_id))
+                    crate::runtime::runtime().block_on(client.ai_message_list(conversation_id))
                 })
                 .await;
             this.update(cx, |this, cx| {
@@ -546,9 +551,11 @@ impl AiChatView {
         // 节拍任务：把气泡累积内容按固定间隔同步到显示快照（渲染频率有界；
         // 快照间隔 > TextView 200ms 防抖窗口，流式期间画面持续推进不冻结）
         let bg_tick = bg.clone();
-        cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
-            loop {
-                bg_tick.timer(Duration::from_millis(STREAM_FLUSH_MILLIS)).await;
+        cx.spawn(
+            async move |this: WeakEntity<Self>, cx: &mut AsyncApp| loop {
+                bg_tick
+                    .timer(Duration::from_millis(STREAM_FLUSH_MILLIS))
+                    .await;
                 let alive = this
                     .update(cx, |this, cx| {
                         if this.stream_generation != generation || !this.is_streaming {
@@ -568,8 +575,8 @@ impl AiChatView {
                 if !alive {
                     break;
                 }
-            }
-        })
+            },
+        )
         .detach();
 
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
@@ -618,11 +625,13 @@ impl AiChatView {
                 regenerate: false,
                 enable_web_search: web_search,
             };
-            let (tx, rx) =
-                tokio::sync::mpsc::unbounded_channel::<Result<StreamEvent, String>>();
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<StreamEvent, String>>();
             let producer = bg.spawn(async move {
-                let _ = crate::runtime::runtime()
-                    .block_on(client.ai_stream_message(conversation_id, &payload, tx));
+                let _ = crate::runtime::runtime().block_on(client.ai_stream_message(
+                    conversation_id,
+                    &payload,
+                    tx,
+                ));
             });
 
             let mut rx = rx;
@@ -752,7 +761,7 @@ impl AiChatView {
                     }
                 }
                 self.stream_display = None; // 精确终稿渲染
-                // 标题自动生成 → 同步侧栏标题
+                                            // 标题自动生成 → 同步侧栏标题
                 if payload.title_regenerated {
                     if let (Some(title), Some(conversation_id)) =
                         (&payload.conversation_title, self.active_conv)
@@ -817,10 +826,7 @@ impl AiChatView {
                 .multi_line(true)
         });
         let sub = cx.subscribe(&input, |this, _e, event: &InputEvent, cx| {
-            if let InputEvent::PressEnter {
-                secondary: true,
-            } = event
-            {
+            if let InputEvent::PressEnter { secondary: true } = event {
                 this.send_message(cx);
             }
         });
@@ -909,24 +915,24 @@ impl AiChatView {
 
     fn render_session_pane(&self, theme: &AppTheme, cx: &Context<Self>) -> gpui::AnyElement {
         let view = cx.entity();
-        let header =
-            pane_header_base(theme, "ai-chat-sessions-header")
-                .child(
-                    div().text_size(px(crate::theme::fs(FONT_BASE)))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.text_secondary)
-                        .child(format!("对话 · {}", self.conversations.len())),
-                )
-                .child({
-                    let view = view.clone();
-                    Button::new("ai-chat-new")
-                        .ghost()
-                        .small()
-                        .icon(Icon::new(IconName::Plus))
-                        .on_click(move |_, _, cx| {
-                            view.update(cx, AiChatView::new_conversation);
-                        })
-                });
+        let header = pane_header_base(theme, "ai-chat-sessions-header")
+            .child(
+                div()
+                    .text_size(px(crate::theme::fs(FONT_BASE)))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.text_secondary)
+                    .child(format!("对话 · {}", self.conversations.len())),
+            )
+            .child({
+                let view = view.clone();
+                Button::new("ai-chat-new")
+                    .ghost()
+                    .small()
+                    .icon(Icon::new(IconName::Plus))
+                    .on_click(move |_, _, cx| {
+                        view.update(cx, AiChatView::new_conversation);
+                    })
+            });
 
         if self.conversations.is_empty() {
             return v_flex()
@@ -940,7 +946,8 @@ impl AiChatView {
                         .px_4()
                         .gap_1()
                         .child(
-                            div().text_size(px(crate::theme::fs(FONT_BASE)))
+                            div()
+                                .text_size(px(crate::theme::fs(FONT_BASE)))
                                 .text_color(theme.text_muted)
                                 .child("暂无会话"),
                         )
@@ -958,120 +965,131 @@ impl AiChatView {
         let mut ordered = self.conversations.clone();
         sort_pinned_first(&mut ordered, |conv| self.pinned.contains(&conv.id));
 
-        let list = div().id("ai-chat-conversations").flex_1().min_h_0().overflow_y_scroll().child(
-            v_flex().gap_0p5().px_1p5().pb_2().children(ordered.iter().map(|conv| {
-                let selected = self.active_conv == Some(conv.id);
-                let pinned = self.pinned.contains(&conv.id);
-                let unread = is_unread(
-                    &conv.updated_at,
-                    self.read_marks.get(&conv.id).map(String::as_str),
-                    selected,
-                );
-                let time_label = format_session_time(&conv.updated_at);
-                let title: SharedString = if conv.title.trim().is_empty() {
-                    "新对话".into()
-                } else {
-                    conv.title.clone().into()
-                };
-
-                let view_for_select = view.clone();
-                let view_for_pin = view.clone();
-                let view_for_delete = view.clone();
-                let conversation_id = conv.id;
-
-                h_flex()
-                    .items_start()
+        let list = div()
+            .id("ai-chat-conversations")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .child(
+                v_flex()
                     .gap_0p5()
-                    .mx_1p5()
-                    .my_0p5()
-                    .px_1()
-                    .py_1()
-                    .rounded_md()
-                    .when(selected, |this| this.bg(theme.muted_fill))
-                    // 置顶星标（独立热区；置顶 accent 实星 / 未置顶 muted 空心）
-                    .child({
-                        Button::new(SharedString::from(format!(
-                            "ai-conv-pin-{conversation_id}"
-                        )))
-                        .ghost()
-                        .xsmall()
-                        .icon(
-                            Icon::new(if pinned {
-                                IconName::Star
-                            } else {
-                                IconName::StarOff
+                    .px_1p5()
+                    .pb_2()
+                    .children(ordered.iter().map(|conv| {
+                        let selected = self.active_conv == Some(conv.id);
+                        let pinned = self.pinned.contains(&conv.id);
+                        let unread = is_unread(
+                            &conv.updated_at,
+                            self.read_marks.get(&conv.id).map(String::as_str),
+                            selected,
+                        );
+                        let time_label = format_session_time(&conv.updated_at);
+                        let title: SharedString = if conv.title.trim().is_empty() {
+                            "新对话".into()
+                        } else {
+                            conv.title.clone().into()
+                        };
+
+                        let view_for_select = view.clone();
+                        let view_for_pin = view.clone();
+                        let view_for_delete = view.clone();
+                        let conversation_id = conv.id;
+
+                        h_flex()
+                            .items_start()
+                            .gap_0p5()
+                            .mx_1p5()
+                            .my_0p5()
+                            .px_1()
+                            .py_1()
+                            .rounded_md()
+                            .when(selected, |this| this.bg(theme.muted_fill))
+                            // 置顶星标（独立热区；置顶 accent 实星 / 未置顶 muted 空心）
+                            .child({
+                                Button::new(SharedString::from(format!(
+                                    "ai-conv-pin-{conversation_id}"
+                                )))
+                                .ghost()
+                                .xsmall()
+                                .icon(
+                                    Icon::new(if pinned {
+                                        IconName::Star
+                                    } else {
+                                        IconName::StarOff
+                                    })
+                                    .with_size(px(13.))
+                                    .text_color(if pinned {
+                                        theme.accent
+                                    } else {
+                                        theme.text_muted
+                                    }),
+                                )
+                                .on_click(move |_, _, cx| {
+                                    view_for_pin.update(cx, |this, cx| {
+                                        this.toggle_pin(conversation_id, cx)
+                                    });
+                                })
                             })
-                            .with_size(px(13.))
-                            .text_color(if pinned {
-                                theme.accent
-                            } else {
-                                theme.text_muted
-                            }),
-                        )
-                        .on_click(move |_, _, cx| {
-                            view_for_pin.update(cx, |this, cx| {
-                                this.toggle_pin(conversation_id, cx)
-                            });
-                        })
-                    })
-                    // 主区域：选中会话（标题 + 未读点 / 时间行）
-                    .child(
-                        div()
-                            .id(SharedString::from(format!("ai-conv-{conversation_id}")))
-                            .flex_1()
-                            .min_w_0()
-                            .cursor(gpui::CursorStyle::PointingHand)
-                            .on_click(move |_, _, cx| {
-                                view_for_select.update(cx, |this, cx| {
-                                    this.select_conversation(conversation_id, cx)
-                                });
-                            })
+                            // 主区域：选中会话（标题 + 未读点 / 时间行）
                             .child(
-                                v_flex().min_w_0().gap_0p5()
-                                    .child(
-                                        h_flex().items_center().gap_1()
-                                            .child(
-                                                div()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .truncate().text_size(px(crate::theme::fs(FONT_BASE)))
-                                                    .text_color(if selected {
-                                                        theme.text_primary
-                                                    } else {
-                                                        theme.text_secondary
-                                                    })
-                                                    .child(title),
-                                            )
-                                            .children(unread.then(|| unread_dot(theme))),
-                                    ),
-                            )
-                            .child(if time_label.is_empty() {
-                                div().into_any_element()
-                            } else {
                                 div()
-                                    .text_xs()
-                                    .mono_tabular_nums()
-                                    .text_color(theme.text_muted)
-                                    .child(time_label)
-                                    .into_any_element()
-                            }),
-                    )
-                    // 删除按钮（独立于选中热区，避免点击冒泡）
-                    .child({
-                        Button::new(SharedString::from(format!(
-                            "ai-conv-del-{conversation_id}"
-                        )))
-                        .ghost()
-                        .xsmall()
-                        .icon(Icon::new(IconName::Delete).with_size(px(13.)))
-                        .on_click(move |_, _, cx| {
-                            view_for_delete.update(cx, |this, cx| {
-                                this.delete_conversation(conversation_id, cx)
-                            });
-                        })
-                    })
-            })),
-        );
+                                    .id(SharedString::from(format!("ai-conv-{conversation_id}")))
+                                    .flex_1()
+                                    .min_w_0()
+                                    .cursor(gpui::CursorStyle::PointingHand)
+                                    .on_click(move |_, _, cx| {
+                                        view_for_select.update(cx, |this, cx| {
+                                            this.select_conversation(conversation_id, cx)
+                                        });
+                                    })
+                                    .child(
+                                        v_flex().min_w_0().gap_0p5().child(
+                                            h_flex()
+                                                .items_center()
+                                                .gap_1()
+                                                .child(
+                                                    div()
+                                                        .flex_1()
+                                                        .min_w_0()
+                                                        .truncate()
+                                                        .text_size(px(crate::theme::fs(FONT_BASE)))
+                                                        .text_color(if selected {
+                                                            theme.text_primary
+                                                        } else {
+                                                            theme.text_secondary
+                                                        })
+                                                        .child(title),
+                                                )
+                                                .children(unread.then(|| unread_dot(theme))),
+                                        ),
+                                    )
+                                    .child(if time_label.is_empty() {
+                                        div().into_any_element()
+                                    } else {
+                                        div()
+                                            .text_xs()
+                                            .mono_tabular_nums()
+                                            .text_color(theme.text_muted)
+                                            .child(time_label)
+                                            .into_any_element()
+                                    }),
+                            )
+                            // 删除按钮（独立于选中热区，避免点击冒泡）
+                            .child({
+                                Button::new(SharedString::from(format!(
+                                    "ai-conv-del-{conversation_id}"
+                                )))
+                                .ghost()
+                                .xsmall()
+                                .icon(Icon::new(IconName::Delete).with_size(px(13.)))
+                                .on_click(move |_, _, cx| {
+                                    view_for_delete.update(cx, |this, cx| {
+                                        this.delete_conversation(conversation_id, cx)
+                                    });
+                                })
+                            })
+                    })),
+            );
 
         v_flex()
             .h_full()
@@ -1084,7 +1102,8 @@ impl AiChatView {
 
     fn render_context_pane(&self, theme: &AppTheme) -> gpui::AnyElement {
         let header = pane_header_base(theme, "ai-chat-context-header").child(
-            div().text_size(px(crate::theme::fs(FONT_BASE)))
+            div()
+                .text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("上下文"),
@@ -1099,7 +1118,9 @@ impl AiChatView {
             .child(context_stat_row(
                 theme,
                 "模型",
-                self.selected_model.clone().unwrap_or_else(|| "未选择".into()),
+                self.selected_model
+                    .clone()
+                    .unwrap_or_else(|| "未选择".into()),
             ))
             .child(context_stat_row(
                 theme,
@@ -1194,9 +1215,10 @@ impl AiChatView {
                         .py_1p5()
                         .bg(theme.warning.opacity(0.12))
                         .child(
-                            div().text_xs().text_color(theme.warning).child(
-                                "AI 服务未配置，请联系管理员在后端配置模型 Provider",
-                            ),
+                            div()
+                                .text_xs()
+                                .text_color(theme.warning)
+                                .child("AI 服务未配置，请联系管理员在后端配置模型 Provider"),
                         ),
                 )
             })
@@ -1264,10 +1286,8 @@ impl AiChatView {
         let view = cx.entity();
         let models = self.models.clone();
         let selected = self.selected_model.clone();
-        let model_label: SharedString = selected
-            .clone()
-            .unwrap_or_else(|| "选择模型".into())
-            .into();
+        let model_label: SharedString =
+            selected.clone().unwrap_or_else(|| "选择模型".into()).into();
 
         let status: Option<SharedString> = if self.is_streaming {
             Some("正在回复…".into())
@@ -1293,16 +1313,13 @@ impl AiChatView {
                         let view = view.clone();
                         let model = model.clone();
                         let checked = Some(&model) == selected.as_ref();
-                        menu = menu.item(
-                            PopupMenuItem::new(model.clone())
-                                .checked(checked)
-                                .on_click(move |_ev, _w, cx| {
+                        menu =
+                            menu.item(PopupMenuItem::new(model.clone()).checked(checked).on_click(
+                                move |_ev, _w, cx| {
                                     let model = model.clone();
-                                    view.update(cx, |this, cx| {
-                                        this.select_model(Some(model), cx)
-                                    });
-                                }),
-                        );
+                                    view.update(cx, |this, cx| this.select_model(Some(model), cx));
+                                },
+                            ));
                     }
                     menu
                 },
@@ -1318,12 +1335,7 @@ impl AiChatView {
                     })
             })
             .child(div().flex_1())
-            .children(status.map(|s| {
-                div()
-                    .text_xs()
-                    .text_color(theme.text_muted)
-                    .child(s)
-            }))
+            .children(status.map(|s| div().text_xs().text_color(theme.text_muted).child(s)))
             .child({
                 // Pattern C：右上下文栏整体开合（偏好经事件链持久化）
                 let view = cx.entity();
@@ -1357,9 +1369,11 @@ impl AiChatView {
                 .min_h_0()
                 .overflow_y_scroll()
                 .child(
-                    v_flex().size_full().items_center().justify_center().child(
-                        state_views::loading_state(theme, "加载消息…"),
-                    ),
+                    v_flex()
+                        .size_full()
+                        .items_center()
+                        .justify_center()
+                        .child(state_views::loading_state(theme, "加载消息…")),
                 )
                 .into_any_element();
         }
@@ -1371,7 +1385,11 @@ impl AiChatView {
                 .min_h_0()
                 .overflow_y_scroll()
                 .child(
-                    v_flex().size_full().items_center().justify_center().gap_2()
+                    v_flex()
+                        .size_full()
+                        .items_center()
+                        .justify_center()
+                        .gap_2()
                         .child(
                             Icon::new(IconName::Bot)
                                 .with_size(px(36.))
@@ -1385,9 +1403,10 @@ impl AiChatView {
                                 .child("BelieveBoy AI 助手"),
                         )
                         .child(
-                            div().text_sm().text_color(theme.text_muted).child(
-                                "输入消息开始对话，支持联网搜索与多模型切换",
-                            ),
+                            div()
+                                .text_sm()
+                                .text_color(theme.text_muted)
+                                .child("输入消息开始对话，支持联网搜索与多模型切换"),
                         ),
                 )
                 .into_any_element();
@@ -1455,35 +1474,37 @@ impl AiChatView {
             .border_color(theme.separator)
             .child(Input::new(&input).w_full().h(px(84.)))
             .child(
-                v_flex().items_end().gap_1().child(if self.is_streaming {
-                    Button::new("ai-chat-stop")
-                        .danger()
-                        .label("停止")
-                        .on_click(move |_, _, cx| {
-                            view.update(cx, AiChatView::stop_streaming);
-                        })
-                        .into_any_element()
-                } else {
-                    Button::new("ai-chat-send")
-                        .custom(send_variant)
-                        .label("发送")
-                        .disabled(input_empty || !self.provider_configured)
-                        .on_click(move |_, _, cx| {
-                            view.update(cx, AiChatView::send_message);
-                        })
-                        .into_any_element()
-                })
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("Cmd+Enter 发送"),
-                ),
+                v_flex()
+                    .items_end()
+                    .gap_1()
+                    .child(if self.is_streaming {
+                        Button::new("ai-chat-stop")
+                            .danger()
+                            .label("停止")
+                            .on_click(move |_, _, cx| {
+                                view.update(cx, AiChatView::stop_streaming);
+                            })
+                            .into_any_element()
+                    } else {
+                        Button::new("ai-chat-send")
+                            .custom(send_variant)
+                            .label("发送")
+                            .disabled(input_empty || !self.provider_configured)
+                            .on_click(move |_, _, cx| {
+                                view.update(cx, AiChatView::send_message);
+                            })
+                            .into_any_element()
+                    })
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.text_muted)
+                            .child("Cmd+Enter 发送"),
+                    ),
             )
             .into_any_element()
     }
 }
-
 
 /// 单条消息气泡（用户右对齐强调底纯文本 / 助手左对齐卡片底 markdown）。
 /// 流式槽位（末条助手消息且 streaming 中）渲染显示快照 + 光标——快照按
@@ -1568,12 +1589,17 @@ fn render_bubble(
                         .child("正在联网搜索…")
                 }))
                 .children(bubble.thinking.then(|| {
-                    div().text_xs().text_color(theme.text_muted).child("思考中…")
+                    div()
+                        .text_xs()
+                        .text_color(theme.text_muted)
+                        .child("思考中…")
                 }))
                 .child(body)
-                .children(bubble.meta_line().map(|meta| {
-                    div().text_xs().text_color(theme.text_muted).child(meta)
-                })),
+                .children(
+                    bubble
+                        .meta_line()
+                        .map(|meta| div().text_xs().text_color(theme.text_muted).child(meta)),
+                ),
         )
         .into_any_element()
 }
@@ -1603,7 +1629,11 @@ mod tests {
             prompt_tokens: 0,
             completion_tokens: 0,
             total_tokens: if role == "assistant" { 42 } else { 0 },
-            duration_ms: if role == "assistant" { Some(1500) } else { None },
+            duration_ms: if role == "assistant" {
+                Some(1500)
+            } else {
+                None
+            },
             created_at: "2026-08-21T00:00:00+00:00".into(),
         }
     }
@@ -2024,7 +2054,8 @@ mod tests {
     async fn renders_loading_state_in_light_and_dark(cx: &mut gpui::TestAppContext) {
         for dark in [false, true] {
             set_theme(dark, cx).await;
-            let (_view, _cx) = cx.add_window_view(|_window, cx| AiChatView::new(cx, dummy_client()));
+            let (_view, _cx) =
+                cx.add_window_view(|_window, cx| AiChatView::new(cx, dummy_client()));
         }
     }
 
@@ -2032,8 +2063,7 @@ mod tests {
     async fn renders_ready_state_in_light_and_dark(cx: &mut gpui::TestAppContext) {
         for dark in [false, true] {
             set_theme(dark, cx).await;
-            let (view, cx2) =
-                cx.add_window_view(|_window, cx| AiChatView::new(cx, dummy_client()));
+            let (view, cx2) = cx.add_window_view(|_window, cx| AiChatView::new(cx, dummy_client()));
             view.update(cx2, |this, cx| {
                 this.state = AiChatState::Ready;
                 this.models = vec!["believeboy-flash".into()];

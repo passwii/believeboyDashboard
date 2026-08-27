@@ -50,11 +50,11 @@ use gui_domain::operations::return_analysis::{
 use crate::theme::AppTheme;
 use crate::views::dashboard::last_7_days_window;
 use crate::widgets::chart_primitives::{donut_share_chart, share_legend, ShareRow};
-use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::date_range::{DateRange, DateRangeEvent, DateRangePickerState};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
+use crate::widgets::state_views::{self, SkeletonBlock};
 use crate::widgets::top_projects::fmt_num_precise;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由；与 gui-domain::sidebar 的退货分析条目一致）
@@ -663,7 +663,11 @@ fn render_empty(
             app_theme,
             "return-analysis-empty",
             "icons/package.svg",
-            if no_projects { "暂无可用项目" } else { "暂无退货数据" },
+            if no_projects {
+                "暂无可用项目"
+            } else {
+                "暂无退货数据"
+            },
             "刷新",
             |this, cx| this.reload(cx),
         ))

@@ -15,7 +15,6 @@
 //! - **精简**：规则管理 / 通知偏好两个 Tab 的 CRUD 不移植——写链路走 web 端
 //!   （模块头与 PR 说明注明）；事件「确认 / 解决」按钮同理不接。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -180,19 +179,13 @@ impl AlertsCenterView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(async {
-                            let stats = client.alert_stats().await;
-                            let events = client
-                                .alert_events(
-                                    severity.as_deref(),
-                                    status.as_deref(),
-                                    page,
-                                    PAGE_SIZE,
-                                )
-                                .await;
-                            (stats, events)
-                        })
+                    crate::runtime::runtime().block_on(async {
+                        let stats = client.alert_stats().await;
+                        let events = client
+                            .alert_events(severity.as_deref(), status.as_deref(), page, PAGE_SIZE)
+                            .await;
+                        (stats, events)
+                    })
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -307,7 +300,10 @@ impl Render for AlertsCenterView {
 
         // 统计卡行（Loaded 且有 stats 时渲染在 body 首位）
         let stats_cards: Option<gpui::AnyElement> = match &state {
-            AlertsState::Loaded(data) => data.stats.as_ref().map(|s| render_stats_cards(s, &app_theme)),
+            AlertsState::Loaded(data) => data
+                .stats
+                .as_ref()
+                .map(|s| render_stats_cards(s, &app_theme)),
             _ => None,
         };
 
@@ -354,12 +350,7 @@ impl Render for AlertsCenterView {
                     .min_h_0()
                     .gap_2()
                     .when_some(stats_cards, |col, cards| col.child(cards))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_h_0()
-                            .child(table.clone()),
-                    )
+                    .child(div().flex_1().min_h_0().child(table.clone()))
                     .child(pagination_bar(
                         &view,
                         &app_theme,
@@ -440,7 +431,11 @@ fn build_status_menu(
 /// 统计卡六格（对齐 web AlertStatsBar：活跃/严重/警告/信息/今日已确认/已解决）
 fn render_stats_cards(stats: &AlertStats, theme: &AppTheme) -> gpui::AnyElement {
     let cards = [
-        ("活跃告警", stats.total_active.to_string(), theme.text_primary),
+        (
+            "活跃告警",
+            stats.total_active.to_string(),
+            theme.text_primary,
+        ),
         ("严重", stats.critical_count.to_string(), theme.danger),
         ("警告", stats.warning_count.to_string(), theme.warning),
         ("信息", stats.info_count.to_string(), theme.accent),
@@ -449,7 +444,11 @@ fn render_stats_cards(stats: &AlertStats, theme: &AppTheme) -> gpui::AnyElement 
             stats.acknowledged_today.to_string(),
             theme.success,
         ),
-        ("今日已解决", stats.resolved_today.to_string(), theme.success),
+        (
+            "今日已解决",
+            stats.resolved_today.to_string(),
+            theme.success,
+        ),
     ];
     h_flex()
         .id("alerts-center-stats")
@@ -457,10 +456,7 @@ fn render_stats_cards(stats: &AlertStats, theme: &AppTheme) -> gpui::AnyElement 
         .gap_2()
         .children(cards.map(|(label, value, color)| {
             v_flex()
-                .id(SharedString::from(format!(
-                    "alerts-stat-{}",
-                    label
-                )))
+                .id(SharedString::from(format!("alerts-stat-{}", label)))
                 .flex_1()
                 .gap_1()
                 .px_3()
@@ -470,18 +466,14 @@ fn render_stats_cards(stats: &AlertStats, theme: &AppTheme) -> gpui::AnyElement 
                 .border_color(theme.separator)
                 .bg(theme.card_bg)
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_BASE)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_BASE)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .mono_tabular_nums_text()
                         .text_color(color)
                         .child(value),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child(label),
-                )
+                .child(div().text_xs().text_color(theme.text_muted).child(label))
         }))
         .into_any_element()
 }
@@ -505,13 +497,17 @@ fn columns() -> Vec<ColumnDef<gui_domain::alerts::AlertEvent>> {
             SharedString::from(severity_label(r))
         })
         .width(72.0),
-        ColumnDef::text("metric", "指标", |r: &AlertEvent, _| SharedString::from(r.metric.clone()))
-            .width(140.0),
+        ColumnDef::text("metric", "指标", |r: &AlertEvent, _| {
+            SharedString::from(r.metric.clone())
+        })
+        .width(140.0),
         ColumnDef::text("deviation", "偏差", |r: &AlertEvent, _| {
             SharedString::from(format!("{:+.1}%", r.deviation_pct))
         })
         .width(88.0),
-        ColumnDef::text("message", "消息", |r, _| SharedString::from(r.message.clone())),
+        ColumnDef::text("message", "消息", |r, _| {
+            SharedString::from(r.message.clone())
+        }),
         ColumnDef::text("status", "状态", |r: &AlertEvent, _| {
             SharedString::from(r.status_label())
         })

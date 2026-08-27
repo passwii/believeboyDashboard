@@ -33,12 +33,12 @@ use gui_domain::common::ManagedProject;
 use gui_domain::finance::PlatformRevenueItem;
 
 use crate::theme::AppTheme;
-use crate::widgets::data_table::TabularNumsExt;
 use crate::widgets::chart_primitives::{bar_series_chart, chart_card, ShareRow};
+use crate::widgets::data_table::TabularNumsExt;
+use crate::widgets::page_header::PageHeader;
 use crate::widgets::pattern_b::{
     pattern_b_shell, split_divider, tab_bar, tabs_zone, SplitDrag, SplitDragGhost, TabItem,
 };
-use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的平台回款条目一致）
@@ -164,12 +164,7 @@ pub fn calculate_totals(items: &[PlatformRevenueItem]) -> Vec<TotalsEntry> {
     // 固定顺序：USD → GBP → EUR → 其他（对齐 frontend 币种选项顺序）
     let mut ordered: Vec<TotalsEntry> = CURRENCY_OPTIONS
         .iter()
-        .filter_map(|(code, _)| {
-            entries
-                .iter()
-                .find(|e| e.currency == *code)
-                .cloned()
-        })
+        .filter_map(|(code, _)| entries.iter().find(|e| e.currency == *code).cloned())
         .collect();
     for e in entries.iter() {
         if !CURRENCY_OPTIONS.iter().any(|(code, _)| code == &e.currency) {
@@ -557,7 +552,6 @@ impl Render for PlatformRevenueView {
 // 四态渲染
 // ---------------------------------------------------------------------------
 
-
 /// Error：卡片内 Alert + 重试按钮（State 0 公共组件 `state_views::error_state`）
 fn render_error(
     cx: &mut Context<PlatformRevenueView>,
@@ -645,7 +639,10 @@ fn render_loaded(
     // 上部图表区：币种合计柱状图（与下部表格同源当页数据，口径一致）
     let chart_rows: Vec<ShareRow> = totals
         .iter()
-        .map(|e| ShareRow { name: e.currency.clone(), sales: e.total })
+        .map(|e| ShareRow {
+            name: e.currency.clone(),
+            sales: e.total,
+        })
         .collect();
     let charts = chart_card(
         "platform-revenue-chart",
@@ -669,22 +666,36 @@ fn render_loaded(
         .on_drag(SplitDrag, |_, _, _, cx| cx.new(|_| SplitDragGhost))
         .on_mouse_up(
             gpui::MouseButton::Left,
-            cx.listener(|this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
-                this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
-            }),
+            cx.listener(
+                |this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
+                    this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
+                },
+            ),
         )
         .on_mouse_up_out(
             gpui::MouseButton::Left,
-            cx.listener(|this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
-                this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
-            }),
+            cx.listener(
+                |this: &mut PlatformRevenueView, _: &gpui::MouseUpEvent, _, cx| {
+                    this.set_chart_ratio(this.chart_ratio.clamp(0.40, 0.50), cx);
+                },
+            ),
         );
 
     // 下部子 Tab 区：流水表 / 币种汇总
-    let tab_items = [TabItem::new("ledger", "回款流水"), TabItem::new("summary", "币种汇总")];
-    let strip = tab_bar(&view, app_theme, "platform-revenue", &tab_items, this.active_tab, |this2, ix, cx| {
-        this2.activate_tab(ix, cx);
-    });
+    let tab_items = [
+        TabItem::new("ledger", "回款流水"),
+        TabItem::new("summary", "币种汇总"),
+    ];
+    let strip = tab_bar(
+        &view,
+        app_theme,
+        "platform-revenue",
+        &tab_items,
+        this.active_tab,
+        |this2, ix, cx| {
+            this2.activate_tab(ix, cx);
+        },
+    );
     let content: gpui::AnyElement = match this.active_tab {
         1 => v_flex()
             .id("platform-revenue-summary")
@@ -698,8 +709,23 @@ fn render_loaded(
             .id("platform-revenue-ledger")
             .size_full()
             .min_h_0()
-            .child(div().id("platform-revenue-ledger-scroll").flex_1().min_h_0().px_2().py_2().overflow_y_scroll().child(table))
-            .child(div().px_4().pb_2().child(pagination_bar(&view, app_theme, page, data.total_pages, page_size)))
+            .child(
+                div()
+                    .id("platform-revenue-ledger-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .px_2()
+                    .py_2()
+                    .overflow_y_scroll()
+                    .child(table),
+            )
+            .child(div().px_4().pb_2().child(pagination_bar(
+                &view,
+                app_theme,
+                page,
+                data.total_pages,
+                page_size,
+            )))
             .into_any_element(),
     };
     let tabs = tabs_zone(strip, content);
@@ -732,7 +758,11 @@ fn table_summary_card(
     totals: &[TotalsEntry],
 ) -> gpui::AnyElement {
     let rows: Vec<gpui::AnyElement> = if totals.is_empty() {
-        vec![div().text_sm().text_color(theme.text_muted).child("当前页无数据").into_any_element()]
+        vec![div()
+            .text_sm()
+            .text_color(theme.text_muted)
+            .child("当前页无数据")
+            .into_any_element()]
     } else {
         totals
             .iter()
@@ -748,11 +778,7 @@ fn table_summary_card(
                         div()
                             .text_sm()
                             .text_color(theme.text_secondary)
-                            .child(format!(
-                                "{} · {}",
-                                e.currency,
-                                currency_label(&e.currency)
-                            )),
+                            .child(format!("{} · {}", e.currency, currency_label(&e.currency))),
                     )
                     .child(
                         div()
@@ -1058,7 +1084,11 @@ fn render_filter_bar(
                 .outline()
                 .small()
                 .label("重置")
-                .icon(Icon::empty().path("icons/rotate-ccw.svg").with_size(px(12.)))
+                .icon(
+                    Icon::empty()
+                        .path("icons/rotate-ccw.svg")
+                        .with_size(px(12.)),
+                )
                 .on_click(move |_, _window, cx| {
                     let view = view_for_reset.clone();
                     view.update(cx, |this, cx| this.reset_filters(cx));
@@ -1095,7 +1125,9 @@ impl RevenueTableDelegate {
 
     fn columns() -> Vec<Column> {
         vec![
-            Column::new("date", "回款日期").width(px(128.)).selectable(false),
+            Column::new("date", "回款日期")
+                .width(px(128.))
+                .selectable(false),
             Column::new("project", "项目").width(px(160.)),
             Column::new("country", "站点").width(px(80.)),
             Column::new("amount", "金额").width(px(112.)).text_right(),
@@ -1169,11 +1201,7 @@ impl TableDelegate for RevenueTableDelegate {
                             .rounded_full()
                             .text_xs()
                             .font_weight(FontWeight::MEDIUM)
-                            .text_color(if is_b2b {
-                                theme.accent
-                            } else {
-                                theme.success
-                            })
+                            .text_color(if is_b2b { theme.accent } else { theme.success })
                             .bg(if is_b2b {
                                 theme.accent_soft
                             } else {
@@ -1446,12 +1474,7 @@ fn pagination_bar(
             h_flex()
                 .gap_2()
                 .items_center()
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child("每页"),
-                )
+                .child(div().text_xs().text_color(theme.text_muted).child("每页"))
                 .child(
                     Button::new("platform-revenue-page-size")
                         .outline()
@@ -1582,9 +1605,8 @@ mod tests {
     async fn platform_revenue_renders_loading(cx: &mut gpui::TestAppContext) {
         cx.update(gpui_component::init);
         let client = Client::new("http://127.0.0.1:1");
-        let (view, _window_cx) = cx.add_window_view(|_window, cx| {
-            PlatformRevenueView::new(cx, client)
-        });
+        let (view, _window_cx) =
+            cx.add_window_view(|_window, cx| PlatformRevenueView::new(cx, client));
         cx.update(|cx| {
             view.update(cx, |this, cx| {
                 assert_eq!(this.current_state(cx), PlatformRevenueState::Loading);

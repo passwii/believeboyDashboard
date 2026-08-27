@@ -57,24 +57,26 @@ use gpui::{
     div, prelude::*, px, App, AsyncApp, Context, Entity, FontWeight, Render, SharedString,
     WeakEntity, Window,
 };
-use gpui_component::{button::Button, h_flex, menu::PopupMenuItem, v_flex, Disableable, Icon, Sizable};
+use gpui_component::{
+    button::Button, h_flex, menu::PopupMenuItem, v_flex, Disableable, Icon, Sizable,
+};
 use gui_api_client::Client;
 use gui_domain::operations::research_analysis::{
     CategoryResearchBucketItem, CategoryResearchDatasetItem, CategoryResearchMarketTrendPoint,
     CategoryResearchMarketTrendResponse, CategoryResearchOverviewResponse,
-    CategoryResearchProductsResponse, CategoryResearchProductRow,
+    CategoryResearchProductRow, CategoryResearchProductsResponse,
 };
 
 use crate::theme::AppTheme;
-use crate::widgets::chart_primitives::{
-    bar_series_chart, chart_area, chart_empty, trend_line_chart, share_legend, ShareRow, TrendPoint,
-};
 use crate::widgets::chart_primitives::chart_card;
+use crate::widgets::chart_primitives::{
+    bar_series_chart, chart_area, chart_empty, share_legend, trend_line_chart, ShareRow, TrendPoint,
+};
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
+use crate::widgets::filter_bar;
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::state_views::{self, SkeletonBlock};
-use crate::widgets::filter_bar;
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
 /// 调研分析条目一致）
@@ -177,12 +179,12 @@ fn dataset_version_label(dataset: &CategoryResearchDatasetItem) -> String {
     let date_part = dataset
         .data_date
         .map(|d| d.to_string())
-        .or_else(|| {
-            match (dataset.data_year, dataset.data_month, dataset.data_day) {
+        .or_else(
+            || match (dataset.data_year, dataset.data_month, dataset.data_day) {
                 (Some(y), Some(m), Some(d)) => Some(format!("{:04}-{:02}-{:02}", y, m, d)),
                 _ => None,
-            }
-        })
+            },
+        )
         .unwrap_or_else(|| "—".to_string());
     if dataset.is_current {
         format!("V{} · {} (当前)", dataset.version, date_part)
@@ -238,10 +240,7 @@ fn top_price_bands(bands: &[CategoryResearchBucketItem], top_n: usize) -> Vec<Sh
 }
 
 /// 品牌份额柱图（前 N 项；按销量降序，对齐 web `brand_sales_share`）
-fn top_brands(
-    overview: &CategoryResearchOverviewResponse,
-    top_n: usize,
-) -> Vec<ShareRow> {
+fn top_brands(overview: &CategoryResearchOverviewResponse, top_n: usize) -> Vec<ShareRow> {
     let mut rows: Vec<ShareRow> = overview
         .brand_sales_share
         .iter()
@@ -250,7 +249,11 @@ fn top_brands(
             sales: b.monthly_sales as f64,
         })
         .collect();
-    rows.sort_by(|a, b| b.sales.partial_cmp(&a.sales).unwrap_or(std::cmp::Ordering::Equal));
+    rows.sort_by(|a, b| {
+        b.sales
+            .partial_cmp(&a.sales)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     rows.into_iter().take(top_n).collect()
 }
 
@@ -441,9 +444,8 @@ impl ResearchAnalysisView {
     /// 新建视图：初始 `Loading`，由 root.rs 懒创建后触发 `reload()`
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
         let state = cx.new(|_| ResearchAnalysisState::Loading);
-        let products_table = cx.new(|_| {
-            DataTable::new("research-analysis-products", product_columns())
-        });
+        let products_table =
+            cx.new(|_| DataTable::new("research-analysis-products", product_columns()));
         Self {
             state,
             client,
@@ -689,20 +691,22 @@ async fn load_main(
 
     // 2. 选关键词（用户已选 → 用之；否则用数据集首个关键词）
     let keywords = unique_keywords(&datasets);
-    let effective_keyword = if !selected_keyword.is_empty()
-        && keywords.iter().any(|(k, _)| k == selected_keyword)
-    {
-        selected_keyword.to_string()
-    } else {
-        keywords
-            .first()
-            .map(|(k, _)| k.clone())
-            .ok_or_else(|| "暂无数据集".to_string())?
-    };
+    let effective_keyword =
+        if !selected_keyword.is_empty() && keywords.iter().any(|(k, _)| k == selected_keyword) {
+            selected_keyword.to_string()
+        } else {
+            keywords
+                .first()
+                .map(|(k, _)| k.clone())
+                .ok_or_else(|| "暂无数据集".to_string())?
+        };
 
     // 3. 选数据集版本（用户已选 → 用之；否则取该关键词下「最新」版本）
     let effective_dataset_id = if let Some(id) = selected_dataset_id {
-        if datasets.iter().any(|d| d.id == id && d.category_keyword_en == effective_keyword) {
+        if datasets
+            .iter()
+            .any(|d| d.id == id && d.category_keyword_en == effective_keyword)
+        {
             id
         } else {
             datasets
@@ -748,26 +752,18 @@ async fn load_main(
 /// 产品明细 11 列（asin / 产品名 / 品牌 / 月销量 / 月营收 / 价格 / 评分 / 评论数 / 履约方式 / 上架日 / FBA fee）
 fn product_columns() -> Vec<ColumnDef<CategoryResearchProductRow>> {
     vec![
-        ColumnDef::text(
-            "asin",
-            "ASIN",
-            |row, _| row.asin.clone().unwrap_or_else(|| "—".into()).into(),
-        ),
-        ColumnDef::text(
-            "product_name",
-            "产品名",
-            |row, _| {
-                row.product_name
-                    .clone()
-                    .unwrap_or_else(|| "—".into())
-                    .into()
-            },
-        ),
-        ColumnDef::text(
-            "brand",
-            "品牌",
-            |row, _| row.brand.clone().unwrap_or_else(|| "—".into()).into(),
-        ),
+        ColumnDef::text("asin", "ASIN", |row, _| {
+            row.asin.clone().unwrap_or_else(|| "—".into()).into()
+        }),
+        ColumnDef::text("product_name", "产品名", |row, _| {
+            row.product_name
+                .clone()
+                .unwrap_or_else(|| "—".into())
+                .into()
+        }),
+        ColumnDef::text("brand", "品牌", |row, _| {
+            row.brand.clone().unwrap_or_else(|| "—".into()).into()
+        }),
         ColumnDef::number(
             "monthly_sales",
             "月销量",
@@ -813,26 +809,18 @@ fn product_columns() -> Vec<ColumnDef<CategoryResearchProductRow>> {
             |row| row.review_count as f64,
             |row, _| fmt_int_thousands(row.review_count as f64).into(),
         ),
-        ColumnDef::text(
-            "fulfillment",
-            "履约",
-            |row, _| {
-                row.fulfillment_method
-                    .clone()
-                    .unwrap_or_else(|| "—".into())
-                    .into()
-            },
-        ),
-        ColumnDef::text(
-            "launch_date",
-            "上架日",
-            |row, _| {
-                row.launch_date
-                    .map(|d| d.to_string())
-                    .unwrap_or_else(|| "—".into())
-                    .into()
-            },
-        ),
+        ColumnDef::text("fulfillment", "履约", |row, _| {
+            row.fulfillment_method
+                .clone()
+                .unwrap_or_else(|| "—".into())
+                .into()
+        }),
+        ColumnDef::text("launch_date", "上架日", |row, _| {
+            row.launch_date
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| "—".into())
+                .into()
+        }),
         ColumnDef::number(
             "fba_fee",
             "FBA 费",
@@ -1116,10 +1104,7 @@ fn render_loaded(
                 ),
             )
             // 品牌份额
-            .child(
-                content_guard()
-                    .child(brand_share_card(theme, &data.overview)),
-            )
+            .child(content_guard().child(brand_share_card(theme, &data.overview)))
             // 产品明细分页
             .child(content_guard().child(products_section(
                 view,
@@ -1140,10 +1125,7 @@ fn render_loaded(
 // KPI 卡（6 张）
 // ---------------------------------------------------------------------------
 
-fn kpi_cards(
-    overview: &CategoryResearchOverviewResponse,
-    theme: &AppTheme,
-) -> impl IntoElement {
+fn kpi_cards(overview: &CategoryResearchOverviewResponse, theme: &AppTheme) -> impl IntoElement {
     let k = &overview.kpis;
     h_flex()
         .id("research-analysis-kpi-cards")
@@ -1260,12 +1242,7 @@ fn kpi_card(
                         .text_color(theme.text_primary)
                         .child(value),
                 )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.text_muted)
-                        .child(unit),
-                ),
+                .child(div().text_xs().text_color(theme.text_muted).child(unit)),
         )
 }
 
@@ -1283,8 +1260,7 @@ fn market_trend_card(
     let body: gpui::AnyElement = if series.is_empty() {
         chart_empty("暂无市场趋势数据", 200.0, theme).into_any_element()
     } else {
-        chart_area(200.0, trend_line_chart(&series, theme.chart_primary))
-            .into_any_element()
+        chart_area(200.0, trend_line_chart(&series, theme.chart_primary)).into_any_element()
     };
     chart_card(
         "research-analysis-market-trend",
@@ -1457,12 +1433,7 @@ fn risk_card(theme: &AppTheme, title: &'static str, level: &str, hint: String) -
                         .child(SharedString::from(risk_level_text(level))),
                 ),
         )
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.text_secondary)
-                .child(hint),
-        )
+        .child(div().text_sm().text_color(theme.text_secondary).child(hint))
 }
 
 fn price_distribution_card(
@@ -1518,7 +1489,10 @@ fn brand_share_card(
         h_flex()
             .gap_4()
             .items_start()
-            .child(chart_area(240.0, bar_series_chart(&rows, theme.chart_primary)))
+            .child(chart_area(
+                240.0,
+                bar_series_chart(&rows, theme.chart_primary),
+            ))
             .child(div().flex_1().child(share_legend(&rows, total, theme)))
             .into_any_element()
     };
@@ -1570,45 +1544,38 @@ fn products_section(
                     theme,
                     "品牌",
                     SharedString::from(
-                        brand_filter_for_label
-                            .unwrap_or_else(|| "全部品牌".to_string()),
+                        brand_filter_for_label.unwrap_or_else(|| "全部品牌".to_string()),
                     ),
                     "research-analysis-products-brand-filter",
                     move |menu, _w, _cx| {
                         let mut menu = menu;
                         let view_clear = view_for_brand_clear.clone();
-                        menu = menu.item(
-                            PopupMenuItem::new("全部品牌").on_click(move |_ev, _w, cx| {
-                                view_clear.update(cx, |this, cx| {
-                                    this.filter_products_by_brand(None, cx)
-                                });
-                            }),
-                        );
+                        menu = menu.item(PopupMenuItem::new("全部品牌").on_click(
+                            move |_ev, _w, cx| {
+                                view_clear
+                                    .update(cx, |this, cx| this.filter_products_by_brand(None, cx));
+                            },
+                        ));
                         if let Some(payload) = &payload_for_brands {
                             // 派生前 20 品牌（按月销量降序）作为筛选项
-                            let mut brands: Vec<&CategoryResearchProductRow> = payload
-                                .rows
-                                .iter()
-                                .filter(|r| r.brand.is_some())
-                                .collect();
+                            let mut brands: Vec<&CategoryResearchProductRow> =
+                                payload.rows.iter().filter(|r| r.brand.is_some()).collect();
                             brands.sort_by_key(|b| std::cmp::Reverse(b.monthly_sales));
                             brands.truncate(20);
                             for row in brands {
                                 if let Some(brand) = &row.brand {
                                     let view = view_for_brand_clear.clone();
                                     let brand_owned = brand.clone();
-                                    menu = menu.item(
-                                        PopupMenuItem::new(brand.clone()).on_click(
-                                            move |_ev, _w, cx| {
-                                                view.update(cx, |this, cx| {
-                                                    this.filter_products_by_brand(
-                                                        Some(brand_owned.clone()),
-                                                        cx,
-                                                    )
-                                                })
-                                            },
-                                        ),
-                                    );
+                                    menu = menu.item(PopupMenuItem::new(brand.clone()).on_click(
+                                        move |_ev, _w, cx| {
+                                            view.update(cx, |this, cx| {
+                                                this.filter_products_by_brand(
+                                                    Some(brand_owned.clone()),
+                                                    cx,
+                                                )
+                                            })
+                                        },
+                                    ));
                                 }
                             }
                         }
@@ -1619,7 +1586,11 @@ fn products_section(
                     Button::new("research-analysis-products-load")
                         .outline()
                         .small()
-                        .label(if products_loading { "加载中…" } else { "加载产品明细" })
+                        .label(if products_loading {
+                            "加载中…"
+                        } else {
+                            "加载产品明细"
+                        })
                         .disabled(products_loading)
                         .on_click(move |_ev, _w, cx| {
                             view_for_load.update(cx, |this, cx| this.load_products(cx));
@@ -1642,54 +1613,51 @@ fn products_section(
                         .label("下一页")
                         .disabled(
                             products_loading
-                                || !payload_for_disabled
-                                    .as_ref()
-                                    .is_some_and(|p| p.has_next),
+                                || !payload_for_disabled.as_ref().is_some_and(|p| p.has_next),
                         )
                         .on_click(move |_ev, _w, cx| {
                             view_for_next.update(cx, |this, cx| this.products_next_page(cx));
                         }),
                 ),
         )
-        .child(match (products_loading, &products_error, &products_payload) {
-            (true, _, _) => state_views::loading_state(theme, "加载产品明细中…").into_any_element(),
-            (false, Some(msg), _) => state_views::error_state(
-                view,
-                theme,
-                "research-analysis-products-error",
-                "产品明细加载失败",
-                msg.clone(),
-                move |this, cx| this.load_products(cx),
-            )
-            .into_any_element(),
-            (false, None, None) => state_views::empty_state(
-                theme,
-                "research-analysis-products-empty",
-                "icons/package.svg",
-                "点击「加载产品明细」查看该数据集产品列表".to_string(),
-            )
-            .into_any_element(),
-            (false, None, Some(payload)) => {
-                let pager_total_pages =
-                    (payload.page_size.max(1) as f64 / PRODUCTS_PAGE_SIZE as f64).ceil() as i64;
-                v_flex()
-                    .gap_2()
-                    .child(div().child(products_table))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.text_muted)
-                            .child(format!(
-                                "第 {} 页 · {} 条 · 总页数 {}（page_size={}）",
-                                products_page,
-                                payload.rows.len(),
-                                pager_total_pages,
-                                PRODUCTS_PAGE_SIZE
-                            )),
-                    )
-                    .into_any_element()
-            }
-        })
+        .child(
+            match (products_loading, &products_error, &products_payload) {
+                (true, _, _) => {
+                    state_views::loading_state(theme, "加载产品明细中…").into_any_element()
+                }
+                (false, Some(msg), _) => state_views::error_state(
+                    view,
+                    theme,
+                    "research-analysis-products-error",
+                    "产品明细加载失败",
+                    msg.clone(),
+                    move |this, cx| this.load_products(cx),
+                )
+                .into_any_element(),
+                (false, None, None) => state_views::empty_state(
+                    theme,
+                    "research-analysis-products-empty",
+                    "icons/package.svg",
+                    "点击「加载产品明细」查看该数据集产品列表".to_string(),
+                )
+                .into_any_element(),
+                (false, None, Some(payload)) => {
+                    let pager_total_pages =
+                        (payload.page_size.max(1) as f64 / PRODUCTS_PAGE_SIZE as f64).ceil() as i64;
+                    v_flex()
+                        .gap_2()
+                        .child(div().child(products_table))
+                        .child(div().text_xs().text_color(theme.text_muted).child(format!(
+                            "第 {} 页 · {} 条 · 总页数 {}（page_size={}）",
+                            products_page,
+                            payload.rows.len(),
+                            pager_total_pages,
+                            PRODUCTS_PAGE_SIZE
+                        )))
+                        .into_any_element()
+                }
+            },
+        )
 }
 
 // ---------------------------------------------------------------------------
@@ -1814,7 +1782,8 @@ mod tests {
     fn top_brands_sorts_by_sales_descending_and_limits() {
         let overview = CategoryResearchOverviewResponse {
             dataset: make_dataset(1, "US", "k", "类", 1, true),
-            kpis: gui_domain::operations::research_analysis::CategoryResearchOverviewKpis::default(),
+            kpis: gui_domain::operations::research_analysis::CategoryResearchOverviewKpis::default(
+            ),
             brand_sales_share: vec![
                 gui_domain::operations::research_analysis::CategoryResearchBrandShareItem {
                     brand: "BrandA".into(),
@@ -1837,12 +1806,15 @@ mod tests {
             fulfillment_distribution: Vec::new(),
             fixed_price_bands: Vec::new(),
             quantile_price_bands: Vec::new(),
-            price_stats: gui_domain::operations::research_analysis::CategoryResearchPriceStats::default(),
+            price_stats:
+                gui_domain::operations::research_analysis::CategoryResearchPriceStats::default(),
             price_sales_correlation: 0.0,
             fba_fee_distribution: Vec::new(),
             price_sales_points: Vec::new(),
             available_asins: Vec::new(),
-            advanced_metrics: gui_domain::operations::research_analysis::CategoryResearchAdvancedMetrics::default(),
+            advanced_metrics:
+                gui_domain::operations::research_analysis::CategoryResearchAdvancedMetrics::default(
+                ),
         };
         let rows = top_brands(&overview, 2);
         assert_eq!(rows.len(), 2);
@@ -1889,7 +1861,8 @@ mod tests {
 
         // Loaded: 非空 datasets
         let mut data = ResearchAnalysisData::empty();
-        data.datasets.push(make_dataset(1, "US", "k", "类", 1, true));
+        data.datasets
+            .push(make_dataset(1, "US", "k", "类", 1, true));
         let loaded = ResearchAnalysisState::from_fetch_result(Ok(data));
         assert!(matches!(loaded, ResearchAnalysisState::Loaded(_)));
     }

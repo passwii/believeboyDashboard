@@ -174,12 +174,12 @@ mod tests {
             inspector_width: Some(320),
             // BLF-799：Pattern B 分割比例记忆一并持久化（per-mille 400~500）
             analysis_chart_ratio: Some(470),
-        // BLF-800：Pattern C 置顶会话与右栏收起态一并持久化
-        chat_pinned_conversations: vec![7, 11],
-        chat_context_collapsed: true,
-        // BLF-830：密度档位一并持久化（宽松档示例）
-        density: Some("relaxed".into()),
-    };
+            // BLF-800：Pattern C 置顶会话与右栏收起态一并持久化
+            chat_pinned_conversations: vec![7, 11],
+            chat_context_collapsed: true,
+            // BLF-830：密度档位一并持久化（宽松档示例）
+            density: Some("relaxed".into()),
+        };
         let json = serde_json::to_string(&prefs).expect("序列化失败");
         let back: UiPrefs = serde_json::from_str(&json).expect("反序列化失败");
         assert_eq!(back, prefs);

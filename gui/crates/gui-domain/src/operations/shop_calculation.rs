@@ -564,7 +564,10 @@ mod tests {
         assert_eq!(item.id, 21);
         assert_eq!(item.accounting_type, "eu_accounting");
         assert_eq!(item.country, "DE");
-        assert_eq!(item.inbound_placement_mode, InboundPlacementMode::SingleDestination);
+        assert_eq!(
+            item.inbound_placement_mode,
+            InboundPlacementMode::SingleDestination
+        );
         assert_eq!(item.fees.delivery_fee_usd, 3.2);
         assert_eq!(item.fees.platform_fee_usd, 4.5);
         assert_eq!(item.profit.vat_usd, 4.84);
@@ -724,7 +727,10 @@ mod tests {
         );
         assert_eq!(payload.accounting_type, "eu_accounting");
         assert_eq!(payload.storage_months, 1.0);
-        assert_eq!(payload.inbound_placement_mode, InboundPlacementMode::SingleDestination);
+        assert_eq!(
+            payload.inbound_placement_mode,
+            InboundPlacementMode::SingleDestination
+        );
         assert_eq!(payload.usd_to_rmb_rate_source, "");
         assert_eq!(payload.delivery_fee_usd, 3.2);
         assert_eq!(payload.inbound_config_fee_manual_usd, 0.3);

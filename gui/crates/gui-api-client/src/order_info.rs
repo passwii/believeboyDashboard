@@ -20,7 +20,9 @@
 //! api_key（BLF-711，见 client.rs）。
 
 use chrono::NaiveDate;
-use gui_domain::order_info::{OrderInfoExportResponse, OrderInfoFilterOptions, OrderInfoItem, OrderInfoOverview};
+use gui_domain::order_info::{
+    OrderInfoExportResponse, OrderInfoFilterOptions, OrderInfoItem, OrderInfoOverview,
+};
 use serde::Serialize;
 
 use crate::client::Client;
@@ -165,7 +167,8 @@ impl Client {
             .with("page_size", page_size)
             .with("sort_by", "purchase_at_pt")
             .with("sort_dir", "desc");
-        self.get_json(OVERVIEW_PATH, &query.clone().into_pairs()).await
+        self.get_json(OVERVIEW_PATH, &query.clone().into_pairs())
+            .await
     }
 
     /// 筛选下拉选项（对齐 frontend `ensureFilterOptions`；大表 distinct 全表扫
@@ -414,14 +417,12 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let m = server
             .mock("POST", EXPORT_PATH)
-            .match_body(Matcher::PartialJson(
-                serde_json::json!({
-                    "project_ids": [3],
-                    "sku_keyword": "JDB-4341",
-                    "date_from": "2026-08-14",
-                    "date_to": "2026-08-20"
-                }),
-            ))
+            .match_body(Matcher::PartialJson(serde_json::json!({
+                "project_ids": [3],
+                "sku_keyword": "JDB-4341",
+                "date_from": "2026-08-14",
+                "date_to": "2026-08-20"
+            })))
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(

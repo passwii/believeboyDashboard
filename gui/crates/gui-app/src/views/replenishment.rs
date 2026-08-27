@@ -51,8 +51,8 @@ use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::layout::content_guard;
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::pagination::{self, PageState};
-use crate::widgets::{filter_bar, state_views};
 use crate::widgets::top_projects::fmt_num_precise;
+use crate::widgets::{filter_bar, state_views};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
 /// 补货分析条目一致）
@@ -304,11 +304,7 @@ impl ReplenishmentView {
 
     /// `sync_table_rows` 的载荷参数版（apply_result 落点前 state 还是 Loading，
     /// 需直接从新载荷注入）
-    fn sync_table_rows_from(
-        &mut self,
-        payload: &ReplenishmentPayload,
-        cx: &mut Context<Self>,
-    ) {
+    fn sync_table_rows_from(&mut self, payload: &ReplenishmentPayload, cx: &mut Context<Self>) {
         let filtered = filter_rows(&payload.response.items, self.risk_filter.as_deref());
         let slice = page_slice(&filtered, self.page);
         let table = self.table.get_or_insert_with(|| {
@@ -327,7 +323,11 @@ impl ReplenishmentView {
 fn filter_rows(rows: &[ReplenishmentItem], risk: Option<&str>) -> Vec<ReplenishmentItem> {
     match risk {
         None => rows.to_vec(),
-        Some(r) => rows.iter().filter(|item| item.risk_status == r).cloned().collect(),
+        Some(r) => rows
+            .iter()
+            .filter(|item| item.risk_status == r)
+            .cloned()
+            .collect(),
     }
 }
 
@@ -414,21 +414,17 @@ fn render_loading(app_theme: &AppTheme) -> impl IntoElement {
                 .gap_3()
                 .children((0..3).map(|_| div().w(px(140.)).h_8().child(Skeleton::new()))),
         )
-        .child(
-            h_flex()
-                .gap_3()
-                .children((0..4).map(|_| {
-                    v_flex()
-                        .flex_1()
-                        .gap_2()
-                        .p_4()
-                        .rounded(px(app_theme.radius_lg))
-                        .bg(app_theme.card_bg)
-                        .child(div().w_6().h_4().child(Skeleton::new()))
-                        .child(div().w_16().h_7().child(Skeleton::new()))
-                        .child(div().w_20().child(Skeleton::new()))
-                })),
-        )
+        .child(h_flex().gap_3().children((0..4).map(|_| {
+            v_flex()
+                .flex_1()
+                .gap_2()
+                .p_4()
+                .rounded(px(app_theme.radius_lg))
+                .bg(app_theme.card_bg)
+                .child(div().w_6().h_4().child(Skeleton::new()))
+                .child(div().w_16().h_7().child(Skeleton::new()))
+                .child(div().w_20().child(Skeleton::new()))
+        })))
         .child(div().w_full().h_80().child(Skeleton::new()))
 }
 
@@ -556,9 +552,10 @@ fn render_filter_bar(
             .unwrap_or_else(|| SharedString::from("请选择项目")),
         None => SharedString::from("请选择项目"),
     };
-    let risk_label: SharedString = risk_filter
-        .as_deref()
-        .map_or_else(|| SharedString::from("全部状态"), |r| SharedString::from(risk_label(r).to_string()));
+    let risk_label: SharedString = risk_filter.as_deref().map_or_else(
+        || SharedString::from("全部状态"),
+        |r| SharedString::from(risk_label(r).to_string()),
+    );
     let risk_owned = risk_filter.clone();
     let view_for_project = view.clone();
     let view_for_country = view.clone();
@@ -579,13 +576,11 @@ fn render_filter_bar(
                     let id = project.id;
                     let name = project.name.clone();
                     let view = view_for_project.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(name)
-                            .checked(checked)
-                            .on_click(move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_project(Some(id), cx));
-                            }),
-                    );
+                    menu = menu.item(PopupMenuItem::new(name).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_project(Some(id), cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -600,13 +595,11 @@ fn render_filter_bar(
                 for (value, label) in COUNTRY_OPTIONS {
                     let checked = country == value;
                     let view = view_for_country.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(label).checked(checked).on_click(
-                            move |_, _window, cx| {
-                                view.update(cx, |this, cx| this.select_country(value, cx));
-                            },
-                        ),
-                    );
+                    menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                        move |_, _window, cx| {
+                            view.update(cx, |this, cx| this.select_country(value, cx));
+                        },
+                    ));
                 }
                 menu
             },
@@ -630,13 +623,13 @@ fn render_filter_bar(
                 for risk in RISK_OPTIONS {
                     let checked = risk_owned.as_deref() == Some(risk);
                     let view = view_for_risk.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(risk).checked(checked).on_click(move |_, _window, cx| {
+                    menu = menu.item(PopupMenuItem::new(risk).checked(checked).on_click(
+                        move |_, _window, cx| {
                             view.update(cx, |this, cx| {
                                 this.set_risk_filter(Some(risk.to_string()), cx)
                             });
-                        }),
-                    );
+                        },
+                    ));
                 }
                 menu
             },
@@ -665,39 +658,36 @@ fn stat_band(app_theme: &AppTheme, summary: &ReplenishmentSummary) -> impl IntoE
         None
     };
 
-    h_flex()
-        .id("replenishment-stats")
-        .gap_3()
-        .children(vec![
-            stat_card(
-                app_theme,
-                Icon::empty().path("icons/package.svg"),
-                "SKU 总数",
-                fmt_num_precise(summary.sku_count),
-                None,
-            ),
-            stat_card(
-                app_theme,
-                Icon::new(IconName::TriangleAlert),
-                "断货风险",
-                fmt_num_precise(summary.out_of_stock_risk_count),
-                risk_color,
-            ),
-            stat_card(
-                app_theme,
-                Icon::empty().path("icons/shopping-bag.svg"),
-                "可售库存",
-                fmt_num_precise(summary.total_available_inventory),
-                None,
-            ),
-            stat_card(
-                app_theme,
-                Icon::empty().path("icons/repeat-2.svg"),
-                "在途数量",
-                fmt_num_precise(summary.total_in_transit_quantity),
-                None,
-            ),
-        ])
+    h_flex().id("replenishment-stats").gap_3().children(vec![
+        stat_card(
+            app_theme,
+            Icon::empty().path("icons/package.svg"),
+            "SKU 总数",
+            fmt_num_precise(summary.sku_count),
+            None,
+        ),
+        stat_card(
+            app_theme,
+            Icon::new(IconName::TriangleAlert),
+            "断货风险",
+            fmt_num_precise(summary.out_of_stock_risk_count),
+            risk_color,
+        ),
+        stat_card(
+            app_theme,
+            Icon::empty().path("icons/shopping-bag.svg"),
+            "可售库存",
+            fmt_num_precise(summary.total_available_inventory),
+            None,
+        ),
+        stat_card(
+            app_theme,
+            Icon::empty().path("icons/repeat-2.svg"),
+            "在途数量",
+            fmt_num_precise(summary.total_in_transit_quantity),
+            None,
+        ),
+    ])
 }
 
 /// 单张统计卡：图标 + 数值 + 标签（数值可带强调色；对齐 inventory_analysis stat_card）
@@ -780,15 +770,19 @@ fn table_card(
         .when_some(table, |this, table| this.child(table))
         .child(totals_footer(app_theme, &resp.summary))
         .child(
-            div().w_full().px_4().py_2().child(pagination::pagination_bar(
-                view,
-                app_theme,
-                "replenishment-pagination",
-                page_state,
-                &[PAGE_SIZE],
-                |this, page, cx| this.set_page(page, cx),
-                |_, _, _| {},
-            )),
+            div()
+                .w_full()
+                .px_4()
+                .py_2()
+                .child(pagination::pagination_bar(
+                    view,
+                    app_theme,
+                    "replenishment-pagination",
+                    page_state,
+                    &[PAGE_SIZE],
+                    |this, page, cx| this.set_page(page, cx),
+                    |_, _, _| {},
+                )),
         )
 }
 
@@ -809,7 +803,10 @@ fn totals_footer(app_theme: &AppTheme, summary: &ReplenishmentSummary) -> impl I
             fmt_num_precise(summary.out_of_stock_risk_count),
         ),
         ("健康".to_string(), fmt_num_precise(summary.healthy_count)),
-        ("滞销".to_string(), fmt_num_precise(summary.slow_moving_count)),
+        (
+            "滞销".to_string(),
+            fmt_num_precise(summary.slow_moving_count),
+        ),
     ];
 
     h_flex()
@@ -915,11 +912,9 @@ fn action_color(action: &str, theme: &AppTheme) -> gpui::Hsla {
 /// riskMeta 一致）。
 pub fn replenishment_columns() -> Vec<ColumnDef<ReplenishmentItem>> {
     vec![
-        ColumnDef::text(
-            "replenishment-sku",
-            "SKU",
-            |r: &ReplenishmentItem, _| SharedString::from(r.sku.clone()),
-        )
+        ColumnDef::text("replenishment-sku", "SKU", |r: &ReplenishmentItem, _| {
+            SharedString::from(r.sku.clone())
+        })
         .width(140.0),
         ColumnDef::text(
             "replenishment-product",
@@ -1043,7 +1038,10 @@ pub fn replenishment_columns() -> Vec<ColumnDef<ReplenishmentItem>> {
         )
         .width(88.0)
         .with_render_element(|r: &ReplenishmentItem, theme: &AppTheme| {
-            status_pill(state_label(&r.inventory_state), state_color(&r.inventory_state, theme))
+            status_pill(
+                state_label(&r.inventory_state),
+                state_color(&r.inventory_state, theme),
+            )
         }),
         ColumnDef::text(
             "replenishment-action",
@@ -1064,7 +1062,10 @@ pub fn replenishment_columns() -> Vec<ColumnDef<ReplenishmentItem>> {
         )
         .width(96.0)
         .with_render_element(|r: &ReplenishmentItem, theme: &AppTheme| {
-            status_pill(risk_label(&r.risk_status), risk_color(&r.risk_status, theme))
+            status_pill(
+                risk_label(&r.risk_status),
+                risk_color(&r.risk_status, theme),
+            )
         }),
     ]
 }

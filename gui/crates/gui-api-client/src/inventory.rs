@@ -15,9 +15,7 @@
 //! （`Authorization: Bearer`，BLF-711 登录按账号下发，见 client.rs）。
 
 use chrono::NaiveDate;
-use gui_domain::operations::inventory::{
-    InventoryAnalysisResponse, InventorySnapshotOption,
-};
+use gui_domain::operations::inventory::{InventoryAnalysisResponse, InventorySnapshotOption};
 
 use crate::client::Client;
 use crate::error::ApiError;
@@ -147,11 +145,7 @@ mod tests {
 
         let client = session_client(&server.url());
         let resp = client
-            .inventory_analysis(
-                3,
-                "US",
-                NaiveDate::from_ymd_opt(2026, 8, 15),
-            )
+            .inventory_analysis(3, "US", NaiveDate::from_ymd_opt(2026, 8, 15))
             .await
             .expect("请求失败");
 
@@ -194,7 +188,10 @@ mod tests {
             .create();
 
         let client = session_client(&server.url());
-        let resp = client.inventory_analysis(7, "DE", None).await.expect("请求失败");
+        let resp = client
+            .inventory_analysis(7, "DE", None)
+            .await
+            .expect("请求失败");
         m.assert();
         assert!(resp.items.is_empty());
     }

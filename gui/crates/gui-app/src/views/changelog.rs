@@ -15,14 +15,11 @@
 //! - **精简**：「原始 log 线索」折叠面板不移植（调试用途，价值密度低）；
 //!   渐变卡头不接（终端化设计禁装饰渐变，统一 1px 边框卡）。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
 use gpui::prelude::*;
-use gpui::{
-    div, px, Context, FontWeight, IntoElement, Render, SharedString, Window,
-};
+use gpui::{div, px, Context, FontWeight, IntoElement, Render, SharedString, Window};
 use gpui_component::{h_flex, v_flex};
 
 use crate::theme::{AppTheme, FONT_BASE, FONT_TITLE};
@@ -171,16 +168,17 @@ impl Render for ChangelogView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = AppTheme::current(cx);
 
-        let header = PageHeader::new("更新日志")
-            .subtitle("产品版本时间线 · 完整发布说明走 web 端");
+        let header = PageHeader::new("更新日志").subtitle("产品版本时间线 · 完整发布说明走 web 端");
 
         let timeline: gpui::AnyElement = v_flex()
             .id("changelog-timeline")
             .w_full()
             .gap_3()
-            .children(RELEASES.iter().map(|release| {
-                render_release_card(release, &theme)
-            }))
+            .children(
+                RELEASES
+                    .iter()
+                    .map(|release| render_release_card(release, &theme)),
+            )
             .into_any_element();
 
         v_flex()
@@ -226,7 +224,8 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                 .border_b_1()
                 .border_color(theme.separator)
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_TITLE)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_TITLE)))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.text_primary)
                         .child(format!("{} · {}", release.version, release.codename)),
@@ -241,16 +240,13 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                         .child(status_label),
                 )
                 .child(
-                    h_flex()
-                        .flex_1()
-                        .justify_end()
-                        .child(
-                            div()
-                                .text_xs()
-                                .mono_tabular_nums()
-                                .text_color(theme.text_muted)
-                                .child(date_range),
-                        ),
+                    h_flex().flex_1().justify_end().child(
+                        div()
+                            .text_xs()
+                            .mono_tabular_nums()
+                            .text_color(theme.text_muted)
+                            .child(date_range),
+                    ),
                 ),
         )
         .child(
@@ -259,7 +255,8 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                 .py_3()
                 .gap_2()
                 .child(
-                    div().text_size(px(crate::theme::fs(FONT_BASE)))
+                    div()
+                        .text_size(px(crate::theme::fs(FONT_BASE)))
                         .text_color(theme.text_secondary)
                         .child(release.summary),
                 )
@@ -269,9 +266,7 @@ fn render_release_card(release: &ReleaseEntry, theme: &AppTheme) -> gpui::AnyEle
                         .gap_1()
                         .children(release.focus.iter().map(|f| {
                             div()
-                                .id(SharedString::from(format!(
-                                    "changelog-focus-{f}"
-                                )))
+                                .id(SharedString::from(format!("changelog-focus-{f}")))
                                 .px_1p5()
                                 .py_0p5()
                                 .rounded(px(theme.radius))

@@ -87,8 +87,7 @@ impl DateRange {
     pub fn last_week(today: NaiveDate) -> Self {
         let days_since_monday = today.weekday().num_days_from_monday();
         let this_monday = today.checked_sub_days(chrono::Days::new(days_since_monday as u64));
-        let last_monday =
-            this_monday.and_then(|d| d.checked_sub_days(chrono::Days::new(7)));
+        let last_monday = this_monday.and_then(|d| d.checked_sub_days(chrono::Days::new(7)));
         let last_sunday = this_monday.and_then(|d| d.checked_sub_days(chrono::Days::new(1)));
         Self {
             from: last_monday,
@@ -364,17 +363,18 @@ impl Render for DateRangePickerState {
 
         h_flex()
             // 翻页模式更紧凑（◀ label ▶ 贴合），普通视图保持原间距
-            .map(|this| if self.paging { this.gap_1() } else { this.gap_2() })
+            .map(|this| {
+                if self.paging {
+                    this.gap_1()
+                } else {
+                    this.gap_2()
+                }
+            })
             .items_center()
             // BLF-795：翻页模式（Console Bar）不渲染「日期」label——36px 控制条
             // 空间紧凑，区间文案已足够表意；普通视图保持原样
             .when(!self.paging, |this| {
-                this.child(
-                    div()
-                        .text_sm()
-                        .text_color(theme.text_muted)
-                        .child("日期"),
-                )
+                this.child(div().text_sm().text_color(theme.text_muted).child("日期"))
             })
             .when(self.paging, |this| {
                 this.child(
@@ -400,134 +400,116 @@ impl Render for DateRangePickerState {
                     .when(open, |this| {
                         this.child(
                             deferred(
-                                anchored()
-                                    .snap_to_window_with_margin(px(8.))
-                                    .child(
-                                        div()
-                                            .occlude()
-                                            .mt_1p5()
-                                            .p_3()
-                                            .w(px(460.))
-                                            .border_1()
-                                            .border_color(theme.separator)
-                                            .shadow_lg()
-                                            .rounded(px(theme.radius_lg))
-                                            .bg(theme.card_bg)
-                                            .text_color(theme.text_primary)
-                                            .on_mouse_up_out(
-                                                MouseButton::Left,
-                                                cx.listener(|this, _, _, cx| {
-                                                    this.open = false;
-                                                    cx.notify();
-                                                }),
-                                            )
-                                            .child(
-                                                v_flex()
-                                                    .gap_3()
-                                                    .child(
-                                                        h_flex()
-                                                            .gap_2()
-                                                            .flex_wrap()
-                                                            .children(
-                                                                PRESETS.iter().enumerate().map(
-                                                                    |(i, p)| {
-                                                                        let p = *p;
-                                                                        Button::new((
-                                                                            "date-range-preset",
-                                                                            i,
-                                                                        ))
-                                                                        .small()
-                                                                        .ghost()
-                                                                        .tab_stop(false)
-                                                                        .label(p.label())
-                                                                        .on_click(
-                                                                            cx.listener(move |this, _, _, cx| {
-                                                                                this.select_preset(
-                                                                                    p, cx,
-                                                                                )
-                                                                            }),
+                                anchored().snap_to_window_with_margin(px(8.)).child(
+                                    div()
+                                        .occlude()
+                                        .mt_1p5()
+                                        .p_3()
+                                        .w(px(460.))
+                                        .border_1()
+                                        .border_color(theme.separator)
+                                        .shadow_lg()
+                                        .rounded(px(theme.radius_lg))
+                                        .bg(theme.card_bg)
+                                        .text_color(theme.text_primary)
+                                        .on_mouse_up_out(
+                                            MouseButton::Left,
+                                            cx.listener(|this, _, _, cx| {
+                                                this.open = false;
+                                                cx.notify();
+                                            }),
+                                        )
+                                        .child(
+                                            v_flex()
+                                                .gap_3()
+                                                .child(h_flex().gap_2().flex_wrap().children(
+                                                    PRESETS.iter().enumerate().map(|(i, p)| {
+                                                        let p = *p;
+                                                        Button::new(("date-range-preset", i))
+                                                            .small()
+                                                            .ghost()
+                                                            .tab_stop(false)
+                                                            .label(p.label())
+                                                            .on_click(cx.listener(
+                                                                move |this, _, _, cx| {
+                                                                    this.select_preset(p, cx)
+                                                                },
+                                                            ))
+                                                    }),
+                                                ))
+                                                .child(
+                                                    h_flex()
+                                                        .gap_3()
+                                                        .items_start()
+                                                        .child(
+                                                            v_flex()
+                                                                .gap_1()
+                                                                .child(
+                                                                    div()
+                                                                        .text_xs()
+                                                                        .text_color(
+                                                                            theme.text_muted,
                                                                         )
-                                                                    },
-                                                                ),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        h_flex()
-                                                            .gap_3()
-                                                            .items_start()
-                                                            .child(
-                                                                v_flex()
-                                                                    .gap_1()
-                                                                    .child(
-                                                                        div()
-                                                                            .text_xs()
-                                                                            .text_color(
-                                                                                theme.text_muted,
-                                                                            )
-                                                                            .child("起始"),
-                                                                    )
-                                                                    .child(
-                                                                        Calendar::new(
-                                                                            self.from_calendar
-                                                                                .as_ref()
-                                                                                .expect("已懒建"),
-                                                                        )
-                                                                        .number_of_months(1),
-                                                                    ),
-                                                            )
-                                                            .child(
-                                                                v_flex()
-                                                                    .gap_1()
-                                                                    .child(
-                                                                        div()
-                                                                            .text_xs()
-                                                                            .text_color(
-                                                                                theme.text_muted,
-                                                                            )
-                                                                            .child("结束"),
-                                                                    )
-                                                                    .child(
-                                                                        Calendar::new(
-                                                                            self.to_calendar
-                                                                                .as_ref()
-                                                                                .expect("已懒建"),
-                                                                        )
-                                                                        .number_of_months(1),
-                                                                    ),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        h_flex()
-                                                            .w_full()
-                                                            .justify_end()
-                                                            .gap_2()
-                                                            .child(
-                                                                Button::new(
-                                                                    "date-range-clear",
+                                                                        .child("起始"),
                                                                 )
+                                                                .child(
+                                                                    Calendar::new(
+                                                                        self.from_calendar
+                                                                            .as_ref()
+                                                                            .expect("已懒建"),
+                                                                    )
+                                                                    .number_of_months(1),
+                                                                ),
+                                                        )
+                                                        .child(
+                                                            v_flex()
+                                                                .gap_1()
+                                                                .child(
+                                                                    div()
+                                                                        .text_xs()
+                                                                        .text_color(
+                                                                            theme.text_muted,
+                                                                        )
+                                                                        .child("结束"),
+                                                                )
+                                                                .child(
+                                                                    Calendar::new(
+                                                                        self.to_calendar
+                                                                            .as_ref()
+                                                                            .expect("已懒建"),
+                                                                    )
+                                                                    .number_of_months(1),
+                                                                ),
+                                                        ),
+                                                )
+                                                .child(
+                                                    h_flex()
+                                                        .w_full()
+                                                        .justify_end()
+                                                        .gap_2()
+                                                        .child(
+                                                            Button::new("date-range-clear")
                                                                 .ghost()
                                                                 .small()
                                                                 .label("清除")
                                                                 .on_click(cx.listener(
+                                                                    |this, _, _, cx| this.clear(cx),
+                                                                )),
+                                                        )
+                                                        .child(
+                                                            Button::new("date-range-apply")
+                                                                .primary()
+                                                                .small()
+                                                                .label("应用")
+                                                                .on_click(cx.listener(
                                                                     |this, _, _, cx| {
-                                                                        this.clear(cx)
+                                                                        this.apply_draft(cx)
                                                                     },
                                                                 )),
-                                                            )
-                                                            .child(
-                                                                Button::new("date-range-apply")
-                                                                    .primary()
-                                                                    .small()
-                                                                    .label("应用")
-                                                                    .on_click(cx.listener(
-                                                                        |this, _, _, cx| {
-                                                                            this.apply_draft(cx)
-                                                                        },
-                                                                    )),
-                                                            ),
-                                                    ),
-                                            ),
-                                    ),
+                                                        ),
+                                                ),
+                                        ),
+                                ),
                             )
                             .with_priority(2),
                         )
@@ -719,8 +701,11 @@ mod tests {
         assert_eq!(sep.from, Some(d(2026, 9, 1)));
         assert_eq!(sep.to, Some(d(2026, 9, 30)), "9 月只有 30 天");
         // 跨年：1 月上翻 → 去年 12 月；平年 1 月下翻 → 2 月末 28 天
-        let jan = page_range(DateRange::new(Some(d(2026, 1, 1)), Some(d(2026, 1, 31))), -1)
-            .expect("去年12月");
+        let jan = page_range(
+            DateRange::new(Some(d(2026, 1, 1)), Some(d(2026, 1, 31))),
+            -1,
+        )
+        .expect("去年12月");
         assert_eq!(jan.from, Some(d(2025, 12, 1)));
         assert_eq!(jan.to, Some(d(2025, 12, 31)));
         let feb = DateRange::new(Some(d(2027, 2, 1)), Some(d(2027, 2, 28)));
@@ -742,7 +727,10 @@ mod tests {
         assert_eq!(next7.from, Some(d(2026, 8, 16)));
         assert_eq!(next7.to, Some(d(2026, 8, 22)));
         assert_eq!(page_range(DateRange::all(), -1), None, "全部不翻页");
-        assert_eq!(page_range(DateRange::new(Some(d(2026, 8, 1)), None), 1), None);
+        assert_eq!(
+            page_range(DateRange::new(Some(d(2026, 8, 1)), None), 1),
+            None
+        );
     }
 
     // ---------- 渲染冒烟 ----------
@@ -771,7 +759,11 @@ mod tests {
     }
 
     impl Render for DateRangeHost {
-        fn render(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
             self.picker.clone().expect("持有选择器")
         }
     }

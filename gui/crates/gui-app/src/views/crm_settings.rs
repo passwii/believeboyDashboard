@@ -18,7 +18,6 @@
 //!
 //! 权限口径：后端 `require_admin` 兜底；非管理员会话请求返回 403 → Forbidden 态。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -85,9 +84,10 @@ impl SettingsState {
         let rules_ok = rules.map_err(|(msg, _)| msg);
         let workflow_ok = workflow.ok();
         match rules_ok {
-            Ok(rules) if !rules.is_empty() => {
-                Self::Loaded(Box::new(SettingsData { rules, workflow: workflow_ok }))
-            }
+            Ok(rules) if !rules.is_empty() => Self::Loaded(Box::new(SettingsData {
+                rules,
+                workflow: workflow_ok,
+            })),
             // workflow 兜底可见（有设置即非完全空页面）
             Ok(_) | Err(_) if workflow_ok.is_some() => Self::Loaded(Box::new(SettingsData {
                 rules: Vec::new(),
@@ -243,7 +243,8 @@ fn render_forbidden(theme: &AppTheme) -> impl IntoElement {
         .border_1()
         .border_color(theme.warning)
         .child(
-            div().text_size(px(crate::theme::fs(crate::theme::FONT_BASE)))
+            div()
+                .text_size(px(crate::theme::fs(crate::theme::FONT_BASE)))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.warning)
                 .child("无权限查看 CRM 设置"),
@@ -307,9 +308,12 @@ fn render_rules_card(rules: &[CrmRuleItem], theme: &AppTheme) -> impl IntoElemen
                     .child("暂无规则，可在 web 端「CRM 设置」新建"),
             )
         })
-        .children(rules.iter().enumerate().map(|(ix, rule)| {
-            render_rule_row(rule, ix == rules.len() - 1, theme)
-        }))
+        .children(
+            rules
+                .iter()
+                .enumerate()
+                .map(|(ix, rule)| render_rule_row(rule, ix == rules.len() - 1, theme)),
+        )
 }
 
 /// 单条规则行：名称 + 启停徽标 + 条件/动作描述
@@ -320,10 +324,7 @@ fn render_rule_row(rule: &CrmRuleItem, last: bool, theme: &AppTheme) -> gpui::An
         ("已停用", theme.text_muted)
     };
     h_flex()
-        .id(SharedString::from(format!(
-            "crm-settings-rule-{}",
-            rule.id
-        )))
+        .id(SharedString::from(format!("crm-settings-rule-{}", rule.id)))
         .items_start()
         .gap_3()
         .px_4()
@@ -366,11 +367,18 @@ fn render_rule_row(rule: &CrmRuleItem, last: bool, theme: &AppTheme) -> gpui::An
 
 /// 规则描述：「当 X 发生，做 Y」可视化文案（对齐 web describeRule 口径）
 fn describe_rule(rule: &CrmRuleItem) -> String {
-    format!("当 {} 时，执行 {}", rule.trigger_kind_label(), rule.action_summary())
+    format!(
+        "当 {} 时，执行 {}",
+        rule.trigger_kind_label(),
+        rule.action_summary()
+    )
 }
 
 /// 工作流自动化卡：7 天无跟进提醒阈值 + 邮件开关
-fn render_workflow_card(workflow: Option<&CrmWorkflowSettings>, theme: &AppTheme) -> impl IntoElement {
+fn render_workflow_card(
+    workflow: Option<&CrmWorkflowSettings>,
+    theme: &AppTheme,
+) -> impl IntoElement {
     let threshold = workflow
         .map(|w| w.stale_days.to_string())
         .unwrap_or_else(|| "—".to_string());
@@ -416,7 +424,8 @@ fn render_workflow_card(workflow: Option<&CrmWorkflowSettings>, theme: &AppTheme
                                 .child("无跟进提醒阈值（天）"),
                         )
                         .child(
-                            div().text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
+                            div()
+                                .text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
                                 .mono_tabular_nums()
                                 .text_color(theme.text_primary)
                                 .child(threshold),
@@ -432,7 +441,8 @@ fn render_workflow_card(workflow: Option<&CrmWorkflowSettings>, theme: &AppTheme
                                 .child("提醒邮件"),
                         )
                         .child(
-                            div().text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
+                            div()
+                                .text_size(px(crate::theme::fs(crate::theme::FONT_TITLE_LG)))
                                 .text_color(email_color)
                                 .child(email_label),
                         ),

@@ -13,7 +13,6 @@
 //!   佣金比例覆盖）不移植——admin 写操作走 web 端；本视图承载 performance
 //!   Tab 的只读主面。
 
-
 // Stage13 视图：URL 常量与测试钩子属模块契约面，root.rs 接线前允许暂未消费。
 #![allow(dead_code)] // ⚠️ 内部属性必须在文件顶部——见下方等价实现
 
@@ -172,7 +171,10 @@ impl Render for OperatorManagementView {
 
         // 页头动作：上月 / 报告月 / 下月 + 刷新
         let header = PageHeader::new("运营管理")
-            .subtitle(format!("运营绩效 · {}（角色与佣金编辑走 web 端）", self.report_month))
+            .subtitle(format!(
+                "运营绩效 · {}（角色与佣金编辑走 web 端）",
+                self.report_month
+            ))
             .action({
                 let view = view.clone();
                 Button::new("op-prev-month")
@@ -292,9 +294,11 @@ fn columns() -> Vec<ColumnDef<OperatorPerformanceItem>> {
         })
         .width(88.0)
         .numeric(true),
-        ColumnDef::text("project_name", "项目", |r: &OperatorPerformanceItem, _| {
-            SharedString::from(r.project_name.clone())
-        }),
+        ColumnDef::text(
+            "project_name",
+            "项目",
+            |r: &OperatorPerformanceItem, _| SharedString::from(r.project_name.clone()),
+        ),
         ColumnDef::text("person_name", "人员", |r: &OperatorPerformanceItem, _| {
             SharedString::from(r.person_name.clone())
         })

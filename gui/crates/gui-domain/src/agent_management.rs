@@ -351,9 +351,7 @@ pub fn parse_iso_to_ms(iso: &str) -> Result<i64, ()> {
             chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f")
                 .map(|naive| {
                     use chrono::TimeZone;
-                    chrono::Utc
-                        .from_utc_datetime(&naive)
-                        .timestamp_millis()
+                    chrono::Utc.from_utc_datetime(&naive).timestamp_millis()
                 })
                 .map_err(|_| ())
         })
@@ -462,7 +460,10 @@ mod tests {
         // 关键域 code 锁定（business_scope 取值必须与后端一致）
         assert!(get_agent_domain("shipments").is_some());
         assert!(get_agent_domain("sku_info").is_some());
-        assert_eq!(get_agent_domain("finance_profit").unwrap().status, AgentDomainStatus::Planned);
+        assert_eq!(
+            get_agent_domain("finance_profit").unwrap().status,
+            AgentDomainStatus::Planned
+        );
         assert!(get_agent_domain("nonexistent").is_none());
     }
 
@@ -520,16 +521,25 @@ mod tests {
             AgentKeyStatus::Expired
         );
         // 未到期不算过期（now 在到期点之前）
-        assert_eq!(AgentKeyStatus::derive(&item, 1_000), AgentKeyStatus::Inactive);
+        assert_eq!(
+            AgentKeyStatus::derive(&item, 1_000),
+            AgentKeyStatus::Inactive
+        );
 
         // deleted 最高优先级（即使已过期 / 已停用）
         item.deleted_at = Some("2026-08-02T00:00:00+00:00".into());
-        assert_eq!(AgentKeyStatus::derive(&item, 1_000), AgentKeyStatus::Deleted);
+        assert_eq!(
+            AgentKeyStatus::derive(&item, 1_000),
+            AgentKeyStatus::Deleted
+        );
 
         // 非法 expires_at 不误判过期（对齐 web NaN 行为）
         let mut bad = sample_item();
         bad.expires_at = Some("not-a-date".into());
-        assert_eq!(AgentKeyStatus::derive(&bad, i64::MAX), AgentKeyStatus::Active);
+        assert_eq!(
+            AgentKeyStatus::derive(&bad, i64::MAX),
+            AgentKeyStatus::Active
+        );
 
         assert_eq!(AgentKeyStatus::Active.label(), "激活");
         assert_eq!(AgentKeyStatus::Expired.label(), "已过期");

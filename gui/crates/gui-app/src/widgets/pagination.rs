@@ -145,27 +145,22 @@ pub fn page_size_select<V: 'static>(
                 .small()
                 .label(SharedString::from(format!("{page_size}")))
                 .icon(Icon::new(IconName::ChevronDown).with_size(px(12.)))
-                .dropdown_menu_with_anchor(
-                    gpui::Corner::TopLeft,
-                    move |menu, _window, _cx| {
-                        let mut menu = menu;
-                        for size in &options {
-                            let checked = page_size == *size;
-                            let view = view_for_size.clone();
-                            let size = *size;
-                            menu = menu.item(
-                                PopupMenuItem::new(SharedString::from(format!("{size}")))
-                                    .checked(checked)
-                                    .on_click(move |_, _window, cx| {
-                                        view.update(cx, |this, cx| {
-                                            on_page_size(this, size, cx)
-                                        });
-                                    }),
-                            );
-                        }
-                        menu
-                    },
-                ),
+                .dropdown_menu_with_anchor(gpui::Corner::TopLeft, move |menu, _window, _cx| {
+                    let mut menu = menu;
+                    for size in &options {
+                        let checked = page_size == *size;
+                        let view = view_for_size.clone();
+                        let size = *size;
+                        menu = menu.item(
+                            PopupMenuItem::new(SharedString::from(format!("{size}")))
+                                .checked(checked)
+                                .on_click(move |_, _window, cx| {
+                                    view.update(cx, |this, cx| on_page_size(this, size, cx));
+                                }),
+                        );
+                    }
+                    menu
+                }),
         )
         .child(div().child("行"))
 }
@@ -234,9 +229,7 @@ pub fn pagination_controls<V: 'static>(
                 .disabled(!state.can_next())
                 .on_click(move |_, _, cx| {
                     let view = view_for_next.clone();
-                    view.update(cx, |this, cx| {
-                        on_page(this, (page + 1).min(page_count), cx)
-                    });
+                    view.update(cx, |this, cx| on_page(this, (page + 1).min(page_count), cx));
                 }),
         )
         .child(
@@ -266,7 +259,14 @@ pub fn pagination_bar<V: 'static>(
         .items_center()
         .justify_between()
         .gap_3()
-        .child(page_size_select(view, theme, id_prefix, state, page_size_options, on_page_size))
+        .child(page_size_select(
+            view,
+            theme,
+            id_prefix,
+            state,
+            page_size_options,
+            on_page_size,
+        ))
         .child(pagination_controls(view, theme, id_prefix, state, on_page))
 }
 
@@ -353,7 +353,11 @@ mod tests {
             });
             struct PaginationHost;
             impl gpui::Render for PaginationHost {
-                fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+                fn render(
+                    &mut self,
+                    _window: &mut gpui::Window,
+                    cx: &mut gpui::Context<Self>,
+                ) -> impl IntoElement {
                     let theme = AppTheme::current(cx);
                     let state = PageState::new(5, 50, 1234);
                     pagination_bar(
@@ -369,10 +373,7 @@ mod tests {
             }
             let (_host, cx2) = cx.add_window_view(|_window, _cx| PaginationHost);
             cx2.read(|app| {
-                assert_eq!(
-                    crate::theme::AppTheme::current(app).is_dark(),
-                    dark
-                );
+                assert_eq!(crate::theme::AppTheme::current(app).is_dark(), dark);
             });
         }
     }

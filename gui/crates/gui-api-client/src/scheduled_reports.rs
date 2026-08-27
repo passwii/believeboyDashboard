@@ -74,7 +74,10 @@ mod tests {
     /// 契约：路径锁定 backend 实际路由
     #[test]
     fn paths_match_backend_routes() {
-        assert_eq!(SUBSCRIPTIONS_PATH, "/api/v1/scheduled-reports/subscriptions");
+        assert_eq!(
+            SUBSCRIPTIONS_PATH,
+            "/api/v1/scheduled-reports/subscriptions"
+        );
         assert_eq!(LEDGER_PATH, "/api/v1/scheduled-reports/ledger");
     }
 
@@ -236,7 +239,14 @@ mod tests {
         let start = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
         let end = NaiveDate::from_ymd_opt(2026, 8, 15).unwrap();
         let resp = client
-            .list_ledger(start, end, "weekly", "all", Some("  ops@believeboy.com  "), 999)
+            .list_ledger(
+                start,
+                end,
+                "weekly",
+                "all",
+                Some("  ops@believeboy.com  "),
+                999,
+            )
             .await
             .expect("请求失败");
 

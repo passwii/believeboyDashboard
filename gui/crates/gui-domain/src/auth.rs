@@ -119,7 +119,10 @@ mod tests {
 
     #[test]
     fn role_type_serializes_to_backend_names() {
-        assert_eq!(serde_json::to_string(&UserRoleType::Admin).unwrap(), r#""admin""#);
+        assert_eq!(
+            serde_json::to_string(&UserRoleType::Admin).unwrap(),
+            r#""admin""#
+        );
         assert_eq!(
             serde_json::to_string(&UserRoleType::Businessdev).unwrap(),
             r#""businessdev""#

@@ -87,8 +87,7 @@ const LENGTH_INSTRUCTIONS: [(&str, &str, &str); 3] = [
     ("detailed", "详细", "篇幅可以较长：展开原因、依据与细节。"),
 ];
 
-const LANGUAGE_INSTRUCTIONS: [(&str, &str); 2] =
-    [("zh", "中文"), ("en", "English")];
+const LANGUAGE_INSTRUCTIONS: [(&str, &str); 2] = [("zh", "中文"), ("en", "English")];
 
 #[allow(dead_code)] // 保留：与 LENGTH_INSTRUCTIONS 对称的展示辅助（后续批次消费）
 fn language_instruction(language: &str) -> &'static str {
@@ -99,11 +98,7 @@ fn language_instruction(language: &str) -> &'static str {
 }
 
 /// 拼装场景 system prompt（对齐 web buildScenarioSystemPrompt 口径）
-pub fn build_scenario_system_prompt(
-    tone_id: &str,
-    length: &str,
-    language: &str,
-) -> String {
+pub fn build_scenario_system_prompt(tone_id: &str, length: &str, language: &str) -> String {
     let mut parts = vec![OPS_REPORT_SCENARIO.system_prompt.to_string()];
     if let Some((_, _, _, suffix)) = OPS_REPORT_SCENARIO
         .tones
@@ -112,8 +107,7 @@ pub fn build_scenario_system_prompt(
     {
         parts.push(suffix.to_string());
     }
-    if let Some((_, _, instruction)) = LENGTH_INSTRUCTIONS.iter().find(|(id, _, _)| *id == length)
-    {
+    if let Some((_, _, instruction)) = LENGTH_INSTRUCTIONS.iter().find(|(id, _, _)| *id == length) {
         parts.push(instruction.to_string());
     }
     parts.push(language_instruction(language).to_string());
@@ -204,7 +198,8 @@ impl CustomerServiceView {
 
     pub fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.free_input.is_none() {
-            let input = cx.new(|cx| InputState::new(window, cx).placeholder("粘贴要改写的数据 / 结论…"));
+            let input =
+                cx.new(|cx| InputState::new(window, cx).placeholder("粘贴要改写的数据 / 结论…"));
             self.free_input = Some(input);
         }
     }
@@ -305,10 +300,12 @@ impl CustomerServiceView {
             };
             let (tx, mut rx) =
                 tokio::sync::mpsc::unbounded_channel::<Result<StreamEvent, String>>();
-            let producer = bg.spawn(async move {
-                let _ = crate::runtime::runtime()
-                    .block_on(client_for_stream.ai_stream_message(conversation_id, &payload, tx));
-            });
+            let producer =
+                bg.spawn(async move {
+                    let _ = crate::runtime::runtime().block_on(
+                        client_for_stream.ai_stream_message(conversation_id, &payload, tx),
+                    );
+                });
             drop(producer); // 后台流任务自持 tx；接收端退出即结束
 
             loop {
@@ -320,7 +317,9 @@ impl CustomerServiceView {
                         }
                         let out = this.outputs.entry(tone_id).or_default();
                         match event {
-                            Ok(StreamEvent::ContentBlockDelta { delta }) if delta.kind == "text_delta" => {
+                            Ok(StreamEvent::ContentBlockDelta { delta })
+                                if delta.kind == "text_delta" =>
+                            {
                                 out.content.push_str(&delta.text);
                             }
                             Ok(StreamEvent::Done(_)) => {
@@ -395,7 +394,8 @@ impl CustomerServiceView {
 
     fn render_scenario_pane(&self, theme: &AppTheme, cx: &Context<Self>) -> gpui::AnyElement {
         let header = pane_header_base(theme, "cs-scenario-header").child(
-            div().text_size(px(crate::theme::fs(FONT_BASE)))
+            div()
+                .text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("场景"),
@@ -405,57 +405,66 @@ impl CustomerServiceView {
             .py_2()
             .gap_1p5()
             .child(
-                div().text_size(px(crate::theme::fs(FONT_BASE)))
+                div()
+                    .text_size(px(crate::theme::fs(FONT_BASE)))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(theme.text_primary)
                     .child(OPS_REPORT_SCENARIO.label),
             )
             .child(
-                div().text_size(px(crate::theme::fs(FONT_XS)))
+                div()
+                    .text_size(px(crate::theme::fs(FONT_XS)))
                     .text_color(theme.text_muted)
                     .child(OPS_REPORT_SCENARIO.description),
             );
         // 语气子列表
-        let tone_list = v_flex().gap_0p5().children(OPS_REPORT_SCENARIO.tones.iter().map(
-            |(id, label, desc, _)| {
-                let selected = self.selected_tone == *id;
-                h_flex()
-                    .id(SharedString::from(format!("cs-tone-{id}")))
-                    .px_1()
-                    .py_1()
-                    .rounded_md()
-                    .cursor(gpui::CursorStyle::PointingHand)
-                    .when(selected, |this| this.bg(theme.muted_fill))
-                    .when(!selected, |this| {
-                        this.hover(|h| h.bg(theme.table_row_hover))
-                    })
-                    .on_click({
-                        let view = cx.entity();
-                        move |_, _, cx| {
-                            view.update(cx, |this, cx| this.select_tone(id, cx));
-                        }
-                    })
-                    .child(
-                        v_flex()
-                            .min_w_0()
+        let tone_list = v_flex()
+            .gap_0p5()
+            .children(
+                OPS_REPORT_SCENARIO
+                    .tones
+                    .iter()
+                    .map(|(id, label, desc, _)| {
+                        let selected = self.selected_tone == *id;
+                        h_flex()
+                            .id(SharedString::from(format!("cs-tone-{id}")))
+                            .px_1()
+                            .py_1()
+                            .rounded_md()
+                            .cursor(gpui::CursorStyle::PointingHand)
+                            .when(selected, |this| this.bg(theme.muted_fill))
+                            .when(!selected, |this| {
+                                this.hover(|h| h.bg(theme.table_row_hover))
+                            })
+                            .on_click({
+                                let view = cx.entity();
+                                move |_, _, cx| {
+                                    view.update(cx, |this, cx| this.select_tone(id, cx));
+                                }
+                            })
                             .child(
-                                div().text_size(px(crate::theme::fs(FONT_BASE)))
-                                    .text_color(if selected {
-                                        theme.text_primary
-                                    } else {
-                                        theme.text_secondary
-                                    })
-                                    .child(*label),
+                                v_flex()
+                                    .min_w_0()
+                                    .child(
+                                        div()
+                                            .text_size(px(crate::theme::fs(FONT_BASE)))
+                                            .text_color(if selected {
+                                                theme.text_primary
+                                            } else {
+                                                theme.text_secondary
+                                            })
+                                            .child(*label),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(crate::theme::fs(FONT_XS)))
+                                            .text_color(theme.text_muted)
+                                            .truncate()
+                                            .child(*desc),
+                                    ),
                             )
-                            .child(
-                                div().text_size(px(crate::theme::fs(FONT_XS)))
-                                    .text_color(theme.text_muted)
-                                    .truncate()
-                                    .child(*desc),
-                            ),
-                    )
-            },
-        ));
+                    }),
+            );
         v_flex()
             .h_full()
             .child(header)
@@ -506,7 +515,8 @@ impl CustomerServiceView {
             .child(
                 pane_header_base(theme, "cs-center-header")
                     .child(
-                        div().text_size(px(crate::theme::fs(FONT_BASE)))
+                        div()
+                            .text_size(px(crate::theme::fs(FONT_BASE)))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.text_secondary)
                             .child(*tone_label),
@@ -638,56 +648,57 @@ impl CustomerServiceView {
     fn render_context_pane(&self, theme: &AppTheme, cx: &Context<Self>) -> gpui::AnyElement {
         let view = cx.entity();
         let header = pane_header_base(theme, "cs-context-header").child(
-            div().text_size(px(crate::theme::fs(FONT_BASE)))
+            div()
+                .text_size(px(crate::theme::fs(FONT_BASE)))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text_secondary)
                 .child("参数"),
         );
 
-        let lang_card = context_card(theme, "cs-card-lang", "输出语言")
-            .children(LANGUAGE_INSTRUCTIONS.iter().map(|(code, label)| {
+        let lang_card = context_card(theme, "cs-card-lang", "输出语言").children(
+            LANGUAGE_INSTRUCTIONS.iter().map(|(code, label)| {
                 let selected = self.language == *code;
-                context_stat_row(
-                    theme,
-                    label,
-                    if selected { "● 选中" } else { "○" },
-                )
-            }));
-        let length_card = context_card(theme, "cs-card-length", "篇幅")
-            .children(LENGTH_INSTRUCTIONS.iter().map(|(code, label, _)| {
+                context_stat_row(theme, label, if selected { "● 选中" } else { "○" })
+            }),
+        );
+        let length_card = context_card(theme, "cs-card-length", "篇幅").children(
+            LENGTH_INSTRUCTIONS.iter().map(|(code, label, _)| {
                 let selected = self.length == *code;
                 context_stat_row(theme, label, if selected { "● 选中" } else { "○" })
-            }));
+            }),
+        );
 
         // 语言切换按钮组（简化为两枚按钮）
-        let lang_buttons = h_flex().gap_2().children(
-            LANGUAGE_INSTRUCTIONS.iter().map(|(code, label)| {
-                let view = view.clone();
-                let code = *code;
-                Button::new(SharedString::from(format!("cs-lang-{code}")))
-                    .when(code == self.language, |b| b.primary())
-                    .when(code != self.language, |b| b.outline())
-                    .xsmall()
-                    .label(*label)
-                    .on_click(move |_, _, cx| {
-                        view.update(cx, |this, cx| this.set_language(code, cx));
-                    })
-            }),
-        );
-        let length_buttons = h_flex().gap_2().children(
-            LENGTH_INSTRUCTIONS.iter().map(|(code, label, _)| {
-                let view = view.clone();
-                let code = *code;
-                Button::new(SharedString::from(format!("cs-len-{code}")))
-                    .when(code == self.length, |b| b.primary())
-                    .when(code != self.length, |b| b.outline())
-                    .xsmall()
-                    .label(*label)
-                    .on_click(move |_, _, cx| {
-                        view.update(cx, |this, cx| this.set_length(code, cx));
-                    })
-            }),
-        );
+        let lang_buttons =
+            h_flex()
+                .gap_2()
+                .children(LANGUAGE_INSTRUCTIONS.iter().map(|(code, label)| {
+                    let view = view.clone();
+                    let code = *code;
+                    Button::new(SharedString::from(format!("cs-lang-{code}")))
+                        .when(code == self.language, |b| b.primary())
+                        .when(code != self.language, |b| b.outline())
+                        .xsmall()
+                        .label(*label)
+                        .on_click(move |_, _, cx| {
+                            view.update(cx, |this, cx| this.set_language(code, cx));
+                        })
+                }));
+        let length_buttons =
+            h_flex()
+                .gap_2()
+                .children(LENGTH_INSTRUCTIONS.iter().map(|(code, label, _)| {
+                    let view = view.clone();
+                    let code = *code;
+                    Button::new(SharedString::from(format!("cs-len-{code}")))
+                        .when(code == self.length, |b| b.primary())
+                        .when(code != self.length, |b| b.outline())
+                        .xsmall()
+                        .label(*label)
+                        .on_click(move |_, _, cx| {
+                            view.update(cx, |this, cx| this.set_length(code, cx));
+                        })
+                }));
 
         v_flex()
             .h_full()
@@ -727,10 +738,7 @@ mod tests {
 
     #[test]
     fn user_content_wraps_free_text() {
-        assert_eq!(
-            build_user_content(" 销售上涨 "),
-            "【原始内容】\n销售上涨"
-        );
+        assert_eq!(build_user_content(" 销售上涨 "), "【原始内容】\n销售上涨");
         assert_eq!(build_user_content("   "), "");
     }
 }

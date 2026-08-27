@@ -215,9 +215,7 @@ impl CrmDashboardView {
         let bg = cx.background_executor().clone();
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let result = bg
-                .spawn(async move {
-                    crate::runtime::runtime().block_on(load_dashboard(&client))
-                })
+                .spawn(async move { crate::runtime::runtime().block_on(load_dashboard(&client)) })
                 .await;
             this.update(&mut *cx, |this, cx| {
                 this.apply_result(request_id, result, cx);
@@ -242,7 +240,8 @@ impl CrmDashboardView {
                 t.set_rows(data.stats.per_owner.clone(), cx);
             });
         } else {
-            self.owner_table.update(cx, |t, cx| t.set_rows(Vec::new(), cx));
+            self.owner_table
+                .update(cx, |t, cx| t.set_rows(Vec::new(), cx));
         }
         let next = CrmDashboardState::from_fetch_result(result);
         self.state.update(cx, |state, cx| {
@@ -326,13 +325,18 @@ impl Render for CrmDashboardView {
                     "crm-dashboard-empty",
                     "icons/bar-chart-3.svg",
                     "暂无看板数据",
-                    Some("线索漏斗 / 业绩 / 生命周期均无数据；确认 CRM 已有线索与客户后刷新".to_string()),
+                    Some(
+                        "线索漏斗 / 业绩 / 生命周期均无数据；确认 CRM 已有线索与客户后刷新"
+                            .to_string(),
+                    ),
                     "刷新",
                     |this, cx| this.reload(cx),
                 )
                 .into_any_element(),
-                CrmDashboardState::Loaded(data) => render_loaded(cx, &app_theme, &data, self.owner_table.clone())
-                    .into_any_element(),
+                CrmDashboardState::Loaded(data) => {
+                    render_loaded(cx, &app_theme, &data, self.owner_table.clone())
+                        .into_any_element()
+                }
             })
     }
 }
@@ -456,18 +460,21 @@ fn card_header(
         .flex_wrap()
         .gap_2()
         .child(
-            v_flex().gap_0p5().child(
-                div()
-                    .text_base()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(theme.text_primary)
-                    .child(title.to_string()),
-            ).child(
-                div()
-                    .text_xs()
-                    .text_color(theme.text_muted)
-                    .child(subtitle.to_string()),
-            ),
+            v_flex()
+                .gap_0p5()
+                .child(
+                    div()
+                        .text_base()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(theme.text_primary)
+                        .child(title.to_string()),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.text_muted)
+                        .child(subtitle.to_string()),
+                ),
         )
         .child(h_flex().gap_2().children(badges))
 }
@@ -557,7 +564,10 @@ fn render_funnel_bars(stages: &[FunnelStageBar], theme: &AppTheme) -> impl IntoE
         .children(stages.iter().map(|stage| {
             let ratio = stage.value as f32 / max as f32;
             h_flex()
-                .id(SharedString::from(format!("crm-funnel-bar-{}", stage.stage)))
+                .id(SharedString::from(format!(
+                    "crm-funnel-bar-{}",
+                    stage.stage
+                )))
                 .items_center()
                 .gap_3()
                 .child(
@@ -577,7 +587,9 @@ fn render_funnel_bars(stages: &[FunnelStageBar], theme: &AppTheme) -> impl IntoE
                         .child(
                             div()
                                 .h_full()
-                                .w(relative(ratio.clamp(if stage.value > 0 { 0.02 } else { 0.0 }, 1.0)))
+                                .w(relative(
+                                    ratio.clamp(if stage.value > 0 { 0.02 } else { 0.0 }, 1.0),
+                                ))
                                 .rounded(px(theme.radius))
                                 .bg(stage_color(stage.stage, theme)),
                         ),
@@ -752,10 +764,7 @@ fn render_distribution_card(
     };
 
     v_flex()
-        .id(SharedString::from(format!(
-            "crm-lifecycle-{}",
-            dist.metric
-        )))
+        .id(SharedString::from(format!("crm-lifecycle-{}", dist.metric)))
         .flex_1()
         .min_w_72()
         .flex_col()
@@ -826,7 +835,8 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                         .gap_0p5()
                         .when(b.count > 0, |this| {
                             this.child(
-                                div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                                div()
+                                    .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                                     .text_color(theme.text_muted)
                                     .child(b.count.to_string()),
                             )
@@ -849,7 +859,8 @@ fn render_histogram(dist: &LifecycleDistribution, theme: &AppTheme) -> impl Into
                 .children(dist.buckets.iter().map(|b| {
                     div()
                         .flex_1()
-                        .text_center().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                        .text_center()
+                        .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .truncate()
                         .child(short_bucket_label(&b.label))
@@ -889,12 +900,14 @@ fn render_summary_chips(dist: &LifecycleDistribution, theme: &AppTheme) -> impl 
                 .py_0p5()
                 .bg(theme.muted_fill.opacity(0.6))
                 .child(
-                    div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                    div()
+                        .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .child(label.to_string()),
                 )
                 .child(
-                    div().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                    div()
+                        .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(theme.text_primary)
                         .child(value),
@@ -903,7 +916,10 @@ fn render_summary_chips(dist: &LifecycleDistribution, theme: &AppTheme) -> impl 
 }
 
 /// 转化时间漏斗叠加（转化卡专属）：[档名 | 比例宽条 | N 个]
-fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTheme) -> impl IntoElement {
+fn render_time_funnel(
+    stages: &[gui_domain::crm::TimeFunnelStage],
+    theme: &AppTheme,
+) -> impl IntoElement {
     let max = stages.iter().map(|s| s.value).max().unwrap_or(0).max(1);
     v_flex()
         .id("crm-time-funnel")
@@ -926,7 +942,8 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                 .gap_2()
                 .child(
                     div()
-                        .w(px(52.0)).text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                        .w(px(52.0))
+                        .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_secondary)
                         .truncate()
                         .child(stage.label.clone()),
@@ -940,7 +957,9 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                         .child(
                             div()
                                 .h_full()
-                                .w(relative(ratio.clamp(if stage.value > 0 { 0.02 } else { 0.0 }, 1.0)))
+                                .w(relative(
+                                    ratio.clamp(if stage.value > 0 { 0.02 } else { 0.0 }, 1.0),
+                                ))
                                 .rounded(px(theme.radius))
                                 .bg(theme.chart_secondary.opacity(0.8)),
                         ),
@@ -948,7 +967,8 @@ fn render_time_funnel(stages: &[gui_domain::crm::TimeFunnelStage], theme: &AppTh
                 .child(
                     div()
                         .w(px(36.0))
-                        .text_right().text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
+                        .text_right()
+                        .text_size(px(crate::theme::fs(crate::theme::FONT_XS)))
                         .text_color(theme.text_muted)
                         .child(format!("{} 个", stage.value)),
                 )
@@ -968,7 +988,12 @@ mod tests {
         Client::new("http://127.0.0.1:1")
     }
 
-    fn bucket(label: &str, count: i64, max_days: Option<f64>, cumulative_pct: f64) -> LifecycleBucket {
+    fn bucket(
+        label: &str,
+        count: i64,
+        max_days: Option<f64>,
+        cumulative_pct: f64,
+    ) -> LifecycleBucket {
         LifecycleBucket {
             label: label.to_string(),
             min_days: 0.0,
@@ -994,7 +1019,9 @@ mod tests {
                     new_leads: 10,
                     converted_count: 2,
                 },
-                follow_activity: gui_domain::crm::FollowActivity { follow_count_7d: 18 },
+                follow_activity: gui_domain::crm::FollowActivity {
+                    follow_count_7d: 18,
+                },
                 per_owner: vec![OwnerPerformance {
                     owner_id: "u-1".into(),
                     owner_name: Some("张三".into()),
@@ -1076,10 +1103,7 @@ mod tests {
         assert!(empty.is_empty());
 
         let mut only_stats = empty.clone();
-        only_stats
-            .stats
-            .lead_funnel
-            .insert("new".to_string(), 1);
+        only_stats.stats.lead_funnel.insert("new".to_string(), 1);
         assert!(!only_stats.is_empty());
 
         let mut only_owner = empty.clone();
@@ -1232,11 +1256,7 @@ mod tests {
 
             // 过期响应（request_id 落后于 latest）应被丢弃，不改变状态
             let stale_id = this.latest_request_id - 1;
-            this.apply_result(
-                stale_id,
-                Err("过期响应不应落地".into()),
-                cx,
-            );
+            this.apply_result(stale_id, Err("过期响应不应落地".into()), cx);
             assert_eq!(this.current_state(cx), CrmDashboardState::Loading);
         });
 

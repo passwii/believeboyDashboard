@@ -57,10 +57,10 @@ use gui_domain::operations::shop_calculation::{
 };
 
 use crate::theme::AppTheme;
+use crate::views::new_product_calculation::{fmt_percent, fmt_usd};
 use crate::widgets::data_table::{CellAlign, ColumnDef, DataTable};
 use crate::widgets::page_header::PageHeader;
 use crate::widgets::{filter_bar, state_views};
-use crate::views::new_product_calculation::{fmt_percent, fmt_usd};
 
 /// 本页在侧栏中的 URL（root.rs 据此路由到本视图；与 gui-domain::sidebar 的
 /// 店铺测算条目一致）
@@ -112,19 +112,71 @@ pub struct DraftFieldDef {
 /// 全量草稿字段（顺序 = 输入实体下标序；13 项为 US ∪ EU 字段并集，
 /// 按 [`DraftKey::visible_in_country`] 裁剪展示）
 pub const DRAFT_FIELDS: [DraftFieldDef; 13] = [
-    DraftFieldDef { key: DraftKey::LengthCm, label: "长(cm)", default: "" },
-    DraftFieldDef { key: DraftKey::WidthCm, label: "宽(cm)", default: "" },
-    DraftFieldDef { key: DraftKey::HeightCm, label: "高(cm)", default: "" },
-    DraftFieldDef { key: DraftKey::WeightKg, label: "重量(kg)", default: "" },
-    DraftFieldDef { key: DraftKey::FirstLegRmb, label: "头程(RMB)", default: "5" },
-    DraftFieldDef { key: DraftKey::SalePriceUsd, label: "售价(USD)", default: "" },
-    DraftFieldDef { key: DraftKey::AdvertisingRate, label: "广告费率(%)", default: "12" },
-    DraftFieldDef { key: DraftKey::ReturnLossRate, label: "退货折损率(%)", default: "4" },
-    DraftFieldDef { key: DraftKey::StorageMonths, label: "仓储月数", default: "1" },
-    DraftFieldDef { key: DraftKey::DeliveryFeeUsd, label: "派送费(USD)", default: "0" },
-    DraftFieldDef { key: DraftKey::InboundConfigFeeUsd, label: "配置费(USD)", default: "0" },
-    DraftFieldDef { key: DraftKey::StorageFeeUsd, label: "仓储费(USD)", default: "0" },
-    DraftFieldDef { key: DraftKey::UsdToRmbRate, label: "汇率", default: "" },
+    DraftFieldDef {
+        key: DraftKey::LengthCm,
+        label: "长(cm)",
+        default: "",
+    },
+    DraftFieldDef {
+        key: DraftKey::WidthCm,
+        label: "宽(cm)",
+        default: "",
+    },
+    DraftFieldDef {
+        key: DraftKey::HeightCm,
+        label: "高(cm)",
+        default: "",
+    },
+    DraftFieldDef {
+        key: DraftKey::WeightKg,
+        label: "重量(kg)",
+        default: "",
+    },
+    DraftFieldDef {
+        key: DraftKey::FirstLegRmb,
+        label: "头程(RMB)",
+        default: "5",
+    },
+    DraftFieldDef {
+        key: DraftKey::SalePriceUsd,
+        label: "售价(USD)",
+        default: "",
+    },
+    DraftFieldDef {
+        key: DraftKey::AdvertisingRate,
+        label: "广告费率(%)",
+        default: "12",
+    },
+    DraftFieldDef {
+        key: DraftKey::ReturnLossRate,
+        label: "退货折损率(%)",
+        default: "4",
+    },
+    DraftFieldDef {
+        key: DraftKey::StorageMonths,
+        label: "仓储月数",
+        default: "1",
+    },
+    DraftFieldDef {
+        key: DraftKey::DeliveryFeeUsd,
+        label: "派送费(USD)",
+        default: "0",
+    },
+    DraftFieldDef {
+        key: DraftKey::InboundConfigFeeUsd,
+        label: "配置费(USD)",
+        default: "0",
+    },
+    DraftFieldDef {
+        key: DraftKey::StorageFeeUsd,
+        label: "仓储费(USD)",
+        default: "0",
+    },
+    DraftFieldDef {
+        key: DraftKey::UsdToRmbRate,
+        label: "汇率",
+        default: "",
+    },
 ];
 
 impl DraftKey {
@@ -231,10 +283,16 @@ pub fn build_draft_values(
         draft_num(item.first_leg_cost_rmb)
     };
     // 头程空缺时回退字段默认 5（web `'5'` 分支）
-    let first_leg = if first_leg.is_empty() { "5".to_string() } else { first_leg };
+    let first_leg = if first_leg.is_empty() {
+        "5".to_string()
+    } else {
+        first_leg
+    };
 
     let rate = if system_rate.trim().is_empty() {
-        saved.map(|s| draft_num(s.usd_to_rmb_rate)).unwrap_or_default()
+        saved
+            .map(|s| draft_num(s.usd_to_rmb_rate))
+            .unwrap_or_default()
     } else {
         system_rate.to_string()
     };
@@ -245,14 +303,19 @@ pub fn build_draft_values(
     values[DraftKey::HeightCm.index()] = pick(snap_dims.2, item.package_height_cm);
     values[DraftKey::WeightKg.index()] = pick(snap_dims.3, item.weight_kg);
     values[DraftKey::FirstLegRmb.index()] = first_leg;
-    values[DraftKey::SalePriceUsd.index()] =
-        saved.map(|s| draft_num(s.sale_price_usd)).unwrap_or_default();
-    values[DraftKey::AdvertisingRate.index()] =
-        saved.map(|s| draft_rate(s.advertising_rate)).unwrap_or_else(|| "12".to_string());
-    values[DraftKey::ReturnLossRate.index()] =
-        saved.map(|s| draft_rate(s.return_loss_rate)).unwrap_or_else(|| "4".to_string());
-    values[DraftKey::StorageMonths.index()] =
-        saved.map(|s| draft_num(s.storage_months)).filter(|v| !v.is_empty()).unwrap_or_else(|| "1".to_string());
+    values[DraftKey::SalePriceUsd.index()] = saved
+        .map(|s| draft_num(s.sale_price_usd))
+        .unwrap_or_default();
+    values[DraftKey::AdvertisingRate.index()] = saved
+        .map(|s| draft_rate(s.advertising_rate))
+        .unwrap_or_else(|| "12".to_string());
+    values[DraftKey::ReturnLossRate.index()] = saved
+        .map(|s| draft_rate(s.return_loss_rate))
+        .unwrap_or_else(|| "4".to_string());
+    values[DraftKey::StorageMonths.index()] = saved
+        .map(|s| draft_num(s.storage_months))
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "1".to_string());
     values[DraftKey::DeliveryFeeUsd.index()] = saved
         .map(|s| format!("{}", s.fees.delivery_fee_usd))
         .unwrap_or_else(|| "0".to_string());
@@ -299,8 +362,8 @@ pub fn compute_stats(
         ..Default::default()
     };
     for item in visible {
-        let display = session_display(results, item, country)
-            .or_else(|| saved_display(saved, item, country));
+        let display =
+            session_display(results, item, country).or_else(|| saved_display(saved, item, country));
         if let Some((_, profit, rate)) = display {
             stats.calculated += 1;
             if profit >= 0.0 {
@@ -328,11 +391,17 @@ fn session_display(
     let run = results.get(&item.id)?;
     Some((
         run.sale_price_usd,
-        display_profit_from_parts(country, run.profit.profit_usd, run.profit.profit_after_vat_usd),
+        display_profit_from_parts(
+            country,
+            run.profit.profit_usd,
+            run.profit.profit_after_vat_usd,
+        ),
         if country == "US" {
             run.profit.profit_rate
         } else {
-            run.profit.profit_after_vat_rate.unwrap_or(run.profit.profit_rate)
+            run.profit
+                .profit_after_vat_rate
+                .unwrap_or(run.profit.profit_rate)
         },
     ))
 }
@@ -346,7 +415,9 @@ fn saved_display(
     Some((
         snap.sale_price_usd,
         snap.profit.display_profit_usd(country),
-        snap.profit.profit_after_vat_rate.unwrap_or(snap.profit.profit_rate),
+        snap.profit
+            .profit_after_vat_rate
+            .unwrap_or(snap.profit.profit_rate),
     ))
 }
 
@@ -612,31 +683,31 @@ impl ShopCalculationView {
         cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
             let outcome = bg
                 .spawn(async move {
-                    crate::runtime::runtime()
-                        .block_on(async move {
-                            let skus = client
-                                .list_sku_records(&project_name, &country, 1, SKU_PAGE_SIZE)
-                                .await;
-                            let rate = client
-                                .exchange_rate_list(
-                                    &gui_api_client::exchange_rate::ExchangeRateFilter {
-                                        currency: Some(currency_for_country(&country).to_string()),
-                                        year: None,
-                                        month: None,
-                                    },
-                                    1,
-                                    1,
-                                )
-                                .await;
-                            let saved = client
-                                .list_shop_calculations(project_id, &country, 1, SKU_PAGE_SIZE)
-                                .await;
-                            (
-                                skus.map_err(|e| e.user_message()),
-                                rate.ok().and_then(|resp| resp.items.first().map(|r| r.rate)),
-                                saved.map_err(|e| e.user_message()),
+                    crate::runtime::runtime().block_on(async move {
+                        let skus = client
+                            .list_sku_records(&project_name, &country, 1, SKU_PAGE_SIZE)
+                            .await;
+                        let rate = client
+                            .exchange_rate_list(
+                                &gui_api_client::exchange_rate::ExchangeRateFilter {
+                                    currency: Some(currency_for_country(&country).to_string()),
+                                    year: None,
+                                    month: None,
+                                },
+                                1,
+                                1,
                             )
-                        })
+                            .await;
+                        let saved = client
+                            .list_shop_calculations(project_id, &country, 1, SKU_PAGE_SIZE)
+                            .await;
+                        (
+                            skus.map_err(|e| e.user_message()),
+                            rate.ok()
+                                .and_then(|resp| resp.items.first().map(|r| r.rate)),
+                            saved.map_err(|e| e.user_message()),
+                        )
+                    })
                 })
                 .await;
             this.update(&mut *cx, |this, cx| {
@@ -794,7 +865,12 @@ impl ShopCalculationView {
     }
 
     /// 可选正数校验（空 → None；非法 / ≤0 → 错误）
-    fn optional_positive(&self, cx: &App, key: DraftKey, label: &str) -> Result<Option<f64>, String> {
+    fn optional_positive(
+        &self,
+        cx: &App,
+        key: DraftKey,
+        label: &str,
+    ) -> Result<Option<f64>, String> {
         let trimmed = self.field_text(cx, key).trim().to_string();
         if trimmed.is_empty() {
             return Ok(None);
@@ -842,7 +918,11 @@ impl ShopCalculationView {
             project_id,
             project_name,
             sku: item.sku.clone(),
-            asin: if item.asin.is_empty() { None } else { Some(item.asin.clone()) },
+            asin: if item.asin.is_empty() {
+                None
+            } else {
+                Some(item.asin.clone())
+            },
             country: self.country.to_string(),
             delivery_fee_usd: self.require_non_negative(cx, DraftKey::DeliveryFeeUsd, "派送费")?,
             inbound_config_fee_usd: self.require_non_negative(
@@ -932,49 +1012,48 @@ impl ShopCalculationView {
             cx.spawn(async move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
                 let outcome = bg
                     .spawn(async move {
-                        crate::runtime::runtime()
-                            .block_on(async move {
-                                let quoted = match body {
-                                    SubmitBody::Us(req) => client.pricing_quote(&req).await,
-                                    SubmitBody::Eu(req) => client.pricing_eu_quote(&req).await,
-                                };
-                                match quoted {
-                                    Err(e) => (Err(e.user_message()), None),
-                                    Ok(run) => {
-                                        // 自动追加店铺测算记录（best-effort；失败仅提示）
-                                        let save = match ctx.project_id {
-                                            None => None,
-                                            Some(pid) => {
-                                                let payload = if ctx.country == "US" {
-                                                    ShopCalculationCreateRequest::from_us_run(
-                                                        &run,
-                                                        pid,
-                                                        &ctx.project_name,
-                                                        ctx.asin.clone(),
-                                                        &ctx.country,
-                                                        0.0,
-                                                        0.0,
-                                                        0.0,
-                                                    )
-                                                } else {
-                                                    ShopCalculationCreateRequest::from_eu_run(
-                                                        &run,
-                                                        pid,
-                                                        &ctx.project_name,
-                                                        ctx.asin.clone(),
-                                                        &ctx.country,
-                                                        ctx.delivery_fee_usd,
-                                                        ctx.inbound_config_fee_usd,
-                                                        ctx.storage_fee_usd,
-                                                    )
-                                                };
-                                                Some(client.save_shop_calculation(&payload).await)
-                                            }
-                                        };
-                                        (Ok(run), save)
-                                    }
+                        crate::runtime::runtime().block_on(async move {
+                            let quoted = match body {
+                                SubmitBody::Us(req) => client.pricing_quote(&req).await,
+                                SubmitBody::Eu(req) => client.pricing_eu_quote(&req).await,
+                            };
+                            match quoted {
+                                Err(e) => (Err(e.user_message()), None),
+                                Ok(run) => {
+                                    // 自动追加店铺测算记录（best-effort；失败仅提示）
+                                    let save = match ctx.project_id {
+                                        None => None,
+                                        Some(pid) => {
+                                            let payload = if ctx.country == "US" {
+                                                ShopCalculationCreateRequest::from_us_run(
+                                                    &run,
+                                                    pid,
+                                                    &ctx.project_name,
+                                                    ctx.asin.clone(),
+                                                    &ctx.country,
+                                                    0.0,
+                                                    0.0,
+                                                    0.0,
+                                                )
+                                            } else {
+                                                ShopCalculationCreateRequest::from_eu_run(
+                                                    &run,
+                                                    pid,
+                                                    &ctx.project_name,
+                                                    ctx.asin.clone(),
+                                                    &ctx.country,
+                                                    ctx.delivery_fee_usd,
+                                                    ctx.inbound_config_fee_usd,
+                                                    ctx.storage_fee_usd,
+                                                )
+                                            };
+                                            Some(client.save_shop_calculation(&payload).await)
+                                        }
+                                    };
+                                    (Ok(run), save)
                                 }
-                            })
+                            }
+                        })
                     })
                     .await;
                 this.update(&mut *cx, |this, cx| {
@@ -1012,10 +1091,8 @@ impl ShopCalculationView {
                 self.warn_error = Some(format!("店铺测算失败：{msg}"));
             }
             Ok(run) => {
-                self.results.insert(
-                    self.selected_sku_id.unwrap_or_default(),
-                    run.clone(),
-                );
+                self.results
+                    .insert(self.selected_sku_id.unwrap_or_default(), run.clone());
                 self.last_run = Some(Box::new(run));
                 match save {
                     Some(Ok(item)) => {
@@ -1023,8 +1100,10 @@ impl ShopCalculationView {
                         self.warn_error = None;
                     }
                     Some(Err(e)) => {
-                        self.warn_error =
-                            Some(format!("测算完成，但保存店铺测算失败：{}", e.user_message()));
+                        self.warn_error = Some(format!(
+                            "测算完成，但保存店铺测算失败：{}",
+                            e.user_message()
+                        ));
                     }
                     None => {}
                 }
@@ -1105,8 +1184,7 @@ impl Render for ShopCalculationView {
             let inputs = DRAFT_FIELDS
                 .iter()
                 .map(|field| {
-                    let state =
-                        cx.new(|cx| InputState::new(window, cx).placeholder(field.default));
+                    let state = cx.new(|cx| InputState::new(window, cx).placeholder(field.default));
                     let sub = cx.subscribe(&state, |_this, _entity, event: &InputEvent, cx| {
                         if matches!(event, InputEvent::Change) {
                             cx.notify();
@@ -1121,8 +1199,7 @@ impl Render for ShopCalculationView {
         }
         // 懒建搜索框 + Change 即时过滤订阅
         if self.search_input.is_none() {
-            let input =
-                cx.new(|cx| InputState::new(window, cx).placeholder("搜索 SKU / ASIN"));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("搜索 SKU / ASIN"));
             let sub = cx.subscribe(&input, |this, entity, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::Change) {
                     // Change 事件后读最新值需要下一帧；这里直接读实体当前值即可
@@ -1169,9 +1246,9 @@ impl Render for ShopCalculationView {
                         &self.keyword,
                         self.country,
                     ),
-                    selected: self.selected_sku_id.and_then(|id| {
-                        self.skus.iter().find(|s| s.id == id).cloned()
-                    }),
+                    selected: self
+                        .selected_sku_id
+                        .and_then(|id| self.skus.iter().find(|s| s.id == id).cloned()),
                     calc_phase: self.calc_phase.clone(),
                     last_run: self.last_run.clone(),
                     table: self.table.clone(),
@@ -1333,37 +1410,44 @@ fn render_loaded(
                 .gap_4()
                 .p_4()
                 .overflow_y_scroll()
-            .child(render_console_card(
-                view,
-                app_theme,
-                project_label,
-                projects,
-                country,
-                search_input,
-                &keyword,
-                stats,
-                list_loading,
-            ))
-            .when_some(warn_error, |el, msg| {
-                el.child(warn_banner(app_theme, "shop-calculation-warn", &msg))
-            })
-            .child(
-                h_flex()
-                    .w_full()
-                    .items_start()
-                    .gap_4()
-                    .child(render_master_card(app_theme, table, list_loading, list_error, has_project))
-                    .child(render_detail_panel(
-                        view,
-                        cx,
-                        app_theme,
-                        inputs,
-                        country,
-                        &selected,
-                        &calc_phase,
-                        last_run.as_deref(),
-                    ))),
-            ),
+                .child(render_console_card(
+                    view,
+                    app_theme,
+                    project_label,
+                    projects,
+                    country,
+                    search_input,
+                    &keyword,
+                    stats,
+                    list_loading,
+                ))
+                .when_some(warn_error, |el, msg| {
+                    el.child(warn_banner(app_theme, "shop-calculation-warn", &msg))
+                })
+                .child(
+                    h_flex()
+                        .w_full()
+                        .items_start()
+                        .gap_4()
+                        .child(render_master_card(
+                            app_theme,
+                            table,
+                            list_loading,
+                            list_error,
+                            has_project,
+                        ))
+                        .child(render_detail_panel(
+                            view,
+                            cx,
+                            app_theme,
+                            inputs,
+                            country,
+                            &selected,
+                            &calc_phase,
+                            last_run.as_deref(),
+                        )),
+                ),
+        ),
         reduce,
     )
 }
@@ -1395,7 +1479,12 @@ fn warn_banner(app_theme: &AppTheme, id: &'static str, msg: &str) -> impl IntoEl
                 .with_size(px(14.))
                 .text_color(app_theme.warning),
         )
-        .child(div().text_xs().text_color(app_theme.text_primary).child(msg.to_string()))
+        .child(
+            div()
+                .text_xs()
+                .text_color(app_theme.text_primary)
+                .child(msg.to_string()),
+        )
 }
 
 /// 控制台卡：项目 / 站点筛选 + 搜索 + 统计带（web 控制台 Card 1 的 GPUI 等价）
@@ -1444,13 +1533,13 @@ fn render_console_card(
                             let view = view_for_project.clone();
                             let name = name.clone();
                             menu = menu.item(
-                                PopupMenuItem::new(name.clone())
-                                    .checked(checked)
-                                    .on_click(move |_, _window, cx| {
+                                PopupMenuItem::new(name.clone()).checked(checked).on_click(
+                                    move |_, _window, cx| {
                                         let view = view.clone();
                                         let name = name.clone();
                                         view.update(cx, |this, cx| this.select_project(&name, cx));
-                                    }),
+                                    },
+                                ),
                             );
                         }
                         menu
@@ -1466,14 +1555,12 @@ fn render_console_card(
                         for (value, label) in COUNTRY_OPTIONS {
                             let checked = country == value;
                             let view = view_for_country.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(label)
-                                    .checked(checked)
-                                    .on_click(move |_, _window, cx| {
-                                        let view = view.clone();
-                                        view.update(cx, |this, cx| this.select_country(value, cx));
-                                    }),
-                            );
+                            menu = menu.item(PopupMenuItem::new(label).checked(checked).on_click(
+                                move |_, _window, cx| {
+                                    let view = view.clone();
+                                    view.update(cx, |this, cx| this.select_country(value, cx));
+                                },
+                            ));
                         }
                         menu
                     },
@@ -1493,40 +1580,53 @@ fn render_console_card(
                     el.child(state_views::loading_state(app_theme, "加载中…"))
                 }),
         )
-        .child(
-            h_flex()
-                .w_full()
-                .gap_3()
-                .children(vec![
-                    stat_card(app_theme, "SKU", &stats.total.to_string(), app_theme.text_primary),
-                    stat_card(
-                        app_theme,
-                        "已测算",
-                        &stats.calculated.to_string(),
-                        if stats.calculated > 0 { app_theme.success } else { app_theme.text_primary },
-                    ),
-                    stat_card(
-                        app_theme,
-                        "盈利",
-                        &stats.profitable.to_string(),
-                        if stats.profitable > 0 { app_theme.success } else { app_theme.text_primary },
-                    ),
-                    stat_card(
-                        app_theme,
-                        "盈利占比",
-                        &if stats.calculated > 0 {
-                            format!("{:.1}%", stats.pass_rate)
-                        } else {
-                            "—".to_string()
-                        },
-                        pass_color,
-                    ),
-                ]),
-        )
+        .child(h_flex().w_full().gap_3().children(vec![
+            stat_card(
+                app_theme,
+                "SKU",
+                &stats.total.to_string(),
+                app_theme.text_primary,
+            ),
+            stat_card(
+                app_theme,
+                "已测算",
+                &stats.calculated.to_string(),
+                if stats.calculated > 0 {
+                    app_theme.success
+                } else {
+                    app_theme.text_primary
+                },
+            ),
+            stat_card(
+                app_theme,
+                "盈利",
+                &stats.profitable.to_string(),
+                if stats.profitable > 0 {
+                    app_theme.success
+                } else {
+                    app_theme.text_primary
+                },
+            ),
+            stat_card(
+                app_theme,
+                "盈利占比",
+                &if stats.calculated > 0 {
+                    format!("{:.1}%", stats.pass_rate)
+                } else {
+                    "—".to_string()
+                },
+                pass_color,
+            ),
+        ]))
 }
 
 /// 单张统计卡：标签 + 数值（数值可带强调色）
-fn stat_card(app_theme: &AppTheme, label: &str, value: &str, value_color: gpui::Hsla) -> impl IntoElement {
+fn stat_card(
+    app_theme: &AppTheme,
+    label: &str,
+    value: &str,
+    value_color: gpui::Hsla,
+) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_1()
@@ -1610,7 +1710,10 @@ fn render_detail_panel(
     last_run: Option<&PricingRunItem>,
 ) -> impl IntoElement {
     let Some(inputs) = inputs else {
-        return v_flex().id("shop-calculation-detail-panel").w(px(480.)).into_any_element();
+        return v_flex()
+            .id("shop-calculation-detail-panel")
+            .w(px(480.))
+            .into_any_element();
     };
     let view_for_submit = view.clone();
     let calculating = matches!(calc_phase, RowPhase::Calculating(_));
@@ -1642,14 +1745,12 @@ fn render_detail_panel(
                     .text_color(app_theme.text_muted)
                     .child(country_label(country).to_string()),
             ),
-        None => h_flex()
-            .w_full()
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(app_theme.text_muted)
-                    .child("未选择 SKU"),
-            ),
+        None => h_flex().w_full().child(
+            div()
+                .text_sm()
+                .text_color(app_theme.text_muted)
+                .child("未选择 SKU"),
+        ),
     };
 
     let mut panel = v_flex()
@@ -1719,7 +1820,11 @@ fn render_detail_panel(
                     Button::new("shop-calculation-submit")
                         .w_full()
                         .disabled(calculating)
-                        .label(if calculating { "测算中…" } else { "开始测算" })
+                        .label(if calculating {
+                            "测算中…"
+                        } else {
+                            "开始测算"
+                        })
                         .on_click(move |_, _window, cx| {
                             let view = view_for_submit.clone();
                             view.update(cx, |this, cx| this.submit_calculation(cx));
@@ -1744,15 +1849,29 @@ fn render_detail_panel(
 
 /// 结果摘要（售价 / 回款 / 利润 / 利润率指标带 + 费用明细 + 核算规则 +
 /// warnings；EU 追加增值税与扣税后利润行）
-fn render_run_summary(app_theme: &AppTheme, country: &str, run: &PricingRunItem) -> impl IntoElement {
+fn render_run_summary(
+    app_theme: &AppTheme,
+    country: &str,
+    run: &PricingRunItem,
+) -> impl IntoElement {
     let is_eu = country != "US";
-    let profit = display_profit_from_parts(country, run.profit.profit_usd, run.profit.profit_after_vat_usd);
+    let profit = display_profit_from_parts(
+        country,
+        run.profit.profit_usd,
+        run.profit.profit_after_vat_usd,
+    );
     let profit_rate = if is_eu {
-        run.profit.profit_after_vat_rate.unwrap_or(run.profit.profit_rate)
+        run.profit
+            .profit_after_vat_rate
+            .unwrap_or(run.profit.profit_rate)
     } else {
         run.profit.profit_rate
     };
-    let profit_color = if profit >= 0.0 { app_theme.success } else { app_theme.danger };
+    let profit_color = if profit >= 0.0 {
+        app_theme.success
+    } else {
+        app_theme.danger
+    };
 
     let mut fees: Vec<(&str, String)> = vec![
         ("平台佣金", fmt_usd(run.fees.referral_fee_usd)),
@@ -1768,7 +1887,10 @@ fn render_run_summary(app_theme: &AppTheme, country: &str, run: &PricingRunItem)
     let rules = [
         ("尺寸等级", run.size_tier_label.clone()),
         ("售价带", run.price_band_label.clone()),
-        ("计费重", format!("{:.2} lb", run.weights.chargeable_weight_lb)),
+        (
+            "计费重",
+            format!("{:.2} lb", run.weights.chargeable_weight_lb),
+        ),
         ("体积", format!("{:.2} ft³", run.dimensions.volume_cubic_ft)),
         ("派送规则", run.fulfillment_fee_rule_label.clone()),
         (
@@ -1776,7 +1898,11 @@ fn render_run_summary(app_theme: &AppTheme, country: &str, run: &PricingRunItem)
             format!(
                 "{:.4}（{}）",
                 run.usd_to_rmb_rate,
-                if run.usd_to_rmb_rate_source.is_empty() { "-" } else { &run.usd_to_rmb_rate_source }
+                if run.usd_to_rmb_rate_source.is_empty() {
+                    "-"
+                } else {
+                    &run.usd_to_rmb_rate_source
+                }
             ),
         ),
     ];
@@ -1793,10 +1919,30 @@ fn render_run_summary(app_theme: &AppTheme, country: &str, run: &PricingRunItem)
             h_flex()
                 .w_full()
                 .gap_2()
-                .child(metric_block(app_theme, "售价", &fmt_usd(run.sale_price_usd), app_theme.text_primary))
-                .child(metric_block(app_theme, "回款", &fmt_usd(run.profit.payout_usd), app_theme.text_primary))
-                .child(metric_block(app_theme, "利润", &fmt_usd(profit), profit_color))
-                .child(metric_block(app_theme, "利润率", &fmt_percent(profit_rate), profit_color)),
+                .child(metric_block(
+                    app_theme,
+                    "售价",
+                    &fmt_usd(run.sale_price_usd),
+                    app_theme.text_primary,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "回款",
+                    &fmt_usd(run.profit.payout_usd),
+                    app_theme.text_primary,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "利润",
+                    &fmt_usd(profit),
+                    profit_color,
+                ))
+                .child(metric_block(
+                    app_theme,
+                    "利润率",
+                    &fmt_percent(profit_rate),
+                    profit_color,
+                )),
         )
         // DDP 成本行
         .child(
@@ -1902,7 +2048,12 @@ fn render_run_summary(app_theme: &AppTheme, country: &str, run: &PricingRunItem)
 }
 
 /// 指标小块（label + 数值，数值色由调用方给定——利润涨绿跌红）
-fn metric_block(app_theme: &AppTheme, label: &str, value: &str, value_color: gpui::Hsla) -> impl IntoElement {
+fn metric_block(
+    app_theme: &AppTheme,
+    label: &str,
+    value: &str,
+    value_color: gpui::Hsla,
+) -> impl IntoElement {
     v_flex()
         .flex_1()
         .gap_1()
@@ -2016,7 +2167,11 @@ fn sku_columns(view: Entity<ShopCalculationView>) -> Vec<ColumnDef<SkuRow>> {
             "售价",
             |row: &SkuRow| row.display.map(|d| d.0).unwrap_or(f64::NAN),
             |row: &SkuRow, _| {
-                SharedString::from(row.display.map(|d| fmt_usd(d.0)).unwrap_or_else(|| "-".into()))
+                SharedString::from(
+                    row.display
+                        .map(|d| fmt_usd(d.0))
+                        .unwrap_or_else(|| "-".into()),
+                )
             },
         )
         .width(80.0),
@@ -2025,13 +2180,21 @@ fn sku_columns(view: Entity<ShopCalculationView>) -> Vec<ColumnDef<SkuRow>> {
             "利润",
             |row: &SkuRow| row.display.map(|d| d.1).unwrap_or(f64::NAN),
             |row: &SkuRow, _| {
-                SharedString::from(row.display.map(|d| fmt_usd(d.1)).unwrap_or_else(|| "-".into()))
+                SharedString::from(
+                    row.display
+                        .map(|d| fmt_usd(d.1))
+                        .unwrap_or_else(|| "-".into()),
+                )
             },
         )
         .width(88.0)
         .with_render_element(|row, theme| match row.display {
             Some((_, profit, _)) => {
-                let color = if profit >= 0.0 { theme.success } else { theme.danger };
+                let color = if profit >= 0.0 {
+                    theme.success
+                } else {
+                    theme.danger
+                };
                 div()
                     .w_full()
                     .text_right()
@@ -2046,13 +2209,21 @@ fn sku_columns(view: Entity<ShopCalculationView>) -> Vec<ColumnDef<SkuRow>> {
             "利润率",
             |row: &SkuRow| row.display.map(|d| d.2).unwrap_or(f64::NAN),
             |row: &SkuRow, _| {
-                SharedString::from(row.display.map(|d| fmt_percent(d.2)).unwrap_or_else(|| "-".into()))
+                SharedString::from(
+                    row.display
+                        .map(|d| fmt_percent(d.2))
+                        .unwrap_or_else(|| "-".into()),
+                )
             },
         )
         .width(76.0)
         .with_render_element(|row, theme| match row.display {
             Some((_, profit, rate)) => {
-                let color = if profit >= 0.0 { theme.success } else { theme.danger };
+                let color = if profit >= 0.0 {
+                    theme.success
+                } else {
+                    theme.danger
+                };
                 div()
                     .w_full()
                     .text_right()
@@ -2063,31 +2234,41 @@ fn sku_columns(view: Entity<ShopCalculationView>) -> Vec<ColumnDef<SkuRow>> {
             None => div().w_full().text_right().child("-").into_any_element(),
         }),
         ColumnDef::text("sku-status", "状态", |row: &SkuRow, _| {
-            SharedString::from(if row.display.is_some() { "已测算" } else { "未测算" })
+            SharedString::from(if row.display.is_some() {
+                "已测算"
+            } else {
+                "未测算"
+            })
         })
         .width(72.0),
-        ColumnDef::text("sku-actions", "操作", |_row: &SkuRow, _| SharedString::from(""))
-            .width(84.0)
-            .align(CellAlign::Right)
-            .with_render_element(move |row, _theme| {
-                let sku_id = row.item.id;
-                let view_for_edit = view_for_actions.clone();
-                h_flex()
-                    .w_full()
-                    .gap_1()
-                    .justify_end()
-                    .child(
-                        Button::new(SharedString::from(format!("sku-edit-{sku_id}")))
-                            .outline()
-                            .xsmall()
-                            .label(if row.selected { "已选中 ✓" } else { "编辑" })
-                            .on_click(move |_, _window, cx| {
-                                let view = view_for_edit.clone();
-                                view.update(cx, |this, cx| this.select_sku(sku_id, cx));
-                            }),
-                    )
-                    .into_any_element()
-            }),
+        ColumnDef::text("sku-actions", "操作", |_row: &SkuRow, _| {
+            SharedString::from("")
+        })
+        .width(84.0)
+        .align(CellAlign::Right)
+        .with_render_element(move |row, _theme| {
+            let sku_id = row.item.id;
+            let view_for_edit = view_for_actions.clone();
+            h_flex()
+                .w_full()
+                .gap_1()
+                .justify_end()
+                .child(
+                    Button::new(SharedString::from(format!("sku-edit-{sku_id}")))
+                        .outline()
+                        .xsmall()
+                        .label(if row.selected {
+                            "已选中 ✓"
+                        } else {
+                            "编辑"
+                        })
+                        .on_click(move |_, _window, cx| {
+                            let view = view_for_edit.clone();
+                            view.update(cx, |this, cx| this.select_sku(sku_id, cx));
+                        }),
+                )
+                .into_any_element()
+        }),
     ]
 }
 
@@ -2167,12 +2348,18 @@ mod tests {
     }
 
     /// 测算 run 样本（EU 带 VAT 扩展）
-    fn sample_run(id: i64, profit: f64, after_vat: Option<f64>, after_rate: Option<f64>) -> PricingRunItem {
+    fn sample_run(
+        id: i64,
+        profit: f64,
+        after_vat: Option<f64>,
+        after_rate: Option<f64>,
+    ) -> PricingRunItem {
         PricingRunItem {
             id,
             country: "DE".into(),
             product_name: "测试项目 A / SKU-1".into(),
-            calculation_type: gui_domain::operations::new_product_calculation::CalculationType::EuAccounting,
+            calculation_type:
+                gui_domain::operations::new_product_calculation::CalculationType::EuAccounting,
             project_id: Some(3),
             sku: Some("SKU-1".into()),
             package_length_cm: 30.0,
@@ -2251,7 +2438,10 @@ mod tests {
 
     #[test]
     fn constants_match_web() {
-        assert_eq!(SHOP_CALCULATION_URL, "/dashboard/reports/pricing-calculation/shop-calculation");
+        assert_eq!(
+            SHOP_CALCULATION_URL,
+            "/dashboard/reports/pricing-calculation/shop-calculation"
+        );
         assert_eq!(DEFAULT_COUNTRY, "US");
         assert_eq!(COUNTRY_OPTIONS.map(|(v, _)| v), ["US", "DE", "UK"]);
         assert_eq!(SKU_PAGE_SIZE, 200);
@@ -2272,7 +2462,10 @@ mod tests {
             assert_eq!(field.key.index(), ix);
         }
         assert_eq!(DRAFT_FIELDS[DraftKey::FirstLegRmb.index()].default, "5");
-        assert_eq!(DRAFT_FIELDS[DraftKey::AdvertisingRate.index()].default, "12");
+        assert_eq!(
+            DRAFT_FIELDS[DraftKey::AdvertisingRate.index()].default,
+            "12"
+        );
         assert_eq!(DRAFT_FIELDS[DraftKey::ReturnLossRate.index()].default, "4");
         assert_eq!(DRAFT_FIELDS[DraftKey::StorageMonths.index()].default, "1");
 
@@ -2451,7 +2644,11 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, cx2) = new_view!(cx);
         view.update(cx2, |this, cx| {
-            this.projects = vec![ManagedProject { id: 3, name: "测试项目 A".into(), ..Default::default() }];
+            this.projects = vec![ManagedProject {
+                id: 3,
+                name: "测试项目 A".into(),
+                ..Default::default()
+            }];
             this.project_id = Some(3);
 
             let page: gui_domain::operations::shop_calculation::SkuRecordsPage =
@@ -2466,11 +2663,7 @@ mod tests {
                 .expect("解析失败");
             let saved_err = Err("店铺历史接口 500".to_string());
             this.latest_list_id += 1;
-            this.apply_list_result(
-                this.latest_list_id,
-                (Ok(page), Some(7.31), saved_err),
-                cx,
-            );
+            this.apply_list_result(this.latest_list_id, (Ok(page), Some(7.31), saved_err), cx);
 
             assert_eq!(this.skus.len(), 1, "is_active=false 应被复筛掉");
             assert_eq!(this.system_rate, "7.31");
@@ -2482,11 +2675,7 @@ mod tests {
             this.latest_list_id += 1;
             this.apply_list_result(
                 stale_id,
-                (
-                    Err("过期响应".to_string()),
-                    None,
-                    Err("过期".to_string()),
-                ),
+                (Err("过期响应".to_string()), None, Err("过期".to_string())),
                 cx,
             );
             assert!(this.list_error.is_none(), "过期响应不应落点");
@@ -2528,7 +2717,11 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, vcx) = new_view!(cx);
         view.update(vcx, |this, cx| {
-            let projects = vec![ManagedProject { id: 3, name: "测试项目 A".into(), ..Default::default() }];
+            let projects = vec![ManagedProject {
+                id: 3,
+                name: "测试项目 A".into(),
+                ..Default::default()
+            }];
             this.apply_projects_result(Ok(projects), cx);
             this.project_id = Some(3);
             this.country = "US";
@@ -2623,12 +2816,17 @@ mod tests {
         cx.update(gpui_component::init);
         let (view, vcx) = new_view!(cx);
         view.update(vcx, |this, cx| {
-            let projects = vec![ManagedProject { id: 3, name: "测试项目 A".into(), ..Default::default() }];
+            let projects = vec![ManagedProject {
+                id: 3,
+                name: "测试项目 A".into(),
+                ..Default::default()
+            }];
             this.apply_projects_result(Ok(projects), cx);
             this.project_id = Some(3);
             this.country = "DE";
             this.skus = vec![sample_sku(1, "SKU-DE-1", "", "DE")];
-            this.results.insert(1, sample_run(101, 2.49, Some(-2.35), Some(-0.078)));
+            this.results
+                .insert(1, sample_run(101, 2.49, Some(-2.35), Some(-0.078)));
             this.select_sku(1, cx);
             this.sync_table(cx);
         });
