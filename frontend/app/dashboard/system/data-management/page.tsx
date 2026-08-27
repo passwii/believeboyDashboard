@@ -4,15 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Database, Loader2, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
-import {
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-  DataTableCardStatBar,
-} from '@/components/ui/data-card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill, TermKpiTile, TERM_BUTTON } from '@/components/terminal/term-controls'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import {
   Table,
@@ -289,71 +283,60 @@ export default function SystemDataManagementPage() {
   }, [detailsLoading, overview, statusOverview])
 
   return (
-    <div className="w-full space-y-6">
-      <DataCard>
-        <DataCardHeader
-          badge={
-            <Badge
+    <div className="w-full space-y-3">
+      <TermPanel
+        title="系统管理"
+        bodyClassName="p-3"
+        actions={
+          <>
+            <Button
+              type="button"
               variant="outline"
-              className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
+              className={TERM_BUTTON}
+              onClick={() => void refreshAll()}
+              disabled={loading || detailsLoading || clearingCache}
             >
-              系统管理
-            </Badge>
-          }
-          description="实时查看数据库状态、表状态、数据状态与最近系统状态。"
-          action={
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void refreshAll()}
-                disabled={loading || detailsLoading || clearingCache}
-              >
-                {loading || detailsLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {loading || detailsLoading ? '刷新中...' : '刷新状态'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void onClearCache()}
-                disabled={loading || detailsLoading || clearingCache}
-              >
-                {clearingCache ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                {clearingCache ? '清理中...' : '清理缓存'}
-              </Button>
-            </>
-          }
-        />
-        <DataTableCardStatBar
-          items={summaryCards.map((card) => ({
-            label: card.title,
-            value: card.value,
-            highlight:
-              card.key === 'status' ||
-              (card.key === 'db' && (overview ?? statusOverview)?.database.healthy),
-          }))}
-          className={cn('border-t border-border/70', detailsLoading && 'opacity-60')}
-        />
-      </DataCard>
+              {loading || detailsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {loading || detailsLoading ? '刷新中...' : '刷新状态'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={TERM_BUTTON}
+              onClick={() => void onClearCache()}
+              disabled={loading || detailsLoading || clearingCache}
+            >
+              {clearingCache ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {clearingCache ? '清理中...' : '清理缓存'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <TermPill tone="info">实时查看数据库/表/数据状态</TermPill>
+        </div>
+        <div className={cn('mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4', detailsLoading && 'opacity-60')}>
+          {summaryCards.map((card) => (
+            <TermKpiTile
+              key={card.key}
+              label={card.title}
+              value={card.value}
+              hint={card.hint}
+            />
+          ))}
+        </div>
+      </TermPanel>
 
-      <DataTableCard>
-        <DataTableCardHeader>
-          <div className="flex flex-col gap-1">
-            <h2 className="text-base font-semibold text-foreground">数据表状态</h2>
-            <p className="text-sm text-muted-foreground">
-              检查各表数据规模、最近更新时间和健康状态。
-            </p>
-          </div>
-        </DataTableCardHeader>
-        <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
+      <TermPanel title="数据表状态" bodyClassName="overflow-auto p-0" className="overflow-hidden">
+        <div style={{ maxHeight: '600px' }} className="overflow-auto">
           <Table>
             <TableHeader>
               <TableRow className={STICKY_TOP_ROW}>
@@ -405,10 +388,10 @@ export default function SystemDataManagementPage() {
               )}
             </TableBody>
           </Table>
-        </DataTableCardBody>
-      </DataTableCard>
+        </div>
+      </TermPanel>
 
-      <p className="text-xs leading-5 text-muted-foreground">
+      <p className="font-mono text-xs leading-5 text-term-muted">
         数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：
         {formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
       </p>

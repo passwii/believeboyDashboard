@@ -13,17 +13,9 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  DataCard,
-  DataCardHeader,
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-  DataTableCardStatBar,
-} from '@/components/ui/data-card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill, TermKpiTile, TERM_BUTTON } from '@/components/terminal/term-controls'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
@@ -708,42 +700,37 @@ export default function SystemOperationLogsPage() {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="audit" className="mt-6">
-        <div className="w-full space-y-6">
-          <DataCard>
-            <DataCardHeader title="统计概览" description="当前筛选条件下的日志统计" />
-            <div className="px-6 py-5">
-              <DataTableCardStatBar
-                items={[
-                  { label: '日志总量', value: summary?.total ?? 0, highlight: true },
-                  { label: '成功', value: summary?.success_count ?? 0 },
-                  { label: '失败', value: summary?.failure_count ?? 0 },
-                  { label: '活跃操作人', value: summary?.unique_operator_count ?? 0 },
-                ]}
-              />
+      <TabsContent value="audit" className="mt-3">
+        <div className="w-full space-y-3">
+          <TermPanel title="统计概览" bodyClassName="p-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <TermKpiTile label="日志总量" value={String(summary?.total ?? 0)} />
+              <TermKpiTile label="成功" value={String(summary?.success_count ?? 0)} tone="pos" />
+              <TermKpiTile label="失败" value={String(summary?.failure_count ?? 0)} tone="neg" />
+              <TermKpiTile label="活跃操作人" value={String(summary?.unique_operator_count ?? 0)} />
             </div>
-          </DataCard>
+          </TermPanel>
 
-          <DataTableCard>
-            <DataCardHeader
-              title="日志列表"
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void fetchLogs()}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {loading ? '刷新中...' : '刷新'}
-                </Button>
-              }
-            />
-            <DataTableCardBody>
+          <TermPanel
+            title="日志列表"
+            bodyClassName="p-0"
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                className={TERM_BUTTON}
+                onClick={() => void fetchLogs()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {loading ? '刷新中...' : '刷新'}
+              </Button>
+            }
+          >
               <div className="border border-term-border bg-term-bg p-1.5">
                 <Table>
                   <TableHeader>
@@ -780,9 +767,7 @@ export default function SystemOperationLogsPage() {
                             <TableCell className="max-w-[420px]">
                               <div className="space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className={categoryMeta.className}>
-                                    {categoryMeta.label}
-                                  </Badge>
+                                  <TermPill tone="muted">{categoryMeta.label}</TermPill>
                                   <span className="font-medium">
                                     {formatActionLabel(row.action)}
                                   </span>
@@ -803,9 +788,7 @@ export default function SystemOperationLogsPage() {
                               {row.target_id || '-'}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={resultMeta.className}>
-                                {resultMeta.label}
-                              </Badge>
+                              <TermPill tone={resultMeta.label === '成功' ? 'pos' : resultMeta.label === '失败' ? 'neg' : 'muted'}>{resultMeta.label}</TermPill>
                             </TableCell>
                             <TableCell className="text-right">
                               <Button variant="ghost" size="sm" onClick={() => setActiveRow(row)}>
@@ -842,11 +825,9 @@ export default function SystemOperationLogsPage() {
                   </Button>
                 </div>
               </div>
-            </DataTableCardBody>
-          </DataTableCard>
+          </TermPanel>
 
-          <Card className="rounded-none border border-term-border bg-term-panel">
-            <CardContent className="p-4">
+          <TermPanel bodyClassName="p-3">
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <Input
                   value={keywordInput}
@@ -884,8 +865,7 @@ export default function SystemOperationLogsPage() {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </TermPanel>
 
           <Dialog
             open={Boolean(activeRow)}
@@ -944,42 +924,37 @@ export default function SystemOperationLogsPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="login" className="mt-6">
-        <div className="space-y-6">
-          <DataCard>
-            <DataCardHeader title="登录统计概览" description="当前筛选条件下的登录统计" />
-            <div className="px-6 py-5">
-              <DataTableCardStatBar
-                items={[
-                  { label: '登录总次数', value: summary?.total ?? 0, highlight: true },
-                  { label: '登录成功', value: summary?.success_count ?? 0 },
-                  { label: '登录失败', value: summary?.failure_count ?? 0 },
-                  { label: '活跃用户', value: summary?.unique_operator_count ?? 0 },
-                ]}
-              />
+      <TabsContent value="login" className="mt-3">
+        <div className="space-y-3">
+          <TermPanel title="登录统计概览" bodyClassName="p-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <TermKpiTile label="登录总次数" value={String(summary?.total ?? 0)} />
+              <TermKpiTile label="登录成功" value={String(summary?.success_count ?? 0)} tone="pos" />
+              <TermKpiTile label="登录失败" value={String(summary?.failure_count ?? 0)} tone="neg" />
+              <TermKpiTile label="活跃用户" value={String(summary?.unique_operator_count ?? 0)} />
             </div>
-          </DataCard>
+          </TermPanel>
 
-          <DataTableCard>
-            <DataCardHeader
-              title="登录记录"
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void fetchLoginLogs()}
-                  disabled={loginLoading}
-                >
-                  {loginLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {loginLoading ? '刷新中...' : '刷新'}
-                </Button>
-              }
-            />
-            <DataTableCardBody>
+          <TermPanel
+            title="登录记录"
+            bodyClassName="p-0"
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                className={TERM_BUTTON}
+                onClick={() => void fetchLoginLogs()}
+                disabled={loginLoading}
+              >
+                {loginLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {loginLoading ? '刷新中...' : '刷新'}
+              </Button>
+            }
+          >
               <div className="border border-term-border bg-term-bg p-1.5">
                 <Table>
                   <TableHeader>
@@ -1017,9 +992,7 @@ export default function SystemOperationLogsPage() {
                             </TableCell>
                             <TableCell>{row.operator || '-'}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={resultMeta.className}>
-                                {resultMeta.label}
-                              </Badge>
+                              <TermPill tone={resultMeta.label === '成功' ? 'pos' : resultMeta.label === '失败' ? 'neg' : 'muted'}>{resultMeta.label}</TermPill>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
@@ -1071,8 +1044,7 @@ export default function SystemOperationLogsPage() {
                   </Button>
                 </div>
               </div>
-            </DataTableCardBody>
-          </DataTableCard>
+          </TermPanel>
 
           <Dialog
             open={Boolean(loginActiveRow)}
@@ -1176,7 +1148,7 @@ export default function SystemOperationLogsPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="agent" className="mt-6">
+      <TabsContent value="agent" className="mt-3">
         <AgentAccessLogsPanel />
       </TabsContent>
     </Tabs>

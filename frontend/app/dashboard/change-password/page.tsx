@@ -3,11 +3,11 @@
 import { FormEvent, useState } from 'react'
 import { KeyRound, Loader2 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill } from '@/components/terminal/term-controls'
 import { useNotifications } from '@/components/notifications'
 
 export default function ChangePasswordPage() {
@@ -62,22 +62,17 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="mx-auto max-w-[780px]">
-      <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
-        <CardHeader className="space-y-3">
-          <p className="dashboard-kicker">配置工作台</p>
-          <Badge
-            variant="outline"
-            className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
-          >
-            账号安全
-          </Badge>
-          <p className="flex items-center gap-2 text-lg font-semibold">
-            <KeyRound className="h-5 w-5" />
-            修改密码
-          </p>
-          <CardDescription>请输入当前密码，并设置一个新的登录密码。</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <TermPanel
+        title="修改密码"
+        bodyClassName="p-5"
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <TermPill tone="info">账号安全</TermPill>
+          <span className="flex items-center gap-1.5 font-mono text-xs text-term-muted">
+            <KeyRound className="h-3.5 w-3.5" />
+            请输入当前密码，并设置一个新的登录密码。
+          </span>
+        </div>
           <form className="space-y-5" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="current-password">当前密码</Label>
@@ -127,8 +122,7 @@ export default function ChangePasswordPage() {
               {submitting ? '提交中...' : '确认修改'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+      </TermPanel>
     </div>
   )
 }

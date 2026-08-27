@@ -4,9 +4,8 @@ import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronRight, FolderKanban, UserCog } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
-import { PageHeader } from '@/components/ui/page-header'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill } from '@/components/terminal/term-controls'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -56,50 +55,18 @@ export default function ProfileClient() {
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex flex-col gap-1 px-1">
-        <nav
-          className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
-          aria-label="面包屑"
-        >
-          <a href="/dashboard" className="shrink-0 hover:text-foreground transition-colors">
-            管理
-          </a>
-          <ChevronRight className="h-3 w-3 shrink-0" />
-          <span className="truncate">个人中心</span>
-        </nav>
-        <PageHeader
-          title="我的资料"
-          description="管理你的个人信息、头像以及参与的项目。"
-        />
-      </div>
-
-      <DataCard>
-        <DataCardHeader
-          badge={
-            <Badge
-              variant="outline"
-              className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
-            >
-              个人中心
-            </Badge>
-          }
-          title="我的资料"
-          description="管理个人基本信息、头像以及你所参与的项目。"
-          action={
-            profile?.role_type ? (
-              <Badge
-                variant="outline"
-                className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
-              >
-                {getRoleLabel(profile.role_type)}
-              </Badge>
-            ) : null
-          }
-        />
-        <DataCardContent>
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <TermPanel
+        title="我的资料"
+        bodyClassName="p-4"
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <TermPill tone="info">个人中心</TermPill>
+          <span className="font-mono text-xs text-term-muted">管理个人基本信息、头像以及你所参与的项目。</span>
+          {profile?.role_type ? <TermPill tone="accent">{getRoleLabel(profile.role_type)}</TermPill> : null}
+        </div>
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-            <TabsList className="sticky top-0 z-10 w-full justify-center rounded-2xl border border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]/95">
+            <TabsList className="sticky top-0 z-10 w-full justify-center rounded-none border border-term-border bg-term-bg p-0">
               <TabsMotionGroup id="profile-tabs">
                 <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs">
                   <UserCog className="h-4 w-4" />
@@ -137,10 +104,9 @@ export default function ProfileClient() {
               </TabsContent>
             </DirectionalTabTransition>
           </Tabs>
-        </DataCardContent>
-      </DataCard>
+      </TermPanel>
 
-      <p className="text-center text-xs text-muted-foreground">
+      <p className="text-center font-mono text-xs text-term-muted">
         想修改密码？前往{' '}
         <a
           href="/dashboard/change-password"

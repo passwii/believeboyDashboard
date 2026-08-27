@@ -25,7 +25,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_BUTTON } from '@/components/terminal/term-controls'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -538,8 +539,10 @@ export default function StoreInfoPage() {
         </div>
 
         <TabsContent value="basic" className="flex-1 mt-0">
-          <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80">
-            <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-4">
+          <TermPanel title="项目资料" bodyClassName="p-0" className="flex h-full flex-col overflow-hidden" actions={
+            <span className="font-mono text-[11px] uppercase tracking-wider text-term-muted">系统管理 · 项目资料</span>
+          }>
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-term-border p-3">
               <div className="flex min-w-0 flex-col gap-1">
                 <Badge
                   variant="outline"
@@ -547,7 +550,7 @@ export default function StoreInfoPage() {
                 >
                   系统管理 · 项目资料
                 </Badge>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-mono text-xs text-term-muted">
                   维护项目主数据，支持单个新增与项目信息编辑。
                 </p>
               </div>
@@ -776,8 +779,8 @@ export default function StoreInfoPage() {
                   </DialogContent>
                 </Dialog>
               </div>
-            </DataTableCardHeader>
-            <DataTableCardBody className="flex-1 min-h-0">
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
               <div className="relative h-full overflow-auto">
                 <RefreshProgressBar refreshing={isRefreshing}>
                   <Table>
@@ -933,8 +936,8 @@ export default function StoreInfoPage() {
                   </Table>
                 </RefreshProgressBar>
               </div>
-            </DataTableCardBody>
-          </DataTableCard>
+            </div>
+          </TermPanel>
         </TabsContent>
 
         <TabsContent value="context" className="flex-1 mt-0">
