@@ -515,17 +515,13 @@ function RangeDatePickerWithPresets({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={cn(
-          className?.includes('border-term-border')
-            ? 'rounded-none border border-term-border bg-term-panel p-0 shadow-lg w-auto max-h-[460px] text-term-text'
-            : 'rounded-xl border border-border/70 bg-background/95 p-0 shadow-xl backdrop-blur-sm w-auto max-h-[460px]',
-        )}
+        className="w-auto max-h-[460px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none"
         align="start"
       >
         <div className="flex max-sm:flex-col max-h-[420px]">
           {/* Sidebar Presets with Scroll */}
           <div
-            className="sm:w-44 border-r pr-2 max-sm:border-b max-sm:mb-2 overflow-y-auto shrink-0"
+            className="sm:w-44 border-r border-term-border pr-2 max-sm:border-b max-sm:mb-2 overflow-y-auto shrink-0 term-scroll"
             style={{ maxHeight: Math.max(calendarHeight, 300) }}
           >
             <div className="flex flex-col gap-1 py-2">
@@ -539,8 +535,8 @@ function RangeDatePickerWithPresets({
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      'justify-start w-full text-xs',
-                      isActive && 'bg-primary/10 text-primary font-medium'
+                      'justify-start w-full rounded-none text-xs',
+                      isActive && 'bg-term-hover text-term-text font-medium'
                     )}
                     onClick={() => handlePresetClick(range, label)}
                   >
@@ -551,7 +547,7 @@ function RangeDatePickerWithPresets({
             </div>
           </div>
 
-          <Separator orientation="vertical" className="sm:hidden my-2" />
+          <Separator orientation="vertical" className="sm:hidden my-2 bg-term-border" />
 
           {/* Calendar */}
           <div className="flex-1 flex justify-center min-w-0" ref={calendarRef}>
