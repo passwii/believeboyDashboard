@@ -21,9 +21,7 @@ vi.mock('@/components/notifications/server-notifications-context', () => ({
   useServerNotifications: () => ({ unreadCount: unreadMock() }),
 }))
 
-vi.mock('@/lib/hooks/use-header-kpis', () => ({
-  useHeaderKpis: () => ({ kpis: { gmv: 1234, orders: 56, pending: 7 }, loading: false }),
-}))
+// BLF-874：KPI 磁贴已下线，TerminalHeader 不再调用 useHeaderKpis，但保留空 mock 避免遗留依赖误触发
 
 // 全局筛选状态 mock：可控制 ready 与当前路由
 let filterState = {
@@ -129,15 +127,14 @@ afterEach(() => {
   }
 })
 
-describe('TerminalHeader 全局筛选四件套（BLF-819）', () => {
-  it('试点路由（销售数据）：渲染四件套与 KPI 磁贴', () => {
+describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI 磁贴）', () => {
+  it('试点路由（销售数据）：渲染筛选四件套且不含 KPI 磁贴', () => {
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument()
     expect(screen.getByTitle('全局站点筛选')).toBeInTheDocument()
-    expect(screen.getByText('GMV')).toBeInTheDocument()
-    expect(screen.getByText('$1,234')).toBeInTheDocument()
-    expect(screen.getByText('ORD')).toBeInTheDocument()
-    expect(screen.getByText('PND')).toBeInTheDocument()
+    expect(screen.queryByText('GMV')).not.toBeInTheDocument()
+    expect(screen.queryByText('ORD')).not.toBeInTheDocument()
+    expect(screen.queryByText('PND')).not.toBeInTheDocument()
   })
 
   it('试点路由（订单信息）：渲染四件套', () => {
@@ -150,7 +147,8 @@ describe('TerminalHeader 全局筛选四件套（BLF-819）', () => {
     renderHeader('/dashboard/advertising/ad-analysis/overview')
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
-    expect(screen.queryByText('GMV')).not.toBeInTheDocument()
+    // BLF-874：KPI 磁贴已下线，非试点页亦不再出现
+    expect(screen.queryByText('ORD')).not.toBeInTheDocument()
     // 基础控件仍在
     expect(screen.getByTestId('terminal-header-user')).toBeInTheDocument()
   })
