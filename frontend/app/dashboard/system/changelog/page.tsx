@@ -77,9 +77,9 @@ export default function ChangelogPage() {
   return (
     // BLF-838：渐变彩卡 → 终端面板；页面标题由面包屑承载
     <div className="flex min-w-0 flex-col gap-3">
-      <div className="grid gap-3 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-14 lg:self-start">
-          <TermPanel title="版本导航" bodyClassName="p-3">
+      <div className="grid gap-3 lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:items-start">
+        <aside className="lg:sticky lg:top-2 lg:max-h-[calc(100dvh-6.5rem)] lg:self-start">
+          <TermPanel title="版本导航" className="flex max-h-full flex-col overflow-hidden" bodyClassName="overflow-y-auto p-3 term-scroll">
             <p className="mb-3 font-sans text-xs leading-5 text-term-faint">
               按大版本查看关键能力建设与原始变更线索。
             </p>
@@ -113,7 +113,7 @@ export default function ChangelogPage() {
             <section
               key={release.version}
               id={release.version.toLowerCase()}
-              className="scroll-mt-14"
+              className="scroll-mt-2"
             >
               <TermPanel bodyClassName="p-4">
                 <div className="flex flex-col gap-3 border-b border-term-border pb-4 md:flex-row md:items-start md:justify-between">
