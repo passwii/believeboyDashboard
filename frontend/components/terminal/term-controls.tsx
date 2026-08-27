@@ -128,11 +128,13 @@ export function TermTabBar<T extends string>({
 export function TermKpiTile({
   label,
   value,
+  hint,
   tone,
   loading,
 }: {
   label: string
   value: string
+  hint?: string
   tone?: TermTone
   loading?: boolean
 }) {
@@ -148,6 +150,9 @@ export function TermKpiTile({
       >
         {loading ? '···' : value}
       </span>
+      {hint ? (
+        <span className="truncate font-mono text-[10px] leading-3 text-term-faint">{hint}</span>
+      ) : null}
     </div>
   )
 }
