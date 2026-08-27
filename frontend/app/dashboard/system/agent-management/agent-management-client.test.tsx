@@ -106,6 +106,9 @@ vi.mock('@/lib/api/agent-key-admin', () => ({
   activateAgentApiKey,
   deleteAgentApiKey,
   updateAgentApiKey,
+  AGENT_ID_HINT: '小写字母/数字开头，a-z0-9-_，3-128 字符',
+  AGENT_ID_PATTERN: /^[a-z0-9][a-z0-9_-]{2,127}$/,
+  isValidAgentId: (v: string) => /^[a-z0-9][a-z0-9_-]{2,127}$/.test(v),
   normalizeProjectScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
   normalizeBusinessScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
 }))

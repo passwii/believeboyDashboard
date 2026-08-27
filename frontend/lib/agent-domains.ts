@@ -120,6 +120,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: true },
   },
   {
+    code: 'agent_provisioning',
+    label: '凭据签发',
+    description: '签发新 Agent 凭据（敏感，仅管理 Key）',
+    status: 'live',
+    routeCount: 1,
+    capabilities: { read: false, write: true },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',

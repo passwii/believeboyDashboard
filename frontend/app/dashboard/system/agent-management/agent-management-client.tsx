@@ -46,6 +46,8 @@ import {
   createAgentApiKey,
   deactivateAgentApiKey,
   deleteAgentApiKey,
+  isValidAgentId,
+  AGENT_ID_HINT,
   listAgentApiKeys,
   normalizeProjectScope,
   updateAgentApiKey,
@@ -142,10 +144,13 @@ function BusinessScopeField({
   onSelectedIdsChange: (ids: string[]) => void
 }) {
   const isAll = value === '*'
-  const domainOptions: MultiSelectOption[] = useMemo(
-    () => liveAgentDomains().map((d) => ({ value: d.code, label: d.label })),
-    []
-  )
+  const domainOptions: MultiSelectOption[] = useMemo(() => {
+    const domains = liveAgentDomains()
+    return domains.map((d) => ({
+      value: d.code,
+      label: d.code === 'agent_provisioning' ? `${d.label} · 敏感` : d.label,
+    }))
+  }, [])
   const handleToggleAll = (checked: boolean) => {
     if (checked) {
       onValueChange('*')
@@ -219,6 +224,7 @@ export function AgentManagementClient() {
   const [includeDeleted, setIncludeDeleted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [created, setCreated] = useState<CreatedResult | null>(null)
+  const [expiresAt, setExpiresAt] = useState('')
   const [copied, setCopied] = useState(false)
   const [usageCopied, setUsageCopied] = useState(false)
   // ── 编辑态（BLF-480：创建后仍可改权限与业务范围） ────────────────
@@ -255,17 +261,31 @@ export function AgentManagementClient() {
     setSelectedProjectIds([])
     setBusinessScope('*')
     setSelectedDomainIds([])
+    setExpiresAt('')
     setCreated(null)
   }, [])
 
+  const agentIdError = useMemo(() => {
+    const v = agentId.trim()
+    if (!v) return null
+    if (!isValidAgentId(v)) return AGENT_ID_HINT
+    return null
+  }, [agentId])
+
   const handleCreate = async () => {
-    if (!label.trim() || !agentId.trim()) return
+    const aid = agentId.trim()
+    if (!label.trim() || !aid) return
+    if (!isValidAgentId(aid)) {
+      notify({ type: 'error', title: `Agent ID 格式错误：${AGENT_ID_HINT}` })
+      return
+    }
+    const exp = expiresAt ? new Date(expiresAt).toISOString() : null
     setSubmitting(true)
     try {
       const result = await createAgentApiKey({
         label: label.trim(),
-        agent_id: agentId.trim(),
-        expires_at: null,
+        agent_id: aid,
+        expires_at: exp,
         project_scope: normalizeProjectScope(projectScope),
         business_scope: normalizeBusinessScope(businessScope),
       })
@@ -282,11 +302,15 @@ export function AgentManagementClient() {
       setSelectedProjectIds([])
       setBusinessScope('*')
       setSelectedDomainIds([])
+      setExpiresAt('')
       await refresh()
     } catch (error) {
+      const msg = error instanceof Error ? error.message : '创建失败'
+      const is409 = (error as unknown as Record<string, unknown>).status === 409 || (error as unknown as Record<string, unknown>).httpStatus === 409 || msg.includes('已存在有效管理 Key') || msg.includes('单例')
+      const friendly = is409 ? '已存在有效管理 Key，请先停用/删除现役后再签' : msg
       notify({
         type: 'error',
-        title: error instanceof Error ? `创建失败：${error.message}` : '创建失败',
+        title: `创建失败：${friendly}`,
       })
     } finally {
       setSubmitting(false)
@@ -321,9 +345,12 @@ export function AgentManagementClient() {
       setEditing(null)
       await refresh()
     } catch (error) {
+      const msg = error instanceof Error ? error.message : '更新失败'
+      const is409 = (error as unknown as Record<string, unknown>).status === 409 || (error as unknown as Record<string, unknown>).httpStatus === 409 || msg.includes('已存在有效管理 Key') || msg.includes('单例')
+      const friendly = is409 ? '已存在有效管理 Key，请先停用/删除现役后再签' : msg
       notify({
         type: 'error',
-        title: error instanceof Error ? `更新失败：${error.message}` : '更新失败',
+        title: `更新失败：${friendly}`,
       })
     } finally {
       setEditSubmitting(false)
@@ -798,7 +825,13 @@ export function AgentManagementClient() {
                   placeholder="如：shipment-assistant-prod"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
+                  aria-invalid={agentIdError ? true : undefined}
                 />
+                {agentIdError ? (
+                  <p className="text-xs text-destructive">{agentIdError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{AGENT_ID_HINT}</p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium">
@@ -828,6 +861,23 @@ export function AgentManagementClient() {
                     onSelectedIdsChange={setSelectedDomainIds}
                   />
                 </div>
+                {selectedDomainIds.includes('agent_provisioning') && (
+                  <p className="mt-1.5 flex items-center gap-1 text-xs text-destructive">
+                    <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                    敏感域：凭据签发（全局单例，409 需先停用现役）
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="agent-key-expires" className="text-sm font-medium">
+                  过期时间（可选，空 = 永久有效）
+                </label>
+                <Input
+                  id="agent-key-expires"
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>
@@ -835,7 +885,7 @@ export function AgentManagementClient() {
                 </Button>
                 <Button
                   onClick={handleCreate}
-                  disabled={submitting || !label.trim() || !agentId.trim()}
+                  disabled={submitting || !label.trim() || !agentId.trim() || !!agentIdError}
                 >
                   {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
                   创建

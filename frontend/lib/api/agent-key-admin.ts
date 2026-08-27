@@ -70,7 +70,7 @@ export async function createAgentApiKey(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!res.ok) throw new Error(`凭据创建失败：HTTP ${res.status}`)
+  if (!res.ok) await throwWithDetail(res, '凭据创建失败')
   return res.json()
 }
 
@@ -89,7 +89,7 @@ export async function updateAgentApiKey(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!res.ok) throw new Error(`凭据更新失败：HTTP ${res.status}`)
+  if (!res.ok) await throwWithDetail(res, '凭据更新失败')
   return res.json()
 }
 
@@ -97,24 +97,49 @@ export async function deactivateAgentApiKey(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/deactivate`, {
     method: 'POST',
   })
-  if (!res.ok) throw new Error(`凭据停用失败：HTTP ${res.status}`)
+  if (!res.ok) await throwWithDetail(res, '凭据停用失败')
 }
 
 export async function activateAgentApiKey(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/activate`, {
     method: 'POST',
   })
-  if (!res.ok) throw new Error(`凭据激活失败：HTTP ${res.status}`)
+  if (!res.ok) await throwWithDetail(res, '凭据激活失败')
 }
 
 export async function deleteAgentApiKey(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}`, {
     method: 'DELETE',
   })
-  if (!res.ok) throw new Error(`凭据删除失败：HTTP ${res.status}`)
+  if (!res.ok) await throwWithDetail(res, '凭据删除失败')
 }
 
 /** 兼容别名（BLF-468）：旧调用方仍可用，语义等同停用。 */
 export async function revokeAgentApiKey(id: number): Promise<void> {
   return deactivateAgentApiKey(id)
+}
+
+/** Agent ID 校验：小写字母/数字开头，a-z0-9-_，3-128（与后端 provisioning.py 对齐）。 */
+export const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,127}$/
+export const AGENT_ID_HINT = '小写字母/数字开头，a-z0-9-_，3-128 字符'
+export function isValidAgentId(value: string): boolean {
+  return AGENT_ID_PATTERN.test(value)
+}
+
+async function throwWithDetail(res: Response, prefix: string): Promise<never> {
+  let detail: string | null = null
+  try {
+    const data = await res.clone().json()
+    if (typeof data?.detail === 'string' && data.detail) detail = data.detail
+    else if (typeof data?.error?.human_message === 'string' && data.error.human_message) detail = data.error.human_message
+    else if (typeof data?.error?.message === 'string' && data.error.message) detail = data.error.message
+    else if (typeof data?.message === 'string' && data.message) detail = data.message
+  } catch {
+    // ignore parse failure, fallback to status
+  }
+  const suffix = detail ? detail : `HTTP ${res.status}`
+  const err = new Error(`${prefix}：${suffix}`)
+  ;(err as unknown as Record<string, unknown>).status = res.status
+  ;(err as unknown as Record<string, unknown>).httpStatus = res.status
+  throw err
 }
