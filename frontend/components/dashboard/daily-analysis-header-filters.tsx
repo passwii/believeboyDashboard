@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
+import { TERM_HEADER_TRIGGER, TERM_SELECT_CONTENT } from '@/components/terminal/header-filter-suite'
 import { cn } from '@/lib/utils'
 
 /**
@@ -36,9 +37,8 @@ import { cn } from '@/lib/utils'
  * - <md：HeaderFilterControls 折叠为「筛选」Popover 的行为不变。
  */
 
-/** 与 header-filter-suite 的 TERM_HEADER_TRIGGER 同规格（该常量未导出，此处同源复刻） */
-const TERM_HEADER_TRIGGER_SPEC =
-  'h-9 rounded-none border-term-border bg-term-bg text-sm text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
+/** 复用 header-filter-suite 的终端触发器基类（4 档定宽唯一真相源） */
+const TERM_HEADER_TRIGGER_SPEC = TERM_HEADER_TRIGGER
 
 /** 与 header-filter-suite 的 FieldLabel 同规格（mono 大写小标签） */
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -104,7 +104,7 @@ export function SkuSearchField({
           title="搜索并选择 SKU（清空即恢复全部 SKU）"
           className={cn(
             TERM_HEADER_TRIGGER_SPEC,
-            'w-[200px] justify-between px-2 font-mono font-normal shadow-none',
+            'w-[200px] shrink-0 overflow-hidden justify-between px-2 font-mono font-normal shadow-none',
             disabled && 'cursor-not-allowed opacity-50'
           )}
           onClick={handleOpen}
@@ -131,7 +131,7 @@ export function SkuSearchField({
         </Button>
         <DialogContent
           aria-describedby="sku-search-dialog-description"
-          className="overflow-hidden p-0 sm:max-w-xl"
+          className="overflow-hidden rounded-none border border-term-border bg-term-panel p-0 text-term-text sm:max-w-xl"
         >
           <span id="sku-search-dialog-description" className="sr-only">
             搜索并选择 SKU
@@ -224,13 +224,13 @@ export function LegacyFallbackFilters({
   return (
     <>
       <Select value={projectId} onValueChange={onProjectChange}>
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
+        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}>
           <SelectValue placeholder="选择项目" />
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部项目</SelectItem>
+        <SelectContent className={TERM_SELECT_CONTENT}>
+          <SelectItem value="all" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">全部项目</SelectItem>
           {projects.map((item) => (
-            <SelectItem key={item.id} value={String(item.id)}>
+            <SelectItem key={item.id} value={String(item.id)} className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
               {item.name}
             </SelectItem>
           ))}
@@ -238,20 +238,20 @@ export function LegacyFallbackFilters({
       </Select>
       {/* 站点选择：选项集合与 HeaderCountrySelect 一致（全部站点 + US/DE/UK） */}
       <Select value={country} onValueChange={onCountryChange}>
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
+        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="max-h-[60vh] overflow-y-auto term-scroll">
-          <SelectItem value="ALL">全部站点</SelectItem>
-          <SelectItem value="US">美国站 (US)</SelectItem>
-          <SelectItem value="DE">德国站 (DE)</SelectItem>
-          <SelectItem value="UK">英国站 (UK)</SelectItem>
+        <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
+          <SelectItem value="ALL" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">全部站点</SelectItem>
+          <SelectItem value="US" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">美国站 (US)</SelectItem>
+          <SelectItem value="DE" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">德国站 (DE)</SelectItem>
+          <SelectItem value="UK" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">英国站 (UK)</SelectItem>
         </SelectContent>
       </Select>
       <DateRangePicker
         value={dateRange}
         onChange={onDateRangeChange}
-        className="h-8 w-full border-term-border bg-term-panel font-mono text-xs shadow-none md:w-[220px]"
+        className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
         timezone={COUNTRY_TIMEZONE_MAP[country]}
         onApply={onDateApply}
       />

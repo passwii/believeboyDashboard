@@ -134,7 +134,7 @@ export function TerminalHeader({
       </div>
 
       {/* 中段：页面级 HeaderSlot 唯一容器（BLF-874/826，hidden md:flex gap-1.5 overflow-hidden 48px 对齐） */}
-      <HeaderSlotMount className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
+      <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
       {pilotActive && globalFilter.ready ? (
         <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex">
           <HeaderProjectSelect

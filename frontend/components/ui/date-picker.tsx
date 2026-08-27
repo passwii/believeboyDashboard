@@ -515,7 +515,11 @@ function RangeDatePickerWithPresets({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="rounded-xl border border-border/70 bg-background/95 p-0 shadow-xl backdrop-blur-sm w-auto max-h-[460px]"
+        className={cn(
+          className?.includes('border-term-border')
+            ? 'rounded-none border border-term-border bg-term-panel p-0 shadow-lg w-auto max-h-[460px] text-term-text'
+            : 'rounded-xl border border-border/70 bg-background/95 p-0 shadow-xl backdrop-blur-sm w-auto max-h-[460px]',
+        )}
         align="start"
       >
         <div className="flex max-sm:flex-col max-h-[420px]">

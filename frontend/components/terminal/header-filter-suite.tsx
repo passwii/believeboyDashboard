@@ -30,7 +30,9 @@ import { cn } from '@/lib/utils'
  */
 
 export const TERM_HEADER_TRIGGER =
-  'h-9 rounded-none border-term-border bg-term-bg text-sm text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
+  'h-9 shrink-0 overflow-hidden rounded-none border border-term-border bg-term-bg font-mono text-sm font-normal text-term-text shadow-none focus:ring-0 focus:ring-offset-0 data-[state=open]:border-term-border-strong [&>span]:truncate'
+export const TERM_SELECT_CONTENT =
+  'rounded-none border border-term-border bg-term-panel text-term-text shadow-lg'
 const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
 
 /** 头部四件套外层标签：11px mono 大写，与 TermGridHeader 同规格 */
@@ -92,10 +94,13 @@ export function HeaderProjectSelect({
     <label className="flex items-center gap-1.5">
       <FieldLabel>项目</FieldLabel>
       <Select value={value} onValueChange={onChange} disabled={loading}>
-        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[150px]')} title="全局项目筛选">
+        <SelectTrigger
+          className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}
+          title="全局项目筛选"
+        >
           <SelectValue placeholder={loading ? '加载中…' : '选择项目'} />
         </SelectTrigger>
-        <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+        <SelectContent className={TERM_SELECT_CONTENT}>
           <SelectItem value="all" className={TERM_SELECT_ITEM}>
             全部项目
           </SelectItem>
@@ -135,10 +140,13 @@ export function HeaderCountrySelect({
     <label className="flex items-center gap-1.5">
       <FieldLabel>站点</FieldLabel>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[130px]')} title="全局站点筛选">
+        <SelectTrigger
+          className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}
+          title="全局站点筛选"
+        >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="max-h-[60vh] overflow-y-auto rounded-none border-term-border bg-term-panel text-term-text term-scroll">
+        <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
           {options.map((opt) => (
             <SelectItem key={opt.value} value={opt.value} className={TERM_SELECT_ITEM}>
               {opt.label}
@@ -179,7 +187,7 @@ export function HeaderDateRangePicker({
         onChange={(next?: DateRange) => {
           onChange(formatDateInputValue(next?.from), formatDateInputValue(next?.to))
         }}
-        className="h-9 w-[240px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-sm font-normal text-term-text shadow-none"
+        className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
       />
     </label>
   )
