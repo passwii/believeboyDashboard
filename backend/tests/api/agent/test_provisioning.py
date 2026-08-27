@@ -117,19 +117,28 @@ class TestAuthAndScopeGate:
         assert resp.status_code == 403
         assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
 
-    def test_star_scope_allows_but_validate_rejects_wildcard_body(
-        self, client, make_api_key, confirm_memory_store
-    ):
-        """'*' 全域 key 也能过域门禁（存量语义），但请求体里的 '*' scope
-        被 validate 拒绝——门禁与红线是两层独立的防线。"""
+    def test_star_scope_denied_for_provisioning(self, client, make_api_key):
+        """'*' 全域 key 不再隐含签发能力（BLF-847）：调 provisioning 域门禁
+        直接 403，过不了域这关——门禁与自助红线下层独立。"""
         agent_id = f"star-agent-{uuid.uuid4().hex[:8]}"
         key = make_api_key(agent_id=agent_id, business_scope="*")
         headers = {
             "Authorization": f"Bearer {key['plaintext']}",
             "X-Agent-Id": agent_id,
         }
-        resp = _post(client, headers, _body(business_scope="*"))
-        assert resp.status_code == 400
+        resp = _post(client, headers, _body())
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
+        assert "'*'" in resp.json()["error"]["human_message"]
+
+    def test_provisioner_rejects_wildcard_body(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """持有显式 agent_provisioning 域的 provisioner key 能过域门禁，
+        但请求体里的 '*' scope 仍被 validate 拒绝——两层防线独立。"""
+        env = _provision_env(make_api_key)
+        resp = _post(client, env["headers"], _body(business_scope="*"))
+        assert resp.status_code == 400, resp.text
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
 
 
@@ -260,6 +269,19 @@ class TestValidationRejections:
         env = _provision_env(make_api_key)
         resp = _post(client, env["headers"], _body(scope="admin"))
         assert resp.status_code == 400
+
+    def test_self_service_rejects_provisioning_scope(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """红线 A（BLF-847）：自助签发路径禁止授予 agent_provisioning 域——
+        无论是单独给还是混在业务域列表里，preview 阶段就被 _validate 短路拒绝。
+        自助通道物理上铸不出带签发能力的 key（叠加禁 '*' 通配，自复制链封死）。"""
+        env = _provision_env(make_api_key)
+        for bad_bs in ("agent_provisioning", "inventory,agent_provisioning"):
+            resp = _post(client, env["headers"], _body(business_scope=bad_bs))
+            assert resp.status_code == 400, f"business_scope={bad_bs!r}: {resp.text}"
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+            assert "agent_provisioning" in resp.json()["error"]["human_message"]
 
 
 class TestProvisionedKeyUsable:

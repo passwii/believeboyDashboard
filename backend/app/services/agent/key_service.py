@@ -169,6 +169,54 @@ def create_api_key(
     return record, plaintext
 
 
+# 签发域 code（BLF-847 红线 B）：持有该域的 key 即具备凭据签发能力，
+# 全系统同一时刻只允许存在一张有效持有者（管理 Key 全局单例）。
+PROVISIONING_SCOPE = "agent_provisioning"
+
+
+def _business_scope_has_provisioning(business_scope: str | None) -> bool:
+    """结果 business_scope 是否持有签发域。
+
+    ``'*'`` 全域 key **不再**隐含签发能力（BLF-847：Yawei 拍板）——故
+    ``'*'`` 返回 False。按 ``,`` 分词精确匹配域 code。
+    """
+    bs = (business_scope or "*").strip()
+    if bs == "*":
+        return False
+    return PROVISIONING_SCOPE in {p.strip() for p in bs.split(",") if p.strip()}
+
+
+def active_provisioning_key_exists(
+    db: Session, *, exclude_id: int | None = None
+) -> bool:
+    """是否存在另一张「有效」且持有签发域的 key（管理 Key 全局单例校验）。
+
+    「有效」= 未删除 且 未停用 且 未过期（``expires_at`` 为空或晚于现在）。
+    已删除 / 停用 / 过期任一即让位，此时才允许签发第二张。``'*'`` 全域 key
+    不计入（不再隐含签发能力）。
+    """
+    rows = db.scalars(
+        select(AgentApiKey).where(
+            AgentApiKey.deleted_at.is_(None),
+            AgentApiKey.is_revoked.is_(False),
+        )
+    ).all()
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        if exclude_id is not None and r.id == exclude_id:
+            continue
+        if not _business_scope_has_provisioning(r.business_scope):
+            continue
+        exp = r.expires_at
+        if exp is not None:
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp <= now:
+                continue
+        return True
+    return False
+
+
 def list_api_keys(db: Session, *, include_deleted: bool = False) -> list[AgentApiKey]:
     """All keys, newest first (admin list view).
 

@@ -93,6 +93,18 @@ def _validate(body: dict, request: Request) -> None:
                 "都必须是显式白名单"
             ),
         )
+    # 红线 A（BLF-847）：自助签发路径禁止授予 agent_provisioning 域——无论是
+    # 单独给还是混在业务域列表里。签发能力（管理 Key）只能由管理员页面签发，
+    # 叠加上面的禁 '*' 红线，自复制链（provisioner 铸出第二张签发 key）双向封死。
+    biz = {p.strip() for p in (req.business_scope or "").split(",") if p.strip()}
+    if "agent_provisioning" in biz:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=(
+                "自助签发禁止授予 agent_provisioning 域：签发能力仅限管理 Key "
+                "（全局单例），请通过管理员页面签发"
+            ),
+        )
     if not AGENT_ID_PATTERN.match(req.agent_id):
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
