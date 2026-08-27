@@ -434,13 +434,13 @@ function RpaStatusGrid({
                         <div
                           key={rt.key}
                           className={`flex items-center justify-center border-term-border px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
-                            isUploaded ? ' bg-term-pos/80' : ' bg-term-neg/70'
+                            isUploaded ? ' bg-term-pos/10' : ' bg-term-neg/10'
                           }`}
                         >
                           {isUploaded ? (
-                            <CheckCircle2 className="h-4 w-4 text-white" />
+                            <CheckCircle2 className="h-4 w-4 text-term-pos" aria-hidden />
                           ) : (
-                            <CircleX className="h-4 w-4 text-white" />
+                            <CircleX className="h-4 w-4 text-term-neg" aria-hidden />
                           )}
                         </div>
                       )
