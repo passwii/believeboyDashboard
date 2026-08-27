@@ -196,7 +196,12 @@ export function TerminalFooter() {
     <span key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
       {channels.map((channel, index) => (
         <React.Fragment key={`${copy}-ch-${index}`}>
-          {index > 0 && <span className="mx-4 text-term-border">│</span>}
+          {/* 每段前都加分隔符，仅首拷贝首段（fx 汇率）不加；
+             这样 copy0 末段（changelog）与 copy1 首段（fx）之间也带 │，
+             修复双拷贝拼接处两频道粘连/重叠；静态态 copy0 仍以末段收尾、无多余 │ */}
+          {!(copy === 0 && index === 0) && (
+            <span className="mx-4 text-term-border">│</span>
+          )}
           {channel}
         </React.Fragment>
       ))}

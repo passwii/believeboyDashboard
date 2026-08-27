@@ -158,6 +158,45 @@ describe('TerminalFooter', () => {
     expect(okEls[0].className).toContain('text-term-faint')
   })
 
+  it('BLF-848：双拷贝拼接处 changelog 与 fx 间存在分隔符（修复边界粘连）', async () => {
+    // 仅开 fx + changelog 两频道，使 copy 边界正好是 changelog → fx
+    const channels = TERMINAL_TICKER.channels as Record<string, boolean>
+    const prev = { ...channels }
+    channels.fx = true
+    channels.dailyBrief = false
+    channels.syncTime = false
+    channels.changelog = true
+    channels.inventoryAlert = false
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      // dailyBrief 频道虽关闭，hook 仍被无条件调用，需提供返回值
+      mockBrief({ gmv: null, orders: null, pending: null }, 'error')
+      // 模拟 changelog 端点成功返回
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ version: 'V7', summary: '库存预警频道上线' }),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      render(<TerminalFooter />)
+      // 等待 changelog 异步到位（双拷贝，故用 findAll）
+      await screen.findAllByText('V7')
+      // 双拷贝：更新标签出现两次
+      expect(screen.getAllByText('更新').length).toBe(2)
+      // 分隔符 │（text-term-border）应 = 3：
+      //  copy0: fx │ changelog（1 个）
+      //  copy1: │ fx │ changelog（2 个，含边界 changelog→fx）
+      // 修复前仅 2 个（边界无 │，两频道粘连）
+      const separators = screen.getAllByText('│')
+      expect(separators.length).toBe(3)
+      for (const sep of separators) {
+        expect(sep.className).toContain('text-term-border')
+      }
+    } finally {
+      vi.unstubAllGlobals()
+      Object.assign(channels, prev)
+    }
+  })
+
   it('BLF-840 频道开关关闭时库存预警不渲染（契约断言）', () => {
     const channels = TERMINAL_TICKER.channels as { inventoryAlert: boolean }
     const prev = channels.inventoryAlert
