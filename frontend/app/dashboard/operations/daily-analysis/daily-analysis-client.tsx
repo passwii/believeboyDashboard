@@ -1702,12 +1702,10 @@ export default function DailyAnalysisPage() {
   )
 
   return (
-    <div className="space-y-5 lg:space-y-6">
-      {/* BLF-826：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+    <div className="flex min-w-0 flex-col gap-3">
       {headerSlotPortal}
-      {/* BLF-826：月度目标进度条留在页内（信息密度取舍，不塞 head） */}
       {goalProgress && goalProgress.target_amount > 0 && (
-        <div className="dashboard-surface flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border border-term-border bg-term-panel px-3 py-2">
           <Target className="h-4 w-4 shrink-0 text-blue-500" />
           <div className="text-xs font-medium text-foreground shrink-0">
             {new Date().getMonth() + 1}月目标
@@ -1798,7 +1796,7 @@ export default function DailyAnalysisPage() {
           }}
         />
       ) : (
-        <div className="dashboard-surface flex min-h-[320px] items-center justify-center rounded-lg px-6 text-center">
+        <div className="flex min-h-[320px] items-center justify-center border border-term-border bg-term-panel px-6 text-center">
           <div className="space-y-2">
             <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
             <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
