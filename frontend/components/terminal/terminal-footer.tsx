@@ -5,6 +5,7 @@ import { Bell } from 'lucide-react'
 
 import { useExchangeRateTicker } from '@/lib/hooks/use-exchange-rate-ticker'
 import { useDailyBrief } from '@/lib/hooks/use-daily-brief'
+import { useInventoryAlert } from '@/lib/hooks/use-inventory-alert'
 import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import {
   TERMINAL_FOOTER_HEIGHT,
@@ -45,13 +46,14 @@ function changeColorClass(changePct: number | null): string {
 
 /**
  * Global Footer 系统状态栏（固定 28px，BLF-809/816）：
- * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 数据更新时间 · 更新日志摘要）
+ * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 库存预警 · 数据更新时间 · 更新日志摘要）
  * · 同步引擎状态 · 未读通知 · 双时区时钟。
  * 各段以 1px 竖分隔线切分；移动端隐藏（<sm）。
  */
 export function TerminalFooter() {
   const { ticks, status, lastSuccessAt } = useExchangeRateTicker()
   const { brief, status: briefStatus } = useDailyBrief()
+  const inventoryAlert = useInventoryAlert()
   const { unreadCount } = useServerNotifications()
 
   // 时钟仅在客户端挂载后渲染，避免 SSR 水合不一致
@@ -164,8 +166,30 @@ export function TerminalFooter() {
       }
     }
 
+    if (TERMINAL_TICKER.channels.inventoryAlert) {
+      const alertReady = inventoryAlert.status === 'ok'
+      const alertCount = inventoryAlert.count
+      const hasRisk = alertReady && (alertCount ?? 0) > 0
+      items.push(
+        <span key={`alert-${key++}`} className="flex shrink-0 items-center">
+          <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">
+            库存预警
+          </span>
+          <span
+            className={cn('font-mono tabular-nums', hasRisk ? 'text-term-neg' : 'text-term-faint')}
+          >
+            {!alertReady || alertCount == null
+              ? '--'
+              : hasRisk
+                ? `${alertCount} SKU 低于安全库存`
+                : '正常'}
+          </span>
+        </span>
+      )
+    }
+
     return items
-  }, [ticks, brief, briefStatus, lastSyncLabel, changelog])
+  }, [ticks, brief, briefStatus, lastSyncLabel, changelog, inventoryAlert])
 
   // 频道间分隔符 + 双拷贝（无缝 marquee）
   const tickerContent = (copy: number) => (
