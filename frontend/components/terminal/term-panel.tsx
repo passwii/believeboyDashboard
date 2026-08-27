@@ -16,9 +16,9 @@ interface TermPanelProps {
  */
 export function TermPanel({ title, actions, children, className, bodyClassName }: TermPanelProps) {
   return (
-    <section className={cn('flex min-w-0 flex-col border border-term-border bg-term-panel', className)}>
+    <section className={cn('flex min-w-0 flex-col rounded-none border border-term-border bg-term-panel shadow-none', className)}>
       {(title || actions) && (
-        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1">
+        <header className="flex h-9 shrink-0 items-center gap-2 rounded-none border-b border-term-border bg-transparent pl-2 pr-1">
           {title && (
             <h2 className="truncate text-sm font-semibold uppercase tracking-wider text-term-muted">
               {title}

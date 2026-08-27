@@ -94,7 +94,7 @@ export function TerminalHeader({
   return (
     <header
       style={{ height: TERMINAL_HEADER_HEIGHT }}
-      className="flex shrink-0 items-stretch border-b border-term-border bg-term-panel"
+      className="flex shrink-0 items-stretch rounded-none border-b border-term-border bg-term-panel shadow-none"
     >
       {/* 左段：subnav 切换 + 面包屑 */}
       <div className="flex min-w-0 flex-1 items-center gap-1 px-2">
@@ -103,7 +103,7 @@ export function TerminalHeader({
           onClick={onOpenMobileNav}
           title="导航菜单"
           aria-label="打开导航菜单"
-          className="flex h-8 w-8 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:hidden"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent md:hidden"
         >
           <Menu className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
@@ -112,7 +112,7 @@ export function TerminalHeader({
           onClick={onExpandSubnav}
           title={subnavCollapsed ? '展开侧栏' : '侧栏'}
           aria-label={subnavCollapsed ? '展开侧栏' : '侧栏'}
-          className="hidden h-8 w-8 shrink-0 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text md:flex"
+          className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent md:flex"
         >
           <PanelLeft className={cn('h-[18px] w-[18px]', !subnavCollapsed && 'text-term-text')} strokeWidth={1.75} />
         </button>
@@ -140,9 +140,9 @@ export function TerminalHeader({
       </div>
 
       {/* 中段：页面级 HeaderSlot（BLF-826）+ 全局筛选四件套（BLF-819，试点路由） */}
-      <HeaderSlotMount className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden border-l border-term-border px-2 md:flex" />
+      <HeaderSlotMount className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
       {pilotActive && globalFilter.ready ? (
-        <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto border-l border-term-border px-2 term-scroll xl:flex">
+        <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex">
           <HeaderProjectSelect
             value={globalFilter.projectId}
             onChange={globalFilter.setProjectId}
@@ -184,7 +184,7 @@ export function TerminalHeader({
             title="刷新当前页数据（强刷跳缓存）"
             aria-label="刷新当前页数据"
             data-testid="terminal-header-refresh"
-            className="relative flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text disabled:pointer-events-none disabled:opacity-50"
+            className="relative flex h-8 w-8 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent disabled:pointer-events-none disabled:opacity-50"
           >
             <RefreshCcw className="h-[18px] w-[18px]" strokeWidth={1.75} />
             {refreshLoading && (
@@ -197,7 +197,7 @@ export function TerminalHeader({
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
           title="全局搜索"
           aria-label="全局搜索"
-          className="flex h-8 items-center gap-1 px-1.5 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-8 items-center gap-1 rounded-none px-1.5 text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
           <Search className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
@@ -209,7 +209,7 @@ export function TerminalHeader({
               onClick={() => void refresh()}
               title="通知"
               aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
-              className="relative flex h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+              className="relative flex h-8 w-8 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
             >
               <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
               {unreadCount > 0 && (
@@ -239,7 +239,7 @@ export function TerminalHeader({
           title={inspectorOpen ? '收起 Inspector (⌘B)' : '展开 Inspector (⌘B)'}
           aria-label="切换 Inspector"
           aria-pressed={inspectorOpen}
-          className="hidden h-8 w-8 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text lg:flex"
+          className="hidden h-8 w-8 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent lg:flex"
         >
           <PanelRight className={cn('h-[18px] w-[18px]', inspectorOpen && 'text-term-text')} strokeWidth={1.75} />
         </button>
@@ -251,7 +251,7 @@ export function TerminalHeader({
             <button
               type="button"
               data-testid="terminal-header-user"
-              className="flex h-8 items-center gap-1.5 px-1.5 text-sm text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+              className="flex h-8 items-center gap-1.5 rounded-none px-1.5 text-sm text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
             >
               <UserRound className="h-[18px] w-[18px]" strokeWidth={1.75} />
               <span className="hidden max-w-24 truncate sm:inline">{displayName}</span>

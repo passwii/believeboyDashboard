@@ -85,7 +85,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
   return (
     <TerminalGlobalFilterProvider>
       <TerminalHeaderSlotProvider>
-      <div className="flex h-dvh w-full overflow-hidden bg-term-bg text-[15px] leading-normal text-term-text supports-[height:100dvh]:h-dvh">
+      <div className="flex h-dvh w-full overflow-hidden rounded-none bg-term-bg text-[15px] leading-normal text-term-text shadow-none supports-[height:100dvh]:h-dvh">
       <TerminalRail
         groups={visibleGroups}
         activeGroupId={activeGroupId}
@@ -118,7 +118,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
         <div className="relative flex min-h-0 flex-1">
           <main
             id="main-content"
-            className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto p-1 md:p-2 term-scroll"
+            className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto rounded-none p-1 shadow-none md:p-2 term-scroll"
           >
             <PageTransition>{children}</PageTransition>
           </main>
@@ -137,7 +137,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
           <SheetHeader className="shrink-0 border-b border-term-border px-3 py-2">
             <SheetTitle className="text-sm">导航菜单</SheetTitle>
           </SheetHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-2 py-2 term-scroll">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-none px-2 py-2 term-scroll">
             {visibleGroups.map((group) => (
               <MobileGroupSection
                 key={group.id}

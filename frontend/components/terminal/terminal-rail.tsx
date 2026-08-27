@@ -42,7 +42,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
   return (
     <aside
       style={{ width: TERMINAL_RAIL_WIDTH }}
-      className="hidden h-full shrink-0 flex-col border-r border-term-border bg-term-panel md:flex"
+      className="hidden h-full shrink-0 flex-col rounded-none border-r border-term-border bg-term-panel shadow-none md:flex"
     >
       {/* Logo 位：高度引用顶部基准带常量（BLF-832），与 Header / SubNav / Inspector 顶部分割线贯通 */}
       <div
@@ -53,7 +53,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           type="button"
           onClick={() => router.push('/dashboard')}
           aria-label="返回总览"
-          className="flex h-10 w-10 items-center justify-center bg-term-accent font-mono text-base font-bold text-white transition-opacity hover:opacity-85"
+          className="flex h-10 w-10 items-center justify-center rounded-none bg-term-accent font-mono text-base font-bold text-white shadow-none transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
           B
         </button>
@@ -73,7 +73,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               aria-current={isActive ? 'page' : undefined}
               onClick={() => onGroupNavigate(group)}
               className={cn(
-                'relative flex h-10 w-10 shrink-0 items-center justify-center transition-colors',
+                'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-none shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
                 isActive
                   ? 'bg-term-hover text-term-text'
                   : 'text-term-muted hover:bg-term-hover hover:text-term-text'
@@ -95,14 +95,14 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           title={isDark ? '切换亮色' : '切换暗色'}
           aria-label="切换主题"
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          className="flex h-9 w-9 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
           {isDark ? <SunMedium className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} /> : <Moon className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} />}
         </button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" title="用户" aria-label="用户菜单" data-testid="terminal-user-trigger" className="flex h-9 w-9 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text">
+            <button type="button" title="用户" aria-label="用户菜单" data-testid="terminal-user-trigger" className="flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent">
               <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-term-border-strong bg-term-raised font-mono text-xs uppercase text-term-text">
                 U
               </span>
