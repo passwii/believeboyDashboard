@@ -40,8 +40,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react'
 
-// Custom AI icons
-import { ChatGptIcon } from '@/components/ui/icons/chatgpt-icon'
+// Custom CRM badge
 import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 
 /**
@@ -86,7 +85,6 @@ const IconMap = {
   LayoutDashboard,
   MessagesSquare,
   Store,
-  ChatGptIcon,
   TrendingUp,
   Calculator,
   FileBarChart,
@@ -241,7 +239,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
   {
     id: 'ai',
     label: 'AI 智能',
-    icon: IconMap.ChatGptIcon,
+    icon: Sparkles,
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
@@ -252,7 +250,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/ai/ad-analysis'],
         icon: IconMap.BarChart3,
       },
-      { title: 'AI Chat', url: '/dashboard/ai/chat', icon: IconMap.ChatGptIcon },
+      { title: 'AI Chat', url: '/dashboard/ai/chat', icon: Sparkles },
       {
         title: '模型选型',
         url: '/dashboard/ai/believeboy-models',
