@@ -58,18 +58,24 @@ export function SlidingTabsTrigger({
   activeValue,
   layoutId,
   value,
+  variant,
   className,
   children,
   ...props
 }: SlidingTabsTriggerProps) {
   const prefersReducedMotion = useReducedMotion()
   const isActive = activeValue === value
+  const isTerm = variant === 'term'
 
   return (
     <TabsTrigger
       value={value}
+      variant={variant}
       className={cn(
-        'relative isolate overflow-hidden data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none',
+        'relative isolate overflow-hidden',
+        isTerm
+          ? 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none'
+          : 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none',
         className
       )}
       {...props}
@@ -90,7 +96,12 @@ export function SlidingTabsTrigger({
                     opacity: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
                   }
             }
-            className="absolute inset-0 -z-10 rounded-[inherit] border border-term-border-strong bg-term-raised shadow-none [.dark_&]:border-[hsl(var(--surface-high))]"
+            className={cn(
+              'absolute inset-0 -z-10 border shadow-none',
+              isTerm
+                ? 'rounded-none border-term-border-strong bg-term-raised'
+                : 'rounded-[inherit] border-term-border-strong bg-term-raised [.dark_&]:border-[hsl(var(--surface-high))]'
+            )}
           />
         ) : null}
       </AnimatePresence>

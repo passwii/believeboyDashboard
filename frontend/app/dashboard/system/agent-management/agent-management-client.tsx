@@ -472,20 +472,20 @@ export function AgentManagementClient() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="h-8 w-fit max-w-full overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
-          <TabsTrigger value="overview" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+        <TabsList variant="term">
+          <TabsTrigger value="overview" variant="term">
             <LayoutGrid className="h-3.5 w-3.5" />
             业务域概览
           </TabsTrigger>
-          <TabsTrigger value="credentials" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+          <TabsTrigger value="credentials" variant="term">
             <KeyRound className="h-3.5 w-3.5" />
             凭据管理
           </TabsTrigger>
-          <TabsTrigger value="guide" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+          <TabsTrigger value="guide" variant="term">
             <BookOpen className="h-3.5 w-3.5" />
             调用指南
           </TabsTrigger>
-          <TabsTrigger value="logs" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+          <TabsTrigger value="logs" variant="term">
             <Activity className="h-3.5 w-3.5" />
             访问日志
           </TabsTrigger>
@@ -710,11 +710,11 @@ export function AgentManagementClient() {
         {/* ── Tab 4 访问日志（读访问 / 写操作子 Tab） ─────────────── */}
         <TabsContent value="logs" className="mt-6">
           <Tabs defaultValue="read" className="w-full">
-            <TabsList className="h-8 rounded-none border border-term-border bg-term-bg p-0">
-              <TabsTrigger value="read" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+            <TabsList variant="term">
+              <TabsTrigger value="read" variant="term">
                 读访问
               </TabsTrigger>
-              <TabsTrigger value="write" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+              <TabsTrigger value="write" variant="term">
                 写操作
               </TabsTrigger>
             </TabsList>

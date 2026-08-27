@@ -5,9 +5,7 @@ import { usePathname } from 'next/navigation'
 import { FileBarChart, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-// BLF-836 终端化：页面标题由 TerminalHeader 面包屑承载；Tab 条换终端规格。
-const TERM_TRIGGER_CLASS =
-  'h-8 rounded-none gap-1.5 px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text [&_svg]:h-3.5 [&_svg]:w-3.5'
+// BLF-867 Tabs 基座 Terminal 收口：由 variant="term" 统一承载 h-8/rounded-none/term 语义，消页面侧覆盖漂移。
 
 const TAB_ITEMS = [
   { value: 'display', label: '财务报表', icon: LayoutDashboard },
@@ -30,9 +28,9 @@ export default function MonthlyReportLayout({
   return (
     <div className="min-w-0 w-full space-y-3">
       <Tabs value={activeTab}>
-        <TabsList className="grid h-8 w-full max-w-md grid-cols-3 justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
+        <TabsList variant="term" className="grid w-full max-w-md grid-cols-3 justify-start gap-0 bg-term-panel">
           {TAB_ITEMS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger key={value} value={value} asChild className={TERM_TRIGGER_CLASS}>
+            <TabsTrigger key={value} value={value} variant="term" asChild>
               <Link href={`/dashboard/reports/monthly-report/${value}`}>
                 <Icon aria-hidden />
                 {label}
