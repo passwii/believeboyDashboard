@@ -58,22 +58,14 @@ export function ChatInput({
   const outerGlowRef = useRef<HTMLDivElement>(null)
   const sendBtnRef = useRef<HTMLButtonElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  // Web-search toggle: separate refs for the diffusion ring (the
-  // expanding outline on enable) and the button itself (the squash
-  // feedback on disable). Keeping them apart means the two animations
-  // never stomp on each other when the user toggles quickly.
   const webSearchBtnRef = useRef<HTMLButtonElement>(null)
   const webSearchRingRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
-    ensureConfigLoaded().catch(() => {
-      // The AIChatWindow surfaces a top-level "Provider 未配置" banner; the
-      // input still works for the user to type into.
-    })
+    ensureConfigLoaded().catch(() => {})
     return subscribeConfig(() => setConfigVersion((n) => n + 1))
   }, [])
 
-  // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
@@ -84,7 +76,6 @@ export function ChatInput({
 
   const handleSubmit = () => {
     if (message.trim() && !disabled) {
-      // Send button press animation
       if (sendBtnRef.current) {
         gsap.fromTo(
           sendBtnRef.current,
@@ -109,7 +100,6 @@ export function ChatInput({
   }
 
   const cfg = getConfig()
-  // Re-render when configVersion changes (covered by the data attr below).
   void configVersion
   const defaultModel = cfg?.defaultModel
   const reasoningModels = cfg?.reasoningModels ?? []
@@ -125,14 +115,6 @@ export function ChatInput({
     onReasoningEffortChange?.(reasoningEnabled ? null : defaultReasoningEffort)
   }
 
-  // Web-search toggle feedback. Two distinct motions:
-  //   * ENABLING — diffusion ring (separate span ref) scales 0.8→1.2 with
-  //     opacity fading 0.8→0 over 400ms. The ring is hidden by default
-  //     (initial style below) and `fromTo` revives it on each click.
-  //   * DISABLING — 200ms yoyo squash (1→0.95→1) on the button itself.
-  //     Yoyo + repeat:1 with 0.1s duration = two halves = 200ms total,
-  //     landing back at scale 1 so we don't fight the button's own
-  //     `transition-all`.
   const handleToggleWebSearch = () => {
     if (disabled || !cfg?.webSearchConfigured) return
     if (enableWebSearch) {
@@ -155,15 +137,23 @@ export function ChatInput({
 
   return (
     <div ref={rootRef} className="relative w-full max-w-[680px] mx-auto">
-      {/* Outer glow */}
+      {/* Outer glow — subtle in light, rich in dark */}
       <div
         ref={outerGlowRef}
-        className="absolute -inset-2 rounded-3xl pointer-events-none"
+        className="absolute -inset-2 rounded-3xl pointer-events-none hidden dark:block"
         style={{
           opacity: focused ? 1 : 0,
           transform: focused ? 'scale(1)' : 'scale(0.95)',
           boxShadow:
             '0 0 40px rgba(20,136,252,0.35), 0 0 80px rgba(20,136,252,0.15), 0 0 120px rgba(99,102,241,0.1)',
+        }}
+      />
+      <div
+        className="absolute -inset-1 rounded-3xl pointer-events-none dark:hidden"
+        style={{
+          opacity: focused ? 1 : 0,
+          boxShadow: '0 0 24px rgba(37,119,255,0.10), 0 8px 24px rgba(15,23,42,0.06)',
+          transition: 'opacity 300ms ease',
         }}
       />
 
@@ -184,14 +174,13 @@ export function ChatInput({
           />
         </div>
 
-        {/* Inner surface */}
+        {/* Inner surface — white card in light, dark glass in dark */}
         <div
-          className={`relative rounded-2xl transition-shadow duration-500 ${
+          className={`relative rounded-2xl transition-shadow duration-500 bg-white dark:bg-[#1e1e22] ${
             focused
-              ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(20,136,252,0.2)]'
-              : 'shadow-[0_2px_20px_rgba(0,0,0,0.4)]'
+              ? 'shadow-[0_0_0_1px_rgba(37,119,255,0.15),0_4px_24px_rgba(15,23,42,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_30px_rgba(20,136,252,0.2)]'
+              : 'shadow-[0_2px_16px_rgba(15,23,42,0.06)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.4)]'
           }`}
-          style={{ background: '#1e1e22' }}
         >
           <div className="relative">
             <textarea
@@ -203,7 +192,7 @@ export function ChatInput({
               onBlur={() => setFocused(false)}
               placeholder={placeholder}
               disabled={disabled}
-              className={`w-full resize-none bg-transparent text-[15px] text-white placeholder-[#5a5a5f] px-4 sm:px-5 focus:outline-none ${
+              className={`w-full resize-none bg-transparent text-[15px] placeholder:text-slate-400 dark:placeholder:text-[#5a5a5f] text-slate-900 dark:text-white px-4 sm:px-5 focus:outline-none ${
                 compact
                   ? 'pt-3 pb-2 min-h-[44px] max-h-[120px]'
                   : 'pt-4 sm:pt-5 pb-3 min-h-[60px] sm:min-h-[80px] max-h-[200px]'
@@ -216,7 +205,6 @@ export function ChatInput({
               compact ? 'pb-2' : 'pb-3'
             }`}
           >
-            {/* Left actions */}
             <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
               <div className="relative">
                 <button
@@ -233,8 +221,8 @@ export function ChatInput({
                   disabled={disabled}
                   className={`attach-btn flex items-center justify-center size-10 sm:size-10 rounded-full transition-all duration-300 active:scale-95 touch-manipulation ${
                     focused
-                      ? 'bg-blue-500/15 text-blue-400 hover:bg-blue-500/25'
-                      : 'bg-white/[0.08] text-[#8a8a8f] hover:bg-white/[0.12] hover:text-white'
+                      ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-400 dark:hover:bg-blue-500/25'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/[0.08] dark:text-[#8a8a8f] dark:hover:bg-white/[0.12] dark:hover:text-white'
                   } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="添加附件"
                 >
@@ -248,7 +236,7 @@ export function ChatInput({
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowAttachMenu(false)} />
                     <div
-                      className="absolute bottom-full left-0 mb-2 z-50 bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+                      className="absolute bottom-full left-0 mb-2 z-50 rounded-xl shadow-xl overflow-hidden bg-white border border-slate-200 dark:bg-[#1a1a1e]/95 dark:border-white/10 dark:backdrop-blur-xl dark:shadow-2xl dark:shadow-black/50"
                       ref={(el) => {
                         if (el)
                           gsap.fromTo(
@@ -267,7 +255,7 @@ export function ChatInput({
                           <button
                             type="button"
                             key={i}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg text-[#a0a0a5] hover:bg-white/5 hover:text-white transition-all duration-150 touch-manipulation"
+                            className="w-full flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg transition-all duration-150 touch-manipulation text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-[#a0a0a5] dark:hover:bg-white/5 dark:hover:text-white"
                           >
                             {item.icon}
                             <span className="text-sm">{item.label}</span>
@@ -280,7 +268,6 @@ export function ChatInput({
               </div>
               <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
 
-              {/* Web search toggle */}
               <button
                 ref={webSearchBtnRef}
                 type="button"
@@ -288,22 +275,14 @@ export function ChatInput({
                 disabled={disabled || !cfg?.webSearchConfigured}
                 className={`relative flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] ${
                   !cfg?.webSearchConfigured
-                    ? 'border border-amber-500/20 bg-amber-500/[0.06] text-amber-200/90 cursor-not-allowed'
+                    ? 'border bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed dark:bg-amber-500/[0.06] dark:border-amber-500/20 dark:text-amber-200/90'
                     : enableWebSearch
-                      ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-400/30'
-                      : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
+                      ? 'bg-blue-50 text-blue-600 ring-1 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:ring-blue-400/30'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5'
                 } ${disabled && cfg?.webSearchConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label={enableWebSearch ? '已开启联网搜索' : '联网搜索'}
                 title={cfg?.webSearchConfigured ? '联网搜索' : '后端未配置联网搜索'}
               >
-                {/* Diffusion ring — sits behind the icon/text, hidden by
-                    default, briefly scales 0.8→1.2 with opacity fading out
-                    when the user enables the toggle. The initial inline
-                    style keeps it invisible at rest; `gsap.fromTo` revives
-                    it on each click. Only rendered when the toggle is
-                    configured and currently active (or the user just
-                    clicked on) — when webSearch is off AND configured,
-                    we skip the ring span to avoid an unused DOM node. */}
                 {cfg?.webSearchConfigured && (
                   <span
                     ref={webSearchRingRef}
@@ -325,7 +304,7 @@ export function ChatInput({
                   {!cfg?.webSearchConfigured ? '联网未配置' : enableWebSearch ? '联网中' : '联网'}
                 </span>
                 {enableWebSearch && cfg?.webSearchConfigured && (
-                  <span className="size-1 rounded-full bg-blue-400 animate-pulse" />
+                  <span className="size-1 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
                 )}
               </button>
 
@@ -335,8 +314,8 @@ export function ChatInput({
                 disabled={disabled || !reasoningSupported}
                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   reasoningEnabled
-                    ? 'bg-blue-500/20 text-blue-300'
-                    : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5'
                 } ${disabled || !reasoningSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label={reasoningEnabled ? '已开启思考' : '思考'}
                 title={reasoningSupported ? '思考' : '当前模型不支持思考'}
@@ -348,7 +327,6 @@ export function ChatInput({
 
             <div className="flex-1" />
 
-            {/* Right actions */}
             <div className="flex items-center gap-2">
               <button
                 ref={sendBtnRef}
@@ -357,8 +335,8 @@ export function ChatInput({
                 disabled={!message.trim() || disabled}
                 className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   focused
-                    ? 'bg-[#1a94ff] shadow-[0_0_25px_rgba(20,136,252,0.5),0_0_50px_rgba(20,136,252,0.2)]'
-                    : 'bg-[#1488fc] shadow-[0_0_20px_rgba(20,136,252,0.3)] hover:bg-[#1a94ff] hover:shadow-[0_0_30px_rgba(20,136,252,0.45)]'
+                    ? 'bg-[#1a94ff] shadow-[0_0_20px_rgba(37,119,255,0.25)] dark:shadow-[0_0_25px_rgba(20,136,252,0.5),0_0_50px_rgba(20,136,252,0.2)]'
+                    : 'bg-[#1488fc] shadow-[0_2px_12px_rgba(37,119,255,0.2)] hover:bg-[#1a94ff] hover:shadow-[0_4px_20px_rgba(37,119,255,0.3)] dark:shadow-[0_0_20px_rgba(20,136,252,0.3)] dark:hover:shadow-[0_0_30px_rgba(20,136,252,0.45)]'
                 }`}
                 aria-label="发送"
               >

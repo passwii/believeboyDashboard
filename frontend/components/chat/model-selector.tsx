@@ -313,7 +313,7 @@ export function ModelSelector({
             setIsOpen(true)
           }
         }}
-        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 text-[#8a8a8f] hover:text-white hover:bg-white/5 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]"
+        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]"
       >
         {currentModelMeta?.icon ?? <Cpu className="size-4 text-slate-400" />}
         <span className="hidden xs:inline">{currentModelMeta?.name ?? current}</span>
@@ -341,7 +341,7 @@ export function ModelSelector({
               trigger top so opening the side panel doesn't shift it up or
               down — only the side panel grows upward as needed. */}
           <div className="absolute bottom-full left-0 mb-2 z-50 flex items-end gap-2 bb-anim-scale-in">
-            <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overscroll-contain">
+            <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-white border border-slate-200 shadow-xl dark:bg-[#1a1a1e]/95 dark:border-white/10 dark:shadow-2xl dark:shadow-black/50 backdrop-blur-xl overscroll-contain">
               <div className="p-1.5">
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
                   选择模型
@@ -379,10 +379,10 @@ export function ModelSelector({
                 aria-modal="false"
                 aria-label="其他模型"
                 data-side-panel="model-others"
-                className="w-[300px] max-w-[85vw] max-h-[60vh] bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 flex flex-col pointer-events-auto"
+                className="w-[300px] max-w-[85vw] max-h-[60vh] bg-white border border-slate-200 shadow-xl dark:bg-[#1a1a1e]/95 dark:border-white/10 dark:shadow-2xl dark:shadow-black/50 backdrop-blur-xl flex flex-col pointer-events-auto"
                 style={{ opacity: 0 }}
               >
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200 dark:border-white/10">
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
                       {othersGroup.label}
@@ -392,7 +392,7 @@ export function ModelSelector({
                   <button
                     type="button"
                     onClick={() => setDrawerOpen(false)}
-                    className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
+                    className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5 transition-colors touch-manipulation"
                     aria-label="关闭"
                   >
                     <X className="size-4" />
@@ -455,7 +455,7 @@ function ModelGroupSection({
   const isOpen = isDesktop ? drawerOpen : othersExpanded
 
   return (
-    <div className={isFirst ? '' : 'mt-1 border-t border-white/5 pt-1'}>
+    <div className={isFirst ? '' : 'mt-1 border-t border-slate-100 dark:border-white/5 pt-1'}>
       {isCollapsible ? (
         <button
           type="button"
@@ -525,7 +525,7 @@ function ModelRow({
       type="button"
       onClick={() => onSelect(model.id)}
       className={`w-full flex items-center gap-3 px-2.5 py-3 sm:py-2 rounded-lg text-left transition-all duration-150 touch-manipulation ${
-        isCurrent ? 'bg-white/10 text-white' : 'text-[#a0a0a5] hover:bg-white/5 hover:text-white'
+        isCurrent ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-[#a0a0a5] dark:hover:bg-white/5 dark:hover:text-white'
       }`}
     >
       <div className="flex-shrink-0">{model.icon}</div>
@@ -536,8 +536,8 @@ function ModelRow({
             <span
               className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
                 badge === 'Pro'
-                  ? 'bg-purple-500/20 text-purple-300'
-                  : 'bg-blue-500/20 text-blue-300'
+                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
               }`}
             >
               {badge}
@@ -545,10 +545,10 @@ function ModelRow({
           )}
         </div>
         {model.description && (
-          <span className="text-[11px] text-[#6a6a6f] line-clamp-1">{model.description}</span>
+          <span className="text-[11px] text-slate-500 dark:text-[#6a6a6f] line-clamp-1">{model.description}</span>
         )}
       </div>
-      {isCurrent && <Check className="size-4 text-blue-400 flex-shrink-0" />}
+      {isCurrent && <Check className="size-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
     </button>
   )
 }
@@ -573,7 +573,7 @@ function DrawerModelRow({
       type="button"
       onClick={() => onSelect(model.id)}
       className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-150 ${
-        isCurrent ? 'bg-white/10 text-white' : 'text-[#a0a0a5] hover:bg-white/5 hover:text-white'
+        isCurrent ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-[#a0a0a5] dark:hover:bg-white/5 dark:hover:text-white'
       }`}
     >
       <div className="flex-shrink-0">{model.icon}</div>
@@ -584,8 +584,8 @@ function DrawerModelRow({
             <span
               className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
                 badge === 'Pro'
-                  ? 'bg-purple-500/20 text-purple-300'
-                  : 'bg-blue-500/20 text-blue-300'
+                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
               }`}
             >
               {badge}
@@ -593,10 +593,10 @@ function DrawerModelRow({
           )}
         </div>
         {model.description && (
-          <span className="text-[11px] text-[#6a6a6f] line-clamp-1">{model.description}</span>
+          <span className="text-[11px] text-slate-500 dark:text-[#6a6a6f] line-clamp-1">{model.description}</span>
         )}
       </div>
-      {isCurrent && <Check className="size-4 text-blue-400 flex-shrink-0" />}
+      {isCurrent && <Check className="size-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
     </button>
   )
 }

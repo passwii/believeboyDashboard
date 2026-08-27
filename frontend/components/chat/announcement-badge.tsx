@@ -20,28 +20,26 @@ export function AnnouncementBadge({ text, href = '#' }: { text: string; href?: s
           filter: 'blur(0.5px)',
         }}
       />
-      <Bolt className="size-4 relative z-10 text-white" />
-      <span className="relative z-10 text-white font-medium">{text}</span>
+      <Bolt className="size-4 relative z-10 text-blue-600 dark:text-white" />
+      <span className="relative z-10 font-medium text-slate-700 dark:text-white">{text}</span>
     </>
   )
 
   const baseClass =
-    'relative inline-flex items-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer bb-anim-scale-in'
-  const style = {
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
-    backdropFilter: 'blur(20px) saturate(140%)',
-    boxShadow:
-      'inset 0 1px rgba(255,255,255,0.2), inset 0 -1px rgba(0,0,0,0.1), 0 8px 32px -8px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.08)',
-    animationDelay: '0.2s',
-  }
+    'announcement-badge relative inline-flex items-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer bb-anim-scale-in'
 
-  return href !== '#' ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={baseClass} style={style}>
-      {content}
-    </a>
-  ) : (
-    <button type="button" className={baseClass} style={style}>
-      {content}
-    </button>
+  return (
+    <>
+      <style>{`.announcement-badge{background:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(248,250,252,0.9));box-shadow:inset 0 1px rgba(255,255,255,1),inset 0 -1px rgba(15,23,42,0.04),0 8px 32px -12px rgba(15,23,42,0.12),0 0 0 1px rgba(15,23,42,0.06);backdrop-filter:blur(20px) saturate(140%)}.dark .announcement-badge{background:linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.05));box-shadow:inset 0 1px rgba(255,255,255,0.2),inset 0 -1px rgba(0,0,0,0.1),0 8px 32px -8px rgba(0,0,0,0.1),0 0 0 1px rgba(255,255,255,0.08)}`}</style>
+      {href !== '#' ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className={baseClass} style={{ animationDelay: '0.2s' }}>
+          {content}
+        </a>
+      ) : (
+        <button type="button" className={baseClass} style={{ animationDelay: '0.2s' }}>
+          {content}
+        </button>
+      )}
+    </>
   )
 }
