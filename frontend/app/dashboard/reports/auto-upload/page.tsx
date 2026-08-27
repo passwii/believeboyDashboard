@@ -121,7 +121,7 @@ function ProgressRow({
   return (
     <div className="flex items-center gap-2">
       <span className="w-8 text-[11px] text-muted-foreground">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-term-raised">
         <div
           className="h-full rounded-full bg-sky-500 transition-all duration-300 ease-out"
           style={{ width: `${pct}%` }}
@@ -378,7 +378,7 @@ function RpaStatusGrid({
 
         {showSkeleton ? (
           <div className="flex min-h-0 flex-1 flex-col space-y-3">
-            <Skeleton className="h-10 w-full rounded-none shrink-0" />
+            <Skeleton className="h-8 w-full rounded-none shrink-0" />
             <Skeleton className="flex-1 w-full rounded-none min-h-0" />
           </div>
         ) : (

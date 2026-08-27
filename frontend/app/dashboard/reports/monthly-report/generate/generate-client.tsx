@@ -224,8 +224,8 @@ function getUploadMeta(state: UploadStateItem) {
   if (state.status === 'ready') return { text: '待上传', dot: 'bg-sky-500', bar: 'bg-sky-500' }
   return {
     text: '未识别',
-    dot: 'bg-[hsl(var(--surface-outline))]',
-    bar: 'bg-[hsl(var(--surface-outline))]',
+    dot: 'bg-term-border',
+    bar: 'bg-term-border',
   }
 }
 
@@ -840,7 +840,7 @@ export default function GenerateTab() {
   return (
     <div className="grid w-full gap-6 text-foreground xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-6">
-        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
           </CardHeader>
@@ -935,7 +935,7 @@ export default function GenerateTab() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
           <CardHeader>
             <CardTitle className="text-lg">文件识别与上传</CardTitle>
           </CardHeader>
@@ -946,7 +946,7 @@ export default function GenerateTab() {
                   'flex flex-col rounded-none border-2 border-dashed p-4 text-center transition-colors',
                   dragActive
                     ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20'
-                    : 'border-border bg-[hsl(var(--surface-subtle))]'
+                    : 'border-term-border bg-term-raised'
                 )}
                 style={{ minHeight: `${dropZoneHeight}px` }}
                 onDrop={(event) => void onDrop(event)}
@@ -1022,7 +1022,7 @@ export default function GenerateTab() {
                             'h-full transition-all duration-200',
                             matched
                               ? meta.bar
-                              : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
+                              : 'bg-term-border dark:bg-term-border'
                           )}
                           style={{ width: matched ? '100%' : '28%' }}
                         />
@@ -1107,7 +1107,7 @@ export default function GenerateTab() {
         </Card>
       </div>
 
-      <Card className="h-fit border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90 xl:sticky xl:top-6">
+      <Card className="h-fit rounded-none border-term-border bg-term-panel shadow-none xl:sticky xl:top-6">
         <CardHeader>
           <CardTitle className="text-lg">处理状态</CardTitle>
         </CardHeader>
@@ -1148,7 +1148,7 @@ export default function GenerateTab() {
                           ? 'bg-emerald-500'
                           : active
                             ? 'bg-blue-500'
-                            : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
+                            : 'bg-term-border dark:bg-term-border'
                       )}
                     />
                     <div className="flex items-center gap-2">

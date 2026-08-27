@@ -451,10 +451,10 @@ export default function LedgerView() {
           <div className="hidden md:block">
             {ledgerLoading && ledgerItems.length === 0 ? (
               <div className="space-y-3 p-3">
-                <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-                <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-                <Skeleton className="h-9 w-11/12 rounded-none bg-term-raised" />
-                <Skeleton className="h-9 w-4/5 rounded-none bg-term-raised" />
+                <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-8 w-11/12 rounded-none bg-term-raised" />
+                <Skeleton className="h-8 w-4/5 rounded-none bg-term-raised" />
               </div>
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">

@@ -602,20 +602,12 @@ export default function ShopCalculationPage() {
   }
 
   return (
-    <div className="dashboard-page-shell space-y-6">
+    <div className="flex min-w-0 flex-col gap-3">
       {/* Card 1: 控制台 */}
-      <div className="animate-enter">
-        <div className="dashboard-surface relative overflow-hidden">
-          {/* Decorative background gradient */}
-          <div className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-40">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/6 via-transparent to-amber-500/5" />
-            
-          </div>
-
-          <div className="relative z-10 flex flex-col gap-0 px-6 py-4">
+      <div className="border border-term-border bg-term-panel p-3">
             {/* Top Row: Icon + Title + Snapshot Selector */}
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <Calculator className="h-5 w-5 text-[hsl(var(--primary))]" strokeWidth={2} />
               </div>
               <div className="min-w-0 flex-1">
@@ -656,10 +648,10 @@ export default function ShopCalculationPage() {
                     项目
                   </span>
                   {projectsLoading ? (
-                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-8 w-full" />
                   ) : (
                     <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                      <SelectTrigger className="h-9 text-xs">
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="选择项目" />
                       </SelectTrigger>
                       <SelectContent>
@@ -684,7 +676,7 @@ export default function ShopCalculationPage() {
                       value={skuKeyword}
                       onChange={(e) => setSkuKeyword(e.target.value)}
                       placeholder="SKU / ASIN"
-                      className="h-9 pl-8 text-xs"
+                      className="h-8 pl-8 text-xs"
                     />
                   </div>
                 </div>
@@ -698,7 +690,7 @@ export default function ShopCalculationPage() {
                     variant="outline"
                     onClick={handleExport}
                     disabled={exporting || !hasCalculatedRows}
-                    className="h-9 text-xs"
+                    className="h-8 text-xs"
                   >
                     {exporting ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -738,8 +730,6 @@ export default function ShopCalculationPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
       </div>
 
       {/* Card 2: DataTableCard with Stats */}

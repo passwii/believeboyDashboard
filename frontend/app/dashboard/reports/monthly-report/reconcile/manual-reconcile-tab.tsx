@@ -239,7 +239,7 @@ export default function ManualReconcileTab() {
 
   return (
     <div className="space-y-6">
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+      <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
         <DataCardHeader title="上传报表文件" />
         <DataCardContent className="p-6">
           <div className="grid gap-6 md:grid-cols-2">
@@ -254,7 +254,7 @@ export default function ManualReconcileTab() {
                 className={`flex cursor-pointer items-center justify-center rounded-none border-2 border-dashed border-term-border p-6 transition-colors ${
                   excelFile
                     ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20'
-                    : 'border-border hover:border-primary/50 hover:bg-[hsl(var(--surface-subtle))]'
+                    : 'border-term-border hover:border-primary/50 hover:bg-term-hover'
                 }`}
               >
                 <label className="cursor-pointer text-center">
@@ -295,7 +295,7 @@ export default function ManualReconcileTab() {
                 className={`flex cursor-pointer items-center justify-center rounded-none border-2 border-dashed border-term-border p-6 transition-colors ${
                   pdfFile
                     ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20'
-                    : 'border-border hover:border-primary/50 hover:bg-[hsl(var(--surface-subtle))]'
+                    : 'border-term-border hover:border-primary/50 hover:bg-term-hover'
                 }`}
               >
                 <label className="cursor-pointer text-center">
@@ -372,13 +372,13 @@ export default function ManualReconcileTab() {
 
           <SummaryCard result={result} />
 
-          <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+          <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
             <DataCardHeader title="明细核对" />
             <DataCardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b bg-term-hover text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       <th className="border-r px-4 py-3 text-left">字段</th>
                       <th className="border-r px-4 py-3 text-right">Excel</th>
                       <th className="border-r px-4 py-3 text-right">PDF</th>

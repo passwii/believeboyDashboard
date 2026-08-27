@@ -132,7 +132,7 @@ function PricingFieldSkeleton() {
   return (
     <div className="space-y-2">
       <Skeleton className="h-4 w-16" />
-      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-8 w-full" />
     </div>
   )
 }
@@ -2638,7 +2638,7 @@ export default function PricingCalculationPage() {
                       )}
                     </div>
 
-                    <Button type="submit" disabled={loading} className="h-10 w-full">
+                    <Button type="submit" disabled={loading} className="h-8 w-full">
                       {loading ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
@@ -2718,7 +2718,7 @@ export default function PricingCalculationPage() {
                                         'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
                                         isSelected
                                           ? 'border-primary bg-primary text-primary-foreground'
-                                          : 'border-border bg-background'
+                                          : 'border-term-border bg-term-panel'
                                       )}
                                     >
                                       {isSelected ? <Check className="h-3 w-3" /> : null}
@@ -2876,7 +2876,7 @@ export default function PricingCalculationPage() {
                             </p>
                           </div>
 
-                          <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border/40 pt-2">
+                          <div className="mt-2 grid grid-cols-3 gap-2 border-t border-term-border pt-2">
                             <div className="min-w-0">
                               <p className="text-[11px] text-muted-foreground">价格</p>
                               <p className="truncate text-sm font-semibold tabular-nums text-foreground">

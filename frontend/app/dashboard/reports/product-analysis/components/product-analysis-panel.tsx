@@ -350,7 +350,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr) 100px` }}
         >
           {/* Header row */}
-          <div className="flex items-center border border-b-0 border-term-border bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
+          <div className="flex items-center border border-b-0 border-term-border bg-term-raised px-2 py-2 text-xs font-semibold text-muted-foreground">
             报表类型
           </div>
           {dates.map((d) => {
@@ -358,7 +358,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                className="flex flex-col items-center justify-center border border-b-0 border-term-border bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
+                className="flex flex-col items-center justify-center border border-b-0 border-term-border bg-term-raised px-1 py-2 text-xs"
               >
                 <span className="text-[10px] text-muted-foreground">
                   {WEEKDAY_LABELS[weekdayIdx]}
@@ -368,7 +368,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             )
           })}
           {/* Header: Periodic column */}
-          <div className="flex items-center justify-center border border-b-0 border-term-border bg-[hsl(var(--surface-subtle))] px-2 py-2 text-xs font-semibold text-muted-foreground">
+          <div className="flex items-center justify-center border border-b-0 border-term-border bg-term-raised px-2 py-2 text-xs font-semibold text-muted-foreground">
             周期性数据
           </div>
 
@@ -404,7 +404,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
               'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
               hasPeriodicData.business
                 ? 'bg-blue-500 text-white'
-                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
+                : 'bg-term-panel text-muted-foreground border-dashed'
             )}
             title={
               hasPeriodicData.business
@@ -456,7 +456,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
               'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
               hasPeriodicData.ad
                 ? 'bg-blue-500 text-white'
-                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
+                : 'bg-term-panel text-muted-foreground border-dashed'
             )}
             title={
               hasPeriodicData.ad
@@ -498,7 +498,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             )
           })}
           {/* Inventory: N/A */}
-          <div className="flex items-center justify-center border border-t-0 border-term-border bg-[hsl(var(--surface-panel))] py-1.5 font-mono text-xs text-term-faint border-dashed">
+          <div className="flex items-center justify-center border border-t-0 border-term-border bg-term-panel py-1.5 font-mono text-xs text-term-faint border-dashed">
             -
           </div>
 
@@ -534,7 +534,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
               'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
               hasPeriodicData.payment
                 ? 'bg-blue-500 text-white'
-                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
+                : 'bg-term-panel text-muted-foreground border-dashed'
             )}
             title={
               hasPeriodicData.payment
@@ -809,7 +809,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                 }}
                 disabled={projectsLoading || projects.length === 0}
               >
-                <SelectTrigger className="h-10 w-full lg:w-56">
+                <SelectTrigger className="h-8 w-full lg:w-56">
                   <SelectValue
                     placeholder={
                       projectsLoading
@@ -838,7 +838,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                 站点
               </label>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-10 w-full lg:w-36">
+                <SelectTrigger className="h-8 w-full lg:w-36">
                   <SelectValue placeholder="请选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -866,7 +866,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                   setRunState('idle')
                   setPeriods([])
                 }}
-                className="h-10 w-full"
+                className="h-8 w-full"
               />
             </div>
 

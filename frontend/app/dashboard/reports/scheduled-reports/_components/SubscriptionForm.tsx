@@ -461,7 +461,7 @@ export function SubscriptionForm({
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex flex-col sm:flex-row gap-2 pt-4 mt-4 border-t border-border/60">
+      <div className="flex flex-col sm:flex-row gap-2 pt-4 mt-4 border-t border-term-border">
         <Button variant="outline" onClick={onCancel} className="order-2 sm:order-1">
           取消
         </Button>
