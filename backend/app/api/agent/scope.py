@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 # 全量放行哨兵值（与 DB server_default 对齐）。
 SCOPE_ALL = "*"
 
+#: 这些业务域不允许被 ``'*'`` 通配隐含授予（最小权限 + 管理 Key 单例红线）。
+#: 目前仅 ``agent_provisioning``——签发能力绝不经由通配 key 隐含取得
+#: （BLF-847：Yawei 拍板 ``'*'`` 不再隐含签发能力）。其余域保持存量兼容。
+_WILDCARD_DENIED_DOMAINS = frozenset({"agent_provisioning"})
+
 
 def _parse_scope(scope: str) -> set[int]:
     """把 ``"12, 34"`` 解析成 project_id 集合；非法片段跳过并告警。"""
@@ -111,6 +116,18 @@ def require_business_scope(domain: str):
                 raise AgentApiError(ErrorCode.AGENT_AUTH_FAILED, reason="token_invalid")
             scope = key.business_scope or SCOPE_ALL
             if scope == SCOPE_ALL:
+                # 通配放行，但红线域显式拒绝：'*' 不再隐含签发能力
+                # （BLF-847）。即一张全域 '*' key 不能凭通配拿到签发域——
+                # 必须持有显式列出 agent_provisioning 的凭据。
+                if domain in _WILDCARD_DENIED_DOMAINS:
+                    raise AgentApiError(
+                        ErrorCode.AGENT_BUSINESS_OUT_OF_SCOPE,
+                        reason="business_not_in_scope",
+                        human_message=(
+                            f"通配 '*' 业务域不隐含 {domain} 授权；"
+                            "请使用显式授予该域的凭据"
+                        ),
+                    )
                 return
             if domain not in _parse_business_scope(scope):
                 raise AgentApiError(

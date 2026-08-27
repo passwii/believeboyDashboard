@@ -13,6 +13,9 @@ admin_headers / make_api_key fixture 来自 backend/tests/{conftest,api/conftest
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -309,7 +312,9 @@ class TestUpdateEndpoint:
         finally:
             _hard_cleanup(key["id"])
 
-    def test_update_empty_scope_normalized_to_star(self, client, admin_headers, make_api_key):
+    def test_update_empty_scope_normalized_to_star(
+        self, client, admin_headers, make_api_key
+    ):
         key = make_api_key(agent_id="n-agent")
         try:
             resp = client.patch(
@@ -323,8 +328,12 @@ class TestUpdateEndpoint:
         finally:
             _hard_cleanup(key["id"])
 
-    def test_update_partial_preserves_untouched(self, client, admin_headers, make_api_key):
-        key = make_api_key(agent_id="p-agent", project_scope="5", business_scope="inventory")
+    def test_update_partial_preserves_untouched(
+        self, client, admin_headers, make_api_key
+    ):
+        key = make_api_key(
+            agent_id="p-agent", project_scope="5", business_scope="inventory"
+        )
         try:
             resp = client.patch(
                 f"/api/v1/internal/api-keys/{key['id']}",
@@ -376,7 +385,9 @@ class TestUpdateEndpoint:
         finally:
             _hard_cleanup(key["id"])
 
-    def test_edit_scope_takes_effect_for_agent_auth(self, client, admin_headers, make_api_key):
+    def test_edit_scope_takes_effect_for_agent_auth(
+        self, client, admin_headers, make_api_key
+    ):
         """端到端：编辑 business_scope 后鉴权实时生效（无需重建凭据）。
 
         初始全域（*）→ PATCH 收紧为 shipments → shop-calculations 域路由
@@ -452,3 +463,148 @@ class TestUpdateEndpoint:
             assert blocked.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
         finally:
             _hard_cleanup(key["id"])
+
+
+# ─────────────────── 管理 Key 全局单例（BLF-847 红线 B）───────────────────
+
+
+class TestProvisioningSingleton:
+    """管理 Key 全局单例：全系统同一时刻至多一张「有效」且持有签发域
+    （agent_provisioning）的 key（BLF-847 红线 B）。
+
+    覆盖管理员 create / PATCH 两个写入口的互斥，以及停用/删除/过期后的让位。
+    自助签发路径已被红线 A 物理封死（由 test_provisioning.py 覆盖），此处不重复。
+    """
+
+    @staticmethod
+    def _create_admin_key(
+        client,
+        headers,
+        *,
+        business_scope: str = "agent_provisioning",
+        agent_id: str | None = None,
+        project_scope: str = "*",
+        expires_at=None,
+    ):
+        body = {
+            "label": "Admin Key",
+            "agent_id": agent_id or f"admin-prov-{uuid.uuid4().hex[:8]}",
+            "project_scope": project_scope,
+            "business_scope": business_scope,
+        }
+        if expires_at is not None:
+            body["expires_at"] = expires_at
+        return client.post("/api/v1/internal/api-keys", json=body, headers=headers)
+
+    def test_create_rejected_when_active_holder_exists(
+        self, client, admin_headers, make_api_key
+    ):
+        holder = make_api_key(
+            agent_id="holder-active", business_scope="agent_provisioning"
+        )
+        try:
+            resp = self._create_admin_key(
+                client, admin_headers, agent_id="second-attempt"
+            )
+            assert resp.status_code == 409, resp.text
+            assert "agent_provisioning" in resp.json()["detail"]
+        finally:
+            _hard_cleanup(holder["id"])
+
+    def test_create_allowed_after_deactivate(self, client, admin_headers, make_api_key):
+        holder = make_api_key(
+            agent_id="holder-deact", business_scope="agent_provisioning"
+        )
+        new_id = None
+        try:
+            deact = client.post(
+                f"/api/v1/internal/api-keys/{holder['id']}/deactivate",
+                headers=admin_headers,
+            )
+            assert deact.status_code == 200, deact.text
+            resp = self._create_admin_key(client, admin_headers, agent_id="after-deact")
+            assert resp.status_code == 201, resp.text
+            new_id = resp.json()["id"]
+        finally:
+            _hard_cleanup(holder["id"])
+            if new_id is not None:
+                _hard_cleanup(new_id)
+
+    def test_create_allowed_after_delete(self, client, admin_headers, make_api_key):
+        holder = make_api_key(
+            agent_id="holder-del", business_scope="agent_provisioning"
+        )
+        new_id = None
+        try:
+            deleted = client.delete(
+                f"/api/v1/internal/api-keys/{holder['id']}", headers=admin_headers
+            )
+            assert deleted.status_code == 204, deleted.text
+            resp = self._create_admin_key(client, admin_headers, agent_id="after-del")
+            assert resp.status_code == 201, resp.text
+            new_id = resp.json()["id"]
+        finally:
+            _hard_cleanup(holder["id"])
+            if new_id is not None:
+                _hard_cleanup(new_id)
+
+    def test_expired_holder_does_not_block(self, client, admin_headers, make_api_key):
+        holder = make_api_key(
+            agent_id="holder-expired",
+            business_scope="agent_provisioning",
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        new_id = None
+        try:
+            resp = self._create_admin_key(
+                client, admin_headers, agent_id="after-expired"
+            )
+            assert resp.status_code == 201, resp.text
+            new_id = resp.json()["id"]
+        finally:
+            _hard_cleanup(holder["id"])
+            if new_id is not None:
+                _hard_cleanup(new_id)
+
+    def test_patch_rejected_when_would_create_second_holder(
+        self, client, admin_headers, make_api_key
+    ):
+        """PATCH 给存量 key 补授签发域造出第二张管理 Key → 409，且原 key 不变。"""
+        holder = make_api_key(
+            agent_id="holder-patch", business_scope="agent_provisioning"
+        )
+        other = make_api_key(agent_id="other-key", business_scope="inventory")
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{other['id']}",
+                headers=admin_headers,
+                json={"business_scope": "inventory,agent_provisioning"},
+            )
+            assert resp.status_code == 409, resp.text
+            assert "agent_provisioning" in resp.json()["detail"]
+            # 失败回滚：other 的 business_scope 未被改动
+            db = SessionLocal()
+            try:
+                row = db.get(AgentApiKey, other["id"])
+                assert row.business_scope == "inventory"
+            finally:
+                db.close()
+        finally:
+            _hard_cleanup(holder["id"])
+            _hard_cleanup(other["id"])
+
+    def test_patch_own_scope_is_noop_allowed(self, client, admin_headers, make_api_key):
+        """PATCH 现役管理 Key 自身保持签发域（exclude_id 排除自身）应放行。"""
+        holder = make_api_key(
+            agent_id="holder-self", business_scope="agent_provisioning"
+        )
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{holder['id']}",
+                headers=admin_headers,
+                json={"label": "管理 Key 改名"},
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["business_scope"] == "agent_provisioning"
+        finally:
+            _hard_cleanup(holder["id"])

@@ -33,6 +33,7 @@ from fastapi import (
     Response,
     status,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_request_operator
@@ -47,6 +48,28 @@ from app.schemas.agent_api_key import (
 )
 from app.services.agent import key_service
 from app.services.audit_log_service import append_operation_audit_log
+from app.models.agent_api_key import AgentApiKey
+
+#: 单例冲突提示（管理 Key 全局单例红线，BLF-847）。
+_SINGLETONE_CONFLICT_MSG = (
+    "管理 Key 全局单例：已存在一张有效的签发域(agent_provisioning)凭据；"
+    "请先停用/删除现役管理 Key 后再签发或补授签发域"
+)
+
+
+def _ensure_provisioning_singleton(
+    db: Session, *, business_scope: str, exclude_id: int | None = None
+) -> None:
+    """单例互斥护栏：结果 business_scope 含签发域且已存在另一张有效持有者 → 409。
+
+    卡死管理员 create / PATCH 两个写入口（自助路径已被红线 A 物理封死）。
+    并发兜底由迁移 260 的部分唯一索引承担（极端双发在 DB 层也不可能成立）。
+    """
+    if not key_service._business_scope_has_provisioning(business_scope):
+        return
+    if key_service.active_provisioning_key_exists(db, exclude_id=exclude_id):
+        raise HTTPException(status_code=409, detail=_SINGLETONE_CONFLICT_MSG)
+
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +94,25 @@ def create_api_key(
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ApiKeyCreateResponse:
-    record, plaintext = key_service.create_api_key(
-        db,
-        label=body.label,
-        created_by=operator or "admin",
-        scope=body.scope,
-        project_scope=body.project_scope,
-        business_scope=body.business_scope,
-        expires_at=body.expires_at,
-        agent_id=body.agent_id,
-        item_key=body.item_key,
-    )
+    # 红线 B（BLF-847）：管理 Key 全局单例。结果 scope 含签发域且已存在另一张
+    # 有效持有者 → 拒绝，杜绝第二张全能签发 key 同时存在。
+    _ensure_provisioning_singleton(db, business_scope=body.business_scope or "*")
+    try:
+        record, plaintext = key_service.create_api_key(
+            db,
+            label=body.label,
+            created_by=operator or "admin",
+            scope=body.scope,
+            project_scope=body.project_scope,
+            business_scope=body.business_scope,
+            expires_at=body.expires_at,
+            agent_id=body.agent_id,
+            item_key=body.item_key,
+        )
+    except IntegrityError:
+        # 并发兜底：迁移 260 部分唯一索引拦下的极端双发。
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_SINGLETONE_CONFLICT_MSG) from None
     append_operation_audit_log(
         db,
         action="api_key.create",
@@ -143,7 +174,20 @@ def update_api_key(
     PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope）。
     项目范围与业务域范围变更即刻生效——鉴权路径（``scope.py``）每请求实时读列，
     无需重建凭据。已删除 Key 不可编辑（404），与 deactivate / activate 一致。
+
+    红线 B（BLF-847）：防止给存量 key 补授签发域造出第二张管理 Key——先算
+    出「结果 business_scope」做单例互斥校验，再落库。
     """
+    record = db.get(AgentApiKey, key_id)
+    if record is None or record.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="API key not found")
+    # 结果 business_scope：传入则覆盖，否则保持原值；空串归一为 '*'（与 service 对齐）。
+    resulting_bs = (
+        body.business_scope
+        if body.business_scope is not None
+        else record.business_scope
+    ) or "*"
+    _ensure_provisioning_singleton(db, business_scope=resulting_bs, exclude_id=key_id)
     record = key_service.update_api_key(
         db,
         key_id,
@@ -162,7 +206,12 @@ def update_api_key(
         operator=operator or "admin",
         request=request,
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 并发兜底：迁移 260 部分唯一索引拦下的极端双发。
+        db.rollback()
+        raise HTTPException(status_code=409, detail=_SINGLETONE_CONFLICT_MSG) from None
     db.refresh(record)
     logger.info("API key updated id=%s", key_id)
     return ApiKeyItem.model_validate(record, from_attributes=True)
