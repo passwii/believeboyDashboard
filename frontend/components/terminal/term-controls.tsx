@@ -12,14 +12,14 @@ import { cn } from '@/lib/utils'
  */
 
 export const TERM_TRIGGER =
-  'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
-export const TERM_SELECT_ITEM = 'rounded-none text-xs focus:bg-term-hover focus:text-term-text'
+  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
+export const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
 export const TERM_INPUT =
-  'h-8 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
 export const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 export const TERM_SELECT_NATIVE =
-  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs leading-5 text-term-text shadow-none transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /** 终端语义色（涨跌/状态微语义，去彩色胶囊底）。 */
 export type TermTone = 'pos' | 'neg' | 'warn' | 'accent' | 'info' | 'muted'
@@ -51,7 +51,7 @@ export function TermPill({
       {...rest}
       title={title}
       className={cn(
-        'inline-flex items-center whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px]',
+        'inline-flex items-center whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
         TONE_TEXT[tone],
         className
       )}
@@ -66,7 +66,7 @@ export function TermPill({
  * 页面标题由 Top Header 面包屑承载（BLF-824 去重原则），不再渲染页内标题胶囊。
  */
 export function TermPageShell({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('flex min-w-0 flex-col gap-2', className)}>{children}</div>
+  return <div className={cn('flex min-w-0 flex-col gap-2 rounded-none', className)}>{children}</div>
 }
 
 /** 工具行：h-8 控件带，右对齐操作区；移动端允许换行。 */
@@ -80,7 +80,7 @@ export function TermToolbarRow({
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between', className)}>
+    <div className={cn('flex flex-wrap items-center justify-end gap-1.5 rounded-none max-md:justify-between', className)}>
       {left}
       {right}
     </div>
@@ -102,7 +102,7 @@ export function TermTabBar<T extends string>({
   return (
     <div
       role="tablist"
-      className={cn('flex h-9 shrink-0 items-center gap-1 border-b border-term-border px-0', className)}
+      className={cn('flex h-9 shrink-0 items-center gap-1 rounded-none border-b border-term-border px-0', className)}
     >
       {tabs.map((tab) => (
         <button
@@ -113,8 +113,8 @@ export function TermTabBar<T extends string>({
           role="tab"
           className={
             active === tab.key
-              ? 'h-7 rounded-none border border-term-border bg-term-raised px-2 font-mono text-xs font-semibold text-term-text'
-              : 'h-7 rounded-none border border-transparent px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
+              ? 'h-7 rounded-none border border-term-border bg-term-raised px-2 font-mono text-xs leading-5 font-semibold text-term-text shadow-none'
+              : 'h-7 rounded-none border border-transparent px-2 text-xs leading-5 text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:border-term-border'
           }
         >
           {tab.label}
@@ -137,7 +137,7 @@ export function TermKpiTile({
   loading?: boolean
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+    <div className="flex min-w-0 flex-col gap-0.5 rounded-none border border-term-border bg-term-panel px-2 py-1.5 shadow-none">
       <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
         {label}
       </span>

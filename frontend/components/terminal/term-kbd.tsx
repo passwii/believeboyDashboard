@@ -10,7 +10,7 @@ export function TermKbd({ className, children, ...props }: HTMLAttributes<HTMLEl
   return (
     <kbd
       className={cn(
-        'border border-term-border px-1 font-mono text-xs leading-4 text-term-faint',
+        'rounded-none border border-term-border bg-term-raised px-1 font-mono text-xs leading-4 text-term-faint',
         className
       )}
       {...props}

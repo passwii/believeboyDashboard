@@ -61,7 +61,7 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
     <aside
       style={{ width: TERMINAL_INSPECTOR_WIDTH }}
       data-testid="terminal-inspector"
-      className="hidden h-full shrink-0 flex-col border-l border-term-border bg-term-panel lg:flex"
+      className="hidden h-full shrink-0 flex-col rounded-none border-l border-term-border bg-term-panel shadow-none lg:flex"
     >
       <div
         className="flex shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1"
@@ -75,7 +75,7 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
           onClick={onClose}
           title="收起 (⌘B)"
           aria-label="收起 Inspector"
-          className="flex h-8 w-8 items-center justify-center text-term-faint transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-8 w-8 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>
@@ -121,7 +121,7 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
               <RouteLoadingLink
                 key={action.url}
                 href={action.url}
-                className="flex h-10 items-center bg-term-panel px-2 text-sm text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+                className="flex h-10 items-center rounded-none bg-term-panel px-2 text-sm leading-5 text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
               >
                 <span className="truncate">{action.title}</span>
               </RouteLoadingLink>

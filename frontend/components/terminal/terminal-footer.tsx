@@ -246,7 +246,7 @@ export function TerminalFooter() {
     <footer
       style={{ height: TERMINAL_FOOTER_HEIGHT }}
       data-testid="terminal-footer"
-      className="hidden shrink-0 items-stretch overflow-hidden border-t border-term-border bg-term-panel text-sm leading-none text-term-muted sm:flex"
+      className="hidden shrink-0 items-stretch overflow-hidden rounded-none border-t border-term-border bg-term-panel text-sm leading-none text-term-muted shadow-none sm:flex"
     >
       {/* 多频道滚动 Ticker */}
       <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
