@@ -17,9 +17,11 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_BUTTON } from '@/components/terminal/term-controls'
 import {
   Dialog,
   DialogContent,
@@ -451,25 +453,23 @@ export default function ProjectGoalsPage() {
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
   return (
-    <div className="space-y-5">
-      {/* ── 控制台 + 筛选合并卡（BLF-634：PILL 头 + 右侧刷新，筛选区下部；去冗余——删大标题/描述/上下文徽章） ── */}
-      <div className="dashboard-surface overflow-hidden">
-        {/* 头部行：PILL + 刷新按钮（与 PILL 等高 h-9） */}
-        <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div />
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none sm:w-auto dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+    <div className="flex min-w-0 flex-col gap-3">
+      <TermPanel
+        title="项目目标"
+        actions={
+          <button
+            type="button"
             onClick={() => void loadData(true)}
             disabled={loading || !selectedProjectId}
+            className={TERM_BUTTON}
           >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
             刷新
-          </Button>
-        </div>
-
-        {/* ── Filters（BLF-505：收口为 FilterToolbar 原语 §8.2，桌面横向 / 手机 2 列网格） ── */}
+          </button>
+        }
+        bodyClassName="p-2"
+      >
+        <p className="mb-2 font-mono text-[11px] text-term-muted">按项目 / 站点 / 年份查看销售目标完成度与进度表</p>
         <FilterToolbar>
           <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
             <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
@@ -510,23 +510,23 @@ export default function ProjectGoalsPage() {
             </SelectContent>
           </Select>
         </FilterToolbar>
-      </div>
+      </TermPanel>
 
       {!selectedProjectId ? (
-        <div className="dashboard-surface flex h-48 items-center justify-center text-muted-foreground">
+        <div className="flex h-48 items-center justify-center border border-dashed border-term-border bg-term-panel font-mono text-xs text-term-muted">
           请选择项目以查看目标数据
         </div>
       ) : loading && !progressData ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-4">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl sm:h-36" />
+              <Skeleton key={i} className="h-28 rounded-none sm:h-36" />
             ))}
           </div>
-          <Skeleton className="h-48 rounded-xl sm:h-64" />
+          <Skeleton className="h-48 rounded-none sm:h-64" />
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="flex flex-col gap-3">
           {/* ── 实时目标进度：三环指标 + 明细条 ────────────────────────── */}
           {currentMonthProgress && (
             <div className="space-y-3">
@@ -537,11 +537,8 @@ export default function ProjectGoalsPage() {
                 </h2>
               </div>
 
-              <div className="dashboard-surface relative overflow-hidden">
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                  <div className="absolute -right-10 -top-14 h-56 w-56 rounded-full bg-[radial-gradient(circle,hsl(var(--chart-1)/0.10),transparent_70%)] dark:bg-[radial-gradient(circle,hsl(var(--chart-1)/0.16),transparent_70%)]" />
-                </div>
-                <div className="relative space-y-5 px-4 py-5">
+              <TermPanel bodyClassName="p-4">
+                <div className="space-y-5">
                   <GoalProgressRings
                     items={[
                       {
@@ -603,12 +600,11 @@ export default function ProjectGoalsPage() {
                     ]}
                   />
 
-                  <div className="h-px bg-border/60" />
+                  <div className="h-px bg-term-border" />
 
-                  {/* 明细条：年度完成率 / 已达成 / 月度目标 / 日目标 */}
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
                         <TrendingUp className="h-3.5 w-3.5" />
                         年度完成率
                       </div>
@@ -637,8 +633,8 @@ export default function ProjectGoalsPage() {
                       )}
                     </div>
 
-                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
                         <DollarSign className="h-3.5 w-3.5" />
                         本月已达成
                       </div>
@@ -651,8 +647,8 @@ export default function ProjectGoalsPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
                         <Target className="h-3.5 w-3.5" />
                         月度目标
                       </div>
@@ -681,8 +677,8 @@ export default function ProjectGoalsPage() {
                       )}
                     </div>
 
-                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
                         <Calendar className="h-3.5 w-3.5" />
                         日目标
                       </div>
@@ -696,7 +692,7 @@ export default function ProjectGoalsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </TermPanel>
             </div>
           )}
 

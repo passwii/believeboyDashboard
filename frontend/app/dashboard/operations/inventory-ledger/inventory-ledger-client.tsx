@@ -18,7 +18,8 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { PageHeader } from '@/components/ui/page-header'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_BUTTON } from '@/components/terminal/term-controls'
 import {
   Select,
   SelectContent,
@@ -239,48 +240,46 @@ export default function InventoryLedgerPage() {
   ).length
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* 页面头部：标题 + 描述 + 操作区（§8.1 PageHeader 原语，对齐 site-navigation） */}
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <PageHeader
-          className="relative z-10"
-          title="库存分类账"
-          description="按月对账 Amazon Inventory Ledger：汇总水位 / 事件明细 / 上传批次，支持跨月连续性与双表一致性校验。"
-          actions={
-            <>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <div className="flex min-w-0 flex-col gap-3">
+      <TermPanel title="库存分类账" bodyClassName="p-3">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs leading-5 text-term-muted">
+            按月对账 Amazon Inventory Ledger：汇总水位 / 事件明细 / 上传批次，支持跨月连续性与双表一致性校验。
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg text-xs text-term-text md:w-[180px]">
+                <SelectValue placeholder="选择项目" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none border-term-border bg-term-panel">
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)} className="rounded-none text-xs">
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger className="w-full md:w-[140px]">
-                  <SelectValue placeholder="选择月份" />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg text-xs text-term-text md:w-[140px]">
+                <SelectValue placeholder="选择月份" />
+              </SelectTrigger>
+              <SelectContent className="rounded-none border-term-border bg-term-panel">
+                {months.map((m) => (
+                  <SelectItem key={m} value={m} className="rounded-none text-xs">
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Button variant="outline" size="icon" onClick={loadData} disabled={loading}>
-                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-              </Button>
-            </>
-          }
-        />
-      </section>
+            <button type="button" onClick={() => void loadData()} disabled={loading} className={TERM_BUTTON}>
+              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+              刷新
+            </button>
+          </div>
+        </div>
+      </TermPanel>
 
       {/* 全局维度筛选条（唯一筛选真相源）— §8.2 FilterToolbar，桌面横向 / 手机 2 列网格 */}
       <FilterToolbar

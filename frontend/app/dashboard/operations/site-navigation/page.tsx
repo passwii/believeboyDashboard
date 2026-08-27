@@ -1,13 +1,13 @@
 import { ArrowUpRight, Building2, Globe2, ShoppingBag, Tag } from 'lucide-react'
 
-import { PageHeader } from '@/components/ui/page-header'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermKpiTile } from '@/components/terminal/term-controls'
 
 type Platform = {
   name: string
   href: string
   region: string
   category: string
-  tone: string
   group: 'platform' | 'forum'
 }
 
@@ -17,7 +17,6 @@ const platforms: Platform[] = [
     href: 'https://www.amazon.com',
     region: 'Global',
     category: 'Marketplace',
-    tone: 'from-[#ff9900]/25 via-[#ffb84d]/10 to-transparent',
     group: 'platform',
   },
   {
@@ -25,7 +24,6 @@ const platforms: Platform[] = [
     href: 'https://www.walmart.com',
     region: 'United States',
     category: 'Marketplace',
-    tone: 'from-[#0071ce]/25 via-[#4aa2ef]/10 to-transparent',
     group: 'platform',
   },
   {
@@ -33,7 +31,6 @@ const platforms: Platform[] = [
     href: 'https://www.amz123.com',
     region: 'China',
     category: 'Media & Tools',
-    tone: 'from-[#22c55e]/20 via-[#86efac]/10 to-transparent',
     group: 'forum',
   },
   {
@@ -41,7 +38,6 @@ const platforms: Platform[] = [
     href: 'https://us.shein.com',
     region: 'Global',
     category: 'Fashion',
-    tone: 'from-[#111827]/25 via-[#6b7280]/10 to-transparent',
     group: 'platform',
   },
   {
@@ -49,7 +45,6 @@ const platforms: Platform[] = [
     href: 'https://www.temu.com',
     region: 'Global',
     category: 'Marketplace',
-    tone: 'from-[#f43f5e]/25 via-[#fb7185]/10 to-transparent',
     group: 'platform',
   },
   {
@@ -57,7 +52,6 @@ const platforms: Platform[] = [
     href: 'https://www.etsy.com',
     region: 'Global',
     category: 'Niche',
-    tone: 'from-[#f97316]/20 via-[#fdba74]/10 to-transparent',
     group: 'platform',
   },
   {
@@ -65,7 +59,6 @@ const platforms: Platform[] = [
     href: 'https://www.tiktok.com/shop',
     region: 'Global',
     category: 'Social Commerce',
-    tone: 'from-[#0f172a]/25 via-[#334155]/10 to-transparent',
     group: 'platform',
   },
 ]
@@ -85,44 +78,37 @@ type PlatformGridProps = {
 
 function PlatformGrid({ items }: PlatformGridProps) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
-      {items.map((platform, index) => (
+    <div className="grid grid-cols-2 gap-px bg-term-border p-px sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+      {items.map((platform) => (
         <a
           key={platform.name}
           href={platform.href}
           target="_blank"
           rel="noreferrer"
-          className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:hover:border-primary/30 dark:hover:shadow-primary/5"
-          style={{ animationDelay: `${index * 40}ms` }}
+          className="group flex h-full min-h-[132px] flex-col gap-2 border-0 bg-term-panel p-3 transition-colors hover:bg-term-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-border-strong"
         >
-          <div
-            className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${platform.tone}`}
-          />
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/20 blur-2xl dark:bg-white/5" />
-          <div className="relative z-10 flex h-full flex-col space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight">{platform.name}</h2>
-                <p className="mt-1 inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[11px] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                  <Building2 className="h-3 w-3" />
-                  {platform.region}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border/70 bg-background/75 p-2 text-muted-foreground transition-colors group-hover:text-primary dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                <ArrowUpRight className="h-4 w-4" />
-              </div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold text-term-text">{platform.name}</h3>
+              <p className="mt-1 inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[11px] leading-4 text-term-muted">
+                <Building2 className="h-3 w-3 shrink-0" />
+                {platform.region}
+              </p>
             </div>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-term-border bg-term-bg text-term-muted transition-colors group-hover:border-term-border-strong group-hover:text-term-text">
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </div>
 
-            <p className="min-h-12 flex-1 text-sm leading-6 text-muted-foreground">
+          <p className="flex-1 text-xs leading-5 text-term-muted">{platform.category}</p>
+
+          <div className="flex items-center justify-between border-t border-term-border pt-2">
+            <span className="border border-term-border bg-term-raised px-2 py-0.5 font-mono text-[11px] leading-4 text-term-muted">
               {platform.category}
-            </p>
-
-            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 dark:border-border/80">
-              <span className="inline-flex items-center rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                {platform.category}
-              </span>
-              <span className="text-xs font-medium text-primary/80">点击直达</span>
-            </div>
+            </span>
+            <span className="font-mono text-[11px] leading-4 text-term-faint group-hover:text-term-muted">
+              点击直达
+            </span>
           </div>
         </a>
       ))}
@@ -132,41 +118,39 @@ function PlatformGrid({ items }: PlatformGridProps) {
 
 export default function SiteNavigationPage() {
   return (
-    <div className="space-y-6 md:space-y-7">
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        {/* BLF-503 试点：页面头部统一走 PageHeader（pill 形态） */}
-        <PageHeader
-          className="relative z-10"
-          description="聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。"
-          actions={
-            <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">
-              {stats.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]"
-                >
-                  <item.icon className="mx-auto mb-1 h-4 w-4 text-primary/85" />
-                  <p className="text-base font-semibold leading-tight">{item.value}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          }
-        />
-      </section>
+    <div className="flex min-w-0 flex-col gap-3">
+      <TermPanel
+        title="站点导航"
+        bodyClassName="p-3"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-xs leading-5 text-term-muted">
+            聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。
+          </p>
+          <div className="grid w-full max-w-sm grid-cols-3 gap-2">
+            {stats.map((item) => (
+              <TermKpiTile key={item.label} label={item.label} value={item.value} />
+            ))}
+          </div>
+        </div>
+      </TermPanel>
 
-      <section className="space-y-3">
-        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
-          <h2 className="text-lg font-semibold tracking-tight md:text-xl">平台</h2>
-          <p className="text-xs text-muted-foreground md:text-sm">核心运营入口</p>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
+            平台 · 核心运营入口
+          </h2>
+          <span className="font-mono text-[11px] text-term-faint">{platformItems.length} 项</span>
         </div>
         <PlatformGrid items={platformItems} />
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
-          <h2 className="text-lg font-semibold tracking-tight md:text-xl">资讯论坛</h2>
-          <p className="text-xs text-muted-foreground md:text-sm">行业信息与工具导航</p>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
+            资讯论坛 · 行业信息与工具导航
+          </h2>
+          <span className="font-mono text-[11px] text-term-faint">{forumItems.length} 项</span>
         </div>
         <PlatformGrid items={forumItems} />
       </section>

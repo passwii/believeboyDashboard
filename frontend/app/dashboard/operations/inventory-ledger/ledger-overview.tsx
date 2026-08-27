@@ -18,20 +18,14 @@ import {
   YAxis,
 } from 'recharts'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermKpiTile } from '@/components/terminal/term-controls'
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { cn } from '@/lib/utils'
 
 import {
   computeKpis,
@@ -53,37 +47,11 @@ import {
 
 // ── KPI 卡 ────────────────────────────────────────────────────────────────────
 
-function KpiCard({
-  label,
-  value,
-  hint,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'default' | 'positive' | 'negative' | 'warning'
-}) {
-  return (
-    <Card className="dashboard-surface gap-2 py-4">
-      <CardHeader className="pb-0">
-        <CardDescription className="text-xs">{label}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div
-          className={cn(
-            'text-2xl font-semibold tabular-nums',
-            tone === 'positive' && 'text-[hsl(var(--data-positive))]',
-            tone === 'negative' && 'text-[hsl(var(--data-negative))]',
-            tone === 'warning' && 'text-[hsl(var(--data-warning))]',
-          )}
-        >
-          {value}
-        </div>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  )
+function toneForKpi(tone: string | undefined): 'pos' | 'neg' | 'warn' | 'info' | undefined {
+  if (tone === 'positive') return 'pos'
+  if (tone === 'negative') return 'neg'
+  if (tone === 'warning') return 'warn'
+  return undefined
 }
 
 // ── 事件类型配色 ──────────────────────────────────────────────────────────────
@@ -189,43 +157,30 @@ export function LedgerOverview({
         </div>
       )}
 
-      {/* KPI 卡 */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard
-          label="期末总库存"
-          value={hasData ? String(kpis.endingTotal) : '—'}
-          hint="筛选范围内期末水位合计"
-        />
-        <KpiCard
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <TermKpiTile label="期末总库存" value={hasData ? String(kpis.endingTotal) : '—'} />
+        <TermKpiTile
           label="环比变动"
           value={momChange === null ? '—' : momChange > 0 ? `+${momChange}` : String(momChange)}
-          tone={momChange === null ? 'default' : momChange > 0 ? 'positive' : momChange < 0 ? 'negative' : 'default'}
-          hint="较上月期末（SKU 筛选口径）"
+          tone={toneForKpi(momChange === null ? undefined : momChange > 0 ? 'positive' : momChange < 0 ? 'negative' : undefined)}
         />
-        <KpiCard
+        <TermKpiTile
           label="损坏占比"
           value={hasData ? `${kpis.damagedPct.toFixed(1)}%` : '—'}
-          tone={kpis.damagedPct > 5 ? 'warning' : 'default'}
-          hint={`非可售期末 ${kpis.damagedQty} 件`}
+          tone={toneForKpi(kpis.damagedPct > 5 ? 'warning' : undefined)}
         />
-        <KpiCard
+        <TermKpiTile
           label="事件净变动"
           value={hasData ? (kpis.netChange > 0 ? `+${kpis.netChange}` : String(kpis.netChange)) : '—'}
-          tone={kpis.netChange > 0 ? 'positive' : kpis.netChange < 0 ? 'negative' : 'default'}
-          hint={`${kpis.eventCount} 条事件`}
+          tone={toneForKpi(kpis.netChange > 0 ? 'positive' : kpis.netChange < 0 ? 'negative' : undefined)}
         />
       </div>
 
       {/* 图表区 */}
       <div className="grid gap-3 lg:grid-cols-2">
-        {/* 近 N 月趋势 */}
-        <Card className="dashboard-surface gap-2">
-          <CardHeader>
-            <CardTitle className="text-sm">近 {trendData.length} 月库存趋势</CardTitle>
-            <CardDescription>项目级期末库存与损坏率（不受维度筛选影响）</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {trendData.length === 0 ? (
+        <TermPanel title={`近 ${trendData.length} 月库存趋势`} bodyClassName="p-2">
+          <p className="mb-2 px-1 font-mono text-[11px] text-term-muted">项目级期末库存与损坏率（不受维度筛选影响）</p>
+          {trendData.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">暂无趋势数据</p>
             ) : (
               <ChartContainer className="h-52 w-full" config={trendChartConfig}>
@@ -253,17 +208,11 @@ export function LedgerOverview({
                 </LineChart>
               </ChartContainer>
             )}
-          </CardContent>
-        </Card>
+        </TermPanel>
 
-        {/* 事件构成 */}
-        <Card className="dashboard-surface gap-2">
-          <CardHeader>
-            <CardTitle className="text-sm">事件构成</CardTitle>
-            <CardDescription>筛选范围内各事件类型条数</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {eventGroups.length === 0 ? (
+        <TermPanel title="事件构成" bodyClassName="p-2">
+          <p className="mb-2 px-1 font-mono text-[11px] text-term-muted">筛选范围内各事件类型条数</p>
+          {eventGroups.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">暂无事件数据</p>
             ) : (
               <ChartContainer className="h-52 w-full" config={eventChartConfig}>
@@ -287,17 +236,11 @@ export function LedgerOverview({
                 </BarChart>
               </ChartContainer>
             )}
-          </CardContent>
-        </Card>
+        </TermPanel>
 
-        {/* Disposition 构成 */}
-        <Card className="dashboard-surface gap-2">
-          <CardHeader>
-            <CardTitle className="text-sm">期末 Disposition 构成</CardTitle>
-            <CardDescription>筛选范围内期末库存按状态拆分</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {dispositions.length === 0 ? (
+        <TermPanel title="期末 Disposition 构成" bodyClassName="p-3">
+          <p className="mb-2 font-mono text-[11px] text-term-muted">筛选范围内期末库存按状态拆分</p>
+          {dispositions.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">暂无水位数据</p>
             ) : (
               <HBarList
@@ -308,23 +251,16 @@ export function LedgerOverview({
                 }))}
               />
             )}
-          </CardContent>
-        </Card>
+        </TermPanel>
 
-        {/* Top 仓库 */}
-        <Card className="dashboard-surface gap-2">
-          <CardHeader>
-            <CardTitle className="text-sm">Top 仓库分布</CardTitle>
-            <CardDescription>筛选范围内期末库存最多的仓库</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {locations.length === 0 ? (
+        <TermPanel title="Top 仓库分布" bodyClassName="p-3">
+          <p className="mb-2 font-mono text-[11px] text-term-muted">筛选范围内期末库存最多的仓库</p>
+          {locations.length === 0 ? (
               <p className="py-8 text-center text-xs text-muted-foreground">暂无水位数据</p>
             ) : (
               <HBarList items={locations.map((l) => ({ label: l.location, value: l.qty }))} />
             )}
-          </CardContent>
-        </Card>
+        </TermPanel>
       </div>
     </div>
   )
