@@ -7,9 +7,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TERM_BUTTON, TermPill } from '@/components/terminal/term-controls'
 import {
   DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
@@ -178,52 +177,24 @@ export function AdAnalysisTopFilters() {
   }
 
   return (
-    <Card className="dashboard-surface overflow-hidden">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <p className="dashboard-kicker">筛选区</p>
-            </div>
-            <div>
-              <CardTitle className="text-xl">广告分析筛选区</CardTitle>
-              <CardDescription className="mt-1">
-                筛选条件固定放在顶部，先锁定项目和国家站点，再进入各分析页继续下钻。
-              </CardDescription>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              当前视图：{activeTabLabel}
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              项目：{selectedProjectName || '未选择'}
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              国家站点：{COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country}
-            </Badge>
-            <Badge variant="outline" className="border-border/70 bg-background/80 text-foreground">
-              日期范围：{dateFrom || '全部'} ~ {dateTo || '全部'}
-            </Badge>
-            {drillTokens.length > 0 ? (
-              <>
-                {drillTokens.map((item) => (
-                  <Badge key={item.key} variant="secondary" className="bg-primary/10 text-primary">
-                    {item.label}：{item.value}
-                  </Badge>
-                ))}
-                <Button variant="ghost" size="sm" onClick={clearDrillParams}>
-                  清空下钻
-                </Button>
-              </>
-            ) : null}
-          </div>
+    <TermPanel title="广告分析筛选区" bodyClassName="p-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-1 font-mono text-xs">
+          <TermPill tone="muted">当前视图：{activeTabLabel}</TermPill>
+          <TermPill tone="muted">项目：{selectedProjectName || '未选择'}</TermPill>
+          <TermPill tone="muted">国家站点：{COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country}</TermPill>
+          <TermPill tone="muted">日期范围：{dateFrom || '全部'} ~ {dateTo || '全部'}</TermPill>
+          {drillTokens.map((item) => (
+            <TermPill key={item.key} tone="accent">{item.label}：{item.value}</TermPill>
+          ))}
+          {drillTokens.length > 0 ? (
+            <button type="button" onClick={clearDrillParams} className={TERM_BUTTON}>清空下钻</button>
+          ) : null}
         </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3 pt-0">
+        <p className="font-mono text-xs leading-5 text-term-muted">筛选条件固定放在顶部，先锁定项目和国家站点，再进入各分析页继续下钻。</p>
+        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+          <Filter className="h-3.5 w-3.5" aria-hidden /> 筛选区
+        </div>
         {/* BLF-611：手机端筛选项 2 列网格（总则 1 / 规则 2），日期范围占满一行；md+ 行为不变 */}
         <div className="dashboard-toolbar grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
           <div className="space-y-2">
@@ -231,13 +202,13 @@ export function AdAnalysisTopFilters() {
               项目
             </div>
             {projectsLoading ? (
-              <Skeleton className="h-10 w-full rounded-lg" />
+              <Skeleton className="h-8 w-full rounded-none" />
             ) : (
               <Select
                 value={projectId}
                 onValueChange={(value) => updateSearchParam('projectId', value)}
               >
-                <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none">
                   <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -256,7 +227,7 @@ export function AdAnalysisTopFilters() {
               国家站点
             </div>
             <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
-              <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+              <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none">
                 <SelectValue placeholder="请选择国家站点" />
               </SelectTrigger>
               <SelectContent>
@@ -276,25 +247,23 @@ export function AdAnalysisTopFilters() {
             <DateRangePicker
               value={parseDateRangeInputValue(dateFrom, dateTo)}
               onChange={updateDateRange}
-              className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs shadow-none"
               timezone={COUNTRY_TIMEZONE_MAP[country]}
             />
           </div>
         </div>
 
         {projectsError ? (
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {projectsError}
-          </div>
+          <div className="rounded-none border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">{projectsError}</div>
         ) : null}
 
         {projectsLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="flex items-center gap-2 font-mono text-xs text-term-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
             正在准备项目筛选项...
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </TermPanel>
   )
 }

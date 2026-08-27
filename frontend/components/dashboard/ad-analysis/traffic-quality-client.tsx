@@ -8,9 +8,9 @@ import { AlertTriangle, ShieldAlert } from 'lucide-react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
@@ -119,8 +119,8 @@ export function AdAnalysisTrafficQualityClient() {
   if (loading) return <EmptyState rowHeight="lg" message="正在加载流量质量分析..." />
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-        {error}
+      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+        ERR · {error}
       </div>
     )
   }
@@ -130,47 +130,36 @@ export function AdAnalysisTrafficQualityClient() {
   const narrativeSections = data.narrative_sections ?? []
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-w-0 flex-col gap-3">
       <AdAnalysisContextBanner
         items={campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []}
       />
       {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         {data.summary_cards.map((card) => (
-          <Card key={card.label} className="min-w-0">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{card.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold sm:text-2xl">{card.value}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{card.helper || '-'}</p>
-            </CardContent>
-          </Card>
+          <TermKpiTile key={card.label} label={card.label} value={card.value} />
         ))}
       </div>
 
       <DeferredSection fallbackHeight="h-[280px]" data-testid="traffic-quality-deferred-narrative">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">流量质量层分析</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <TermPanel title="流量质量层分析" bodyClassName="p-2">
+          <div className="space-y-1">
           {narrativeSections.map((section) => (
             <div
               key={section.title}
-              className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-3 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
+              className="rounded-none border border-term-border bg-term-panel px-2 py-1.5"
             >
-              <p className="font-medium">{section.title}</p>
-              <p className="mt-1 text-sm leading-6 text-foreground/90">{section.summary}</p>
-              <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <p className="font-mono text-xs font-medium text-term-text">{section.title}</p>
+              <p className="mt-1 font-mono text-xs leading-5 text-term-muted">{section.summary}</p>
+              <div className="mt-1 space-y-0.5 font-mono text-xs text-term-faint">
                 {section.evidence.map((evidence) => (
                   <p key={evidence}>- {evidence}</p>
                 ))}
               </div>
               {section.action ? (
-                <p className="mt-2 text-sm leading-6 text-foreground/80">动作：{section.action}</p>
+                <p className="mt-1 font-mono text-xs leading-5 text-term-muted">动作：{section.action}</p>
               ) : null}
-              <div className="mt-3">
+              <div className="mt-2">
                 <AdAnalysisDrillLinks
                   links={[
                     {
@@ -191,19 +180,14 @@ export function AdAnalysisTrafficQualityClient() {
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
       </DeferredSection>
 
       <DeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
+      <TermPanel title="活动层分析" bodyClassName="p-0">
+        <div className="flex items-center gap-1.5 px-2 py-1.5">
             <ShieldAlert className="h-4 w-4 text-primary" />
-            <CardTitle className="text-lg">无效流量排查</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
           {/* 桌面端：完整表格 */}
           <div className="hidden lg:block">
             <Table>
@@ -224,15 +208,15 @@ export function AdAnalysisTrafficQualityClient() {
                   <TableRow key={item.campaign_name}>
                     <TableCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-medium">{item.campaign_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.status}</p>
+                        <p className="font-mono text-xs font-medium text-term-text">{item.campaign_name}</p>
+                        <p className="font-mono text-xs text-term-muted">{item.status}</p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={riskVariant(item.risk_level)}>
+                      <TermPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}>
                         <AlertTriangle className="mr-1 h-3.5 w-3.5" />
                         {item.risk_level}
-                      </Badge>
+                      </TermPill>
                     </TableCell>
                     <TableCell>
                       {item.total_impressions} / {item.invalid_impressions}
@@ -292,44 +276,43 @@ export function AdAnalysisTrafficQualityClient() {
           {/* 手机端：卡片列表 */}
           <div className="lg:hidden space-y-3">
             {data.items.map((item) => (
-              <div key={item.campaign_name} className="dashboard-surface p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+              <div key={item.campaign_name} className="rounded-none border border-term-border bg-term-panel p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{item.campaign_name}</p>
-                    <p className="text-xs text-muted-foreground">{item.status}</p>
+                    <p className="font-mono text-xs text-term-muted">{item.status}</p>
                   </div>
-                  <Badge variant={riskVariant(item.risk_level)} className="shrink-0">
-                    <AlertTriangle className="mr-1 h-3 w-3" />
+                  <TermPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}><AlertTriangle className="mr-1 h-3 w-3" />
                     {item.risk_level}
-                  </Badge>
+                  </TermPill>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className="text-xs text-muted-foreground">总曝光</span>
-                    <div className="font-medium">{item.total_impressions.toLocaleString()}</div>
+                    <span className="font-mono text-xs text-term-muted">总曝光</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.total_impressions.toLocaleString()}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">无效曝光率</span>
+                    <span className="font-mono text-xs text-term-muted">无效曝光率</span>
                     <div
                       className={cn(
                         'font-medium',
-                        item.invalid_impression_rate > 0.1 ? 'text-red-500' : ''
+                        item.invalid_impression_rate > 0.1 ? 'text-term-neg' : ''
                       )}
                     >
                       {(item.invalid_impression_rate * 100).toFixed(2)}%
                     </div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">总点击</span>
-                    <div className="font-medium">{item.total_clicks.toLocaleString()}</div>
+                    <span className="font-mono text-xs text-term-muted">总点击</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.total_clicks.toLocaleString()}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">无效点击率</span>
+                    <span className="font-mono text-xs text-term-muted">无效点击率</span>
                     <div
                       className={cn(
                         'font-medium',
-                        item.invalid_click_rate > 0.1 ? 'text-red-500' : ''
+                        item.invalid_click_rate > 0.1 ? 'text-term-neg' : ''
                       )}
                     >
                       {(item.invalid_click_rate * 100).toFixed(2)}%
@@ -340,19 +323,19 @@ export function AdAnalysisTrafficQualityClient() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <div>
                     <span className="text-muted-foreground">无效曝光</span>
-                    <div className="font-medium">{item.invalid_impressions.toLocaleString()}</div>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.invalid_impressions.toLocaleString()}</div>
                   </div>
                   <div>
                     <span className="text-muted-foreground">无效点击</span>
-                    <div className="font-medium">{item.invalid_clicks.toLocaleString()}</div>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.invalid_clicks.toLocaleString()}</div>
                   </div>
                 </div>
 
-                <div className="text-xs text-muted-foreground border-t border-border/70 pt-2">
+                <div className="text-xs text-muted-foreground border-t border-term-border pt-2">
                   下一步: {item.next_step}
                 </div>
 
-                <div className="flex gap-2 pt-2 border-t border-border/70">
+                <div className="flex gap-2 pt-2 border-t border-term-border">
                   <Button
                     variant="outline"
                     size="sm"
@@ -387,8 +370,8 @@ export function AdAnalysisTrafficQualityClient() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
       </DeferredSection>
     </div>
   )

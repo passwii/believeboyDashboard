@@ -1,8 +1,8 @@
 import { ArrowRight, Database, GitBranch, Target, TrendingUp } from 'lucide-react'
 
 import type { AdAnalysisTabConfig } from '@/components/dashboard/ad-analysis/config'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill } from '@/components/terminal/term-controls'
 
 type Props = {
   tab: AdAnalysisTabConfig
@@ -10,11 +10,11 @@ type Props = {
 
 function SimpleList({ items }: { items: string[] }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {items.map((item) => (
         <div
           key={item}
-          className="rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/80"
+          className="rounded-none border border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs leading-5 text-term-muted"
         >
           {item}
         </div>
@@ -25,95 +25,61 @@ function SimpleList({ items }: { items: string[] }) {
 
 export function AdAnalysisPageShell({ tab }: Props) {
   return (
-    <div className="space-y-5">
-      <Card className="dashboard-surface overflow-hidden">
-        <CardHeader className="relative overflow-hidden pb-5">
-          <div className="absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.14),transparent_72%)] dark:bg-[radial-gradient(circle_at_center,hsl(var(--primary)/0.18),transparent_72%)]" />
-          <div className="relative space-y-4">
-            <div className="space-y-2">
-              <p className="dashboard-kicker">分析控制台</p>
-              <div>
-                <CardTitle className="text-2xl md:text-[2.2rem]">{tab.label}分析</CardTitle>
-                <CardDescription className="mt-2 max-w-3xl text-sm leading-7">
-                  {tab.summary}
-                </CardDescription>
-              </div>
-            </div>
-
-            <Badge
-              variant="outline"
-              className="w-fit border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
-            >
-              广告分析 · {tab.label}
-            </Badge>
-
-            <div className="dashboard-toolbar flex flex-wrap gap-2">
-              {tab.keyMetrics.map((metric) => (
-                <Badge key={metric} variant="secondary">
-                  {metric}
-                </Badge>
-              ))}
-            </div>
+    <div className="flex flex-col gap-3">
+      <TermPanel title={`${tab.label}分析`} bodyClassName="p-3">
+        <div className="flex flex-col gap-2">
+          <p className="font-mono text-xs leading-5 text-term-muted">{tab.summary}</p>
+          <div className="flex flex-wrap gap-1">
+            <TermPill tone="info">广告分析 · {tab.label}</TermPill>
+            {tab.keyMetrics.map((metric) => (
+              <TermPill key={metric} tone="muted">{metric}</TermPill>
+            ))}
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+      </TermPanel>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card className="hover-lift">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
-              <CardTitle className="text-lg">核心分析目标</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <SimpleList items={tab.goals} />
-          </CardContent>
-        </Card>
+      <div className="grid gap-2 xl:grid-cols-2">
+        <TermPanel title="核心分析目标" bodyClassName="p-2">
+          <div className="flex items-center gap-1.5 pb-2 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+            <Target className="h-3.5 w-3.5" aria-hidden />
+            目标
+          </div>
+          <SimpleList items={tab.goals} />
+        </TermPanel>
 
-        <Card className="hover-lift">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-secondary" />
-              <CardTitle className="text-lg">建议关联原始报表</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <SimpleList items={tab.sourceReports} />
-          </CardContent>
-        </Card>
+        <TermPanel title="建议关联原始报表" bodyClassName="p-2">
+          <div className="flex items-center gap-1.5 pb-2 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+            <Database className="h-3.5 w-3.5" aria-hidden />
+            原始报表
+          </div>
+          <SimpleList items={tab.sourceReports} />
+        </TermPanel>
 
-        <Card className="hover-lift">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <GitBranch className="h-4 w-4 text-primary" />
-              <CardTitle className="text-lg">建议 Drill 路径</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <TermPanel title="建议 Drill 路径" bodyClassName="p-2">
+          <div className="flex items-center gap-1.5 pb-2 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+            <GitBranch className="h-3.5 w-3.5" aria-hidden />
+            路径
+          </div>
+          <div className="space-y-1">
             {tab.drillPath.map((path) => (
               <div
                 key={path}
-                className="flex items-center justify-between rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-3 text-sm dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
+                className="flex items-center justify-between rounded-none border border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs text-term-muted"
               >
                 <span>{path}</span>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <ArrowRight className="h-3.5 w-3.5 text-term-faint" />
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </TermPanel>
 
-        <Card className="hover-lift">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-secondary" />
-              <CardTitle className="text-lg">建议调控规则</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <SimpleList items={tab.adjustmentRules} />
-          </CardContent>
-        </Card>
+        <TermPanel title="建议调控规则" bodyClassName="p-2">
+          <div className="flex items-center gap-1.5 pb-2 font-mono text-[11px] uppercase tracking-wider text-term-faint">
+            <TrendingUp className="h-3.5 w-3.5" aria-hidden />
+            规则
+          </div>
+          <SimpleList items={tab.adjustmentRules} />
+        </TermPanel>
       </div>
     </div>
   )

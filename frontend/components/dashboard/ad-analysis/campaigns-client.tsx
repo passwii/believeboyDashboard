@@ -8,9 +8,9 @@ import { Activity, Layers3 } from 'lucide-react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import {
@@ -128,8 +128,8 @@ export function AdAnalysisCampaignsClient() {
   if (loading) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-        {error}
+      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+        ERR · {error}
       </div>
     )
   }
@@ -149,7 +149,7 @@ export function AdAnalysisCampaignsClient() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-w-0 flex-col gap-3">
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
@@ -159,42 +159,31 @@ export function AdAnalysisCampaignsClient() {
         ]}
       />
       {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         {data.summary_cards.map((card) => (
-          <Card key={card.label} className="min-w-0">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{card.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-semibold sm:text-2xl">{card.value}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{card.helper || '-'}</p>
-            </CardContent>
-          </Card>
+          <TermKpiTile key={card.label} label={card.label} value={card.value} />
         ))}
       </div>
 
       <DeferredSection fallbackHeight="h-[280px]" data-testid="campaigns-deferred-narrative">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">活动层分析</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <TermPanel title="活动层分析" bodyClassName="p-2">
+          <div className="space-y-1">
           {narrativeSections.map((section) => (
             <div
               key={section.title}
-              className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-3 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
+              className="rounded-none border border-term-border bg-term-panel px-2 py-1.5"
             >
-              <p className="font-medium">{section.title}</p>
-              <p className="mt-1 text-sm leading-6 text-foreground/90">{section.summary}</p>
-              <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <p className="font-mono text-xs font-medium text-term-text">{section.title}</p>
+              <p className="mt-1 font-mono text-xs leading-5 text-term-muted">{section.summary}</p>
+              <div className="mt-1 space-y-0.5 font-mono text-xs text-term-faint">
                 {section.evidence.map((evidence) => (
                   <p key={evidence}>- {evidence}</p>
                 ))}
               </div>
               {section.action ? (
-                <p className="mt-2 text-sm leading-6 text-foreground/80">动作：{section.action}</p>
+                <p className="mt-1 font-mono text-xs leading-5 text-term-muted">动作：{section.action}</p>
               ) : null}
-              <div className="mt-3">
+              <div className="mt-2">
                 <AdAnalysisDrillLinks
                   links={[
                     {
@@ -220,19 +209,12 @@ export function AdAnalysisCampaignsClient() {
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
       </DeferredSection>
 
       <DeferredSection fallbackHeight="h-[420px]" data-testid="campaigns-deferred-table">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Layers3 className="h-4 w-4 text-primary" />
-            <CardTitle className="text-lg">活动分级</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+      <TermPanel title="活动分级" bodyClassName="p-0">
           {/* 桌面端：完整表格 */}
           <div className="hidden lg:block">
             <Table>
@@ -255,21 +237,19 @@ export function AdAnalysisCampaignsClient() {
                   <TableRow key={item.campaign_name}>
                     <TableCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-medium">{item.campaign_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-mono text-xs font-medium text-term-text">{item.campaign_name}</p>
+                        <p className="font-mono text-xs text-term-muted">
                           {item.status} / {item.bidding_strategy}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-mono text-xs text-term-muted">
                           CTR {(item.ctr * 100).toFixed(2)}% / 预算在线{' '}
                           {(item.budget_utilization_rate * 100).toFixed(2)}%
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
-                        <Activity className="mr-1 h-3.5 w-3.5" />
-                        {item.grade}
-                      </Badge>
+                      <TermPill tone="muted">{item.grade}
+                      </TermPill>
                     </TableCell>
                     <TableCell>{item.targeting_type}</TableCell>
                     <TableCell>${item.spend.toFixed(2)}</TableCell>
@@ -277,7 +257,7 @@ export function AdAnalysisCampaignsClient() {
                     <TableCell className="align-top">
                       <div className="space-y-1 text-sm">
                         <p>${item.budget_gap.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-mono text-xs text-term-muted">
                           错失销售 ${item.missed_sales_max.toFixed(2)}
                         </p>
                       </div>
@@ -285,14 +265,14 @@ export function AdAnalysisCampaignsClient() {
                     <TableCell className="align-top">
                       <div className="space-y-1 text-sm">
                         <p>${item.cross_sell_sales_7d.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="font-mono text-xs text-term-muted">
                           {item.cross_sell_orders_7d} 单
                         </p>
-                        <Badge variant="outline">{item.cross_sell_action}</Badge>
+                        <TermPill tone="muted">{item.cross_sell_action}</TermPill>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{item.next_action}</Badge>
+                      <TermPill tone="muted">{item.next_action}</TermPill>
                     </TableCell>
                     <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
                     <TableCell className="align-top">
@@ -358,57 +338,54 @@ export function AdAnalysisCampaignsClient() {
           {/* 手机端：卡片列表 */}
           <div className="lg:hidden space-y-3">
             {filteredItems.map((item) => (
-              <div key={item.campaign_name} className="dashboard-surface p-4 space-y-3">
+              <div key={item.campaign_name} className="rounded-none border border-term-border bg-term-panel p-3 space-y-2">
                 {/* 头部：活动名 + Grade */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{item.campaign_name}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-mono text-xs text-term-muted">
                       {item.status} / {item.bidding_strategy}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-mono text-xs text-term-muted">
                       CTR {(item.ctr * 100).toFixed(2)}% / 预算在线{' '}
                       {(item.budget_utilization_rate * 100).toFixed(2)}%
                     </p>
                   </div>
-                  <Badge variant="secondary" className="shrink-0">
-                    <Activity className="mr-1 h-3 w-3" />
-                    {item.grade}
-                  </Badge>
+                  <TermPill tone="muted">{item.grade}</TermPill>
                 </div>
 
                 {/* 核心数据 2x3 网格 */}
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className="text-xs text-muted-foreground">Spend</span>
-                    <div className="font-medium">${item.spend.toFixed(2)}</div>
+                    <span className="font-mono text-xs text-term-muted">Spend</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.spend.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">Sales</span>
-                    <div className="font-medium">${item.sales_7d.toFixed(2)}</div>
+                    <span className="font-mono text-xs text-term-muted">Sales</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.sales_7d.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">ACOS</span>
+                    <span className="font-mono text-xs text-term-muted">ACOS</span>
                     <div
                       className={cn(
                         'font-medium',
-                        item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500'
+                        item.acos > 0.3 ? 'text-term-neg' : 'text-term-pos'
                       )}
                     >
                       {(item.acos * 100).toFixed(2)}%
                     </div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">类型</span>
+                    <span className="font-mono text-xs text-term-muted">类型</span>
                     <div className="text-xs">{item.targeting_type}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">预算缺口</span>
+                    <span className="font-mono text-xs text-term-muted">预算缺口</span>
                     <div className="font-medium text-amber-600">${item.budget_gap.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">关联销售</span>
-                    <div className="font-medium">${item.cross_sell_sales_7d.toFixed(2)}</div>
+                    <span className="font-mono text-xs text-term-muted">关联销售</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.cross_sell_sales_7d.toFixed(2)}</div>
                   </div>
                 </div>
 
@@ -420,13 +397,9 @@ export function AdAnalysisCampaignsClient() {
                 )}
 
                 {/* 操作按钮 */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-border/70">
-                  <Badge variant="outline" className="text-xs">
-                    {item.next_action}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {item.cross_sell_action}
-                  </Badge>
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-term-border">
+                  <TermPill tone="muted">{item.next_action}</TermPill>
+                  <TermPill tone="muted">{item.cross_sell_action}</TermPill>
                 </div>
 
                 {/* 下钻链接 */}
@@ -480,8 +453,7 @@ export function AdAnalysisCampaignsClient() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </TermPanel>
       </DeferredSection>
     </div>
   )

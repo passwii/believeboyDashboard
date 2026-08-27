@@ -6,8 +6,8 @@ import { useSession } from 'next-auth/react'
 import { Boxes, ShoppingBasket } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
@@ -94,8 +94,8 @@ export function AdAnalysisPurchasedProductsClient() {
   if (loading) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-        {error}
+      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+        ERR · {error}
       </div>
     )
   }
@@ -117,7 +117,7 @@ export function AdAnalysisPurchasedProductsClient() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-w-0 flex-col gap-3">
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
@@ -126,14 +126,9 @@ export function AdAnalysisPurchasedProductsClient() {
         ]}
       />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
+      <TermPanel title="活动层分析" bodyClassName="p-0">
+        <div className="flex items-center gap-1.5 px-2 py-1.5">
             <ShoppingBasket className="h-4 w-4 text-primary" />
-            <CardTitle className="text-lg">广告带动的关联购买</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
           {/* 桌面端：完整表格 */}
           <div className="hidden lg:block">
             <Table>
@@ -151,12 +146,11 @@ export function AdAnalysisPurchasedProductsClient() {
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={`${item.purchased_asin}-${item.ad_sku}`}>
-                    <TableCell className="font-medium">{item.purchased_asin}</TableCell>
+                    <TableCell className="font-mono text-xs font-medium text-term-text">{item.purchased_asin}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
-                        <Boxes className="mr-1 h-3.5 w-3.5" />
+                      <TermPill tone="muted"><Boxes className="mr-1 h-3.5 w-3.5" />
                         {item.action}
-                      </Badge>
+                      </TermPill>
                     </TableCell>
                     <TableCell>{item.ad_sku}</TableCell>
                     <TableCell>{item.campaign_count}</TableCell>
@@ -174,42 +168,42 @@ export function AdAnalysisPurchasedProductsClient() {
             {filteredItems.map((item) => (
               <div
                 key={`${item.purchased_asin}-${item.ad_sku}`}
-                className="dashboard-surface p-4 space-y-3"
+                className="rounded-none border border-term-border bg-term-panel p-3 space-y-2"
               >
-                <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">ASIN: {item.purchased_asin}</p>
-                    <p className="text-xs text-muted-foreground">广告 SKU: {item.ad_sku}</p>
+                    <p className="font-mono text-xs text-term-muted">广告 SKU: {item.ad_sku}</p>
                   </div>
-                  <Badge variant="secondary" className="shrink-0">
+                  <TermPill tone="info" className="shrink-0">
                     <Boxes className="mr-1 h-3 w-3" />
                     {item.action}
-                  </Badge>
+                  </TermPill>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className="text-xs text-muted-foreground">活动数</span>
-                    <div className="font-medium">{item.campaign_count}</div>
+                    <span className="font-mono text-xs text-term-muted">活动数</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.campaign_count}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">Units</span>
-                    <div className="font-medium">{item.other_sku_units_7d}</div>
+                    <span className="font-mono text-xs text-term-muted">Units</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.other_sku_units_7d}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">Orders</span>
-                    <div className="font-medium">{item.other_sku_orders_7d}</div>
+                    <span className="font-mono text-xs text-term-muted">Orders</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.other_sku_orders_7d}</div>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground">Sales</span>
-                    <div className="font-medium">${item.other_sku_sales_7d.toFixed(2)}</div>
+                    <span className="font-mono text-xs text-term-muted">Sales</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.other_sku_sales_7d.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TermPanel>
     </div>
   )
 }

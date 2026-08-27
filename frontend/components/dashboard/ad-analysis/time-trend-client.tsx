@@ -6,7 +6,8 @@ import { useSession } from 'next-auth/react'
 import { LineChart, TimerReset } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TermPanel } from '@/components/terminal/term-panel'
+import { TermKpiTile } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
@@ -95,8 +96,8 @@ export function AdAnalysisTimeTrendClient() {
   if (loading) return <EmptyState rowHeight="lg" message="正在加载趋势分析..." />
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-        {error}
+      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+        ERR · {error}
       </div>
     )
   }
@@ -107,16 +108,13 @@ export function AdAnalysisTimeTrendClient() {
   const comparison = data.comparison
 
   return (
-    <div className="space-y-5">
+    <div className="flex min-w-0 flex-col gap-3">
       <AdAnalysisContextBanner
         items={focusDate ? [{ label: '当前聚焦日期', value: focusDate }] : []}
       />
       {comparison ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">周期对比</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <TermPanel title="周期对比" bodyClassName="p-2">
+          <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
               当前周期 {comparison.current_start} ~ {comparison.current_end} 对比上一周期{' '}
               {comparison.previous_start} ~ {comparison.previous_end}
@@ -126,24 +124,24 @@ export function AdAnalysisTimeTrendClient() {
             ) : null}
             {/* BLF-611：手机端对比指标一行两个（总则 1），第三项占满一行；sm+ 三列不变 */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
-                <p className="text-muted-foreground">花费变化</p>
+              <div className="rounded-none border border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
+                <p className="text-term-muted">花费变化</p>
                 <p className="mt-1 font-medium">
                   {comparison.spend_change_ratio != null
                     ? `${(comparison.spend_change_ratio * 100).toFixed(2)}%`
                     : '-'}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
-                <p className="text-muted-foreground">点击变化</p>
+              <div className="rounded-none border border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
+                <p className="text-term-muted">点击变化</p>
                 <p className="mt-1 font-medium">
                   {comparison.clicks_change_ratio != null
                     ? `${(comparison.clicks_change_ratio * 100).toFixed(2)}%`
                     : '-'}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm last:col-span-2 sm:last:col-span-1">
-                <p className="text-muted-foreground">CPC 变化</p>
+              <div className="rounded-lg border border-term-border px-3 py-3 text-sm last:col-span-2 sm:last:col-span-1">
+                <p className="text-term-muted">CPC 变化</p>
                 <p className="mt-1 font-medium">
                   {comparison.cpc_change_ratio != null
                     ? `${(comparison.cpc_change_ratio * 100).toFixed(2)}%`
@@ -151,42 +149,18 @@ export function AdAnalysisTimeTrendClient() {
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </TermPanel>
       ) : null}
       {/* BLF-611：手机端 KPI 一行两个，第三项占满；sm+ 三列不变；数字降级防挤压 */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <Card className="min-w-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">累计花费</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xl font-semibold sm:text-2xl">
-            ${latest.running_spend.toFixed(2)}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">最新单日点击</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xl font-semibold sm:text-2xl">{latest.clicks}</CardContent>
-        </Card>
-        <Card className="min-w-0 last:col-span-2 sm:last:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">最新单日 CPC</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xl font-semibold sm:text-2xl">${latest.cpc.toFixed(2)}</CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <TermKpiTile label="累计花费" value={`$${latest.running_spend.toFixed(2)}`} />
+        <TermKpiTile label="最新单日点击" value={String(latest.clicks)} />
+        <TermKpiTile label="最新单日 CPC" value={`$${latest.cpc.toFixed(2)}`} />
       </div>
 
       <DeferredSection fallbackHeight="h-[420px]" data-testid="time-trend-deferred-table">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <LineChart className="h-4 w-4 text-primary" />
-            <CardTitle className="text-lg">按日趋势</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+      <TermPanel title="按日趋势" bodyClassName="p-0">
           {/* 桌面端：完整表格 */}
           <div className="hidden lg:block">
             <Table>
@@ -203,9 +177,9 @@ export function AdAnalysisTimeTrendClient() {
                 {data.summary.map((item) => (
                   <TableRow
                     key={item.report_date}
-                    className={focusDate === item.report_date ? 'bg-muted/40' : undefined}
+                    className={focusDate === item.report_date ? 'bg-term-raised' : undefined}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className="font-mono text-xs font-medium text-term-text">
                       <div className="flex items-center gap-2">
                         <TimerReset className="h-3.5 w-3.5 text-muted-foreground" />
                         {item.report_date}
@@ -227,7 +201,7 @@ export function AdAnalysisTimeTrendClient() {
               <div
                 key={item.report_date}
                 className={cn(
-                  'dashboard-surface p-3',
+                  'rounded-none border border-term-border bg-term-panel p-2',
                   focusDate === item.report_date ? 'border-primary/50 bg-primary/5' : ''
                 )}
               >
@@ -243,27 +217,26 @@ export function AdAnalysisTimeTrendClient() {
                 {/* BLF-611：<640px 时 4 列改 2×2，避免金额被压缩折行 */}
                 <div className="grid grid-cols-2 gap-2 mt-2 text-xs sm:grid-cols-4">
                   <div>
-                    <span className="text-muted-foreground">Clicks</span>
-                    <div className="font-medium">{item.clicks}</div>
+                    <span className="text-term-muted">Clicks</span>
+                    <div className="font-mono text-xs font-medium text-term-text">{item.clicks}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Spend</span>
-                    <div className="font-medium">${item.spend.toFixed(2)}</div>
+                    <span className="text-term-muted">Spend</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.spend.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">CPC</span>
-                    <div className="font-medium">${item.cpc.toFixed(2)}</div>
+                    <span className="text-term-muted">CPC</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.cpc.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Running</span>
-                    <div className="font-medium">${item.running_spend.toFixed(2)}</div>
+                    <span className="text-term-muted">Running</span>
+                    <div className="font-mono text-xs font-medium text-term-text">${item.running_spend.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+      </TermPanel>
       </DeferredSection>
     </div>
   )
