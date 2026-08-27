@@ -35,15 +35,6 @@ export const TERM_SELECT_CONTENT =
   'rounded-none border border-term-border bg-term-panel text-term-text shadow-lg'
 const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
 
-/** 头部四件套外层标签：11px mono 大写，与 TermGridHeader 同规格 */
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="hidden shrink-0 font-mono text-xs uppercase tracking-wider text-term-faint lg:inline">
-      {children}
-    </span>
-  )
-}
-
 // ======================== ProjectSelect ========================
 
 type ManagedProjectOption = { id: number; name: string }
@@ -91,9 +82,7 @@ export function HeaderProjectSelect({
   }, [session, status])
 
   return (
-    <label className="flex items-center gap-1.5">
-      <FieldLabel>项目</FieldLabel>
-      <Select value={value} onValueChange={onChange} disabled={loading}>
+    <Select value={value} onValueChange={onChange} disabled={loading}>
         <SelectTrigger
           className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}
           title="全局项目筛选"
@@ -111,7 +100,6 @@ export function HeaderProjectSelect({
           ))}
         </SelectContent>
       </Select>
-    </label>
   )
 }
 
@@ -137,14 +125,12 @@ export function HeaderCountrySelect({
   )
 
   return (
-    <label className="flex items-center gap-1.5">
-      <FieldLabel>站点</FieldLabel>
-      <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange}>
         <SelectTrigger
           className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}
           title="全局站点筛选"
         >
-          <SelectValue />
+          <SelectValue placeholder="选择站点" />
         </SelectTrigger>
         <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
           {options.map((opt) => (
@@ -154,7 +140,6 @@ export function HeaderCountrySelect({
           ))}
         </SelectContent>
       </Select>
-    </label>
   )
 }
 
@@ -179,17 +164,15 @@ export function HeaderDateRangePicker({
   const range = parseDateRangeInputValue(dateFrom, dateTo)
 
   return (
-    <label className="flex items-center gap-1.5">
-      <FieldLabel>日期</FieldLabel>
-      <DateRangePicker
+    <DateRangePicker
         value={range}
         timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
         onChange={(next?: DateRange) => {
           onChange(formatDateInputValue(next?.from), formatDateInputValue(next?.to))
         }}
+        placeholder="选择日期范围"
         className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
       />
-    </label>
   )
 }
 

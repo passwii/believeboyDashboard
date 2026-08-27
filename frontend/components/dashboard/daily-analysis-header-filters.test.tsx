@@ -49,16 +49,10 @@ function SkuFieldHarness(props: Partial<ComponentProps<typeof SkuSearchField>> =
 }
 
 describe('SkuSearchField（BLF-832 follow-up 终端规格化）', () => {
-  it('trigger 使用头部标准控件规格（h-9 零圆角 term-bg mono）并带 SKU mono 标签', () => {
-    const { container } = render(<SkuFieldHarness />)
-    const label = container.querySelector('label')
-    expect(label).not.toBeNull()
-
-    // mono 大写小标签与全局四件套 FieldLabel 同规格
-    const labelText = label!.querySelector('span')
-    expect(labelText?.className).toContain('font-mono')
-    expect(labelText?.className).toContain('tracking-wider')
-    expect(labelText?.textContent).toBe('SKU')
+  it('trigger 使用头部标准控件规格（h-9 零圆角 term-bg mono）且无前置标签', () => {
+    render(<SkuFieldHarness />)
+    // BLF-876：已移除 FieldLabel 前置标签，控件靠 placeholder/文案自解释
+    expect(document.querySelector('label')).toBeNull()
 
     const trigger = screen.getByRole('button')
     for (const cls of ['h-9', 'rounded-none', 'border-term-border', 'bg-term-bg', 'font-mono']) {
@@ -91,6 +85,14 @@ describe('SkuSearchField（BLF-832 follow-up 终端规格化）', () => {
     expect(screen.queryByPlaceholderText('搜索 SKU')).toBeNull()
     // 视觉降级类保留
     expect(trigger.className).toContain('opacity-50')
+  })
+
+  it('弹层为终端样式（零圆角、term 边框/面色，item 终端 hover）', async () => {
+    const user = userEvent.setup()
+    render(<SkuFieldHarness value="" options={SKU_OPTIONS} loading={false} onChange={() => {}} />)
+    await user.click(screen.getByRole('button'))
+    // DialogContent 已调整为 rounded-none border-term-border bg-term-panel
+    expect(document.body.textContent).toContain('全部 SKU')
   })
 })
 

@@ -40,15 +40,6 @@ import { cn } from '@/lib/utils'
 /** 复用 header-filter-suite 的终端触发器基类（4 档定宽唯一真相源） */
 const TERM_HEADER_TRIGGER_SPEC = TERM_HEADER_TRIGGER
 
-/** 与 header-filter-suite 的 FieldLabel 同规格（mono 大写小标签） */
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="hidden shrink-0 font-mono text-xs uppercase tracking-wider text-term-faint lg:inline">
-      {children}
-    </span>
-  )
-}
-
 export type ProjectSkuOption = {
   sku: string
   asin: string | null
@@ -94,9 +85,7 @@ export function SkuSearchField({
   }
 
   return (
-    <label className="flex min-w-0 items-center gap-1.5">
-      <FieldLabel>SKU</FieldLabel>
-      <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
+    <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
         <Button
           type="button"
           variant="outline"
@@ -136,9 +125,9 @@ export function SkuSearchField({
           <span id="sku-search-dialog-description" className="sr-only">
             搜索并选择 SKU
           </span>
-          <Command className="max-h-[70vh]">
-            <CommandInput placeholder="搜索 SKU" />
-            <CommandList>
+          <Command className="max-h-[70vh] bg-term-panel">
+            <CommandInput placeholder="搜索 SKU" className="placeholder:text-term-faint" />
+            <CommandList className="term-scroll">
               <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
               <CommandItem
                 value="__all__"
@@ -146,7 +135,7 @@ export function SkuSearchField({
                   onChange('')
                   setOpen(false)
                 }}
-                className={cn('flex items-center gap-2', !value && 'bg-accent')}
+                className={cn('rounded-none focus:bg-term-hover focus:text-term-text', !value && 'bg-term-hover')}
               >
                 <Check className={cn('h-4 w-4 shrink-0', !value ? 'opacity-100' : 'opacity-0')} />
                 <span className="font-medium">全部 SKU</span>
@@ -164,7 +153,7 @@ export function SkuSearchField({
                         setOpen(false)
                       }
                     }}
-                    className={cn(missingUnits && 'cursor-not-allowed opacity-50')}
+                    className={cn('rounded-none focus:bg-term-hover focus:text-term-text', missingUnits && 'cursor-not-allowed opacity-50')}
                   >
                     <Check
                       className={cn(
@@ -192,7 +181,6 @@ export function SkuSearchField({
           </Command>
         </DialogContent>
       </Dialog>
-    </label>
   )
 }
 
@@ -239,7 +227,7 @@ export function LegacyFallbackFilters({
       {/* 站点选择：选项集合与 HeaderCountrySelect 一致（全部站点 + US/DE/UK） */}
       <Select value={country} onValueChange={onCountryChange}>
         <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}>
-          <SelectValue />
+          <SelectValue placeholder="选择站点" />
         </SelectTrigger>
         <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
           <SelectItem value="ALL" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">全部站点</SelectItem>
@@ -251,6 +239,7 @@ export function LegacyFallbackFilters({
       <DateRangePicker
         value={dateRange}
         onChange={onDateRangeChange}
+        placeholder="选择日期范围"
         className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
         timezone={COUNTRY_TIMEZONE_MAP[country]}
         onApply={onDateApply}
