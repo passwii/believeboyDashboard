@@ -146,7 +146,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="font-mono text-xs text-term-faint">
           {contacts.length > 0 ? `${contacts.length} 个联系人` : '暂无联系人'}
         </p>
         {editingId === null && (
@@ -157,7 +157,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
       </div>
 
       {editingId !== null && (
-        <div className="space-y-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] p-4">
+        <div className="space-y-3 rounded-none border border-term-border bg-term-panel p-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="col-span-2 space-y-1">
               <Label>姓名 *</Label>
@@ -184,12 +184,12 @@ export function CrmContactList({ customerId }: { customerId: string }) {
               <Input value={form.remark ?? ''} onChange={(e) => setField('remark', e.target.value)} />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 font-mono text-xs text-term-muted">
             <input
               type="checkbox"
               checked={form.isPrimary ?? false}
               onChange={(e) => setField('isPrimary', e.target.checked)}
-              className="h-4 w-4 rounded border-border"
+              className="h-4 w-4 rounded-none border-term-border"
             />
             设为主联系人
           </label>
@@ -208,20 +208,20 @@ export function CrmContactList({ customerId }: { customerId: string }) {
         {contacts.map((c) => (
           <div
             key={c.id}
-            className="rounded-lg border border-border/60 bg-card p-3"
+            className="rounded-none border border-term-border bg-term-panel p-3"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium">{c.name}</span>
-                  {c.title && <span className="truncate text-xs text-muted-foreground">{c.title}</span>}
+                  <span className="truncate text-sm font-medium text-term-text">{c.name}</span>
+                  {c.title && <span className="truncate font-mono text-xs text-term-faint">{c.title}</span>}
                   {c.isPrimary && (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <Badge variant="secondary" className="font-mono text-[11px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                       <Star className="mr-0.5 h-3 w-3 fill-current" /> 主联系人
                     </Badge>
                   )}
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-term-faint">
                   {c.phone && (
                     <span className="flex items-center gap-1">
                       <Phone className="h-3 w-3" /> {c.phone}
@@ -238,7 +238,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
                     </span>
                   )}
                 </div>
-                {c.remark && <p className="mt-1 text-xs text-muted-foreground">{c.remark}</p>}
+                {c.remark && <p className="mt-1 font-mono text-xs text-term-faint">{c.remark}</p>}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {!c.isPrimary && (

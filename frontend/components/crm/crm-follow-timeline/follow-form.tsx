@@ -49,12 +49,12 @@ export function FollowForm({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+    <div className="space-y-3 rounded-none border border-term-border bg-term-panel p-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">类型</Label>
+          <Label className="font-mono text-xs uppercase tracking-wider text-term-muted">类型</Label>
           <Select value={type} onValueChange={(v) => setType(v as FollowType)}>
-            <SelectTrigger className="h-8 w-28">
+            <SelectTrigger className="h-8 w-28 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -67,10 +67,10 @@ export function FollowForm({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">下次跟进</Label>
+          <Label className="font-mono text-xs uppercase tracking-wider text-term-muted">下次跟进</Label>
           <Input
             type="date"
-            className="h-8 w-40"
+            className="h-8 w-40 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text"
             value={nextFollowAt}
             onChange={(e) => setNextFollowAt(e.target.value)}
           />
@@ -78,6 +78,7 @@ export function FollowForm({
       </div>
       <Textarea
         placeholder="记录本次跟进内容…"
+        className="rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text"
         value={content}
         onChange={(e) => setContent(e.target.value)}
         rows={3}

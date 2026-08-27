@@ -185,10 +185,10 @@ export function CrmOverviewDrawer<T extends object>({
                 </Suspense>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-mono text-xs text-term-faint">
                     点击下方按钮进入编辑模式，修改客户基础信息。
                   </p>
-                  <Button onClick={() => setEditing(true)}>编辑信息</Button>
+                  <Button className="rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text" variant="outline" size="sm" onClick={() => setEditing(true)}>编辑信息</Button>
                 </div>
               )}
             </TabsContent>

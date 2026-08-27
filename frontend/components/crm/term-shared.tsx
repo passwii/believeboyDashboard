@@ -11,14 +11,14 @@ import { cn } from '@/lib/utils'
  */
 
 export const TERM_TRIGGER =
-  'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong'
-export const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
+  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
+export const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
 export const TERM_INPUT =
-  'h-8 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
 export const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 border border-term-border bg-term-panel px-2 font-mono text-sm text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 export const TERM_SELECT_NATIVE =
-  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-sm text-term-text transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs leading-5 text-term-text shadow-none transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * CRM 枚举 → 终端单色语义（去彩色胶囊底，仅 term 文本色 + 1px 边界）。
@@ -35,23 +35,25 @@ const TONE_TEXT: Record<TermTone, string> = {
   muted: 'text-term-muted',
 }
 
-/** 单色枚举 pill：1px 同色弱边界 + mono 小写字距（与 TermStatusPill 同规格）。 */
+/** 单色枚举 pill：1px 同色弱边界 + mono 小字（与 TermPill 同规格，BLF-856 对齐全局）。 */
 export function TermEnumPill({
   tone,
   children,
   className,
   title,
+  ...rest
 }: {
   tone: TermTone
   children: React.ReactNode
   className?: string
   title?: string
-}) {
+} & Omit<React.HTMLAttributes<HTMLSpanElement>, 'title' | 'className' | 'children'>) {
   return (
     <span
+      {...rest}
       title={title}
       className={cn(
-        'inline-flex items-center whitespace-nowrap rounded-none border px-1.5 py-0.5 font-mono text-[11px]',
+        'inline-flex items-center whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
         TONE_TEXT[tone],
         className
       )}
@@ -115,7 +117,7 @@ export const NEUTRAL_TERM: TermTone = 'muted'
  * flex 列布局钉满 Canvas 高度、工具行右对齐、内容区 min-h-0 内滚。
  */
 export function CrmPageShell({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('flex min-w-0 flex-col gap-2', className)}>{children}</div>
+  return <div className={cn('flex min-w-0 flex-col gap-2 rounded-none', className)}>{children}</div>
 }
 
 /** 工具行：h-8 控件带，右对齐操作区；移动端允许换行。 */
@@ -129,7 +131,7 @@ export function CrmToolbarRow({
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between', className)}>
+    <div className={cn('flex flex-wrap items-center justify-end gap-1.5 rounded-none max-md:justify-between', className)}>
       {left}
       {right}
     </div>

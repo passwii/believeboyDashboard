@@ -119,7 +119,7 @@ export function CrmCategoryManager() {
               if (e.key === 'Enter') void handleCreate()
             }}
             placeholder="新类目名称，如：宠物用品"
-            className="max-w-xs"
+            className="max-w-xs rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text"
             data-testid="new-category-name"
           />
           <Button
@@ -142,9 +142,9 @@ export function CrmCategoryManager() {
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
         ) : categories.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">暂无类目</p>
+          <p className="py-6 text-center font-mono text-xs text-term-faint">暂无类目</p>
         ) : (
-          <ul className="divide-y divide-border/60 rounded-md border border-border/60">
+          <ul className="divide-y divide-term-border rounded-none border border-term-border">
             {categories.map((c) => (
               <li
                 key={c.id}
@@ -160,7 +160,7 @@ export function CrmCategoryManager() {
                         if (e.key === 'Enter') void handleRename(c.id)
                         if (e.key === 'Escape') setEditingId(null)
                       }}
-                      className="h-8 max-w-xs"
+                      className="h-8 max-w-xs rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text"
                       autoFocus
                     />
                     <Button
@@ -185,7 +185,7 @@ export function CrmCategoryManager() {
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 text-sm">{c.name}</span>
+                    <span className="flex-1 text-sm text-term-text">{c.name}</span>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -200,7 +200,7 @@ export function CrmCategoryManager() {
                     </Button>
                     {confirmDelete === c.id ? (
                       <>
-                        <span className="text-xs text-muted-foreground">
+                          <span className="font-mono text-xs text-term-faint">
                           删除将解除客户挂接，确定？
                         </span>
                         <Button
