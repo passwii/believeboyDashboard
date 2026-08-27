@@ -123,8 +123,8 @@ export function ReportStatusCard({
   )
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90">
-      <CardContent className="flex flex-1 flex-col gap-4 px-5 !pt-6 pb-5 md:!pt-7">
+    <Card className="flex h-full flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+      <CardContent className="flex flex-1 flex-col gap-4 px-3 !pt-4 pb-4">
         <div className="mt-1 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">
             <CardTitle className="text-base leading-6 text-foreground">{config.title}</CardTitle>
@@ -144,7 +144,7 @@ export function ReportStatusCard({
           </div>
           {statusBadge(state)}
         </div>
-        <div className="space-y-2 rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))]/80 px-3 py-3">
+        <div className="space-y-2 rounded-none border border-term-border bg-term-raised px-3 py-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             当前文件
@@ -155,7 +155,7 @@ export function ReportStatusCard({
             <>
               {state.candidates.length > 1 ? (
                 <Select value={state.activeTempFileId || ''} onValueChange={onPickCandidate}>
-                  <SelectTrigger className="rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95">
+                  <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text">
                     <SelectValue placeholder="选择要使用的文件" />
                   </SelectTrigger>
                   <SelectContent>
@@ -182,7 +182,7 @@ export function ReportStatusCard({
         <div className="grid flex-1 gap-3 content-start">
           <div className="grid gap-3">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <PackageSearch
                   className={cn(
                     'h-4 w-4 text-slate-400 dark:text-slate-500',
@@ -197,7 +197,7 @@ export function ReportStatusCard({
               >
                 <SelectTrigger
                   className={cn(
-                    'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
+                    'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
                     projectWarning &&
                       'border-slate-400/70 bg-slate-50/80 text-slate-700 ring-offset-background focus:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
@@ -215,7 +215,7 @@ export function ReportStatusCard({
             </div>
 
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <CalendarDays
                   className={cn(
                     'h-4 w-4 text-slate-400 dark:text-slate-500',
@@ -224,14 +224,14 @@ export function ReportStatusCard({
                 />
               </div>
               {datesLocked ? (
-                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
                   {periodLabel || '使用核算参数中的日期范围'}
                 </div>
               ) : useRangePicker ? (
                 <DateRangePicker
                   value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
                   className={cn(
-                    'w-full rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
+                    'w-full h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
                     dateWarning &&
                       'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
@@ -241,30 +241,30 @@ export function ReportStatusCard({
                   }}
                 />
               ) : isMultiCommitWithDerivedDates(state) ? (
-                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
                   每个文件将自动提取各自的日期
                 </div>
               ) : recognition?.date_input_mode === 'multi_auto' ? (
-                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
                   {recognition.detected_start_date && recognition.detected_end_date
                     ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                     : '将按 purchase-date 自动拆分多个日期'}
                 </div>
               ) : recognition?.date_input_mode === 'range_auto' ? (
-                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
                   {recognition.detected_start_date && recognition.detected_end_date
                     ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                     : '已从文件中自动识别日期范围'}
                 </div>
               ) : recognition?.date_input_mode === 'single_auto' ? (
-                <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
                   {recognition.detected_date || '已从文件中自动识别日期'}
                 </div>
               ) : (
                 <SingleDatePicker
                   value={parseDateInputValue(state.reportDate)}
                   className={cn(
-                    'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
+                    'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
                     dateWarning &&
                       'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
                   )}
@@ -276,7 +276,7 @@ export function ReportStatusCard({
         </div>
 
         {isMultiCountry && recognition ? (
-          <div className="rounded-xl border border-blue-300/60 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-400/35 dark:bg-blue-400/10 dark:text-blue-100">
+          <div className="rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-2 font-mono text-xs text-term-accent">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 shrink-0" />
               <span>
@@ -288,13 +288,13 @@ export function ReportStatusCard({
         ) : null}
 
         {recognition?.warnings?.length ? (
-          <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-400/35 dark:bg-amber-400/10 dark:text-amber-100">
+          <div className="rounded-none border border-term-warn/40 bg-term-warn/10 px-3 py-2 font-mono text-xs text-term-warn">
             {recognition.warnings.join('；')}
           </div>
         ) : null}
 
         {state.commitMessage && state.commitStatus === 'error' ? (
-          <div className="rounded-xl border border-rose-300/70 bg-rose-50/90 px-3 py-2 text-xs text-rose-700 dark:border-rose-500/45 dark:bg-rose-500/10 dark:text-rose-100">
+          <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               {state.commitMessage}

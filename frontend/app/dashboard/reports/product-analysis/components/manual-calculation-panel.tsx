@@ -889,7 +889,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                 }}
                 disabled={projectsLoading || projects.length === 0}
               >
-                <SelectTrigger className="h-10 max-w-full">
+                <SelectTrigger className="h-8 max-w-full">
                   <SelectValue
                     placeholder={
                       projectsLoading
@@ -916,7 +916,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                 站点
               </label>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-10 max-w-full">
+                <SelectTrigger className="h-8 max-w-full">
                   <SelectValue placeholder="请选择国家站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -941,7 +941,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                   setEndDate(formatDateInputValue(range?.to) ?? endDate)
                   resetDownstream()
                 }}
-                className="h-10"
+                className="h-8"
               />
               {startDate && endDate && startDate > endDate && (
                 <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
@@ -962,7 +962,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                   setEndDate(range.end)
                   resetDownstream()
                 }}
-                className="w-full h-10"
+                className="w-full h-8"
               >
                 <CalendarRange className="mr-1 h-4 w-4" />
                 上周

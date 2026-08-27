@@ -46,7 +46,6 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarSkeleton } from '@/components/ui/table-skeleton'
-import { StatCard } from '@/components/ui/stat-card'
 import {
   Table,
   TableBody,
@@ -1963,7 +1962,7 @@ export default function DisplayTab() {
 
       <DataTableCard>
         <DataTableCardStatBar
-          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
+          className="border-b border-term-border bg-term-raised"
           items={[
             {
               label: '收入合计',
@@ -2291,10 +2290,10 @@ export default function DisplayTab() {
                   className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
                 >
                   <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableRow className="bg-term-panel/30 hover:bg-term-panel/30">
                       <TableHead
                         rowSpan={2}
-                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center"
+                        className="sticky z-40 border-r border-term-border bg-term-raised px-2 py-2 text-center font-mono text-xs text-term-muted"
                         style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                       >
                         年/月度
@@ -2384,7 +2383,7 @@ export default function DisplayTab() {
                         净利率
                       </TableHead>
                     </TableRow>
-                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    <TableRow className="bg-term-panel/20 hover:bg-term-panel/20">
                       <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                         销售额
                       </TableHead>
@@ -2435,7 +2434,7 @@ export default function DisplayTab() {
                         evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
                       const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
                       const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
-                      const rowBg = !row.has_source_report ? 'bg-muted' : 'bg-background'
+                      const rowBg = !row.has_source_report ? 'bg-term-panel' : 'bg-term-panel'
                       const platformRatio = toPositiveRatio(
                         row.expense_selling_fee,
                         row.income_total
@@ -2460,10 +2459,10 @@ export default function DisplayTab() {
                       return (
                         <TableRow
                           key={row.report_month}
-                          className={!row.has_source_report ? 'bg-muted/20' : undefined}
+                          className={!row.has_source_report ? 'bg-term-panel/20' : undefined}
                         >
                           <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 font-medium ${rowBg}`}
+                            className={`sticky z-20 border-r border-term-border px-2 py-1.5 font-mono text-xs font-medium ${rowBg}`}
                             style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                           >
                             <div className="flex items-center justify-between gap-1">
@@ -2587,9 +2586,9 @@ export default function DisplayTab() {
                     })}
                   </TableBody>
                   <TableFooter>
-                    <TableRow className="bg-muted font-semibold hover:bg-muted">
+                    <TableRow className="bg-term-panel font-semibold hover:bg-term-panel">
                       <TableCell
-                        className="sticky z-30 border-r border-border bg-muted px-2 py-2"
+                        className="sticky z-30 border-r border-border bg-term-panel px-2 py-2"
                         style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                       >
                         合计
@@ -2731,7 +2730,7 @@ export default function DisplayTab() {
               {accountingLoading && accountingRows.length === 0 ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
+                    <Skeleton key={i} className="h-8 w-full" />
                   ))}
                 </div>
               ) : accountingMonth && accountingRows.length > 0 ? (
@@ -2740,7 +2739,7 @@ export default function DisplayTab() {
                   className="w-max min-w-[1400px] table-fixed text-xs"
                 >
                   <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableRow className="bg-term-panel/30 hover:bg-term-panel/30">
                       <TableHead
                         colSpan={4}
                         className="border-r bg-emerald-100 px-2 py-2 text-center dark:bg-emerald-900/80 dark:text-emerald-100"
@@ -2752,7 +2751,7 @@ export default function DisplayTab() {
                         Expense（支出）
                       </TableHead>
                     </TableRow>
-                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    <TableRow className="bg-term-panel/20 hover:bg-term-panel/20">
                       <TableHead className="border-r px-2 py-1.5 text-center">Income</TableHead>
                       <TableHead className="border-r px-2 py-1.5 text-center">收入</TableHead>
                       <TableHead className="border-r px-2 py-1.5 text-center">
@@ -2789,7 +2788,7 @@ export default function DisplayTab() {
                         return (
                           <TableRow
                             key={`spacer-${index}`}
-                            className="h-2 bg-muted/30 hover:bg-muted/30"
+                            className="h-2 bg-term-panel/30 hover:bg-term-panel/30"
                             aria-hidden="true"
                           >
                             <TableCell colSpan={9} className="border-0 p-0" />
@@ -2814,7 +2813,7 @@ export default function DisplayTab() {
                             <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {row.income_source || '\u00A0'}
                             </TableCell>
-                            <TableCell className="border-r bg-[hsl(var(--surface-subtle))] px-2 py-2 text-center text-muted-foreground">
+                            <TableCell className="border-r border-term-border bg-term-raised px-2 py-2 text-center font-mono text-xs text-term-muted">
                               |
                             </TableCell>
                             <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">

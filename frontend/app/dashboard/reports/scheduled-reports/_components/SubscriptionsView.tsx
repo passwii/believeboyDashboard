@@ -184,10 +184,10 @@ export default function SubscriptionsView() {
     return (
       <TermPanel title="订阅管理">
         <div className="space-y-3 p-3">
-          <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-9 w-3/4 rounded-none bg-term-raised" />
+          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-8 w-3/4 rounded-none bg-term-raised" />
         </div>
       </TermPanel>
     )
@@ -507,7 +507,7 @@ export default function SubscriptionsView() {
                           <button
                             type="button"
                             onClick={() => handleDelete(sub.id)}
-                            className="flex h-9 items-center justify-center gap-1 border border-term-border bg-term-panel font-mono text-xs text-term-neg transition-colors hover:border-term-neg/60 hover:bg-term-hover"
+                            className="flex h-8 items-center justify-center gap-1 rounded-none border border-term-border bg-term-panel font-mono text-xs leading-5 text-term-neg shadow-none transition-colors hover:border-term-neg/60 hover:bg-term-hover focus-visible:outline-none focus-visible:border-term-neg/60"
                           >
                             <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             删除

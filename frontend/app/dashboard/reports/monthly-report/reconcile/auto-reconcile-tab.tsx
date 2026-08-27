@@ -561,7 +561,7 @@ function RawFilesGroup({
       <div className="divide-y">
         {/* PT3 Excel Download */}
         <button
-          className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+          className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
           onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
         >
           <Table className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -575,7 +575,7 @@ function RawFilesGroup({
         {/* PDF Download */}
         {pdfAvailable ? (
           <button
-            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
             onClick={() => handleDownloadPDF(report.report_id, notify)}
           >
             <FileText className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
@@ -598,7 +598,7 @@ function RawFilesGroup({
         {/* CSV Download */}
         {csvAvailable ? (
           <button
-            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
+            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
             onClick={() => handleDownloadCSV(report.report_id, notify)}
           >
             <Table className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -926,7 +926,7 @@ function DetailPanel({
               <div className="rounded-none border border-term-border overflow-x-auto term-scroll">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b bg-term-hover text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       <th className="border-r px-4 py-3 text-left">字段</th>
                       <th className="border-r px-4 py-3 text-right">数据库</th>
                       <th className="border-r px-4 py-3 text-right">PDF</th>
@@ -1349,7 +1349,7 @@ export default function AutoReconcileTab() {
   return (
     <div className="space-y-6">
       {/* Console / Filter Bar */}
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+      <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
         <DataCardContent className="p-4">
           {/* 手机端：2 列网格 | 桌面端：横向排列 */}
           <div className="grid grid-cols-2 gap-3 md:flex md:flex-row md:items-end md:gap-4">
@@ -1395,12 +1395,12 @@ export default function AutoReconcileTab() {
             </span>
           </div>
 
-          <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+          <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
             {availableReports.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b bg-term-hover text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-3 text-left">月份</th>
                       <th className="px-4 py-3 text-left">站点</th>
                       <th className="px-4 py-3 text-center">PDF</th>
@@ -1427,7 +1427,7 @@ export default function AutoReconcileTab() {
                           key={report.report_id}
                           className={cn(
                             'cursor-pointer border-b transition-colors',
-                            isSelected ? 'bg-primary/5' : 'hover:bg-[hsl(var(--surface-subtle))'
+                            isSelected ? 'bg-primary/5' : 'hover:bg-term-hover'
                           )}
                           onClick={() => handleRowClick(report)}
                         >

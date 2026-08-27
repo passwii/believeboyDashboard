@@ -581,7 +581,7 @@ export default function MonthlySkuAnalysisPanel() {
                 }}
                 disabled={projectsLoading || projects.length === 0}
               >
-                <SelectTrigger className="h-10 max-w-full">
+                <SelectTrigger className="h-8 max-w-full">
                   <SelectValue
                     placeholder={
                       projectsLoading
@@ -611,7 +611,7 @@ export default function MonthlySkuAnalysisPanel() {
                 value={country}
                 onValueChange={(value) => setCountry(value as ExportCountryOption)}
               >
-                <SelectTrigger className="h-10 max-w-full">
+                <SelectTrigger className="h-8 max-w-full">
                   <SelectValue placeholder="请选择国家站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -635,7 +635,7 @@ export default function MonthlySkuAnalysisPanel() {
                   setStartDate(formatDateInputValue(range?.from) ?? startDate)
                   setEndDate(formatDateInputValue(range?.to) ?? endDate)
                 }}
-                className="h-10"
+                className="h-8"
               />
               {startDate && endDate && startDate > endDate && (
                 <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
@@ -655,7 +655,7 @@ export default function MonthlySkuAnalysisPanel() {
                   setStartDate(range.start)
                   setEndDate(range.end)
                 }}
-                className="w-full h-10"
+                className="w-full h-8"
               >
                 <CalendarRange className="mr-1 h-4 w-4" />
                 上月
