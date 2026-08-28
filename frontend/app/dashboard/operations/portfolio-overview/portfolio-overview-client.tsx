@@ -15,8 +15,8 @@ import {
   TermTHead,
   TermTable,
 } from '@/components/terminal/term-table'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { BarChart3, PieChart, SlidersHorizontal, TrendingUp, type LucideIcon } from 'lucide-react'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { BarChart3, PieChart, TrendingUp, type LucideIcon } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -88,33 +88,6 @@ function KpiTile({ label, value }: { label: string; value: string }) {
       </span>
     </div>
   )
-}
-
-/** BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。 */
-function HeaderFilterControls({
-  isMobileView,
-  controls,
-}: {
-  isMobileView: boolean
-  controls: React.ReactNode
-}) {
-  if (isMobileView) {
-    return (
-      <Popover>
-        <PopoverTrigger
-          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
-          aria-label="页面筛选"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          筛选
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
-          <div className="grid grid-cols-1 gap-3">{controls}</div>
-        </PopoverContent>
-      </Popover>
-    )
-  }
-  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
 }
 
 /** 项目对比高密度表（TermTable 规范）：等宽数值右对齐、排序点击、跳详情 */

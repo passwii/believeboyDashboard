@@ -36,7 +36,7 @@ import {
   TermTHead,
   TermTable,
 } from '@/components/terminal/term-table'
-import { SlidersHorizontal } from 'lucide-react'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   useHeaderRefresh,
@@ -233,37 +233,6 @@ const getCountryBadgeMeta = (country: string) => {
     BR: '巴西',
   }
   return { code: normalizedCountry, accent: accents[normalizedCountry] ?? '其他' }
-}
-
-/**
- * BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
- * 拆出子组件是为了让 useHeaderSlot / useHeaderRefresh 的 hook 调用
- * 都落在页面顶层（hooks 规则），控件 JSX 复用同一份。
- */
-function HeaderFilterControls({
-  isMobileView,
-  controls,
-}: {
-  isMobileView: boolean
-  controls: React.ReactNode
-}) {
-  if (isMobileView) {
-    return (
-      <Popover>
-        <PopoverTrigger
-          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
-          aria-label="页面筛选"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-          筛选
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
-          <div className="grid grid-cols-1 gap-3">{controls}</div>
-        </PopoverContent>
-      </Popover>
-    )
-  }
-  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
 }
 
 export default function PlatformRevenuePage() {

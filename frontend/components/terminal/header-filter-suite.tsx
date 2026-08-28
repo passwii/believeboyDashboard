@@ -176,6 +176,79 @@ export function HeaderDateRangePicker({
   )
 }
 
+// ======================== 页面插槽泛型控件 ========================
+
+/**
+ * 页面插槽泛型下拉（term 规格）。
+ *
+ * 与全局四件套 HeaderProjectSelect/HeaderCountrySelect 的区别：选项集合由页面传入，
+ * 保持页面原生选项集（例如某页站点只有 US/DE/UK、不带 ALL），不做全局假设。
+ * 宽度默认取项目档（W_MD），页面按控件语义传 SM/MD/LG/XL。
+ */
+export function HeaderSlotSelect({
+  value,
+  options,
+  onChange,
+  widthClass = TERM_HEADER_W_MD,
+  placeholder,
+  disabled,
+  title,
+}: {
+  value: string
+  options: Array<{ value: string; label: string; disabled?: boolean }>
+  onChange: (v: string) => void
+  widthClass?: string
+  placeholder?: string
+  disabled?: boolean
+  title?: string
+}) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={cn(TERM_HEADER_TRIGGER, widthClass)} title={title}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled} className={TERM_SELECT_ITEM}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/**
+ * 页面插槽日期范围（term 规格）：复用 ui/date-picker 的 DateRangePicker（自带预设侧栏），
+ * timezone / onApply 透传（onApply 供「应用后再拉数」的页面语义）。
+ */
+export function HeaderSlotDateRange({
+  value,
+  onChange,
+  onApply,
+  timezone,
+  widthClass = TERM_HEADER_W_XL,
+  placeholder = '选择日期范围',
+}: {
+  value: React.ComponentProps<typeof DateRangePicker>['value']
+  onChange: (range: React.ComponentProps<typeof DateRangePicker>['value']) => void
+  onApply?: () => void
+  timezone?: string
+  widthClass?: string
+  placeholder?: string
+}) {
+  return (
+    <DateRangePicker
+      value={value}
+      timezone={timezone}
+      onChange={onChange}
+      onApply={onApply}
+      placeholder={placeholder}
+      className={cn(TERM_HEADER_TRIGGER, widthClass, 'justify-start px-2 text-left')}
+    />
+  )
+}
+
 // 已移除：HeaderKpiTile 已于 BLF-874 下线（正文 MetricSwitcherCard 已覆盖三磁贴），
 // 保留空壳仅作历史测试兼容（head 三区已无固定区 KPI 元素）。
 export function HeaderKpiTile() {

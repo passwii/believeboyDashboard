@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, FileDown, Loader2, SlidersHorizontal } from 'lucide-react'
+import { AlertTriangle, FileDown, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TermPanel } from '@/components/terminal/term-panel'
 import {
   TermBody,
@@ -27,6 +26,7 @@ import {
 } from '@/components/terminal/term-table'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -153,33 +153,6 @@ function agingExcelFontColor(status: string): string {
   if (status === 'over_aged') return 'FFBE123C'
   if (status === 'aging') return 'FFB45309'
   return 'FF0369A1'
-}
-
-/** BLF-826 阶段 C：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。 */
-function HeaderFilterControls({
-  isMobileView,
-  controls,
-}: {
-  isMobileView: boolean
-  controls: React.ReactNode
-}) {
-  if (isMobileView) {
-    return (
-      <Popover>
-        <PopoverTrigger
-          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
-          aria-label="页面筛选"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          筛选
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] p-3">
-          <div className="grid grid-cols-1 gap-3">{controls}</div>
-        </PopoverContent>
-      </Popover>
-    )
-  }
-  return <div className="flex min-w-0 items-center gap-1.5">{controls}</div>
 }
 
 /** 统计条磁贴：终端规格（1px 边界、mono 数值、语义色） */
