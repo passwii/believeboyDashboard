@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Bell, Loader2, LogOut, Menu, PanelLeft, PanelRight, RefreshCcw, Search, UserRound } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
@@ -54,10 +55,17 @@ interface TerminalHeaderProps {
 }
 
 /**
+ * BLF-881：未注册页兜底刷新的看门狗时长（与 RouteLoadingLink 的
+ * NAVIGATION_LOADING_WATCHDOG_MS 对齐）。router.refresh() 无完成回调，
+ * useTransition 的 pending 覆盖正常完成路径；看门狗兜底防止按钮卡死在 loading。
+ */
+const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
+
+/**
  * Top Header 全局控制台条（固定 48px，BLF-809；二档放大 2026-08-25）。
  * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）。
  * 中：HeaderSlot 唯一操作区 + 全局筛选四件套（BLF-819，仅试点路由激活；BLF-874 已移除 KPI 磁贴）。
- * 右：⌘K 搜索、通知、Inspector 开关、用户菜单。
+ * 右：全局刷新（BLF-881 全页面常驻）、⌘K 搜索、通知、Inspector 开关、用户菜单。
  */
 export function TerminalHeader({
   groups,
@@ -73,8 +81,34 @@ export function TerminalHeader({
   const user = session?.user
   const { unreadCount, refresh } = useServerNotifications()
 
-  // BLF-826 全局刷新按钮：页面经 useHeaderRefresh 注册回调；无注册时隐藏。
+  // BLF-826 全局刷新按钮：页面经 useHeaderRefresh 注册回调。
+  // BLF-881 全页面常驻：未注册页兜底 router.refresh()（重取当前路由 server 数据、不丢 client state）。
   const { refreshRegistered, refreshLoading, triggerRefresh } = useTerminalHeaderSlot()
+  const router = useRouter()
+  const [fallbackPending, startFallbackRefresh] = React.useTransition()
+  const [fallbackTimedOut, setFallbackTimedOut] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!fallbackPending) {
+      setFallbackTimedOut(false)
+      return
+    }
+    const timer = setTimeout(() => setFallbackTimedOut(true), FALLBACK_REFRESH_WATCHDOG_MS)
+    return () => clearTimeout(timer)
+  }, [fallbackPending])
+
+  const fallbackLoading = fallbackPending && !fallbackTimedOut
+  const refreshActive = refreshRegistered ? refreshLoading : fallbackLoading
+
+  const handleRefreshClick = React.useCallback(() => {
+    if (refreshRegistered) {
+      triggerRefresh()
+      return
+    }
+    startFallbackRefresh(() => {
+      router.refresh()
+    })
+  }, [refreshRegistered, triggerRefresh, startFallbackRefresh, router])
 
   // BLF-819 全局筛选四件套：仅试点路由渲染，其余页面头部行为零变化
   // BLF-874 Stage 1：KPI 磁贴（GMV/ORD/PND）已下线，正文 MetricSwitcherCard 已覆盖，移除 useHeaderKpis 依赖
@@ -156,22 +190,21 @@ export function TerminalHeader({
 
       {/* 右段：全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
       <div className="flex shrink-0 items-center gap-1 px-2">
-        {refreshRegistered && (
-          <button
-            type="button"
-            onClick={triggerRefresh}
-            disabled={refreshLoading}
-            title="刷新当前页数据（强刷跳缓存）"
-            aria-label="刷新当前页数据"
-            data-testid="terminal-header-refresh"
-            className="relative flex h-8 w-8 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent disabled:pointer-events-none disabled:opacity-50"
-          >
-            <RefreshCcw className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            {refreshLoading && (
-              <Loader2 className="absolute h-[18px] w-[18px] animate-spin" strokeWidth={1.75} aria-hidden />
-            )}
-          </button>
-        )}
+        {/* BLF-881：全页面常驻——已注册页触发页面回调（强刷跳缓存），未注册页兜底 router.refresh() */}
+        <button
+          type="button"
+          onClick={handleRefreshClick}
+          disabled={refreshActive}
+          title={refreshRegistered ? '刷新当前页数据（强刷跳缓存）' : '刷新当前页（重取服务端数据）'}
+          aria-label="刷新当前页数据"
+          data-testid="terminal-header-refresh"
+          className="relative flex h-8 w-8 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent disabled:pointer-events-none disabled:opacity-50"
+        >
+          <RefreshCcw className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          {refreshActive && (
+            <Loader2 className="absolute h-[18px] w-[18px] animate-spin" strokeWidth={1.75} aria-hidden />
+          )}
+        </button>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
