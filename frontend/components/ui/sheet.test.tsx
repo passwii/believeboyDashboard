@@ -15,7 +15,7 @@ describe('Sheet 暗黑浮层玻璃（BLF-574）', () => {
     expect(content.className).toContain('u-floating-glass')
   })
 
-  it('light 模式保留原 shadow-lg 浮层阴影', () => {
+  it('浮层 Terminal 令牌（border-term-border / bg-term-panel / shadow-none）', () => {
     render(
       <Sheet open>
         <SheetContent side="right">
@@ -24,7 +24,10 @@ describe('Sheet 暗黑浮层玻璃（BLF-574）', () => {
       </Sheet>
     )
     const content = document.body.querySelector('[role="dialog"]')!
-    expect(content.className).toContain('shadow-lg')
-    expect(content.className).toContain('bg-background')
+    expect(content.className).toContain('border-term-border')
+    expect(content.className).toContain('bg-term-panel')
+    expect(content.className).toContain('shadow-none')
+    expect(content.className).not.toContain('shadow-lg')
+    expect(content.className).not.toContain('bg-background')
   })
 })

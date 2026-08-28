@@ -69,12 +69,12 @@ const HoverCard = React.forwardRef<HTMLDivElement, HoverCardProps>(
       right: 'left-full top-1/2 -translate-y-1/2 ml-2',
     }
 
-    // 箭头位置样式映射
+    // 箭头位置样式映射（Terminal：边框色统一 term-border，背景与面板一致）
     const arrowStyles = {
-      top: 'top-full left-1/2 -translate-x-1/2 border-t-card',
-      bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-card',
-      left: 'left-full top-1/2 -translate-y-1/2 border-l-card',
-      right: 'right-full top-1/2 -translate-y-1/2 border-r-card',
+      top: 'top-full left-1/2 -translate-x-1/2 border-t-term-panel',
+      bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-term-panel',
+      left: 'left-full top-1/2 -translate-y-1/2 border-l-term-panel',
+      right: 'right-full top-1/2 -translate-y-1/2 border-r-term-panel',
     }
 
     return (
@@ -88,10 +88,10 @@ const HoverCard = React.forwardRef<HTMLDivElement, HoverCardProps>(
         {/* 触发元素 */}
         <div className="cursor-pointer">{trigger}</div>
 
-        {/* 悬浮卡片 */}
+        {/* 悬浮卡片（Terminal 令牌） */}
         <div
           className={cn(
-            'absolute z-50 w-fit min-w-[200px] max-w-[320px] rounded-lg border bg-card p-4 shadow-lg',
+            'absolute z-50 w-fit min-w-[200px] max-w-[320px] rounded-none border border-term-border bg-term-panel p-4 text-term-text shadow-none u-floating-glass',
             'transition-all duration-300 ease-out',
             'opacity-0 invisible transform',
             isVisible && 'opacity-100 visible',
