@@ -1,38 +1,40 @@
 'use client'
 
 /**
- * 库存分类账页面（BLF-428 前端重构，方案 A）.
+ * 库存分类账页面（BLF-428 前端重构，方案 A；operations 全域 header 化迁移）.
  *
- * 三层结构：全局筛选条 → 总览区（常驻，响应筛选）→ 汇总/明细/批次 tabs。
+ * 三层结构：Top Header 中段插槽（项目/月份 + 4 维派生筛选 + 清除筛选，portal）
+ * → 总览区（常驻，响应筛选）→ 汇总/明细/批次 tabs。
  *
  * 数据流（设计决策 D6）：summary + detail 两个原始数据集是唯一真相源，
  * 全局筛选条是唯一筛选状态；总览 KPI/图表全部由 ledger-derive 从筛选后的
  * 原始行客户端派生。/snapshot（环比口径）、/trend（月份趋势）、
  * /consistency（双表对账）作为补充数据。
+ *
+ * 刷新语义（header 迁移 §1.4）：本页无缓存，全局刷新 = useHeaderRefresh
+ * 直接全量重拉 6 端点（allSettled）并上报 { loading }；handler 用 ref 桥接
+ * 防过期闭包。原 TermPanel 控制台壳与页内「刷新」按钮已删除（全局唯一入口）。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle, Clock4, LayoutGrid, List, RefreshCw, UploadCloud } from 'lucide-react'
+import { AlertTriangle, Clock4, LayoutGrid, List, UploadCloud } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON } from '@/components/terminal/term-controls'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
-import { cn } from '@/lib/utils'
 
 import { fetchLedgerJson } from './ledger-load'
 import { filterDetailRows, filterSummaryRows } from './ledger-derive'
@@ -187,6 +189,15 @@ export default function InventoryLedgerPage() {
     loadData()
   }, [loadData])
 
+  // —— Header 化：head 插槽 + 全局刷新（operations header 迁移 §1.4） ——
+  // 刷新语义与原控制台「刷新」按钮一致：本页无缓存，直接全量重拉 6 端点（allSettled）。
+  // handler 用 ref 桥接——projectId/month 变化后触发刷新仍执行最新闭包，不过期。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
+  useHeaderRefresh(() => loadDataRef.current(), { loading })
+
+  const isMobile = useIsMobile()
+
   // ── 筛选选项（从原始行派生） ────────────────────────────────────────────
   const rawSummary = summaryRows?.rows ?? []
   const rawDetail = detailRows?.rows ?? []
@@ -239,119 +250,85 @@ export default function InventoryLedgerPage() {
     (v) => v !== ALL,
   ).length
 
+  // 筛选控件 portal 进 Top Header 中段插槽（项目/月份 + 4 维派生筛选 + 清除筛选）。
+  // 派生筛选的选项集合随数据更新——控件由页面自身渲染，portal 天然实时，无过期快照。
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+        placeholder="选择项目"
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={month}
+        onChange={setMonth}
+        options={months.map((m) => ({ value: m, label: m }))}
+        placeholder="选择月份"
+        widthClass={TERM_HEADER_W_SM}
+        title="月份筛选"
+      />
+      <HeaderSlotSelect
+        value={filters.msku}
+        onChange={(v) => setFilters({ msku: v })}
+        options={[
+          { value: ALL, label: '全部 SKU' },
+          ...filterOptions.mskus.map((s) => ({ value: s, label: s })),
+        ]}
+        widthClass={TERM_HEADER_W_MD}
+        title="SKU 筛选"
+      />
+      <HeaderSlotSelect
+        value={filters.fc}
+        onChange={(v) => setFilters({ fc: v })}
+        options={[
+          { value: ALL, label: '全部仓库' },
+          ...filterOptions.locations.map((l) => ({ value: l, label: l })),
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="仓库筛选"
+      />
+      <HeaderSlotSelect
+        value={filters.disp}
+        onChange={(v) => setFilters({ disp: v })}
+        options={[
+          { value: ALL, label: '全部状态' },
+          ...filterOptions.dispositions.map((d) => ({ value: d, label: dispositionLabel(d) })),
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="状态筛选"
+      />
+      <HeaderSlotSelect
+        value={filters.evt}
+        onChange={(v) => setFilters({ evt: v })}
+        options={[
+          { value: ALL, label: '全部事件类型' },
+          ...filterOptions.eventTypes.map((e) => ({ value: e, label: eventTypeLabel(e) })),
+        ]}
+        widthClass={TERM_HEADER_W_MD}
+        title="事件类型筛选"
+      />
+      {activeFilterCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
+          className="flex h-9 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+        >
+          清除筛选（{activeFilterCount}）
+        </button>
+      )}
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <TermPanel title="库存分类账" bodyClassName="p-3">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs leading-5 text-term-muted">
-            按月对账 Amazon Inventory Ledger：汇总水位 / 事件明细 / 上传批次，支持跨月连续性与双表一致性校验。
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg text-xs text-term-text md:w-[180px]">
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent className="rounded-none border-term-border bg-term-panel">
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)} className="rounded-none text-xs">
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={month} onValueChange={setMonth}>
-              <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg text-xs text-term-text md:w-[140px]">
-                <SelectValue placeholder="选择月份" />
-              </SelectTrigger>
-              <SelectContent className="rounded-none border-term-border bg-term-panel">
-                {months.map((m) => (
-                  <SelectItem key={m} value={m} className="rounded-none text-xs">
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <button type="button" onClick={() => void loadData()} disabled={loading} className={TERM_BUTTON}>
-              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-              刷新
-            </button>
-          </div>
-        </div>
-      </TermPanel>
-
-      {/* 全局维度筛选条（唯一筛选真相源）— §8.2 FilterToolbar，桌面横向 / 手机 2 列网格 */}
-      <FilterToolbar
-        actions={
-          activeFilterCount > 0 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
-            >
-              清除筛选（{activeFilterCount}）
-            </Button>
-          ) : undefined
-        }
-      >
-        <Select value={filters.msku} onValueChange={(v) => setFilters({ msku: v })}>
-          <SelectTrigger className="w-full md:w-[150px]">
-            <SelectValue placeholder="全部 SKU" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部 SKU</SelectItem>
-            {filterOptions.mskus.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.fc} onValueChange={(v) => setFilters({ fc: v })}>
-          <SelectTrigger className="w-full md:w-[130px]">
-            <SelectValue placeholder="全部仓库" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部仓库</SelectItem>
-            {filterOptions.locations.map((l) => (
-              <SelectItem key={l} value={l}>
-                {l}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.disp} onValueChange={(v) => setFilters({ disp: v })}>
-          <SelectTrigger className="w-full md:w-[140px]">
-            <SelectValue placeholder="全部状态" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部状态</SelectItem>
-            {filterOptions.dispositions.map((d) => (
-              <SelectItem key={d} value={d}>
-                {dispositionLabel(d)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.evt} onValueChange={(v) => setFilters({ evt: v })}>
-          <SelectTrigger className="w-full md:w-[140px]">
-            <SelectValue placeholder="全部事件类型" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部事件类型</SelectItem>
-            {filterOptions.eventTypes.map((e) => (
-              <SelectItem key={e} value={e}>
-                {eventTypeLabel(e)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterToolbar>
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
       {/* Load error banner（BEL-417：真实错误 + 重试，不再静默假空态；destructive token 自动适配 dark） */}
       {loadError && (

@@ -10,10 +10,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useMobile } from '@/lib/hooks/use-mobile'
 
 import { Button } from '@/components/ui/button'
-import { TERM_PANEL_SURFACE } from '@/components/ui/card'
 import { ErrorState } from '@/components/ui/error-state'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { PageHeader } from '@/components/ui/page-header'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   ChartContainer,
@@ -30,11 +27,7 @@ import {
   DataTableCardBody,
   DataTableCardStatBar,
 } from '@/components/ui/data-card'
-import {
-  DateRangePicker,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
+import { formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import {
   Select,
   SelectContent,
@@ -60,7 +53,15 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
-import { CountrySelect, RefreshButton } from '@/components/dashboard/console'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 
 type ProjectOption = {
   id: number | null
@@ -91,6 +92,13 @@ type WeeklySummaryItem = {
 type WeeklyViewTab = 'summary' | 'details'
 type CountryOption = 'US' | 'DE' | 'UK'
 
+/** 站点选项：本页仅支持 US/DE/UK（无 ALL——与 useUrlParam allowed 集合一致，保持页面原生选项集） */
+const COUNTRY_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+]
+
 type PT1DetailsResponse = {
   pt1_id: number
   report_start_date: string
@@ -103,15 +111,6 @@ type PT1DetailsResponse = {
     asin?: string | null
     raw_row?: Record<string, unknown> | null
   }>
-}
-
-function WeeklyFilterSkeleton({ width = 'w-full' }: { width?: string }) {
-  return (
-    <div className={`space-y-1.5 ${width}`}>
-      <Skeleton className="h-3 w-14" />
-      <Skeleton className="h-9 w-full" />
-    </div>
-  )
 }
 
 function WeeklyStatSkeleton() {
@@ -1726,76 +1725,74 @@ export default function WeeklyProductAnalysisPage() {
     summaryTotals,
   ])
 
+  // —— Header 化：head 插槽 + 全局刷新（BLF-826 范式，蓝本 return-analysis）——
+  // 刷新语义（计划 §1.4「页面多 tab」）：重拉「当前激活 tab」的数据集——
+  //   汇总 tab → loadWeeklyData({ force: true })（跳 3min 自建客户端缓存）
+  //   明细 tab → loadWeeklyDetails({ force: true })（跳 5min 自建客户端缓存）
+  // handler 用 ref 桥接：每次渲染指向最新闭包，触发时永远读到当前 tab 与最新筛选。
+  const refreshActiveTabRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  refreshActiveTabRef.current = () =>
+    activeTab === 'details' ? loadWeeklyDetails({ force: true }) : loadWeeklyData({ force: true })
+  useHeaderRefresh(() => refreshActiveTabRef.current(), {
+    loading: activeTab === 'details' ? detailsLoading : loading,
+  })
+
+  // 筛选控件 portal 进 Top Header 中段插槽（项目(店铺) / 站点 / 日期范围，term 规格）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((project) => ({
+          value: String(project.id),
+          label: project.name,
+        }))}
+        placeholder={projectsLoading ? '店铺加载中…' : '选择店铺'}
+        disabled={projectsLoading || projects.length === 0}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目（店铺）筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as CountryOption)}
+        options={COUNTRY_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotDateRange
+        value={parseDateRangeInputValue(startDate, endDate)}
+        onChange={(range) => {
+          setStartDate(formatDateInputValue(range?.from))
+          setEndDate(formatDateInputValue(range?.to))
+        }}
+        widthClass={TERM_HEADER_W_XL}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1；BLF-873：term 面板表面） */}
-      <section className={cn(TERM_PANEL_SURFACE, 'animate-enter px-4 py-4 md:px-5 md:py-5')}>
-        <PageHeader
-          className="relative z-10"
-          title="每周商品分析"
-          description="按周聚合商品销售 / 广告 / 库存表现，对比上周与四周均值，定位增长与风险 SKU。"
-        />
-      </section>
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
-      {/* 控制台 — term 面板承载（BLF-873：去玻璃表面，对齐 DataCardHeader 标题条） */}
-      <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text shadow-none">
-        <div className="flex items-center justify-between border-b border-term-border bg-term-raised px-4 py-3">
-          <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">控制台</h2>
-        </div>
-        <FilterToolbar className="border-0">
-          {projectsLoading ? (
-            <WeeklyFilterSkeleton width="min-w-[180px]" />
-          ) : (
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={projects.length === 0}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="选择店铺" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={String(project.id)}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <CountrySelect
-            value={country}
-            onChange={(value) => setCountry(value as CountryOption)}
-            triggerClassName="w-full sm:w-[150px]"
-          />
-          <DateRangePicker
-            value={parseDateRangeInputValue(startDate, endDate)}
-            onChange={(range) => {
-              setStartDate(formatDateInputValue(range?.from))
-              setEndDate(formatDateInputValue(range?.to))
-            }}
-            className="col-span-2 w-full sm:w-[220px]"
-          />
-          <RefreshButton
-            onClick={() => void loadWeeklyData({ force: true })}
-            loading={loading}
-            label="刷新数据"
-            variant="outline"
-            className="col-span-2 w-full sm:w-auto"
-          />
-        </FilterToolbar>
-
-        {projectLoadError ? (
-          <div className="border-t border-term-border px-4 pb-4 pt-2">
+      {/* 错误反馈：原由控制台卡片承载，控制台移除后保留为独立块（数据逻辑不变） */}
+      {projectLoadError ? (
+        <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text">
+          <div className="px-4 pb-4 pt-2">
             <ErrorState title="项目加载失败" message={projectLoadError} className="py-4" />
           </div>
-        ) : null}
-        {error ? (
-          <div className="border-t border-term-border px-4 pb-4 pt-2">
+        </div>
+      ) : null}
+      {error ? (
+        <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text">
+          <div className="px-4 pb-4 pt-2">
             <ErrorState title="数据加载失败" message={error} className="py-4" />
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="dashboard-surface overflow-hidden">
         <DataCardHeader
@@ -2288,54 +2285,43 @@ export default function WeeklyProductAnalysisPage() {
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {activeTab === 'details' ? (
-                <>
-                  <Select
-                    value={selectedWeekId}
-                    onValueChange={setSelectedWeekId}
-                    disabled={summaryRows.length === 0}
-                  >
-                    <SelectTrigger className="h-8 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
-                      <SelectValue placeholder="选择周次" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <TooltipProvider delayDuration={0}>
-                        {summaryRows.map((item, index) => {
-                          const { isPartial } = extractCompleteness(item.row)
-                          return (
-                            <SelectItem key={item.row.id} value={String(item.row.id)}>
-                              {getISOWeek(item.row.report_start_date)} ·{' '}
-                              {formatDateRange(
-                                item.row.report_start_date,
-                                item.row.report_end_date
-                              )}
-                              {isPartial && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="ml-1.5 inline-block">
-                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent sideOffset={4}>
-                                    数据不完整，仅供参考
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </SelectItem>
-                          )
-                        })}
-                      </TooltipProvider>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8 min-h-[44px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:min-h-0"
-                    onClick={() => void loadWeeklyDetails({ force: true })}
-                    disabled={!selectedWeekId || detailsLoading}
-                  >
-                    {detailsLoading ? '加载中...' : '刷新 SKU明细'}
-                  </Button>
-                </>
+                <Select
+                  value={selectedWeekId}
+                  onValueChange={setSelectedWeekId}
+                  disabled={summaryRows.length === 0}
+                >
+                  <SelectTrigger className="h-8 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
+                    <SelectValue placeholder="选择周次" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <TooltipProvider delayDuration={0}>
+                      {summaryRows.map((item, index) => {
+                        const { isPartial } = extractCompleteness(item.row)
+                        return (
+                          <SelectItem key={item.row.id} value={String(item.row.id)}>
+                            {getISOWeek(item.row.report_start_date)} ·{' '}
+                            {formatDateRange(
+                              item.row.report_start_date,
+                              item.row.report_end_date
+                            )}
+                            {isPartial && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="ml-1.5 inline-block">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent sideOffset={4}>
+                                  数据不完整，仅供参考
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </SelectItem>
+                        )
+                      })}
+                    </TooltipProvider>
+                  </SelectContent>
+                </Select>
               ) : null}
               <Button
                 type="button"

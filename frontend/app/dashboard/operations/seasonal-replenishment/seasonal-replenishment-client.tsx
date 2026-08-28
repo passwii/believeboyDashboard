@@ -3,20 +3,13 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
-import { FileDown, RefreshCw, Table2, TrendingDown, TrendingUp } from 'lucide-react'
+import { FileDown, Table2, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import type { DateRange } from 'react-day-picker'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -31,7 +24,17 @@ import {
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_LG,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -40,14 +43,15 @@ import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
-import { CountrySelect } from '@/components/dashboard/console'
-import {
-  COUNTRY_TIMEZONE_MAP,
-  DateRangePicker,
-  getTodayInTimezone,
-} from '@/components/ui/date-picker'
+import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 
 const API_BASE = '/api/backend'
+
+/** header 插槽站点选项：保持页面原生选项集（含 ALL 聚合位，与迁移前 CountrySelect 一致） */
+const COUNTRY_SLOT_OPTIONS = COUNTRY_OPTIONS.map((opt) => ({
+  value: opt.value,
+  label: opt.label,
+}))
 
 type ProjectOption = { id: number; name: string }
 
@@ -574,119 +578,88 @@ export default function SeasonalReplenishmentPage() {
     },
   ]
 
-  const dateRangeValid = Boolean(fromDate && toDate && toDate.getTime() >= fromDate.getTime())
   const daysSpan =
     fromDate && toDate ? Math.floor((toDate.getTime() - fromDate.getTime()) / 86400000) + 1 : 0
+  // 日期旁天数提示：48px header 放不下额外文本，收敛为日期 trigger 的 title tooltip
+  const dateRangeHint =
+    fromDate && toDate
+      ? `${daysSpan} 天 · ${compareYear ? `同比 ${toStrMinusYear(toDate)}` : '无同比'}`
+      : ''
+
+  // —— Header 化：全局刷新 = 原「刷新重算」语义（BEL-423） ——
+  // 置 force 标志 + 触发重载（refreshNonce），下一次加载跳过 2min 客户端缓存，
+  // 拿后端最新重算结果；loading 上报给头部刷新按钮（转圈/禁点）。
+  const handleRefreshRecalc = () => {
+    forceNextLoadRef.current = true
+    setRefreshNonce((n) => n + 1)
+  }
+  // ref 桥接：触发时永远执行最新闭包，防过期 state
+  const handleRefreshRecalcRef = useRef(handleRefreshRecalc)
+  handleRefreshRecalcRef.current = handleRefreshRecalc
+  useHeaderRefresh(() => handleRefreshRecalcRef.current(), { loading })
+
+  const isMobile = useIsMobile()
+
+  // 5 个筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围 / 关键词 / 同比开关）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((project) => ({
+          value: String(project.id),
+          label: project.name,
+        }))}
+        placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+        disabled={projectsLoading}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+        options={COUNTRY_SLOT_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <div className="shrink-0" title={dateRangeHint || undefined}>
+        <HeaderSlotDateRange
+          value={dateRange}
+          onChange={setDateRange}
+          timezone={COUNTRY_TIMEZONE_MAP[country]}
+          widthClass={TERM_HEADER_W_XL}
+        />
+      </div>
+      {/* 关键词输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      <Input
+        size="lg"
+        value={keyword}
+        onChange={(event) => setKeyword(event.target.value)}
+        placeholder="搜索 SKU / ASIN"
+        className={cn('shrink-0', TERM_HEADER_W_LG)}
+        title="关键词筛选（SKU / ASIN）"
+      />
+      {/* 「去年」同比开关：h-9 term 容器对齐，mono label */}
+      <div className="flex h-9 shrink-0 items-center gap-1.5 rounded-none border border-term-border bg-term-bg px-2.5">
+        <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
+        <label htmlFor="compare-yoy" className="cursor-pointer font-mono text-sm text-term-text">
+          去年
+        </label>
+      </div>
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
 
   return (
     <div className="w-full space-y-6">
+      {/* Header 化：5 个筛选控件（项目/站点/日期/关键词/同比）已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+
+      {/* 5 格统计条（原控制台内容，保留） */}
       <div className="dashboard-surface">
-        <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              季节性补货控制台
-            </p>
-            <h2 className="text-base font-semibold text-foreground leading-none">季节性补货分析</h2>
-            <Badge
-              variant="outline"
-              className="ml-2 border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300"
-            >
-              权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
-            </Badge>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!currentProjectId || loading || !dateRangeValid}
-              onClick={() => {
-                forceNextLoadRef.current = true
-                setRefreshNonce((n) => n + 1)
-              }}
-            >
-              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? '重算中...' : '刷新重算'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || exporting || rows.length === 0}
-              onClick={() => void exportToExcel()}
-            >
-              <FileDown className="mr-1.5 h-4 w-4" />
-              {exporting ? '导出中...' : '导出 Excel'}
-            </Button>
-          </div>
-        </div>
-
-        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2，去小标题标签，对齐 inventory-analysis 迁移先例） */}
-        <FilterToolbar>
-          <div className="w-full min-w-0">
-            {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-lg" />
-            ) : (
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="w-full min-w-0">
-            <CountrySelect
-              value={country}
-              onChange={(c) => {
-                setCountry(c as 'US' | 'DE' | 'UK' | 'ALL')
-              }}
-              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]"
-            />
-          </div>
-          <div className="w-full min-w-0">
-            <DateRangePicker
-              value={dateRange}
-              onChange={(range) => {
-                setDateRange(range)
-              }}
-              className="h-9 w-full md:w-[220px]"
-              timezone={COUNTRY_TIMEZONE_MAP[country]}
-            />
-            {fromDate && toDate && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {daysSpan} 天 · {compareYear ? `同比 ${toStrMinusYear(toDate)}` : '无同比'}
-              </p>
-            )}
-          </div>
-          <div className="w-full min-w-0">
-            <Input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜索 SKU / ASIN"
-              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]"
-            />
-          </div>
-          <div className="w-full min-w-0">
-            <div className="flex h-9 items-center gap-2">
-              <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
-              <label
-                htmlFor="compare-yoy"
-                className="text-xs text-muted-foreground cursor-pointer"
-              >
-                去年
-              </label>
-            </div>
-          </div>
-        </FilterToolbar>
-
-        <div className="border-t border-border/70 px-4 py-3">
+        <div className="px-4 py-3">
           {loading && rows.length === 0 ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -723,11 +696,29 @@ export default function SeasonalReplenishmentPage() {
       </div>
 
       <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Table2 className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-base font-semibold text-foreground">季节性补货主表</h3>
+            {/* 权重 Badge（原控制台标题行内容，保留） */}
+            <Badge
+              variant="outline"
+              className="border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300"
+            >
+              权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
+            </Badge>
           </div>
+          {/* 导出（原控制台内容，保留；「刷新重算」按钮已删除，由头部全局刷新接管） */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loading || exporting || rows.length === 0}
+            onClick={() => void exportToExcel()}
+          >
+            <FileDown className="mr-1.5 h-4 w-4" />
+            {exporting ? '导出中...' : '导出 Excel'}
+          </Button>
         </div>
 
         {!currentProjectId && !projectsLoading ? (
