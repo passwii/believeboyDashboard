@@ -19,15 +19,17 @@ import { createPortal } from 'react-dom'
  *
  * 刷新走同一 Provider 的轻量事件模型（不引入 zustand / mitt 等新依赖）：
  * 页面 `useHeaderRefresh(handler, opts)` 注册回调并上报 loading；无页面注册时
- * 头部刷新按钮隐藏（profile / change-password 等静态页不显示）。
- * 语义约定：刷新 = 页面当前筛选条件下的强刷（跳 Redis/客户端缓存）。
+ * 头部刷新按钮仍常驻（BLF-881），点击兜底 `router.refresh()` 重取当前路由
+ * server 数据（不丢 client state）。
+ * 语义约定：已注册页刷新 = 页面当前筛选条件下的强刷（跳 Redis/客户端缓存）；
+ * 未注册页刷新 = 当前路由 server 数据重取。
  */
 
 export interface TerminalHeaderSlotContextValue {
   /** header 内插槽挂载点；null = header 尚未挂载（SSR / 首帧） */
   anchor: HTMLElement | null
 
-  /** 刷新回调是否已由当前页面提供（决定头部刷新按钮显隐） */
+  /** 刷新回调是否已由当前页面提供（决定头部刷新按钮点击走页面回调还是 router.refresh 兜底） */
   refreshRegistered: boolean
   /** 刷新进行中（头部按钮转 spinner、禁点） */
   refreshLoading: boolean
@@ -165,7 +167,7 @@ export function useHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
 
 /**
  * 页面侧 hook：注册全局刷新回调（head 刷新按钮点击时触发）并上报 loading。
- * unmount 自动注销，头部按钮随之隐藏。
+ * unmount 自动注销，头部按钮随之切回 router.refresh 兜底（BLF-881 起按钮常驻）。
  * handler 用 ref 桥接 —— 页面任意 state 更新都不会导致重复注册，
  * 触发时永远执行最新闭包。返回 setLoading 供异步强刷期间上报按钮态。
  */
