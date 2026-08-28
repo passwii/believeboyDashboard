@@ -20,11 +20,12 @@ import {
 
 export type TableDensity = 'compact' | 'cozy'
 
-/** 表头单元格密度（覆写 TableHead 默认 h-11/px-4） */
+/** 表头单元格密度（覆写 TableHead 默认 h-9/px-3） */
 export const densityHead: Record<TableDensity, string> = {
   // compact 与历史 DENSE_HEAD 同源（data-card），存量表格与基线 compact 档位收敛为同一套类
+  // （BLF-872 起 Table 原语默认即 compact，本档位保留为显式声明）
   compact: DENSE_HEAD,
-  cozy: '!h-11 !px-4 !text-[0.6875rem]',
+  cozy: '!h-11 !px-4 !text-[0.6875rem] !tracking-[0.16em]',
 }
 
 /** 数据单元格密度（覆写 TableCell 默认 p-4） */
@@ -79,13 +80,15 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold',
+        // Terminal 收口（BLF-872）：零圆角 + mono 小字（状态点保留圆形语义）
+        'inline-flex items-center gap-1.5 rounded-none px-2 py-0.5 font-mono text-[0.7rem] font-semibold',
         statusPillClass[status],
         className
       )}
+      data-slot="status-pill"
     >
       {dot && (
-        <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass[status])} />
+        <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass[status])} data-slot="status-dot" />
       )}
       {label}
     </span>
@@ -132,7 +135,7 @@ export function DataTableFrame({
           className={cn(
             'dashboard-toolbar border-x-0',
             flush || hasHeader ? 'border-t-0' : '',
-            'border-b border-border/70'
+            'border-b border-term-border'
           )}
         >
           {toolbar}
@@ -147,7 +150,7 @@ export function DataTableFrame({
         </div>
       </DataTableCardBody>
       {footer && (
-        <div className="flex items-center justify-between gap-3 border-t border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 md:px-6">
+        <div className="flex items-center justify-between gap-3 border-t border-term-border bg-term-raised px-4 py-3 md:px-6">
           {footer}
         </div>
       )}

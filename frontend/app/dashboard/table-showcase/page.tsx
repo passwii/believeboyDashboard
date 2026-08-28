@@ -52,8 +52,7 @@ const ORDERS: Order[] = [
 
 const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const ROW_BASE =
-  'transition-colors hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8'
+const ROW_BASE = 'transition-colors hover:bg-term-hover data-[state=selected]:bg-term-raised'
 
 // ============================================================
 // 变体 A — 宽松密度（cozy）：常规列表/展示型表格用
@@ -124,7 +123,7 @@ function BaselineDense() {
 
   const SortHead = ({ k, label, align }: { k: keyof Order; label: string; align?: string }) => (
     <TableHead
-      className={cn(densityHead.compact, align === 'right' && 'text-right', 'cursor-pointer select-none hover:text-foreground')}
+      className={cn(densityHead.compact, align === 'right' && 'text-right', 'cursor-pointer select-none hover:text-term-text')}
       onClick={() => toggleSort(k)}
     >
       <span className={cn('inline-flex items-center gap-1', align === 'right' && 'flex-row-reverse')}>
@@ -264,7 +263,7 @@ function DirectionMotion() {
                   className={cn(
                     ROW_BASE,
                     'cursor-pointer',
-                    isOpen && 'bg-[hsl(var(--surface-subtle))]'
+                    isOpen && 'bg-term-hover'
                   )}
                 >
                   <TableCell className={densityCell.cozy}>
@@ -294,7 +293,7 @@ function DirectionMotion() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="bg-[hsl(var(--surface-subtle))/0.5]"
+                      className="bg-term-raised"
                     >
                       <TableCell colSpan={6} className="!p-0">
                         <motion.div
@@ -337,10 +336,10 @@ function DirectionMotion() {
 // ============================================================
 const SPEC_ROWS: { item: string; rule: string }[] = [
   { item: '密度档位', rule: 'compact（默认，数据密集）/ cozy（宽松，展示型）→ densityHead / densityCell' },
-  { item: '表头规则', rule: 'uppercase + tracking-[0.16em] + surface-subtle 底；compact 档 text-[0.66rem]，cozy 档 text-[0.6875rem]' },
+  { item: '表头规则', rule: 'uppercase + tracking-[0.14em] + term-raised 底；compact 档 text-[0.66rem]，cozy 档 text-[0.6875rem]' },
   { item: '数字列对齐', rule: '右对齐 + tabular-nums + font-medium → numericCell / numericHead（金额、数量、比率）' },
   { item: '状态色', rule: 'StatusPill（success / warning / negative / neutral / info），映射 --data-* token，自动适配 dark' },
-  { item: 'Sticky 行为', rule: '表头 STICKY_TOP_ROW（z-40）；左列 STICKY_LEFT_HEAD_CELL（z-50）/ STICKY_LEFT_CELL（z-30），实体不透明背景' },
+  { item: 'Sticky 行为', rule: '表头 STICKY_TOP_ROW（z-40）；左列 STICKY_LEFT_HEAD_CELL（z-50）/ STICKY_LEFT_CELL（z-30），term 实体不透明背景' },
   { item: '空状态', rule: '表格空态 EmptyTableState（colSpan）；图表空态 EmptyChartState（height）' },
   { item: 'Mobile 降级', rule: '容器 overflow-x-auto 横向滚动；操作列保留；关键列可 sticky left-0' },
 ]

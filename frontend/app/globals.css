@@ -705,12 +705,14 @@
   @media (max-width: 768px) {
     .dashboard-surface table,
     .dashboard-panel table,
+    [class*="bg-term-panel"] table,
     [class*="overflow-auto"] table,
     [class*="overflow-x-auto"] table {
       min-width: max-content;
     }
 
     .dashboard-surface > div:has(table),
+    [class*="bg-term-panel"] > div:has(table),
     [class*="CardContent"] > div:has(table) {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -966,17 +968,18 @@
     will-change: transform;
   }
 
+  /* Terminal 收口（BLF-872）：骨架底色与扫光带改走 term 令牌，深浅主题自动对齐 */
   .u-skeleton-shimmer {
     position: relative;
     overflow: hidden;
-    background-color: hsl(var(--muted));
+    background-color: var(--term-raised);
   }
 
   .u-skeleton-shimmer::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent);
+    background: linear-gradient(90deg, transparent, var(--term-hover), transparent);
     animation: shimmer 1.5s var(--motion-ease-standard) infinite;
     will-change: transform;
   }

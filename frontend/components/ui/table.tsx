@@ -2,12 +2,10 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-// TableProps：默认无圆角（与 DataCard 配合使用时自然对齐）。
-// 如需恢复圆角，请显式传入 wrapperRounded={true}。
+// TableProps：Terminal 收口（BLF-872）——外层零圆角，密度基线 = compact 档
+// （表头 h-9 + 0.66rem，数据格 px-3 py-2 + 13px，与 table-presets 唯一配方同源）。
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   containerClassName?: string
-  /** 显式恢复外层圆角（默认 false，即无圆角） */
-  wrapperRounded?: boolean
   /** 表格布局方式，fixed 模式下 colgroup/width 才能精确控制列宽 */
   tableLayout?: 'auto' | 'fixed'
   /** 是否使用边框折叠模式（推荐，用于精确列宽控制） */
@@ -15,21 +13,12 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  (
-    { className, containerClassName, wrapperRounded, tableLayout, borderCollapse, ...props },
-    ref
-  ) => (
-    <div
-      className={cn(
-        'relative w-full overflow-x-auto overflow-y-visible',
-        wrapperRounded ? 'rounded-lg' : '',
-        containerClassName
-      )}
-    >
+  ({ className, containerClassName, tableLayout, borderCollapse, ...props }, ref) => (
+    <div className={cn('relative w-full overflow-x-auto overflow-y-visible', containerClassName)}>
       <table
         ref={ref}
         className={cn(
-          'w-full caption-bottom text-sm',
+          'w-full caption-bottom font-mono text-[13px]',
           borderCollapse ? 'border-collapse' : 'border-separate border-spacing-0',
           tableLayout === 'fixed' && '[table-layout:fixed]',
           className
@@ -61,7 +50,7 @@ const TableFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={cn('bg-muted/35 font-medium [&>tr]:last:border-b-0', className)}
+    className={cn('bg-term-raised font-medium [&>tr]:last:border-b-0', className)}
     {...props}
   />
 ))
@@ -72,7 +61,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        'transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-border/80 [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-border/80 [&>td:last-child]:border-r-0 hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8 data-[state=selected]:hover:bg-primary/12',
+        'transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-term-border [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-term-border [&>td:last-child]:border-r-0 hover:bg-term-hover data-[state=selected]:bg-term-raised data-[state=selected]:hover:bg-term-raised',
         className
       )}
       {...props}
@@ -88,7 +77,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-11 bg-[hsl(var(--surface-subtle))] px-4 text-left align-middle text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/92 [&:has([role=checkbox])]:pr-0',
+      'h-9 bg-term-raised px-3 text-left align-middle font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-term-muted [&:has([role=checkbox])]:pr-0',
       className
     )}
     {...props}
@@ -102,10 +91,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn(
-      'p-4 align-middle text-sm text-foreground/92 [&:has([role=checkbox])]:pr-0',
-      className
-    )}
+    className={cn('px-3 py-2 align-middle text-term-text [&:has([role=checkbox])]:pr-0', className)}
     {...props}
   />
 ))
@@ -115,7 +101,7 @@ const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
-  <caption ref={ref} className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />
+  <caption ref={ref} className={cn('mt-3 font-mono text-xs text-term-muted', className)} {...props} />
 ))
 TableCaption.displayName = 'TableCaption'
 
@@ -148,30 +134,29 @@ export function ColGroup({ columns, className }: ColGroupProps) {
 // ========================
 // 公共 Sticky 样式常量
 // 用于 DataTableCard、inventory-replenishment、shop-calculation 等页面
-// 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
+// 原则：实体不透明 term 令牌背景（无 opacity），z-index 分层，shadow 模拟边框
+// （BLF-872 Terminal 收口：surface-subtle/base → term-raised/panel，去除暗黑玻璃高光）
 // ========================
 
 export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }
 
 /** 第一列表头单元格：固定左侧 + 顶部（配合 STICKY_TOP_ROW 使用） */
 export const STICKY_LEFT_HEAD_CELL =
-  'sticky left-0 z-50 bg-[hsl(var(--surface-subtle))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.7)]'
+  'sticky left-0 z-50 bg-term-raised shadow-[inset_-1px_0_0_0_var(--term-border)]'
 
 /** 第一行表头行：固定顶部（z-index 40，数据行上方） */
-export const STICKY_TOP_ROW =
-  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.6)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.05),inset_0_-1px_0_0_hsl(var(--border)/0.6)]'
+export const STICKY_TOP_ROW = 'sticky top-0 z-40 bg-term-raised shadow-[inset_0_-1px_0_0_var(--term-border)]'
 
 /** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
-export const STICKY_TOP_GROUP_ROW =
-  'sticky top-0 z-50 dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.06)]'
+export const STICKY_TOP_GROUP_ROW = 'sticky top-0 z-50'
 
-/** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-11 + border = 45px） */
-export const STICKY_TOP_SUB_ROW = 'sticky top-[45px] z-40'
+/** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-9 + border = 37px） */
+export const STICKY_TOP_SUB_ROW = 'sticky top-[37px] z-40'
 
 /** 第一列数据单元格：固定左侧，实体不透明背景 */
 export const STICKY_LEFT_CELL =
-  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.6)]'
+  'sticky left-0 z-30 bg-term-panel shadow-[inset_-1px_0_0_0_var(--term-border)]'
 
 /** 第一列数据单元格（含 hover 变亮效果） */
 export const STICKY_LEFT_CELL_HOVER =
-  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.6)] hover:!bg-sky-50/90 dark:hover:!bg-sky-950/40'
+  'sticky left-0 z-30 bg-term-panel shadow-[inset_-1px_0_0_0_var(--term-border)] hover:!bg-term-hover'

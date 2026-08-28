@@ -1,10 +1,12 @@
 import * as React from 'react'
 
+import { TERM_PANEL_SURFACE } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 // 表格密集档位常量（= table-presets 的 densityHead.compact / densityCell.compact，单一配方）。
 // BLF-496 起 DENSE_* 从 '!p-2' / '!px-2' 收敛为 compact 档位（表头 h-9 + 0.66rem，数字格 13px），
 // 存量 100+ 处用法视觉向基线 compact 对齐；新代码请直接用 densityHead.compact / densityCell.compact。
+// BLF-872 起 Table 原语默认密度即 compact 档，DENSE_* 保留为兼容别名（覆写值与基线一致）。
 export const DENSE_HEAD = '!h-9 !px-3 !text-[0.66rem] !tracking-[0.14em]'
 export const DENSE_CELL = '!px-3 !py-2 !text-[13px]'
 
@@ -12,10 +14,11 @@ export const DENSE_CELL = '!px-3 !py-2 !text-[13px]'
 // DataCard — 普通内容卡片
 // 替代: Card > CardHeader > CardContent 的手动组合
 // 特点: 标题行（含分隔线） + 内容区带默认 padding
+// Terminal 收口（BLF-872）：零圆角 + term 边框/面板 + 零阴影，替代 dashboard-surface
 // ========================
 
 function DataCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('dashboard-surface', className)} {...props} />
+  return <div className={cn(TERM_PANEL_SURFACE, className)} {...props} />
 }
 
 interface DataCardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -38,7 +41,7 @@ function DataCardHeader({
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center justify-between border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3',
+        'flex min-w-0 items-center justify-between border-b border-term-border bg-term-raised px-4 py-3',
         className
       )}
       {...props}
@@ -47,12 +50,15 @@ function DataCardHeader({
         {badge}
         {title && (
           <h2
-            className={cn('text-base font-semibold text-foreground leading-none', titleClassName)}
+            className={cn(
+              'font-mono text-sm font-semibold leading-none tracking-wide text-term-text',
+              titleClassName
+            )}
           >
             {title}
           </h2>
         )}
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        {description && <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>}
       </div>
       {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}
     </div>
@@ -60,7 +66,7 @@ function DataCardHeader({
 }
 
 function DataCardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-6 py-5', className)} {...props} />
+  return <div className={cn('px-4 py-4', className)} {...props} />
 }
 
 // ========================
@@ -69,7 +75,7 @@ function DataCardContent({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 // ========================
 
 function DataTableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('dashboard-surface relative', className)} {...props} />
+  return <div className={cn(TERM_PANEL_SURFACE, className)} {...props} />
 }
 
 // 标题行容器（border-b 分隔）— 支持 title/description/action 或任意子元素
@@ -89,19 +95,20 @@ function DataTableCardHeader({
 }: DataTableCardHeaderProps) {
   return (
     <div
-      className={cn(
-        'border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-6 py-4 md:px-7 md:py-5',
-        className
-      )}
+      className={cn('border-b border-term-border bg-term-raised px-4 py-3', className)}
       {...props}
     >
       {children ?? (
         <div className="flex min-w-0 items-center justify-between">
           <div className="flex min-w-0 flex-col gap-1">
             {title && (
-              <h2 className="text-base font-semibold text-foreground leading-none">{title}</h2>
+              <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">
+                {title}
+              </h2>
             )}
-            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            {description && (
+              <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>
+            )}
           </div>
           {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}
         </div>
@@ -145,7 +152,7 @@ function DataTableCardStatBar({ items, className, ...props }: DataTableCardStatB
   return (
     <div
       className={cn(
-        'grid grid-cols-2 gap-2 px-4 sm:flex sm:gap-0 sm:px-0 sm:divide-x sm:divide-border/60',
+        'grid grid-cols-2 gap-2 px-4 sm:flex sm:gap-0 sm:px-0 sm:divide-x sm:divide-term-border',
         className
       )}
       {...props}
@@ -154,18 +161,18 @@ function DataTableCardStatBar({ items, className, ...props }: DataTableCardStatB
         <div
           key={i}
           className={cn(
-            'flex flex-col items-center justify-center rounded-lg border border-border/70 px-2 py-2.5 sm:flex-1 sm:rounded-none sm:border-0 sm:px-0',
+            'flex flex-col items-center justify-center rounded-none border border-term-border px-2 py-2.5 sm:flex-1 sm:rounded-none sm:border-0 sm:px-0',
             i === 0 && 'sm:pl-4',
             i === items.length - 1 && 'sm:pr-4'
           )}
         >
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-term-muted">
             {item.label}
           </div>
           <div
             className={cn(
-              'mt-0.5 text-xl font-semibold leading-tight',
-              item.highlight ? 'text-primary' : 'text-foreground'
+              'mt-0.5 font-mono text-lg font-semibold leading-tight',
+              item.highlight ? 'text-term-accent' : 'text-term-text'
             )}
           >
             {item.value}

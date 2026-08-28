@@ -1,5 +1,6 @@
 import type * as React from 'react'
 
+import { TERM_PANEL_SURFACE } from '@/components/ui/card'
 import { Delta, DeltaIcon, DeltaValue } from '@/components/ui/delta'
 import { cn } from '@/lib/utils'
 
@@ -14,34 +15,24 @@ interface StatCardProps {
   className?: string
 }
 
+// Terminal 收口（BLF-872）：卡片统一 term 平板（零渐变/零圆角/零阴影），
+// 颜色仅保留图标芯片一档语义提示，数值与文案走 term 中性色。
 const colorClasses = {
   emerald: {
     bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    gradient: 'from-emerald-500/5',
-    icon: 'text-emerald-600',
+    icon: 'text-emerald-600 dark:text-emerald-400',
   },
   rose: {
     bg: 'bg-rose-500/10',
-    border: 'border-rose-500/20',
-    text: 'text-rose-600 dark:text-rose-400',
-    gradient: 'from-rose-500/5',
-    icon: 'text-rose-600',
+    icon: 'text-rose-600 dark:text-rose-400',
   },
   sky: {
     bg: 'bg-sky-500/10',
-    border: 'border-sky-500/20',
-    text: 'text-sky-600 dark:text-sky-400',
-    gradient: 'from-sky-500/5',
-    icon: 'text-sky-600',
+    icon: 'text-sky-600 dark:text-sky-400',
   },
   amber: {
     bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-    text: 'text-amber-600 dark:text-amber-400',
-    gradient: 'from-amber-500/5',
-    icon: 'text-amber-600',
+    icon: 'text-amber-600 dark:text-amber-400',
   },
 }
 
@@ -49,35 +40,19 @@ function StatCard({ title, value, icon, color, trend, trendLabel, className }: S
   const colors = colorClasses[color]
 
   return (
-    <div
-      className={cn(
-        'dashboard-surface hover-lift animate-enter border relative overflow-hidden',
-        colors.border,
-        className
-      )}
-    >
-      <div
-        className={cn(
-          'absolute inset-0 bg-gradient-to-br via-transparent to-transparent opacity-60 dark:opacity-35',
-          colors.gradient
-        )}
-      />
-      <div className="relative z-10 flex flex-row items-start justify-between space-y-0 px-4 pb-3 pt-4">
-        <div
-          className={cn(
-            'text-[13px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'
-          )}
-        >
+    <div className={cn(TERM_PANEL_SURFACE, 'animate-enter overflow-hidden', className)}>
+      <div className="flex flex-row items-start justify-between space-y-0 px-4 pb-3 pt-4">
+        <div className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-term-muted">
           {title}
         </div>
-        <div className={cn('rounded-lg p-2', colors.bg, colors.icon)}>{icon}</div>
+        <div className={cn('rounded-none p-1.5', colors.bg, colors.icon)}>{icon}</div>
       </div>
-      <div className="relative z-10 px-4 pb-4 pt-0">
-        <div className={cn('text-2xl font-semibold tracking-tight md:text-[1.7rem]', colors.text)}>
+      <div className="px-4 pb-4 pt-0">
+        <div className="font-mono text-xl font-semibold tracking-tight text-term-text">
           {value}
         </div>
         {trend !== undefined ? (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 font-mono text-xs text-term-muted">
             {/* 涨跌逻辑统一走 Delta 原语（ui/delta.tsx）：正值 emerald / 负值 rose / 0 中性 */}
             <Delta value={trend}>
               <DeltaIcon variant="arrow" />

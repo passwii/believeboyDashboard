@@ -61,10 +61,8 @@ export function EmptyState({
         className
       )}
     >
-      {customIcon ?? (
-        <IconComponent className="h-8 w-8 text-muted-foreground/40" strokeWidth={1.5} />
-      )}
-      <p className="text-sm text-muted-foreground">{message}</p>
+      {customIcon ?? <IconComponent className="h-8 w-8 text-term-faint" strokeWidth={1.5} />}
+      <p className="font-mono text-xs text-term-muted">{message}</p>
     </div>
   )
 
@@ -76,7 +74,7 @@ export function EmptyState({
 
     return (
       <tr>
-        <td colSpan={colSpan} className={cn('text-center text-muted-foreground', heightClass)}>
+        <td colSpan={colSpan} className={cn('text-center text-term-muted', heightClass)}>
           {content}
         </td>
       </tr>
@@ -87,7 +85,8 @@ export function EmptyState({
     return (
       <div
         className={cn(
-          'flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 text-sm text-muted-foreground',
+          // Terminal 收口（BLF-872）：零圆角 + term 虚线边框/底色
+          'flex items-center justify-center rounded-none border border-dashed border-term-border bg-term-raised font-mono text-xs text-term-muted',
           chartHeight
         )}
       >
@@ -104,7 +103,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'rounded-lg border border-dashed border-border/60 bg-muted/20',
+        'rounded-none border border-dashed border-term-border bg-term-raised',
         heightClass,
         className
       )}
@@ -125,7 +124,7 @@ export function EmptyTableState({
 }) {
   return (
     <tr>
-      <td colSpan={colSpan} className={cn('h-24 text-center text-muted-foreground', className)}>
+      <td colSpan={colSpan} className={cn('h-24 text-center text-term-muted', className)}>
         {message}
       </td>
     </tr>
@@ -144,7 +143,7 @@ export function EmptyChartState({
   return (
     <div
       className={cn(
-        'flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 text-sm text-muted-foreground',
+        'flex items-center justify-center rounded-none border border-dashed border-term-border bg-term-raised font-mono text-xs text-term-muted',
         height,
         className
       )}
