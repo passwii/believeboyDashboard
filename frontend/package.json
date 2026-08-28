@@ -2,7 +2,7 @@
   "name": "believeboy-dashboard",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.18.0",
+  "packageManager": "pnpm@12.0.0",
   "scripts": {
     "dev": "next dev -p 3200",
     "build": "pnpm gen:api-types:check && next build",
