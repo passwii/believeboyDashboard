@@ -1,14 +1,22 @@
 /**
- * Page-level render test for the redesigned inventory-ledger page
- * (BLF-428 前端重构：全局筛选条 + 总览 + Summary/Detail 双 Tab).
+ * Page-level tests for the inventory-ledger page
+ * (BLF-428 前端重构 + operations 全域 header 化迁移 §3 A4).
  *
- * Mock 稳定性教训（BLF-450 dashboard v2 实测）：mock 的项目列表等必须用
- * 模块级常量，避免每次 render 新引用触发 effect 无限重跑、loading 振荡。
+ * Header 化契约：
+ *  1. 筛选控件（项目/月份 + SKU/仓库/状态/事件类型 4 维派生筛选 + 清除筛选）
+ *     portal 进 Top Header 中段插槽；
+ *  2. 全局刷新 = 全量重拉 6 端点（本页无缓存），{ loading } 上报；
+ *  3. 旧 TermPanel 控制台壳与页内「刷新」按钮已移除（全局唯一入口）。
+ *
+ * Mock 稳定性教训（必须遵守）：useSession 等 mock 必须返回稳定引用——
+ * 用 vi.hoisted 定义常量再在 factory 里引用，否则 identity 抖动导致
+ * useEffect 重复触发、双重 fetch、loading 断言竞态。
+ * 断言 loading 上报时用受控 deferred Promise 挂起 fetch。
  */
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── next/navigation：进程内 URL search param 存储 ────────────────────────────
 const nav = vi.hoisted(() => {
@@ -32,8 +40,13 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, push: nav.replace }),
 }))
 
+// 稳定引用：避免每次渲染新对象导致 projects effect identity 抖动、重复触发
+const { stableSession } = vi.hoisted(() => ({
+  stableSession: { user: { name: '测试用户' } },
+}))
+
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+  useSession: () => ({ data: stableSession, status: 'authenticated' as const }),
 }))
 
 // 模块级常量：避免 fetchManagedProjectsCached 每次返回新数组引用
@@ -49,6 +62,24 @@ vi.mock('next/dynamic', () => ({
     function LazyOverviewStub() {
       return <div data-testid="ledger-overview-stub" />
     },
+}))
+
+// 测试环境一律按桌面端渲染（与 vitest.setup 的 matchMedia 桩语义一致）
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => false,
+}))
+
+// 捕获 header 刷新回调与 loading 上报；插槽内容直接渲染回页面正文，
+// 便于断言上移后的筛选控件（生产环境它们被 portal 进 TerminalHeader 中段）。
+let capturedRefreshHandler: (() => void | Promise<void>) | null = null
+let capturedRefreshLoading: boolean | undefined
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => void | Promise<void>, opts?: { loading?: boolean }) => {
+    capturedRefreshHandler = handler
+    capturedRefreshLoading = opts?.loading
+    return { setLoading: vi.fn() }
+  },
+  useHeaderSlot: (node: React.ReactNode) => node,
 }))
 
 import InventoryLedgerPage from './inventory-ledger-client'
@@ -245,33 +276,53 @@ const PAYLOADS: Record<string, unknown> = {
   },
 }
 
+const DATA_ENDPOINTS = ['snapshot', 'trend', 'summary', 'detail', 'batches', 'consistency']
+
+function okJson(body: unknown) {
+  return { ok: true, json: () => Promise.resolve(body) }
+}
+
+let fetchMock: ReturnType<typeof vi.fn>
+
 beforeEach(() => {
   nav.setParams('project_id=1&month=2026-03-01')
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((url: string) => {
-      const hit = Object.keys(PAYLOADS).find((k) => url.includes(k))
-      const body = hit ? PAYLOADS[hit] : {}
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
-    }),
-  )
+  fetchMock = vi.fn((url: string) => {
+    const hit = Object.keys(PAYLOADS).find((k) => url.includes(k))
+    return Promise.resolve(okJson(hit ? PAYLOADS[hit] : {}))
+  })
+  vi.stubGlobal('fetch', fetchMock)
 })
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  vi.unstubAllGlobals()
+  capturedRefreshHandler = null
+  capturedRefreshLoading = undefined
+})
+
+/** 统计某 inventory-ledger 端点被 fetch 的次数 */
+const callsFor = (endpoint: string): number =>
+  fetchMock.mock.calls.filter((args) =>
+    String(args[0]).includes(`/inventory-ledger/${endpoint}`)
+  ).length
 
 // ── 测试 ──────────────────────────────────────────────────────────────────────
 
-describe('库存分类账页面（重构版）', () => {
-  it('渲染标题、全局筛选条与三个 tab', async () => {
+describe('库存分类账页面（header 化迁移版）', () => {
+  it('渲染不崩溃：插槽筛选控件与三个 tab 出现', async () => {
     render(<InventoryLedgerPage />)
-    expect(screen.getByText('库存分类账')).toBeInTheDocument()
-    // 全局筛选条
+    // 等待数据加载完成（tabs 在 hasAnyData 时渲染）
+    expect(await screen.findByText('汇总视图 Summary')).toBeInTheDocument()
+    expect(screen.getByText('明细视图 Detail')).toBeInTheDocument()
+    expect(screen.getByText('上传批次')).toBeInTheDocument()
+    // 上移进 header 插槽的控件（测试 mock 将插槽内容渲染回页面正文）
+    expect(screen.getByText('项目A')).toBeInTheDocument()
+    expect(screen.getAllByText('2026-03-01').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('全部 SKU')).toBeInTheDocument()
     expect(screen.getByText('全部仓库')).toBeInTheDocument()
     expect(screen.getByText('全部状态')).toBeInTheDocument()
     expect(screen.getByText('全部事件类型')).toBeInTheDocument()
-    // Tabs
-    expect(await screen.findByText('汇总视图 Summary')).toBeInTheDocument()
-    expect(screen.getByText('明细视图 Detail')).toBeInTheDocument()
-    expect(screen.getByText('上传批次')).toBeInTheDocument()
   })
 
   it('总览区（懒加载 stub）随数据渲染', async () => {
@@ -309,5 +360,68 @@ describe('库存分类账页面（重构版）', () => {
     rerender(<InventoryLedgerPage />)
     expect(await screen.findByText('库存分类账 2026-0301-0331.csv')).toBeInTheDocument()
     expect(screen.getByText('成功')).toBeInTheDocument()
+  })
+
+  it('头部刷新回调触发全量重拉 6 端点（无缓存），且 loading 上报', async () => {
+    render(<InventoryLedgerPage />)
+    await screen.findByText('汇总视图 Summary')
+
+    // 初始加载：6 个数据端点各被拉一次
+    for (const name of DATA_ENDPOINTS) {
+      expect(callsFor(name)).toBe(1)
+    }
+    expect(capturedRefreshHandler).not.toBeNull()
+
+    // 用受控 deferred Promise 挂起本次重拉，确定性断言 loading 上报
+    const pendingResolvers: Array<(value: ReturnType<typeof okJson>) => void> = []
+    fetchMock.mockImplementation(
+      (_url: string) =>
+        new Promise<ReturnType<typeof okJson>>((resolve) => {
+          pendingResolvers.push(resolve)
+        })
+    )
+
+    act(() => {
+      void capturedRefreshHandler?.()
+    })
+
+    // loading 状态上报给全局刷新按钮
+    await waitFor(() => expect(capturedRefreshLoading).toBe(true))
+    // 6 端点全量重拉（月份列表不在刷新范围，不重取）
+    await waitFor(() => expect(pendingResolvers.length).toBe(6))
+    for (const name of DATA_ENDPOINTS) {
+      expect(callsFor(name)).toBe(2)
+    }
+
+    // 放行请求：allSettled 落定后 loading 回落
+    for (const resolve of pendingResolvers) {
+      resolve(okJson({}))
+    }
+    await waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('旧控制台已移除：无「控制台」文案、无页内「刷新」按钮', async () => {
+    render(<InventoryLedgerPage />)
+    await screen.findByText('汇总视图 Summary')
+    expect(screen.queryByText('控制台')).not.toBeInTheDocument()
+    // 原 TermPanel 控制台壳（含说明文案）已整体删除，标题由 header 面包屑承载
+    expect(screen.queryByText(/按月对账 Amazon Inventory Ledger/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
+  })
+
+  it('清除筛选按钮：有激活筛选时出现，点击后重置筛选', async () => {
+    // 深链带 msku 筛选（首次挂载不重置，保住深链分享）
+    nav.setParams('project_id=1&month=2026-03-01&msku=SKU-A')
+    const user = userEvent.setup()
+    const { rerender } = render(<InventoryLedgerPage />)
+    const clearBtn = await screen.findByRole('button', { name: /清除筛选/ })
+    expect(clearBtn).toHaveTextContent('清除筛选（1）')
+
+    await user.click(clearBtn)
+    // setFilters 走 router.replace（mock 写进程内 URL）；rerender 让 useUrlParams 重读
+    rerender(<InventoryLedgerPage />)
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /清除筛选/ })).not.toBeInTheDocument()
+    )
   })
 })

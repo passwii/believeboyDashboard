@@ -47,10 +47,13 @@ async function fetchCachedJson<T>(
   options?: {
     session?: Session | null
     fallbackError?: string
+    force?: boolean
   }
 ): Promise<T> {
-  const cached = getClientCache<T>(key, PROJECTS_CACHE_TTL_MS)
-  if (cached) return cached
+  if (!options?.force) {
+    const cached = getClientCache<T>(key, PROJECTS_CACHE_TTL_MS)
+    if (cached) return cached
+  }
 
   const pending = INFLIGHT.get(key) as Promise<T> | undefined
   if (pending) return pending
@@ -94,7 +97,8 @@ export async function fetchProjectOptionsCached<T>(): Promise<T> {
 
 export async function fetchManagedProjectsCached<T>(
   session?: Session | null,
-  showInactive?: boolean
+  showInactive?: boolean,
+  options?: { force?: boolean }
 ): Promise<T> {
   const url = showInactive
     ? '/api/backend/api/v1/projects/manage?show_inactive=true'
@@ -102,6 +106,7 @@ export async function fetchManagedProjectsCached<T>(
   return fetchCachedJson<T>(managedProjectsCacheKey(session, showInactive), url, {
     session,
     fallbackError: '项目列表加载失败',
+    force: options?.force,
   })
 }
 

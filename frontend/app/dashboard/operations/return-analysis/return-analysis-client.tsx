@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Boxes, Download, Loader2, MessageSquare, Package, RefreshCcw, Sparkles, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
+import { Boxes, Download, Loader2, MessageSquare, Package, Sparkles, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import {
   Bar,
@@ -26,16 +26,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
-import { DateRangePicker } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   DirectionalTabTransition,
@@ -57,13 +48,25 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+} from '@/components/terminal/header-filter-suite'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
-import { CountrySelect, RefreshButton } from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -122,6 +125,13 @@ const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
   DE: 'Europe/Berlin',
   UK: 'Europe/London',
 }
+
+/** 站点选项：退货分析仅支持 US/DE/UK（无 ALL，保持页面原生选项集） */
+const COUNTRY_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+]
 
 function getTodayInTimezone(country: string): Date {
   const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
@@ -285,6 +295,46 @@ const REASON_COLORS = [
   'hsl(var(--chart-4))',
   'hsl(var(--chart-5))',
 ]
+
+/** 统计磁贴：终端规格（1px 边界、mono label、tabular 数值、语义色） */
+function SummaryTile({
+  label,
+  value,
+  sub,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  sub?: string
+  valueClassName?: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'truncate font-mono text-base leading-6 tabular-nums text-term-text',
+          valueClassName
+        )}
+        title={value}
+      >
+        {value}
+      </span>
+      {sub && (
+        <span className="truncate font-mono text-[11px] leading-4 text-term-faint">{sub}</span>
+      )}
+    </div>
+  )
+}
+
+/** 整体退货率语义色：>8% 红 / >3% 黄 / 其余绿（与原控制台口径一致） */
+function returnRateTone(rate: number): string {
+  if (rate > 8) return 'text-rose-600 dark:text-rose-400'
+  if (rate > 3) return 'text-amber-600 dark:text-amber-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+}
 
 export default function ReturnAnalysisPage() {
   const { notify } = useNotifications()
@@ -604,6 +654,49 @@ export default function ReturnAnalysisPage() {
     void loadData()
   }, [projectId, country, loadData])
 
+  // —— Header 化：head 插槽 + 全局刷新 ——
+  // 刷新语义与原控制台 RefreshButton 一致：当前筛选条件下强刷（跳 2min 客户端缓存）。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
+  useHeaderRefresh(() => loadDataRef.current(true), { loading })
+
+  const isMobile = useIsMobile()
+
+  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((project) => ({
+          value: String(project.id),
+          label: project.name,
+        }))}
+        placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+        disabled={projectsLoading}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as CountryOption)}
+        options={COUNTRY_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotDateRange
+        value={dateRange}
+        onChange={setDateRange}
+        onApply={() => void loadData()}
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_XL}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   const chartConfig = {
     return_count: { label: '退货量', color: 'hsl(var(--chart-1))' },
     total_quantity: { label: '退货件数', color: 'hsl(var(--chart-2))' },
@@ -613,204 +706,87 @@ export default function ReturnAnalysisPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Section 1: 控制台 */}
-      <div className="dashboard-surface">
-        {/* 标题行 */}
-        <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              退货分析
-            </p>
-            <h2 className="text-base font-semibold text-foreground leading-none">控制台</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {data && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handleExportExcel()}
-                disabled={exporting || loading}
-                className="w-full sm:w-auto"
-              >
-                {exporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-                导出 Excel
-              </Button>
-            )}
-            <RefreshButton
-              onClick={() => void loadData(true)}
-              loading={loading || projectsLoading}
-              label="刷新"
-              variant="default"
-              size="sm"
-              className="w-full sm:w-auto"
-            />
-          </div>
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+
+      {/* 统计磁贴条（原控制台 Summary Stats，终端规格） */}
+      {data && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <SummaryTile label="退货单数" value={data.summary.total_returns.toLocaleString()} />
+          <SummaryTile label="退货总量" value={data.summary.total_quantity.toLocaleString()} />
+          <SummaryTile
+            label="销售数量"
+            value={data.summary.total_sales_quantity.toLocaleString()}
+          />
+          <SummaryTile
+            label="整体退货率"
+            value={`${data.summary.overall_return_rate.toFixed(1)}%`}
+            valueClassName={returnRateTone(data.summary.overall_return_rate)}
+          />
+          <SummaryTile label="涉及 SKU" value={data.summary.unique_skus.toLocaleString()} />
+          <SummaryTile
+            label="Top 退货原因"
+            value={
+              data.summary.top_return_reason
+                ? translateReason(data.summary.top_return_reason)
+                : '--'
+            }
+          />
+          <SummaryTile
+            label="多件退货"
+            value={data.multi_item_return_count.toLocaleString()}
+            sub={`共 ${data.multi_item_return_quantity.toLocaleString()} 件`}
+          />
         </div>
+      )}
 
-        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2） */}
-        <FilterToolbar>
-          <div className="w-full min-w-0">
-            {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-lg" />
-            ) : (
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="w-full min-w-0">
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]"
-            />
-          </div>
-          <div className="col-span-2 w-full min-w-0 md:col-span-1">
-            <DateRangePicker
-              value={dateRange}
-              onChange={setDateRange}
-              className="h-9 w-full"
-              onApply={() => void loadData()}
-            />
-          </div>
-        </FilterToolbar>
-
-        {/* Summary Stats */}
-        {data && (
-          <div className="border-t border-border/70 px-4 py-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              {[
-                {
-                  label: '退货单数',
-                  value: data.summary.total_returns.toLocaleString(),
-                  highlight: false,
-                },
-                {
-                  label: '退货总量',
-                  value: data.summary.total_quantity.toLocaleString(),
-                  highlight: false,
-                },
-                {
-                  label: '销售数量',
-                  value: data.summary.total_sales_quantity.toLocaleString(),
-                  highlight: false,
-                },
-                {
-                  label: '整体退货率',
-                  value: `${data.summary.overall_return_rate.toFixed(1)}%`,
-                  highlight: true,
-                  color:
-                    data.summary.overall_return_rate > 8
-                      ? 'text-rose-600 dark:text-rose-400'
-                      : data.summary.overall_return_rate > 3
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-emerald-600 dark:text-emerald-400',
-                },
-                {
-                  label: '涉及SKU',
-                  value: data.summary.unique_skus.toLocaleString(),
-                  highlight: false,
-                },
-                {
-                  label: 'Top退货原因',
-                  value: data.summary.top_return_reason
-                    ? translateReason(data.summary.top_return_reason)
-                    : '--',
-                  highlight: false,
-                  small: true,
-                },
-                {
-                  label: '多件退货',
-                  value: data.multi_item_return_count.toLocaleString(),
-                  sub: `共${data.multi_item_return_quantity.toLocaleString()}件`,
-                  highlight: false,
-                },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 px-2"
-                >
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                    {item.label}
-                  </div>
-                  <div
-                    className={cn(
-                      'mt-0.5 font-semibold leading-tight',
-                      (item as any).small ? 'text-sm truncate max-w-full' : 'text-xl',
-                      (item as any).color || 'text-foreground'
-                    )}
-                  >
-                    {item.value}
-                  </div>
-                  {(item as any).sub && (
-                    <div className="text-[11px] text-muted-foreground">{(item as any).sub}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Section 2: Tab Bar */}
+      {/* Tab 工作区：卡片头 = 标题 + 导出 + TabsList（daily-analysis 蓝图） */}
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ViewTab)}
         className="w-full"
       >
-        <TabsMotionGroup id="return-analysis-tabs">
-          <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
-            {VIEW_TAB_ORDER.map((tab) => {
-              const Icon = TAB_ICONS[tab]
-              return (
-                <SlidingTabsTrigger
-                  key={tab}
-                  value={tab}
-                  activeValue={activeTab}
-                  layoutId="return-analysis-tab-indicator"
-                  variant="term"
-                >
-                  <Icon aria-hidden />
-                  {TAB_LABELS[tab]}
-                </SlidingTabsTrigger>
-              )
-            })}
-          </TabsList>
-        </TabsMotionGroup>
-
-        {/* Section 3: Tab Content */}
-        <DataTableCard className="relative mt-5 rounded-xl border border-border/70 shadow-none">
-          <DataTableCardHeader className="flex flex-row items-center justify-between">
-            <h3 className="text-base font-semibold">高退货排行（按SKU）</h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => void loadData()}
-              disabled={loading}
-              className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
-            >
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCcw className="h-3.5 w-3.5" />
-              )}
-              刷新
-            </Button>
+        <DataTableCard className="relative">
+          <DataTableCardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-foreground sm:text-base">
+                退货分析工作区
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleExportExcel()}
+                disabled={exporting || loading || !data}
+                className="h-9 w-full px-3 sm:w-auto sm:px-4"
+              >
+                {exporting ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-4 w-4" />
+                )}
+                导出 Excel
+              </Button>
+            </div>
+            <TabsMotionGroup id="return-analysis-tabs">
+              <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
+                {VIEW_TAB_ORDER.map((tab) => {
+                  const Icon = TAB_ICONS[tab]
+                  return (
+                    <SlidingTabsTrigger
+                      key={tab}
+                      value={tab}
+                      activeValue={activeTab}
+                      layoutId="return-analysis-tab-indicator"
+                      variant="term"
+                    >
+                      <Icon aria-hidden />
+                      {TAB_LABELS[tab]}
+                    </SlidingTabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </TabsMotionGroup>
           </DataTableCardHeader>
           <DataTableCardBody>
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
@@ -999,7 +975,7 @@ export default function ReturnAnalysisPage() {
 
                       {/* Pie Chart */}
                       {data?.reason_rows && data.reason_rows.length > 0 && (
-                        <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
                           <ChartContainer
                             config={chartConfig}
                             className="h-[240px] w-full sm:h-[300px]"
@@ -1033,7 +1009,7 @@ export default function ReturnAnalysisPage() {
                   <div className="space-y-4 p-4">
                     <h3 className="text-base font-semibold">销售与退货趋势对比</h3>
                     {data?.trend_rows && data.trend_rows.length > 0 ? (
-                      <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
+                      <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
                         <ChartContainer
                           config={chartConfig}
                           className="h-[280px] w-full sm:h-[350px]"
@@ -1172,7 +1148,7 @@ export default function ReturnAnalysisPage() {
                       </Table>
 
                       {data?.disposition_rows && data.disposition_rows.length > 0 && (
-                        <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
                           <div className="text-sm text-muted-foreground text-center py-8">
                             图表展示区域（可扩展）
                           </div>
@@ -1222,7 +1198,7 @@ export default function ReturnAnalysisPage() {
                       </Table>
 
                       {data?.status_rows && data.status_rows.length > 0 && (
-                        <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
                           <div className="text-sm text-muted-foreground text-center py-8">
                             图表展示区域（可扩展）
                           </div>
@@ -1298,7 +1274,7 @@ export default function ReturnAnalysisPage() {
                         {data?.summary_text ? (
                           <div className="space-y-4">
                             {/* Text Summary */}
-                            <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-5">
+                            <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-5">
                               <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap text-sm leading-relaxed">
                                 {data.summary_text.split('\n').map((line, i) => {
                                   if (!line.trim()) {
@@ -1340,13 +1316,13 @@ export default function ReturnAnalysisPage() {
 
                             {/* Weekday Distribution */}
                             {data.weekday_rows && data.weekday_rows.length > 0 && (
-                              <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
+                              <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
                                 <h4 className="text-sm font-semibold mb-3">📅 星期退货分布</h4>
                                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                                   {data.weekday_rows.map((row) => (
                                     <div
                                       key={row.weekday}
-                                      className="flex flex-col items-center p-2 rounded-md bg-[hsl(var(--surface-panel))]"
+                                      className="flex flex-col items-center rounded-none bg-[hsl(var(--surface-panel))] p-2"
                                     >
                                       <div className="text-xs text-muted-foreground">
                                         {row.weekday_display}
@@ -1366,7 +1342,7 @@ export default function ReturnAnalysisPage() {
                             {/* Fulfillment Center Distribution */}
                             {data.fulfillment_center_rows &&
                               data.fulfillment_center_rows.length > 0 && (
-                                <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
+                                <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
                                   <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
                                   <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
                                     <TableHeader>

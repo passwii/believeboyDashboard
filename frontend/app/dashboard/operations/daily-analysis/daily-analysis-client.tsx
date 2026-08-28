@@ -7,7 +7,6 @@ import {
   FileDown,
   Loader2,
   Package,
-  SlidersHorizontal,
   Target,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -25,11 +24,6 @@ import {
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import { COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
 import {
@@ -52,6 +46,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -743,37 +738,6 @@ function formatYMD(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
-}
-
-/**
- * BLF-826 阶段 B：head 筛选插槽内容（<md 折叠为筛选 Popover，≥md 平铺）。
- * 拆出子组件是为了让 useHeaderSlot / useHeaderRefresh 的 hook 调用
- * 都落在 DailyAnalysisPage 顶层（hooks 规则），控件 JSX 复用同一份。
- */
-function HeaderFilterControls({
-  isMobileView,
-  controls,
-}: {
-  isMobileView: boolean
-  controls: React.ReactNode
-}) {
-  if (isMobileView) {
-    return (
-      <Popover>
-        <PopoverTrigger
-          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
-          aria-label="页面筛选"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          筛选
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="w-[320px] rounded-none border border-term-border bg-term-panel p-3 text-term-text">
-          <div className="grid grid-cols-1 gap-3">{controls}</div>
-        </PopoverContent>
-      </Popover>
-    )
-  }
-  return <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">{controls}</div>
 }
 
 /**

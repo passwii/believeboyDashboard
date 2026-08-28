@@ -1,0 +1,264 @@
+import { render, screen, cleanup } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// ── mocks ────────────────────────────────────────────────────────────────────
+
+// 稳定引用：避免每次渲染产生新对象导致 loadData identity 抖动、
+// useEffect 重复触发（真实 useSession / useNotifications 返回稳定引用）
+const { stableSession, mockNotify } = vi.hoisted(() => ({
+  stableSession: { user: { id: 'user-1', roleType: 'admin' } },
+  mockNotify: vi.fn(),
+}))
+
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({
+    data: stableSession,
+    status: 'authenticated' as const,
+  }),
+}))
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/dashboard/operations/return-analysis',
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}))
+
+let mockParams: Record<string, string> = { project: '1', country: 'US', tab: 'rankings' }
+vi.mock('@/lib/hooks/use-url-param', () => ({
+  useUrlParam: (key: string, initial: string) => [mockParams[key] ?? initial, vi.fn()],
+}))
+
+vi.mock('@/lib/hooks/use-auto-select-first-project', () => ({
+  useAutoSelectFirstProject: vi.fn(),
+}))
+
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => false,
+}))
+
+vi.mock('@/components/notifications', () => ({
+  useNotifications: () => ({ notify: mockNotify }),
+}))
+
+vi.mock('@/lib/project-client-cache', () => ({
+  fetchManagedProjectsCached: vi.fn().mockResolvedValue([
+    { id: 1, name: '项目A' },
+    { id: 2, name: '项目B' },
+  ]),
+}))
+
+// 捕获 header 刷新回调，供 force 语义断言
+let capturedRefreshHandler: (() => void) | null = null
+let capturedRefreshLoading: boolean | undefined
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => void, opts?: { loading?: boolean }) => {
+    capturedRefreshHandler = handler
+    capturedRefreshLoading = opts?.loading
+  },
+  useHeaderSlot: (node: React.ReactNode) => null,
+}))
+
+const SUMMARY = {
+  total_returns: 42,
+  total_quantity: 58,
+  unique_skus: 12,
+  top_return_sku: 'SKU-TOP',
+  top_return_reason: 'QUALITY_UNACCEPTABLE',
+  total_sales_quantity: 500,
+  total_sales_amount: 12345,
+  overall_return_rate: 8.4,
+}
+
+function returnPayload(overrides?: Partial<Record<string, unknown>>) {
+  return {
+    project_id: 1,
+    project_name: '项目A',
+    country: 'US',
+    start_date: '2026-08-20',
+    end_date: '2026-08-26',
+    summary: SUMMARY,
+    summary_text: '本周退货率偏高。',
+    ranking_rows: [
+      {
+        sku: 'SKU-001',
+        asin: 'B0AAAAAAA1',
+        product_name: '测试商品一',
+        total_quantity: 10,
+        return_count: 8,
+        sales_quantity: 100,
+        return_rate: 10,
+        avg_return_cycle_days: 5,
+        min_return_cycle_days: 1,
+        max_return_cycle_days: 12,
+      },
+    ],
+    reason_rows: [
+      {
+        reason: 'QUALITY_UNACCEPTABLE',
+        reason_display: '质量不合格',
+        total_quantity: 20,
+        return_count: 15,
+        percentage: 35.7,
+      },
+    ],
+    trend_rows: [
+      {
+        date: '2026-08-20',
+        total_quantity: 5,
+        return_count: 4,
+        sales_quantity: 50,
+        sales_amount: 1000,
+        return_rate: 8,
+      },
+    ],
+    disposition_rows: [
+      {
+        detailed_disposition: 'CustomerDamaged',
+        disposition_display: '客户损坏',
+        total_quantity: 10,
+        return_count: 8,
+        percentage: 20,
+      },
+    ],
+    status_rows: [
+      {
+        status: 'UnitReturnedToInventory',
+        status_display: '已退回库存',
+        total_quantity: 12,
+        return_count: 10,
+        percentage: 25,
+      },
+    ],
+    feedback_rows: [
+      {
+        sku: 'SKU-001',
+        order_id: 'ORDER-1',
+        reason: 'QUALITY_UNACCEPTABLE',
+        reason_display: '质量不合格',
+        customer_comment: '质量很差',
+        return_date: '2026-08-22',
+      },
+    ],
+    weekday_rows: [
+      { weekday: 1, weekday_display: '周一', return_count: 5, percentage: 14 },
+    ],
+    fulfillment_center_rows: [
+      { fulfillment_center_id: 'FC-1', return_count: 10, quantity: 12, percentage: 20 },
+    ],
+    multi_item_return_count: 3,
+    multi_item_return_quantity: 7,
+    ...overrides,
+  }
+}
+
+let lastForce: boolean | undefined
+vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ops-client-cache')>()
+  return {
+    ...actual,
+    fetchOpsJsonCached: vi.fn().mockImplementation((_url: string, opts?: { force?: boolean }) => {
+      lastForce = opts?.force
+      return Promise.resolve(returnPayload())
+    }),
+  }
+})
+
+import ReturnAnalysisClient from './return-analysis-client'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
+
+// ── tests ────────────────────────────────────────────────────────────────────
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  capturedRefreshHandler = null
+  capturedRefreshLoading = undefined
+  lastForce = undefined
+  mockParams = { project: '1', country: 'US', tab: 'rankings' }
+})
+
+describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations header migration）', () => {
+  it('渲染不崩溃：SummaryTile 磁贴条与表格行出现', async () => {
+    render(<ReturnAnalysisClient />)
+    // 磁贴条（data 加载后）
+    expect(await screen.findByText('退货单数')).toBeInTheDocument()
+    expect(screen.getByText('整体退货率')).toBeInTheDocument()
+    expect(screen.getByText('多件退货')).toBeInTheDocument()
+    // 表格行（rankings tab 默认）
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+  })
+
+  it('控制台卡片已移除：无「控制台」文案，导出按钮位于工作区卡头', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(screen.queryByText('控制台')).not.toBeInTheDocument()
+    expect(screen.getByText('退货分析工作区')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /导出 Excel/ })).toBeInTheDocument()
+  })
+
+  it('页内重复刷新按钮已移除（全局唯一入口）', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    // 旧控制台 RefreshButton 与卡头 ghost「刷新」均已删除，页内不应再有「刷新」按钮
+    expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
+  })
+
+  it('整体退货率语义色：>8% 走 rose（neg）', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('整体退货率')
+    // 8.4% > 8 → rose
+    const rateEl = screen.getByText('8.4%')
+    expect(rateEl.className).toMatch(/rose/)
+  })
+
+  it('无旧风格残留：面板零圆角、term 边界', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    // 旧 rounded-lg / rounded-xl 卡片壳已收口为 rounded-none + term 边界
+    expect(container.querySelector('.rounded-lg')).toBeNull()
+    expect(container.querySelector('.rounded-xl')).toBeNull()
+  })
+
+  it('头部刷新回调触发 loadData(force=true)——跳 2min 缓存，且 loading 上报', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(capturedRefreshHandler).not.toBeNull()
+
+    // 用受控 Promise 挂起本次重拉，确定性断言 force 语义与 loading 上报
+    let resolveFetch: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      (_url: string, opts?: { force?: boolean }) => {
+        lastForce = opts?.force
+        return new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+      }
+    )
+
+    capturedRefreshHandler?.()
+    // loadData(true) 会以 force:true 重拉
+    await vi.waitFor(() => expect(lastForce).toBe(true))
+    // loading 状态上报给全局刷新按钮
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(true))
+
+    // 放行请求后 loading 回落
+    resolveFetch?.(returnPayload())
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('空 ranking_rows 时展示空态占位而非崩溃', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({ ranking_rows: [] }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    // 空态文案来自 EmptyTableState（rankings tab）
+    expect(await screen.findByText(/暂无数据|暂无退货排行/)).toBeInTheDocument()
+  })
+
+  it('磁贴条展示多件退货子文案「共 N 件」', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('多件退货')
+    expect(screen.getByText('共 7 件')).toBeInTheDocument()
+  })
+})

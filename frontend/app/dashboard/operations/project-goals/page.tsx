@@ -16,11 +16,16 @@ import {
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
-import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON, TERM_TRIGGER, TERM_SELECT_ITEM, TermPill } from '@/components/terminal/term-controls'
+import { TERM_BUTTON, TermPill } from '@/components/terminal/term-controls'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import {
   Dialog,
   DialogContent,
@@ -29,13 +34,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -53,6 +51,7 @@ import { clearOpsClientCaches, fetchOpsJsonCached } from '@/lib/ops-client-cache
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend/api/v1'
@@ -311,6 +310,13 @@ export default function ProjectGoalsPage() {
     }
   }, [selectedProjectId, selectedCountry, selectedYear, loadData])
 
+  // —— Header 化：全局刷新（operations header migration A2）——
+  // 刷新语义与原控制台「刷新」按钮一致：当前筛选条件下强刷（force 跳 2min 客户端缓存）。
+  // handler 经 ref 桥接，永远执行最新闭包，避免锁死过期的 selectedProjectId 等状态。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
+  useHeaderRefresh(() => loadDataRef.current(true), { loading })
+
   // tab 激活时才拉对应数据：goals 列表首次进入"目标管理"再取数
   const handleTabChange = (value: string) => {
     setActiveTab(value)
@@ -453,65 +459,44 @@ export default function ProjectGoalsPage() {
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
+  const isMobile = useIsMobile()
+
+  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 年份，term 规格；
+  // <md 由 HeaderFilterControls 折叠为「筛选」Popover；标题与说明由 header 面包屑承载）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={selectedProjectId}
+        onChange={setSelectedProjectId}
+        options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+        placeholder="选择项目"
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={selectedCountry}
+        onChange={setSelectedCountry}
+        options={COUNTRY_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotSelect
+        value={selectedYear}
+        onChange={setSelectedYear}
+        options={years.map((y) => ({ value: String(y), label: `${y} 年` }))}
+        widthClass={TERM_HEADER_W_SM}
+        title="年份筛选"
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <TermPanel
-        title="项目目标"
-        actions={
-          <button
-            type="button"
-            onClick={() => void loadData(true)}
-            disabled={loading || !selectedProjectId}
-            className={TERM_BUTTON}
-          >
-            {loading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-            刷新
-          </button>
-        }
-        bodyClassName="p-2"
-      >
-        <p className="mb-2 font-mono text-[11px] text-term-muted">按项目 / 站点 / 年份查看销售目标完成度与进度表</p>
-        <FilterToolbar>
-          <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[140px]')}>
-              <SelectValue placeholder="选择项目" />
-            </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[160px]')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              {COUNTRY_OPTIONS.map((c) => (
-                <SelectItem key={c.value} value={c.value} className={TERM_SELECT_ITEM}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[120px]')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)} className={TERM_SELECT_ITEM}>
-                  {y} 年
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterToolbar>
-      </TermPanel>
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，正文仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
       {!selectedProjectId ? (
         <div className="flex h-48 items-center justify-center border border-dashed border-term-border bg-term-panel font-mono text-xs text-term-muted">
