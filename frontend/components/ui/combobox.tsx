@@ -101,10 +101,9 @@ export function Combobox({
             setOpen((prev) => !prev)
           }}
           className={cn(
-            'h-10 w-full min-w-0 justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground shadow-sm shadow-black/5',
-            'hover:bg-background focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 u-focus-glow',
-            'data-[placeholder]:text-muted-foreground/70',
-            'dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.96)]',
+            'h-8 w-full min-w-0 justify-between gap-2 rounded-none border border-term-border bg-term-bg px-3 font-mono text-sm leading-5 text-term-text shadow-none',
+            'hover:border-term-border-strong hover:bg-term-hover focus-visible:border-term-border-strong focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 u-focus-glow',
+            'data-[placeholder]:text-term-faint disabled:opacity-50 disabled:cursor-not-allowed aria-[invalid=true]:border-term-neg',
             'u-interactive',
             triggerClassName
           )}
@@ -131,7 +130,7 @@ export function Combobox({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className={cn('w-[var(--radix-popover-trigger-width)] p-0', className)}
+        className={cn('w-[var(--radix-popover-trigger-width)] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none', className)}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           requestAnimationFrame(() => inputRef.current?.focus())

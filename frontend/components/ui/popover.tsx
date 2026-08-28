@@ -23,7 +23,7 @@ const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        'ui-floating-motion z-50 max-h-[var(--radix-popover-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg shadow-black/5 outline-none u-floating-glass',
+        'ui-floating-motion z-50 max-h-[var(--radix-popover-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-none border border-term-border bg-term-panel p-4 text-term-text shadow-none outline-none u-floating-glass',
         className
       )}
       {...props}

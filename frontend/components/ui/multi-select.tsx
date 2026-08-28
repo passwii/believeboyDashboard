@@ -67,8 +67,9 @@ export function MultiSelect({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'h-9 min-w-[120px] justify-start gap-1 px-2 font-normal',
-            selected.length === 0 && 'text-muted-foreground',
+            'h-8 min-w-[120px] justify-start gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0 u-focus-glow',
+            selected.length === 0 && 'text-term-faint',
+            'disabled:opacity-50 disabled:cursor-not-allowed aria-[invalid=true]:border-term-neg',
             className
           )}
         >
@@ -76,12 +77,12 @@ export function MultiSelect({
             <>
               <span className="flex flex-wrap gap-1">
                 {selectedOptions.slice(0, 2).map((opt) => (
-                  <Badge key={opt.value} variant="secondary" className="h-5 gap-1 px-1.5 text-xs">
+                  <Badge key={opt.value} variant="secondary" className="h-5 gap-1 rounded-none border border-term-border bg-term-raised px-1.5 font-mono text-xs text-term-text">
                     {opt.label}
                     <span
                       role="button"
                       tabIndex={0}
-                      className="ml-0.5 cursor-pointer rounded-sm outline-none hover:bg-accent"
+                      className="ml-0.5 cursor-pointer rounded-none outline-none hover:bg-term-hover"
                       onClick={(e) => {
                         e.stopPropagation()
                         toggleValue(opt.value)
@@ -92,7 +93,7 @@ export function MultiSelect({
                   </Badge>
                 ))}
                 {selected.length > 2 && (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                  <Badge variant="secondary" className="h-5 rounded-none border border-term-border bg-term-raised px-1.5 font-mono text-xs text-term-text">
                     +{selected.length - 2}
                   </Badge>
                 )}
@@ -103,7 +104,7 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="start">
+      <PopoverContent className="w-[200px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none" align="start">
         <Command>
           <CommandInput placeholder="搜索..." />
           <CommandList>
@@ -118,10 +119,10 @@ export function MultiSelect({
                 >
                   <div
                     className={cn(
-                      'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary text-xs',
+                      'mr-2 flex h-4 w-4 items-center justify-center rounded-none border text-xs',
                       selected.includes(option.value)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'border-border bg-transparent text-transparent'
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-term-border bg-term-bg text-transparent'
                     )}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -133,11 +134,11 @@ export function MultiSelect({
             </CommandGroup>
           </CommandList>
           {selected.length > 0 && (
-            <div className="border-t p-2">
+            <div className="border-t border-term-border p-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full h-7 text-xs"
+                className="w-full h-7 rounded-none font-mono text-xs"
                 onClick={() => {
                   clearAll()
                   setOpen(false)
