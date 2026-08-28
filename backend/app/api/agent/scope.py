@@ -33,6 +33,28 @@ SCOPE_ALL = "*"
 #: （BLF-847：Yawei 拍板 ``'*'`` 不再隐含签发能力）。其余域保持存量兼容。
 _WILDCARD_DENIED_DOMAINS = frozenset({"agent_provisioning"})
 
+#: 中央业务域注册表（BLF-885 P0）：路由接线 ``require_business_scope(...)``
+#: 与签发校验共用同一份事实源；未知域 code 在预览阶段即拒绝。
+#: 12 域（issue 原文）+ ``inventory_ledger``（BLF-582 后新增活域），与
+#: ``frontend/lib/agent-domains.ts`` 的 live 列表对齐。
+KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
+    {
+        "sku_info",
+        "inventory",
+        "sales",
+        "shipments",
+        "shop_calculations",
+        "new_product_calculations",
+        "return_analysis",
+        "replenishment_analysis",
+        "report_upload_status",
+        "account_health",
+        "ad_analysis",
+        "agent_provisioning",
+        "inventory_ledger",
+    }
+)
+
 
 def _parse_scope(scope: str) -> set[int]:
     """把 ``"12, 34"`` 解析成 project_id 集合；非法片段跳过并告警。"""

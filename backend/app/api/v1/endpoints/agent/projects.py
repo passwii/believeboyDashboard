@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
-from app.api.agent.scope import SCOPE_ALL
+from app.api.agent.scope import SCOPE_ALL, _parse_scope
 from app.api.deps import get_read_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
@@ -99,7 +99,7 @@ def get_agent_projects(
         finally:
             db2.close()
         if scope != SCOPE_ALL:
-            allowed = {int(part.strip()) for part in scope.split(",") if part.strip()}
+            allowed = _parse_scope(scope)
             projects = [p for p in projects if p.id in allowed]
 
     return agent_ok(
