@@ -30,7 +30,7 @@ const PopoverContent = React.forwardRef<
     >
       {props.children}
       {showArrow && (
-        <PopoverPrimitive.Arrow className="-my-px fill-popover drop-shadow-[0_1px_0_hsl(var(--border))] dark:fill-[hsl(var(--surface-overlay))]" />
+        <PopoverPrimitive.Arrow className="-my-px fill-[hsl(var(--term-panel))] drop-shadow-[0_1px_0_hsl(var(--term-border))] dark:fill-[hsl(var(--term-panel))]" />
       )}
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>

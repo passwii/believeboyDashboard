@@ -24,7 +24,7 @@ describe('AlertDialog 暗黑浮层玻璃（BLF-575）', () => {
     expect(content.className).not.toContain('dark:bg-[hsl(var(--surface-panel))')
   })
 
-  it('light 模式保留原 shadow-lg 浮层阴影', () => {
+  it('浮层 Terminal 令牌（border-term-border / bg-term-panel / rounded-none / shadow-none）', () => {
     render(
       <AlertDialog open>
         <AlertDialogContent>
@@ -34,7 +34,11 @@ describe('AlertDialog 暗黑浮层玻璃（BLF-575）', () => {
       </AlertDialog>
     )
     const content = document.body.querySelector('[role="alertdialog"]')!
-    expect(content.className).toContain('shadow-lg')
-    expect(content.className).toContain('bg-background')
+    expect(content.className).toContain('border-term-border')
+    expect(content.className).toContain('bg-term-panel')
+    expect(content.className).toContain('rounded-none')
+    expect(content.className).toContain('shadow-none')
+    expect(content.className).not.toContain('shadow-lg')
+    expect(content.className).not.toContain('bg-background')
   })
 })
