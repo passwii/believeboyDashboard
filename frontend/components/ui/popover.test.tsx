@@ -18,14 +18,18 @@ describe('Popover 暗黑浮层玻璃（BLF-574）', () => {
     expect(content.className).not.toContain('dark:shadow-[0_24px_48px')
   })
 
-  it('light 模式保留原 shadow-lg 浮层阴影', () => {
+  it('light 模式 Terminal 浮层无独立阴影（shadow-none + term 令牌，BLF-870）', () => {
     render(
       <Popover open>
         <PopoverContent>内容</PopoverContent>
       </Popover>
     )
     const content = floatingGlassEl()!
-    expect(content.className).toContain('shadow-lg')
-    expect(content.className).toContain('bg-popover')
+    expect(content.className).toContain('shadow-none')
+    expect(content.className).toContain('bg-term-panel')
+    expect(content.className).toContain('border-term-border')
+    expect(content.className).toContain('rounded-none')
+    expect(content.className).not.toContain('shadow-lg')
+    expect(content.className).not.toContain('bg-popover')
   })
 })

@@ -31,25 +31,25 @@ function Calendar({
       buttonVariants({ variant: 'ghost' }),
       'size-9 text-muted-foreground/80 hover:text-foreground p-0'
     ),
-    weekdays: 'grid grid-cols-7 text-center text-xs font-medium uppercase text-muted-foreground/80',
+    weekdays: 'grid grid-cols-7 text-center font-mono text-xs font-medium uppercase text-term-muted',
     weekday: 'py-1',
     week: 'grid grid-cols-7',
     day_button:
-      'relative flex size-9 items-center justify-center rounded-full text-sm transition-all ' +
-      'hover:bg-accent hover:text-accent-foreground ' +
+      'relative flex size-9 items-center justify-center rounded-none font-mono text-sm transition-all ' +
+      'hover:bg-term-hover hover:text-term-text ' +
       'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ' +
       'group-data-[selected]:bg-primary group-data-[selected]:text-primary-foreground ' +
-      'group-data-[selected]:shadow-md ' +
-      'group-data-[disabled]:opacity-40 group-data-[disabled]:cursor-not-allowed group-data-[disabled]:hover:bg-transparent group-data-[disabled]:hover:text-muted-foreground/40',
+      'group-data-[selected]:shadow-none ' +
+      'group-data-[disabled]:opacity-40 group-data-[disabled]:cursor-not-allowed group-data-[disabled]:hover:bg-transparent group-data-[disabled]:hover:text-term-faint',
     day: 'text-center',
     range_start:
-      'rounded-full bg-primary text-primary-foreground shadow-md dark:bg-primary dark:text-primary-foreground',
+      'rounded-none bg-primary text-primary-foreground shadow-none dark:bg-primary dark:text-primary-foreground',
     range_end:
-      'rounded-full bg-primary text-primary-foreground shadow-md dark:bg-primary dark:text-primary-foreground',
-    range_middle: 'bg-accent text-foreground rounded-none transition-colors',
+      'rounded-none bg-primary text-primary-foreground shadow-none dark:bg-primary dark:text-primary-foreground',
+    range_middle: 'bg-term-hover text-term-text rounded-none transition-colors',
     today:
       'after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary',
-    outside: 'text-muted-foreground/50 hover:text-accent-foreground hover:bg-accent/30',
+    outside: 'text-term-faint hover:text-term-text hover:bg-term-hover/30',
     hidden: 'invisible',
     week_number: 'size-9 p-0 text-xs font-medium text-muted-foreground/80',
   }

@@ -39,3 +39,19 @@ describe("Combobox 暗黑聚焦辉光（BLF-574）", () => {
     expect(trigger.className).toMatch(/\bu-focus-glow\b/);
   });
 });
+
+describe("Combobox Terminal 收口（BLF-870）", () => {
+  it("触发器为 h-8 零圆角 + term 令牌（无 h-10/rounded-md/border-input/shadow）", () => {
+    render(<Combobox value="" onChange={() => {}} options={baseOptions} />);
+    const trigger = screen.getByRole("combobox");
+    expect(trigger.className).toContain("h-8");
+    expect(trigger.className).toContain("rounded-none");
+    expect(trigger.className).toContain("border-term-border");
+    expect(trigger.className).toContain("bg-term-bg");
+    expect(trigger.className).toContain("font-mono");
+    expect(trigger.className).toContain("shadow-none");
+    expect(trigger.className).not.toContain("h-10");
+    expect(trigger.className).not.toContain("rounded-md");
+    expect(trigger.className).not.toContain("border-input");
+  });
+});

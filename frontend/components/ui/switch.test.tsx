@@ -9,9 +9,12 @@ describe('Switch 暗黑玻璃边高光（BLF-574）', () => {
     expect(track.className).toContain('dark:shadow-[inset_0_1px_0_hsl')
   })
 
-  it('light 模式保留原 shadow-sm', () => {
+  it('light 模式 Terminal 轨道无独立阴影（shadow-none + term 令牌，BLF-870）', () => {
     const { container } = render(<Switch />)
     const track = container.querySelector('[role="switch"]')!
-    expect(track.className).toContain('shadow-sm')
+    expect(track.className).toContain('shadow-none')
+    expect(track.className).toContain('border-term-border')
+    expect(track.className).toContain('bg-term-raised')
+    expect(track.className).not.toContain('shadow-sm')
   })
 })
