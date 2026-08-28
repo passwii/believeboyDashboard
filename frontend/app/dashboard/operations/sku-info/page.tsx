@@ -21,7 +21,15 @@ import { HoverCard } from '@/components/ui/hover-card'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import { useConfirm } from '@/hooks/use-confirm'
+import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DataTableCard,
   DataTableCardHeader,
@@ -48,7 +56,7 @@ import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { formatInch, formatLb } from '@/lib/unit-convert'
 
 export type ProductCostItem = {
@@ -123,6 +131,18 @@ const COUNTRY_OPTIONS = [
   { value: 'DE', label: '德国站 (DE)' },
   { value: 'UK', label: '英国站 (UK)' },
 ] as const
+
+/**
+ * Header 插槽「查询 / 重置」按钮基类（term 规格 h-9：与 TERM_HEADER_TRIGGER 同高，
+ * 零圆角 / 1px term 边界 / mono）。sku-info 为提交制查询，按钮随筛选控件一起
+ * portal 进 Top Header 中段插槽（operations header migration B3）。
+ */
+const TERM_HEADER_BUTTON =
+  'flex h-9 shrink-0 items-center justify-center rounded-none border px-3 font-mono text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+/** 查询 = 强调态（提交制主操作） */
+const TERM_HEADER_BUTTON_PRIMARY = `${TERM_HEADER_BUTTON} border-term-border-strong bg-term-panel text-term-text hover:bg-term-hover active:bg-term-raised`
+/** 重置 = 弱化态 */
+const TERM_HEADER_BUTTON_MUTED = `${TERM_HEADER_BUTTON} border-term-border bg-transparent text-term-muted hover:border-term-border-strong hover:text-term-text active:bg-term-raised`
 
 function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
   const normalized = raw.trim().toUpperCase()
@@ -272,15 +292,6 @@ const EMPTY_EDIT_ROW = {
   country: 'US' as 'US' | 'DE' | 'UK',
   sort_order: '1',
   is_active: true,
-}
-
-function FilterFieldSkeleton() {
-  return (
-    <div className="grid gap-2">
-      <Skeleton className="h-4 w-16" />
-      <Skeleton className="h-10 w-full" />
-    </div>
-  )
 }
 
 /** ASIN 展示：有 marketplace_url 时渲染为对应 Amazon 站点外链，否则纯文本。 */
@@ -539,15 +550,6 @@ export default function SkuInfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectsLoading, projectLoadError, searchParams])
 
-  useEffect(() => {
-    if (!projectFilter.trim()) return
-    void loadData(undefined, {
-      pageOverride: page,
-      clearOnMissingProject: true,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, projectFilter, selectedProject])
-
   const onSearch = async () => {
     await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
   }
@@ -564,19 +566,98 @@ export default function SkuInfoPage() {
     setPage(1)
   }
 
-  const onProjectFilterChange = async (value: string) => {
-    setProjectFilter(value)
-    await loadData(
-      {
-        project_name: value,
-        sku: skuFilter,
-        asin: asinFilter,
-        country: countryFilter,
-        status: statusFilter,
-      },
-      { resetPage: true, clearOnMissingProject: true }
-    )
+  // —— Header 化：全局刷新 = 重跑当前查询（提交制语义，operations header migration B3） ——
+  // 有效查询 = 项目名 / SKU / ASIN 至少填一项 → 以当前条件重拉（本页无缓存，直连后端）；
+  // 无有效查询 → no-op + notify 提示，不发请求。loading 上报头部刷新按钮（转圈/禁点）。
+  const handleHeaderRefresh = () => {
+    if (!projectFilter.trim() && !skuFilter.trim() && !asinFilter.trim()) {
+      notify({ type: 'info', title: '请先填写查询条件' })
+      return
+    }
+    return loadData(undefined, { pageOverride: page })
   }
+  // ref 桥接：触发时永远执行最新闭包，防过期 state
+  const handleHeaderRefreshRef = useRef(handleHeaderRefresh)
+  handleHeaderRefreshRef.current = handleHeaderRefresh
+  useHeaderRefresh(() => handleHeaderRefreshRef.current(), { loading })
+
+  const isMobile = useIsMobile()
+
+  // 5 个筛选控件 + 查询/重置按钮 portal 进 Top Header 中段插槽（提交制：选择/填写不自动查询）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectFilter}
+        onChange={setProjectFilter}
+        options={projects.map((project) => ({ value: project.name, label: project.name }))}
+        placeholder={
+          projectLoadError
+            ? '项目加载失败'
+            : projectsLoading
+              ? '项目加载中…'
+              : projects.length
+                ? '选择项目'
+                : '暂无可选项目'
+        }
+        disabled={projectsLoading || projects.length === 0}
+        widthClass={TERM_HEADER_W_MD}
+        title={projectLoadError ?? '项目筛选'}
+      />
+      {/* SKU / ASIN 输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      <Input
+        size="lg"
+        value={skuFilter}
+        onChange={(event) => setSkuFilter(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void onSearch()
+        }}
+        placeholder="输入 SKU"
+        className={cn('shrink-0', TERM_HEADER_W_MD)}
+        title="SKU 筛选"
+      />
+      <Input
+        size="lg"
+        value={asinFilter}
+        onChange={(event) => setAsinFilter(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void onSearch()
+        }}
+        placeholder="输入 ASIN"
+        className={cn('shrink-0', TERM_HEADER_W_MD)}
+        title="ASIN 筛选"
+      />
+      <HeaderSlotSelect
+        value={countryFilter}
+        onChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
+        options={[
+          { value: 'all', label: '全部站点' },
+          ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotSelect
+        value={statusFilter}
+        onChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
+        options={[
+          { value: 'all', label: '全部状态' },
+          { value: 'active', label: '活跃' },
+          { value: 'inactive', label: '不活跃' },
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="状态筛选"
+      />
+      <button type="button" className={TERM_HEADER_BUTTON_PRIMARY} onClick={() => void onSearch()}>
+        查询
+      </button>
+      <button type="button" className={TERM_HEADER_BUTTON_MUTED} onClick={onResetFilters}>
+        重置
+      </button>
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
 
   const onPageSizeChange = (value: string) => {
     const nextPageSize = Number(value)
@@ -874,103 +955,9 @@ export default function SkuInfoPage() {
 
   return (
     <div className="w-full space-y-6 text-foreground">
-      {/* 筛选控制台 — PILL 头 + 右侧查询/重置，筛选区下部（BLF-634：合并顶部头部卡，减少一卡） */}
-      <div className="dashboard-surface overflow-hidden animate-enter">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
-          <div />
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={onResetFilters}>
-              重置
-            </Button>
-            <Button type="button" onClick={() => void onSearch()}>
-              查询
-            </Button>
-          </div>
-        </div>
-        <div className="p-4 lg:p-6">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-5 xl:items-end lg:gap-4">
-            {projectsLoading ? (
-              <div className="col-span-1">
-                <FilterFieldSkeleton />
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-foreground">项目名</label>
-                <Select
-                  value={projectFilter}
-                  onValueChange={(value) => void onProjectFilterChange(value)}
-                  disabled={projects.length === 0}
-                >
-                  <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                    <SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64 overflow-y-auto">
-                    {projects.map((project) => (
-                      <SelectItem key={project.name} value={project.name}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {projectLoadError ? (
-                  <p className="text-xs text-destructive">{projectLoadError}</p>
-                ) : null}
-              </div>
-            )}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">SKU</label>
-              <Input
-                placeholder="输入 SKU"
-                value={skuFilter}
-                onChange={(e) => setSkuFilter(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">ASIN</label>
-              <Input
-                placeholder="输入 ASIN"
-                value={asinFilter}
-                onChange={(e) => setAsinFilter(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">国家站点</label>
-              <Select
-                value={countryFilter}
-                onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
-              >
-                <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">状态</label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
-              >
-                <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
-                  <SelectValue placeholder="全部状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="active">活跃</SelectItem>
-                  <SelectItem value="inactive">不活跃</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Header 化：5 个筛选控件 + 查询/重置按钮已上移 Top Header 中段插槽（提交制查询），
+          页面仅渲染 portal 宿主；全局刷新按钮为唯一刷新入口（operations header migration B3） */}
+      {headerSlotPortal}
       <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}

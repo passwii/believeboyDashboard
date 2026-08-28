@@ -8,7 +8,6 @@ import {
   Gauge,
   LayoutGrid,
   Loader2,
-  RefreshCw,
   Save,
   Send,
   CalendarDays,
@@ -20,13 +19,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -47,8 +39,16 @@ import {
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_W_LG,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -58,7 +58,6 @@ import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
-import { CountrySelect, RefreshButton } from '@/components/dashboard/console'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 import { CreateSnapshotDialog } from '@/components/dashboard/inventory-replenishment/create-snapshot-dialog'
 import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishment/edit-snapshot-dialog'
@@ -88,6 +87,24 @@ const LazyCalendarView = dynamic(
 )
 
 const API_BASE = '/api/backend'
+
+/** header 插槽站点选项：保持页面原生选项集（含 ALL 聚合位，与迁移前 CountrySelect 一致） */
+const COUNTRY_SLOT_OPTIONS = COUNTRY_OPTIONS.map((opt) => ({
+  value: opt.value,
+  label: opt.label,
+}))
+
+/** header 插槽风险状态选项：与迁移前页内 Select 完全一致的选项集 */
+const RISK_FILTER_OPTIONS = [
+  { value: 'all', label: '全部状态' },
+  { value: '长期断货', label: '长期断货' },
+  { value: '短期断货', label: '短期断货' },
+  { value: '断货风险', label: '断货风险' },
+  { value: '健康库存', label: '健康库存' },
+  { value: '滞销', label: '滞销' },
+  { value: '严重滞销', label: '严重滞销' },
+  { value: '待补数据', label: '待补数据' },
+]
 
 type ProjectOption = {
   id: number
@@ -479,6 +496,9 @@ export default function InventoryReplenishmentPage() {
   const [exporting, setExporting] = useState(false)
   const [refreshingAll, setRefreshingAll] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  // Header 化：快照模式头部刷新的 force 标志——置位后由 refreshNonce 触发重载，
+  // 下一次加载跳过 2min 客户端缓存（不带 save，避免快照态误触发持久化）。
+  const forceNextLoadRef = useRef(false)
 
   const [edits, setEdits] = useState<Record<string, RowEditState>>({})
   const [savingSku, setSavingSku] = useState<string | null>(null)
@@ -625,7 +645,11 @@ export default function InventoryReplenishmentPage() {
 
         // BEL-423：只读分析数据走 2min 客户端缓存（重复 mount 0 请求）；
         // 保存行设置后的重载走 reloadAnalysis 的 force 路径。
-        const payload = await fetchOpsJsonCached<AnalysisResponse>(url, { session })
+        // Header 化：快照模式头部刷新先置 forceNextLoadRef 再 bump refreshNonce，
+        // 本 effect 重跑时读标志跳缓存强刷（消费即复位）。
+        const force = forceNextLoadRef.current
+        forceNextLoadRef.current = false
+        const payload = await fetchOpsJsonCached<AnalysisResponse>(url, { session, force })
         if (!active) return
         setRows(payload.items)
         setSummary(payload.summary)
@@ -824,6 +848,81 @@ export default function InventoryReplenishmentPage() {
       setRefreshingAll(false)
     }
   }
+
+  // —— Header 化：全局刷新双模式语义（operations header migration B1） ——
+  // 非快照模式：完整保留原「刷新重算」写语义（refreshWithSave：先持久化未保存
+  // 的行编辑，再 force 重载）。
+  // 快照模式：原刷新按钮在快照态隐藏，注册 handler 降级为不带 save 的 force
+  // 重载（置 forceNextLoadRef + bump refreshNonce），避免快照态误触发保存。
+  const handleHeaderRefresh = () => {
+    if (isSnapshotMode) {
+      if (loading) return
+      forceNextLoadRef.current = true
+      setRefreshNonce((n) => n + 1)
+      return
+    }
+    void refreshWithSave()
+  }
+  // ref 桥接：触发时永远执行最新闭包，防过期 state
+  const handleHeaderRefreshRef = useRef(handleHeaderRefresh)
+  handleHeaderRefreshRef.current = handleHeaderRefresh
+  useHeaderRefresh(() => handleHeaderRefreshRef.current(), {
+    loading: loading || refreshingAll,
+  })
+
+  const isMobile = useIsMobile()
+
+  // 4 个筛选控件 portal 进 Top Header 中段插槽（项目 / 关键词 / 站点 / 风险状态）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={(id) => {
+          setProjectId(id)
+          setSelectedSnapshotId(null)
+          syncUrlParams(id, country)
+        }}
+        options={projects.map((project) => ({
+          value: String(project.id),
+          label: project.name,
+        }))}
+        placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+        disabled={projectsLoading}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      {/* 关键词输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      <Input
+        size="lg"
+        value={keyword}
+        onChange={(event) => setKeyword(event.target.value)}
+        placeholder="搜索 SKU / ASIN"
+        className={cn('shrink-0', TERM_HEADER_W_LG)}
+        title="关键词筛选（SKU / ASIN）"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(c) => {
+          setCountry(c)
+          setSelectedSnapshotId(null)
+          syncUrlParams(projectId, c)
+        }}
+        options={COUNTRY_SLOT_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotSelect
+        value={riskFilter}
+        onChange={setRiskFilter}
+        options={RISK_FILTER_OPTIONS}
+        widthClass={TERM_HEADER_W_MD}
+        title="风险状态筛选"
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
 
   async function exportToExcel() {
     if (filteredRows.length === 0) {
@@ -1035,112 +1134,33 @@ export default function InventoryReplenishmentPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 控制台 — 头部 = 页面 PILL + 右侧操作（BLF-634：汉字换 PILL，与操作按钮等高） */}
+      {/* Header 化：4 个筛选控件（项目/关键词/站点/风险状态）已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+
+      {/* 原控制台内容收口：筛选控件已上移 header 插槽，「刷新重算」按钮已删（全局刷新唯一入口）；
+          快照选择（含创建/编辑入口，偏重）与三段式指挥带保留正文 */}
       <div className="dashboard-surface">
-        {/* 标题行 */}
-        <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div />
-          <div className="flex flex-wrap items-center gap-2">
-            <SnapshotSelector
-              projectId={currentProjectId}
-              country={country}
-              selectedSnapshotId={selectedSnapshotId}
-              onSnapshotSelect={setSelectedSnapshotId}
-              onCreateSnapshot={() => setCreateDialogOpen(true)}
-              onEditSnapshot={(snapshot) => {
-                setEditingSnapshot(snapshot)
-                setEditDialogOpen(true)
-              }}
-              disabled={!currentProjectId || loading}
-              refreshNonce={snapshotRefreshNonce}
-              isAdmin={isAdmin}
-              onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
-            />
-            {!isSnapshotMode && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!currentProjectId || loading || refreshingAll}
-                onClick={() => void refreshWithSave()}
-              >
-                <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                {loading || refreshingAll ? '重算中...' : '刷新重算'}
-              </Button>
-            )}
-          </div>
+        {/* SnapshotSelector 留正文：含创建/编辑入口，偏重，不上移 */}
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+          <SnapshotSelector
+            projectId={currentProjectId}
+            country={country}
+            selectedSnapshotId={selectedSnapshotId}
+            onSnapshotSelect={setSelectedSnapshotId}
+            onCreateSnapshot={() => setCreateDialogOpen(true)}
+            onEditSnapshot={(snapshot) => {
+              setEditingSnapshot(snapshot)
+              setEditDialogOpen(true)
+            }}
+            disabled={!currentProjectId || loading}
+            refreshNonce={snapshotRefreshNonce}
+            isAdmin={isAdmin}
+            onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
+          />
         </div>
 
-        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2）
-         * BLF-629：字段外层 w-full 在桌面 md:flex 容器里占满整行导致竖排，
-         * 加 md:w-auto 让桌面按内容宽度横排（手机 2 列网格仍由 w-full 撑满）。
-         */}
-        <FilterToolbar>
-          <div className="w-full min-w-0 md:w-auto">
-            {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-lg md:w-[180px]" />
-            ) : (
-              <Select
-                value={projectId}
-                onValueChange={(id) => {
-                  setProjectId(id)
-                  setSelectedSnapshotId(null)
-                  syncUrlParams(id, country)
-                }}
-              >
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="w-full min-w-0 md:w-auto">
-            <Input
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder="搜索 SKU / ASIN"
-              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[200px]"
-            />
-          </div>
-          <div className="w-full min-w-0 md:w-auto">
-            <CountrySelect
-              value={country}
-              onChange={(c) => {
-                setCountry(c)
-                setSelectedSnapshotId(null)
-                syncUrlParams(projectId, c)
-              }}
-              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]"
-            />
-          </div>
-          <div className="w-full min-w-0 md:w-auto">
-            <Select value={riskFilter} onValueChange={setRiskFilter}>
-              <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]">
-                <SelectValue placeholder="风险状态" />
-              </SelectTrigger>
-              <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="长期断货">长期断货</SelectItem>
-                <SelectItem value="短期断货">短期断货</SelectItem>
-                <SelectItem value="断货风险">断货风险</SelectItem>
-                <SelectItem value="健康库存">健康库存</SelectItem>
-                <SelectItem value="滞销">滞销</SelectItem>
-                <SelectItem value="严重滞销">严重滞销</SelectItem>
-                <SelectItem value="待补数据">待补数据</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </FilterToolbar>
-
         {/* 统计条 → 三段式指挥带（BLF-491） */}
-        <div className="border-t border-border/70 px-4 py-3">
+        <div className="px-4 py-3">
           <CockpitOverview
             rows={filteredRows}
             summary={summary}

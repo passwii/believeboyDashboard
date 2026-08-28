@@ -4,7 +4,6 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import {
-  RefreshCcw,
   Upload,
   FileDown,
   FileSpreadsheet,
@@ -30,7 +29,6 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardTitle } from '@/components/ui/card'
 import {
-  DataCardContent,
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
@@ -51,11 +49,7 @@ import {
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import {
   Select,
@@ -84,6 +78,17 @@ import {
 } from '@/components/ui/command'
 import { ShipmentBatchCombobox } from '@/components/dashboard/shipment/shipment-batch-combobox'
 import { useNotifications } from '@/components/notifications'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_LG,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_SELECT_CONTENT,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -398,24 +403,6 @@ function downloadCsvFile(
   URL.revokeObjectURL(url)
 }
 
-function ShipmentControlSkeleton() {
-  return (
-    <div className="flex min-w-0 flex-col space-y-2">
-      <Skeleton className="h-4 w-14" />
-      <Skeleton className="h-10 w-full" />
-    </div>
-  )
-}
-
-function ShipmentMetricSkeleton() {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-      <Skeleton className="h-3 w-12" />
-      <Skeleton className="mt-3 h-7 w-20" />
-    </div>
-  )
-}
-
 function statusMeta(status: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
     draft: {
@@ -642,6 +629,13 @@ function SearchableSkuField({
   )
 }
 
+/**
+ * Header 插槽用货件编号可搜索多选 combobox（term 规格）：
+ * TERM_HEADER_TRIGGER 触发器 + Command 弹层（cmdk 过滤），宽度 TERM_HEADER_W_LG。
+ * BEL-423：选项懒加载——下拉首次打开才取数（onOpen 回调）。
+ * 多选语义不变：「全部货件」清空 / 点条目切换选中 / 支持直接添加输入值；
+ * 已选条目在弹层内以可移除 chip 展示（header 插槽 48px 高，chip 不再展开在触发器下方）。
+ */
 function SearchableShipmentNoFilter({
   value,
   options,
@@ -672,100 +666,101 @@ function SearchableShipmentNoFilter({
   }
 
   return (
-    <div className="space-y-2">
-      <DropdownMenu
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen)
-          if (nextOpen) onOpen?.()
-          if (!nextOpen) setQuery('')
-        }}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-10 w-full justify-between px-3 font-normal">
-            <span
-              className={cn(
-                'truncate text-left',
-                value.length > 0 ? 'text-foreground' : 'text-muted-foreground'
-              )}
-            >
-              {selectedLabel}
-            </span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[280px] p-0"
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) onOpen?.()
+        if (!nextOpen) setQuery('')
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          title="货件编号筛选"
+          className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_LG, 'justify-between px-2')}
         >
-          <Command shouldFilter className="max-h-[320px]">
-            <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
-            <CommandList>
+          <span className={cn('truncate', value.length === 0 && 'text-term-muted')}>
+            {selectedLabel}
+          </span>
+          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        className={cn(TERM_SELECT_CONTENT, 'w-[280px] p-0')}
+      >
+        <Command shouldFilter className="max-h-[320px]">
+          <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
+          <CommandList>
+            <CommandItem
+              value="__all__ 全部货件"
+              onSelect={() => {
+                onChange([])
+              }}
+            >
+              <Check
+                className={cn('h-4 w-4', value.length === 0 ? 'opacity-100' : 'opacity-0')}
+              />
+              <span>全部货件</span>
+            </CommandItem>
+            {canUseTypedValue ? (
               <CommandItem
-                value="__all__ 全部货件"
+                value={`__typed__ ${normalizedQuery}`}
                 onSelect={() => {
-                  onChange([])
+                  toggleValue(normalizedQuery)
                 }}
               >
                 <Check
-                  className={cn('h-4 w-4', value.length === 0 ? 'opacity-100' : 'opacity-0')}
+                  className={cn(
+                    'h-4 w-4',
+                    value.includes(normalizedQuery) ? 'opacity-100' : 'opacity-0'
+                  )}
                 />
-                <span>全部货件</span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">{normalizedQuery}</span>
+                  <span className="text-term-muted text-xs">添加当前输入到筛选</span>
+                </div>
               </CommandItem>
-              {canUseTypedValue ? (
-                <CommandItem
-                  value={`__typed__ ${normalizedQuery}`}
-                  onSelect={() => {
-                    toggleValue(normalizedQuery)
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      'h-4 w-4',
-                      value.includes(normalizedQuery) ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate">{normalizedQuery}</span>
-                    <span className="text-xs text-muted-foreground">添加当前输入到筛选</span>
-                  </div>
-                </CommandItem>
-              ) : null}
-              {options.map((option) => (
-                <CommandItem
-                  key={option}
-                  value={option}
-                  onSelect={() => {
-                    toggleValue(option)
-                  }}
-                >
-                  <Check
-                    className={cn('h-4 w-4', value.includes(option) ? 'opacity-100' : 'opacity-0')}
-                  />
-                  <span className="truncate">{option}</span>
-                </CommandItem>
-              ))}
-              <CommandEmpty>{loading ? '货件编号加载中...' : '没有匹配的货件编号'}</CommandEmpty>
-            </CommandList>
-          </Command>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {value.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {value.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => onChange(value.filter((current) => current !== item))}
-              className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-[hsl(var(--surface-subtle))] px-2 py-1 text-[11px] text-foreground transition hover:border-border"
-            >
-              <span className="max-w-[180px] truncate">{item}</span>
-              <X className="h-3 w-3" />
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+            ) : null}
+            {options.map((option) => (
+              <CommandItem
+                key={option}
+                value={option}
+                onSelect={() => {
+                  toggleValue(option)
+                }}
+              >
+                <Check
+                  className={cn('h-4 w-4', value.includes(option) ? 'opacity-100' : 'opacity-0')}
+                />
+                <span className="truncate">{option}</span>
+              </CommandItem>
+            ))}
+            <CommandEmpty>{loading ? '货件编号加载中...' : '没有匹配的货件编号'}</CommandEmpty>
+          </CommandList>
+        </Command>
+        {value.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 border-t border-term-border p-2">
+            {value.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onChange(value.filter((current) => current !== item))}
+                className="inline-flex items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 py-1 text-[11px] text-term-text transition hover:bg-term-hover"
+              >
+                <span className="max-w-[180px] truncate">{item}</span>
+                <X className="h-3 w-3" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -784,12 +779,6 @@ function dedupeTrimmedValues(values: string[]): string[] {
 function normalizeShipmentNoList(values: string[]): string[] {
   const parts = values.flatMap((value) => value.split(','))
   return dedupeTrimmedValues(parts)
-}
-
-function formatShipmentNoFilterLabel(values: string[]): string {
-  if (values.length === 0) return '货件编号：全部'
-  if (values.length <= 3) return `货件编号：${values.join('、')}`
-  return `货件编号：已选 ${values.length} 个`
 }
 
 function formatDimensionText(length: number, width: number, height: number): string {
@@ -2880,130 +2869,134 @@ export default function ShipmentManagementPage() {
     }
   }
 
+  // —— Header 化：head 插槽 + 全局刷新（BLF-826 范式，蓝本 return-analysis / weekly-product-analysis）——
+  // 刷新语义（计划 §1.4「页面多 tab」）：重拉「当前激活 tab」的数据集——
+  //   overview → loadList(1)（保持当前筛选，回到第 1 页）
+  //   cost → loadCostSummary() + loadList(1)（该 tab 同时展示成本汇总统计条与批次表格，两者都属当前 tab 数据集）
+  //   sku-summary → loadSkuSummary()
+  //   fba-box-detail → loadFbaBoxDetails(已选货件编号)（未选货件编号时 no-op，与原 tab 内刷新按钮禁用态一致）
+  // 本页无缓存可跳，直接重拉；handler 用 ref 桥接防过期闭包，触发时永远读到当前 tab 与最新筛选。
+  const refreshActiveTabRef = useRef<() => void>(() => {})
+  refreshActiveTabRef.current = () => {
+    if (activeTab === 'cost') {
+      void loadCostSummary()
+      void loadList(1)
+    } else if (activeTab === 'sku-summary') {
+      void loadSkuSummary()
+    } else if (activeTab === 'fba-box-detail') {
+      if (selectedShipmentNoFilter.length > 0) {
+        void loadFbaBoxDetails(selectedShipmentNoFilter)
+      }
+    } else {
+      void loadList(1)
+    }
+  }
+  useHeaderRefresh(() => refreshActiveTabRef.current(), {
+    loading:
+      activeTab === 'cost'
+        ? costSummaryLoading || loading
+        : activeTab === 'sku-summary'
+          ? skuSummaryLoading
+          : activeTab === 'fba-box-detail'
+            ? fbaBoxLoading
+            : loading,
+  })
+
+  const isMobile = useIsMobile()
+
+  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 状态 / 国家 / 货件编号，term 规格）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectFilter}
+        onChange={setProjectFilter}
+        options={[
+          { value: 'all', label: '全部项目' },
+          ...projects.map((project) => ({ value: String(project.id), label: project.name })),
+        ]}
+        placeholder={projectsLoading ? '项目加载中…' : '全部项目'}
+        disabled={projectsLoading}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={statusFilter}
+        onChange={setStatusFilter}
+        options={[
+          { value: 'all', label: '全部状态' },
+          ...STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="状态筛选"
+      />
+      <HeaderSlotSelect
+        value={countryFilter}
+        onChange={setCountryFilter}
+        options={[
+          { value: 'all', label: '全部国家' },
+          ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        ]}
+        widthClass={TERM_HEADER_W_SM}
+        title="国家筛选"
+      />
+      <SearchableShipmentNoFilter
+        value={shipmentNoFilter}
+        options={shipmentNoOptions}
+        loading={shipmentNoOptionsLoading}
+        onChange={setShipmentNoFilter}
+        onOpen={handleShipmentNoFilterOpen}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <div className="min-w-0 space-y-6 text-foreground">
-      {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺；头部 = 页面 PILL 合并（BLF-605：顶部 PILL 并入首卡，替换「控制台」标题） */}
-      <div className="dashboard-surface animate-enter overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
-          <div />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => void loadList(1)}
-              className="h-9 gap-1.5 px-3 text-xs"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              刷新
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={openCreateDialog}
-              className="h-9 gap-1.5 px-3 text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              新建批次
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={downloadBatchTemplate}
-              className="h-9 gap-1.5 px-3 text-xs"
-            >
-              <FileDown className="h-4 w-4" />
-              下载模板
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              disabled={batchImporting}
-              className="h-9 gap-1.5 px-3 text-xs"
-            >
-              <label>
-                <Upload className="h-4 w-4" />
-                {batchImporting ? '导入中...' : '批量导入'}
-                <input
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={handleBatchImportFile}
-                />
-              </label>
-            </Button>
-          </div>
-        </div>
-        <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-5">
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:col-span-1 [&>div]:min-w-0">
-            {projectsLoading ? (
-              <ShipmentControlSkeleton />
-            ) : (
-              <div className="flex min-w-0 flex-col space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">项目</div>
-                <Select value={projectFilter} onValueChange={setProjectFilter}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="全部项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部项目</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
-            <div className="flex min-w-0 flex-col space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">状态</div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="全部状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex min-w-0 flex-col space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">国家地区</div>
-              <Select value={countryFilter} onValueChange={setCountryFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="全部国家" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部国家</SelectItem>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex min-w-0 flex-col space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">货件编号</div>
-              <SearchableShipmentNoFilter
-                value={shipmentNoFilter}
-                options={shipmentNoOptions}
-                loading={shipmentNoOptionsLoading}
-                onChange={setShipmentNoFilter}
-                onOpen={handleShipmentNoFilterOpen}
-              />
-            </div>
-          </div>
-        </DataCardContent>
+      {/* 写操作栏：新建批次 / 下载模板 / 批量导入 csv（写语义留正文，不进 header 插槽） */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={openCreateDialog}
+          className="h-9 gap-1.5 px-3 text-xs"
+        >
+          <Plus className="h-4 w-4" />
+          新建批次
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={downloadBatchTemplate}
+          className="h-9 gap-1.5 px-3 text-xs"
+        >
+          <FileDown className="h-4 w-4" />
+          下载模板
+        </Button>
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          disabled={batchImporting}
+          className="h-9 gap-1.5 px-3 text-xs"
+        >
+          <label>
+            <Upload className="h-4 w-4" />
+            {batchImporting ? '导入中...' : '批量导入'}
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleBatchImportFile}
+            />
+          </label>
+        </Button>
       </div>
 
       <div className="grid min-w-0 gap-6">
@@ -3672,17 +3665,6 @@ export default function ShipmentManagementPage() {
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        disabled={selectedShipmentNoFilter.length === 0 || fbaBoxLoading}
-                        onClick={() => {
-                          if (selectedShipmentNoFilter.length > 0)
-                            void loadFbaBoxDetails(selectedShipmentNoFilter)
-                        }}
-                      >
-                        <RefreshCcw className="h-4 w-4" />
-                        刷新
-                      </Button>
                       <Button
                         variant="outline"
                         disabled={fbaBoxItems.length === 0 || fbaBoxExporting}
