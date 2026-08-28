@@ -40,6 +40,7 @@ from app.api.agent.response import agent_ok
 from app.api.deps import get_primary_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
+from app.models.project import Project
 from app.schemas.agent_api_key import AgentProvisionKeyRequest
 from app.services.agent import key_service
 from app.services.audit_log_service import append_operation_audit_log
@@ -105,6 +106,57 @@ def _validate(body: dict, request: Request) -> None:
                 "（全局单例），请通过管理员页面签发"
             ),
         )
+    # BLF-885 P0：scope 校验（预览阶段即拦，走 VALIDATION_FAILED + details）。
+    # business_scope 未知域 → 拒绝；project_scope 逐片段校验 + 存在性校验。
+    from app.api.agent.scope import KNOWN_BUSINESS_DOMAINS  # 延迟导入防循环
+
+    if not biz:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="business_scope 不能为空",
+            details=[{"loc": ["business_scope"], "msg": "不能为空"}],
+        )
+    unknown_domains = sorted(biz - KNOWN_BUSINESS_DOMAINS)
+    if unknown_domains:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=f"business_scope 含未知域 code: {', '.join(unknown_domains)}",
+            details=[
+                {"loc": ["business_scope"], "msg": f"未知域 code: {c}"}
+                for c in unknown_domains
+            ],
+        )
+    # project_scope：逐片段校验（非空、整数字面量、正整数）
+    raw_parts = [p.strip() for p in (req.project_scope or "").split(",")]
+    # 过滤后的空片段视为校验失败（与 "*" 的空串归一不同：自助路径显式白名单不得为空）
+    non_empty = [p for p in raw_parts if p]
+    if not non_empty:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="project_scope 不能为空或全空片段",
+            details=[{"loc": ["project_scope"], "msg": "不能为空"}],
+        )
+    invalid_parts: list[str] = []
+    project_ids: list[int] = []
+    for part in non_empty:
+        try:
+            pid = int(part)
+        except ValueError:
+            invalid_parts.append(part)
+            continue
+        if pid <= 0:
+            invalid_parts.append(part)
+            continue
+        project_ids.append(pid)
+    if invalid_parts:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=f"project_scope 含非法片段: {', '.join(invalid_parts)}",
+            details=[
+                {"loc": ["project_scope"], "msg": f"非法片段: {p}"}
+                for p in invalid_parts
+            ],
+        )
     if not AGENT_ID_PATTERN.match(req.agent_id):
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
@@ -125,30 +177,72 @@ def _validate(body: dict, request: Request) -> None:
 
     db = SessionLocal()
     try:
-        existing = db.scalars(
-            select(AgentApiKey).where(
-                AgentApiKey.agent_id == req.agent_id,
-                AgentApiKey.deleted_at.is_(None),
+        # BLF-885 P0：project_scope 存在性校验（正整数片段已校验，此处查库）
+        if project_ids:
+            existing_ids = set(
+                db.scalars(select(Project.id).where(Project.id.in_(project_ids))).all()
             )
-        ).first()
-        if existing is not None:
+            missing = sorted(set(project_ids) - existing_ids)
+            if missing:
+                # 附可用项目列表（P2 增强点 2，同时服务验收用例2）
+                available = list(
+                    db.scalars(select(Project.id).order_by(Project.id)).all()
+                )
+                raise AgentApiError(
+                    ErrorCode.VALIDATION_FAILED,
+                    human_message=(
+                        f"project_scope 含不存在的项目 id: {', '.join(map(str, missing))}；"
+                        f"可用项目 id: {', '.join(map(str, available)) if available else '无'}"
+                    ),
+                    details=[
+                        {
+                            "loc": ["project_scope"],
+                            "msg": f"不存在的项目 id: {m}",
+                        }
+                        for m in missing
+                    ],
+                )
+        # BLF-885 P1：唯一性对齐 key_service 的“有效”定义（未删除且未停用且未过期）。
+        # 停用/过期不再阻塞同 agent_id 重签；只有同 agent_id 的有效 key 才拒绝。
+        candidates = list(
+            db.scalars(
+                select(AgentApiKey).where(
+                    AgentApiKey.agent_id == req.agent_id,
+                    AgentApiKey.deleted_at.is_(None),
+                )
+            ).all()
+        )
+        now_ts = datetime.now(timezone.utc)
+        has_effective = False
+        for cand in candidates:
+            if cand.is_revoked:
+                continue
+            if cand.expires_at is not None:
+                exp = cand.expires_at
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp <= now_ts:
+                    continue
+            has_effective = True
+            break
+        if has_effective:
             raise AgentApiError(
                 ErrorCode.VALIDATION_FAILED,
-                human_message=f"agent_id {req.agent_id!r} 已存在有效凭据，请先停用旧 key 或更换标识",
+                human_message=f"agent_id {req.agent_id!r} 已存在有效凭据，请先停用或删除旧 key 后再签发",
             )
     finally:
         db.close()
 
 
 def _preview(body: dict, request: Request) -> dict:
-    """confirm 预览摘要：目标 agent_id / scopes / 有效期。"""
+    """confirm 预览摘要：目标 agent_id / scopes / 有效期 + 人类可读对照（P2）。"""
     req = _parse_request(body)
     note = (
         "将为目标 agent 签发一张新凭据；明文 key 仅在本次响应返回一次"
         if req.expires_at is None
         else "将为目标 agent 签发一张新凭据（有到期时间）；明文 key 仅在本次响应返回一次"
     )
-    return {
+    preview: dict = {
         "action": "agent_key.create",
         "target_agent_id": req.agent_id,
         "label": req.label,
@@ -158,6 +252,34 @@ def _preview(body: dict, request: Request) -> dict:
         "expires_at": req.expires_at.isoformat() if req.expires_at else None,
         "note": note,
     }
+    # P2：project_scope_display 人类可读对照（失败静默不影响预览）
+    try:
+        pids: list[int] = []
+        for part in (req.project_scope or "").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                pid = int(part)
+                if pid > 0:
+                    pids.append(pid)
+            except ValueError:
+                continue
+        if pids:
+            db = SessionLocal()
+            try:
+                rows = db.execute(
+                    select(Project.id, Project.project_name).where(Project.id.in_(pids))
+                ).all()
+                id_to_name = {r[0]: r[1] for r in rows}
+                preview["project_scope_display"] = ",".join(
+                    id_to_name.get(pid, f"#{pid}") for pid in pids
+                )
+            finally:
+                db.close()
+    except Exception:  # noqa: BLE001 — 预览增强不阻塞主流程
+        pass
+    return preview
 
 
 @provisioning_router.post("", dependencies=[Depends(require_agent_write_rate_limit)])
