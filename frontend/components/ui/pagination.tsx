@@ -56,7 +56,7 @@ const PaginationPrevious = ({
     className={cn('gap-1 pl-2.5', className)}
     {...props}
   >
-    <ChevronLeft className="h-4 w-4" />
+    <ChevronLeft />
     <span>上一页</span>
   </PaginationLink>
 )
@@ -70,18 +70,19 @@ const PaginationNext = ({ className, ...props }: React.ComponentProps<typeof Pag
     {...props}
   >
     <span>下一页</span>
-    <ChevronRight className="h-4 w-4" />
+    <ChevronRight />
   </PaginationLink>
 )
 PaginationNext.displayName = 'PaginationNext'
 
+// Terminal 收口（BLF-872）：省略号占位与按钮同高（h-8），mono 弱化色
 const PaginationEllipsis = ({ className, ...props }: React.ComponentProps<'span'>) => (
   <span
     aria-hidden
-    className={cn('flex h-9 w-9 items-center justify-center', className)}
+    className={cn('flex h-8 w-8 items-center justify-center text-term-muted', className)}
     {...props}
   >
-    <MoreHorizontal className="h-4 w-4" />
+    <MoreHorizontal className="h-3.5 w-3.5" />
     <span className="sr-only">More pages</span>
   </span>
 )

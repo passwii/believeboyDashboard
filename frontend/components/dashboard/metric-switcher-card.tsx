@@ -236,23 +236,26 @@ export function MetricSwitcherCard<K extends string>({
   const hasCompareData = chartData.some((row) => row.compareMetricValue != null)
 
   return (
-    <Card className="hover-lift animate-enter overflow-hidden transition-shadow duration-200">
+    <Card className="animate-enter overflow-hidden">
       {(title || description) && (
-        <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] py-3">
+        <CardHeader className="border-b border-term-border bg-term-raised py-3">
           <div className="space-y-1">
             {title && (
-              <h2 className="text-base font-semibold leading-none text-foreground">{title}</h2>
+              <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">
+                {title}
+              </h2>
             )}
-            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            {description && (
+              <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>
+            )}
           </div>
         </CardHeader>
       )}
-      {/* BLF-529：CardHeader 基类自带 md:px-7 md:pt-7（md+ 左右 1.75rem / 顶部 1.75rem 内边距），
-          单独 p-0 只会被 tailwind-merge 抵消无响应式的 px-6/pt-6/pb-3，md 变体原样保留。
-          必须补 md:px-0 + md:pt-0 才能在 md+ 断点做到左右无内边距、卡片占满两侧且顶对齐。
-          md:pb-3（底部 0.75rem）保留 —— 给“形态”切换行留一点呼吸空间。 */}
-      <CardHeader className="p-0 md:px-0 md:pt-0">
-        <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-border/60">
+      {/* BLF-529：指标卡片区左右/顶部零内边距（占满卡片两侧、顶对齐）。
+          BLF-872 起 CardHeader 基类已无 md 断点内边距（px-4 pb-3 pt-4），
+          p-0 即可完全清零；pb-3 显式保留 —— 给"形态"切换行留一点呼吸空间。 */}
+      <CardHeader className="p-0 pb-3">
+        <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-term-border">
           {metrics.map((m) => {
             return (
               <MetricCell<K>
@@ -269,8 +272,8 @@ export function MetricSwitcherCard<K extends string>({
         </div>
 
         {showChartKindToggle && (
-          <div className="flex items-center justify-end gap-1 border-t border-border/60 px-3 py-2">
-            <span className="mr-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center justify-end gap-1 border-t border-term-border px-3 py-2">
+            <span className="mr-1 font-mono text-[10px] font-medium uppercase tracking-wider text-term-muted">
               形态
             </span>
             <ChartKindToggle

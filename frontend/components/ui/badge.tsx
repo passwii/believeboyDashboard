@@ -4,7 +4,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-1 text-[0.6875rem] font-semibold tracking-[0.01em] transition-colors focus:outline-none focus:ring-2 focus:ring-ring/20 focus:ring-offset-0 dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.08)]',
+  // Terminal 收口（BLF-872）：零圆角 + mono 小字 + 零阴影（去除暗黑玻璃内高光）
+  'inline-flex items-center rounded-none border px-2 py-0.5 font-mono text-[0.6875rem] font-semibold tracking-wide shadow-none transition-colors focus:outline-none focus:ring-2 focus:ring-ring/20 focus:ring-offset-0',
   {
     variants: {
       variant: {
@@ -19,8 +20,7 @@ const badgeVariants = cva(
           'border-warning/12 bg-warning/10 text-warning hover:bg-warning/16 dark:border-warning/20 dark:bg-warning/14',
         info:
           'border-primary/12 bg-primary/10 text-primary hover:bg-primary/16 dark:border-primary/20 dark:bg-primary/14',
-        outline:
-          'border-border/70 bg-background/88 text-foreground dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.92)]',
+        outline: 'border-term-border bg-term-panel text-term-text',
       },
     },
     defaultVariants: {

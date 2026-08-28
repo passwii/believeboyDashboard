@@ -61,12 +61,21 @@ describe('StatCardRow', () => {
   })
 })
 
-describe('StatCard 暗黑双环卡片契约（BLF-574）', () => {
-  it('走 dashboard-surface（暗黑继承 --shadow-level-2 双环）+ hover-lift（暗黑 hover 配对阴影）', () => {
+describe('StatCard Terminal 平板卡片契约（BLF-872）', () => {
+  it('走 term 平板基座（零圆角/零阴影），去除 dashboard-surface / hover-lift / 渐变叠层 / 彩色边框', () => {
     const { container } = render(<StatCard title="销售额" value="$1" icon={<span />} color="emerald" />)
-    const card = container.querySelector('.dashboard-surface')!
-    expect(card.className).toContain('dashboard-surface')
-    expect(card.className).toContain('hover-lift')
-    expect(card.className).toContain('border-emerald-500/20')
+    const card = container.firstElementChild!
+    expect(card.className).toContain('rounded-none')
+    expect(card.className).toContain('border-term-border')
+    expect(card.className).toContain('bg-term-panel')
+    expect(card.className).not.toContain('dashboard-surface')
+    expect(card.className).not.toContain('hover-lift')
+    expect(card.className).not.toContain('border-emerald-500/20')
+    expect(card.querySelector('.bg-gradient-to-br')).toBeNull()
+  })
+
+  it('颜色仅保留图标芯片一档语义提示', () => {
+    const { container } = render(<StatCard title="销售额" value="$1" icon={<span />} color="emerald" />)
+    expect(container.querySelector('.bg-emerald-500\\/10')).not.toBeNull()
   })
 })

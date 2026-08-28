@@ -12,14 +12,18 @@ import {
 import { densityCell, densityHead } from './table-presets'
 
 describe('data-card · 表格卡片外壳', () => {
-  it('DataTableCard 渲染 children 并带 dashboard-surface', () => {
+  it('DataTableCard 渲染 children 并带 term 平板基座（BLF-872：零圆角/零阴影）', () => {
     const { container } = render(
       <DataTableCard>
         <span>content</span>
       </DataTableCard>
     )
     expect(screen.getByText('content')).toBeInTheDocument()
-    expect(container.firstChild).toHaveClass('dashboard-surface')
+    expect(container.firstChild).toHaveClass('rounded-none')
+    expect(container.firstChild).toHaveClass('border-term-border')
+    expect(container.firstChild).toHaveClass('bg-term-panel')
+    expect(container.firstChild).toHaveClass('shadow-none')
+    expect(container.firstChild).not.toHaveClass('dashboard-surface')
   })
 
   it('DataTableCardHeader 渲染 title / description / action', () => {

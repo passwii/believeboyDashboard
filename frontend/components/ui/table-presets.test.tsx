@@ -39,17 +39,20 @@ describe('table-presets · numeric', () => {
 })
 
 describe('table-presets · StatusPill', () => {
-  it('渲染 label 与状态点', () => {
+  it('渲染 label 与状态点（BLF-872：pill 零圆角 + mono，状态点保留圆形）', () => {
     const { container } = render(<StatusPill status="success" label="已回款" />)
     expect(screen.getByText('已回款')).toBeInTheDocument()
-    // 状态点存在
-    expect(container.querySelector('span.rounded-full span.rounded-full')).toBeTruthy()
+    const pill = container.querySelector('[data-slot="status-pill"]')
+    expect(pill).toBeTruthy()
+    expect(pill?.className).toContain('rounded-none')
+    expect(pill?.className).toContain('font-mono')
+    expect(container.querySelector('[data-slot="status-pill"] [data-slot="status-dot"]')).toBeTruthy()
   })
 
   it('dot=false 时不渲染状态点', () => {
     const { container } = render(<StatusPill status="warning" label="待对账" dot={false} />)
     expect(screen.getByText('待对账')).toBeInTheDocument()
-    expect(container.querySelector('span.rounded-full span.rounded-full')).toBeNull()
+    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull()
   })
 
   it('五种状态都有对应 pill 类（映射 --data-* token）', () => {

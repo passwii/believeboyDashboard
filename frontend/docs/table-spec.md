@@ -1,9 +1,11 @@
 # 表格规范（Table Spec）
 
-> **适用版本：** v1（BLF-496 定稿，2026-08-07）
+> **适用版本：** v2（BLF-872 Terminal 收口，2026-08-28；v1 由 BLF-496 定稿，2026-08-07）
 > **适用对象：** 在 `frontend/` 下新增 / 修改表格的工程师
 > **目标：** 全站表格只有**一套配方**。新建表格照抄本节，改造旧表对齐本节。
 > **展示页：** `app/dashboard/table-showcase/page.tsx`（基线 + 变体实机效果）
+>
+> **v2 变更（BLF-872）：** Table 原语默认密度下沉为 compact 档（表头 `h-9 px-3 text-[0.66rem]`、数据格 `px-3 py-2 text-[13px]`、`font-mono`）；表头/行 hover/选中态与 `STICKY_*` 常量全部改用 `term-*` 令牌（`term-raised / term-hover / term-panel / term-border / term-accent`），去除暗黑玻璃高光；`DataTableCard / DataCard / Card / StatCard` 外壳由 `dashboard-surface` 收敛为 `TERM_PANEL_SURFACE`（零圆角 / 零阴影 / 零渐变）。
 
 ---
 
@@ -26,10 +28,12 @@
 | `cozy`（变体） | `!h-11 !px-4 !text-[0.6875rem]` | `!px-4 !py-3 !text-sm` | 常规展示型列表、低密度场景 |
 
 > 历史常量 `DENSE_HEAD` / `DENSE_CELL`（`data-card.tsx`）即 `densityHead.compact` / `densityCell.compact` 的**同源别名**（BLF-496 起收敛为同一定义），存量 100+ 处用法视觉向基线 compact 对齐。新代码请直接用 `densityHead.compact`。
+>
+> BLF-872 起 `Table` 原语默认密度即 compact 档（表头 `h-9 px-3 text-[0.66rem]`、数据格 `px-3 py-2 text-[13px]`、`font-mono`），compact 档位类成为显式声明（覆写值与基线一致）；cozy 档仍用 `!` 前缀覆写回宽松尺寸。
 
 ### 1.2 表头规则
 
-- 表头默认态由 `TableHead` 原语提供：`uppercase` + `tracking-[0.16em]` + `bg-[hsl(var(--surface-subtle))]` + `text-muted-foreground/92`，**不要手写背景**。
+- 表头默认态由 `TableHead` 原语提供：`uppercase` + `tracking-[0.14em]` + `bg-term-raised` + `text-term-muted`（BLF-872 起为 term 令牌），**不要手写背景**。
 - 可排序列：点击表头切换排序，指示图标 `ArrowUpDown / ChevronUp / ChevronDown`（见 showcase 基线）。
 - 多选列：首列 checkbox，`[&:has([role=checkbox])]:pr-0` 已内置于原语。
 
@@ -50,13 +54,13 @@
 
 | 常量 | 类值要点 | 场景 |
 |---|---|---|
-| `STICKY_TOP_ROW` | `sticky top-0 z-40` + surface-subtle | 单行表头纵向吸顶（配 `maxHeight` 滚动体） |
-| `STICKY_TOP_GROUP_ROW` / `STICKY_TOP_SUB_ROW` | z-50 / `top-[45px]` z-40 | 两行表头场景 |
-| `STICKY_LEFT_HEAD_CELL` | `sticky left-0 z-50` + surface-subtle + inset 分隔线 | 第一列表头（横向滚动吸左） |
-| `STICKY_LEFT_CELL` | `sticky left-0 z-30` + `--surface-base` 实体不透明 + inset 分隔线 | 第一列数据格 |
-| `STICKY_LEFT_CELL_HOVER` | 同上 + hover 变亮 | 第一列可点击行 |
+| `STICKY_TOP_ROW` | `sticky top-0 z-40` + term-raised | 单行表头纵向吸顶（配 `maxHeight` 滚动体） |
+| `STICKY_TOP_GROUP_ROW` / `STICKY_TOP_SUB_ROW` | z-50 / `top-[37px]` z-40 | 两行表头场景（offset = 默认表头 h-9 + 1px 边框） |
+| `STICKY_LEFT_HEAD_CELL` | `sticky left-0 z-50` + term-raised + inset 分隔线 | 第一列表头（横向滚动吸左） |
+| `STICKY_LEFT_CELL` | `sticky left-0 z-30` + term-panel 实体不透明 + inset 分隔线 | 第一列数据格 |
+| `STICKY_LEFT_CELL_HOVER` | 同上 + hover 变亮（term-hover） | 第一列可点击行 |
 
-要点：sticky 单元格背景必须**实体不透明 token**（`--surface-subtle` / `--surface-base`），否则暗黑模式滚动时出现浅色带（见 `design-spec.md` §2.2）。
+要点：sticky 单元格背景必须**实体不透明 term 令牌**（`term-raised` / `term-panel`），否则暗黑模式滚动时出现浅色带（见 `design-spec.md` §2.2）。
 
 ### 1.6 空状态
 
