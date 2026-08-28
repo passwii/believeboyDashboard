@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
+  CalendarDays,
   FileDown,
   Loader2,
+  Package,
   SlidersHorizontal,
   Target,
 } from 'lucide-react'
@@ -1709,21 +1711,23 @@ export default function DailyAnalysisPage() {
                   导出
                 </Button>
                 <TabsMotionGroup id="daily-analysis-tabs">
-                  <TabsList className="grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+                  <TabsList variant="term" className="grid h-auto w-full grid-cols-2 sm:w-[260px]">
                     <SlidingTabsTrigger
                       value="summary"
                       activeValue={activeTab}
                       layoutId="daily-analysis-tab-indicator"
-                      className="py-2"
+                      variant="term"
                     >
+                      <CalendarDays aria-hidden />
                       每日汇总
                     </SlidingTabsTrigger>
                     <SlidingTabsTrigger
                       value="details"
                       activeValue={activeTab}
                       layoutId="daily-analysis-tab-indicator"
-                      className="py-2"
+                      variant="term"
                     >
+                      <Package aria-hidden />
                       SKU 明细
                     </SlidingTabsTrigger>
                   </TabsList>

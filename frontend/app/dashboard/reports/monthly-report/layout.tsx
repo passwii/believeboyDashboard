@@ -28,7 +28,7 @@ export default function MonthlyReportLayout({
   return (
     <div className="min-w-0 w-full space-y-3">
       <Tabs value={activeTab}>
-        <TabsList variant="term" className="grid w-full max-w-md grid-cols-3 justify-start gap-0 bg-term-panel">
+        <TabsList variant="term" className="grid w-full max-w-md grid-cols-3 justify-start">
           {TAB_ITEMS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} variant="term" asChild>
               <Link href={`/dashboard/reports/monthly-report/${value}`}>

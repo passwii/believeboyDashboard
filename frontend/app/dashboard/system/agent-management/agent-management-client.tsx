@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil } from 'lucide-react'
+import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil, Eye, PenLine } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
@@ -712,9 +712,11 @@ export function AgentManagementClient() {
           <Tabs defaultValue="read" className="w-full">
             <TabsList variant="term">
               <TabsTrigger value="read" variant="term">
+                <Eye aria-hidden />
                 读访问
               </TabsTrigger>
               <TabsTrigger value="write" variant="term">
+                <PenLine aria-hidden />
                 写操作
               </TabsTrigger>
             </TabsList>

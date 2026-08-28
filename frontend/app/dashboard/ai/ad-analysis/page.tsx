@@ -286,13 +286,13 @@ export default function AdAnalysisPage() {
         onValueChange={(v) => setActiveTab(v as TabKey)}
         className="space-y-2"
       >
-        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-bg p-0">
-          <TabsTrigger value="history" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
-            <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <TabsList variant="term" className="w-fit justify-start">
+          <TabsTrigger value="history" variant="term">
+            <FileText aria-hidden />
             历史记录
           </TabsTrigger>
-          <TabsTrigger value="schedules" className="gap-1.5 rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
-            <Clock className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <TabsTrigger value="schedules" variant="term">
+            <Clock aria-hidden />
             定时任务
           </TabsTrigger>
         </TabsList>

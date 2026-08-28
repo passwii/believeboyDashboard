@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Download, FileUp, Upload } from 'lucide-react'
+import { ClipboardPaste, Download, FileUp, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -115,9 +115,15 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                 </Button>
               </div>
               <Tabs defaultValue="paste">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="paste">粘贴</TabsTrigger>
-                  <TabsTrigger value="upload">上传 Excel</TabsTrigger>
+                <TabsList variant="term" className="grid h-auto w-full grid-cols-2">
+                  <TabsTrigger value="paste" variant="term">
+                    <ClipboardPaste aria-hidden />
+                    粘贴
+                  </TabsTrigger>
+                  <TabsTrigger value="upload" variant="term">
+                    <FileUp aria-hidden />
+                    上传 Excel
+                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="paste" className="space-y-3">
                   <Textarea

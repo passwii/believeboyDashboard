@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Download, Loader2, RefreshCcw } from 'lucide-react'
+import { Boxes, Download, Loader2, MessageSquare, Package, RefreshCcw, Sparkles, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import {
   Bar,
@@ -265,6 +265,17 @@ const TAB_LABELS: Record<ViewTab, string> = {
   'inventory-status': '库存状态',
   feedback: '顾客反馈',
   summary: 'AI 总结',
+}
+
+// BLF-883 全局统一：每个 tab 前置 icon
+const TAB_ICONS: Record<ViewTab, LucideIcon> = {
+  rankings: Trophy,
+  reason: Tags,
+  trend: TrendingUp,
+  'product-status': Package,
+  'inventory-status': Boxes,
+  feedback: MessageSquare,
+  summary: Sparkles,
 }
 
 const REASON_COLORS = [
@@ -762,18 +773,22 @@ export default function ReturnAnalysisPage() {
         className="w-full"
       >
         <TabsMotionGroup id="return-analysis-tabs">
-          <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-7 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
-            {VIEW_TAB_ORDER.map((tab) => (
-              <SlidingTabsTrigger
-                key={tab}
-                value={tab}
-                activeValue={activeTab}
-                layoutId="return-analysis-tab-indicator"
-                className="py-2.5"
-              >
-                {TAB_LABELS[tab]}
-              </SlidingTabsTrigger>
-            ))}
+          <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
+            {VIEW_TAB_ORDER.map((tab) => {
+              const Icon = TAB_ICONS[tab]
+              return (
+                <SlidingTabsTrigger
+                  key={tab}
+                  value={tab}
+                  activeValue={activeTab}
+                  layoutId="return-analysis-tab-indicator"
+                  variant="term"
+                >
+                  <Icon aria-hidden />
+                  {TAB_LABELS[tab]}
+                </SlidingTabsTrigger>
+              )
+            })}
           </TabsList>
         </TabsMotionGroup>
 

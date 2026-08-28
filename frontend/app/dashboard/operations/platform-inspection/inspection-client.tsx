@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { History, LayoutDashboard } from 'lucide-react'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import {
   DirectionalTabTransition,
@@ -65,19 +66,23 @@ export default function InspectionClient() {
     <div className="w-full space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsMotionGroup id="inspection-tabs">
-          <TabsList>
+          <TabsList variant="term" className="w-fit justify-start">
             <SlidingTabsTrigger
               value="overview"
               activeValue={activeTab}
               layoutId="inspection-tab-indicator"
+              variant="term"
             >
+              <LayoutDashboard aria-hidden />
               概览
             </SlidingTabsTrigger>
             <SlidingTabsTrigger
               value="history"
               activeValue={activeTab}
               layoutId="inspection-tab-indicator"
+              variant="term"
             >
+              <History aria-hidden />
               历史记录
             </SlidingTabsTrigger>
           </TabsList>

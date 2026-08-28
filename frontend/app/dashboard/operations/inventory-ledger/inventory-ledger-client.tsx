@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle, Clock4, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Clock4, LayoutGrid, List, RefreshCw, UploadCloud } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -396,10 +396,20 @@ export default function InventoryLedgerPage() {
           />
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="summary">汇总视图 Summary</TabsTrigger>
-              <TabsTrigger value="detail">明细视图 Detail</TabsTrigger>
-              <TabsTrigger value="batches">上传批次</TabsTrigger>
+            {/* BLF-883 全局统一：variant="term" + 前置 icon */}
+            <TabsList variant="term" className="w-fit justify-start">
+              <TabsTrigger value="summary" variant="term">
+                <LayoutGrid aria-hidden />
+                汇总视图 Summary
+              </TabsTrigger>
+              <TabsTrigger value="detail" variant="term">
+                <List aria-hidden />
+                明细视图 Detail
+              </TabsTrigger>
+              <TabsTrigger value="batches" variant="term">
+                <UploadCloud aria-hidden />
+                上传批次
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="summary">

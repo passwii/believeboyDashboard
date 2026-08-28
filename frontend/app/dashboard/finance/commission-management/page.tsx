@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, RefreshCw, SlidersHorizontal } from 'lucide-react'
+import { CalendarRange, FolderKanban, LayoutDashboard, Loader2, RefreshCw, SlidersHorizontal, Wallet } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -598,26 +598,23 @@ export default function CommissionManagementPage() {
       {/* BLF-826 阶段 C：月份/年份 + 站点 + 核算已上移 Top Header 中段插槽 */}
       {headerSlotPortal}
 
-      {/* Tab 切换：终端规格（无圆角胶囊、term 色系） */}
+      {/* Tab 切换：BLF-883 全局统一 variant="term" + 前置 icon */}
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as CommissionViewTab)}
         className="w-full"
       >
-        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-panel p-0">
+        <TabsList variant="term" className="w-fit justify-start">
           {(
             [
-              ['detail', '总览'],
-              ['monthly', '年-月汇总'],
-              ['projectSummary', '项目汇总'],
-              ['monthlyCollection', '月度回款'],
-            ] as Array<[CommissionViewTab, string]>
-          ).map(([key, label]) => (
-            <TabsTrigger
-              key={key}
-              value={key}
-              className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
-            >
+              ['detail', '总览', LayoutDashboard],
+              ['monthly', '年-月汇总', CalendarRange],
+              ['projectSummary', '项目汇总', FolderKanban],
+              ['monthlyCollection', '月度回款', Wallet],
+            ] as Array<[CommissionViewTab, string, typeof LayoutDashboard]>
+          ).map(([key, label, Icon]) => (
+            <TabsTrigger key={key} value={key} variant="term">
+              <Icon aria-hidden />
               {label}
             </TabsTrigger>
           ))}

@@ -1,6 +1,7 @@
 'use client'
 
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { FileText, History, ListTodo, Pencil, PhoneCall, Users } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -112,14 +113,35 @@ export function CrmOverviewDrawer<T extends object>({
 
         <Tabs defaultValue="detail" className="flex h-full flex-col">
           <div className="px-5 pt-3">
-            {/* 移动规则（总则 1/2）：6 个 tab 手机端 3 列×2 行（sm+ 恢复单行横排） */}
-            <TabsList className={cn('grid w-full grid-cols-3 sm:grid-cols-6', !isCustomer && 'sm:grid-cols-5')}>
-              <TabsTrigger value="detail">详情</TabsTrigger>
-              <TabsTrigger value="follow">跟进</TabsTrigger>
-              {isCustomer && <TabsTrigger value="contacts">联系人</TabsTrigger>}
-              <TabsTrigger value="tasks">任务</TabsTrigger>
-              <TabsTrigger value="audit">操作记录</TabsTrigger>
-              <TabsTrigger value="edit">编辑</TabsTrigger>
+            {/* 移动规则（总则 1/2）：6 个 tab 手机端 3 列×2 行（sm+ 恢复单行横排）；
+                BLF-883 全局统一 variant="term" + 前置 icon，h-auto 容纳换行。 */}
+            <TabsList variant="term" className={cn('grid h-auto w-full grid-cols-3 sm:grid-cols-6', !isCustomer && 'sm:grid-cols-5')}>
+              <TabsTrigger value="detail" variant="term">
+                <FileText aria-hidden />
+                详情
+              </TabsTrigger>
+              <TabsTrigger value="follow" variant="term">
+                <PhoneCall aria-hidden />
+                跟进
+              </TabsTrigger>
+              {isCustomer && (
+                <TabsTrigger value="contacts" variant="term">
+                  <Users aria-hidden />
+                  联系人
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="tasks" variant="term">
+                <ListTodo aria-hidden />
+                任务
+              </TabsTrigger>
+              <TabsTrigger value="audit" variant="term">
+                <History aria-hidden />
+                操作记录
+              </TabsTrigger>
+              <TabsTrigger value="edit" variant="term">
+                <Pencil aria-hidden />
+                编辑
+              </TabsTrigger>
             </TabsList>
           </div>
 

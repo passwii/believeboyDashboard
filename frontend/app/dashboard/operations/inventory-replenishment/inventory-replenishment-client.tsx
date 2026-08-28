@@ -1155,17 +1155,17 @@ export default function InventoryReplenishmentPage() {
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cockpit' | 'table' | 'calendar')}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
-            <TabsTrigger value="cockpit" className="gap-1.5">
-              <Gauge className="h-4 w-4" />
+          <TabsList variant="term" className="w-fit justify-start">
+            <TabsTrigger value="cockpit" variant="term">
+              <Gauge aria-hidden />
               决策工作台
             </TabsTrigger>
-            <TabsTrigger value="table" className="gap-1.5">
-              <LayoutGrid className="h-4 w-4" />
+            <TabsTrigger value="table" variant="term">
+              <LayoutGrid aria-hidden />
               表格视图
             </TabsTrigger>
-            <TabsTrigger value="calendar" className="gap-1.5">
-              <CalendarDays className="h-4 w-4" />
+            <TabsTrigger value="calendar" variant="term">
+              <CalendarDays aria-hidden />
               日历视图
             </TabsTrigger>
           </TabsList>

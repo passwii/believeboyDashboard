@@ -10,10 +10,13 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Coins,
   Download,
   Loader2,
   Search,
   Trash2,
+  Truck,
+  Undo2,
   X,
 } from 'lucide-react'
 
@@ -2361,33 +2364,41 @@ export default function PricingCalculationPage() {
                   onValueChange={(value) => setCalculationMode(value as CalculationMode)}
                 >
                   <TabsMotionGroup id="pricing-calculation-mode-tabs">
-                    <TabsList className="grid h-8 w-full grid-cols-2 gap-0 justify-start rounded-none border border-term-border bg-term-panel p-0 sm:grid-cols-4">
+                    <TabsList variant="term" className="grid w-full grid-cols-2 justify-start sm:grid-cols-4">
                       <SlidingTabsTrigger
                         value="profit-calc"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
+                        variant="term"
                       >
+                        <Calculator aria-hidden />
                         利润核算
                       </SlidingTabsTrigger>
                       <SlidingTabsTrigger
                         value="profit-reverse"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
+                        variant="term"
                       >
+                        <Undo2 aria-hidden />
                         利润倒算
                       </SlidingTabsTrigger>
                       <SlidingTabsTrigger
                         value="cost-reverse"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
+                        variant="term"
                       >
+                        <Coins aria-hidden />
                         成本倒推
                       </SlidingTabsTrigger>
                       <SlidingTabsTrigger
                         value="fbm-calc"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
+                        variant="term"
                       >
+                        <Truck aria-hidden />
                         FBM测算
                       </SlidingTabsTrigger>
                     </TabsList>

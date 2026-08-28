@@ -16,7 +16,7 @@ import {
   TermTable,
 } from '@/components/terminal/term-table'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { SlidersHorizontal } from 'lucide-react'
+import { BarChart3, PieChart, SlidersHorizontal, TrendingUp, type LucideIcon } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -254,10 +254,10 @@ export default function PortfolioOverviewClient() {
     void session
   }, [session])
 
-  const tabs: Array<{ key: Tab; label: string }> = [
-    { key: 'comparison', label: '项目对比' },
-    { key: 'trend', label: '趋势对比' },
-    { key: 'contribution', label: '贡献占比' },
+  const tabs: Array<{ key: Tab; label: string; icon: LucideIcon }> = [
+    { key: 'comparison', label: '项目对比', icon: BarChart3 },
+    { key: 'trend', label: '趋势对比', icon: TrendingUp },
+    { key: 'contribution', label: '贡献占比', icon: PieChart },
   ]
 
   return (
@@ -293,24 +293,33 @@ export default function PortfolioOverviewClient() {
           </div>
 
           <TermPanel bodyClassName="min-h-0">
-            {/* 页内 Tab 切换条（h-9 标题带规格） */}
+            {/* 页内 Tab 切换条（h-9 标题带规格）；BLF-883：前置 icon + 激活态 accent 发光指示条，
+                与全局 term Tab 激活语言一致 */}
             <div className="flex h-9 shrink-0 items-center gap-1 border-b border-term-border px-2">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  aria-selected={activeTab === tab.key}
-                  role="tab"
-                  className={
-                    activeTab === tab.key
-                      ? 'h-7 border border-term-border bg-term-raised px-2 text-xs font-semibold text-term-text'
-                      : 'h-7 border border-transparent px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
-                  }
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveTab(tab.key)}
+                    aria-selected={isActive}
+                    role="tab"
+                    className={
+                      isActive
+                        ? 'relative flex h-7 items-center gap-1.5 border border-term-border bg-term-raised px-2 font-mono text-xs font-semibold text-term-text'
+                        : 'flex h-7 items-center gap-1.5 border border-transparent px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                    {tab.label}
+                    {isActive && (
+                      <span className="absolute inset-x-0 bottom-0 h-[2px] bg-term-accent shadow-[0_0_8px_color-mix(in_srgb,var(--term-accent)_60%,transparent),0_0_16px_color-mix(in_srgb,var(--term-accent)_30%,transparent)]" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
 
             {activeTab === 'comparison' && (

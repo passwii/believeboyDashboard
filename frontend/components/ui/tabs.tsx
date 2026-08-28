@@ -17,8 +17,10 @@ const TABS_LIST_BASE =
 const TABS_LIST_DEFAULT =
   'min-h-11 gap-1 rounded-2xl border border-[hsl(var(--surface-high))/0.9] bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.94,hsl(var(--surface-subtle))/0.98)] p-1.5 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.72),inset_0_-1px_0_hsl(214_18%_82%/0.38),0_10px_24px_-20px_rgba(15,23,42,0.12)] dark:border-[hsl(var(--surface-outline))/0.22] dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.88,hsl(var(--surface-low))/0.98)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.03),inset_0_-1px_0_rgba(0,0,0,0.28),0_20px_44px_-34px_rgba(0,0,0,0.82)]'
 
+// BLF-883 全局统一：term 基座底改为 term-panel（对齐 monthly-report 参考样式），
+// 页面侧不再各自覆盖 bg。
 const TABS_LIST_TERM =
-  'h-8 min-h-8 max-w-full gap-0 rounded-none border border-term-border bg-term-bg p-0 text-xs overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  'h-8 min-h-8 max-w-full gap-0 rounded-none border border-term-border bg-term-panel p-0 text-xs overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,

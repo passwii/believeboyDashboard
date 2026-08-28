@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { BellRing, ListChecks, Settings2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -48,14 +49,18 @@ export default function AlertCenterPage() {
       <AlertStatsBar stats={stats} />
 
       <Tabs defaultValue="events">
-        <TabsList className="h-8 rounded-none border border-term-border bg-term-bg p-0 text-term-muted">
-          <TabsTrigger value="events" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+        {/* BLF-883 全局统一：variant="term" + 前置 icon */}
+        <TabsList variant="term" className="w-fit justify-start">
+          <TabsTrigger value="events" variant="term">
+            <BellRing aria-hidden />
             告警事件
           </TabsTrigger>
-          <TabsTrigger value="rules" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+          <TabsTrigger value="rules" variant="term">
+            <ListChecks aria-hidden />
             告警规则
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="rounded-none font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+          <TabsTrigger value="preferences" variant="term">
+            <Settings2 aria-hidden />
             通知偏好
           </TabsTrigger>
         </TabsList>

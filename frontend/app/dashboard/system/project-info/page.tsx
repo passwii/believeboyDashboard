@@ -526,13 +526,13 @@ export default function StoreInfoPage() {
     <div className="w-full h-full">
       <Tabs defaultValue="context" className="h-full flex flex-col">
         <div className="mb-4">
-          <TabsList>
-            <TabsTrigger value="basic">
-              <FileText className="mr-2 h-4 w-4" />
+          <TabsList variant="term" className="w-fit justify-start">
+            <TabsTrigger value="basic" variant="term">
+              <FileText aria-hidden />
               基础信息
             </TabsTrigger>
-            <TabsTrigger value="context">
-              <Settings className="mr-2 h-4 w-4" />
+            <TabsTrigger value="context" variant="term">
+              <Settings aria-hidden />
               项目明细
             </TabsTrigger>
           </TabsList>

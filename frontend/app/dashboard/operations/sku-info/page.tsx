@@ -978,50 +978,50 @@ export default function SkuInfoPage() {
         >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsMotionGroup id="sku-cost-tabs">
-            <TabsList className="grid h-auto w-full max-w-[600px] grid-cols-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none sm:inline-flex">
+            <TabsList variant="term" className="grid h-auto w-full max-w-[600px] grid-cols-2 sm:inline-flex">
               <SlidingTabsTrigger
                 value="cost"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-3 py-2 sm:px-4"
+                variant="term"
               >
-                <Package2 className="h-4 w-4" />
+                <Package2 aria-hidden />
                 成本管理
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="dimension"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-3 py-2 sm:px-4"
+                variant="term"
               >
-                <Ruler className="h-4 w-4" />
+                <Ruler aria-hidden />
                 尺寸管理
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="factory"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-3 py-2 sm:px-4"
+                variant="term"
               >
-                <FileText className="h-4 w-4" />
+                <FileText aria-hidden />
                 产品属性
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="label"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-3 py-2 sm:px-4"
+                variant="term"
               >
-                <Tag className="h-4 w-4" />
+                <Tag aria-hidden />
                 产品标签
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="image"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-3 py-2 sm:px-4"
+                variant="term"
               >
-                <ImageIcon className="h-4 w-4" />
+                <ImageIcon aria-hidden />
                 产品图片
               </SlidingTabsTrigger>
             </TabsList>

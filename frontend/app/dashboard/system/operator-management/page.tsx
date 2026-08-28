@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, PlusCircle, Save } from 'lucide-react'
+import { Coins, Loader2, PlusCircle, Save, TrendingUp, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { RefreshButton } from '@/components/dashboard/console'
@@ -779,30 +779,33 @@ export default function OperatorManagementPage() {
           onValueChange={(value) => handleTabChange(value as OperatorPageTab)}
           className="w-full"
         >
-          <TabsList className="h-8 w-full max-w-full justify-start overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
+          <TabsList variant="term" className="w-full max-w-full justify-start">
             <TabsMotionGroup id="operator-management-tabs">
               <SlidingTabsTrigger
                 value="role-info"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
-                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
+                variant="term"
               >
+                <Users aria-hidden />
                 运营信息
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="performance"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
-                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
+                variant="term"
               >
+                <TrendingUp aria-hidden />
                 运营绩效
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
                 value="commission"
                 activeValue={activeTab}
                 layoutId="operator-management-tabs"
-                className="rounded-none px-3 font-mono text-xs data-[state=active]:text-term-text"
+                variant="term"
               >
+                <Coins aria-hidden />
                 运营佣金
               </SlidingTabsTrigger>
             </TabsMotionGroup>

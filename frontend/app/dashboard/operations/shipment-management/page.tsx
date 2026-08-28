@@ -15,6 +15,10 @@ import {
   ChevronsUpDown,
   Check,
   Tag,
+  LayoutDashboard,
+  Coins,
+  Package,
+  Boxes,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -3008,35 +3012,43 @@ export default function ShipmentManagementPage() {
           onValueChange={(value) => activateTab(value as ShipmentPageTab)}
           className="min-w-0 w-full"
         >
-          <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+          <div className="mb-4">
             <TabsMotionGroup id="shipment-management-tabs">
-              <TabsList className="flex w-max justify-start border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+              <TabsList variant="term" className="w-fit max-w-full justify-start">
                 <SlidingTabsTrigger
                   value="overview"
                   activeValue={activeTab}
                   layoutId="shipment-management-tab-indicator"
+                  variant="term"
                 >
+                  <LayoutDashboard aria-hidden />
                   总览
                 </SlidingTabsTrigger>
                 <SlidingTabsTrigger
                   value="cost"
                   activeValue={activeTab}
                   layoutId="shipment-management-tab-indicator"
+                  variant="term"
                 >
+                  <Coins aria-hidden />
                   发货费用
                 </SlidingTabsTrigger>
                 <SlidingTabsTrigger
                   value="sku-summary"
                   activeValue={activeTab}
                   layoutId="shipment-management-tab-indicator"
+                  variant="term"
                 >
+                  <Package aria-hidden />
                   SKU汇总
                 </SlidingTabsTrigger>
                 <SlidingTabsTrigger
                   value="fba-box-detail"
                   activeValue={activeTab}
                   layoutId="shipment-management-tab-indicator"
+                  variant="term"
                 >
+                  <Boxes aria-hidden />
                   FBA 箱单明细
                 </SlidingTabsTrigger>
               </TabsList>
