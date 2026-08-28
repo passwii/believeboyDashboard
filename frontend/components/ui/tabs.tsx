@@ -19,8 +19,10 @@ const TABS_LIST_DEFAULT =
 
 // BLF-883 全局统一：term 基座底改为 term-panel（对齐 monthly-report 参考样式），
 // 页面侧不再各自覆盖 bg。
+// 高度档位：h-9（36px）对齐 Top Header 标准控件档（TERM_HEADER_TRIGGER / 工作区导出按钮），
+// 与 h-8 密集工具行档（TERM_BUTTON/Select/Input）分层 —— Tab 切换属页头级导航，取高档。
 const TABS_LIST_TERM =
-  'h-8 min-h-8 max-w-full gap-0 rounded-none border border-term-border bg-term-panel p-0 text-xs overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  'h-9 min-h-9 max-w-full gap-0 rounded-none border border-term-border bg-term-panel p-0 text-xs overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -52,8 +54,9 @@ const TRIGGER_DEFAULT =
 const TERM_ACTIVE_UNDERLINE =
   'data-[state=active]:after:absolute data-[state=active]:after:inset-x-0 data-[state=active]:after:bottom-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-term-accent data-[state=active]:after:shadow-[0_0_8px_color-mix(in_srgb,var(--term-accent)_60%,transparent),0_0_16px_color-mix(in_srgb,var(--term-accent)_30%,transparent)]'
 
+// 高度与基座同档 h-9：Tab 触发器撑满列表高度，导出按钮等工作区操作钮同取 h-9，排齐不落差。
 const TRIGGER_TERM =
-  `h-8 min-h-8 rounded-none border border-transparent px-3 py-0 gap-1.5 font-mono text-xs leading-none text-term-muted hover:text-term-text data-[state=active]:bg-term-raised data-[state=active]:text-term-text data-[state=active]:shadow-none ${TERM_ACTIVE_UNDERLINE} [&_svg]:h-3.5 [&_svg]:w-3.5`
+  `h-9 min-h-9 rounded-none border border-transparent px-3 py-0 gap-1.5 font-mono text-xs leading-none text-term-muted hover:text-term-text data-[state=active]:bg-term-raised data-[state=active]:text-term-text data-[state=active]:shadow-none ${TERM_ACTIVE_UNDERLINE} [&_svg]:h-3.5 [&_svg]:w-3.5`
 
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,

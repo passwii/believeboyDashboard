@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { FileBarChart, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-// BLF-867 Tabs 基座 Terminal 收口：由 variant="term" 统一承载 h-8/rounded-none/term 语义，消页面侧覆盖漂移。
+// BLF-867 Tabs 基座 Terminal 收口：由 variant="term" 统一承载 h-9/rounded-none/term 语义，消页面侧覆盖漂移。
 
 const TAB_ITEMS = [
   { value: 'display', label: '财务报表', icon: LayoutDashboard },

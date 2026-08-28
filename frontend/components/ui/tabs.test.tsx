@@ -18,13 +18,13 @@ function renderTermTabs() {
 }
 
 describe('Tabs Terminal 收口（BLF-867）', () => {
-  it('term 档为 h-8 零圆角 mono 小字，且无 translate 溢出源', () => {
+  it('term 档为 h-9 零圆角 mono 小字（对齐头部标准控件档），且无 translate 溢出源', () => {
     const { container } = renderTermTabs()
     const list = container.querySelector('[role="tablist"]')!
-    expect(list.className).toContain('h-8')
+    expect(list.className).toContain('h-9')
     expect(list.className).toContain('rounded-none')
     const trigger = container.querySelector('[role="tab"]')!
-    expect(trigger.className).toContain('h-8')
+    expect(trigger.className).toContain('h-9')
     expect(trigger.className).toContain('rounded-none')
     expect(trigger.className).toContain('font-mono')
     expect(trigger.className).not.toContain('-translate-y-px')

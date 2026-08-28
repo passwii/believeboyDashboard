@@ -1193,7 +1193,7 @@ export default function InventoryReplenishmentPage() {
             <Button
               variant="outline"
               size="sm"
-              className="w-full sm:w-auto"
+              className="h-9 px-3 sm:px-4 w-full sm:w-auto"
               disabled={loading || exporting || filteredRows.length === 0}
               onClick={() => void exportToExcel()}
             >
