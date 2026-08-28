@@ -193,3 +193,12 @@ productEnvAgent/logs/
 
 # pnpm 本地 store（agent 运行时产物，禁止入库）
 .pnpm-store/
+
+# agent / 工具运行时缓存与会话状态（worktree 快照常卷入，禁止入库）
+.pi-glla/
+.playwright-cli/
+.cortexkit/*
+!.cortexkit/aft.jsonc
+
+# 根级 node_modules（此前仅忽略 frontend/backend 子目录，根目录漏网）
+node_modules/
