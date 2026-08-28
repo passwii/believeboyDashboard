@@ -843,7 +843,8 @@ export default function DailyAnalysisPage() {
       // 否则保留本页 URL param 的既有行为（自动选第一个项目）。
       if (!gfProjectId) return
     }
-    if (gfProjectId && gfProjectId !== projectId) {
+    const projectWillChange = Boolean(gfProjectId) && gfProjectId !== projectId
+    if (gfProjectId && projectWillChange) {
       setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
     }
     if (
@@ -859,7 +860,12 @@ export default function DailyAnalysisPage() {
       if (from && to) {
         setDatePresetKey(undefined)
         setDateRange({ from, to })
-        void loadDataRef.current?.({ from, to })
+        // BLF-882：项目即将变化时，当前 render 的 loadData 闭包仍持有旧 projectId
+        //（进入页面常为空），直连会以旧值发请求并误报「请先选择项目」；
+        // 此时跳过直连，setProjectId/setDateRange 落定后 [loadData] effect 会自然重跑。
+        if (!projectWillChange && projectId) {
+          void loadDataRef.current?.({ from, to })
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只响应头部四件套的变化
@@ -1046,7 +1052,10 @@ export default function DailyAnalysisPage() {
         } else if (country === 'ALL') {
           // 跨国家站点聚合：仅支持单项目 + 国家=ALL；后端对 US/DE/UK 分别加载并求和。
           if (!projectId) {
-            notify({ type: 'error', title: '请先选择项目' })
+            // BLF-882：项目列表加载中的早期调用静默跳过（列表就绪后 [loadData] effect 会自然触发）
+            if (!projectsLoading) {
+              notify({ type: 'error', title: '请先选择项目' })
+            }
             return
           }
           const search = new URLSearchParams({
@@ -1086,7 +1095,10 @@ export default function DailyAnalysisPage() {
           setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
         } else {
           if (!projectId) {
-            notify({ type: 'error', title: '请先选择项目' })
+            // BLF-882：项目列表加载中的早期调用静默跳过（列表就绪后 [loadData] effect 会自然触发）
+            if (!projectsLoading) {
+              notify({ type: 'error', title: '请先选择项目' })
+            }
             return
           }
           const search = new URLSearchParams({
@@ -1139,7 +1151,7 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [projectId, country, dateRange, notify, isAllProjects, projects, session]
+    [projectId, country, dateRange, notify, isAllProjects, projects, projectsLoading, session]
   )
   // BLF-819：供头部同步 effect 桥接调用（定义顺序解耦）
   loadDataRef.current = loadData
