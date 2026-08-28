@@ -31,6 +31,12 @@ import { cn } from '@/lib/utils'
 
 export const TERM_HEADER_TRIGGER =
   'h-9 shrink-0 overflow-hidden rounded-none border border-term-border bg-term-bg font-mono text-sm font-normal text-term-text shadow-none focus:ring-0 focus:ring-offset-0 data-[state=open]:border-term-border-strong [&>span]:truncate'
+/** 操作区 4 档固定宽度（Stage 4 三区标准）：SM=站点 / MD=项目 / LG=SKU / XL=日期 */
+export const TERM_HEADER_W_SM = 'w-[130px]'
+export const TERM_HEADER_W_MD = 'w-[150px]'
+export const TERM_HEADER_W_LG = 'w-[200px]'
+export const TERM_HEADER_W_XL = 'w-[240px]'
+/** Select 弹层统一样式（终端化：零圆角、term 边界/面板） */
 export const TERM_SELECT_CONTENT =
   'rounded-none border border-term-border bg-term-panel text-term-text shadow-lg'
 const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-term-text'
@@ -83,23 +89,20 @@ export function HeaderProjectSelect({
 
   return (
     <Select value={value} onValueChange={onChange} disabled={loading}>
-        <SelectTrigger
-          className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}
-          title="全局项目筛选"
-        >
-          <SelectValue placeholder={loading ? '加载中…' : '选择项目'} />
-        </SelectTrigger>
-        <SelectContent className={TERM_SELECT_CONTENT}>
-          <SelectItem value="all" className={TERM_SELECT_ITEM}>
-            全部项目
+      <SelectTrigger className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_MD)} title="全局项目筛选">
+        <SelectValue placeholder={loading ? '加载中…' : '选择项目'} />
+      </SelectTrigger>
+      <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
+        <SelectItem value="all" className={TERM_SELECT_ITEM}>
+          全部项目
+        </SelectItem>
+        {projects.map((p) => (
+          <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
+            {p.name}
           </SelectItem>
-          {projects.map((p) => (
-            <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
-              {p.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -126,20 +129,17 @@ export function HeaderCountrySelect({
 
   return (
     <Select value={value} onValueChange={onChange}>
-        <SelectTrigger
-          className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}
-          title="全局站点筛选"
-        >
-          <SelectValue placeholder="选择站点" />
-        </SelectTrigger>
-        <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value} className={TERM_SELECT_ITEM}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <SelectTrigger className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)} title="全局站点筛选">
+        <SelectValue placeholder="选择站点" />
+      </SelectTrigger>
+      <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value} className={TERM_SELECT_ITEM}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -165,44 +165,19 @@ export function HeaderDateRangePicker({
 
   return (
     <DateRangePicker
-        value={range}
-        timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
-        onChange={(next?: DateRange) => {
-          onChange(formatDateInputValue(next?.from), formatDateInputValue(next?.to))
-        }}
-        placeholder="选择日期范围"
-        className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
-      />
+      value={range}
+      timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
+      onChange={(next?: DateRange) => {
+        onChange(formatDateInputValue(next?.from), formatDateInputValue(next?.to))
+      }}
+      placeholder="选择日期范围"
+      className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_XL, 'justify-start px-2 text-left')}
+    />
   )
 }
 
-// ======================== KPI 磁贴 ========================
-
-type HeaderKpiTileProps = {
-  label: string
-  value: string | null
-  loading?: boolean
-}
-
-/** 头部 KPI 磁贴：今日 GMV / 订单数 / Pending 快报（数据源复用 Footer 的 daily-brief 口径） */
-export function HeaderKpiTile({ label, value, loading }: HeaderKpiTileProps) {
-  return (
-    <div
-      className="flex h-9 min-w-0 shrink-0 items-center gap-1.5 border border-term-border bg-term-panel px-2"
-      title={`${label}${value != null ? ` · ${value}` : ''}`}
-    >
-      <span className="shrink-0 font-mono text-xs uppercase tracking-wider text-term-faint">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'truncate font-mono text-sm tabular-nums',
-          value == null ? 'text-term-faint' : 'text-term-text',
-          loading && 'animate-pulse'
-        )}
-      >
-        {loading ? '···' : (value ?? '--')}
-      </span>
-    </div>
-  )
+// 已移除：HeaderKpiTile 已于 BLF-874 下线（正文 MetricSwitcherCard 已覆盖三磁贴），
+// 保留空壳仅作历史测试兼容（head 三区已无固定区 KPI 元素）。
+export function HeaderKpiTile() {
+  return null
 }

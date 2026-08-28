@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
-import { TERM_HEADER_TRIGGER, TERM_SELECT_CONTENT } from '@/components/terminal/header-filter-suite'
+import { TERM_HEADER_TRIGGER, TERM_HEADER_W_LG, TERM_SELECT_CONTENT } from '@/components/terminal/header-filter-suite'
 import { cn } from '@/lib/utils'
 
 /**
@@ -36,9 +36,6 @@ import { cn } from '@/lib/utils'
  *   （HeaderProjectSelect 区 xl:flex、插槽容器 hidden md:flex），保留降级三件套兜底；
  * - <md：HeaderFilterControls 折叠为「筛选」Popover 的行为不变。
  */
-
-/** 复用 header-filter-suite 的终端触发器基类（4 档定宽唯一真相源） */
-const TERM_HEADER_TRIGGER_SPEC = TERM_HEADER_TRIGGER
 
 export type ProjectSkuOption = {
   sku: string
@@ -92,8 +89,9 @@ export function SkuSearchField({
           disabled={disabled}
           title="搜索并选择 SKU（清空即恢复全部 SKU）"
           className={cn(
-            TERM_HEADER_TRIGGER_SPEC,
-            'w-[200px] shrink-0 overflow-hidden justify-between px-2 font-mono font-normal shadow-none',
+            TERM_HEADER_TRIGGER,
+            TERM_HEADER_W_LG,
+            'justify-between px-2 font-mono font-normal shadow-none',
             disabled && 'cursor-not-allowed opacity-50'
           )}
           onClick={handleOpen}
