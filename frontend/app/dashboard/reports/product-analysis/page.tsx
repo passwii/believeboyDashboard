@@ -2,16 +2,20 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { Calculator, Package, PenLine } from 'lucide-react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ManualCalculationPanel from './components/manual-calculation-panel'
 import MonthlySkuAnalysisPanel from './components/monthly-sku-analysis-panel'
 import ProductAnalysisPanel from './components/product-analysis-panel'
 
-// BLF-836 终端化：页面标题由 TerminalHeader 面包屑承载（PageHeader 胶囊移除），
-// Tab 条换终端规格（h-8 / 零圆角 / 1px 边界 / 激活态 term-raised）。
-const TERM_TRIGGER_CLASS =
-  'h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text'
+// BLF-883 全局统一：Tab 条一律走 variant="term"（h-8 / 零圆角 / 1px 边界 /
+// 激活态 term-raised + accent 发光指示条），并为每个 tab 前置 icon。
+const TAB_ITEMS = [
+  { value: 'product-analysis', label: '产品分析核算', icon: Calculator },
+  { value: 'manual', label: '手动核算', icon: PenLine },
+  { value: 'monthly-sku', label: '月度 SKU 分析', icon: Package },
+] as const
 
 export default function ProductAnalysisPage() {
   const { data: session } = useSession()
@@ -26,16 +30,13 @@ export default function ProductAnalysisPage() {
         onValueChange={(v) => setActiveTab(v as typeof activeTab)}
         className="space-y-3"
       >
-        <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
-          <TabsTrigger value="product-analysis" className={TERM_TRIGGER_CLASS}>
-            产品分析核算
-          </TabsTrigger>
-          <TabsTrigger value="manual" className={TERM_TRIGGER_CLASS}>
-            手动核算
-          </TabsTrigger>
-          <TabsTrigger value="monthly-sku" className={TERM_TRIGGER_CLASS}>
-            月度 SKU 分析
-          </TabsTrigger>
+        <TabsList variant="term" className="w-fit justify-start">
+          {TAB_ITEMS.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value} variant="term">
+              <Icon aria-hidden />
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="product-analysis" className="space-y-0">

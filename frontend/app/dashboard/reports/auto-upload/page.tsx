@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
+  Activity,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleX,
+  FileSpreadsheet,
   LayoutDashboard,
   Loader2,
+  Megaphone,
   Upload,
 } from 'lucide-react'
 
@@ -1230,19 +1233,17 @@ export default function AutoUploadPage() {
   const [uploadSubTab, setUploadSubTab] = useState<UploadEndpoint>('report-upload')
   const [country, setCountry] = useState('US')
 
-  // BLF-836 终端化：Tab 条换终端规格（h-8 / 零圆角 / 1px 边界）。
-  const termTriggerClass =
-    'h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text'
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-      {/* Tab switcher */}
+      {/* Tab switcher（BLF-883 全局统一：variant="term" + 前置 icon） */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')} className="flex min-h-0 flex-col gap-3 overflow-hidden">
-        <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
-          <TabsTrigger value="upload" className={termTriggerClass}>
+        <TabsList variant="term" className="w-fit justify-start">
+          <TabsTrigger value="upload" variant="term">
+            <Upload aria-hidden />
             文件上传
           </TabsTrigger>
-          <TabsTrigger value="status" className={termTriggerClass}>
+          <TabsTrigger value="status" variant="term">
+            <Activity aria-hidden />
             RPA 状态
           </TabsTrigger>
         </TabsList>
@@ -1253,11 +1254,13 @@ export default function AutoUploadPage() {
         </TabsContent>
         <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
           <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
-            <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
-              <TabsTrigger value="report-upload" className={termTriggerClass}>
+            <TabsList variant="term" className="w-fit justify-start">
+              <TabsTrigger value="report-upload" variant="term">
+                <FileSpreadsheet aria-hidden />
                 通用报表
               </TabsTrigger>
-              <TabsTrigger value="ad-upload" className={termTriggerClass}>
+              <TabsTrigger value="ad-upload" variant="term">
+                <Megaphone aria-hidden />
                 广告报表
               </TabsTrigger>
             </TabsList>

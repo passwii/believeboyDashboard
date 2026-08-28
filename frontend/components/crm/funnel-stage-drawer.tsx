@@ -208,13 +208,13 @@ export function FunnelStageDrawer({
 
         <div className="px-5 pt-3">
           <Tabs value={sortBy} onValueChange={(v) => handleSortChange(v as 'dwell' | 'recent')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="dwell">
-                <ArrowDownWideNarrow className="mr-1.5 h-3.5 w-3.5" />
+            <TabsList variant="term" className="grid h-auto w-full grid-cols-2">
+              <TabsTrigger value="dwell" variant="term">
+                <ArrowDownWideNarrow aria-hidden />
                 卡点列表
               </TabsTrigger>
-              <TabsTrigger value="recent">
-                <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+              <TabsTrigger value="recent" variant="term">
+                <Clock3 aria-hidden />
                 最近动作
               </TabsTrigger>
             </TabsList>

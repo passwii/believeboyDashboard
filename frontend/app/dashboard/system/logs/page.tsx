@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
+  Bot,
   Eye,
   Loader2,
+  LogIn,
   RefreshCw,
+  ScrollText,
   Search,
   Settings2,
   ShieldCheck,
@@ -688,14 +691,17 @@ export default function SystemOperationLogsPage() {
       onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
       className="w-full"
     >
-      <TabsList className="h-8 w-fit max-w-full overflow-x-auto rounded-none border border-term-border bg-term-bg p-0">
-        <TabsTrigger value="audit" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+      <TabsList variant="term" className="w-fit max-w-full justify-start">
+        <TabsTrigger value="audit" variant="term">
+          <ScrollText aria-hidden />
           操作审计日志
         </TabsTrigger>
-        <TabsTrigger value="login" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+        <TabsTrigger value="login" variant="term">
+          <LogIn aria-hidden />
           登录日志
         </TabsTrigger>
-        <TabsTrigger value="agent" className="rounded-none px-3 font-mono text-xs data-[state=active]:bg-term-raised data-[state=active]:text-term-text">
+        <TabsTrigger value="agent" variant="term">
+          <Bot aria-hidden />
           Agent 访问日志
         </TabsTrigger>
       </TabsList>

@@ -15,13 +15,12 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON } from '@/components/terminal/term-controls'
+import { TERM_BUTTON, TERM_TRIGGER, TERM_SELECT_ITEM, TermPill } from '@/components/terminal/term-controls'
 import {
   Dialog,
   DialogContent,
@@ -175,15 +174,16 @@ function CompletionBadge({
   rate: number
   monthStatus: 'past' | 'current' | 'future'
 }) {
+  // BLF-883 terminal UI：彩色胶囊底 → TermPill 单色语义 pill
   if (monthStatus === 'current') {
-    return <Badge className="bg-blue-500">进行中</Badge>
+    return <TermPill tone="accent">进行中</TermPill>
   }
   if (monthStatus === 'future') {
-    return <Badge className="bg-muted-foreground/30">未开始</Badge>
+    return <TermPill tone="muted">未开始</TermPill>
   }
   // past month
-  if (rate >= 1) return <Badge className="bg-green-500">达成</Badge>
-  return <Badge className="bg-orange-500">未达标</Badge>
+  if (rate >= 1) return <TermPill tone="pos">达成</TermPill>
+  return <TermPill tone="warn">未达标</TermPill>
 }
 
 function ProgressBar({
@@ -197,12 +197,13 @@ function ProgressBar({
 }) {
   const pct = Math.min(value * 100, 100)
   const over = value > 1
+  // BLF-883 terminal UI：零圆角轨道 + term 语义色填充
   return (
-    <div className={cn('h-2 w-full overflow-hidden rounded-full bg-muted', className)}>
+    <div className={cn('h-1.5 w-full overflow-hidden rounded-none bg-term-raised', className)}>
       <div
         className={cn(
-          'h-full rounded-full transition-all duration-500',
-          over ? 'bg-green-500' : isPastIncomplete ? 'bg-orange-500' : 'bg-blue-500'
+          'h-full rounded-none transition-all duration-500',
+          over ? 'bg-term-pos' : isPastIncomplete ? 'bg-term-warn' : 'bg-term-accent'
         )}
         style={{ width: `${pct}%` }}
       />
@@ -472,12 +473,12 @@ export default function ProjectGoalsPage() {
         <p className="mb-2 font-mono text-[11px] text-term-muted">按项目 / 站点 / 年份查看销售目标完成度与进度表</p>
         <FilterToolbar>
           <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
+            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[140px]')}>
               <SelectValue placeholder="选择项目" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
               {projects.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
+                <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
                   {p.name}
                 </SelectItem>
               ))}
@@ -485,12 +486,12 @@ export default function ProjectGoalsPage() {
           </Select>
 
           <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]">
+            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[160px]')}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
               {COUNTRY_OPTIONS.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
+                <SelectItem key={c.value} value={c.value} className={TERM_SELECT_ITEM}>
                   {c.label}
                 </SelectItem>
               ))}
@@ -498,12 +499,12 @@ export default function ProjectGoalsPage() {
           </Select>
 
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[120px]">
+            <SelectTrigger className={cn(TERM_TRIGGER, 'w-full md:w-[120px]')}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
               {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>
+                <SelectItem key={y} value={String(y)} className={TERM_SELECT_ITEM}>
                   {y} 年
                 </SelectItem>
               ))}
@@ -531,8 +532,8 @@ export default function ProjectGoalsPage() {
           {currentMonthProgress && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+                <BarChart3 className="h-4 w-4 text-term-accent" />
+                <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
                   本月进度 · {currentMonthProgress.month_label}
                 </h2>
               </div>
@@ -613,22 +614,21 @@ export default function ProjectGoalsPage() {
                           <p className="mt-1 text-lg font-semibold tabular-nums">
                             {formatPercent(annualProgress.completion_rate)}
                           </p>
-                          <p className="truncate text-[11px] text-muted-foreground/70">
+                          <p className="truncate text-[11px] text-term-faint">
                             目标 {currencySymbol}
                             {formatMoney(annualProgress.target_amount)}
                           </p>
                         </>
                       ) : (
                         <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">未设置</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
+                          <span className="font-mono text-xs text-term-faint">未设置</span>
+                          <button
+                            type="button"
                             onClick={() => openCreateDialog('annual')}
-                            className="h-8 min-h-[44px] px-2.5 sm:min-h-8"
+                            className={TERM_BUTTON}
                           >
-                            <Plus className="mr-1 h-3 w-3" /> 设置
-                          </Button>
+                            <Plus className="h-3 w-3" /> 设置
+                          </button>
                         </div>
                       )}
                     </div>
@@ -642,7 +642,7 @@ export default function ProjectGoalsPage() {
                         {currencySymbol}{' '}
                         {formatMoney(currentMonthProgress.achieved_amount)}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground/70">
+                      <p className="truncate text-[11px] text-term-faint">
                         当月实际销售额（截至今日）
                       </p>
                     </div>
@@ -658,21 +658,20 @@ export default function ProjectGoalsPage() {
                             {currencySymbol}{' '}
                             {formatMoney(currentMonthProgress.target_amount)}
                           </p>
-                          <p className="truncate text-[11px] text-muted-foreground/70">
+                          <p className="truncate text-[11px] text-term-faint">
                             整月销售目标金额
                           </p>
                         </>
                       ) : (
                         <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">未设置</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
+                          <span className="font-mono text-xs text-term-faint">未设置</span>
+                          <button
+                            type="button"
                             onClick={() => handleTabChange('goals')}
-                            className="h-8 min-h-[44px] px-2.5 sm:min-h-8"
+                            className={TERM_BUTTON}
                           >
-                            <Plus className="mr-1 h-3 w-3" /> 去设置
-                          </Button>
+                            <Plus className="h-3 w-3" /> 去设置
+                          </button>
                         </div>
                       )}
                     </div>
@@ -685,7 +684,7 @@ export default function ProjectGoalsPage() {
                       <p className="mt-1 text-lg font-semibold tabular-nums">
                         {currencySymbol} {formatMoney(currentMonthProgress.daily_target)}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground/70">
+                      <p className="truncate text-[11px] text-term-faint">
                         第 {currentMonthProgress.today_day} / {currentMonthProgress.days_in_month} 天
                         · 目标 ÷ 天数
                       </p>
@@ -696,11 +695,17 @@ export default function ProjectGoalsPage() {
             </div>
           )}
 
-          {/* Tabs: Progress Table + Goal Management */}
+          {/* Tabs: Progress Table + Goal Management（BLF-883 全局统一 variant="term" + 前置 icon） */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="progress">进度概览</TabsTrigger>
-              <TabsTrigger value="goals">目标管理</TabsTrigger>
+            <TabsList variant="term" className="w-fit justify-start">
+              <TabsTrigger value="progress" variant="term">
+                <BarChart3 aria-hidden />
+                进度概览
+              </TabsTrigger>
+              <TabsTrigger value="goals" variant="term">
+                <Target aria-hidden />
+                目标管理
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="progress" className="space-y-4">
@@ -741,13 +746,13 @@ export default function ProjectGoalsPage() {
                             key={m.month}
                             className={
                               m.month === currentMonth
-                                ? 'bg-blue-50/50 dark:bg-blue-950/30'
+                                ? 'bg-term-raised'
                                 : ''
                             }
                           >
                             <TableCell className="font-medium">
                               {m.month === currentMonth ? (
-                                <span className="text-blue-600 dark:text-blue-400">
+                                <span className="font-mono text-term-accent">
                                   {m.month_label}（本月）
                                 </span>
                               ) : (
@@ -853,13 +858,13 @@ export default function ProjectGoalsPage() {
                             key={month}
                             className={
                               month === currentMonth
-                                ? 'bg-blue-50/50 dark:bg-blue-950/30'
+                                ? 'bg-term-raised'
                                 : ''
                             }
                           >
                             <TableCell className="font-medium">
                               {month === currentMonth ? (
-                                <span className="text-blue-600 dark:text-blue-400">
+                                <span className="font-mono text-term-accent">
                                   {selectedYear}年{MONTH_NAMES[idx]}（本月）
                                 </span>
                               ) : (

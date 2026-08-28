@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowRight, ChevronRight, FolderKanban, UserCog } from 'lucide-react'
+import { ArrowRight, ChevronRight, FolderKanban, Image as ImageIcon, UserCog } from 'lucide-react'
 
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TermPill } from '@/components/terminal/term-controls'
@@ -66,17 +66,19 @@ export default function ProfileClient() {
           {profile?.role_type ? <TermPill tone="accent">{getRoleLabel(profile.role_type)}</TermPill> : null}
         </div>
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-            <TabsList className="sticky top-0 z-10 w-full justify-center rounded-none border border-term-border bg-term-bg p-0">
+            {/* BLF-883 全局统一：variant="term" + 前置 icon */}
+            <TabsList variant="term" className="sticky top-0 z-10 w-full justify-center">
               <TabsMotionGroup id="profile-tabs">
-                <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs">
-                  <UserCog className="h-4 w-4" />
+                <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs" variant="term">
+                  <UserCog aria-hidden />
                   资料设置
                 </SlidingTabsTrigger>
-                <SlidingTabsTrigger value="avatar" activeValue={tab} layoutId="profile-tabs">
+                <SlidingTabsTrigger value="avatar" activeValue={tab} layoutId="profile-tabs" variant="term">
+                  <ImageIcon aria-hidden />
                   头像
                 </SlidingTabsTrigger>
-                <SlidingTabsTrigger value="projects" activeValue={tab} layoutId="profile-tabs">
-                  <FolderKanban className="h-4 w-4" />
+                <SlidingTabsTrigger value="projects" activeValue={tab} layoutId="profile-tabs" variant="term">
+                  <FolderKanban aria-hidden />
                   我的项目
                 </SlidingTabsTrigger>
               </TabsMotionGroup>

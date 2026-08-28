@@ -36,6 +36,7 @@ import {
   Lightbulb,
   Loader2,
   RefreshCw,
+  Search,
   ShieldAlert,
   Sparkles,
   TrendingUp,
@@ -2463,19 +2464,23 @@ export default function CategoryResearchPage() {
     >
       <div className="flex items-center justify-between">
         <TabsMotionGroup id="research-analysis-tabs">
-          <TabsList className="grid w-full max-w-[320px] grid-cols-2">
+          <TabsList variant="term" className="grid w-full max-w-[320px] grid-cols-2">
             <SlidingTabsTrigger
               value="research"
               activeValue={workspaceTab}
               layoutId="research-analysis-tab-indicator"
+              variant="term"
             >
+              <Search aria-hidden />
               调研
             </SlidingTabsTrigger>
             <SlidingTabsTrigger
               value="analysis"
               activeValue={workspaceTab}
               layoutId="research-analysis-tab-indicator"
+              variant="term"
             >
+              <TrendingUp aria-hidden />
               分析
             </SlidingTabsTrigger>
           </TabsList>

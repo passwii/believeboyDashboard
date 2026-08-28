@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { FileText, Save } from 'lucide-react'
+import { FilePlus2, FileText, History, Save } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
@@ -129,17 +129,14 @@ export default function VatInvoiceClient() {
     <div className="flex min-w-0 flex-col gap-3">
       {/* BLF-835：页面标题由 TerminalHeader 面包屑承载，原 PageHeader 胶囊移除 */}
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="h-8 w-fit rounded-none border border-term-border bg-term-panel p-0">
-          <TabsTrigger
-            value="create"
-            className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
-          >
+        {/* BLF-883 全局统一：variant="term" + 前置 icon */}
+        <TabsList variant="term" className="w-fit justify-start">
+          <TabsTrigger value="create" variant="term">
+            <FilePlus2 aria-hidden />
             新建发票
           </TabsTrigger>
-          <TabsTrigger
-            value="history"
-            className="h-8 rounded-none px-3 text-xs text-term-muted data-[state=active]:bg-term-raised data-[state=active]:text-term-text"
-          >
+          <TabsTrigger value="history" variant="term">
+            <History aria-hidden />
             发票历史
           </TabsTrigger>
         </TabsList>

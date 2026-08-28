@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { CalendarClock, History } from 'lucide-react'
 
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
@@ -36,35 +37,36 @@ export default function ScheduledReportsLayout() {
     setActivatedTabs((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
   }, [])
 
-  // BLF-836 终端化：Tab 条换终端规格（h-8 / 零圆角 / 1px 边界），
+  // BLF-883 全局统一：Tab 条一律走 variant="term"（h-8 / 零圆角 / 1px 边界 /
+  // 激活态 term-raised + accent 发光指示条）。
+  // 修复高度问题：旧实现外层包了 overflow-x-auto 容器 + default 基座残留 min-h-11
+  // （trigger min-h-[2.85rem]=46px 溢出 44px 列表 1px），导致 tab 右侧出现滚动按钮；
+  // term 基座恒定 h-8 min-h-8 且滚动条隐藏，从根上消除溢出源。
   // 保留 SlidingTabsTrigger 动效；激活态由 tab-motion 填充 term-raised 底。
-  const termTriggerClass =
-    'h-8 min-w-[7rem] rounded-none px-4 text-xs font-medium text-term-muted data-[state=active]:bg-transparent data-[state=active]:text-term-text'
-
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-3">
-      <div className="flex items-center overflow-x-auto">
-        <TabsList className="h-8 w-fit justify-start gap-0 rounded-none border border-term-border bg-term-panel p-0">
-          <TabsMotionGroup id="scheduled-reports-tabs">
-            <SlidingTabsTrigger
-              value="subscriptions"
-              activeValue={activeTab}
-              layoutId={TAB_LAYOUT_ID}
-              className={termTriggerClass}
-            >
-              订阅管理
-            </SlidingTabsTrigger>
-            <SlidingTabsTrigger
-              value="ledger"
-              activeValue={activeTab}
-              layoutId={TAB_LAYOUT_ID}
-              className={termTriggerClass}
-            >
-              调度记录
-            </SlidingTabsTrigger>
-          </TabsMotionGroup>
-        </TabsList>
-      </div>
+      <TabsList variant="term" className="w-fit justify-start">
+        <TabsMotionGroup id="scheduled-reports-tabs">
+          <SlidingTabsTrigger
+            value="subscriptions"
+            activeValue={activeTab}
+            layoutId={TAB_LAYOUT_ID}
+            variant="term"
+          >
+            <CalendarClock aria-hidden />
+            订阅管理
+          </SlidingTabsTrigger>
+          <SlidingTabsTrigger
+            value="ledger"
+            activeValue={activeTab}
+            layoutId={TAB_LAYOUT_ID}
+            variant="term"
+          >
+            <History aria-hidden />
+            调度记录
+          </SlidingTabsTrigger>
+        </TabsMotionGroup>
+      </TabsList>
 
       {/* 首次激活后才挂载；挂载后常驻，靠 hidden 切换可见性：
           切 tab 不卸载、不重新拉取数据，骨架屏仅在各自首次加载时出现一次。 */}
