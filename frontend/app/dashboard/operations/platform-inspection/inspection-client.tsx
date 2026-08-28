@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { History, LayoutDashboard } from 'lucide-react'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import {
@@ -9,6 +9,7 @@ import {
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
 import { useNotifications } from '@/components/notifications'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
 import InspectionForm from './components/inspection-form'
@@ -23,23 +24,40 @@ export default function InspectionClient() {
   const [currentPeriodId, setCurrentPeriodId] = useState<number | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [periodLoading, setPeriodLoading] = useState(false)
 
-  // Fetch current period on mount
-  useEffect(() => {
-    async function loadCurrentPeriod() {
-      try {
-        const period = await fetchCurrentPeriod()
-        setCurrentPeriodId(period.id)
-      } catch (e) {
-        notify({
-          type: 'error',
-          title: '加载失败',
-          message: '无法获取当前巡检周期',
-        })
-      }
+  // 拉取当前巡检周期（mount 与全局刷新共用；刷新时重取以捕获周期滚动）
+  const loadCurrentPeriod = useCallback(async () => {
+    setPeriodLoading(true)
+    try {
+      const period = await fetchCurrentPeriod()
+      setCurrentPeriodId(period.id)
+    } catch (e) {
+      notify({
+        type: 'error',
+        title: '加载失败',
+        message: '无法获取当前巡检周期',
+      })
+    } finally {
+      setPeriodLoading(false)
     }
-    void loadCurrentPeriod()
   }, [notify])
+
+  useEffect(() => {
+    void loadCurrentPeriod()
+  }, [loadCurrentPeriod])
+
+  // —— Header 化：全局刷新（operations header 迁移 Batch C）——
+  // 本页无筛选控件可上移。刷新 = bump refreshKey（概览/历史子组件按 refreshKey
+  // 重拉各自数据集）+ 重取 currentPeriod（周期可能已滚动）。
+  // ref 桥接防过期闭包；periodLoading 上报头部刷新按钮。
+  const handleHeaderRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+    void loadCurrentPeriod()
+  }, [loadCurrentPeriod])
+  const handleHeaderRefreshRef = useRef(handleHeaderRefresh)
+  handleHeaderRefreshRef.current = handleHeaderRefresh
+  useHeaderRefresh(() => handleHeaderRefreshRef.current(), { loading: periodLoading })
 
   const handleSelectProject = useCallback((projectId: number) => {
     setSelectedProjectId(projectId)
@@ -98,7 +116,9 @@ export default function InspectionClient() {
                     onSelectProject={handleSelectProject}
                   />
                 )
-              : currentPeriodId && <InspectionHistory periodId={currentPeriodId} />}
+              : currentPeriodId && (
+                  <InspectionHistory periodId={currentPeriodId} refreshKey={refreshKey} />
+                )}
           </TabsContent>
         </DirectionalTabTransition>
       </Tabs>

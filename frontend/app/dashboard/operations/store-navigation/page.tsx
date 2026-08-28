@@ -2,9 +2,10 @@
 
 import { ArrowUpRight, Building2, ExternalLink, Store } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { ErrorState } from '@/components/ui/error-state'
 import { CardListSkeleton } from '@/components/dashboard/page-skeletons'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -85,25 +86,34 @@ export default function StoreNavigationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchStores = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const fetchStores = useCallback(
+    async (force = false) => {
+      try {
+        setLoading(true)
+        setError(null)
 
-      const data = await fetchManagedProjectsCached<StoreItem[]>(session)
-      setStores(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误')
-    } finally {
-      setLoading(false)
-    }
-  }, [session])
+        const data = await fetchManagedProjectsCached<StoreItem[]>(session, undefined, { force })
+        setStores(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '未知错误')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [session]
+  )
 
   useEffect(() => {
     if (status === 'loading') return
 
     void fetchStores()
   }, [status, fetchStores])
+
+  // —— Header 化：全局刷新 = force 跳缓存重拉店铺列表（operations header 迁移 Batch C）——
+  // 本页无筛选控件可上移，仅注册刷新回调；ref 桥接防过期闭包，loading 上报头部按钮。
+  const fetchStoresRef = useRef(fetchStores)
+  fetchStoresRef.current = fetchStores
+  useHeaderRefresh(() => void fetchStoresRef.current(true), { loading })
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}` },

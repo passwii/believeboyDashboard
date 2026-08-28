@@ -29,6 +29,8 @@ import { Loader2, Eye, ImageIcon } from 'lucide-react'
 
 interface InspectionHistoryProps {
   periodId: number
+  /** 全局刷新计数：header 全局刷新时 bump，触发周期列表与历史记录重拉 */
+  refreshKey?: number
 }
 
 const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
@@ -305,7 +307,7 @@ function DetailSheet({
   )
 }
 
-export default function InspectionHistory({ periodId }: InspectionHistoryProps) {
+export default function InspectionHistory({ periodId, refreshKey }: InspectionHistoryProps) {
   const { notify } = useNotifications()
   const [history, setHistory] = useState<InspectionHistoryItem[]>([])
   const [periods, setPeriods] = useState<InspectionPeriod[]>([])
@@ -328,7 +330,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
       }
     }
     void loadPeriods()
-  }, [])
+  }, [refreshKey])
 
   // Load history when period changes
   useEffect(() => {
@@ -351,7 +353,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
       }
     }
     void loadHistory()
-  }, [selectedPeriodId, notify])
+  }, [selectedPeriodId, notify, refreshKey])
 
   const handleViewDetail = async (item: InspectionHistoryItem) => {
     setSelectedItem(item)
