@@ -20,10 +20,12 @@ describe('PageHeader', () => {
     expect(screen.getByText('运营导航 · 站点导航')).toBeInTheDocument()
     expect(screen.getByText('聚合主流跨境电商平台与运营入口')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '操作' })).toBeInTheDocument()
-    // pill 形态用 §4.1 胶囊小标配方
+    // BLF-873：eyebrow 收口为 term 原子标签（零圆角 + mono + term 边框/底）
     const pill = container.querySelector('p')
-    expect(pill?.className).toContain('rounded-full')
-    expect(pill?.className).toContain('border-primary/25')
+    expect(pill?.className).toContain('rounded-none')
+    expect(pill?.className).toContain('border-term-border')
+    expect(pill?.className).toContain('bg-term-raised')
+    expect(pill?.className).toContain('font-mono')
   })
 
   it('kicker 形态：渲染 dashboard-kicker 小标 + 标题', () => {
@@ -49,5 +51,18 @@ describe('PageHeader', () => {
     const header = container.querySelector('header')
     expect(header?.className).toContain('flex')
     expect(header?.className).toContain('justify-between')
+  })
+
+  it('BLF-873：标题/描述走 term 色阶，操作区间距对齐终端密度', () => {
+    const { container } = render(
+      <PageHeader title="标题" description="描述" actions={<button type="button">x</button>} />
+    )
+    expect(container.querySelector('h1')?.className).toContain('text-term-text')
+    const description = Array.from(container.querySelectorAll('p')).find((p) =>
+      p.className.includes('text-term-muted')
+    )
+    expect(description).toBeTruthy()
+    const actions = container.querySelector('header > div:last-child')
+    expect(actions?.className).toContain('gap-2')
   })
 })
