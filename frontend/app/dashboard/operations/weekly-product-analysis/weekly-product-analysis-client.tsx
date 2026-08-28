@@ -10,6 +10,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useMobile } from '@/lib/hooks/use-mobile'
 
 import { Button } from '@/components/ui/button'
+import { TERM_PANEL_SURFACE } from '@/components/ui/card'
 import { ErrorState } from '@/components/ui/error-state'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { PageHeader } from '@/components/ui/page-header'
@@ -1727,8 +1728,8 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+      {/* 页面头部：标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1；BLF-873：term 面板表面） */}
+      <section className={cn(TERM_PANEL_SURFACE, 'animate-enter px-4 py-4 md:px-5 md:py-5')}>
         <PageHeader
           className="relative z-10"
           title="每周商品分析"
@@ -1736,12 +1737,12 @@ export default function WeeklyProductAnalysisPage() {
         />
       </section>
 
-      {/* 控制台 — dashboard-surface 承载（去除 FilterField 标签，对齐 MOBILE 规则 9） */}
-      <div className="dashboard-surface overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 md:px-6">
-          <h2 className="text-sm font-semibold">控制台</h2>
+      {/* 控制台 — term 面板承载（BLF-873：去玻璃表面，对齐 DataCardHeader 标题条） */}
+      <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text shadow-none">
+        <div className="flex items-center justify-between border-b border-term-border bg-term-raised px-4 py-3">
+          <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">控制台</h2>
         </div>
-        <FilterToolbar className="border-0 shadow-none rounded-lg">
+        <FilterToolbar className="border-0">
           {projectsLoading ? (
             <WeeklyFilterSkeleton width="min-w-[180px]" />
           ) : (
@@ -1750,7 +1751,7 @@ export default function WeeklyProductAnalysisPage() {
               onValueChange={setProjectId}
               disabled={projects.length === 0}
             >
-              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="选择店铺" />
               </SelectTrigger>
               <SelectContent>
@@ -1765,7 +1766,7 @@ export default function WeeklyProductAnalysisPage() {
           <CountrySelect
             value={country}
             onChange={(value) => setCountry(value as CountryOption)}
-            triggerClassName="h-9 w-full sm:w-[150px]"
+            triggerClassName="w-full sm:w-[150px]"
           />
           <DateRangePicker
             value={parseDateRangeInputValue(startDate, endDate)}
@@ -1773,24 +1774,24 @@ export default function WeeklyProductAnalysisPage() {
               setStartDate(formatDateInputValue(range?.from))
               setEndDate(formatDateInputValue(range?.to))
             }}
-            className="col-span-2 h-9 w-full sm:w-[220px]"
+            className="col-span-2 w-full sm:w-[220px]"
           />
           <RefreshButton
             onClick={() => void loadWeeklyData({ force: true })}
             loading={loading}
             label="刷新数据"
             variant="outline"
-            className="col-span-2 h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-auto"
+            className="col-span-2 w-full sm:w-auto"
           />
         </FilterToolbar>
 
         {projectLoadError ? (
-          <div className="border-t border-border/70 px-6 pb-4 pt-2">
+          <div className="border-t border-term-border px-4 pb-4 pt-2">
             <ErrorState title="项目加载失败" message={projectLoadError} className="py-4" />
           </div>
         ) : null}
         {error ? (
-          <div className="border-t border-border/70 px-6 pb-4 pt-2">
+          <div className="border-t border-term-border px-4 pb-4 pt-2">
             <ErrorState title="数据加载失败" message={error} className="py-4" />
           </div>
         ) : null}

@@ -6,10 +6,11 @@ import { cn } from '@/lib/utils'
 
 /**
  * FilterToolbar 原语（BLF-503 §8 页面模式）：统一筛选工具栏的排列、间距与响应式换行。
- * 容器用 `dashboard-toolbar`（overlay 底 + 玻璃边），默认 `px-4 py-4 lg:px-6 lg:py-5`。
+ * 容器用 `dashboard-toolbar`（BLF-873 收口：term 表面——零圆角、`border-term-border`、
+ * `bg-term-raised`、无阴影），内边距 `px-3 py-3` 对齐 Terminal 密度。
  *
  * 响应式（对齐 MOBILE_ADAPTATION_RULES 规则 2）：
- * - 桌面（md+）：`flex flex-wrap items-center gap-3`，字段横向排列、自动换行；
+ * - 桌面（md+）：`flex flex-wrap items-center gap-2`，字段横向排列、自动换行；
  * - 手机（<md）：折叠为 `grid grid-cols-2 gap-2`，字段按 2 列网格排列；
  * - `actions`（如刷新按钮）桌面靠右（ml-auto），手机占满一行（col-span-2）。
  *
@@ -43,12 +44,12 @@ export function FilterToolbar({
   ...props
 }: FilterToolbarProps) {
   return (
-    <div className={cn('dashboard-toolbar px-4 py-4 lg:px-6 lg:py-5', className)} {...props}>
+    <div className={cn('dashboard-toolbar', className)} {...props}>
       <div
         className={cn(
           mobileGrid
-            ? 'grid grid-cols-2 items-center gap-2 md:flex md:flex-wrap md:items-center md:gap-3'
-            : 'flex flex-wrap items-center gap-3',
+            ? 'grid grid-cols-2 items-center gap-2 md:flex md:flex-wrap md:items-center md:gap-2'
+            : 'flex flex-wrap items-center gap-2',
           contentClassName
         )}
       >

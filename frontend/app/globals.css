@@ -680,15 +680,12 @@
     z-index: 1;
   }
 
+  /* BLF-873：工具栏表面收口至 Terminal 体系——零圆角、term 边框/底、无玻璃阴影。
+     深浅主题由 --term-* 令牌自动翻转，无需 .dark 覆盖。 */
   .dashboard-toolbar {
-    @apply border bg-[hsl(var(--surface-overlay)/0.88)] px-3 py-3;
-    border-color: hsl(var(--border) / 0.7);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .dark .dashboard-toolbar {
-    border-color: hsl(var(--border) / 0.6);
-    box-shadow: var(--shadow-level-2);
+    @apply border border-term-border bg-term-raised px-3 py-3;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .dashboard-chip {
