@@ -21,6 +21,9 @@ vi.mock('@/components/notifications/server-notifications-context', () => ({
   useServerNotifications: () => ({ unreadCount: unreadMock() }),
 }))
 
+// BLF-881：未注册页兜底刷新走 router.refresh()
+const routerRefreshMock = vi.fn()
+
 // BLF-874：KPI 磁贴已下线，TerminalHeader 不再调用 useHeaderKpis，但保留空 mock 避免遗留依赖误触发
 
 // 全局筛选状态 mock：可控制 ready 与当前路由
@@ -50,6 +53,7 @@ vi.mock('./global-filter-context', async (importOriginal) => {
 
 vi.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
+  useRouter: () => ({ refresh: routerRefreshMock }),
 }))
 
 vi.mock('@/components/dashboard/route-loading-link', () => ({
@@ -118,6 +122,7 @@ function renderHeader(pathname: string) {
 afterEach(() => {
   cleanup()
   unreadMock.mockReset()
+  routerRefreshMock.mockReset()
   filterState = {
     ready: true,
     projectId: '1',
@@ -160,15 +165,23 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
   })
 })
 
-describe('TerminalHeader 全局刷新按钮（BLF-826）', () => {
-  it('无页面注册刷新回调时：不显示刷新按钮（静态页零变化）', () => {
-    renderHeader('/dashboard/profile', { withSlotProvider: true })
-    expect(screen.queryByTestId('terminal-header-refresh')).not.toBeInTheDocument()
+describe('TerminalHeader 全局刷新按钮（BLF-826；BLF-881 全页面常驻）', () => {
+  it('无页面注册刷新回调时：刷新按钮常驻，点击兜底 router.refresh 且完成后自动恢复', async () => {
+    const user = userEvent.setup()
+    renderHeader('/dashboard/profile')
+    const btn = screen.getByTestId('terminal-header-refresh')
+    expect(btn).toBeInTheDocument()
+    expect(btn).toBeEnabled()
     // 基础控件仍在
     expect(screen.getByTestId('terminal-header-user')).toBeInTheDocument()
+
+    await user.click(btn)
+    expect(routerRefreshMock).toHaveBeenCalledTimes(1)
+    // 兜底完成后不卡在 loading（mock refresh 同步返回，transition 即刻结束）
+    await waitFor(() => expect(screen.getByTestId('terminal-header-refresh')).toBeEnabled())
   })
 
-  it('页面注册后：显示刷新按钮；点击触发页面回调', async () => {
+  it('页面注册后：优先执行页面回调，不走 router.refresh 兜底', async () => {
     const user = userEvent.setup()
     const handler = vi.fn()
 
@@ -187,6 +200,7 @@ describe('TerminalHeader 全局刷新按钮（BLF-826）', () => {
     await waitFor(() => expect(screen.getByTestId('terminal-header-refresh')).toBeInTheDocument())
     await user.click(screen.getByTestId('terminal-header-refresh'))
     expect(handler).toHaveBeenCalledTimes(1)
+    expect(routerRefreshMock).not.toHaveBeenCalled()
   })
 
   it('loading 时：按钮禁用并转 spinner，不可重复点击', async () => {
