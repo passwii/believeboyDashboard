@@ -11,6 +11,8 @@
   落库、明文仅此一次、审计行带 via=agent_provisioning 归因。
 * 签出的凭据真实可用：新 key 能通过鉴权访问其白名单内的域，且
   business_scope 不含 agent_provisioning 时不能铸 key（隔离闭环）。
+* BLF-885 P0 回归：project_scope 必须命中存在且 active 的项目；
+  报错附的「可用项目列表」只含 active（停产/归档项目不引导签发）。
 """
 
 from __future__ import annotations
@@ -79,6 +81,49 @@ def _provision_env(make_api_key):
     return {"agent_id": agent_id, "headers": headers}
 
 
+@pytest.fixture
+def provision_projects():
+    """一对专用项目（active + 停产），BLF-885 校验测试的数据底座。
+
+    happy path 签发到 active 项目；停产项目用于「存在但 is_active=false
+    同样拒绝 + 可用列表只含 active」回归。测试后按 project 维度自清。
+    """
+    from app.models.project import Project
+
+    suffix = uuid.uuid4().hex[:8]
+    db = SessionLocal()
+    try:
+        active = Project(
+            project_name=f"blf885-active-{suffix}",
+            project_operator="pytest",
+            sort_order=0,
+            is_active=True,
+        )
+        archived = Project(
+            project_name=f"blf885-archived-{suffix}",
+            project_operator="pytest",
+            sort_order=0,
+            is_active=False,
+        )
+        db.add_all([active, archived])
+        db.commit()
+        ids = {"active": active.id, "archived": archived.id}
+    finally:
+        db.close()
+
+    yield ids
+
+    db = SessionLocal()
+    try:
+        db.execute(
+            text("delete from projects where id in (:a, :b)"),
+            {"a": ids["active"], "b": ids["archived"]},
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
 def _body(**overrides) -> dict:
     target = f"new-agent-{uuid.uuid4().hex[:10]}"
     body = {
@@ -144,10 +189,10 @@ class TestAuthAndScopeGate:
 
 class TestValidationRedLines:
     def test_preview_then_replay_happy_path(
-        self, client, make_api_key, confirm_memory_store
+        self, client, make_api_key, confirm_memory_store, provision_projects
     ):
         env = _provision_env(make_api_key)
-        body = _body()
+        body = _body(project_scope=str(provision_projects["active"]))
         idem = f"idem-{uuid.uuid4().hex[:12]}"
 
         preview = _post(client, env["headers"], body, idem=idem)
@@ -233,19 +278,26 @@ class TestValidationRedLines:
 
 class TestValidationRejections:
     def test_duplicate_agent_id_rejected(
-        self, client, make_api_key, confirm_memory_store
+        self, client, make_api_key, confirm_memory_store, provision_projects
     ):
         env = _provision_env(make_api_key)
 
         # 先真实签发一张（预览与重放必须同 Idempotency-Key）
-        body = _body()
+        body = _body(project_scope=str(provision_projects["active"]))
         idem = f"idem-{uuid.uuid4().hex[:12]}"
         preview = _post(client, env["headers"], body, idem=idem)
         token = preview.json()["confirm_token"]
         first = _post(client, env["headers"], body, token=token, idem=idem)
         assert first.status_code == 200, first.text
         try:
-            dup = _post(client, env["headers"], _body(agent_id=body["agent_id"]))
+            dup = _post(
+                client,
+                env["headers"],
+                _body(
+                    agent_id=body["agent_id"],
+                    project_scope=str(provision_projects["active"]),
+                ),
+            )
             assert dup.status_code == 400
             assert "已存在有效凭据" in dup.json()["error"]["human_message"]
         finally:
@@ -283,15 +335,69 @@ class TestValidationRejections:
             assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
             assert "agent_provisioning" in resp.json()["error"]["human_message"]
 
+    def test_missing_project_id_rejected_with_active_only_hint(
+        self, client, make_api_key, confirm_memory_store, provision_projects
+    ):
+        """BLF-885 验收用例2 + 跟进小修：不存在的项目 id 预览即拒，
+        details 指明非法片段；报错附的「可用项目列表」只含 active 项目。"""
+        env = _provision_env(make_api_key)
+        resp = _post(
+            client,
+            env["headers"],
+            _body(project_scope="99999"),
+        )
+        assert resp.status_code == 400, resp.text
+        payload = resp.json()["error"]
+        assert payload["code"] == "VALIDATION_FAILED"
+        assert "不存在的项目" in payload["human_message"] or (
+            "不存在或已停用的项目 id: 99999" in payload["human_message"]
+        )
+        # 可用列表只含 active：本测试的 active 专项项目在内、archived 不在
+        assert str(provision_projects["active"]) in payload["human_message"]
+        assert str(provision_projects["archived"]) not in payload["human_message"]
+
+    def test_archived_project_id_rejected(
+        self, client, make_api_key, confirm_memory_store, provision_projects
+    ):
+        """BLF-885 跟进（2026-08-29）：停产/归档项目（is_active=false）与
+        不存在同样拒绝——防止签出指向停产项目的废凭据；可用列表只列
+        active，不再把全量 19 行（含停产）当成可选项。"""
+        env = _provision_env(make_api_key)
+        resp = _post(
+            client,
+            env["headers"],
+            _body(project_scope=str(provision_projects["archived"])),
+        )
+        assert resp.status_code == 400, resp.text
+        payload = resp.json()["error"]
+        assert payload["code"] == "VALIDATION_FAILED"
+        assert "不存在或已停用" in payload["human_message"]
+        assert str(provision_projects["archived"]) in payload["human_message"]
+        # 引导列表里 active 在、archived 不在
+        assert str(provision_projects["active"]) in payload["human_message"]
+        assert str(provision_projects["archived"]) not in (
+            payload["human_message"].split("可用项目 id: ")[-1]
+        )
+        # 不落库
+        db = SessionLocal()
+        try:
+            count = db.execute(
+                text("select count(*) from agent_api_keys where agent_id = :aid"),
+                {"aid": "should-not-exist"},
+            ).scalar_one()
+            assert count == 0
+        finally:
+            db.close()
+
 
 class TestProvisionedKeyUsable:
     def test_provisioned_key_authenticates_and_is_isolated(
-        self, client, make_api_key, confirm_memory_store
+        self, client, make_api_key, confirm_memory_store, provision_projects
     ):
         """签出的 key 真实可用：能过鉴权；且新凭据默认无 provisioning 域，
         不能再铸 key——隔离闭环（自助签发不自我复制）。"""
         env = _provision_env(make_api_key)
-        body = _body()
+        body = _body(project_scope=str(provision_projects["active"]))
         idem = f"idem-{uuid.uuid4().hex[:12]}"
 
         preview = _post(client, env["headers"], body, idem=idem)
