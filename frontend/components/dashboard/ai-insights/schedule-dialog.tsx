@@ -176,7 +176,7 @@ export function ScheduleDialog({
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Error message */}
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+            <div className="rounded-lg bg-term-neg/5 border border-term-neg/30 px-4 py-3 text-sm text-term-neg">
               {error}
             </div>
           )}

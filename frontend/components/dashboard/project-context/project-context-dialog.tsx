@@ -179,7 +179,7 @@ export function ProjectContextDialog({
                   'h-3 w-3 shrink-0 rounded-full',
                   context?.project_context && Object.keys(context.project_context).length > 0
                     ? 'bg-green-500'
-                    : 'bg-amber-400'
+                    : 'bg-term-warn'
                 )}
               />
               {projectName}

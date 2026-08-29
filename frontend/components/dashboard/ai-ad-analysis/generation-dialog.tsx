@@ -352,8 +352,8 @@ export function GenerationDialog({
 
           {/* Hotspots display (shown after Scout pass identifies issues) */}
           {hotspots && hotspots.length > 0 && !streamedContent && (
-            <div className="mb-3 rounded-md border bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2">
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+            <div className="mb-3 rounded-md border bg-term-warn/5/50 px-3 py-2">
+              <p className="text-xs font-medium text-term-warn mb-1.5">
                 🔍 侦察发现 {hotspots.length} 个热点问题
               </p>
               <div className="space-y-1">
@@ -363,8 +363,8 @@ export function GenerationDialog({
                       className={cn(
                         'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
                         h.severity === 'high'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          ? 'bg-term-neg/10 text-term-neg'
+                          : 'bg-term-warn/10 text-term-warn'
                       )}
                     >
                       {h.severity === 'high' ? '高' : '中'}

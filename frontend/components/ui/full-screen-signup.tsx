@@ -98,16 +98,14 @@ export const FullScreenSignup = () => {
                 type="email"
                 id="email"
                 placeholder="hi@hextastudio.in"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
-                  emailError ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${ emailError ? 'border-term-neg dark:border-term-neg' : 'border-gray-300' }`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={!!emailError}
                 aria-describedby="email-error"
               />
               {emailError && (
-                <p id="email-error" className="mt-1 text-xs text-red-500">
+                <p id="email-error" className="mt-1 text-xs text-term-neg">
                   {emailError}
                 </p>
               )}
@@ -120,16 +118,14 @@ export const FullScreenSignup = () => {
               <input
                 type="password"
                 id="password"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
-                  passwordError ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${ passwordError ? 'border-term-neg dark:border-term-neg' : 'border-gray-300' }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!passwordError}
                 aria-describedby="password-error"
               />
               {passwordError && (
-                <p id="password-error" className="mt-1 text-xs text-red-500">
+                <p id="password-error" className="mt-1 text-xs text-term-neg">
                   {passwordError}
                 </p>
               )}

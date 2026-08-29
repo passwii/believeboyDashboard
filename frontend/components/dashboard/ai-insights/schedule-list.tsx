@@ -156,9 +156,9 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
 
   if (error && schedules.length === 0) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-red-500 mb-3" />
-        <p className="text-sm text-red-600 mb-4">{error}</p>
+      <div className="rounded-lg border border-term-neg/30 bg-term-neg/5 p-6 text-center">
+        <AlertTriangle className="mx-auto h-8 w-8 text-term-neg mb-3" />
+        <p className="text-sm text-term-neg mb-4">{error}</p>
         <Button variant="outline" size="sm" onClick={loadSchedules}>
           重试
         </Button>
@@ -180,7 +180,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
     <div className="space-y-3">
       {/* Error banner */}
       {error && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-700 flex items-center gap-2">
+        <div className="rounded-lg bg-term-warn/5 border border-term-warn/30 px-4 py-2 text-sm text-term-warn flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
           <button className="ml-auto text-xs underline" onClick={() => setError(null)}>
@@ -306,7 +306,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                     <span
                       className={cn(
                         'font-medium',
-                        schedule.failure_count > 0 ? 'text-red-500' : 'text-muted-foreground'
+                        schedule.failure_count > 0 ? 'text-term-neg' : 'text-muted-foreground'
                       )}
                     >
                       {schedule.failure_count}
@@ -354,7 +354,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                       <DropdownMenuItem
                         onClick={() => handleDelete(schedule)}
                         disabled={actionLoading === schedule.id}
-                        className="text-red-600 focus:text-red-600"
+                        className="text-term-neg focus:text-term-neg"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

@@ -277,7 +277,7 @@ function KpiItem({ icon, label, value, change, badge, badgeColor, accent }: KpiI
               badgeColor === 'green' &&
                 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
               badgeColor === 'yellow' &&
-                'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+                'border-term-warn/40 bg-term-warn/10 text-term-warn',
               badgeColor === 'red' && 'border-destructive/40 bg-destructive/10 text-destructive'
             )}
           >

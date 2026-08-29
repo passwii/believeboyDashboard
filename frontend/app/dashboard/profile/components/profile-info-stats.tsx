@@ -68,7 +68,7 @@ export function ProfileInfoStats({ profile }: { profile: Profile }) {
       />
 
       <StatCard
-        icon={<KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
+        icon={<KeyRound className="h-4 w-4 text-term-warn" />}
         label="上次修改密码"
         value={
           profile.password_changed_at ? (

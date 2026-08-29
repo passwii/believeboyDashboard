@@ -220,8 +220,8 @@ function getUploadMeta(state: UploadStateItem) {
     return { text: '已上传', dot: 'bg-emerald-500', bar: 'bg-emerald-500' }
   if (state.status === 'uploading')
     return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
-  if (state.status === 'error') return { text: '上传失败', dot: 'bg-rose-500', bar: 'bg-rose-500' }
-  if (state.status === 'ready') return { text: '待上传', dot: 'bg-sky-500', bar: 'bg-sky-500' }
+  if (state.status === 'error') return { text: '上传失败', dot: 'bg-term-neg', bar: 'bg-term-neg' }
+  if (state.status === 'ready') return { text: '待上传', dot: 'bg-term-accent', bar: 'bg-term-accent' }
   return {
     text: '未识别',
     dot: 'bg-term-border',
@@ -438,14 +438,14 @@ export default function GenerateTab() {
   const generationMeta = useMemo(() => {
     if (submitState.status === 'success') return { label: '已完成', tone: 'text-emerald-600' }
     if (submitState.status === 'submitting') return { label: '进行中', tone: 'text-blue-600' }
-    if (submitState.status === 'error') return { label: '异常', tone: 'text-rose-600' }
+    if (submitState.status === 'error') return { label: '异常', tone: 'text-term-neg' }
     return { label: '未开始', tone: 'text-muted-foreground' }
   }, [submitState.status])
 
   const syncMeta = useMemo(() => {
     if (persistenceSync.status === 'success') return { label: '已同步', tone: 'text-emerald-600' }
     if (persistenceSync.status === 'running') return { label: '同步中', tone: 'text-blue-600' }
-    if (persistenceSync.status === 'failed') return { label: '失败', tone: 'text-amber-600' }
+    if (persistenceSync.status === 'failed') return { label: '失败', tone: 'text-term-warn' }
     return { label: '待同步', tone: 'text-muted-foreground' }
   }, [persistenceSync.status])
 

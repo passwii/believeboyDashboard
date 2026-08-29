@@ -137,9 +137,9 @@ export function DashboardAlertWidget({
             </span>
             <span className="mt-0.5 text-[10px] text-muted-foreground">严重</span>
           </div>
-          <div className="flex flex-col items-center rounded-lg border border-amber-500/30 bg-amber-500/5 py-3">
-            <AlertTriangle className="mb-1.5 h-4 w-4 text-amber-500" />
-            <span className="text-2xl font-bold tabular-nums text-amber-600">
+          <div className="flex flex-col items-center rounded-lg border border-term-warn/30 bg-term-warn/5 py-3">
+            <AlertTriangle className="mb-1.5 h-4 w-4 text-term-warn" />
+            <span className="text-2xl font-bold tabular-nums text-term-warn">
               {stats?.warning_count ?? 0}
             </span>
             <span className="mt-0.5 text-[10px] text-muted-foreground">警告</span>
@@ -167,7 +167,7 @@ export function DashboardAlertWidget({
                     event.severity === 'critical'
                       ? 'bg-destructive'
                       : event.severity === 'warning'
-                        ? 'bg-amber-500'
+                        ? 'bg-term-warn'
                         : 'bg-primary'
                   )}
                 />
@@ -228,7 +228,7 @@ function SeverityBadge({ severity }: { severity: string }) {
       className: 'bg-destructive/10 text-destructive border-destructive/20',
       label: '严重',
     },
-    warning: { className: 'bg-amber-500/10 text-amber-600 border-amber-500/20', label: '警告' },
+    warning: { className: 'bg-term-warn/10 text-term-warn border-term-warn/20', label: '警告' },
     info: { className: 'bg-primary/10 text-primary border-primary/20', label: '提示' },
   }
   const cfg = map[severity] ?? map.info

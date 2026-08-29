@@ -134,7 +134,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
   const counterClass = (n: number) =>
     cn(
       'tabular-nums',
-      n > MAX_LENGTH - 25 && n < MAX_LENGTH && 'text-amber-600 dark:text-amber-400',
+      n > MAX_LENGTH - 25 && n < MAX_LENGTH && 'text-term-warn',
       n === MAX_LENGTH && 'text-destructive'
     )
 

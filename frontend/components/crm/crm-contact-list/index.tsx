@@ -216,7 +216,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
                   <span className="truncate text-sm font-medium text-term-text">{c.name}</span>
                   {c.title && <span className="truncate font-mono text-xs text-term-faint">{c.title}</span>}
                   {c.isPrimary && (
-                    <Badge variant="secondary" className="font-mono text-[11px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <Badge variant="secondary" className="font-mono text-[11px] bg-term-warn/10 text-term-warn">
                       <Star className="mr-0.5 h-3 w-3 fill-current" /> 主联系人
                     </Badge>
                   )}
@@ -250,7 +250,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button size="sm" variant="ghost" title="删除" onClick={() => handleDelete(c)}>
-                  <Trash2 className="h-4 w-4 text-rose-600" />
+                  <Trash2 className="h-4 w-4 text-term-neg" />
                 </Button>
               </div>
             </div>

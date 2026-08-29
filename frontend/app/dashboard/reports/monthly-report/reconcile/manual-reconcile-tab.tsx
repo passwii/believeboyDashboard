@@ -80,8 +80,8 @@ function ResultItem({ item }: { item: ReconciliationItem }) {
   const isMatch = item.match
   const borderColor = isMatch
     ? 'border-emerald-200 dark:border-emerald-800/50'
-    : 'border-red-200 dark:border-red-800/50'
-  const rowBg = isMatch ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-red-50 dark:bg-red-900/10'
+    : 'border-term-neg/30'
+  const rowBg = isMatch ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-term-neg/5'
 
   return (
     <tr className={`transition-colors ${rowBg}`}>
@@ -90,18 +90,18 @@ function ResultItem({ item }: { item: ReconciliationItem }) {
           {isMatch ? (
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
           ) : (
-            <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+            <XCircle className="h-4 w-4 shrink-0 text-term-neg" />
           )}
           <span className="font-medium text-sm">{label}</span>
         </div>
       </td>
       <td
-        className={`border-r px-4 py-3 text-right font-mono ${borderColor} ${isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'}`}
+        className={`border-r px-4 py-3 text-right font-mono ${borderColor} ${isMatch ? 'text-foreground' : 'text-term-neg dark:text-term-neg'}`}
       >
         {formatCurrency(item.excel_value)}
       </td>
       <td
-        className={`border-r px-4 py-3 text-right font-mono ${borderColor} ${isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'}`}
+        className={`border-r px-4 py-3 text-right font-mono ${borderColor} ${isMatch ? 'text-foreground' : 'text-term-neg dark:text-term-neg'}`}
       >
         {formatCurrency(item.pdf_value)}
       </td>
@@ -109,7 +109,7 @@ function ResultItem({ item }: { item: ReconciliationItem }) {
         {isMatch ? (
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">OK</span>
         ) : (
-          <span className="text-xs font-medium text-red-600 dark:text-red-400">
+          <span className="text-xs font-medium text-term-neg">
             差异: {formatCurrency(item.difference)}
             {item.difference_percent !== null && (
               <span className="ml-1 text-muted-foreground">({item.difference_percent}%)</span>
@@ -353,7 +353,7 @@ export default function ManualReconcileTab() {
               className={
                 result.match_rate === 100
                   ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                  : 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  : 'border-term-warn/50 bg-term-warn/5 text-term-warn'
               }
             >
               {result.match_rate === 100 ? (

@@ -22,13 +22,13 @@ describe('v2-delta', () => {
     expect(container.querySelector('[data-slot="delta"]')?.className).toContain('emerald')
   })
 
-  it('负值显示 rose 色', () => {
+  it('负值显示 term-neg 色', () => {
     const { container } = render(
       <Delta value={-0.4}>
         <DeltaValue />
       </Delta>
     )
-    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('rose')
+    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('term-neg')
   })
 
   it('badge variant 正值用 emerald 背景', () => {

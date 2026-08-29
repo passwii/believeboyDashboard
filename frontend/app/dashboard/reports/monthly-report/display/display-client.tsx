@@ -2306,7 +2306,7 @@ export default function DisplayTab() {
                       </TableHead>
                       <TableHead
                         colSpan={6}
-                        className="border-r bg-amber-500/15 px-2 py-2 text-center text-foreground"
+                        className="border-r bg-term-warn/15 px-2 py-2 text-center text-foreground"
                       >
                         平台-支出 Expense
                       </TableHead>
@@ -2396,22 +2396,22 @@ export default function DisplayTab() {
                       <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
                         其他收入
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         平台费
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         配送费
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         仓储费
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         服务费
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         广告费
                       </TableHead>
-                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
                         其他费用
                       </TableHead>
                     </TableRow>
@@ -2472,7 +2472,7 @@ export default function DisplayTab() {
                               {!row.has_source_report ? (
                                 <Badge
                                   variant="outline"
-                                  className="h-4 whitespace-nowrap rounded-sm border-amber-500/30 bg-amber-500/10 px-1 text-[9px] leading-none text-amber-700 dark:text-amber-300"
+                                  className="h-4 whitespace-nowrap rounded-sm border-term-warn/30 bg-term-warn/10 px-1 text-[9px] leading-none text-term-warn"
                                 >
                                   无
                                 </Badge>
@@ -2747,7 +2747,7 @@ export default function DisplayTab() {
                         Income（收入）
                       </TableHead>
                       <TableHead className="border-r px-2 py-2 text-center" />
-                      <TableHead colSpan={4} className="bg-amber-500/15 px-2 py-2 text-center">
+                      <TableHead colSpan={4} className="bg-term-warn/15 px-2 py-2 text-center">
                         Expense（支出）
                       </TableHead>
                     </TableRow>
@@ -2816,16 +2816,16 @@ export default function DisplayTab() {
                             <TableCell className="border-r border-term-border bg-term-raised px-2 py-2 text-center font-mono text-xs text-term-muted">
                               |
                             </TableCell>
-                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
+                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-term-neg">
                               {row.expense_en}
                             </TableCell>
-                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
+                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-term-neg">
                               {row.expense_zh}
                             </TableCell>
-                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-right tabular-nums text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
+                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-right tabular-nums text-term-neg">
                               {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
                             </TableCell>
-                            <TableCell className="bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
+                            <TableCell className="bg-term-neg/10 px-2 py-2 text-term-neg">
                               {row.expense_source || '\u00A0'}
                             </TableCell>
                           </TableRow>

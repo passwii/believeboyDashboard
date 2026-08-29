@@ -35,9 +35,9 @@ const SIGNAL_STYLES: Record<string, { bg: string; text: string; dot: string; lab
     label: '强',
   },
   moderate: {
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    text: 'text-amber-700 dark:text-amber-400',
-    dot: 'bg-amber-500',
+    bg: 'bg-term-warn/5',
+    text: 'text-term-warn',
+    dot: 'bg-term-warn',
     label: '中',
   },
   weak: {

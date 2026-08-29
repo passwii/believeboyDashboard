@@ -516,7 +516,7 @@ export function ShopCalculationEuTable({
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right tabular-nums',
                   chargeableKg > toNumber(draft.weight_kg)
-                    ? 'text-amber-600 dark:text-amber-400'
+                    ? 'text-term-warn'
                     : ''
                 )}
               >
@@ -527,13 +527,13 @@ export function ShopCalculationEuTable({
               <TableCell
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right tabular-nums',
-                  firstLegCost <= 0 ? 'text-amber-600 dark:text-amber-400' : ''
+                  firstLegCost <= 0 ? 'text-term-warn' : ''
                 )}
               >
                 {firstLegCost > 0 ? (
                   firstLegCost.toFixed(2)
                 ) : (
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400">待补</span>
+                  <span className="text-[11px] text-term-warn">待补</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
@@ -685,7 +685,7 @@ export function ShopCalculationEuTable({
                   profitAfterVat !== undefined && profitAfterVat !== null
                     ? profitAfterVat >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400'
+                      : 'text-term-neg'
                     : 'text-muted-foreground'
                 )}
               >
@@ -703,7 +703,7 @@ export function ShopCalculationEuTable({
                   profitRateAfterVat !== undefined && profitRateAfterVat !== null
                     ? profitRateAfterVat >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400'
+                      : 'text-term-neg'
                     : 'text-muted-foreground'
                 )}
               >
@@ -722,7 +722,7 @@ export function ShopCalculationEuTable({
                   </div>
                 ) : result?.warnings?.length ? (
                   <div
-                    className="mx-auto max-w-[88px] truncate rounded-md bg-amber-50 px-1.5 py-1 text-[11px] leading-4 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                    className="mx-auto max-w-[88px] truncate rounded-md bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
                     title={result.warnings.join('；')}
                   >
                     {result.warnings[0]}

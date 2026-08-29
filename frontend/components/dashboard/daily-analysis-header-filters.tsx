@@ -167,7 +167,7 @@ export function SkuSearchField({
                         </span>
                       )}
                       {missingUnits && (
-                        <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        <span className="shrink-0 rounded bg-term-warn/10 px-1 py-0.5 text-[10px] font-medium text-term-warn">
                           未维护单箱数
                         </span>
                       )}

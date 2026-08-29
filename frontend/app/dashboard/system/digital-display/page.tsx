@@ -98,7 +98,7 @@ function fmtRate(v: number) {
 function changeColor(current: number, prev: number) {
   if (prev === 0) return 'text-foreground'
   const pct = ((current - prev) / prev) * 100
-  return pct >= 0 ? 'text-emerald-400' : 'text-red-400'
+  return pct >= 0 ? 'text-emerald-400' : 'text-term-neg'
 }
 
 function changeArrow(current: number, prev: number) {
@@ -376,7 +376,7 @@ export default function DigitalDisplayPage() {
               label="7日退货率"
               value={fmtRate(displayData.returns.return_rate)}
               sub={displayData.returns.top_reason ?? undefined}
-              accent={displayData.returns.return_rate > 5 ? 'text-amber-400' : 'text-emerald-400'}
+              accent={displayData.returns.return_rate > 5 ? 'text-term-warn' : 'text-emerald-400'}
             />
           </div>
 
@@ -444,7 +444,7 @@ export default function DigitalDisplayPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-none border border-term-border bg-term-bg p-3 text-center">
-                    <p className="text-3xl font-bold tabular-nums text-amber-400">
+                    <p className="text-3xl font-bold tabular-nums text-term-warn">
                       {displayData.inventory.out_of_stock_count}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">缺货</p>
@@ -486,7 +486,7 @@ export default function DigitalDisplayPage() {
                   <p
                     className={cn(
                       'text-3xl font-bold tabular-nums sm:text-5xl',
-                      displayData.returns.return_rate > 5 ? 'text-amber-400' : 'text-emerald-400'
+                      displayData.returns.return_rate > 5 ? 'text-term-warn' : 'text-emerald-400'
                     )}
                   >
                     {fmtRate(displayData.returns.return_rate)}
@@ -536,7 +536,7 @@ export default function DigitalDisplayPage() {
                     <p
                       className={cn(
                         'text-2xl font-bold tabular-nums',
-                        displayData.ads.period_acos > 30 ? 'text-amber-400' : 'text-foreground'
+                        displayData.ads.period_acos > 30 ? 'text-term-warn' : 'text-foreground'
                       )}
                     >
                       {displayData.ads.period_acos}%

@@ -331,8 +331,8 @@ function SummaryTile({
 
 /** 整体退货率语义色：>8% 红 / >3% 黄 / 其余绿（与原控制台口径一致） */
 function returnRateTone(rate: number): string {
-  if (rate > 8) return 'text-rose-600 dark:text-rose-400'
-  if (rate > 3) return 'text-amber-600 dark:text-amber-400'
+  if (rate > 8) return 'text-term-neg'
+  if (rate > 3) return 'text-term-warn'
   return 'text-emerald-600 dark:text-emerald-400'
 }
 
@@ -899,13 +899,7 @@ export default function ReturnAnalysisPage() {
                               {row.sales_quantity.toLocaleString()}
                             </TableCell>
                             <TableCell
-                              className={`text-right font-semibold ${
-                                row.return_rate > 8
-                                  ? 'text-red-500'
-                                  : row.return_rate > 3
-                                    ? 'text-yellow-500'
-                                    : 'text-green-500'
-                              }`}
+                              className={`text-right font-semibold ${ row.return_rate > 8 ? 'text-term-neg' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500' }`}
                             >
                               {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
                             </TableCell>
@@ -917,7 +911,7 @@ export default function ReturnAnalysisPage() {
                             <TableCell className="text-right text-green-600">
                               {row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}
                             </TableCell>
-                            <TableCell className="text-right text-amber-600">
+                            <TableCell className="text-right text-term-warn">
                               {row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}
                             </TableCell>
                           </TableRow>

@@ -261,7 +261,7 @@ export default function SystemDataManagementPage() {
         value: formatNumber(summary.total_tables),
         hint: detailsLoading ? '明细加载中' : `异常/陈旧 ${summary.stale_tables}`,
         icon: <Server className="h-4 w-4" />,
-        tone: summary.stale_tables > 0 ? 'text-amber-600' : 'text-foreground',
+        tone: summary.stale_tables > 0 ? 'text-term-warn' : 'text-foreground',
       },
       {
         key: 'rows',

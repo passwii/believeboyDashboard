@@ -158,8 +158,8 @@ const SUMMARY_COLUMN_GROUPS = [
   {
     title: '销售',
     columns: ['总销量', '总销售额', '页面浏览量', '总访客', '总转化'],
-    groupClass: 'bg-sky-500/15',
-    headClass: 'bg-sky-500/10',
+    groupClass: 'bg-term-accent/15',
+    headClass: 'bg-term-accent/10',
   },
   {
     title: '推广流量',
@@ -199,8 +199,8 @@ const SUMMARY_COLUMN_GROUPS = [
       '总成本',
       '总成本占比',
     ],
-    groupClass: 'bg-amber-500/15',
-    headClass: 'bg-amber-500/10',
+    groupClass: 'bg-term-warn/15',
+    headClass: 'bg-term-warn/10',
   },
   {
     title: '财务结算',
@@ -214,8 +214,8 @@ const SUMMARY_COLUMN_GROUPS = [
       '利润',
       '利润率',
     ],
-    groupClass: 'bg-violet-500/15',
-    headClass: 'bg-violet-500/10',
+    groupClass: 'bg-term-accent/15',
+    headClass: 'bg-term-accent/10',
   },
 ] as const
 
@@ -226,8 +226,8 @@ const DETAIL_COLUMN_GROUPS = [
   {
     title: '销售',
     columns: ['总销量', '总销售额', '页面浏览量', '总访客', '总转化'],
-    groupClass: 'bg-sky-500/15',
-    headClass: 'bg-sky-500/10',
+    groupClass: 'bg-term-accent/15',
+    headClass: 'bg-term-accent/10',
   },
   {
     title: '库存',
@@ -273,8 +273,8 @@ const DETAIL_COLUMN_GROUPS = [
       '总成本',
       '总成本占比',
     ],
-    groupClass: 'bg-amber-500/15',
-    headClass: 'bg-amber-500/10',
+    groupClass: 'bg-term-warn/15',
+    headClass: 'bg-term-warn/10',
   },
   {
     title: '财务结算',
@@ -288,8 +288,8 @@ const DETAIL_COLUMN_GROUPS = [
       '利润',
       '利润率',
     ],
-    groupClass: 'bg-violet-500/15',
-    headClass: 'bg-violet-500/10',
+    groupClass: 'bg-term-accent/15',
+    headClass: 'bg-term-accent/10',
   },
 ] as const
 const DETAIL_BASE_COLUMNS = [
@@ -1833,11 +1833,7 @@ export default function WeeklyProductAnalysisPage() {
                     units_sold: !prev.units_sold,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.units_sold
-                    ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                }`}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.units_sold ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
               >
                 {visibleLines.units_sold ? (
                   <Eye className="h-3 w-3" />
@@ -1858,11 +1854,7 @@ export default function WeeklyProductAnalysisPage() {
                     ad_spend: !prev.ad_spend,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.ad_spend
-                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                }`}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_spend ? 'border-term-neg/30 bg-term-neg/10 text-term-neg dark:text-term-neg' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
               >
                 {visibleLines.ad_spend ? (
                   <Eye className="h-3 w-3" />
@@ -1883,11 +1875,7 @@ export default function WeeklyProductAnalysisPage() {
                     ad_clicks: !prev.ad_clicks,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.ad_clicks
-                    ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
-                }`}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_clicks ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
               >
                 {visibleLines.ad_clicks ? (
                   <Eye className="h-3 w-3" />
@@ -1908,11 +1896,7 @@ export default function WeeklyProductAnalysisPage() {
                     organic_traffic: !prev.organic_traffic,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.organic_traffic
-                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
-                }`}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.organic_traffic ? 'border-term-warn/30 bg-term-warn/10 text-term-warn dark:text-term-warn' : 'border-muted bg-muted/30 text-muted-foreground line-through' }`}
               >
                 {visibleLines.organic_traffic ? (
                   <Eye className="h-3 w-3" />
@@ -2308,7 +2292,7 @@ export default function WeeklyProductAnalysisPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="ml-1.5 inline-block">
-                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                    <AlertTriangle className="h-3.5 w-3.5 text-term-warn" />
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent sideOffset={4}>
@@ -2444,7 +2428,7 @@ export default function WeeklyProductAnalysisPage() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="inline-block">
-                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                        <AlertTriangle className="h-3.5 w-3.5 text-term-warn" />
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent sideOffset={4}>

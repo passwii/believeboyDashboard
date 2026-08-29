@@ -23,7 +23,7 @@ export default function VatInvoiceError({
       </div>
       <Card className="dashboard-surface">
         <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
-          <AlertTriangle className="h-10 w-10 text-amber-500" />
+          <AlertTriangle className="h-10 w-10 text-term-warn" />
           <div className="text-center space-y-1">
             <p className="text-sm font-medium text-foreground">页面加载异常</p>
             <p className="text-sm text-muted-foreground">

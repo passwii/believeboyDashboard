@@ -39,11 +39,11 @@ const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
     label: '已提交',
   },
   draft: {
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    badge: 'bg-term-warn/10 text-term-warn',
     label: '草稿',
   },
   overdue: {
-    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
+    badge: 'bg-term-neg/10 text-term-neg',
     label: '已逾期',
   },
 }

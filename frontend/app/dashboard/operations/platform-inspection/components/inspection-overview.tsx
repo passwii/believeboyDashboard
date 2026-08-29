@@ -33,14 +33,14 @@ const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> =
     border: 'border-blue-200 dark:border-blue-800',
   },
   'At Risk': {
-    bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10',
-    text: 'text-amber-700 dark:text-amber-400',
-    border: 'border-amber-500/30 dark:border-amber-500/30',
+    bg: 'bg-term-warn/[0.07]',
+    text: 'text-term-warn',
+    border: 'border-term-warn/30',
   },
   Critical: {
-    bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10',
-    text: 'text-rose-700 dark:text-rose-400',
-    border: 'border-rose-500/30 dark:border-rose-500/30',
+    bg: 'bg-term-neg/[0.07]',
+    text: 'text-term-neg',
+    border: 'border-term-neg/30',
   },
 }
 
@@ -50,11 +50,11 @@ const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
     label: '已提交',
   },
   draft: {
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    badge: 'bg-term-warn/10 text-term-warn',
     label: '草稿',
   },
   overdue: {
-    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
+    badge: 'bg-term-neg/10 text-term-neg',
     label: '已逾期',
   },
   pending: {
@@ -118,12 +118,12 @@ function getMetricSeverity(
 const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
   normal: { bg: '', text: 'text-foreground' },
   warning: {
-    bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10',
-    text: 'text-amber-700 dark:text-amber-400',
+    bg: 'bg-term-warn/[0.07]',
+    text: 'text-term-warn',
   },
   critical: {
-    bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10',
-    text: 'text-rose-700 dark:text-rose-400',
+    bg: 'bg-term-neg/[0.07]',
+    text: 'text-term-neg',
   },
 }
 
@@ -179,9 +179,9 @@ function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSev
 const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   normal: '',
   warning:
-    'border-[3px] border-amber-500 dark:border-amber-400 shadow-[0_0_0_1px_rgb(245_158_11_/_0.15)]',
+    'border-[3px] border-term-warn/50 shadow-[0_0_0_1px_rgb(245_158_11_/_0.15)]',
   critical:
-    'border-[3px] border-rose-500 dark:border-rose-400 shadow-[0_0_0_1px_rgb(244_63_94_/_0.18)]',
+    'border-[3px] border-term-neg/50 shadow-[0_0_0_1px_rgb(244_63_94_/_0.18)]',
 }
 
 const SEVERITY_RANK: Record<CardSeverity, number> = {
@@ -313,15 +313,11 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
               </div>
             )}
             <div
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
-                serviceTotal > 0
-                  ? 'border-amber-500/30 bg-amber-500/[0.07] dark:border-amber-500/30 dark:bg-amber-500/10'
-                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
-              }`}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ serviceTotal > 0 ? 'border-term-warn/30 bg-term-warn/[0.07] dark:bg-term-warn/10' : 'border-border/70 bg-[hsl(var(--surface-subtle))]' }`}
             >
               <span className="text-xs text-muted-foreground">客服</span>
               {serviceTotal > 0 ? (
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <span className="text-xs font-semibold text-term-warn">
                   {serviceTotal}
                 </span>
               ) : (
@@ -355,30 +351,16 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
               threshold={SHIPPING_THRESHOLDS.on_time_delivery_rate}
             />
             <div
-              className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
-                (item.compliance_total ?? 0) >= 3
-                  ? 'bg-rose-500/[0.07] dark:bg-rose-500/10'
-                  : (item.compliance_total ?? 0) >= 1
-                    ? 'bg-amber-500/[0.07] dark:bg-amber-500/10'
-                    : 'bg-[hsl(var(--surface-subtle))]'
-              }`}
+              className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${ (item.compliance_total ?? 0) >= 3 ? 'bg-term-neg/[0.07] dark:bg-term-neg/10' : (item.compliance_total ?? 0) >= 1 ? 'bg-term-warn/[0.07] dark:bg-term-warn/10' : 'bg-[hsl(var(--surface-subtle))]' }`}
             >
               <span className="text-xs text-muted-foreground">合规问题</span>
               {(item.compliance_total ?? 0) > 0 ? (
                 <div className="flex items-center gap-1">
                   <AlertTriangle
-                    className={`h-3 w-3 ${
-                      (item.compliance_total ?? 0) >= 3
-                        ? 'text-rose-600 dark:text-rose-400'
-                        : 'text-amber-600 dark:text-amber-400'
-                    }`}
+                    className={`h-3 w-3 ${ (item.compliance_total ?? 0) >= 3 ? 'text-term-neg dark:text-term-neg' : 'text-term-warn dark:text-term-warn' }`}
                   />
                   <span
-                    className={`text-xs font-semibold ${
-                      (item.compliance_total ?? 0) >= 3
-                        ? 'text-rose-700 dark:text-rose-400'
-                        : 'text-amber-700 dark:text-amber-400'
-                    }`}
+                    className={`text-xs font-semibold ${ (item.compliance_total ?? 0) >= 3 ? 'text-term-neg dark:text-term-neg' : 'text-term-warn dark:text-term-warn' }`}
                   >
                     {item.compliance_total}
                   </span>
@@ -546,13 +528,13 @@ export default function InspectionOverview({
               <p className="text-sm text-muted-foreground">
                 截止时间: {deadlineText}
                 {isOverdue && (
-                  <span className="ml-2 text-rose-600 dark:text-rose-400">(已逾期)</span>
+                  <span className="ml-2 text-term-neg">(已逾期)</span>
                 )}
               </p>
             </div>
             <Badge
               className={
-                isOverdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400' : ''
+                isOverdue ? 'bg-term-neg/10 text-term-neg' : ''
               }
             >
               {overview.submitted_count} / {overview.total_projects} 已提交
@@ -570,11 +552,11 @@ export default function InspectionOverview({
         </div>
 
         {hasAlerts && (
-          <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-4 py-2.5 dark:border-amber-500/20 dark:bg-amber-500/[0.06]">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="flex items-center gap-3 rounded-lg border border-term-warn/20 bg-term-warn/[0.05] px-4 py-2.5[0.06]">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-term-warn" />
             <p className="text-sm">
               {overview.overdue_count > 0 && (
-                <span className="text-amber-800 dark:text-amber-300">
+                <span className="text-term-warn">
                   {overview.overdue_count} 个项目已逾期
                 </span>
               )}
@@ -582,7 +564,7 @@ export default function InspectionOverview({
                 <span className="mx-1.5 text-muted-foreground">·</span>
               )}
               {criticalCount > 0 && (
-                <span className="font-medium text-rose-600 dark:text-rose-400">
+                <span className="font-medium text-term-neg">
                   {criticalCount} 个项目严重异常
                 </span>
               )}
@@ -590,7 +572,7 @@ export default function InspectionOverview({
                 <span className="mx-1.5 text-muted-foreground">·</span>
               )}
               {warningCount > 0 && (
-                <span className="text-amber-700 dark:text-amber-400">
+                <span className="text-term-warn">
                   {warningCount} 个项目存在风险
                 </span>
               )}

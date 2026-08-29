@@ -68,7 +68,7 @@ function RoasTile({
 
   const bgClass = cn(
     badgeColor === 'green' && 'bg-secondary/5',
-    badgeColor === 'yellow' && 'bg-amber-500/5',
+    badgeColor === 'yellow' && 'bg-term-warn/5',
     badgeColor === 'red' && 'bg-destructive/5'
   )
 
@@ -93,7 +93,7 @@ function RoasTile({
                 className={cn(
                   'inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold',
                   badgeColor === 'green' && 'bg-secondary/10 text-secondary',
-                  badgeColor === 'yellow' && 'bg-amber-500/10 text-amber-600',
+                  badgeColor === 'yellow' && 'bg-term-warn/10 text-term-warn',
                   badgeColor === 'red' && 'bg-destructive/10 text-destructive'
                 )}
               >

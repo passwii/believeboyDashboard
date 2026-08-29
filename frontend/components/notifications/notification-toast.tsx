@@ -20,13 +20,13 @@ const typeConfig: Record<
   },
   error: {
     icon: XCircle,
-    className: 'border-rose-200 bg-rose-50 dark:border-rose-900/70 dark:bg-rose-950/40',
-    iconClassName: 'text-rose-500',
+    className: 'border-term-neg/30 bg-term-neg/5',
+    iconClassName: 'text-term-neg',
   },
   warning: {
     icon: AlertTriangle,
-    className: 'border-amber-200 bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/40',
-    iconClassName: 'text-amber-500',
+    className: 'border-term-warn/30 bg-term-warn/5',
+    iconClassName: 'text-term-warn',
   },
   info: {
     icon: Info,
@@ -37,8 +37,8 @@ const typeConfig: Record<
 
 const typeTextClassName: Record<NotificationType, string> = {
   success: 'text-emerald-700 dark:text-emerald-200',
-  error: 'text-rose-700 dark:text-rose-200',
-  warning: 'text-amber-700 dark:text-amber-200',
+  error: 'text-term-neg',
+  warning: 'text-term-warn',
   info: 'text-blue-700 dark:text-blue-200',
 }
 

@@ -148,7 +148,7 @@ const UserChip = React.memo(
           {hasUnread && (
             <span
               aria-hidden
-              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[hsl(var(--sidebar-background))]"
+              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-term-neg ring-2 ring-[hsl(var(--sidebar-background))]"
             />
           )}
         </span>

@@ -72,8 +72,8 @@ export function CockpitOverview({
     maxFreshness <= 1
       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
       : maxFreshness <= 3
-        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+        ? 'bg-term-warn/10 text-term-warn'
+        : 'bg-term-neg/10 text-term-neg'
 
   if (loading && rows.length === 0) {
     return (
@@ -212,7 +212,7 @@ export function CockpitOverview({
           <span className="text-xs text-muted-foreground">置信度构成</span>
           <div className="flex gap-1.5 text-[11px]">
             <span className="text-emerald-600 dark:text-emerald-300">高 {confidenceCounts.high}</span>
-            <span className="text-amber-600 dark:text-amber-300">中 {confidenceCounts.medium}</span>
+            <span className="text-term-warn">中 {confidenceCounts.medium}</span>
             <span className="text-muted-foreground">低 {confidenceCounts.low}</span>
           </div>
         </div>

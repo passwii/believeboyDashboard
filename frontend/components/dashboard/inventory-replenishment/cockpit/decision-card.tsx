@@ -111,7 +111,7 @@ function DmsBars({ row }: { row: CockpitRow }) {
               <div
                 className={cn(
                   'w-full rounded-[3px] transition-all',
-                  trendDown ? 'bg-orange-500/80' : trendUp ? 'bg-emerald-500/80' : 'bg-sky-500/80'
+                  trendDown ? 'bg-orange-500/80' : trendUp ? 'bg-emerald-500/80' : 'bg-term-accent/80'
                 )}
                 style={{ height: `${height}%` }}
               />
@@ -170,10 +170,10 @@ function AgingBar({ row }: { row: CockpitRow }) {
   const share = row.signals?.aging_share
   const buckets = [
     { key: '0_90', label: '0-90', color: 'bg-emerald-500' },
-    { key: '91_180', label: '91-180', color: 'bg-sky-500' },
-    { key: '181_270', label: '181-270', color: 'bg-amber-400' },
+    { key: '91_180', label: '91-180', color: 'bg-term-accent' },
+    { key: '181_270', label: '181-270', color: 'bg-term-warn' },
     { key: '271_365', label: '271-365', color: 'bg-orange-500' },
-    { key: '365_plus', label: '365+', color: 'bg-rose-500' },
+    { key: '365_plus', label: '365+', color: 'bg-term-neg' },
   ]
   const hasData = share && Object.values(share).some((v) => v > 0)
 
@@ -253,7 +253,7 @@ function CycleTimeline({ row }: { row: CockpitRow }) {
                 className={cn(
                   'flex h-2.5 w-2.5 rounded-full border',
                   anchorPast
-                    ? 'border-rose-400 bg-rose-400/60 dark:border-rose-500 dark:bg-rose-500/60'
+                    ? 'border-term-neg/30 bg-term-neg/60'
                     : isSellout
                       ? 'border-foreground/50 bg-foreground/70 dark:border-foreground/60 dark:bg-foreground/70'
                       : 'border-border bg-[hsl(var(--surface-strong))] dark:bg-[hsl(var(--surface-overlay))]'
@@ -262,7 +262,7 @@ function CycleTimeline({ row }: { row: CockpitRow }) {
               <span
                 className={cn(
                   'whitespace-nowrap text-[10px] leading-none',
-                  anchorPast ? 'font-medium text-rose-600 dark:text-rose-300' : 'text-muted-foreground'
+                  anchorPast ? 'font-medium text-term-neg' : 'text-muted-foreground'
                 )}
               >
                 {a.label}
@@ -289,8 +289,8 @@ function SignalRow({ row }: { row: CockpitRow }) {
     freshness <= 1
       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
       : freshness <= 3
-        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+        ? 'bg-term-warn/10 text-term-warn'
+        : 'bg-term-neg/10 text-term-neg'
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -315,7 +315,7 @@ function SignalRow({ row }: { row: CockpitRow }) {
             confidence === 'high'
               ? 'bg-emerald-500'
               : confidence === 'medium'
-                ? 'bg-amber-400'
+                ? 'bg-term-warn'
                 : 'bg-slate-400'
           )}
         />
@@ -383,7 +383,7 @@ function DecisionBasisChip({ path }: { path: CockpitDecisionPath }) {
           </div>
         ) : null}
         {override ? (
-          <div className="rounded-md bg-amber-100/70 px-2 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <div className="rounded-md bg-term-warn/10/70 px-2 py-1.5 text-[11px] leading-relaxed text-term-warn">
             {phase && phase !== 'unknown' ? (
               <span className="mr-1">
                 {SEASONAL_EMOJI[phase] ?? '?'} {SEASONAL_LABELS[phase] ?? phase}
@@ -415,9 +415,9 @@ export function DecisionCard({
     <div
       className={cn(
         'group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-raised dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
-        theme.rail === 'bg-rose-500' && 'hover:border-rose-300/70 dark:hover:border-rose-800/60',
+        theme.rail === 'bg-term-neg' && 'hover:border-term-neg/70',
         theme.rail === 'bg-orange-500' && 'hover:border-orange-300/70 dark:hover:border-orange-800/60',
-        theme.rail === 'bg-amber-400' && 'hover:border-amber-300/70 dark:hover:border-amber-800/60',
+        theme.rail === 'bg-term-warn' && 'hover:border-term-warn/70',
         theme.rail === 'bg-emerald-500' && 'hover:border-emerald-300/70 dark:hover:border-emerald-800/60'
       )}
     >
@@ -469,7 +469,7 @@ export function DecisionCard({
             className={cn(
               'text-base font-bold tabular-nums',
               (row.sellable_days ?? 999) < 14
-                ? 'text-rose-600 dark:text-rose-300'
+                ? 'text-term-neg'
                 : (row.sellable_days ?? 999) < 30
                   ? 'text-orange-600 dark:text-orange-300'
                   : 'text-foreground'

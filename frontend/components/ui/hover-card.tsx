@@ -194,7 +194,7 @@ const StatsHoverCard = React.forwardRef<HTMLDivElement, StatsHoverCardProps>(
               className={cn(
                 'inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded',
                 change.type === 'increase' && 'text-green-600 bg-green-50 dark:bg-green-950',
-                change.type === 'decrease' && 'text-red-600 bg-red-50 dark:bg-red-950',
+                change.type === 'decrease' && 'text-term-neg bg-term-neg/5',
                 change.type === 'neutral' && 'text-muted-foreground bg-muted'
               )}
             >

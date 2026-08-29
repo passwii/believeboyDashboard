@@ -683,7 +683,7 @@ export function AgentOperationLogsPanel() {
               {activeRow.error_message ? (
                 <div className="space-y-2">
                   <p className="font-medium">错误信息</p>
-                  <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-3 font-mono text-xs text-rose-600 dark:text-rose-400">
+                  <div className="rounded-md border border-term-neg/30 bg-term-neg/5 p-3 font-mono text-xs text-term-neg">
                     {activeRow.error_message}
                   </div>
                 </div>

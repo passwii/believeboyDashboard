@@ -721,9 +721,9 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
     return {
       label: 'FBM测算',
       badgeClassName:
-        'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-900/80 dark:bg-violet-950/50 dark:text-violet-200',
+        'border-term-accent/30 bg-term-accent/10 text-term-accent',
       cardClassName:
-        'border-violet-300 bg-violet-50/80 hover:border-violet-400 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-violet-950/25 dark:hover:border-violet-800 dark:hover:bg-violet-950/40',
+        'border-term-accent/30 bg-term-accent/5 hover:border-term-accent/30 hover:bg-term-accent/5',
       selectedClassName:
         'border-term-accent/60 bg-term-accent/10',
     }
@@ -745,9 +745,9 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
     return {
       label: '利润倒算',
       badgeClassName:
-        'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-200',
+        'border-term-warn/30 bg-term-warn/10 text-term-warn',
       cardClassName:
-        'border-amber-300 bg-amber-50/80 hover:border-amber-400 hover:bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/25 dark:hover:border-amber-800 dark:hover:bg-amber-950/40',
+        'border-term-warn/30 bg-term-warn/5 hover:border-term-warn/30 hover:bg-term-warn/5',
       selectedClassName:
         'border-term-warn/50 bg-term-warn/10',
     }
@@ -756,9 +756,9 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
   return {
     label: '利润核算',
     badgeClassName:
-      'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-900/80 dark:bg-sky-950/45 dark:text-sky-200',
+      'border-term-accent/30 bg-term-accent/10 text-term-accent',
     cardClassName:
-      'border-sky-200 bg-sky-50/70 hover:border-sky-300 hover:bg-sky-50 dark:border-sky-900/70 dark:bg-sky-950/25 dark:hover:border-sky-800 dark:hover:bg-sky-950/40',
+      'border-term-accent/30 bg-term-accent/5 hover:border-term-accent/30 hover:bg-term-accent/5',
     selectedClassName:
       'border-term-border-strong bg-term-raised',
   }
@@ -2901,7 +2901,7 @@ export default function PricingCalculationPage() {
                                   'truncate text-sm font-semibold tabular-nums',
                                   isProfit
                                     ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-rose-600 dark:text-rose-400'
+                                    : 'text-term-neg'
                                 )}
                               >
                                 {formatCurrency(run.profit.profit_usd)}
@@ -2914,7 +2914,7 @@ export default function PricingCalculationPage() {
                                   'truncate text-sm font-semibold tabular-nums',
                                   isProfit
                                     ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-rose-600 dark:text-rose-400'
+                                    : 'text-term-neg'
                                 )}
                               >
                                 {formatPercent(run.profit.profit_rate)}
