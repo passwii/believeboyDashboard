@@ -779,7 +779,8 @@ export default function OperatorManagementPage() {
           onValueChange={(value) => handleTabChange(value as OperatorPageTab)}
           className="w-full"
         >
-          <TabsList variant="term" className="w-full max-w-full justify-start">
+          {/* w-fit 基座贴合内容：w-full 全宽会在 tab 右侧留大片空白面板 */}
+          <TabsList variant="term" className="w-fit max-w-full justify-start">
             <TabsMotionGroup id="operator-management-tabs">
               <SlidingTabsTrigger
                 value="role-info"

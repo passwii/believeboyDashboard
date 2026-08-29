@@ -66,8 +66,8 @@ export default function ProfileClient() {
           {profile?.role_type ? <TermPill tone="accent">{getRoleLabel(profile.role_type)}</TermPill> : null}
         </div>
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-            {/* BLF-883 全局统一：variant="term" + 前置 icon */}
-            <TabsList variant="term" className="sticky top-0 z-10 w-full justify-center">
+            {/* BLF-883 全局统一：variant="term" + 前置 icon；w-fit 基座贴合内容，避免 justify-center 全宽留左右空白 */}
+            <TabsList variant="term" className="sticky top-0 z-10 w-fit max-w-full justify-start">
               <TabsMotionGroup id="profile-tabs">
                 <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs" variant="term">
                   <UserCog aria-hidden />
