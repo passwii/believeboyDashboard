@@ -36,7 +36,7 @@ export default function LeadsPage() {
         <ScopeToggle />
         <Button
           size="sm"
-          className="h-8 shrink-0 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+          className="h-9 shrink-0 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
           onClick={() => setOpen(true)}
         >
           <Plus className="mr-0.5 h-4 w-4" /> 新建线索

@@ -2,23 +2,26 @@ import type * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
+import {
+  TERM_TRIGGER,
+  TERM_SELECT_ITEM,
+  TERM_INPUT,
+  TERM_BUTTON,
+  TERM_SELECT_NATIVE,
+} from '@/components/terminal/term-controls'
+
+export { TERM_TRIGGER, TERM_SELECT_ITEM, TERM_INPUT, TERM_BUTTON, TERM_SELECT_NATIVE }
+
 /**
- * BLF-837 · CRM 域终端化共享原语（term-shared 同款控件基类，BLF-817/836 一致）。
+ * BLF-837 · CRM 域终端化共享原语（BLF-817/836 一致）。
  *
  * CRM 页面筛选不上移 Top Header 插槽（CrmTable 的筛选条是 URL 状态驱动的
  * 表格内建能力，非页面级全局参数；ScopeToggle 数据范围切换与表格联动），
- * 统一沿用页内工具行模式：h-8 控件 / 零圆角 / 1px 边界 / 等宽数值。
+ * 统一沿用页内工具行模式：h-9 控件 / 零圆角 / 1px 边界 / 等宽数值。
+ *
+ * BLF-890：控件基类删本地副本，改 re-export `components/terminal/term-controls.tsx`
+ * （h-9 版）单源，消除 BLF-887 高度上档后的 h-8 残留分叉。
  */
-
-export const TERM_TRIGGER =
-  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
-export const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
-export const TERM_INPUT =
-  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
-export const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
-export const TERM_SELECT_NATIVE =
-  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs leading-5 text-term-text shadow-none transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * CRM 枚举 → 终端单色语义（去彩色胶囊底，仅 term 文本色 + 1px 边界）。
@@ -120,7 +123,7 @@ export function CrmPageShell({ children, className }: { children: React.ReactNod
   return <div className={cn('flex min-w-0 flex-col gap-2 rounded-none', className)}>{children}</div>
 }
 
-/** 工具行：h-8 控件带，右对齐操作区；移动端允许换行。 */
+/** 工具行：h-9 控件带，右对齐操作区；移动端允许换行。 */
 export function CrmToolbarRow({
   left,
   right,

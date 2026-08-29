@@ -33,7 +33,7 @@ export function CrmSearchInput({ value, onChange, placeholder = '搜索…' }: C
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={placeholder}
-        className="h-8 rounded-none border-term-border bg-term-bg pl-7 pr-7 font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+        className="h-9 rounded-none border-term-border bg-term-bg pl-7 pr-7 font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
         aria-label={placeholder}
       />
       {text && (

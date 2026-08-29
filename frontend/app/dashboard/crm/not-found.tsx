@@ -16,7 +16,7 @@ export default function CrmNotFound() {
       </div>
       <Link
         href="/dashboard/crm/customers"
-        className="inline-flex h-8 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+        className="inline-flex h-9 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
       >
         返回客户列表
       </Link>

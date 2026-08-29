@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { TermEnumPill, CUSTOMER_STATUS_TERM, LEAD_INTENT_TERM, NEUTRAL_TERM } from './term-shared'
+import { TermEnumPill, CUSTOMER_STATUS_TERM, LEAD_INTENT_TERM, NEUTRAL_TERM, TERM_TRIGGER, TERM_INPUT, TERM_BUTTON, TERM_SELECT_NATIVE } from './term-shared'
+import * as termControls from '@/components/terminal/term-controls'
 
 /**
  * BLF-837 契约测试：CRM 终端化共享原语。
@@ -40,5 +41,21 @@ describe('TermEnumPill（BLF-837 契约）', () => {
     expect(LEAD_INTENT_TERM.medium).toBe('warn')
     expect(LEAD_INTENT_TERM.low).toBe('muted')
     expect(NEUTRAL_TERM).toBe('muted')
+  })
+})
+
+describe('term-shared 控件基类单源（BLF-890 契约）', () => {
+  it('TERM_* 常量与 terminal/term-controls（h-9 版）完全一致，无本地分叉', () => {
+    expect(TERM_TRIGGER).toBe(termControls.TERM_TRIGGER)
+    expect(TERM_INPUT).toBe(termControls.TERM_INPUT)
+    expect(TERM_BUTTON).toBe(termControls.TERM_BUTTON)
+    expect(TERM_SELECT_NATIVE).toBe(termControls.TERM_SELECT_NATIVE)
+  })
+
+  it('控件基类为 h-9 工具行档（BLF-887 上档无漏网）', () => {
+    expect(TERM_TRIGGER).toContain('h-9')
+    expect(TERM_INPUT).toContain('h-9')
+    expect(TERM_BUTTON).toContain('h-9')
+    expect(TERM_SELECT_NATIVE).toContain('h-9')
   })
 })

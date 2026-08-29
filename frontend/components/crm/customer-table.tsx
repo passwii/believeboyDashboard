@@ -214,7 +214,7 @@ export function CrmCustomerTable() {
               onClick={handleBatchMoveToSea}
               disabled={moving}
               data-testid="batch-move-to-sea"
-              className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+              className="h-9 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
             >
               {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
             </Button>

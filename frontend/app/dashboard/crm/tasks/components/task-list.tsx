@@ -240,7 +240,7 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
         <Button
           size="sm"
           onClick={() => setCreating(true)}
-          className="h-8 rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+          className="h-9 rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
         >
           <Plus className="mr-1 h-4 w-4" /> 新建任务
         </Button>
@@ -286,7 +286,7 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
         <div className="col-span-2 md:ml-auto">
           <Button
             size="sm"
-            className="h-8 w-full rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text md:w-auto"
+            className="h-9 w-full rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text md:w-auto"
             onClick={() => setCreating(true)}
             data-testid="task-list-create"
           >
