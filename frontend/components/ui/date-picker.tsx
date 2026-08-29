@@ -735,7 +735,7 @@ function SimpleDatePickerInternal({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn('h-8 rounded-none border border-term-border bg-term-bg px-2 justify-start text-left font-mono text-xs leading-4 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
+          className={cn('h-9 rounded-none border border-term-border bg-term-bg px-2 justify-start text-left font-mono text-xs leading-4 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0 text-term-muted" />

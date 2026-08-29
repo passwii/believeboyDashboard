@@ -54,7 +54,7 @@ export function FollowForm({
         <div className="space-y-1">
           <Label className="font-mono text-xs uppercase tracking-wider text-term-muted">类型</Label>
           <Select value={type} onValueChange={(v) => setType(v as FollowType)}>
-            <SelectTrigger className="h-8 w-28 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text">
+            <SelectTrigger className="h-9 w-28 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -70,7 +70,7 @@ export function FollowForm({
           <Label className="font-mono text-xs uppercase tracking-wider text-term-muted">下次跟进</Label>
           <Input
             type="date"
-            className="h-8 w-40 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text"
+            className="h-9 w-40 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text"
             value={nextFollowAt}
             onChange={(e) => setNextFollowAt(e.target.value)}
           />

@@ -110,7 +110,7 @@ function PageJump({ totalPages, onJump }: { totalPages: number; onJump: (p: numb
           if (e.key === 'Enter') commit()
         }}
         aria-label="跳转到页码"
-        className="h-8 w-14 rounded-none border border-term-border bg-term-bg px-1 font-mono text-sm tabular-nums text-term-text focus:border-term-border-strong focus:outline-none"
+        className="h-9 w-14 rounded-none border border-term-border bg-term-bg px-1 font-mono text-sm tabular-nums text-term-text focus:border-term-border-strong focus:outline-none"
         placeholder="页码"
       />
       <Button variant="outline" size="sm" onClick={commit} disabled={!val} className="rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text">

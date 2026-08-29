@@ -122,7 +122,7 @@ export function CrmRulesPanel() {
             onClick={() => void load()}
             disabled={loading}
             aria-label="刷新规则列表"
-            className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
+            className="h-9 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
           >
             <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
             刷新
@@ -132,7 +132,7 @@ export function CrmRulesPanel() {
             size="sm"
             onClick={openCreate}
             disabled={forbidden}
-            className="h-8 rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
+            className="h-9 rounded-none border border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             新建规则

@@ -266,7 +266,7 @@ function RpaStatusGrid({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 w-full justify-start rounded-none border-term-border bg-term-bg text-left font-normal font-mono text-xs text-term-text sm:w-auto"
+                    className="h-9 w-full justify-start rounded-none border-term-border bg-term-bg text-left font-normal font-mono text-xs text-term-text sm:w-auto"
                   >
                     {projectFilterLabel}
                   </Button>
@@ -306,7 +306,7 @@ function RpaStatusGrid({
               </DropdownMenu>
 
               <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:w-[130px]">
+                <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:w-[130px]">
                   <SelectValue placeholder="选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -325,7 +325,7 @@ function RpaStatusGrid({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
+                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
               >
                 <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
@@ -333,13 +333,13 @@ function RpaStatusGrid({
               <SimpleDatePicker
                 value={parseDateInputValue(statusDate)}
                 onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs sm:w-[160px]"
+                className="h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs sm:w-[160px]"
               />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
+                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
               >
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -352,7 +352,7 @@ function RpaStatusGrid({
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="h-8 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:text-term-text"
+                className="h-9 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:text-term-text"
                 onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
               >
                 今天
@@ -362,7 +362,7 @@ function RpaStatusGrid({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-none border-term-border bg-term-panel"
+                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
                 onClick={() => void loadStatus()}
                 disabled={statusLoading}
                 title="刷新状态"
@@ -1209,7 +1209,7 @@ function AutoUploadContent({
                         variant="ghost"
                         size="icon"
                         onClick={() => removeItem(item.localId)}
-                        className="h-8 w-8 shrink-0 rounded-none border border-transparent text-term-muted hover:border-term-neg/50 hover:text-term-neg"
+                         className="h-9 w-9 shrink-0 rounded-none border border-transparent text-term-muted hover:border-term-neg/50 hover:text-term-neg"
                       >
                         <CircleX className="h-4 w-4" />
                         <span className="sr-only">移除</span>

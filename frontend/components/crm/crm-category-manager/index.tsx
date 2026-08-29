@@ -160,7 +160,7 @@ export function CrmCategoryManager() {
                         if (e.key === 'Enter') void handleRename(c.id)
                         if (e.key === 'Escape') setEditingId(null)
                       }}
-                      className="h-8 max-w-xs rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text"
+                      className="h-9 max-w-xs rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text"
                       autoFocus
                     />
                     <Button
