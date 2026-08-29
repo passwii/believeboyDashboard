@@ -224,17 +224,17 @@ const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
 ]
 
 const SINGLE_METRIC_CHART_CONFIG = {
-  order_qty: { label: '订单', color: 'hsl(var(--chart-1))' },
-  sales_amount: { label: '销售额', color: 'hsl(var(--chart-2))' },
-  impressions: { label: '曝光量', color: 'hsl(var(--chart-3))' },
-  clicks: { label: '点击量', color: 'hsl(var(--chart-4))' },
-  cpc: { label: 'CPC', color: 'hsl(var(--chart-5))' },
-  ad_spend: { label: '广告花费', color: 'hsl(var(--chart-4))' },
-  ad_orders: { label: '广告订单', color: 'hsl(var(--chart-2))' },
-  page_views: { label: '页面浏览量', color: 'hsl(var(--chart-6))' },
-  units_ordered: { label: '销量', color: 'hsl(var(--chart-7))' },
-  sessions: { label: '访问量', color: 'hsl(var(--chart-1))' },
-  conversion_rate: { label: '转化率', color: 'hsl(var(--chart-3))' },
+  order_qty: { label: '订单', color: 'var(--term-pos)' },
+  sales_amount: { label: '销售额', color: 'var(--term-accent)' },
+  impressions: { label: '曝光量', color: 'var(--term-warn)' },
+  clicks: { label: '点击量', color: 'var(--term-pos)' },
+  cpc: { label: 'CPC', color: 'var(--term-warn)' },
+  ad_spend: { label: '广告花费', color: 'var(--term-neg)' },
+  ad_orders: { label: '广告订单', color: 'var(--term-pos)' },
+  page_views: { label: '页面浏览量', color: 'var(--term-accent)' },
+  units_ordered: { label: '销量', color: 'var(--term-pos)' },
+  sessions: { label: '访问量', color: 'var(--term-warn)' },
+  conversion_rate: { label: '转化率', color: 'var(--term-accent)' },
 } satisfies MetricChartConfig
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []

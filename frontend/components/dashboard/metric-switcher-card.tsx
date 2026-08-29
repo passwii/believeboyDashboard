@@ -174,10 +174,17 @@ export function MetricSwitcherCard<K extends string>({
   // 把当前选中 metric 数值映射成 ChartConfig
   const config: ChartConfig = React.useMemo(() => {
     const result: ChartConfig = {}
+    // Terminal UI 风格：使用语义色（pos/warn/neg/accent）替代 chart-* CSS 变量
+    const TERM_COLORS = [
+      'var(--term-pos)',   // 正向指标
+      'var(--term-warn)',  // 警告/中性指标
+      'var(--term-neg)',   // 负向指标
+      'var(--term-accent)', // 强调指标
+    ]
     for (const m of metrics) {
       result[m.key] = {
         label: m.label,
-        color: colors?.[m.key] ?? `hsl(var(--chart-${(metrics.indexOf(m) % 8) + 1}))`,
+        color: colors?.[m.key] ?? TERM_COLORS[metrics.indexOf(m) % TERM_COLORS.length],
       }
     }
     return result
@@ -296,7 +303,7 @@ export function MetricSwitcherCard<K extends string>({
           initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: MOTION_EASE_OUT }}
-          className={cn('w-full', heightClass)}
+          className={cn('w-full border border-term-border bg-term-panel', heightClass)}
         >
           <ChartContainer config={config} className={cn('w-full', heightClass)}>
             {renderChart(
@@ -623,19 +630,19 @@ function renderChart<K extends string>(
       ? { cursor: false as const }
       : {
           cursor: {
-            stroke: 'hsl(var(--muted-foreground))',
+            stroke: 'var(--term-muted)',
             strokeDasharray: '4 4',
           },
         }
   const sharedAxes = [
-    <CartesianGrid key="grid" vertical={false} stroke="rgba(148,163,184,0.18)" />,
+    <CartesianGrid key="grid" vertical={false} stroke="var(--term-border)" strokeDasharray="2 2" />,
     <XAxis
       key="xaxis"
       dataKey={xKey}
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
       tickFormatter={(value) => {
         if (xTickFormatter) return xTickFormatter(String(value))
         const s = String(value)
@@ -647,7 +654,7 @@ function renderChart<K extends string>(
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
       tickCount={6}
       tickFormatter={(value) =>
         yAxisFormatter ? yAxisFormatter(Number(value), selected) : metric.format(Number(value))
@@ -675,8 +682,8 @@ function renderChart<K extends string>(
           <Bar
             dataKey="compareMetricValue"
             name="compareMetricValue"
-            fill="rgba(148,163,184,0.42)"
-            radius={[6, 6, 0, 0]}
+            fill="var(--term-muted)"
+            radius={[0, 0, 0, 0]}
             isAnimationActive
             animationDuration={320}
           />
@@ -685,7 +692,7 @@ function renderChart<K extends string>(
           dataKey={selected}
           name={metric.label}
           fill={`var(--color-${selected})`}
-          radius={[6, 6, 0, 0]}
+          radius={[0, 0, 0, 0]}
           isAnimationActive
           animationDuration={360}
         />
@@ -708,9 +715,9 @@ function renderChart<K extends string>(
             type="monotone"
             dataKey="compareMetricValue"
             name="compareMetricValue"
-            stroke="rgba(148,163,184,0.9)"
-            strokeWidth={2}
-            strokeDasharray="6 6"
+            stroke="var(--term-muted)"
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
             dot={false}
             isAnimationActive
             animationDuration={320}
@@ -722,14 +729,14 @@ function renderChart<K extends string>(
           name={metric.label}
           stroke={`var(--color-${selected})`}
           fill={`url(#fill-${selected})`}
-          strokeWidth={2}
+          strokeWidth={1.5}
           dot={false}
           isAnimationActive
           animationDuration={360}
           activeDot={{
-            r: 5,
+            r: 4,
             fill: `var(--color-${selected})`,
-            stroke: 'white',
+            stroke: 'var(--term-panel)',
             strokeWidth: 2,
           }}
         />
@@ -746,9 +753,9 @@ function renderChart<K extends string>(
           type="monotone"
           dataKey="compareMetricValue"
           name="compareMetricValue"
-          stroke="rgba(148,163,184,0.9)"
-          strokeWidth={2}
-          strokeDasharray="6 6"
+          stroke="var(--term-muted)"
+          strokeWidth={1.5}
+          strokeDasharray="4 4"
           dot={false}
           isAnimationActive
           animationDuration={320}
@@ -759,14 +766,14 @@ function renderChart<K extends string>(
         dataKey={selected}
         name={metric.label}
         stroke={`var(--color-${selected})`}
-        strokeWidth={2}
+        strokeWidth={1.5}
         dot={false}
         isAnimationActive
         animationDuration={360}
         activeDot={{
-          r: 5,
+          r: 4,
           fill: `var(--color-${selected})`,
-          stroke: 'white',
+          stroke: 'var(--term-panel)',
           strokeWidth: 2,
         }}
       />
@@ -819,10 +826,10 @@ function MetricSwitcherTooltip<K extends string>({
       initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15, ease: MOTION_EASE_OUT }}
-      className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 u-floating-glass"
+      className="grid min-w-[8rem] items-start gap-1.5 border border-term-border bg-term-panel px-2.5 py-1.5 text-xs shadow-none"
     >
       {label !== undefined && label !== null && (
-        <div className="font-medium text-foreground">{String(label)}</div>
+        <div className="font-mono text-xs font-medium text-term-text">{String(label)}</div>
       )}
       <div className="grid gap-1.5">
         {items.map((item, index) => {
@@ -833,7 +840,7 @@ function MetricSwitcherTooltip<K extends string>({
             metrics[0]
           if (!itemMetric) return null
           const numVal = Number(item.value)
-          const indicatorColor = item.color ?? 'hsl(var(--chart-1))'
+          const indicatorColor = item.color ?? 'var(--term-accent)'
           const displayValue = tooltipFormatter
             ? tooltipFormatter(numVal, itemMetric.key)
             : itemMetric.format(numVal)
@@ -855,11 +862,11 @@ function MetricSwitcherTooltip<K extends string>({
                     style={{ backgroundColor: indicatorColor }}
                   />
                 )}
-                <span className="truncate text-muted-foreground">
+                <span className="truncate font-mono text-xs text-term-muted">
                   {isCompare ? '上一周期' : itemMetric.label}
                 </span>
               </div>
-              <span className="font-mono font-medium tabular-nums text-foreground">
+              <span className="font-mono text-xs font-medium tabular-nums text-term-text">
                 {displayValue}
               </span>
             </div>
