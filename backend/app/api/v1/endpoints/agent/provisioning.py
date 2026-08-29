@@ -177,29 +177,40 @@ def _validate(body: dict, request: Request) -> None:
 
     db = SessionLocal()
     try:
-        # BLF-885 P0：project_scope 存在性校验（正整数片段已校验，此处查库）
+        # BLF-885 P0：project_scope 存在性校验（正整数片段已校验，此处查库）。
+        # 2026-08-29 跟进：可用性 = 存在 且 is_active（停产/归档项目与不存在
+        # 同样拒绝）；报错附的「可用项目列表」也只列 active——引导签发方向
+        # 与实际可用集合一致，避免把 19 行全量（含 6 行停产）当成可选项。
         if project_ids:
-            existing_ids = set(
-                db.scalars(select(Project.id).where(Project.id.in_(project_ids))).all()
-            )
-            missing = sorted(set(project_ids) - existing_ids)
-            if missing:
-                # 附可用项目列表（P2 增强点 2，同时服务验收用例2）
+            existing_rows = db.execute(
+                select(Project.id, Project.is_active).where(
+                    Project.id.in_(project_ids)
+                )
+            ).all()
+            active_ids = {r[0] for r in existing_rows if r[1]}
+            invalid_ids = sorted(set(project_ids) - active_ids)
+            if invalid_ids:
+                # 附可用项目列表（仅 active，P2 增强点 2，同时服务验收用例2）
                 available = list(
-                    db.scalars(select(Project.id).order_by(Project.id)).all()
+                    db.scalars(
+                        select(Project.id)
+                        .where(Project.is_active.is_(True))
+                        .order_by(Project.id)
+                    ).all()
                 )
                 raise AgentApiError(
                     ErrorCode.VALIDATION_FAILED,
                     human_message=(
-                        f"project_scope 含不存在的项目 id: {', '.join(map(str, missing))}；"
+                        f"project_scope 含不存在或已停用的项目 id: "
+                        f"{', '.join(map(str, invalid_ids))}；"
                         f"可用项目 id: {', '.join(map(str, available)) if available else '无'}"
                     ),
                     details=[
                         {
                             "loc": ["project_scope"],
-                            "msg": f"不存在的项目 id: {m}",
+                            "msg": f"不存在或已停用的项目 id: {m}",
                         }
-                        for m in missing
+                        for m in invalid_ids
                     ],
                 )
         # BLF-885 P1：唯一性对齐 key_service 的“有效”定义（未删除且未停用且未过期）。
