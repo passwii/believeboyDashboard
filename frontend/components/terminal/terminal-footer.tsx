@@ -45,7 +45,7 @@ function changeColorClass(changePct: number | null): string {
 }
 
 /**
- * Global Footer 系统状态栏（固定 28px，BLF-809/816）：
+ * Global Footer 系统状态栏（固定 36px，BLF-887 高度上档 2026-08-29）：
  * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 库存预警 · 数据更新时间 · 更新日志摘要）
  * · 同步引擎状态 · 未读通知 · 双时区时钟。
  * 各段以 1px 竖分隔线切分；移动端隐藏（<sm）。

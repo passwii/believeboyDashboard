@@ -45,10 +45,10 @@ describe('MultiSelect onOpen（BEL-422 按需加载钩子）', () => {
 })
 
 describe('MultiSelect Terminal 收口（BLF-870）', () => {
-  it('触发器为 h-8 零圆角 + term 令牌', () => {
+  it('触发器为 h-9 零圆角 + term 令牌（BLF-887 上档）', () => {
     render(<MultiSelect options={OPTIONS} selected={[]} onChange={() => {}} />)
     const trigger = screen.getByRole('combobox')
-    expect(trigger.className).toContain('h-8')
+    expect(trigger.className).toContain('h-9')
     expect(trigger.className).toContain('rounded-none')
     expect(trigger.className).toContain('border-term-border')
     expect(trigger.className).toContain('bg-term-bg')

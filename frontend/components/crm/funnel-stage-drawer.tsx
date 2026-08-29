@@ -172,7 +172,7 @@ export function FunnelStageDrawer({
               size="sm"
               onClick={() => loadRef.current()}
               disabled={loading}
-              className="h-8 rounded-none font-mono text-xs text-term-muted hover:text-term-text"
+              className="h-9 rounded-none font-mono text-xs text-term-muted hover:text-term-text"
             >
               <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
               刷新

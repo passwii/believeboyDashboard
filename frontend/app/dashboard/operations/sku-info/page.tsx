@@ -133,12 +133,12 @@ const COUNTRY_OPTIONS = [
 ] as const
 
 /**
- * Header 插槽「查询 / 重置」按钮基类（term 规格 h-9：与 TERM_HEADER_TRIGGER 同高，
+ * Header 插槽「查询 / 重置」按钮基类（term 规格 h-10：与 TERM_HEADER_TRIGGER 同高（BLF-887 上档），
  * 零圆角 / 1px term 边界 / mono）。sku-info 为提交制查询，按钮随筛选控件一起
  * portal 进 Top Header 中段插槽（operations header migration B3）。
  */
 const TERM_HEADER_BUTTON =
-  'flex h-9 shrink-0 items-center justify-center rounded-none border px-3 font-mono text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-10 shrink-0 items-center justify-center rounded-none border px-3 font-mono text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 /** 查询 = 强调态（提交制主操作） */
 const TERM_HEADER_BUTTON_PRIMARY = `${TERM_HEADER_BUTTON} border-term-border-strong bg-term-panel text-term-text hover:bg-term-hover active:bg-term-raised`
 /** 重置 = 弱化态 */
@@ -603,7 +603,7 @@ export default function SkuInfoPage() {
         widthClass={TERM_HEADER_W_MD}
         title={projectLoadError ?? '项目筛选'}
       />
-      {/* SKU / ASIN 输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      {/* SKU / ASIN 输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
       <Input
         size="lg"
         value={skuFilter}

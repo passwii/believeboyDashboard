@@ -1665,7 +1665,7 @@ export default function DailyAnalysisPage() {
                   size="sm"
                   onClick={() => void handleExportExcel()}
                   disabled={exporting || !data}
-                  className="h-9 px-3 sm:px-4 w-full sm:w-auto"
+                  className="h-10 px-3 sm:px-4 w-full sm:w-auto"
                 >
                   {exporting ? (
                     <Loader2 className="mr-1.5 sm:mr-2 h-4 w-4 animate-spin" />

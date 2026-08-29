@@ -38,11 +38,11 @@ interface TerminalShellProps {
 }
 
 /**
- * Terminal 高密度交易终端外壳（BLF-809；二档放大 2026-08-25）。
+ * Terminal 高密度交易终端外壳（BLF-809；BLF-887 高度上档 2026-08-29）。
  *
- * 桌面（md+）：L1 主轨 64px + L2 子导航 224px（可折叠）+ Top Header 48px +
+ * 桌面（md+）：L1 主轨 64px + L2 子导航 224px（可折叠）+ Top Header 56px +
  * Main Canvas（#main-content 独立滚动，document 不滚动）+ Right Inspector 360px
- * （⌘B 开关）+ Global Footer 32px。
+ * （⌘B 开关）+ Global Footer 36px。
  *
  * 移动端（<md）：L1/L2 收起为左侧 Sheet 抽屉；Footer 隐藏；Canvas 单列。
  */
@@ -200,7 +200,7 @@ function MobileGroupSection({
                 key={item.url}
                 href={item.url}
                 onClick={onNavigate}
-                className={`flex h-9 items-center gap-2 px-3 text-sm transition-colors ${
+                className={`flex h-10 items-center gap-2 px-3 text-sm transition-colors ${
                   isActive ? 'bg-term-raised text-term-text' : 'text-term-muted hover:bg-term-hover'
                 }`}
               >

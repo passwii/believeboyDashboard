@@ -2,19 +2,21 @@ import type { SidebarSubItem, SidebarTopGroup } from '@/lib/sidebar-config'
 
 /**
  * Terminal 外壳尺寸与持久化常量（BLF-809）。
- * 规格来源：高密度交易终端设计规范 —— L1 50px / L2 200px / Header 36px / Footer 24px / Inspector 280px。
+ * 尺寸沿革：原始 50/200/36/24/280 → 全局放大两档 64/256/48/32/360 →
+ * BLF-844 SubNav 回调 224 → BLF-887（2026-08-29）高度整体上档：
+ * Header 48→56 / Footer 32→36；宽度维度（Rail 64 / SubNav 224 / Inspector 360）不变。
  */
 
-// 全局放大两档后的规格（master-prompt §任务 0a 一档 56/224/40/28/320；二档 64/256/48/32/360）：
-// BLF-844：SubNav 256 观感过宽（用户反馈 2026-08-26），回调至中间档 224。
+// 宽度维持 BLF-844/809 规格（SubNav 256 曾因观感过宽回调至 224，用户未反馈宽度问题）。
 export const TERMINAL_RAIL_WIDTH = 64
 /**
- * L1 Rail 主轨图标尺寸（BLF-850，2026-08-27 用户要求整体放大一档）：
- * 8 大业务域图标 + 底部主题切换图标统一引用本常量（20px），
- * 取代早前写死的 18px。单源驱动，改尺寸只动此处。
- * 仅限 L1 Rail；其余 L-图标（Header 工具钮）维持 18px（见 master-prompt §1b-2）。
+ * L1 Rail 主轨图标尺寸（BLF-850 18→20；BLF-887 整体上档 20→24）：
+ * 8 大业务域图标 + 底部主题切换图标统一引用本常量（24px），单源驱动。
+ * 组件侧经内联 style 应用（Tailwind JIT 不编译模板字符串拼出的任意值类，
+ * `h-[${N}px]` 动态类历史上从未生成——BLF-887 修复为 style + 测试断言 style）。
+ * 仅限 L1 Rail；其余 L-图标（Header 工具钮）为 20px（见 master-prompt §1b-2）。
  */
-export const TERMINAL_RAIL_ICON_SIZE = 20
+export const TERMINAL_RAIL_ICON_SIZE = 24
 export const TERMINAL_SUBNAV_WIDTH = 224
 /** SubNav 折叠宽度（BLF-825）：有意整列收起归零（与 BLF-809 旧行为等价），仅以动效呈现；非窄图标列 */
 export const TERMINAL_SUBNAV_COLLAPSED_WIDTH = 0
@@ -38,14 +40,14 @@ export const TERMINAL_SUBNAV_MOTION = {
   /** 入场最大级联延迟（ms），防止列表过长时尾部等待过久 */
   maxStaggerDelayMs: 240,
 } as const
-export const TERMINAL_HEADER_HEIGHT = 48
+export const TERMINAL_HEADER_HEIGHT = 56
 /**
  * 顶部基准带高度（BLF-832 / master-prompt §任务 1）：各列顶部第一个区块
  * （Rail Logo 位 / SubNav 组头 / Inspector 标题条）统一引用本常量，
  * 保证四列第一条横向分割线贯通。表达式绑定 Header 高度，联动调整。
  */
 export const TERMINAL_TOP_STRIP_HEIGHT = TERMINAL_HEADER_HEIGHT
-export const TERMINAL_FOOTER_HEIGHT = 32
+export const TERMINAL_FOOTER_HEIGHT = 36
 export const TERMINAL_INSPECTOR_WIDTH = 360
 
 /**

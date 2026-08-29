@@ -801,7 +801,7 @@ function AutoUploadContent({
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className="col-span-2 h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:col-span-1 sm:w-[150px]">
+          <SelectTrigger className="col-span-2 h-10 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:col-span-1 sm:w-[150px]">
             <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>

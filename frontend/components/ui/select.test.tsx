@@ -37,7 +37,7 @@ describe('Select 暗黑浮层玻璃 + 聚焦辉光（BLF-574，保留）', () =>
 })
 
 describe('Select Terminal 收口（BLF-869）', () => {
-  it('Trigger 高度收敛到 h-8 零圆角 + term 令牌（无 h-10/min-h-touch/shadow-sm）', () => {
+  it('Trigger 高度收敛到 h-9 零圆角 + term 令牌（BLF-887 上档；无 min-h-touch/shadow-sm）', () => {
     render(
       <Select>
         <SelectTrigger>
@@ -49,7 +49,7 @@ describe('Select Terminal 收口（BLF-869）', () => {
       </Select>
     )
     const trigger = screen.getByRole('combobox')
-    expect(trigger.className).toContain('h-8')
+    expect(trigger.className).toContain('h-9')
     expect(trigger.className).toContain('rounded-none')
     expect(trigger.className).toContain('border-term-border')
     expect(trigger.className).toContain('bg-term-bg')

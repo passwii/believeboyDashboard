@@ -379,7 +379,7 @@ export function AgentOperationLogsPanel() {
             type="button"
             onClick={() => void fetchLogs()}
             disabled={loading}
-            className="flex h-8 items-center gap-1 border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-9 items-center gap-1 border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -489,7 +489,7 @@ export function AgentOperationLogsPanel() {
           </TermTable>
         </div>
 
-        <div className="flex h-8 items-center justify-between border-t border-term-border bg-term-raised px-2 font-mono text-xs tabular-nums text-term-muted">
+        <div className="flex h-9 items-center justify-between border-t border-term-border bg-term-raised px-2 font-mono text-xs tabular-nums text-term-muted">
           <span>
             共 <span className="text-term-text">{total.toLocaleString('zh-CN')}</span> 条 · 第{' '}
             <span className="text-term-text">{page}</span>/{totalPages} 页
@@ -515,36 +515,36 @@ export function AgentOperationLogsPanel() {
         </div>
       </TermPanel>
 
-      {/** 筛选工具栏：终端化 h-8 控件（与访问日志面板同规格） */}
+      {/** 筛选工具栏：终端化 h-9 控件（与访问日志面板同规格，BLF-887 上档） */}
       <TermPanel title="筛选">
         <div className="flex flex-wrap items-center gap-1 p-1.5">
           <Input
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
             placeholder="关键词 Agent/操作/对象"
-            className="h-8 w-[170px] rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 w-[170px] rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Input
             value={agentIdInput}
             onChange={(event) => setAgentIdInput(event.target.value)}
             placeholder="Agent ID"
-            className="h-8 w-[130px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 w-[130px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Input
             value={projectIdInput}
             onChange={(event) => setProjectIdInput(event.target.value)}
             placeholder="项目 ID（数字）"
             inputMode="numeric"
-            className="h-8 w-[110px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 w-[110px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Input
             value={actionInput}
             onChange={(event) => setActionInput(event.target.value)}
             placeholder="操作（如 shipment.status.transition）"
-            className="h-8 w-[200px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 w-[200px] rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Select value={resultInput} onValueChange={setResultInput}>
-            <SelectTrigger className="h-8 w-[100px] rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong">
+            <SelectTrigger className="h-9 w-[100px] rounded-none border-term-border bg-term-bg text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong">
               <SelectValue placeholder="操作结果" />
             </SelectTrigger>
             <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
@@ -563,7 +563,7 @@ export function AgentOperationLogsPanel() {
           <button
             type="button"
             onClick={applyFilters}
-            className="flex h-8 items-center gap-1 border border-term-accent/50 bg-term-accent/10 px-2 font-mono text-xs text-term-accent transition-colors hover:bg-term-accent/20"
+            className="flex h-9 items-center gap-1 border border-term-accent/50 bg-term-accent/10 px-2 font-mono text-xs text-term-accent transition-colors hover:bg-term-accent/20"
           >
             <Search className="h-3.5 w-3.5" aria-hidden />
             查询
@@ -571,7 +571,7 @@ export function AgentOperationLogsPanel() {
           <button
             type="button"
             onClick={resetFilters}
-            className="flex h-8 items-center border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+            className="flex h-9 items-center border border-term-border bg-term-bg px-2 text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
           >
             重置
           </button>

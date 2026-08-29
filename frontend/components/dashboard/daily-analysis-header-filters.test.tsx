@@ -49,13 +49,13 @@ function SkuFieldHarness(props: Partial<ComponentProps<typeof SkuSearchField>> =
 }
 
 describe('SkuSearchField（BLF-832 follow-up 终端规格化）', () => {
-  it('trigger 使用头部标准控件规格（h-9 零圆角 term-bg mono）且无前置标签', () => {
+  it('trigger 使用头部标准控件规格（h-10 零圆角 term-bg mono，BLF-887 上档）且无前置标签', () => {
     render(<SkuFieldHarness />)
     // BLF-876：已移除 FieldLabel 前置标签，控件靠 placeholder/文案自解释
     expect(document.querySelector('label')).toBeNull()
 
     const trigger = screen.getByRole('button')
-    for (const cls of ['h-9', 'rounded-none', 'border-term-border', 'bg-term-bg', 'font-mono']) {
+    for (const cls of ['h-10', 'rounded-none', 'border-term-border', 'bg-term-bg', 'font-mono']) {
       expect(trigger.className).toContain(cls)
     }
     // 不再是旧版 outline 圆角风格

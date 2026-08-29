@@ -96,7 +96,7 @@ export function AlertEventsTab() {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {/* BLF-838：筛选行 h-8 终端规格 */}
+      {/* BLF-838：筛选行 h-9 终端规格（BLF-887 上档） */}
       <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
           <SelectTrigger className={`w-32 ${TERM_TRIGGER}`}><SelectValue /></SelectTrigger>
@@ -166,7 +166,7 @@ export function AlertEventsTab() {
         </TermTable>
       </TermPanel>
 
-      {/* 分页：终端规格（mono 计数 + h-8 按钮） */}
+      {/* 分页：终端规格（mono 计数 + h-9 按钮，BLF-887 上档） */}
       <div className="flex items-center justify-between font-mono text-xs text-term-muted">
         <span>共 {total} 条</span>
         <div className="flex items-center gap-2">

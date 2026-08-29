@@ -43,14 +43,14 @@ describe('Input Terminal 收口（BLF-869）', () => {
     expect(container.querySelector('input')!.className).toContain('aria-[invalid=true]:border-term-neg')
   })
 
-  it('高度档位收敛到 h-8 / h-7 / h-9（无 h-10/h-11 大触摸）', () => {
+  it('高度档位收敛到 h-9 / h-8 / h-10（BLF-887 上档；无 h-11 大触摸）', () => {
     const { container: d } = render(<Input />)
-    expect(d.querySelector('input')!.className).toContain('h-8')
+    expect(d.querySelector('input')!.className).toContain('h-9')
     expect(d.querySelector('input')!.className).not.toContain('min-h-touch')
     const { container: sm } = render(<Input size="sm" />)
-    expect(sm.querySelector('input')!.className).toContain('h-7')
+    expect(sm.querySelector('input')!.className).toContain('h-8')
     const { container: lg } = render(<Input size="lg" />)
-    expect(lg.querySelector('input')!.className).toContain('h-9')
+    expect(lg.querySelector('input')!.className).toContain('h-10')
   })
 
   it('无独立阴影漂移（shadow-none，聚焦走 border + u-focus-glow）', () => {

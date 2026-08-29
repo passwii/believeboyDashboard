@@ -22,15 +22,15 @@ import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
 /**
- * BLF-819 · Top Header 全局筛选四件套（二档放大后 h-9 终端规格）。
+ * BLF-819 · Top Header 全局筛选四件套（BLF-887 高度上档：h-10 终端规格）。
  *
- * 与 BLF-817 Console 工具栏同源的控件基类：h-8、零圆角、1px 边界、等宽字体。
+ * 与 BLF-817 Console 工具栏同源的控件基类：h-10、零圆角、1px 边界、等宽字体。
  * 数据经 useTerminalGlobalFilter 读写（URL + localStorage 双持久化），
  * 组件自身不持有业务状态 —— 同一状态在头部与试点页之间天然同步。
  */
 
 export const TERM_HEADER_TRIGGER =
-  'h-9 shrink-0 overflow-hidden rounded-none border border-term-border bg-term-bg font-mono text-sm font-normal text-term-text shadow-none focus:ring-0 focus:ring-offset-0 data-[state=open]:border-term-border-strong [&>span]:truncate'
+  'h-10 shrink-0 overflow-hidden rounded-none border border-term-border bg-term-bg font-mono text-sm font-normal text-term-text shadow-none focus:ring-0 focus:ring-offset-0 data-[state=open]:border-term-border-strong [&>span]:truncate'
 /** 操作区 4 档固定宽度（Stage 4 三区标准）：SM=站点 / MD=项目 / LG=SKU / XL=日期 */
 export const TERM_HEADER_W_SM = 'w-[130px]'
 export const TERM_HEADER_W_MD = 'w-[150px]'

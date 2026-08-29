@@ -266,9 +266,9 @@ export default function PortfolioOverviewClient() {
           </div>
 
           <TermPanel bodyClassName="min-h-0">
-            {/* 页内 Tab 切换条（h-9 标题带规格）；BLF-883：前置 icon + 激活态 accent 发光指示条，
+            {/* 页内 Tab 切换条（h-10 标题带规格，BLF-887 上档）；BLF-883：前置 icon + 激活态 accent 发光指示条，
                 与全局 term Tab 激活语言一致 */}
-            <div className="flex h-9 shrink-0 items-center gap-1 border-b border-term-border px-2">
+            <div className="flex h-10 shrink-0 items-center gap-1 border-b border-term-border px-2">
               {tabs.map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.key
@@ -281,8 +281,8 @@ export default function PortfolioOverviewClient() {
                     role="tab"
                     className={
                       isActive
-                        ? 'relative flex h-7 items-center gap-1.5 border border-term-border bg-term-raised px-2 font-mono text-xs font-semibold text-term-text'
-                        : 'flex h-7 items-center gap-1.5 border border-transparent px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
+                        ? 'relative flex h-8 items-center gap-1.5 border border-term-border bg-term-raised px-2 font-mono text-xs font-semibold text-term-text'
+                        : 'flex h-8 items-center gap-1.5 border border-transparent px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
                     }
                   >
                     <Icon className="h-3.5 w-3.5" aria-hidden />

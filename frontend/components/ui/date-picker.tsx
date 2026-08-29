@@ -204,7 +204,7 @@ const calendarClassNames = {
   months: 'flex w-full flex-col',
   month: 'w-full min-w-0',
   month_grid: 'w-full border-collapse',
-  month_caption: 'relative mx-10 mb-2 flex h-8 items-center justify-center',
+  month_caption: 'relative mx-10 mb-2 flex h-9 items-center justify-center',
   caption_label: 'font-mono text-sm font-medium text-term-text tracking-[0.02em]',
   nav: 'absolute top-0 flex w-full justify-between',
   weekdays: 'grid w-full grid-cols-7 gap-1',
@@ -315,7 +315,7 @@ export function DatePicker(props: DatePickerProps) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn('h-8 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
+          className={cn('h-9 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-term-muted" />
@@ -332,7 +332,7 @@ export function DatePicker(props: DatePickerProps) {
               value={year.toString()}
               onValueChange={(nextValue) => setYear(Number(nextValue))}
             >
-              <SelectTrigger className="h-8 w-full rounded-none border border-term-border bg-term-bg font-mono text-sm shadow-none">
+              <SelectTrigger className="h-9 w-full rounded-none border border-term-border bg-term-bg font-mono text-sm shadow-none">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -348,7 +348,7 @@ export function DatePicker(props: DatePickerProps) {
               value={month.toString()}
               onValueChange={(nextValue) => setMonth(Number(nextValue))}
             >
-              <SelectTrigger className="h-8 w-full rounded-none border border-term-border bg-term-bg font-mono text-sm shadow-none">
+              <SelectTrigger className="h-9 w-full rounded-none border border-term-border bg-term-bg font-mono text-sm shadow-none">
                 <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
@@ -384,7 +384,7 @@ export function DatePicker(props: DatePickerProps) {
                     type="button"
                     variant={isSelected ? 'default' : 'outline'}
                     className={cn(
-                      'h-8 rounded-none border-term-border px-0 font-mono text-sm shadow-none',
+                      'h-9 rounded-none border-term-border px-0 font-mono text-sm shadow-none',
                       !isSelected && 'bg-term-panel hover:bg-term-hover'
                     )}
                     disabled={Boolean(isDisabled)}
@@ -419,7 +419,7 @@ export function DatePicker(props: DatePickerProps) {
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 rounded-none px-3 font-mono"
+              className="h-9 rounded-none px-3 font-mono"
               onClick={handleClear}
               disabled={!clearable || !hasValue}
             >
@@ -427,7 +427,7 @@ export function DatePicker(props: DatePickerProps) {
             </Button>
             <Button
               size="sm"
-              className="h-8 rounded-none px-4 font-mono"
+              className="h-9 rounded-none px-4 font-mono"
               onClick={handleApply}
               disabled={!hasValue}
             >
@@ -507,7 +507,7 @@ function RangeDatePickerWithPresets({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn('h-8 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
+          className={cn('h-9 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-term-muted" />
@@ -634,7 +634,7 @@ function SingleDatePickerWithPresets({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn('h-8 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
+          className={cn('h-9 w-full justify-start rounded-none border border-term-border bg-term-bg text-left font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong u-focus-glow', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-term-muted" />

@@ -62,7 +62,7 @@ describe('Breadcrumb Terminal 收口（BLF-873）', () => {
     expect(page.className).toContain('tracking-tight')
   })
 
-  it('省略号占位对齐 h-8 节奏且零圆角', () => {
+  it('省略号占位对齐 h-9 节奏（BLF-887 上档）且零圆角', () => {
     const { container } = render(
       <Breadcrumb>
         <BreadcrumbList>
@@ -71,9 +71,9 @@ describe('Breadcrumb Terminal 收口（BLF-873）', () => {
       </Breadcrumb>
     )
     const ellipsis = container.querySelector('span[aria-hidden="true"]')
-    expect(ellipsis?.className).toContain('h-8')
-    expect(ellipsis?.className).toContain('w-8')
+    expect(ellipsis?.className).toContain('h-9')
+    expect(ellipsis?.className).toContain('w-9')
     expect(ellipsis?.className).toContain('rounded-none')
-    expect(ellipsis?.className).not.toContain('h-9')
+    expect(ellipsis?.className).not.toContain('h-10')
   })
 })

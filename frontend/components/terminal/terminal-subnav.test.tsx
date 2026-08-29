@@ -139,9 +139,9 @@ describe('TerminalSubnav', () => {
     const { container } = renderSubnav({ collapsed: false })
     const groupHeader = container.querySelector('aside .term-subnav-content') as HTMLElement
     expect(groupHeader.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
-    // A3：折叠钮与 Header 图标钮同档 h-8
+    // A3：折叠钮与 Header 图标钮同档 h-9（BLF-887 上档）
     const collapseBtn = screen.getByRole('button', { name: '折叠侧栏' })
-    expect(collapseBtn.className).toContain('h-8 w-8')
+    expect(collapseBtn.className).toContain('h-9 w-9')
   })
 
   it('BLF-825 入场 stagger：列表项级联延迟按 slot * step 递增且封顶', () => {

@@ -50,6 +50,7 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
  * 范式上移 Top Header 中段插槽 —— 标题由 TerminalHeader 面包屑承载，Badge 摘要删除
  * （与控件信息重复），控件统一 h-8 终端规格。URL param 契约不变：
  * projectId / country / dateFrom / dateTo，下游 AdDataExplorer 零改动消费。
+ * BLF-887：控件上档 h-10（与 TERM_HEADER_TRIGGER 同高）。
  */
 export function AdDataTopFilters() {
   const { data: session } = useSession()
@@ -124,10 +125,10 @@ export function AdDataTopFilters() {
   const controls = (
     <>
       {projectsLoading ? (
-        <Skeleton className="h-8 w-full rounded-none md:w-[150px]" />
+        <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
       ) : (
         <Select value={projectId} onValueChange={(value) => updateSearchParam('projectId', value)}>
-          <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[150px]">
+          <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[150px]">
             <SelectValue placeholder="请选择项目" />
           </SelectTrigger>
           <SelectContent>
@@ -141,7 +142,7 @@ export function AdDataTopFilters() {
       )}
 
       <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
+        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
           <SelectValue placeholder="请选择国家站点" />
         </SelectTrigger>
         <SelectContent>
@@ -156,12 +157,12 @@ export function AdDataTopFilters() {
       <DateRangePicker
         value={parseDateRangeInputValue(dateFrom, dateTo)}
         onChange={updateDateRange}
-        className="h-8 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[220px]"
+        className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[220px]"
         timezone={COUNTRY_TIMEZONE_MAP[country]}
       />
 
       {projectsError ? (
-        <div className="flex h-8 items-center gap-1.5 border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
+        <div className="flex h-10 items-center gap-1.5 border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
           {projectsError}
         </div>
       ) : null}

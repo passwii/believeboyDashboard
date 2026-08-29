@@ -32,7 +32,7 @@
 
 ## 任务 0：全局放大一档（✅ 已完成，保留作历史参考）
 
-**状态：已完成且超额——实际执行了「两档」放大**（一档 commit 31117bdc，二档 3bed4693，PR #395）。下表为原始规划值，最终落地的常量以 `frontend/components/terminal/terminal-constants.ts` 为准：TERMINAL_RAIL_WIDTH=64、SUBNAV_WIDTH=224（BLF-844：256 观感过宽，2026-08-26 用户反馈回调至中间档）、HEADER_HEIGHT=48、FOOTER_HEIGHT=32、INSPECTOR_WIDTH=360；SubNav 折叠宽度有意归零（整列收起，仅以 BLF-825 动效呈现，非窄图标列）。后续任何尺寸调整一律以该文件为唯一来源，勿再回改本表数值。
+**状态：已完成且超额——实际执行了「两档」放大**（一档 commit 31117bdc，二档 3bed4693，PR #395）；**BLF-887（2026-08-29）高度再上档**：HEADER_HEIGHT 48→56、FOOTER_HEIGHT 32→36、RAIL 图标 20→24，宽度维度不变。下表为原始规划值，最终落地的常量以 `frontend/components/terminal/terminal-constants.ts` 为准：TERMINAL_RAIL_WIDTH=64、SUBNAV_WIDTH=224（BLF-844：256 观感过宽，2026-08-26 用户反馈回调至中间档）、HEADER_HEIGHT=56、FOOTER_HEIGHT=36、INSPECTOR_WIDTH=360；SubNav 折叠宽度有意归零（整列收起，仅以 BLF-825 动效呈现，非窄图标列）。后续任何尺寸调整一律以该文件为唯一来源，勿再回改本表数值。
 
 ### 0a. 结构尺寸（`frontend/components/terminal/terminal-constants.ts`）
 
@@ -40,8 +40,8 @@
 |---|---|---|
 | TERMINAL_RAIL_WIDTH | 50 | ~~56~~ → 最终 64 |
 | TERMINAL_SUBNAV_WIDTH | 200 | ~~224~~ → 256 → **224**（BLF-844 回调） |
-| TERMINAL_HEADER_HEIGHT | 36 | ~~40~~ → 最终 48 |
-| TERMINAL_FOOTER_HEIGHT | 24 | ~~28~~ → 最终 32 |
+| TERMINAL_HEADER_HEIGHT | 36 | ~~40~~ → 48 → **56**（BLF-887） |
+| TERMINAL_FOOTER_HEIGHT | 24 | ~~28~~ → 32 → **36**（BLF-887） |
 | TERMINAL_INSPECTOR_WIDTH | 288 | ~~320~~ → 最终 360 |
 
 同步排查组件内硬编码（如 subnav/header/footer 的 `w-[200px]`、`h-[36px]`），改为引用常量。
@@ -127,24 +127,26 @@
 
 | 档位 | 尺寸 | strokeWidth | 适用场景 |
 |---|---|---|---|
-| L-图标 | `h-[18px] w-[18px]` | **1.75** | 独立图标按钮（Header 工具钮、Rail 业务域图标）——按钮内的主视觉图标 |
-| M-图标 | `h-4 w-4`（16px） | **1.75** | 行内伴随图标（SubNav 列表项前缀、Inspector 区块标题前缀、菜单项前缀） |
-| S-例外 | `h-3.5 w-3.5`（14px） | 1.75 | 仅限 Footer Ticker 行内小图标（32px 高度带内的贴身装饰），其他位置禁用 |
-| **L-图标(Rail)** | `h-[20px] w-[20px]`（常量 `TERMINAL_RAIL_ICON_SIZE`） | **1.75** | **仅限** L1 Rail 主轨：8 大业务域图标 + 底部主题切换图标（BLF-850，2026-08-27 用户要求整体放大一档） |
+| L-图标 | `h-5 w-5`（20px） | **1.75** | 独立图标按钮（Header 工具钮）——按钮内的主视觉图标（BLF-887 上档，原 18px） |
+| M-图标 | `h-5 w-5`（20px） | **1.75** | 行内伴随图标（SubNav 列表项前缀、搜索框、Inspector 区块标题前缀、菜单项前缀；BLF-887 起与 L-图标同尺寸，仅区分场景） |
+| S-例外 | `h-3.5 w-3.5`（14px） | 1.75 | 仅限 Footer Ticker 行内小图标（36px 高度带内的贴身装饰），其他位置禁用 |
+| **L-图标(Rail)** | 24px（常量 `TERMINAL_RAIL_ICON_SIZE`，内联 style 应用） | **1.75** | **仅限** L1 Rail 主轨：8 大业务域图标 + 底部主题切换图标（BLF-850 18→20；BLF-887 上档 20→24） |
 
-规则：① strokeWidth 全域统一 1.75，**不允许依赖 lucide 默认值 2**（当前 Header 全部图标都没显式设置，见审计表 A1）；② 尺寸写在图标 className 上，但档位以本表为准，禁止出现 17px / 20px 等中间值——**唯一例外：L1 Rail 图标经 2026-08-27 用户要求放大至 20px，单源由 `TERMINAL_RAIL_ICON_SIZE` 常量驱动（terminal-constants.ts），仅限 L1 Rail，其余 L-图标（Header 工具钮）仍维持 18px**。
+规则：① strokeWidth 全域统一 1.75，**不允许依赖 lucide 默认值 2**；② 尺寸写在图标 className 或内联 style 上，档位以本表为准，禁止档外魔法数——**Rail 图标单源由 `TERMINAL_RAIL_ICON_SIZE` 常量驱动（terminal-constants.ts），经内联 style 应用（Tailwind JIT 不编译模板字符串拼出的任意值类，动态模板字符串拼出的 h-[Npx] 历史上从未生成过，2026-08-29 修复）；仅限 L1 Rail，其余 L-图标（Header 工具钮）为 h-5（20px）**。
 
 ### 1b-3. 控件高度阶梯
 
 | 档位 | 用途 |
 |---|---|
 | `h-4`（16px） | 徽标本体（min-w-4）、状态点 |
-| `h-7`（28px） | 紧凑场景小方钮：仅限「已被更高档包裹的第二层控件」（如 SubNav 顶部基准带内的折叠钮）——**若该钮与 Header 同排对齐则必须升到 h-8** |
-| `h-8`（32px） | 标准图标按钮（Header/Inspector 工具钮）、SubNav 列表项、筛选条工具栏 |
-| `h-9`（36px） | 输入类与标题条：搜索触发框、TermPanel 标题条、TermTable 表头与行、Rail 底部次级钮 |
-| `h-10`（40px） | 主导航大按钮：Rail 业务域钮、Rail Logo 位 |
+| `h-8`（32px） | 紧凑场景小方钮：仅限「已被更高档包裹的第二层控件」（Tab 钮、MultiSelect 内嵌搜索、Button sm/xs）——**若该钮与 Header 同排对齐则必须升到 h-9** |
+| `h-9`（36px） | 标准图标按钮（Header/Inspector 工具钮、SubNav 折叠钮）、SubNav 列表项、筛选条工具栏（TERM_BUTTON/INPUT/TRIGGER/Select）、TermTable 表头与行（历史 h-9 行→h-10 见下）、Rail 底部次级钮 |
+| `h-10`（40px） | 输入类与标题条：Header 筛选触发器（TERM_HEADER_TRIGGER）、SubNav 搜索框、TermPanel 标题条、term Tabs 栏、TermTable 表头与行、TermTabBar、Button lg、Input lg、工作区导出钮 |
+| `h-11`+ | 保留给 default Tabs（非 term）等旧基线，term 体系不取 |
 
-规则：同一水平带上并排的可点击控件必须同档（顶部基准带内 SubNav 折叠钮 h-7 与 Header 内 h-8 并存即违反此条，见审计表 A3）；触控命中区最小 24px 不因档位放宽。
+规则：同一水平带上并排的可点击控件必须同档（Header 插槽内控件统一 h-10 与 TERM_HEADER_TRIGGER 对齐；TermTabBar 内 Tab 钮 h-8、栏 h-10）；触控命中区最小 24px 不因档位放宽。
+
+> **BLF-887（2026-08-29）高度上档全表**：工具行 h-8→h-9（TERM_BUTTON/INPUT/TRIGGER/SELECT_NATIVE、ui Button default、Input default、Select/Combobox/MultiSelect/Command 触发器、Pagination、BreadcrumbEllipsis、TableHead）；页头级 h-9→h-10（TERM_HEADER_TRIGGER、term Tabs、TermTabBar、TermPanel 标题条、TermTable 行、Button/Input lg）；原 h-7 紧凑档→h-8（Button sm/xs、Input sm、Tab 钮）；外壳 Header 48→56、Footer 32→36（常量单源）。
 
 ### 1b-4. 大小写与字距（英文标签专用，中文不适用）
 

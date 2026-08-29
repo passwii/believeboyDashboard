@@ -314,7 +314,7 @@ export default function InventoryLedgerPage() {
         <button
           type="button"
           onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
-          className="flex h-9 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-10 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
         >
           清除筛选（{activeFilterCount}）
         </button>
@@ -346,7 +346,7 @@ export default function InventoryLedgerPage() {
       {/* Loading */}
       {loading && !hasAnyData && (
         <div className="space-y-3">
-          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-10 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       )}

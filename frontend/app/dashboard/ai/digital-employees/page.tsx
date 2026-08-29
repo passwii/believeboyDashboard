@@ -113,7 +113,7 @@ export default function DigitalEmployeesPage() {
                   placeholder="搜索数字员工..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="h-8 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0 pl-10"
+                  className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:ring-0 focus-visible:ring-offset-0 pl-10"
                 />
               </div>
               <div className="flex gap-1.5 flex-wrap">

@@ -45,25 +45,25 @@ describe('Button 暗黑 macOS 原生按压（BLF-574）', () => {
 })
 
 describe('Button Terminal 收口（BLF-868）', () => {
-  it('基类为零圆角 + mono 小字 + h-8（与 Terminal 令牌一致）', () => {
+  it('基类为零圆角 + mono 小字 + h-9（与 Terminal 令牌一致，BLF-887 上档）', () => {
     const { container } = render(<Button>x</Button>)
     const cls = container.querySelector('button')!.className
     expect(cls).toContain('rounded-none')
     expect(cls).toContain('font-mono')
     expect(cls).toContain('text-xs')
-    expect(cls).toContain('h-8')
+    expect(cls).toContain('h-9')
   })
 
-  it('size 档位收敛到 h-8 / h-7 / h-9（无 h-11/h-12 大圆角）', () => {
+  it('size 档位收敛到 h-9 / h-8 / h-10（无 h-11/h-12 大圆角）', () => {
     const { container: d } = render(<Button size="default">x</Button>)
-    expect(d.querySelector('button')!.className).toContain('h-8')
+    expect(d.querySelector('button')!.className).toContain('h-9')
     expect(d.querySelector('button')!.className).not.toContain('rounded-md')
     const { container: sm } = render(<Button size="sm">x</Button>)
-    expect(sm.querySelector('button')!.className).toContain('h-7')
+    expect(sm.querySelector('button')!.className).toContain('h-8')
     const { container: lg } = render(<Button size="lg">x</Button>)
-    expect(lg.querySelector('button')!.className).toContain('h-9')
+    expect(lg.querySelector('button')!.className).toContain('h-10')
     const { container: xs } = render(<Button size="xs">x</Button>)
-    expect(xs.querySelector('button')!.className).toContain('h-7')
+    expect(xs.querySelector('button')!.className).toContain('h-8')
   })
 
   it('term 变体可用且带 u-btn 与 term 边界', () => {

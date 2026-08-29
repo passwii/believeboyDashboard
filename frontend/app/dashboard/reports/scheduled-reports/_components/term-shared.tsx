@@ -8,16 +8,16 @@ import { Badge } from '@/components/ui/badge'
  *
  * 本页不把筛选上移 Top Header 插槽（layout 双 View 常驻挂载、hidden 切换，
  * 两个 View 同时 portal 会互相覆盖），沿用 order-info 的页内 Console 工具栏
- * 模式；控件统一终端规格（h-9 / 零圆角 / 1px 边界 / 等宽数值）。
+ * 模式；控件统一终端规格（BLF-887 上档：h-9 / 零圆角 / 1px 边界 / 等宽数值）。
  */
 
 export const TERM_TRIGGER =
-  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
+  'h-9 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
 export const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
 export const TERM_INPUT =
-  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-9 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
 export const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /** 频率徽标：终端单色系（去彩色胶囊，仅用 term 文本色区分） */
 export const FREQUENCY_TERM_CLASS: Record<string, string> = {
