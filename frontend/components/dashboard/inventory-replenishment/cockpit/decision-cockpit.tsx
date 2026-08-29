@@ -68,7 +68,7 @@ export function DecisionCockpit({
 
   if (rows.length === 0) {
     return (
-      <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+      <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
         当前筛选条件下没有可分析的 SKU。
       </div>
     )
@@ -80,7 +80,7 @@ export function DecisionCockpit({
         const isCollapsed = collapsed.has(lane.action)
         const theme = ACTION_THEME[lane.action] ?? ACTION_THEME.NO_ACTION
         return (
-          <section key={lane.action} className="overflow-hidden rounded-xl border border-border/70 dark:border-border/85">
+          <section key={lane.action} className="overflow-hidden rounded-none border border-term-border dark:border-term-border">
             {/* lane header */}
             <button
               type="button"
@@ -92,21 +92,21 @@ export function DecisionCockpit({
                   return next
                 })
               }
-              className="flex w-full items-center gap-2.5 border-b border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-2.5 text-left transition-colors hover:bg-[hsl(var(--surface-panel))] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:hover:bg-[hsl(var(--surface-overlay))]"
+              className="flex w-full items-center gap-2.5 border-b border-term-border bg-term-raised px-4 py-2.5 text-left transition-colors hover:bg-term-panel dark:border-term-border dark:bg-term-raised dark:hover:bg-term-raised"
             >
               <span className={cn('h-2.5 w-2.5 rounded-full', theme.bar)} />
-              <span className="text-sm font-semibold text-foreground">
+              <span className="text-sm font-semibold text-term-text">
                 {ACTION_LABELS[lane.action] ?? lane.action}
               </span>
-              <span className="rounded-full bg-[hsl(var(--surface-panel))] px-2 py-0.5 text-xs font-bold tabular-nums text-foreground dark:bg-[hsl(var(--surface-overlay))]">
+              <span className="rounded-full bg-term-panel px-2 py-0.5 text-xs font-bold tabular-nums text-term-text dark:bg-term-raised">
                 {lane.rows.length}
               </span>
-              <span className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
+              <span className="hidden min-w-0 truncate text-xs text-term-muted sm:block">
                 {ACTION_HINTS[lane.action] ?? ''}
               </span>
               <ChevronDown
                 className={cn(
-                  'ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                  'ml-auto h-4 w-4 shrink-0 text-term-muted transition-transform',
                   isCollapsed && '-rotate-90'
                 )}
               />
@@ -114,7 +114,7 @@ export function DecisionCockpit({
 
             {/* lane body */}
             {!isCollapsed && (
-              <div className="grid grid-cols-1 gap-3 bg-[hsl(var(--surface-subtle))] p-3 md:grid-cols-2 dark:bg-[hsl(var(--surface-base))] 2xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 bg-term-panel p-3 md:grid-cols-2 dark:bg-term-raised 2xl:grid-cols-3">
                 {lane.rows.map((row) => {
                   const key = rowKeyOf(row)
                   return (

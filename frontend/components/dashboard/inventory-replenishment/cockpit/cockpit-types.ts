@@ -194,9 +194,9 @@ export const ACTION_THEME: Record<
   },
   NO_ACTION: {
     badge:
-      'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+      'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     bar: 'bg-slate-400',
-    text: 'text-muted-foreground',
+    text: 'text-term-muted',
   },
 }
 
