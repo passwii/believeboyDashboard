@@ -965,7 +965,8 @@ export default function SkuInfoPage() {
         >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsMotionGroup id="sku-cost-tabs">
-            <TabsList variant="term" className="grid h-auto w-full max-w-[600px] grid-cols-2 sm:inline-flex">
+            {/* BLF-883 term tabs：w-fit 让基座贴合内容，避免 justify-center 在固定宽面板内留左右空白（对齐 shipment-management 5-tab 规格） */}
+            <TabsList variant="term" className="w-fit max-w-full justify-start">
               <SlidingTabsTrigger
                 value="cost"
                 activeValue={activeTab}
