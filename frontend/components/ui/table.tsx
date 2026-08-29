@@ -3,7 +3,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 // TableProps：Terminal 收口（BLF-872）——外层零圆角，密度基线 = compact 档
-// （表头 h-9 + 0.66rem，数据格 px-3 py-2 + 13px，与 table-presets 唯一配方同源）。
+// （表头 h-10 + 0.66rem，BLF-887 上档；数据格 px-3 py-2 + 13px，与 table-presets 唯一配方同源）。
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   containerClassName?: string
   /** 表格布局方式，fixed 模式下 colgroup/width 才能精确控制列宽 */
@@ -77,7 +77,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-9 bg-term-raised px-3 text-left align-middle font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-term-muted [&:has([role=checkbox])]:pr-0',
+      'h-10 bg-term-raised px-3 text-left align-middle font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-term-muted [&:has([role=checkbox])]:pr-0',
       className
     )}
     {...props}
@@ -150,8 +150,8 @@ export const STICKY_TOP_ROW = 'sticky top-0 z-40 bg-term-raised shadow-[inset_0_
 /** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
 export const STICKY_TOP_GROUP_ROW = 'sticky top-0 z-50'
 
-/** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-9 + border = 37px） */
-export const STICKY_TOP_SUB_ROW = 'sticky top-[37px] z-40'
+/** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-10 + border = 41px） */
+export const STICKY_TOP_SUB_ROW = 'sticky top-[41px] z-40'
 
 /** 第一列数据单元格：固定左侧，实体不透明背景 */
 export const STICKY_LEFT_CELL =

@@ -2268,9 +2268,9 @@ export default function WeeklyProductAnalysisPage() {
           <div className="absolute inset-0 z-10 rounded-xl border border-border/70 bg-background">
             <div className="space-y-4 p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
               <Skeleton className="h-[320px] w-full" />
               <BarSkeleton rows={5} />
@@ -2290,7 +2290,7 @@ export default function WeeklyProductAnalysisPage() {
                   onValueChange={setSelectedWeekId}
                   disabled={summaryRows.length === 0}
                 >
-                  <SelectTrigger className="h-8 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
+                  <SelectTrigger className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
                     <SelectValue placeholder="选择周次" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2326,7 +2326,7 @@ export default function WeeklyProductAnalysisPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8 min-h-[44px] sm:min-h-0"
+                className="h-9 min-h-[44px] sm:min-h-0"
                 onClick={() => void exportWeeklyAnalysis()}
                 disabled={exporting || summaryRows.length === 0}
               >
@@ -2340,7 +2340,7 @@ export default function WeeklyProductAnalysisPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8 min-h-[44px] sm:min-h-0"
+                className="h-9 min-h-[44px] sm:min-h-0"
                 onClick={() => void handleRecomputeHistory()}
                 disabled={recomputing || loading || !projectId}
               >

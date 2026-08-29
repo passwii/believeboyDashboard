@@ -20,7 +20,7 @@ import {
 
 export type TableDensity = 'compact' | 'cozy'
 
-/** 表头单元格密度（覆写 TableHead 默认 h-9/px-3） */
+/** 表头单元格密度（覆写 TableHead 默认 h-10/px-3，BLF-887 上档） */
 export const densityHead: Record<TableDensity, string> = {
   // compact 与历史 DENSE_HEAD 同源（data-card），存量表格与基线 compact 档位收敛为同一套类
   // （BLF-872 起 Table 原语默认即 compact，本档位保留为显式声明）

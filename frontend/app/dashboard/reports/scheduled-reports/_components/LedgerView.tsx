@@ -337,7 +337,7 @@ export default function LedgerView() {
             <DateRangePicker
               value={ledgerDateRangeValue}
               onChange={handleLedgerDateRangeChange}
-              className="h-8 w-[240px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
+              className="h-10 w-[240px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
             />
             <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
               <SelectTrigger className={cn(TERM_TRIGGER, 'w-[110px]')}>
@@ -385,7 +385,7 @@ export default function LedgerView() {
             <DateRangePicker
               value={ledgerDateRangeValue}
               onChange={handleLedgerDateRangeChange}
-              className="h-8 w-full justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
+              className="h-10 w-full justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
             />
             <div className="grid grid-cols-2 gap-1.5">
               <Select value={ledgerFrequency} onValueChange={setLedgerFrequency}>
@@ -451,10 +451,10 @@ export default function LedgerView() {
           <div className="hidden md:block">
             {ledgerLoading && ledgerItems.length === 0 ? (
               <div className="space-y-3 p-3">
-                <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
-                <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
-                <Skeleton className="h-8 w-11/12 rounded-none bg-term-raised" />
-                <Skeleton className="h-8 w-4/5 rounded-none bg-term-raised" />
+                <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
+                <Skeleton className="h-10 w-11/12 rounded-none bg-term-raised" />
+                <Skeleton className="h-10 w-4/5 rounded-none bg-term-raised" />
               </div>
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">

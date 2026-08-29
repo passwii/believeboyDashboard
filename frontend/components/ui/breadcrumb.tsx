@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 /**
  * Breadcrumb 原语（BLF-873 Terminal 收口）：对齐 TerminalHeader 面包屑体系
  * （terminal-header.tsx 左段）——`font-mono text-xs`、term 色阶、`›` 单字符分隔符、
- * 零圆角 h-8 节奏。深浅主题由 term 令牌自动翻转。
+ * 零圆角 h-9 节奏（BLF-887 上档）。深浅主题由 term 令牌自动翻转。
  */
 
 const Breadcrumb = React.forwardRef<
@@ -87,7 +87,7 @@ const BreadcrumbEllipsis = ({ className, ...props }: React.ComponentProps<'span'
   <span
     role="presentation"
     aria-hidden="true"
-    className={cn('flex h-8 w-8 items-center justify-center rounded-none text-term-faint', className)}
+    className={cn('flex h-9 w-9 items-center justify-center rounded-none text-term-faint', className)}
     {...props}
   >
     <MoreHorizontal className="h-4 w-4" />

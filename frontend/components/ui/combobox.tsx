@@ -101,7 +101,7 @@ export function Combobox({
             setOpen((prev) => !prev)
           }}
           className={cn(
-            'h-8 w-full min-w-0 justify-between gap-2 rounded-none border border-term-border bg-term-bg px-3 font-mono text-sm leading-5 text-term-text shadow-none',
+            'h-9 w-full min-w-0 justify-between gap-2 rounded-none border border-term-border bg-term-bg px-3 font-mono text-sm leading-5 text-term-text shadow-none',
             'hover:border-term-border-strong hover:bg-term-hover focus-visible:border-term-border-strong focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 u-focus-glow',
             'data-[placeholder]:text-term-faint disabled:opacity-50 disabled:cursor-not-allowed aria-[invalid=true]:border-term-neg',
             'u-interactive',

@@ -86,7 +86,7 @@ export function AlertPreferencesTab() {
           <Label>免打扰开始</Label>
           <Input
             type="time"
-            className="h-8 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             value={pref.quiet_hours_start ?? ''}
             onChange={(e) => setPref({ ...pref, quiet_hours_start: e.target.value || null })}
           />
@@ -95,7 +95,7 @@ export function AlertPreferencesTab() {
           <Label>免打扰结束</Label>
           <Input
             type="time"
-            className="h-8 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             value={pref.quiet_hours_end ?? ''}
             onChange={(e) => setPref({ ...pref, quiet_hours_end: e.target.value || null })}
           />

@@ -19,7 +19,7 @@ describe('table-presets · density', () => {
   })
 
   it('compact / cozy 档位均覆写默认 padding/字号', () => {
-    expect(densityHead.compact).toContain('!h-9')
+    expect(densityHead.compact).toContain('!h-10')
     expect(densityHead.cozy).toContain('!h-11')
     expect(densityCell.compact).toContain('!py-2')
     expect(densityCell.cozy).toContain('!py-3')

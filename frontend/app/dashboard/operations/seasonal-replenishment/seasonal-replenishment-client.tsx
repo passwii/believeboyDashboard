@@ -630,7 +630,7 @@ export default function SeasonalReplenishmentPage() {
           widthClass={TERM_HEADER_W_XL}
         />
       </div>
-      {/* 关键词输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      {/* 关键词输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
       <Input
         size="lg"
         value={keyword}
@@ -639,8 +639,8 @@ export default function SeasonalReplenishmentPage() {
         className={cn('shrink-0', TERM_HEADER_W_LG)}
         title="关键词筛选（SKU / ASIN）"
       />
-      {/* 「去年」同比开关：h-9 term 容器对齐，mono label */}
-      <div className="flex h-9 shrink-0 items-center gap-1.5 rounded-none border border-term-border bg-term-bg px-2.5">
+      {/* 「去年」同比开关：h-10 term 容器对齐（BLF-887 上档），mono label */}
+      <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-none border border-term-border bg-term-bg px-2.5">
         <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
         <label htmlFor="compare-yoy" className="cursor-pointer font-mono text-sm text-term-text">
           去年

@@ -14,8 +14,8 @@ describe('Table 粘性表头 term 令牌（BLF-872）', () => {
     expect(STICKY_TOP_GROUP_ROW).toBe('sticky top-0 z-50')
   })
 
-  it('STICKY_TOP_SUB_ROW offset 与默认表头高度对齐（h-9 36px + 1px 边框 = 37px）', () => {
-    expect(STICKY_TOP_SUB_ROW).toContain('top-[37px]')
+  it('STICKY_TOP_SUB_ROW offset 与默认表头高度对齐（BLF-887 上档：h-10 40px + 1px 边框 = 41px）', () => {
+    expect(STICKY_TOP_SUB_ROW).toContain('top-[41px]')
   })
 })
 

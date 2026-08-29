@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  * 各页面把本页筛选控件经 `useHeaderSlot` portal 进 TerminalHeader 中段；
  * 本组件决定这批控件在不同视口的呈现形态：
  *
- * - `<md`（isMobileView）：折叠为「筛选」Popover，避免 48px header 塞不下；
+ * - `<md`（isMobileView）：折叠为「筛选」Popover，避免 56px header 塞不下（BLF-887 上档）；
  * - `≥md`：单行平铺（flex-nowrap + overflow-hidden），超宽部分裁切，
  *   与 HeaderSlotMount 的 `hidden md:flex` 容器配合。
  *
@@ -30,10 +30,10 @@ export function HeaderFilterControls({
     return (
       <Popover>
         <PopoverTrigger
-          className="flex h-8 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-9 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
           aria-label="页面筛选"
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
           筛选
         </PopoverTrigger>
         <PopoverContent

@@ -67,7 +67,7 @@ export function MultiSelect({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'h-8 min-w-[120px] justify-start gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0 u-focus-glow',
+            'h-9 min-w-[120px] justify-start gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-sm leading-5 text-term-text shadow-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0 u-focus-glow',
             selected.length === 0 && 'text-term-faint',
             'disabled:opacity-50 disabled:cursor-not-allowed aria-[invalid=true]:border-term-neg',
             className
@@ -138,7 +138,7 @@ export function MultiSelect({
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full h-7 rounded-none font-mono text-xs"
+                className="w-full h-8 rounded-none font-mono text-xs"
                 onClick={() => {
                   clearAll()
                   setOpen(false)

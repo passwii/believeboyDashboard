@@ -472,14 +472,14 @@ export default function CommissionManagementPage() {
         <MonthPicker
           value={parseMonthInputValue(month)}
           onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
-          className="h-8 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[150px]"
+          className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[150px]"
         />
       ) : (
         <Select
           value={summaryYear}
           onValueChange={(value) => setSummaryYear(value)}
         >
-          <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+          <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
             <SelectValue placeholder="年份" />
           </SelectTrigger>
           <SelectContent>
@@ -496,7 +496,7 @@ export default function CommissionManagementPage() {
         value={countryFilter}
         onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
       >
-        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
+        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
           <SelectValue placeholder="站点" />
         </SelectTrigger>
         <SelectContent>
@@ -529,7 +529,7 @@ export default function CommissionManagementPage() {
 
       {/* 本月/年度统计：head 内 mono 元信息（不占页面纵向空间） */}
       {activeTab === 'detail' ? (
-        <div className="hidden h-8 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
+        <div className="hidden h-10 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
           <span className="uppercase tracking-wider text-term-faint">本月</span>
           <span className="text-term-muted">
             工厂佣金 <span className="text-term-text">{formatRmb(totalFactoryCommissionRmb)}</span>
@@ -540,7 +540,7 @@ export default function CommissionManagementPage() {
         </div>
       ) : null}
       {(activeTab === 'monthly' || activeTab === 'projectSummary') ? (
-        <div className="hidden h-8 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
+        <div className="hidden h-10 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
           <span className="uppercase tracking-wider text-term-faint">{summaryYear}</span>
           <span className="text-term-muted">
             销售 <span className="text-term-text">{formatUsd(yearlyTotals.income)}</span>

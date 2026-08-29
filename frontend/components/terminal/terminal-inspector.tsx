@@ -43,7 +43,7 @@ interface TerminalInspectorProps {
 }
 
 /**
- * Right Inspector 上下文面板（360px，BLF-809；二档放大 2026-08-25）：Cmd/Ctrl+B 或 Header 按钮开关。
+ * Right Inspector 上下文面板（360px 宽度不变；BLF-887 高度上档 2026-08-29）：Cmd/Ctrl+B 或 Header 按钮开关。
  * 本期承载快捷入口 + 最近访问 + Live Stream 数据源插槽（BLF-839：后端端点就绪前空态占位）。
  */
 export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalInspectorProps) {
@@ -75,9 +75,9 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
           onClick={onClose}
           title="收起 (⌘B)"
           aria-label="收起 Inspector"
-          className="flex h-8 w-8 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
+          className="flex h-9 w-9 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
-          <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          <X className="h-5 w-5" strokeWidth={1.75} />
         </button>
       </div>
 
@@ -94,7 +94,7 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-8 w-full animate-pulse bg-term-hover"
+                    className="h-9 w-full animate-pulse bg-term-hover"
                     style={{ opacity: 1 - i * 0.25 }}
                   />
                 ))}
@@ -131,7 +131,7 @@ export function TerminalInspector({ open, onClose, liveStreamItems }: TerminalIn
 
         <section className="p-2">
           <h3 className="flex items-center gap-1 px-1 pb-1.5 text-sm font-semibold uppercase tracking-wider text-term-faint">
-            <History className="h-4 w-4" strokeWidth={1.75} /> 最近访问
+            <History className="h-5 w-5" strokeWidth={1.75} /> 最近访问
           </h3>
           {recents.length === 0 ? (
             <p className="px-1 py-2 text-sm text-term-faint">暂无记录</p>

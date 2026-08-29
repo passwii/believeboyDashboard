@@ -41,10 +41,10 @@ describe("Combobox 暗黑聚焦辉光（BLF-574）", () => {
 });
 
 describe("Combobox Terminal 收口（BLF-870）", () => {
-  it("触发器为 h-8 零圆角 + term 令牌（无 h-10/rounded-md/border-input/shadow）", () => {
+  it("触发器为 h-9 零圆角 + term 令牌（BLF-887 上档；无 h-11/rounded-md/border-input/shadow）", () => {
     render(<Combobox value="" onChange={() => {}} options={baseOptions} />);
     const trigger = screen.getByRole("combobox");
-    expect(trigger.className).toContain("h-8");
+    expect(trigger.className).toContain("h-9");
     expect(trigger.className).toContain("rounded-none");
     expect(trigger.className).toContain("border-term-border");
     expect(trigger.className).toContain("bg-term-bg");

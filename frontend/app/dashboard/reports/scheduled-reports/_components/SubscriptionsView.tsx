@@ -184,10 +184,10 @@ export default function SubscriptionsView() {
     return (
       <TermPanel title="订阅管理">
         <div className="space-y-3 p-3">
-          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-8 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-8 w-3/4 rounded-none bg-term-raised" />
+          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
+          <Skeleton className="h-10 w-3/4 rounded-none bg-term-raised" />
         </div>
       </TermPanel>
     )

@@ -73,9 +73,9 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
             title="折叠侧栏"
             aria-label="折叠侧栏"
             aria-expanded={!collapsed}
-            className="flex h-8 w-8 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
+            className="flex h-9 w-9 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
           >
-            <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} />
+            <PanelLeftClose className="h-5 w-5" strokeWidth={1.75} />
           </button>
         </div>
 
@@ -85,9 +85,9 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
             type="button"
             tabIndex={collapsed ? -1 : undefined}
             onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
-            className="flex w-full h-9 items-center gap-2 rounded-none border border-term-border bg-term-raised px-2.5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
+            className="flex w-full h-10 items-center gap-2 rounded-none border border-term-border bg-term-raised px-2.5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
           >
-            <Search className="h-4 w-4" strokeWidth={1.75} />
+            <Search className="h-5 w-5" strokeWidth={1.75} />
             <span className="flex-1 text-left text-sm">搜索…</span>
             <TermKbd>⌘K</TermKbd>
           </button>
@@ -104,7 +104,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
                 href={item.url}
                 tabIndex={collapsed ? -1 : undefined}
                 className={cn(
-                  'term-subnav-content relative flex h-8 shrink-0 items-center gap-2 rounded-none pl-3 pr-2 text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
+                  'term-subnav-content relative flex h-9 shrink-0 items-center gap-2 rounded-none pl-3 pr-2 text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
                   isActive
                     ? 'bg-term-raised text-term-text'
                     : 'text-term-muted hover:bg-term-hover hover:text-term-text'
@@ -114,7 +114,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
                 {isActive && (
                   <span className="term-subnav-indicator absolute left-0 top-0 h-full w-0.5 bg-term-accent" />
                 )}
-                <ItemIcon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                <ItemIcon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 {item.badge ? <item.badge /> : null}
               </RouteLoadingLink>

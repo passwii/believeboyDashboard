@@ -25,11 +25,11 @@ const buttonVariants = cva(
         term: 'u-btn border border-term-border bg-term-panel text-term-muted hover:border-term-border-strong hover:text-term-text active:bg-term-raised',
       },
       size: {
-        default: 'h-8 px-3',
-        sm: 'h-7 px-2 text-[11px] leading-4',
-        lg: 'h-9 px-4',
-        icon: 'h-8 w-8 p-0',
-        xs: 'h-7 px-1.5 text-[11px] leading-4',
+        default: 'h-9 px-3',
+        sm: 'h-8 px-2 text-[11px] leading-4',
+        lg: 'h-10 px-4',
+        icon: 'h-9 w-9 p-0',
+        xs: 'h-8 px-1.5 text-[11px] leading-4',
       },
     },
     defaultVariants: {

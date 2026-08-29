@@ -25,8 +25,9 @@ interface TerminalRailProps {
 }
 
 /**
- * L1 极窄主轨（固定 64px，BLF-809；二档放大 2026-08-25）：8 大业务域图标 + 底部主题切换与用户菜单。
+ * L1 极窄主轨（固定 64px，BLF-809；BLF-887 图标 20→24 上档 2026-08-29）：8 大业务域图标 + 底部主题切换与用户菜单。
  * 仅图标不落文字，hover 以 title 提示；活动域以左侧 2px accent 指示。
+ * 图标尺寸经内联 style 应用（Tailwind JIT 不编译模板字符串拼出的类，动态 `h-[${N}px]` 从未生成）。
  */
 export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: TerminalRailProps) {
   const router = useRouter()
@@ -80,9 +81,9 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               )}
             >
               {isActive && (
-                <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 bg-term-accent" />
+                <span className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 bg-term-accent" />
               )}
-              <Icon className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} strokeWidth={1.75} />
+              <Icon className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} strokeWidth={1.75} />
             </button>
           )
         })}
@@ -97,7 +98,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
           className="flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
-          {isDark ? <SunMedium className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} /> : <Moon className={`h-[${TERMINAL_RAIL_ICON_SIZE}px] w-[${TERMINAL_RAIL_ICON_SIZE}px]`} />}
+          {isDark ? <SunMedium className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} /> : <Moon className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} />}
         </button>
 
         <DropdownMenu>

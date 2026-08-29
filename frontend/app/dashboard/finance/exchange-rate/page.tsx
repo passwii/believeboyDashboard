@@ -446,7 +446,7 @@ export default function ExchangeRatePage() {
           handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[160px]">
+        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[160px]">
           <SelectValue placeholder="全部货币" />
         </SelectTrigger>
         <SelectContent>
@@ -465,7 +465,7 @@ export default function ExchangeRatePage() {
           handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
           <SelectValue placeholder="全部年份" />
         </SelectTrigger>
         <SelectContent>
@@ -484,7 +484,7 @@ export default function ExchangeRatePage() {
           handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[100px]">
+        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[100px]">
           <SelectValue placeholder="全部月份" />
         </SelectTrigger>
         <SelectContent>

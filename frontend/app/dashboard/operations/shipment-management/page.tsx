@@ -2965,7 +2965,7 @@ export default function ShipmentManagementPage() {
           size="sm"
           variant="outline"
           onClick={openCreateDialog}
-          className="h-9 gap-1.5 px-3 text-xs"
+          className="h-10 gap-1.5 px-3 text-xs"
         >
           <Plus className="h-4 w-4" />
           新建批次
@@ -2974,7 +2974,7 @@ export default function ShipmentManagementPage() {
           size="sm"
           variant="outline"
           onClick={downloadBatchTemplate}
-          className="h-9 gap-1.5 px-3 text-xs"
+          className="h-10 gap-1.5 px-3 text-xs"
         >
           <FileDown className="h-4 w-4" />
           下载模板
@@ -2984,7 +2984,7 @@ export default function ShipmentManagementPage() {
           size="sm"
           variant="outline"
           disabled={batchImporting}
-          className="h-9 gap-1.5 px-3 text-xs"
+          className="h-10 gap-1.5 px-3 text-xs"
         >
           <label>
             <Upload className="h-4 w-4" />
@@ -3284,7 +3284,7 @@ export default function ShipmentManagementPage() {
                             setShipmentDateFrom(formatPickerDateInputValue(range?.from))
                             setShipmentDateTo(formatPickerDateInputValue(range?.to))
                           }}
-                          className="h-9 w-full"
+                          className="h-10 w-full"
                         />
                       </div>
                       <Button

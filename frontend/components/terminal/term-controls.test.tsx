@@ -24,14 +24,14 @@ describe('term-controls 控件基类（BLF-838）', () => {
     expect(TERM_INPUT).toContain('border-term-border')
   })
 
-  it('TERM_BUTTON：h-8 工具行档位 + mono 文本', () => {
-    expect(TERM_BUTTON).toContain('h-8')
+  it('TERM_BUTTON：h-9 工具行档位（BLF-887 上档）+ mono 文本', () => {
+    expect(TERM_BUTTON).toContain('h-9')
     expect(TERM_BUTTON).toContain('rounded-none')
     expect(TERM_BUTTON).toContain('font-mono')
   })
 
-  it('TERM_SELECT_NATIVE：h-8 + 零圆角原生 select 基类', () => {
-    expect(TERM_SELECT_NATIVE).toContain('h-8')
+  it('TERM_SELECT_NATIVE：h-9 + 零圆角原生 select 基类（BLF-887 上档）', () => {
+    expect(TERM_SELECT_NATIVE).toContain('h-9')
     expect(TERM_SELECT_NATIVE).toContain('rounded-none')
   })
 

@@ -78,7 +78,7 @@ const LazyCalendarView = dynamic(
       <div className="dashboard-surface space-y-3 rounded-xl p-4">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-10 w-24" />
         </div>
         <Skeleton className="h-[400px] w-full rounded-lg" />
       </div>
@@ -891,7 +891,7 @@ export default function InventoryReplenishmentPage() {
         widthClass={TERM_HEADER_W_MD}
         title="项目筛选"
       />
-      {/* 关键词输入：Input lg 档即 h-9 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐 */}
+      {/* 关键词输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
       <Input
         size="lg"
         value={keyword}
@@ -1193,7 +1193,7 @@ export default function InventoryReplenishmentPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9 px-3 sm:px-4 w-full sm:w-auto"
+              className="h-10 px-3 sm:px-4 w-full sm:w-auto"
               disabled={loading || exporting || filteredRows.length === 0}
               onClick={() => void exportToExcel()}
             >

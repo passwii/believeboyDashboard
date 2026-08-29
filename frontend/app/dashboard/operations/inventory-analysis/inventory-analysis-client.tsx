@@ -518,7 +518,7 @@ export default function InventoryAnalysisPage() {
   const filterControls = (
     <>
       <Select value={projectId} onValueChange={setProjectId}>
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
+        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
           <SelectValue placeholder="请选择项目" />
         </SelectTrigger>
         <SelectContent>
@@ -532,7 +532,7 @@ export default function InventoryAnalysisPage() {
       <CountrySelect
         value={country}
         onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-        triggerClassName="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[160px]"
+        triggerClassName="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[160px]"
       />
       <Select
         value={selectedSnapshotDate}
@@ -540,7 +540,7 @@ export default function InventoryAnalysisPage() {
         open={snapshotSelectOpen}
         onOpenChange={setSnapshotSelectOpen}
       >
-        <SelectTrigger className="h-8 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[180px]">
+        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[180px]">
           <SelectValue placeholder="选择业务日期" />
         </SelectTrigger>
         <SelectContent>
@@ -554,7 +554,7 @@ export default function InventoryAnalysisPage() {
         </SelectContent>
       </Select>
       {/* 业务日期徽标：数据快照口径提示，非筛选控件 */}
-      <div className="flex h-8 items-center gap-1.5 border border-term-border bg-term-panel px-2">
+      <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
         <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
         <span className="truncate font-mono text-xs tabular-nums text-term-text">
           {reportDate ? formatBusinessDate(reportDate) : '--'}
@@ -720,7 +720,7 @@ export default function InventoryAnalysisPage() {
       </TermPanel>
 
       {/* 加载骨架（首次进入 / 项目切换时统计条同步占位） */}
-      {projectsLoading && <Skeleton className="hidden h-8 w-full rounded-none" />}
+      {projectsLoading && <Skeleton className="hidden h-10 w-full rounded-none" />}
     </div>
   )
 }

@@ -2762,7 +2762,7 @@ export default function PricingCalculationPage() {
                     variant="outline"
                     onClick={() => setSelectedRunIds([])}
                     disabled={selectedRunIds.length === 0}
-                    className="h-9 md:self-end"
+                    className="h-10 md:self-end"
                   >
                     清空
                   </Button>

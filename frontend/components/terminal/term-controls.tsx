@@ -4,22 +4,25 @@ import { cn } from '@/lib/utils'
 
 /**
  * BLF-838 · 批次 F（系统/AI/工具域）终端化共享原语。
- * 控件基类与 BLF-817/836/837 的 term-shared 同规格：h-8 工具行档 /
+ * 控件基类与 BLF-817/836/837 的 term-shared 同规格：h-9 工具行档 /
  * 零圆角 / 1px term 边界 / 等宽数值。
  *
  * 本批次为全站收官批，原语上收到 `components/terminal/`，供三域页面共用；
  * 后续新页面一律从这里取控件基类，不再各域复制。
+ *
+ * BLF-887（2026-08-29）高度整体上档：工具行 h-8→h-9、Tab 栏 h-9→h-10、
+ * Tab 钮 h-7→h-8、表格行 h-9→h-10。
  */
 
 export const TERM_TRIGGER =
-  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
+  'h-9 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
 export const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
 export const TERM_INPUT =
-  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-9 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
 export const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 export const TERM_SELECT_NATIVE =
-  'h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs leading-5 text-term-text shadow-none transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'h-9 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs leading-5 text-term-text shadow-none transition-colors focus:outline-none focus:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 /** 终端语义色（涨跌/状态微语义，去彩色胶囊底）。 */
 export type TermTone = 'pos' | 'neg' | 'warn' | 'accent' | 'info' | 'muted'
@@ -69,7 +72,7 @@ export function TermPageShell({ children, className }: { children: React.ReactNo
   return <div className={cn('flex min-w-0 flex-col gap-2 rounded-none', className)}>{children}</div>
 }
 
-/** 工具行：h-8 控件带，右对齐操作区；移动端允许换行。 */
+/** 工具行：h-9 控件带，右对齐操作区；移动端允许换行。 */
 export function TermToolbarRow({
   left,
   right,
@@ -87,7 +90,7 @@ export function TermToolbarRow({
   )
 }
 
-/** 页内 Tab 切换（portfolio-overview 同款 h-9 标题带规格，激活态 term-raised）。 */
+/** 页内 Tab 切换（h-10 标题带规格，BLF-887 上档；激活态 term-raised）。 */
 export function TermTabBar<T extends string>({
   tabs,
   active,
@@ -102,7 +105,7 @@ export function TermTabBar<T extends string>({
   return (
     <div
       role="tablist"
-      className={cn('flex h-9 shrink-0 items-center gap-1 rounded-none border-b border-term-border px-0', className)}
+      className={cn('flex h-10 shrink-0 items-center gap-1 rounded-none border-b border-term-border px-0', className)}
     >
       {tabs.map((tab) => (
         <button
@@ -113,8 +116,8 @@ export function TermTabBar<T extends string>({
           role="tab"
           className={
             active === tab.key
-              ? 'h-7 rounded-none border border-term-border bg-term-raised px-2 font-mono text-xs leading-5 font-semibold text-term-text shadow-none'
-              : 'h-7 rounded-none border border-transparent px-2 text-xs leading-5 text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:border-term-border'
+              ? 'h-8 rounded-none border border-term-border bg-term-raised px-2 font-mono text-xs leading-5 font-semibold text-term-text shadow-none'
+              : 'h-8 rounded-none border border-transparent px-2 text-xs leading-5 text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:border-term-border'
           }
         >
           {tab.label}

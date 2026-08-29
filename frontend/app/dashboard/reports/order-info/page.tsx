@@ -130,15 +130,15 @@ const DEFAULT_PROJECT_VALUE = '__all__'
 const COLUMN_COUNT = 13
 
 /**
- * BLF-817 终端化控件基类（Stage 3：与全局 term-controls h-8 终端档对齐）。
+ * BLF-817 终端化控件基类（Stage 3；BLF-887 高度上档：与全局 term-controls h-9 终端档对齐）。
  */
 const TERM_TRIGGER =
-  'h-8 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
+  'h-9 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
 const TERM_SELECT_ITEM = 'rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text'
 const TERM_INPUT =
-  'h-8 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
+  'h-9 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
 const TERM_BUTTON =
-  'flex h-8 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
+  'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 // ======================== 工具函数 ========================
 
@@ -777,7 +777,7 @@ export default function OrderInfoPage() {
         </div>
       )}
 
-      {/* ====== Console 工具栏：筛选控件全部 h-8 终端化 ====== */}
+      {/* ====== Console 工具栏：筛选控件全部 h-9 终端化（BLF-887 上档） ====== */}
       <div className="flex shrink-0 flex-wrap items-center gap-1 border border-term-border bg-term-panel p-1.5">
         <Select
           value={projectId}
@@ -847,7 +847,7 @@ export default function OrderInfoPage() {
             setPage(1)
           }}
           placeholder="下单 PT 日期范围"
-          className="h-8 w-[230px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
+          className="h-10 w-[230px] justify-start rounded-none border-term-border bg-term-bg px-2 text-left font-mono text-xs font-normal text-term-text"
         />
 
         <div className="relative">

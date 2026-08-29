@@ -120,8 +120,8 @@ describe('header-filter-suite', () => {
     expect(document.body.textContent).toContain('英国站 (UK)')
   })
 
-  it('Stage 4 三区常量：TERM_HEADER_TRIGGER / 4 档宽度 / 弹层 tokens 单源收敛', () => {
-    expect(TERM_HEADER_TRIGGER).toContain('h-9')
+  it('Stage 4 三区常量：TERM_HEADER_TRIGGER / 4 档宽度 / 弹层 tokens 单源收敛（BLF-887 上档 h-10）', () => {
+    expect(TERM_HEADER_TRIGGER).toContain('h-10')
     expect(TERM_HEADER_TRIGGER).toContain('border-term-border')
     expect(TERM_HEADER_W_SM).toBe('w-[130px]')
     expect(TERM_HEADER_W_MD).toBe('w-[150px]')

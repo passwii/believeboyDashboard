@@ -465,7 +465,7 @@ export function AgentManagementClient() {
       <div className="flex justify-end">
         <Button
           onClick={() => setCreateOpen(true)}
-          className="h-8 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+          className="h-9 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
         >
           创建凭据
         </Button>
@@ -569,7 +569,7 @@ export function AgentManagementClient() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value as KeyStatus | 'all')}
-                    className="h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text"
+                    className="h-9 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text"
                     aria-label="按状态筛选"
                   >
                     <option value="all">全部状态</option>
@@ -580,7 +580,7 @@ export function AgentManagementClient() {
                   <select
                     value={domainFilter}
                     onChange={(e) => setDomainFilter(e.target.value)}
-                    className="h-8 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text focus:outline-none focus:border-term-border-strong"
+                    className="h-9 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text focus:outline-none focus:border-term-border-strong"
                     aria-label="按业务域筛选"
                   >
                     <option value="all">全部业务域</option>
