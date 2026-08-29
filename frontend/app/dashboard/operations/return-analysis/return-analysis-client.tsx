@@ -740,53 +740,52 @@ export default function ReturnAnalysisPage() {
         </div>
       )}
 
-      {/* Tab 工作区：卡片头 = 标题 + 导出 + TabsList（daily-analysis 蓝图） */}
+      {/* Tab 导航条独立于工作区卡片之外（不再嵌在卡头内，对齐 shipment-management / sku-info
+          的外置 tab 布局）；卡头仅保留 标题 + 导出 */}
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ViewTab)}
-        className="w-full"
+        className="w-full space-y-4"
       >
+        <TabsMotionGroup id="return-analysis-tabs">
+          <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
+            {VIEW_TAB_ORDER.map((tab) => {
+              const Icon = TAB_ICONS[tab]
+              return (
+                <SlidingTabsTrigger
+                  key={tab}
+                  value={tab}
+                  activeValue={activeTab}
+                  layoutId="return-analysis-tab-indicator"
+                  variant="term"
+                >
+                  <Icon aria-hidden />
+                  {TAB_LABELS[tab]}
+                </SlidingTabsTrigger>
+              )
+            })}
+          </TabsList>
+        </TabsMotionGroup>
         <DataTableCard className="relative">
-          <DataTableCardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-foreground sm:text-base">
-                退货分析工作区
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handleExportExcel()}
-                disabled={exporting || loading || !data}
-                className="h-10 w-full px-3 sm:w-auto sm:px-4"
-              >
-                {exporting ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-1.5 h-4 w-4" />
-                )}
-                导出 Excel
-              </Button>
+          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4 sm:px-6">
+            <div className="text-sm font-semibold text-foreground sm:text-base">
+              退货分析工作区
             </div>
-            <TabsMotionGroup id="return-analysis-tabs">
-              <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
-                {VIEW_TAB_ORDER.map((tab) => {
-                  const Icon = TAB_ICONS[tab]
-                  return (
-                    <SlidingTabsTrigger
-                      key={tab}
-                      value={tab}
-                      activeValue={activeTab}
-                      layoutId="return-analysis-tab-indicator"
-                      variant="term"
-                    >
-                      <Icon aria-hidden />
-                      {TAB_LABELS[tab]}
-                    </SlidingTabsTrigger>
-                  )
-                })}
-              </TabsList>
-            </TabsMotionGroup>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleExportExcel()}
+              disabled={exporting || loading || !data}
+              className="h-10 w-full px-3 sm:w-auto sm:px-4"
+            >
+              {exporting ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-4 w-4" />
+              )}
+              导出 Excel
+            </Button>
           </DataTableCardHeader>
           <DataTableCardBody>
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>

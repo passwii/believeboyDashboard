@@ -197,6 +197,28 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(screen.getByRole('button', { name: /导出 Excel/ })).toBeInTheDocument()
   })
 
+  it('Tab 导航条外置：TabsList 不嵌在工作区卡片内部，且位于卡片之前', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    const tabList = container.querySelector('[role="tablist"]')
+    expect(tabList).not.toBeNull()
+    expect(tabList).toContainElement(screen.getByRole('tab', { name: /高退货排行/ }))
+
+    // 定位工作区卡片：从卡头标题向上找到的第一个同时包含表格的祖先（DataTableCard）
+    const title = screen.getByText('退货分析工作区')
+    const table = container.querySelector('table')
+    expect(table).not.toBeNull()
+    let card: HTMLElement | null = title
+    while (card && !card.contains(table)) card = card.parentElement
+    expect(card).not.toBeNull()
+
+    // 外置契约：tab 条不在卡片内部，且整卡位于 tab 条之后（旧结构嵌在卡头内，此断言会失败）
+    expect(card).not.toContainElement(tabList)
+    expect(
+      (tabList as Node).compareDocumentPosition(card as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('页内重复刷新按钮已移除（全局唯一入口）', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
