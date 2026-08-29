@@ -194,7 +194,7 @@ export function ReportUploadDropzone({
                             </p>
                           ) : isDateRequired(item.reportType) ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                              <span className="text-xs text-term-warn">
                                 日期：
                               </span>
                               <input
@@ -208,10 +208,10 @@ export function ReportUploadDropzone({
                         </>
                       ) : null}
                       {item.error ? (
-                        <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p>
+                        <p className="text-xs text-term-neg">{item.error}</p>
                       ) : null}
                       {item.commitError ? (
-                        <p className="text-xs text-rose-600 dark:text-rose-300">
+                        <p className="text-xs text-term-neg">
                           {item.commitError}
                         </p>
                       ) : null}
@@ -224,13 +224,13 @@ export function ReportUploadDropzone({
                         <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
-                        <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                        <XCircle className="h-4 w-4 text-term-neg" />
                       ) : null}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => onRemove(item.localId)}
-                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
+                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-term-neg/10 hover:text-term-neg"
                       >
                         <XCircle className="h-4 w-4" />
                         <span className="sr-only">remove</span>

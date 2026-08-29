@@ -12,8 +12,8 @@ const STATUS_COLORS: Record<DigitalEmployeeStatus, string> = {
   IDLE: 'bg-muted',
   RUNNING: 'bg-blue-500',
   SUCCEEDED: 'bg-emerald-500',
-  FAILED: 'bg-red-500',
-  SUSPENDED: 'bg-amber-500',
+  FAILED: 'bg-term-neg',
+  SUSPENDED: 'bg-term-warn',
 }
 
 export function ProgressBar({ value, status, size = 'md' }: ProgressBarProps) {

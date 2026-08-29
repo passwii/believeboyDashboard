@@ -226,12 +226,12 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
   })
 
-  it('整体退货率语义色：>8% 走 rose（neg）', async () => {
+  it('整体退货率语义色：>8% 走 term-neg', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('整体退货率')
-    // 8.4% > 8 → rose
+    // 8.4% > 8 → term-neg
     const rateEl = screen.getByText('8.4%')
-    expect(rateEl.className).toMatch(/rose/)
+    expect(rateEl.className).toMatch(/term-neg/)
   })
 
   it('无旧风格残留：面板零圆角、term 边界', async () => {

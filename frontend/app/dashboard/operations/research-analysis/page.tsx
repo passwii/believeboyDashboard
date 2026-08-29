@@ -596,8 +596,8 @@ function normalizeRiskLevel(level: string | undefined): AlertLevel {
 }
 
 function alertBadgeClass(level: AlertLevel) {
-  if (level === 'high') return 'border-rose-300 bg-rose-50 text-rose-700'
-  if (level === 'medium') return 'border-amber-300 bg-amber-50 text-amber-700'
+  if (level === 'high') return 'border-term-neg/30 bg-term-neg/5 text-term-neg'
+  if (level === 'medium') return 'border-term-warn/30 bg-term-warn/5 text-term-warn'
   return 'border-emerald-300 bg-emerald-50 text-emerald-700'
 }
 
@@ -679,7 +679,7 @@ function trendValueClass(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value))
     return 'text-muted-foreground'
   if (value > 0) return 'text-emerald-600'
-  if (value < 0) return 'text-rose-600'
+  if (value < 0) return 'text-term-neg'
   return 'text-muted-foreground'
 }
 
@@ -1619,7 +1619,7 @@ function MetricGridCard({
                 className={cn(
                   'mt-1 text-lg font-semibold',
                   item.tone === 'positive' && 'text-emerald-600',
-                  item.tone === 'negative' && 'text-rose-600'
+                  item.tone === 'negative' && 'text-term-neg'
                 )}
               >
                 {item.value}
@@ -2562,7 +2562,7 @@ export default function CategoryResearchPage() {
                     </Button>
                   </div>
 
-                  {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
+                  {formError ? <p className="text-sm text-term-neg">{formError}</p> : null}
                   {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
                 </div>
               </div>
@@ -2758,7 +2758,7 @@ export default function CategoryResearchPage() {
                     </div>
                   </div>
 
-                  {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
+                  {formError ? <p className="text-sm text-term-neg">{formError}</p> : null}
                   {formSuccess ? <p className="text-sm text-emerald-600">{formSuccess}</p> : null}
 
                   {(keywordLoading && availableKeywords.length > 0) ||
@@ -3060,7 +3060,7 @@ export default function CategoryResearchPage() {
                               <p
                                 className={cn(
                                   'mt-1 text-2xl font-semibold',
-                                  item.value > 0 ? 'text-amber-600' : 'text-emerald-600'
+                                  item.value > 0 ? 'text-term-warn' : 'text-emerald-600'
                                 )}
                               >
                                 {formatNumber(item.value)}

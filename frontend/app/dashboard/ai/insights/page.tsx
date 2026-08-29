@@ -448,7 +448,7 @@ function GenerationProgress({
                                 )}
                               {detail.out_of_stock_count !== undefined &&
                                 detail.out_of_stock_count > 0 && (
-                                  <span className="inline-block text-amber-500">
+                                  <span className="inline-block text-term-warn">
                                     缺货 {detail.out_of_stock_count}
                                   </span>
                                 )}

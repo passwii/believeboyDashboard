@@ -802,8 +802,8 @@ export function ShopCalculationUsSection({
     <div className="space-y-3">
       {/* Snapshot loading error banner */}
       {snapshotError && (
-        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-amber-900 font-bold">
+        <div className="flex items-center gap-2 rounded-md border border-term-warn/30 bg-term-warn/5 px-3 py-2 text-xs text-term-warn">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-term-warn/30 text-term-warn font-bold">
             !
           </span>
           <span>{snapshotError}</span>

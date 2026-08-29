@@ -412,8 +412,7 @@ function statusMeta(status: string): { label: string; className: string } {
     },
     in_transit: {
       label: '在途',
-      className:
-        'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300',
+      className: 'border border-term-accent/30 bg-term-accent/10 text-term-accent',
     },
     completed: {
       label: '已完成',
@@ -447,13 +446,11 @@ function countryMeta(country: string): { label: string; className: string } {
     },
     UK: {
       label: 'UK',
-      className:
-        'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300',
+      className: 'border border-term-accent/30 bg-term-accent/10 text-term-accent',
     },
     DE: {
       label: 'DE',
-      className:
-        'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300',
+      className: 'border border-term-warn/30 bg-term-warn/10 text-term-warn',
     },
   }
   return (
@@ -614,7 +611,7 @@ function SearchableSkuField({
                       </span>
                     )}
                     {missingUnits && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      <span className="shrink-0 rounded bg-term-warn/10 px-1 py-0.5 text-[10px] font-medium text-term-warn">
                         未维护单箱数
                       </span>
                     )}
@@ -4242,12 +4239,12 @@ export default function ShipmentManagementPage() {
                   </div>
                 </div>
                 {hasPendingItemChanges ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+                  <div className="rounded-2xl border border-term-warn/30 bg-term-warn/5 px-4 py-3 text-sm text-term-warn">
                     SKU 明细已修改，先点保存，再执行核算。
                   </div>
                 ) : null}
                 {costPreviewError ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
+                  <div className="rounded-2xl border border-term-neg/30 bg-term-neg/5 px-4 py-3 text-sm text-term-neg">
                     {costPreviewError}
                   </div>
                 ) : null}
@@ -4328,7 +4325,7 @@ export default function ShipmentManagementPage() {
                                   item.sku &&
                                   selectedSku &&
                                   (selectedSku.units_per_carton ?? 0) <= 0 ? (
-                                    <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                                    <p className="mt-0.5 text-[10px] text-term-warn">
                                       ⚠️ 该 SKU 未维护装箱率，请先在 SKU 信息中补充
                                     </p>
                                   ) : null}

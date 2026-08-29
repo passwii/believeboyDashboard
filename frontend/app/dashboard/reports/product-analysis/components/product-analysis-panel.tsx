@@ -283,8 +283,8 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     if (hasData) return 'bg-emerald-500'
     if (isPeriodicOnly)
       return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
-    if (isObjectiveEmpty) return 'bg-amber-500'
-    return 'bg-rose-500'
+    if (isObjectiveEmpty) return 'bg-term-warn'
+    return 'bg-term-neg'
   }
 
   const getCellIcon = (
@@ -326,11 +326,11 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           <span className="text-muted-foreground">周期性兜底</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-amber-500" />
+          <div className="h-3 w-3 rounded-none bg-term-warn" />
           <span className="text-muted-foreground">已导入但客观无数据</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-rose-500" />
+          <div className="h-3 w-3 rounded-none bg-term-neg" />
           <span className="text-muted-foreground">缺失</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -486,7 +486,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                 title={isMissing ? `库存报告 缺少 ${d}` : `库存报告 ${d} 有数据`}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-term-border py-2.5 transition-colors',
-                  isMissing ? 'bg-rose-500' : 'bg-emerald-500'
+                  isMissing ? 'bg-term-neg' : 'bg-emerald-500'
                 )}
               >
                 {isMissing ? (
@@ -1017,7 +1017,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                           )}
                           {period.is_partial && period.completeness && (
                             <span
-                              className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium leading-none text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                              className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-term-warn/10 px-1 py-0.5 text-[10px] font-medium leading-none text-term-warn"
                               title={`数据不完整：业务报告 ${period.completeness.available_business_days}/${period.completeness.total_days} 天，广告报告 ${period.completeness.available_ad_days}/${period.completeness.total_days} 天${period.completeness.payment_missing ? '，缺少付款数据' : ''}`}
                             >
                               <AlertTriangle className="h-3 w-3" />

@@ -277,8 +277,7 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
   const map: Record<string, { label: string; className: string }> = {
     长期断货: {
       label: '长期断货',
-      className:
-        'border-rose-300 bg-rose-200 text-rose-800 dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200',
+      className: 'border-term-neg/30 bg-term-neg/20 text-term-neg',
     },
     短期断货: {
       label: '短期断货',
@@ -287,8 +286,7 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
     },
     断货风险: {
       label: '断货风险',
-      className:
-        'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+      className: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
     },
     健康库存: {
       label: '健康库存',
@@ -297,8 +295,7 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
     },
     滞销: {
       label: '滞销',
-      className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+      className: 'border-term-warn/30 bg-term-warn/10 text-term-warn',
     },
     严重滞销: {
       label: '严重滞销',
@@ -325,8 +322,7 @@ function stateMeta(state: string | undefined): { label: string; className: strin
   const map: Record<string, { label: string; className: string }> = {
     critical: {
       label: '危险',
-      className:
-        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+      className: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
     },
     deteriorating: {
       label: '趋势转差',
@@ -335,8 +331,7 @@ function stateMeta(state: string | undefined): { label: string; className: strin
     },
     watch: {
       label: '关注',
-      className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+      className: 'border-term-warn/30 bg-term-warn/10 text-term-warn',
     },
     healthy: {
       label: '健康',
@@ -362,18 +357,15 @@ function actionMeta(action: string | undefined): { label: string; className: str
   const map: Record<string, { label: string; className: string }> = {
     REPLENISH_NOW: {
       label: '紧急补货',
-      className:
-        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+      className: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
     },
     REPLENISH_NORMAL: {
       label: '按计划补货',
-      className:
-        'border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300',
+      className: 'border-term-accent/30 bg-term-accent/10 text-term-accent',
     },
     HOLD: {
       label: '暂停补货',
-      className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+      className: 'border-term-warn/30 bg-term-warn/10 text-term-warn',
     },
     REDUCE_PRICE: {
       label: '降价清货',
@@ -409,13 +401,11 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     },
     preparing: {
       label: '备货中',
-      className:
-        'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300',
+      className: 'border border-term-warn/30 bg-term-warn/10 text-term-warn',
     },
     in_transit: {
       label: '在途',
-      className:
-        'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300',
+      className: 'border border-term-accent/30 bg-term-accent/10 text-term-accent',
     },
     arrived_port: {
       label: '已到港',
@@ -424,8 +414,7 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     },
     inbound_processing: {
       label: '入仓处理中',
-      className:
-        'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300',
+      className: 'border border-term-accent/30 bg-term-accent/10 text-term-accent',
     },
     completed: {
       label: '完成',
@@ -434,8 +423,7 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     },
     cancelled: {
       label: '取消',
-      className:
-        'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300',
+      className: 'border border-term-neg/30 bg-term-neg/10 text-term-neg',
     },
   }
   return (
@@ -1408,7 +1396,7 @@ export default function InventoryReplenishmentPage() {
                               return (
                                 <TableRow
                                   key={key}
-                                  className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20"
+                                  className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-term-accent/5/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))]"
                                 >
                                   <TableCell
                                     className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
@@ -1956,7 +1944,7 @@ export default function InventoryReplenishmentPage() {
                 按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为待补数据。
               </div>
               <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                   预计数量
                 </span>
                 按 <code>(生产交货时间 + 运输时间) × 加权DMS</code>{' '}
@@ -1964,7 +1952,7 @@ export default function InventoryReplenishmentPage() {
                 时显示。
               </div>
               <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+                <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                   销量来源
                 </span>
                 近 <code>30D / 14D / 7D / 3D</code> 全部改为取 <code>sales_report</code> 明细，其中{' '}
@@ -1979,7 +1967,7 @@ export default function InventoryReplenishmentPage() {
                 权重全部并给 <code>7D</code>。
               </div>
               <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                <span className="mr-2 inline-flex rounded-md bg-term-warn/10 px-2 py-0.5 text-xs font-medium text-term-warn">
                   窗口示例
                 </span>
                 若今天是 <code>2026-03-09</code>，则 <code>3D</code> 取 <code>2026-03-05</code> 到{' '}

@@ -113,7 +113,7 @@ export function CrmCategoryField({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
               ) : loadError ? (
-                <div className="space-y-2 px-2 py-3 text-sm text-rose-600 dark:text-rose-400">
+                <div className="space-y-2 px-2 py-3 text-sm text-term-neg">
                   <p>{loadError}</p>
                   <Button variant="outline" size="sm" onClick={() => void load()}>
                     重试

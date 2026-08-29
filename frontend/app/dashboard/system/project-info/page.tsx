@@ -107,9 +107,9 @@ const TIER_OPTIONS = [
 const TIER_LABEL: Record<string, string> = { T1: 'T1', T2: 'T2', T3: 'T3', T4: 'T4' }
 
 const TIER_BADGE_CLASS: Record<string, string> = {
-  T1: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300',
+  T1: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
   T2: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',
-  T3: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  T3: 'border-term-warn/30 bg-term-warn/10 text-term-warn',
   T4: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
 }
 

@@ -381,7 +381,7 @@ export function AdAnalysisCampaignsClient() {
                   </div>
                   <div>
                     <span className="font-mono text-xs text-term-muted">预算缺口</span>
-                    <div className="font-medium text-amber-600">${item.budget_gap.toFixed(2)}</div>
+                    <div className="font-medium text-term-warn">${item.budget_gap.toFixed(2)}</div>
                   </div>
                   <div>
                     <span className="font-mono text-xs text-term-muted">关联销售</span>
@@ -391,7 +391,7 @@ export function AdAnalysisCampaignsClient() {
 
                 {/* 错失销售 */}
                 {item.missed_sales_max > 0 && (
-                  <div className="text-xs text-amber-600">
+                  <div className="text-xs text-term-warn">
                     错失销售: ${item.missed_sales_max.toFixed(2)}
                   </div>
                 )}

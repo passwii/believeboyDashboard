@@ -463,14 +463,14 @@ export default function InspectionForm({
         <div className="space-y-4 py-4 animate-fade-slide-up">
           {/* Threshold warnings */}
           {warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+            <div className="rounded-lg border border-term-warn/30 bg-term-warn/5 p-4">
+              <div className="flex items-center gap-2 text-term-warn">
                 <AlertTriangle className="h-5 w-5" />
                 <span className="font-medium">检测到 {warnings.length} 个指标异常</span>
               </div>
               <div className="mt-2 space-y-1">
                 {warnings.map((w, i) => (
-                  <p key={i} className="text-sm text-amber-600 dark:text-amber-500">
+                  <p key={i} className="text-sm text-term-warn">
                     {w.message} (阈值: {w.threshold})
                   </p>
                 ))}

@@ -206,7 +206,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
       </DataTableCard>
 
       {!isAdmin && operatorNames.length === 0 ? (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
+        <p className="text-xs text-term-warn">
           ⚠ 当前账号未设置运营名，列表为空。
         </p>
       ) : null}

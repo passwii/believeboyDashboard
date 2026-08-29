@@ -6,9 +6,9 @@ import type { ChatterEvent } from '@/lib/digital-employee/office-stream-types'
 /** 事件类型 → 样式映射 */
 const EVENT_STYLES: Record<string, string> = {
   task_completed: 'text-emerald-600 dark:text-emerald-400',
-  task_failed: 'text-red-600 dark:text-red-400',
+  task_failed: 'text-term-neg',
   task_started: 'text-blue-600 dark:text-blue-400',
-  pause_started: 'text-amber-600 dark:text-amber-400',
+  pause_started: 'text-term-warn',
   went_offline: 'text-muted-foreground',
   came_online: 'text-emerald-600 dark:text-emerald-400',
 }

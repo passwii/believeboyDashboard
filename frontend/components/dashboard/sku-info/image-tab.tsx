@@ -213,7 +213,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
                               size="sm"
                               onClick={() => handleDelete(sku)}
                               aria-label="删除"
-                              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              className="text-term-neg hover:bg-term-neg/5 hover:text-term-neg"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

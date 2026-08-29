@@ -28,9 +28,9 @@ const RESEND_STAGE_LABELS: Record<ResendStage, string> = {
 }
 
 const RESEND_STAGE_COLORS: Record<ResendStage, string> = {
-  preparing: 'text-amber-600 dark:text-amber-400',
-  fetching_data: 'text-sky-600 dark:text-sky-400',
-  generating_summary: 'text-violet-600 dark:text-violet-400',
+  preparing: 'text-term-warn',
+  fetching_data: 'text-term-accent',
+  generating_summary: 'text-term-accent',
   rendering_html: 'text-blue-600 dark:text-blue-400',
   capturing_screenshot: 'text-orange-600 dark:text-orange-400',
   sending: 'text-purple-600 dark:text-purple-400',

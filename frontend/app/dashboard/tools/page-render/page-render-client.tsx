@@ -399,7 +399,7 @@ export default function PageRenderClient() {
                             size="sm"
                             onClick={() => handleDelete(row)}
                             title="删除"
-                            className="text-rose-600 hover:text-rose-700 dark:text-rose-400"
+                            className="text-term-neg hover:text-term-neg"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>

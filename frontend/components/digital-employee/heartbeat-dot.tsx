@@ -26,8 +26,8 @@ export function HeartbeatDot({ lastSeen, showLabel = true }: HeartbeatDotProps) 
     if (minutes === null) return 'bg-muted'
     if (minutes < 1) return 'bg-emerald-500'
     if (minutes < 5) return 'bg-blue-500'
-    if (minutes < 30) return 'bg-amber-500'
-    return 'bg-red-500'
+    if (minutes < 30) return 'bg-term-warn'
+    return 'bg-term-neg'
   }, [minutes])
 
   const label = minutes !== null ? formatRelativeTime(minutes) : '无数据'

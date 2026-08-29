@@ -178,9 +178,9 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
 
   if (error && insights.length === 0) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-red-500 mb-3" />
-        <p className="text-sm text-red-600 mb-4">{error}</p>
+      <div className="rounded-lg border border-term-neg/30 bg-term-neg/5 p-6 text-center">
+        <AlertTriangle className="mx-auto h-8 w-8 text-term-neg mb-3" />
+        <p className="text-sm text-term-neg mb-4">{error}</p>
         <Button variant="outline" size="sm" onClick={loadInsights}>
           重试
         </Button>
@@ -203,7 +203,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-700 flex items-center gap-2">
+        <div className="rounded-lg bg-term-warn/5 border border-term-warn/30 px-4 py-2 text-sm text-term-warn flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
           <button className="ml-auto text-xs underline" onClick={() => setError(null)}>
@@ -307,7 +307,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                             handleDelete(item)
                           }}
                           disabled={actionLoading === item.id}
-                          className="text-red-600 focus:text-red-600"
+                          className="text-term-neg focus:text-term-neg"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           删除

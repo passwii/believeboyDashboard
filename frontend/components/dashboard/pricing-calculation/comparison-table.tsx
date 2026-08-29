@@ -37,18 +37,18 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
   const sectionStyles: Record<string, { categoryCell: string; subCell: string }> = {
     货品数据: {
       categoryCell:
-        'border-sky-200 bg-sky-100 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100',
-      subCell: 'bg-sky-50 dark:bg-sky-950',
+        'border-term-accent/30 bg-term-accent/10 text-term-accent',
+      subCell: 'bg-term-accent/5',
     },
     'DDP 成本': {
       categoryCell:
-        'border-amber-200 bg-amber-100 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
-      subCell: 'bg-amber-50 dark:bg-amber-950',
+        'border-term-warn/30 bg-term-warn/10 text-term-warn',
+      subCell: 'bg-term-warn/5',
     },
     费用支出: {
       categoryCell:
-        'border-rose-200 bg-rose-100 text-rose-950 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-100',
-      subCell: 'bg-rose-50 dark:bg-rose-950',
+        'border-term-neg/30 bg-term-neg/10 text-term-neg',
+      subCell: 'bg-term-neg/5',
     },
     售价与利润: {
       categoryCell:
@@ -57,8 +57,8 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
     },
     核算规则: {
       categoryCell:
-        'border-violet-200 bg-violet-100 text-violet-950 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-100',
-      subCell: 'bg-violet-50 dark:bg-violet-950',
+        'border-term-accent/30 bg-term-accent/10 text-term-accent',
+      subCell: 'bg-term-accent/5',
     },
   }
 

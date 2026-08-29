@@ -393,17 +393,17 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                 key={item.label}
                 className={cn(
                   'flex items-center gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-2',
-                  item.alert && 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30'
+                  item.alert && 'border-term-neg/30 bg-term-neg/5'
                 )}
               >
                 <item.icon
-                  className={cn('h-4 w-4 text-muted-foreground', item.alert && 'text-red-500')}
+                  className={cn('h-4 w-4 text-muted-foreground', item.alert && 'text-term-neg')}
                 />
                 <span className="text-xs text-muted-foreground">{item.label}</span>
                 <span
                   className={cn(
                     'text-sm font-semibold text-foreground',
-                    item.alert && 'text-red-600 dark:text-red-400'
+                    item.alert && 'text-term-neg'
                   )}
                 >
                   {item.value}
@@ -423,19 +423,19 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
               <span>健康库存</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded bg-amber-500" />
+              <span className="h-3 w-4 rounded bg-term-warn" />
               <span>滞销警告</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded bg-red-500" />
+              <span className="h-3 w-4 rounded bg-term-neg" />
               <span>断货风险</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-3 w-4 rounded border-2 border-red-500 bg-transparent" />
+              <span className="h-3 w-4 rounded border-2 border-term-neg bg-transparent" />
               <span>预计断货日</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-3 w-4 border-b-2 border-dashed border-violet-500" />
+              <span className="h-3 w-4 border-b-2 border-dashed border-term-accent" />
               <span>今日</span>
             </div>
           </div>
@@ -482,7 +482,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                             className={cn(
                               'relative flex-shrink-0 border-r border-border/30 py-2 text-center text-[10px]',
                               marker.isToday &&
-                                'bg-violet-100/50 font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+                                'bg-term-accent/10 font-semibold text-term-accent',
                               marker.isWeekend && 'bg-muted/30'
                             )}
                             style={{ width: chartData.dayWidth }}
@@ -517,9 +517,9 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                               className={cn(
                                 'shrink-0 text-[10px]',
                                 item.is_critical &&
-                                  'border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300',
+                                  'border-term-neg/30 bg-term-neg/10 text-term-neg',
                                 item.is_slow_moving &&
-                                  'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300',
+                                  'border-term-warn/30 bg-term-warn/10 text-term-warn',
                                 !item.is_critical &&
                                   !item.is_slow_moving &&
                                   'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground'
@@ -571,7 +571,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
 
                         {/* Today line */}
                         <div
-                          className="absolute top-0 h-full w-0 border-l-2 border-dashed border-violet-500"
+                          className="absolute top-0 h-full w-0 border-l-2 border-dashed border-term-accent"
                           style={{ left: chartData.todayX - 1 }}
                         />
 
@@ -610,9 +610,9 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                                 className={cn(
                                   'absolute top-1 h-10 w-0 cursor-pointer border-l-2',
                                   item.is_critical
-                                    ? 'border-red-500'
+                                    ? 'border-term-neg/50'
                                     : item.is_slow_moving
-                                      ? 'border-amber-500'
+                                      ? 'border-term-warn/50'
                                       : 'border-gray-400'
                                 )}
                                 style={{ left: item.selloutX - 1 }}
@@ -621,9 +621,9 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                                   className={cn(
                                     'absolute -top-1 left-1/2 -translate-x-1/2 rounded-full border-2 px-1.5 py-0.5 text-[9px] font-semibold',
                                     item.is_critical &&
-                                      'border-red-500 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                                      'border-term-neg/50 bg-term-neg/10 text-term-neg',
                                     item.is_slow_moving &&
-                                      'border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+                                      'border-term-warn/50 bg-term-warn/10 text-term-warn',
                                     !item.is_critical &&
                                       !item.is_slow_moving &&
                                       'border-gray-400 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'

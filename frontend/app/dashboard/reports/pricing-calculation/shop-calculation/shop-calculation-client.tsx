@@ -801,8 +801,8 @@ export default function ShopCalculationPage() {
                           : stats.passRate >= 50
                             ? 'text-emerald-600 dark:text-emerald-400'
                             : stats.passRate >= 25
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-rose-600 dark:text-rose-400'
+                              ? 'text-term-warn'
+                              : 'text-term-neg'
                       )}
                     >
                       {hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}

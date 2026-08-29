@@ -153,7 +153,7 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                 </TabsContent>
               </Tabs>
               {missingName && (
-                <p className="text-sm text-rose-600" role="alert">
+                <p className="text-sm text-term-neg" role="alert">
                   缺少「客户名」列，无法解析，请检查表头。
                 </p>
               )}
@@ -186,18 +186,18 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                       const err = rowIssues.find((x) => x.level === 'error')
                       const warn = rowIssues.find((x) => x.level === 'warn')
                       return (
-                        <tr key={i} className={err ? 'bg-rose-50 dark:bg-rose-950/30' : undefined}>
+                        <tr key={i} className={err ? 'bg-term-neg/5' : undefined}>
                           <td className="px-2 py-1 text-muted-foreground">{i + 1}</td>
                           <td className="px-2 py-1">
-                            {r.name || <span className="text-rose-600">（空）</span>}
+                            {r.name || <span className="text-term-neg">（空）</span>}
                           </td>
                           <td className="px-2 py-1">{r.rating ?? '-'}</td>
                           <td className="px-2 py-1">{r.contactName ?? '-'}</td>
                           <td className="px-2 py-1">
                             {err ? (
-                              <span className="text-rose-600">{err.message}</span>
+                              <span className="text-term-neg">{err.message}</span>
                             ) : warn ? (
-                              <span className="text-amber-600">{warn.message}</span>
+                              <span className="text-term-warn">{warn.message}</span>
                             ) : (
                               <span className="text-emerald-600">✓</span>
                             )}
@@ -205,7 +205,7 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                           <td className="px-2 py-1">
                             <button
                               type="button"
-                              className="text-xs text-muted-foreground hover:text-rose-600"
+                              className="text-xs text-muted-foreground hover:text-term-neg"
                               onClick={() => removeRow(i)}
                             >
                               删除

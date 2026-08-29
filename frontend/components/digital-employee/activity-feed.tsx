@@ -190,9 +190,9 @@ const EVENT_STYLES: Record<
   },
   failed: {
     icon: '❌',
-    color: 'text-red-600 dark:text-red-400',
-    border: 'border-red-200 dark:border-red-800',
-    bg: 'bg-red-50 dark:bg-red-950/40',
+    color: 'text-term-neg',
+    border: 'border-term-neg/30',
+    bg: 'bg-term-neg/5',
     label: '失败',
   },
   heartbeat: {
@@ -291,7 +291,7 @@ function ActivityItem({ activity, compact }: { activity: ActivityEvent; compact?
           className={cn(
             'mt-1 text-sm leading-relaxed',
             activity.eventType === 'failed'
-              ? 'text-red-600 dark:text-red-400 font-medium'
+              ? 'text-term-neg font-medium'
               : 'text-foreground/80'
           )}
         >

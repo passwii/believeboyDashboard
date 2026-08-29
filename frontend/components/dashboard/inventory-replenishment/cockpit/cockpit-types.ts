@@ -126,10 +126,10 @@ export const STATE_THEME: Record<
   { rail: string; text: string; softBg: string; dot: string }
 > = {
   critical: {
-    rail: 'bg-rose-500',
-    text: 'text-rose-700 dark:text-rose-300',
-    softBg: 'bg-rose-100/70 dark:bg-rose-950/40',
-    dot: 'bg-rose-500',
+    rail: 'bg-term-neg',
+    text: 'text-term-neg',
+    softBg: 'bg-term-neg/10',
+    dot: 'bg-term-neg',
   },
   deteriorating: {
     rail: 'bg-orange-500',
@@ -138,10 +138,10 @@ export const STATE_THEME: Record<
     dot: 'bg-orange-500',
   },
   watch: {
-    rail: 'bg-amber-400',
-    text: 'text-amber-700 dark:text-amber-300',
-    softBg: 'bg-amber-100/70 dark:bg-amber-950/40',
-    dot: 'bg-amber-400',
+    rail: 'bg-term-warn',
+    text: 'text-term-warn',
+    softBg: 'bg-term-warn/10',
+    dot: 'bg-term-warn',
   },
   healthy: {
     rail: 'bg-emerald-500',
@@ -164,21 +164,21 @@ export const ACTION_THEME: Record<
 > = {
   REPLENISH_NOW: {
     badge:
-      'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300',
-    bar: 'bg-rose-500',
-    text: 'text-rose-700 dark:text-rose-300',
+      'border-term-neg/30 bg-term-neg/10 text-term-neg',
+    bar: 'bg-term-neg',
+    text: 'text-term-neg',
   },
   REPLENISH_NORMAL: {
     badge:
-      'border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300',
-    bar: 'bg-sky-500',
-    text: 'text-sky-700 dark:text-sky-300',
+      'border-term-accent/30 bg-term-accent/10 text-term-accent',
+    bar: 'bg-term-accent',
+    text: 'text-term-accent',
   },
   HOLD: {
     badge:
-      'border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-    bar: 'bg-amber-400',
-    text: 'text-amber-700 dark:text-amber-300',
+      'border-term-warn/30 bg-term-warn/10 text-term-warn',
+    bar: 'bg-term-warn',
+    text: 'text-term-warn',
   },
   REDUCE_PRICE: {
     badge:

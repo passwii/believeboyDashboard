@@ -226,7 +226,7 @@ export function CrmCategoryManager() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px] text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400"
+                        className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px] text-muted-foreground hover:text-term-neg"
                         onClick={() => setConfirmDelete(c.id)}
                         aria-label="删除"
                       >

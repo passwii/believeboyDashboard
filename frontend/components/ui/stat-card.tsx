@@ -23,16 +23,16 @@ const colorClasses = {
     icon: 'text-emerald-600 dark:text-emerald-400',
   },
   rose: {
-    bg: 'bg-rose-500/10',
-    icon: 'text-rose-600 dark:text-rose-400',
+    bg: 'bg-term-neg/10',
+    icon: 'text-term-neg',
   },
   sky: {
-    bg: 'bg-sky-500/10',
-    icon: 'text-sky-600 dark:text-sky-400',
+    bg: 'bg-term-accent/10',
+    icon: 'text-term-accent',
   },
   amber: {
-    bg: 'bg-amber-500/10',
-    icon: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-term-warn/10',
+    icon: 'text-term-warn',
   },
 }
 

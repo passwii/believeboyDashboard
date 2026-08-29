@@ -112,7 +112,7 @@ export function CrmRuleEditor({ open, onOpenChange, rule, onSubmit }: CrmRuleEdi
         </DialogHeader>
 
         {initial.unsupported ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+          <div className="rounded-lg border border-term-warn/30 bg-term-warn/10 px-4 py-3 text-sm text-term-warn">
             该规则包含暂不支持编辑的条件/动作组合（MVP 仅支持「创建超过 N 天 且 从未跟进 →
             提醒负责人」）。如需调整，请删除后按 MVP 结构重建。
           </div>

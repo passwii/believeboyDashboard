@@ -36,7 +36,7 @@ const TIER_SECTION_STYLE: Record<
   T1: {
     headerBg:
       'bg-gradient-to-r from-red-50 to-transparent dark:from-red-950/20 dark:to-transparent',
-    headerText: 'text-red-700 dark:text-red-400',
+    headerText: 'text-term-neg',
     cardAccent: 'border-l-4 border-l-red-500/60',
   },
   T2: {
@@ -48,7 +48,7 @@ const TIER_SECTION_STYLE: Record<
   T3: {
     headerBg:
       'bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 dark:to-transparent',
-    headerText: 'text-amber-700 dark:text-amber-400',
+    headerText: 'text-term-warn',
     cardAccent: 'border-l-4 border-l-amber-500/60',
   },
   T4: {
@@ -184,7 +184,7 @@ function ProjectContextCard({
             <span
               className={cn(
                 'h-3 w-3 shrink-0 rounded-full ring-2 ring-offset-2',
-                hasContext ? 'bg-green-500 ring-green-200' : 'bg-amber-400 ring-amber-100'
+                hasContext ? 'bg-green-500 ring-green-200' : 'bg-term-warn ring-term-warn/30'
               )}
             />
             <div className="min-w-0 flex-1">

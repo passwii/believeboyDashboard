@@ -136,7 +136,7 @@ function formatDate(value: string | null | undefined): string {
 function yoyDeltaClass(current: number | null, yoy: number | null): string {
   if (current === null || yoy === null) return 'text-muted-foreground'
   if (yoy === 0) return 'text-foreground'
-  if (current < yoy) return 'text-rose-600 dark:text-rose-300'
+  if (current < yoy) return 'text-term-neg'
   if (current > yoy) return 'text-emerald-600 dark:text-emerald-300'
   return 'text-foreground'
 }
@@ -683,7 +683,7 @@ export default function SeasonalReplenishmentPage() {
                   <div
                     className={cn(
                       'mt-0.5 text-xl font-semibold leading-tight',
-                      item.highlight ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'
+                      item.highlight ? 'text-term-neg' : 'text-foreground'
                     )}
                   >
                     {item.value}
@@ -703,7 +703,7 @@ export default function SeasonalReplenishmentPage() {
             {/* 权重 Badge（原控制台标题行内容，保留） */}
             <Badge
               variant="outline"
-              className="border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300"
+              className="border-term-accent/30 bg-term-accent/10 text-term-accent"
             >
               权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
             </Badge>
@@ -870,7 +870,7 @@ export default function SeasonalReplenishmentPage() {
                         {rows.map((row) => (
                           <TableRow
                             key={rowKey(row)}
-                            className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20"
+                            className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-term-accent/5/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))]"
                           >
                             <TableCell
                               className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
@@ -1086,14 +1086,14 @@ export default function SeasonalReplenishmentPage() {
           <div className="text-sm font-semibold text-foreground">口径说明</div>
           <div className="grid gap-2">
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+              <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                 日期范围
               </span>
               选定的 <code>[from, to]</code> 是历史回看窗口。主窗口右端 = <code>to_date</code>， 4
               个 DMS 分别向前回溯 90/30/14/7 天（双闭区间）。默认 <code>[today-89, today]</code>。
             </div>
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+              <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                 权重
               </span>
               加权 DMS = <code>90D×40% + 30D×30% + 14D×20% + 7D×10%</code>，长周期高权重
@@ -1108,7 +1108,7 @@ export default function SeasonalReplenishmentPage() {
               绿（爬坡预警）。
             </div>
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <span className="mr-2 inline-flex rounded-md bg-term-warn/10 px-2 py-0.5 text-xs font-medium text-term-warn">
                 风险状态
               </span>
               季节性页面<b>不判定</b>风险状态（<code>健康/断货/滞销</code> 等标签不显示）， 因为

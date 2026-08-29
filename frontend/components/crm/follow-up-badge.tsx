@@ -39,7 +39,7 @@ export function CrmFollowUpBadge() {
   if (count <= 0) return null
   return (
     <span
-      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[0.65rem] font-semibold leading-none text-white"
+      className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-term-neg px-1 text-[0.65rem] font-semibold leading-none text-white"
       aria-label={`${count} 条逾期未跟进`}
     >
       {count > 99 ? '99+' : count}

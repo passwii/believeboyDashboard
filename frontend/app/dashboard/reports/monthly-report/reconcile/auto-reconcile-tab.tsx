@@ -190,9 +190,9 @@ function ReconcileStatusIcon({ status }: { status: ReconcileStatus }) {
     case 'success':
       return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
     case 'warning':
-      return <AlertCircle className="h-5 w-5 text-amber-500" />
+      return <AlertCircle className="h-5 w-5 text-term-warn" />
     case 'error':
-      return <XCircle className="h-5 w-5 text-red-500" />
+      return <XCircle className="h-5 w-5 text-term-neg" />
   }
 }
 
@@ -321,7 +321,7 @@ function PDFUploadPanel({
 
       {/* Error Message */}
       {displayError && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+        <div className="mt-4 flex items-center gap-2 text-sm text-term-neg">
           <XCircle className="h-4 w-4" />
           {displayError}
         </div>
@@ -353,7 +353,7 @@ function PDFUploadPanel({
 
       {/* Warning for replacement */}
       {isReplacing && !isPdfMissing && (
-        <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-4 text-xs text-term-warn">
           注意：上传新文件将覆盖原有的 PDF 文件
         </p>
       )}
@@ -500,7 +500,7 @@ function CSVUploadPanel({
       )}
 
       {displayError && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+        <div className="mt-4 flex items-center gap-2 text-sm text-term-neg">
           <XCircle className="h-4 w-4" />
           {displayError}
         </div>
@@ -529,7 +529,7 @@ function CSVUploadPanel({
       </div>
 
       {isReplacing && !isCsvMissing && (
-        <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-4 text-xs text-term-warn">
           注意：上传新文件将覆盖原有的 CSV 文件
         </p>
       )}
@@ -601,7 +601,7 @@ function RawFilesGroup({
             className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
             onClick={() => handleDownloadCSV(report.report_id, notify)}
           >
-            <Table className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <Table className="h-5 w-5 shrink-0 text-term-warn" />
             <div className="text-left">
               <div className="text-sm font-medium">源 CSV</div>
               <div className="text-xs text-muted-foreground">结算交易 CSV</div>
@@ -848,7 +848,7 @@ function DetailPanel({
           ) : needsCalculation ? (
             /* Show message if calculation not done */
             <div className="flex flex-col items-center justify-center py-20">
-              <AlertCircle className="h-10 w-10 text-amber-500" />
+              <AlertCircle className="h-10 w-10 text-term-warn" />
               <p className="mt-4 text-center font-medium">报表核算未完成</p>
               <p className="mt-2 text-center text-sm text-muted-foreground">
                 请先在月报核算页面完成 PT3 报表核算，再进行核对
@@ -903,8 +903,8 @@ function DetailPanel({
                     result.match_rate === 100
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                       : result.match_rate >= 70
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                        ? 'bg-term-warn/10 text-term-warn'
+                        : 'bg-term-neg/10 text-term-neg'
                   )}
                 >
                   {result.match_rate === 100 ? (
@@ -939,7 +939,7 @@ function DetailPanel({
                       const isMatch = item.match
                       const rowBg = isMatch
                         ? 'bg-emerald-50/50 dark:bg-emerald-900/10'
-                        : 'bg-red-50/50 dark:bg-red-900/10'
+                        : 'bg-term-neg/5'
 
                       return (
                         <tr key={index} className={cn('border-b last:border-b-0', rowBg)}>
@@ -948,7 +948,7 @@ function DetailPanel({
                               {isMatch ? (
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                               ) : (
-                                <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+                                <XCircle className="h-4 w-4 shrink-0 text-term-neg" />
                               )}
                               <span className="font-medium text-sm">{label}</span>
                             </div>
@@ -956,7 +956,7 @@ function DetailPanel({
                           <td
                             className={cn(
                               'border-r px-4 py-3 text-right font-mono',
-                              isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
+                              isMatch ? 'text-foreground' : 'text-term-neg'
                             )}
                           >
                             {formatCurrency(item.db_value, country)}
@@ -964,7 +964,7 @@ function DetailPanel({
                           <td
                             className={cn(
                               'border-r px-4 py-3 text-right font-mono',
-                              isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
+                              isMatch ? 'text-foreground' : 'text-term-neg'
                             )}
                           >
                             {formatCurrency(item.pdf_value, country)}
@@ -976,7 +976,7 @@ function DetailPanel({
                               </span>
                             ) : (
                               <div className="flex flex-col items-end gap-0.5">
-                                <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                                <span className="text-xs font-medium text-term-neg">
                                   {formatCurrency(item.difference, country)}
                                 </span>
                                 {item.difference_percent !== null && (
@@ -1443,11 +1443,11 @@ export default function AutoReconcileTab() {
                               title={report.pdf_file_missing ? 'PDF 文件缺失' : ''}
                             >
                               {report.pdf_file_missing ? (
-                                <FileX className="h-5 w-5 text-red-400" />
+                                <FileX className="h-5 w-5 text-term-neg" />
                               ) : report.has_summary_pdf ? (
                                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                               ) : (
-                                <XCircle className="h-5 w-5 text-red-500" />
+                                <XCircle className="h-5 w-5 text-term-neg" />
                               )}
                             </div>
                           </td>
@@ -1456,7 +1456,7 @@ export default function AutoReconcileTab() {
                               {report.pt3_calculation_complete ? (
                                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                               ) : (
-                                <XCircle className="h-5 w-5 text-red-500" />
+                                <XCircle className="h-5 w-5 text-term-neg" />
                               )}
                             </div>
                           </td>
@@ -1483,7 +1483,7 @@ export default function AutoReconcileTab() {
                                   e.stopPropagation()
                                   handleRowDownloadCSV(report)
                                 }}
-                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                className="text-term-warn hover:text-term-warn hover:bg-term-warn/5"
                               >
                                 <Table className="mr-1 h-4 w-4" />
                                 CSV
@@ -1529,11 +1529,11 @@ export default function AutoReconcileTab() {
               100% 匹配
             </span>
             <span className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
+              <AlertCircle className="h-4 w-4 text-term-warn" />
               70-99% 匹配
             </span>
             <span className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-500" />
+              <XCircle className="h-4 w-4 text-term-neg" />
               &lt;70% 匹配
             </span>
           </div>

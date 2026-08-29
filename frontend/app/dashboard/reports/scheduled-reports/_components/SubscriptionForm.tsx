@@ -234,7 +234,7 @@ export function SubscriptionForm({
                 <label className="text-sm font-medium mb-1.5 block">
                   发送时间（北京时间）
                   {isMondayRestricted && (
-                    <span className="ml-1.5 text-xs text-amber-600 font-normal">
+                    <span className="ml-1.5 text-xs text-term-warn font-normal">
                       （周一 ≥ 16:00）
                     </span>
                   )}

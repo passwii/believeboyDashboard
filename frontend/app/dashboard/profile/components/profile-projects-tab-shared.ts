@@ -20,9 +20,9 @@ export const COMMISSION_BASIS_LABEL: Record<string, string> = {
 }
 
 export const TIER_BADGE_CLASS: Record<string, string> = {
-  T1: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800',
+  T1: 'bg-term-neg/10 text-term-neg border-term-neg/30',
   T2: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  T3: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+  T3: 'bg-term-warn/10 text-term-warn border-term-warn/30',
   T4: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300 border-slate-200 dark:border-slate-800',
 }
 

@@ -29,7 +29,7 @@ export const PERSONA_MAP: Record<string, PersonaConfig> = {
   RPA_BOT: {
     emoji: '🤖',
     tagline: '流程机器人',
-    color: 'text-violet-500',
+    color: 'text-term-accent',
     colorKey: 'violet',
     bgGradient: 'from-violet-500/10 to-purple-500/5',
   },
@@ -110,8 +110,8 @@ const STATUS_DOT_COLORS: Record<DigitalEmployeeStatus, string> = {
   IDLE: 'bg-muted',
   RUNNING: 'bg-blue-500 animate-pulse',
   SUCCEEDED: 'bg-emerald-500',
-  FAILED: 'bg-red-500',
-  SUSPENDED: 'bg-amber-500',
+  FAILED: 'bg-term-neg',
+  SUSPENDED: 'bg-term-warn',
 }
 
 export function EmployeeAvatar({

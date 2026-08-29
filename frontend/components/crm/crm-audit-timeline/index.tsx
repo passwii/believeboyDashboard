@@ -33,10 +33,10 @@ const ACTION_TERM_DOT: Record<string, string> = {
 /** 动作 → 徽标配色（旧彩色胶囊，audit 页已改走 AUDIT_ACTION_TERM 单色 pill；此处保留供非终端场景回退）。 */
 export const ACTION_BADGE: Record<AuditAction, string> = {
   create: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
-  update: 'bg-sky-100 text-sky-800 dark:bg-sky-800/40 dark:text-sky-200',
-  delete: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
-  transfer: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
-  move_sea: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+  update: 'bg-term-accent/10 text-term-accent',
+  delete: 'bg-term-neg/10 text-term-neg',
+  transfer: 'bg-term-accent/10 text-term-accent',
+  move_sea: 'bg-term-warn/10 text-term-warn',
   claim: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200',
   convert: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
   complete: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',

@@ -234,9 +234,9 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
                     onClose()
                     onLogout()
                   }}
-                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-red-500/[0.06] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/30"
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-term-neg/[0.06] hover:text-term-neg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-neg/30/30"
                 >
-                  <LogOut className="h-4 w-4 shrink-0 text-red-500/60 transition-colors group-hover/link:text-red-500" />
+                  <LogOut className="h-4 w-4 shrink-0 text-term-neg/60 transition-colors group-hover/link:text-term-neg" />
                   <span className="min-w-0 flex-1 truncate">退出登录</span>
                 </button>
               </nav>

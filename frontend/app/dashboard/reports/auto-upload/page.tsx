@@ -126,7 +126,7 @@ function ProgressRow({
       <span className="w-8 text-[11px] text-muted-foreground">{label}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-term-raised">
         <div
-          className="h-full rounded-full bg-sky-500 transition-all duration-300 ease-out"
+          className="h-full rounded-full bg-term-accent transition-all duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

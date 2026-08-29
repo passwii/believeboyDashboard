@@ -213,7 +213,7 @@ export function UploadZone({
       </div>
 
       {/* 错误提示 */}
-      {errorMsg ? <p className="text-sm text-rose-600 dark:text-rose-400">{errorMsg}</p> : null}
+      {errorMsg ? <p className="text-sm text-term-neg">{errorMsg}</p> : null}
 
       {/* 预览区域 */}
       {showPreview && preview ? (
@@ -232,7 +232,7 @@ export function UploadZone({
           ) : (
             <div className="flex items-center gap-3 py-2">
               {previewType === 'pdf' ? (
-                <FileText className="h-8 w-8 text-rose-500" />
+                <FileText className="h-8 w-8 text-term-neg" />
               ) : (
                 <FileText className="h-8 w-8 text-slate-400" />
               )}
