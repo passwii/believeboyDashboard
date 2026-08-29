@@ -353,7 +353,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
         <DataCardHeader
           title="补货日历"
           badge={
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-term-muted">
               日历视图
             </p>
           }
@@ -375,7 +375,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
         <DataCardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">风险状态:</span>
+              <span className="text-sm text-term-muted">风险状态:</span>
               <MultiSelect
                 options={RISK_OPTIONS}
                 selected={riskFilter}
@@ -392,17 +392,17 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
               <div
                 key={item.label}
                 className={cn(
-                  'flex items-center gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/80 px-3 py-2',
+                  'flex items-center gap-2 rounded-none border border-term-border bg-term-raised/80 px-3 py-2',
                   item.alert && 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30'
                 )}
               >
                 <item.icon
-                  className={cn('h-4 w-4 text-muted-foreground', item.alert && 'text-red-500')}
+                  className={cn('h-4 w-4 text-term-muted', item.alert && 'text-red-500')}
                 />
-                <span className="text-xs text-muted-foreground">{item.label}</span>
+                <span className="text-xs text-term-muted">{item.label}</span>
                 <span
                   className={cn(
-                    'text-sm font-semibold text-foreground',
+                    'text-sm font-semibold text-term-text',
                     item.alert && 'text-red-600 dark:text-red-400'
                   )}
                 >
@@ -413,7 +413,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-term-muted">
             <div className="flex items-center gap-1.5">
               <span className="h-3 w-4 rounded bg-blue-500" />
               <span>补货窗口</span>
@@ -446,7 +446,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
       <DataCard>
         <DataCardContent className="p-0">
           {!projectId ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-64 items-center justify-center text-sm text-term-muted">
               请先选择项目
             </div>
           ) : loading && rows.length === 0 ? (
@@ -456,11 +456,11 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
               <Skeleton className="h-12 w-full" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-64 items-center justify-center text-sm text-term-muted">
               当前筛选条件下没有可显示的 SKU
             </div>
           ) : !chartData ? (
-            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-64 items-center justify-center text-sm text-term-muted">
               日历数据加载中...
             </div>
           ) : (
@@ -468,9 +468,9 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
               <div className="min-w-max">
                 <TooltipProvider>
                   {/* Header with dates */}
-                  <div className="flex border-b border-border/70 bg-[hsl(var(--surface-soft))]/50">
-                    <div className="sticky left-0 z-10 w-64 shrink-0 border-r border-border/70 bg-[hsl(var(--surface-panel))]/95 px-3 py-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="flex border-b border-term-border bg-term-raised/50">
+                    <div className="sticky left-0 z-10 w-64 shrink-0 border-r border-term-border bg-term-panel/95 px-3 py-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-term-muted">
                         SKU
                       </span>
                     </div>
@@ -480,14 +480,14 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                           <div
                             key={marker.date}
                             className={cn(
-                              'relative flex-shrink-0 border-r border-border/30 py-2 text-center text-[10px]',
+                              'relative flex-shrink-0 border-r border-term-border/30 py-2 text-center text-[10px]',
                               marker.isToday &&
                                 'bg-violet-100/50 font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
                               marker.isWeekend && 'bg-muted/30'
                             )}
                             style={{ width: chartData.dayWidth }}
                           >
-                            <div className="text-[10px] text-muted-foreground">{marker.label}</div>
+                            <div className="text-[10px] text-term-muted">{marker.label}</div>
                           </div>
                         ))}
                       </div>
@@ -498,15 +498,15 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                   {chartData.items.map((item) => (
                     <div
                       key={`${item.sku}-${item.country}`}
-                      className="flex border-b border-border/50 hover:bg-[hsl(var(--surface-soft))]/50"
+                      className="flex border-b border-term-border/50 hover:bg-term-raised/50"
                     >
                       {/* SKU label */}
-                      <div className="sticky left-0 z-10 flex w-64 shrink-0 items-center gap-2 border-r border-border/70 bg-[hsl(var(--surface-panel))]/95 px-3">
+                      <div className="sticky left-0 z-10 flex w-64 shrink-0 items-center gap-2 border-r border-term-border bg-term-panel/95 px-3">
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-medium text-foreground">
+                          <div className="truncate text-xs font-medium text-term-text">
                             {item.sku}
                           </div>
-                          <div className="truncate text-[10px] text-muted-foreground">
+                          <div className="truncate text-[10px] text-term-muted">
                             {item.project_name}
                           </div>
                         </div>
@@ -522,7 +522,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                                   'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300',
                                 !item.is_critical &&
                                   !item.is_slow_moving &&
-                                  'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground'
+                                  'border-term-border bg-term-raised text-term-muted'
                               )}
                             >
                               {item.risk_status.slice(0, 3)}
@@ -531,8 +531,8 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                           <TooltipContent side="left" className="max-w-xs">
                             <div className="space-y-1 text-xs">
                               <div className="font-semibold">{item.sku}</div>
-                              <div className="text-muted-foreground">{item.project_name}</div>
-                              <div className="border-t border-border/50 pt-1">
+                              <div className="text-term-muted">{item.project_name}</div>
+                              <div className="border-t border-term-border/50 pt-1">
                                 <div>风险状态: {item.risk_status}</div>
                                 <div>店铺库存: {item.available_inventory}</div>
                                 <div>在途: {item.in_transit_quantity}</div>
@@ -594,7 +594,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                               <TooltipContent>
                                 <div className="text-xs">
                                   <div className="font-semibold">补货窗口</div>
-                                  <div className="text-muted-foreground">
+                                  <div className="text-term-muted">
                                     {item.order_date} → {item.warehouse_entry_date}
                                   </div>
                                 </div>
@@ -636,7 +636,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                             <TooltipContent>
                               <div className="text-xs">
                                 <div className="font-semibold">预计断货日</div>
-                                <div className="text-muted-foreground">{item.sellout_date}</div>
+                                <div className="text-term-muted">{item.sellout_date}</div>
                               </div>
                             </TooltipContent>
                           </Tooltip>

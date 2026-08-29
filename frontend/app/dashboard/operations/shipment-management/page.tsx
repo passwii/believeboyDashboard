@@ -408,7 +408,7 @@ function statusMeta(status: string): { label: string; className: string } {
     draft: {
       label: '草稿',
       className:
-        'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
     },
     in_transit: {
       label: '在途',
@@ -425,7 +425,7 @@ function statusMeta(status: string): { label: string; className: string } {
     map[status] || {
       label: status,
       className:
-        'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
     }
   )
 }
@@ -460,7 +460,7 @@ function countryMeta(country: string): { label: string; className: string } {
     map[country] || {
       label: countryLabel(country),
       className:
-        'border border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
     }
   )
 }
@@ -576,7 +576,7 @@ function SearchableSkuField({
       </Button>
       <DialogContent
         aria-describedby="shipment-sku-search-dialog-description"
-        className="max-w-[calc(100%-2rem)] overflow-hidden rounded-lg p-0 sm:max-w-xl"
+        className="max-w-[calc(100%-2rem)] overflow-hidden rounded-none p-0 sm:max-w-xl"
       >
         <span id="shipment-sku-search-dialog-description" className="sr-only">
           搜索并选择 SKU
@@ -609,7 +609,7 @@ function SearchableSkuField({
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="truncate flex-1 font-medium">{option.sku}</span>
                     {option.product_name && (
-                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
+                      <span className="shrink-0 truncate max-w-[200px] text-term-muted text-xs">
                         {option.product_name}
                       </span>
                     )}
@@ -2955,7 +2955,7 @@ export default function ShipmentManagementPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="min-w-0 space-y-6 text-foreground">
+    <div className="min-w-0 space-y-6 text-term-text">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
 
@@ -3056,7 +3056,7 @@ export default function ShipmentManagementPage() {
                   <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <CardTitle className="text-base">船期批次总览</CardTitle>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-term-muted">
                         共 {total} 条记录，当前第 {page} / {pageCount} 页
                       </p>
                     </div>
@@ -3090,13 +3090,13 @@ export default function ShipmentManagementPage() {
                   {/* 下半部分：表格 */}
                   <DataTableCardBody>
                     {items.length === 0 && !loading ? (
-                      <div className="m-4 rounded-lg border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))] py-14 text-center text-sm text-muted-foreground">
+                      <div className="m-4 rounded-none border border-dashed border-term-border bg-term-panel py-14 text-center text-sm text-term-muted">
                         当前没有符合筛选条件的船期记录。
                       </div>
                     ) : (
                       <div className="relative">
                         {loading && items.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
                             列表更新中...
                           </div>
                         ) : null}
@@ -3105,59 +3105,59 @@ export default function ShipmentManagementPage() {
                           className="w-full min-w-[1080px]"
                         >
                           <TableHeader>
-                            <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                            <TableRow className="bg-term-panel">
                               <TableHead
-                                className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[90px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 项目
                               </TableHead>
                               <TableHead
-                                className={`w-[72px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[72px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 国家
                               </TableHead>
                               <TableHead
-                                className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[90px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 发货时间
                               </TableHead>
                               <TableHead
-                                className={`w-[120px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[120px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 货件编号
                               </TableHead>
                               <TableHead
-                                className={`w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[70px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 状态
                               </TableHead>
                               <TableHead
-                                className={`w-[80px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[80px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 货代
                               </TableHead>
                               <TableHead
-                                className={`w-[70px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[70px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 仓库
                               </TableHead>
                               <TableHead
-                                className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[90px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 ETD
                               </TableHead>
                               <TableHead
-                                className={`w-[90px] whitespace-nowrap border-r border-border/70 text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[90px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 ETA
                               </TableHead>
                               <TableHead
-                                className={`w-[50px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[50px] whitespace-nowrap border-r border-term-border text-right text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 SKU
                               </TableHead>
                               <TableHead
-                                className={`w-[60px] whitespace-nowrap border-r border-border/70 text-right text-sm last:border-r-0 ${DENSE_HEAD}`}
+                                className={`w-[60px] whitespace-nowrap border-r border-term-border text-right text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
                                 数量
                               </TableHead>
@@ -3183,61 +3183,61 @@ export default function ShipmentManagementPage() {
                                   }
                                 >
                                   <TableCell
-                                    className={`w-[90px] border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}
+                                    className={`w-[90px] border-r border-term-border text-sm font-medium ${DENSE_CELL}`}
                                   >
                                     {item.project_name}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[72px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[72px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
                                       {country.label}
                                     </Badge>
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[90px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     {formatDate(item.created_date)}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[120px] border-r border-border/60 text-sm font-medium ${DENSE_CELL}`}
+                                    className={`w-[120px] border-r border-term-border text-sm font-medium ${DENSE_CELL}`}
                                   >
                                     {item.shipment_no}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[70px] border-r border-border/60 ${DENSE_CELL}`}
+                                    className={`w-[70px] border-r border-term-border ${DENSE_CELL}`}
                                   >
                                     <Badge className={`${status.className} text-[11px] py-0 h-5`}>
                                       {status.label}
                                     </Badge>
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[80px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[80px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     {item.forwarder_name || '-'}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[70px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[70px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     {item.warehouse_code || '-'}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[90px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     {formatDate(item.etd_date)}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[90px] border-r border-border/60 text-sm ${DENSE_CELL}`}
+                                    className={`w-[90px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
                                     {formatDate(item.eta_date)}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[50px] border-r border-border/60 text-right text-sm ${DENSE_CELL}`}
+                                    className={`w-[50px] border-r border-term-border text-right text-sm ${DENSE_CELL}`}
                                   >
                                     {item.sku_count}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[60px] border-r border-border/60 text-right text-sm ${DENSE_CELL}`}
+                                    className={`w-[60px] border-r border-term-border text-right text-sm ${DENSE_CELL}`}
                                   >
                                     {item.total_quantity.toLocaleString()}
                                   </TableCell>
@@ -3268,14 +3268,14 @@ export default function ShipmentManagementPage() {
                   {/* Row1: 标题 + 筛选/按钮 */}
                   <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
                         Shipping Cost
                       </div>
                       <CardTitle>发货费用</CardTitle>
                     </div>
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap xl:gap-3">
                       <div className="min-w-[220px] space-y-1">
-                        <div className="text-[11px] font-medium text-muted-foreground">
+                        <div className="text-[11px] font-medium text-term-muted">
                           日期范围
                         </div>
                         <DateRangePicker
@@ -3327,13 +3327,13 @@ export default function ShipmentManagementPage() {
                   {/* 表格 */}
                   <DataTableCardBody>
                     {items.length === 0 && !loading ? (
-                      <div className="py-14 text-center text-sm text-muted-foreground">
+                      <div className="py-14 text-center text-sm text-term-muted">
                         当前没有符合筛选条件的发货批次。
                       </div>
                     ) : (
                       <div className="relative">
                         {loading && items.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
                             发货费用计算中...
                           </div>
                         ) : null}
@@ -3342,7 +3342,7 @@ export default function ShipmentManagementPage() {
                           className="w-full min-w-[1320px]"
                         >
                           <TableHeader>
-                            <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                            <TableRow className="bg-term-panel">
                               <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>
                                 项目
                               </TableHead>
@@ -3461,7 +3461,7 @@ export default function ShipmentManagementPage() {
                   {/* Row1: 标题 + 按钮 */}
                   <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
                         SKU Summary
                       </div>
                       <CardTitle>SKU 汇总</CardTitle>
@@ -3520,13 +3520,13 @@ export default function ShipmentManagementPage() {
                   {/* 表格 */}
                   <DataTableCardBody>
                     {skuSummaryItems.length === 0 && !skuSummaryLoading ? (
-                      <div className="py-14 text-center text-sm text-muted-foreground">
+                      <div className="py-14 text-center text-sm text-term-muted">
                         当前没有符合口径的 SKU 汇总数据。
                       </div>
                     ) : (
                       <div className="relative">
                         {skuSummaryLoading && skuSummaryItems.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
                             SKU 汇总更新中...
                           </div>
                         ) : null}
@@ -3535,7 +3535,7 @@ export default function ShipmentManagementPage() {
                           className="w-full min-w-[1120px]"
                         >
                           <TableHeader>
-                            <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                            <TableRow className="bg-term-panel">
                               <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>
                                 项目
                               </TableHead>
@@ -3621,7 +3621,7 @@ export default function ShipmentManagementPage() {
                   <DataTableCardHeader className="flex min-w-0 flex-col gap-2 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
                     <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:items-center xl:gap-6">
                       <div className="min-w-0">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
                           FBA Box List
                         </div>
                         <CardTitle>FBA 箱单明细</CardTitle>
@@ -3630,7 +3630,7 @@ export default function ShipmentManagementPage() {
                       {fbaBoxMeta ? (
                         <div className="flex items-center gap-4 xl:gap-5">
                           <div className="flex items-center gap-1.5 text-sm">
-                            <span className="text-muted-foreground">项目:</span>
+                            <span className="text-term-muted">项目:</span>
                             <span className="font-medium">
                               {fbaBoxMeta.projectNames.length === 1
                                 ? fbaBoxMeta.projectNames[0]
@@ -3638,7 +3638,7 @@ export default function ShipmentManagementPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-sm">
-                            <span className="text-muted-foreground">国家:</span>
+                            <span className="text-term-muted">国家:</span>
                             {(() => {
                               const singleCountry =
                                 fbaBoxMeta.countries.length === 1
@@ -3658,7 +3658,7 @@ export default function ShipmentManagementPage() {
                             })()}
                           </div>
                           <div className="flex items-center gap-1.5 text-sm">
-                            <span className="text-muted-foreground">货件:</span>
+                            <span className="text-term-muted">货件:</span>
                             <span className="font-medium">{fbaBoxMeta.shipmentNos.length}</span>
                           </div>
                         </div>
@@ -3705,17 +3705,17 @@ export default function ShipmentManagementPage() {
                   {/* 表格 */}
                   <DataTableCardBody>
                     {selectedShipmentNoFilter.length === 0 ? (
-                      <div className="py-14 text-center text-sm text-muted-foreground">
+                      <div className="py-14 text-center text-sm text-term-muted">
                         请选择一个或多个 FBA 货件编号后再加载箱单明细。
                       </div>
                     ) : fbaBoxItems.length === 0 && !fbaBoxLoading ? (
-                      <div className="py-14 text-center text-sm text-muted-foreground">
+                      <div className="py-14 text-center text-sm text-term-muted">
                         当前筛选货件暂无可展示的 FBA 箱单明细。
                       </div>
                     ) : (
                       <div className="relative">
                         {fbaBoxLoading && fbaBoxItems.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
                             箱单明细更新中...
                           </div>
                         ) : null}
@@ -3724,7 +3724,7 @@ export default function ShipmentManagementPage() {
                           className="w-full min-w-[1300px]"
                         >
                           <TableHeader>
-                            <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                            <TableRow className="bg-term-panel">
                               <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>
                                 货件编号
                               </TableHead>
@@ -3855,7 +3855,7 @@ export default function ShipmentManagementPage() {
                                       <button
                                         type="button"
                                         onClick={() => openFbaImageLightbox(item)}
-                                        className="block h-[60px] w-[60px] overflow-hidden rounded border border-border/50 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        className="block h-[60px] w-[60px] overflow-hidden rounded border border-term-border/50 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         aria-label={`查看 ${item.sku} 产品大图`}
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -3866,7 +3866,7 @@ export default function ShipmentManagementPage() {
                                         />
                                       </button>
                                     ) : (
-                                      <div className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-border/50 text-[10px] text-muted-foreground">
+                                      <div className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-term-border/50 text-[10px] text-term-muted">
                                         无图
                                       </div>
                                     )}
@@ -3929,16 +3929,16 @@ export default function ShipmentManagementPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="shipment-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-none border-term-border bg-term-panel dark:border-term-border/90 sm:max-w-5xl"
         >
           <span id="shipment-dialog-description" className="sr-only">
             {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
           </span>
           <DialogHeader>
-            <DialogTitle className="text-foreground">
+            <DialogTitle className="text-term-text">
               {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-term-muted">
               {dialogMode === 'create'
                 ? '先创建批次，再在编辑页维护 SKU 明细。'
                 : '可直接在下方维护 SKU 明细，支持项目 SKU 下拉选择与手动增行。'}
@@ -3947,7 +3947,7 @@ export default function ShipmentManagementPage() {
 
           <div className="grid gap-4 py-2 md:grid-cols-2 lg:grid-cols-4 [&>div]:min-w-0">
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">项目</div>
+              <div className="text-sm font-medium text-term-text">项目</div>
               <Select
                 value={form.project_id}
                 onValueChange={(value) => handleFormChange('project_id', value)}
@@ -3966,7 +3966,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">发货批次</div>
+              <div className="text-sm font-medium text-term-text">发货批次</div>
               <ShipmentBatchCombobox
                 value={form.shipment_batch}
                 onChange={(value) => handleFormChange('shipment_batch', value)}
@@ -3976,7 +3976,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">货件编号</div>
+              <div className="text-sm font-medium text-term-text">货件编号</div>
               <Input
                 value={form.shipment_no}
                 onChange={(event) => handleFormChange('shipment_no', event.target.value)}
@@ -3985,7 +3985,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">运输方式</div>
+              <div className="text-sm font-medium text-term-text">运输方式</div>
               <Select
                 value={form.shipping_method}
                 onValueChange={(value) => handleFormChange('shipping_method', value)}
@@ -4004,7 +4004,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">国家地区</div>
+              <div className="text-sm font-medium text-term-text">国家地区</div>
               <Select
                 value={form.country}
                 onValueChange={(value) => handleFormChange('country', value)}
@@ -4023,7 +4023,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">状态</div>
+              <div className="text-sm font-medium text-term-text">状态</div>
               <Select
                 value={form.shipment_status}
                 onValueChange={(value) => handleFormChange('shipment_status', value)}
@@ -4042,21 +4042,21 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">追踪号</div>
+              <div className="text-sm font-medium text-term-text">追踪号</div>
               <Input
                 value={form.tracking_no}
                 onChange={(event) => handleFormChange('tracking_no', event.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">仓库编码</div>
+              <div className="text-sm font-medium text-term-text">仓库编码</div>
               <Input
                 value={form.warehouse_code}
                 onChange={(event) => handleFormChange('warehouse_code', event.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">货代公司</div>
+              <div className="text-sm font-medium text-term-text">货代公司</div>
               <Input
                 value={form.forwarder_name}
                 onChange={(event) => handleFormChange('forwarder_name', event.target.value)}
@@ -4064,7 +4064,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">发货时间</div>
+              <div className="text-sm font-medium text-term-text">发货时间</div>
               <SingleDatePicker
                 value={parseDateInputValue(form.created_date)}
                 onChange={(date) =>
@@ -4073,21 +4073,21 @@ export default function ShipmentManagementPage() {
               />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">ETD</div>
+              <div className="text-sm font-medium text-term-text">ETD</div>
               <SingleDatePicker
                 value={parseDateInputValue(form.etd_date)}
                 onChange={(date) => handleFormChange('etd_date', formatPickerDateInputValue(date))}
               />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">ETA</div>
+              <div className="text-sm font-medium text-term-text">ETA</div>
               <SingleDatePicker
                 value={parseDateInputValue(form.eta_date)}
                 onChange={(date) => handleFormChange('eta_date', formatPickerDateInputValue(date))}
               />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">实际入仓日期</div>
+              <div className="text-sm font-medium text-term-text">实际入仓日期</div>
               <SingleDatePicker
                 value={parseDateInputValue(form.actual_inbound_date)}
                 onChange={(date) =>
@@ -4097,7 +4097,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">物流报价（物流单价）</div>
+              <div className="text-sm font-medium text-term-text">物流报价（物流单价）</div>
               <Input
                 inputMode="decimal"
                 placeholder="例如 8.50"
@@ -4107,7 +4107,7 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">是否参与历史发货核算</div>
+              <div className="text-sm font-medium text-term-text">是否参与历史发货核算</div>
               <Select
                 value={form.include_in_history_shipping_calc}
                 onValueChange={(value) =>
@@ -4125,12 +4125,12 @@ export default function ShipmentManagementPage() {
             </div>
 
             <div className="space-y-2 xl:col-span-4">
-              <div className="text-sm font-medium text-foreground">备注</div>
+              <div className="text-sm font-medium text-term-text">备注</div>
               <textarea
                 value={form.remark}
                 onChange={(event) => handleFormChange('remark', event.target.value)}
                 rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+                className="w-full rounded-none border border-input bg-term-panel px-3 py-2 text-sm shadow-none outline-none ring-offset-background placeholder:text-term-muted focus-visible:ring-2 focus-visible:ring-ring dark:border-term-border dark:bg-term-raised dark:text-term-text"
               />
             </div>
           </div>
@@ -4142,7 +4142,7 @@ export default function ShipmentManagementPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-sm font-semibold">SKU 明细</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-term-muted">
                       {editableItemStats.skuCount} 个 SKU，合计{' '}
                       {editableItemStats.totalQuantity.toLocaleString()} 件
                     </div>
@@ -4204,14 +4204,14 @@ export default function ShipmentManagementPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
                       SKU 数
                     </div>
                     <div className="mt-1 text-lg font-semibold">{detail.sku_count}</div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
                       体积
                     </div>
                     <div className="mt-1 text-lg font-semibold">
@@ -4220,8 +4220,8 @@ export default function ShipmentManagementPage() {
                         : '待核算'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
                       计费重
                     </div>
                     <div className="mt-1 text-lg font-semibold">
@@ -4230,8 +4230,8 @@ export default function ShipmentManagementPage() {
                         : '待核算'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
                       预估运费
                     </div>
                     <div className="mt-1 text-lg font-semibold">
@@ -4242,20 +4242,20 @@ export default function ShipmentManagementPage() {
                   </div>
                 </div>
                 {hasPendingItemChanges ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+                  <div className="rounded-none border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
                     SKU 明细已修改，先点保存，再执行核算。
                   </div>
                 ) : null}
                 {costPreviewError ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
+                  <div className="rounded-none border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
                     {costPreviewError}
                   </div>
                 ) : null}
-                <div className="overflow-hidden rounded-lg border border-border/70">
+                <div className="overflow-hidden rounded-none border border-term-border">
                   <div className="max-h-[280px] overflow-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-border/70">
+                        <TableRow className="border-term-border">
                           <TableHead className="w-[140px] text-xs font-medium">SKU</TableHead>
                           <TableHead className="w-20 text-right text-xs font-medium">
                             装箱率
@@ -4314,7 +4314,7 @@ export default function ShipmentManagementPage() {
                                   ? computedQty
                                   : 0
                             return (
-                              <TableRow key={item.tempId} className="border-border/70">
+                              <TableRow key={item.tempId} className="border-term-border">
                                 <TableCell className="py-1.5">
                                   <SearchableSkuField
                                     value={item.sku}
@@ -4333,7 +4333,7 @@ export default function ShipmentManagementPage() {
                                     </p>
                                   ) : null}
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                <TableCell className="py-1.5 text-right text-xs text-term-muted">
                                   {unitsPerCarton > 0 ? unitsPerCarton : '-'}
                                 </TableCell>
                                 <TableCell className="py-1.5 text-right">
@@ -4351,19 +4351,19 @@ export default function ShipmentManagementPage() {
                                     placeholder="箱数"
                                   />
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs font-medium text-foreground">
+                                <TableCell className="py-1.5 text-right text-xs font-medium text-term-text">
                                   {displayQty > 0 ? displayQty.toLocaleString() : '-'}
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                <TableCell className="py-1.5 text-right text-xs text-term-muted">
                                   {preview ? formatDecimal(preview.actualWeightKg, 2) : '-'}
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                <TableCell className="py-1.5 text-right text-xs text-term-muted">
                                   {preview ? formatDecimal(preview.volumetricWeightKg, 2) : '-'}
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                <TableCell className="py-1.5 text-right text-xs text-term-muted">
                                   {preview ? `¥ ${formatDecimal(preview.estimatedCost, 2)}` : '-'}
                                 </TableCell>
-                                <TableCell className="py-1.5 text-right text-xs text-muted-foreground">
+                                <TableCell className="py-1.5 text-right text-xs text-term-muted">
                                   {preview
                                     ? `¥ ${formatDecimal(preview.averageUnitPrice, 2)}`
                                     : '-'}
@@ -4416,7 +4416,7 @@ export default function ShipmentManagementPage() {
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
-              className="dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
             >
               取消
             </Button>
@@ -4430,7 +4430,7 @@ export default function ShipmentManagementPage() {
       <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
         <DialogContent
           aria-describedby="sku-detail-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-none border-term-border bg-term-panel dark:border-term-border/90 sm:max-w-2xl"
         >
           <span id="sku-detail-dialog-description" className="sr-only">
             SKU 明细：
@@ -4439,8 +4439,8 @@ export default function ShipmentManagementPage() {
               : ''}
           </span>
           <DialogHeader>
-            <DialogTitle className="text-foreground">SKU 明细</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogTitle className="text-term-text">SKU 明细</DialogTitle>
+            <DialogDescription className="text-term-muted">
               {skuDialogDetail
                 ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件`
                 : ''}
@@ -4454,7 +4454,7 @@ export default function ShipmentManagementPage() {
               <Skeleton className="h-12 w-full" />
             </div>
           ) : skuDialogDetail ? (
-            <div className="overflow-hidden rounded-lg border border-border/70">
+            <div className="overflow-hidden rounded-none border border-term-border">
               <div className="max-h-[500px] overflow-auto">
                 <Table>
                   <TableHeader>
@@ -4479,7 +4479,7 @@ export default function ShipmentManagementPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-none border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               加载失败
             </div>
           )}
@@ -4488,7 +4488,7 @@ export default function ShipmentManagementPage() {
             <Button
               variant="outline"
               onClick={() => setSkuDialogOpen(false)}
-              className="dark:border-border/70 dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
             >
               关闭
             </Button>
@@ -4499,7 +4499,7 @@ export default function ShipmentManagementPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-shipment-dialog-description"
-          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-md"
+          className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-md"
         >
           <span id="delete-shipment-dialog-description" className="sr-only">
             确认删除船期批次

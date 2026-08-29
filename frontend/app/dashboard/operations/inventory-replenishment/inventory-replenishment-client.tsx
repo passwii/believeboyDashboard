@@ -75,12 +75,12 @@ const LazyCalendarView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="dashboard-surface space-y-3 rounded-xl p-4">
+      <div className="bg-term-panel space-y-3 rounded-none p-4">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-10 w-24" />
         </div>
-        <Skeleton className="h-[400px] w-full rounded-lg" />
+        <Skeleton className="h-[400px] w-full rounded-none" />
       </div>
     ),
   }
@@ -308,14 +308,14 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
     待补数据: {
       label: '待补数据',
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     },
   }
   return (
     map[riskStatus] || {
       label: riskStatus,
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     }
   )
 }
@@ -346,14 +346,14 @@ function stateMeta(state: string | undefined): { label: string; className: strin
     unknown: {
       label: '数据缺失',
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     },
   }
   return (
     map[state ?? ''] || {
       label: state ?? '—',
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     }
   )
 }
@@ -388,14 +388,14 @@ function actionMeta(action: string | undefined): { label: string; className: str
     NO_ACTION: {
       label: '不动',
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     },
   }
   return (
     map[action ?? ''] || {
       label: action ?? '—',
       className:
-        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     }
   )
 }
@@ -405,7 +405,7 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     draft: {
       label: '草稿',
       className:
-        'border border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     },
     preparing: {
       label: '备货中',
@@ -442,7 +442,7 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     map[status] || {
       label: status,
       className:
-        'border border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+        'border border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
     }
   )
 }
@@ -1139,9 +1139,9 @@ export default function InventoryReplenishmentPage() {
 
       {/* 原控制台内容收口：筛选控件已上移 header 插槽，「刷新重算」按钮已删（全局刷新唯一入口）；
           快照选择（含创建/编辑入口，偏重）与三段式指挥带保留正文 */}
-      <div className="dashboard-surface">
+      <div className="bg-term-panel">
         {/* SnapshotSelector 留正文：含创建/编辑入口，偏重，不上移 */}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-term-border bg-term-panel px-4 py-3">
           <SnapshotSelector
             projectId={currentProjectId}
             country={country}
@@ -1205,11 +1205,11 @@ export default function InventoryReplenishmentPage() {
 
         <TabsContent value="cockpit">
           {!currentProjectId && !projectsLoading ? (
-            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
               请先选择项目。
             </div>
           ) : loading && filteredRows.length === 0 ? (
-            <div className="dashboard-surface space-y-3 p-6">
+            <div className="bg-term-panel space-y-3 p-6">
               <Skeleton className="h-40 w-full" />
               <Skeleton className="h-40 w-full" />
             </div>
@@ -1238,17 +1238,17 @@ export default function InventoryReplenishmentPage() {
         <TabsContent value="table">
           {/* 共享的加载/空状态 */}
           {!currentProjectId && !projectsLoading ? (
-            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
               请先选择项目。
             </div>
           ) : loading && rows.length === 0 ? (
-            <div className="dashboard-surface space-y-3 p-6">
+            <div className="bg-term-panel space-y-3 p-6">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
               当前筛选条件下没有可分析的 SKU。
             </div>
           ) : (
@@ -1258,140 +1258,140 @@ export default function InventoryReplenishmentPage() {
                 <DataTableCard>
                   <DataTableCardHeader className="px-4 py-3">
                     <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-foreground">SKU 补货主表</h3>
+                      <h3 className="text-base font-semibold text-term-text">SKU 补货主表</h3>
                     </div>
                   </DataTableCardHeader>
                   <DataTableCardBody>
                     <div className="relative">
                       {loading && rows.length > 0 ? (
-                        <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))/0.95] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))/0.96] dark:text-foreground/72">
+                        <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-term-border bg-[hsl(var(--term-raised))/0.95] px-3 py-1 text-xs text-term-muted shadow-none backdrop-blur-sm dark:border-term-border dark:bg-[hsl(var(--term-raised))/0.96] dark:text-term-text/72">
                           补货主表更新中...
                         </div>
                       ) : null}
                       <Table
-                        containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85 rounded-none"
+                        containerClassName="max-h-[72vh] overflow-auto border-t border-term-border bg-transparent dark:border-term-border rounded-none"
                         className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
                       >
                         <TableHeader>
                           <TableRow className="bg-transparent">
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}
                             >
                               SKU
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[200px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[200px]`}
                             >
                               产品名称
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
                             >
                               店铺库存
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
                             >
                               在途
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               30D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               14D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               7D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               3D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
                             >
                               DMS
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[112px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[112px]`}
                             >
                               加权系数
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
                             >
                               加权DMS
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
                             >
                               可售天数
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               售卖截止
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               含在途截止
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               生产交货
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               运输时间
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               补货指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               建仓指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               发货指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               预计数量
                             </TableHead>
                             {/* v1.2: 三段式产物 */}
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               状态
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               行动
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               风险状态
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[154px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[154px]`}
                             >
                               操作
                             </TableHead>
@@ -1408,38 +1408,38 @@ export default function InventoryReplenishmentPage() {
                               return (
                                 <TableRow
                                   key={key}
-                                  className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20"
+                                  className="group align-top odd:bg-term-panel even:bg-term-raised hover:bg-sky-50/80 dark:odd:bg-term-panel dark:even:bg-term-raised dark:hover:bg-sky-950/20"
                                 >
                                   <TableCell
-                                    className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
+                                    className={`whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
                                   >
                                     {row.sku}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 font-medium text-foreground">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 font-medium text-term-text">
                                     {row.product_name || '--'}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatInt(row.available_inventory)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatInt(row.in_transit_quantity)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatNumber(row.dms_30)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatNumber(row.dms_14)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatNumber(row.dms_7)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatNumber(row.dms_3)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
                                     {formatNumber(row.base_dms)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {isSnapshotMode ? (
                                       <span>{formatNumber(row.safety_factor)}%</span>
                                     ) : (
@@ -1452,25 +1452,25 @@ export default function InventoryReplenishmentPage() {
                                               [key]: { ...edit, safety_factor: event.target.value },
                                             }))
                                           }
-                                          className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                          className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                                         />
-                                        <span className="text-xs text-muted-foreground">%</span>
+                                        <span className="text-xs text-term-muted">%</span>
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
                                     {formatNumber(row.weighted_dms)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                     {formatNumber(row.sellable_days)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {formatDate(row.sellout_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {formatDate(row.sellout_date_with_transit)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {isSnapshotMode ? (
                                       <span>{row.production_lead_days}</span>
                                     ) : (
@@ -1485,11 +1485,11 @@ export default function InventoryReplenishmentPage() {
                                             },
                                           }))
                                         }
-                                        className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                        className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {isSnapshotMode ? (
                                       <span>{row.shipping_days}</span>
                                     ) : (
@@ -1501,44 +1501,44 @@ export default function InventoryReplenishmentPage() {
                                             [key]: { ...edit, shipping_days: event.target.value },
                                           }))
                                         }
-                                        className="h-8 w-[72px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                        className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {formatDate(row.replenishment_order_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {formatDate(row.warehouse_entry_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     {formatDate(row.shipment_order_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
                                     {formatInt(row.estimated_replenishment_quantity)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     <Badge variant="outline" className={invState.className}>
                                       {invState.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     <Badge variant="outline" className={action.className}>
                                       {action.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     <Badge variant="outline" className={risk.className}>
                                       {risk.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
                                     <div className="flex flex-col gap-1.5">
                                       <div className="flex items-center gap-2">
                                         {!isSnapshotMode && (
                                           <Button
                                             size="sm"
-                                            className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+                                            className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-term-raised dark:text-term-text"
                                             onClick={() => void saveRow(row)}
                                             disabled={savingSku === key}
                                           >
@@ -1553,7 +1553,7 @@ export default function InventoryReplenishmentPage() {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                          className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-term-border dark:bg-term-raised dark:text-term-text"
                                           onClick={() => void openShipments(row)}
                                         >
                                           <Send className="h-3.5 w-3.5" />
@@ -1567,55 +1567,55 @@ export default function InventoryReplenishmentPage() {
                             })}
                             <TableRow className="bg-muted/40 font-semibold">
                               <TableCell
-                                className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}
+                                className={`whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 ${STICKY_LEFT_CELL_HOVER}`}
                               >
                                 合计
                               </TableCell>
                               <TableCell
-                                className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80"
+                                className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80"
                                 colSpan={1}
                               />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatInt(tableTotals.available_inventory)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatInt(tableTotals.in_transit_quantity)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.dms_30, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.dms_14, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.dms_7, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.dms_3, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.base_dms, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatNumber(tableTotals.weighted_dms)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
                                 {formatInt(tableTotals.estimated_replenishment_quantity)}
                               </TableCell>
                               {/* v1.2: 状态 / 行动总计空位（不计算总计） */}
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
                             </TableRow>
                           </>
                         </TableBody>
@@ -1628,7 +1628,7 @@ export default function InventoryReplenishmentPage() {
               {/* 手机端：卡片列表 */}
               <div className="md:hidden space-y-3">
                 {loading && rows.length > 0 ? (
-                  <div className="text-center text-xs text-muted-foreground py-2">
+                  <div className="text-center text-xs text-term-muted py-2">
                     补货主表更新中...
                   </div>
                 ) : null}
@@ -1639,11 +1639,11 @@ export default function InventoryReplenishmentPage() {
                   const invState = stateMeta(row.inventory_state)
                   const action = actionMeta(row.replenishment_action)
                   return (
-                    <div key={key} className="dashboard-surface p-4 space-y-3">
+                    <div key={key} className="bg-term-panel p-4 space-y-3">
                       {/* 头部：SKU + 状态 + 行动 */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-semibold text-sm text-foreground truncate">
+                          <span className="font-semibold text-sm text-term-text truncate">
                             {row.sku}
                           </span>
                         </div>
@@ -1662,7 +1662,7 @@ export default function InventoryReplenishmentPage() {
 
                       {/* 产品名称 */}
                       {row.product_name && (
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-term-muted">
                           产品名称: {row.product_name}
                         </div>
                       )}
@@ -1670,33 +1670,33 @@ export default function InventoryReplenishmentPage() {
                       {/* 核心数据 2 列网格 */}
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                         <div>
-                          <span className="text-xs text-muted-foreground">店铺库存</span>
-                          <div className="font-medium text-foreground">
+                          <span className="text-xs text-term-muted">店铺库存</span>
+                          <div className="font-medium text-term-text">
                             {formatInt(row.available_inventory)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground">在途</span>
-                          <div className="font-medium text-foreground">
+                          <span className="text-xs text-term-muted">在途</span>
+                          <div className="font-medium text-term-text">
                             {formatInt(row.in_transit_quantity)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground">DMS (加权)</span>
-                          <div className="font-medium text-foreground">
+                          <span className="text-xs text-term-muted">DMS (加权)</span>
+                          <div className="font-medium text-term-text">
                             {formatNumber(row.weighted_dms)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-muted-foreground">可售天数</span>
-                          <div className="font-medium text-foreground">
+                          <span className="text-xs text-term-muted">可售天数</span>
+                          <div className="font-medium text-term-text">
                             {formatNumber(row.sellable_days)}
                           </div>
                         </div>
                       </div>
 
                       {/* 日期信息 */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-term-muted">
                         <div>售卖截止: {formatDate(row.sellout_date)}</div>
                         <div>含在途: {formatDate(row.sellout_date_with_transit)}</div>
                         <div>补货指令: {formatDate(row.replenishment_order_date)}</div>
@@ -1704,10 +1704,10 @@ export default function InventoryReplenishmentPage() {
                       </div>
 
                       {/* 可编辑字段 */}
-                      <div className="border-t border-border/70 pt-3">
+                      <div className="border-t border-term-border pt-3">
                         <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1">
-                            <div className="text-[11px] text-muted-foreground">生产交货</div>
+                            <div className="text-[11px] text-term-muted">生产交货</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {row.production_lead_days} 天
@@ -1721,12 +1721,12 @@ export default function InventoryReplenishmentPage() {
                                     [key]: { ...edit, production_lead_days: event.target.value },
                                   }))
                                 }
-                                className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                               />
                             )}
                           </div>
                           <div className="space-y-1">
-                            <div className="text-[11px] text-muted-foreground">运输时间</div>
+                            <div className="text-[11px] text-term-muted">运输时间</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {row.shipping_days} 天
@@ -1740,12 +1740,12 @@ export default function InventoryReplenishmentPage() {
                                     [key]: { ...edit, shipping_days: event.target.value },
                                   }))
                                 }
-                                className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                               />
                             )}
                           </div>
                           <div className="space-y-1">
-                            <div className="text-[11px] text-muted-foreground">加权系数</div>
+                            <div className="text-[11px] text-term-muted">加权系数</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {formatNumber(row.safety_factor)}%
@@ -1760,9 +1760,9 @@ export default function InventoryReplenishmentPage() {
                                       [key]: { ...edit, safety_factor: event.target.value },
                                     }))
                                   }
-                                  className="h-8 text-xs rounded-md border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                                  className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
                                 />
-                                <span className="text-xs text-muted-foreground">%</span>
+                                <span className="text-xs text-term-muted">%</span>
                               </div>
                             )}
                           </div>
@@ -1772,8 +1772,8 @@ export default function InventoryReplenishmentPage() {
                       {/* 预计补货数量 */}
                       {row.estimated_replenishment_quantity !== null && (
                         <div className="text-sm">
-                          <span className="text-xs text-muted-foreground">预计补货数量: </span>
-                          <span className="font-medium text-foreground">
+                          <span className="text-xs text-term-muted">预计补货数量: </span>
+                          <span className="font-medium text-term-text">
                             {formatInt(row.estimated_replenishment_quantity)}
                           </span>
                         </div>
@@ -1784,7 +1784,7 @@ export default function InventoryReplenishmentPage() {
                         {!isSnapshotMode && (
                           <Button
                             size="sm"
-                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-term-raised dark:text-term-text"
                             onClick={() => void saveRow(row)}
                             disabled={savingSku === key}
                           >
@@ -1800,7 +1800,7 @@ export default function InventoryReplenishmentPage() {
                           size="sm"
                           variant="outline"
                           className={cn(
-                            'h-9 gap-1.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground',
+                            'h-9 gap-1.5 text-xs dark:border-term-border dark:bg-term-raised dark:text-term-text',
                             isSnapshotMode ? 'w-full' : 'flex-1'
                           )}
                           onClick={() => void openShipments(row)}
@@ -1825,13 +1825,13 @@ export default function InventoryReplenishmentPage() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full overflow-y-auto dark:border-border/85 dark:bg-[hsl(var(--surface-panel))] sm:max-w-2xl"
+          className="w-full overflow-y-auto dark:border-term-border dark:bg-term-panel sm:max-w-2xl"
         >
           <SheetHeader>
-            <SheetTitle className="dark:text-foreground">
+            <SheetTitle className="dark:text-term-text">
               {selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}
             </SheetTitle>
-            <SheetDescription className="dark:text-foreground/72">
+            <SheetDescription className="dark:text-term-text/72">
               在途数量口径包含 `in_transit`、`draft`。本抽屉只读展示，维护请前往发货管理。
             </SheetDescription>
           </SheetHeader>
@@ -1839,26 +1839,26 @@ export default function InventoryReplenishmentPage() {
           {selectedRow ? (
             <div className="mt-6 space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
-                <Card className="border-border/70 dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-muted-foreground">SKU</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">
+                    <div className="text-xs text-term-muted">SKU</div>
+                    <div className="mt-1 text-lg font-semibold text-term-text">
                       {selectedRow.sku}
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="border-border/70 dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-muted-foreground">店铺库存</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">
+                    <div className="text-xs text-term-muted">店铺库存</div>
+                    <div className="mt-1 text-lg font-semibold text-term-text">
                       {formatInt(selectedRow.available_inventory)}
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="border-border/70 dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
                   <CardContent className="pt-6">
-                    <div className="text-xs text-muted-foreground">在途数量</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">
+                    <div className="text-xs text-term-muted">在途数量</div>
+                    <div className="mt-1 text-lg font-semibold text-term-text">
                       {formatInt(selectedRow.in_transit_quantity)}
                     </div>
                   </CardContent>
@@ -1871,7 +1871,7 @@ export default function InventoryReplenishmentPage() {
                   <Skeleton className="h-24 w-full" />
                 </div>
               ) : shipments.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted-foreground dark:border-border/80">
+                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center text-sm text-term-muted dark:border-term-border">
                   当前 SKU 暂无发货记录。
                 </div>
               ) : (
@@ -1881,17 +1881,17 @@ export default function InventoryReplenishmentPage() {
                     return (
                       <div
                         key={`${item.schedule_id}-${item.shipment_no}`}
-                        className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-4 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:shadow-none"
+                        className="rounded-none border border-term-border bg-term-panel p-4 shadow-none dark:border-term-border dark:bg-term-raised dark:shadow-none"
                       >
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <div className="font-semibold text-foreground">
+                              <div className="font-semibold text-term-text">
                                 {item.shipment_no}
                               </div>
                               <Badge className={status.className}>{status.label}</Badge>
                             </div>
-                            <div className="grid gap-1 text-sm text-muted-foreground dark:text-foreground/80">
+                            <div className="grid gap-1 text-sm text-term-muted dark:text-term-text/80">
                               <div>物流方式：{methodLabel(item.shipping_method)}</div>
                               <div>数量：{formatInt(item.quantity)}</div>
                               <div>ETD：{formatDate(item.etd_date)}</div>
@@ -1901,12 +1901,12 @@ export default function InventoryReplenishmentPage() {
                             </div>
                           </div>
                           <div className="space-y-3 text-right">
-                            <div className="text-xs text-muted-foreground">最近更新</div>
-                            <div className="text-sm text-foreground/80">{item.updated_at}</div>
+                            <div className="text-xs text-term-muted">最近更新</div>
+                            <div className="text-sm text-term-text/80">{item.updated_at}</div>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
                               onClick={() => {
                                 const params = new URLSearchParams({
                                   shipment_no: item.shipment_no,
@@ -1925,7 +1925,7 @@ export default function InventoryReplenishmentPage() {
                           </div>
                         </div>
                         {item.remark ? (
-                          <div className="mt-3 rounded-lg bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground/80 dark:bg-[hsl(var(--surface-strong))]">
+                          <div className="mt-3 rounded-none bg-term-raised px-3 py-2 text-sm text-term-text/80 dark:bg-term-raised">
                             {item.remark}
                           </div>
                         ) : null}
@@ -1939,47 +1939,47 @@ export default function InventoryReplenishmentPage() {
         </SheetContent>
       </Sheet>
 
-      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-5 py-4 text-sm text-foreground/80 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+      <div className="rounded-none border border-term-border bg-term-panel px-5 py-4 text-sm text-term-text/80 dark:border-term-border dark:bg-term-raised">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--surface-panel))] text-muted-foreground shadow-sm ring-1 ring-border/70 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground/72 dark:ring-border/80">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-term-panel text-term-muted shadow-none ring-1 ring-border/70 dark:bg-term-raised dark:text-term-text/72 dark:ring-border/80">
             <CalendarClock className="h-4 w-4" />
           </div>
           <div className="min-w-0 space-y-3">
             <div>
-              <div className="text-sm font-semibold text-foreground">口径说明</div>
+              <div className="text-sm font-semibold text-term-text">口径说明</div>
             </div>
             <div className="grid gap-2">
-              <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-xs font-medium text-foreground/80 dark:bg-[hsl(var(--surface-strong))]">
+              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
+                <span className="mr-2 inline-flex rounded-none bg-term-raised px-2 py-0.5 text-xs font-medium text-term-text/80 dark:bg-term-raised">
                   风险状态
                 </span>
                 按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为待补数据。
               </div>
-              <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
+                <span className="mr-2 inline-flex rounded-none bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
                   预计数量
                 </span>
                 按 <code>(生产交货时间 + 运输时间) × 加权DMS</code>{' '}
                 计算；滞销与严重滞销状态不显示预计补货数量，其余状态在存在有效 <code>加权DMS</code>{' '}
                 时显示。
               </div>
-              <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
+                <span className="mr-2 inline-flex rounded-none bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
                   销量来源
                 </span>
                 近 <code>30D / 14D / 7D / 3D</code> 全部改为取 <code>sales_report</code> 明细，其中{' '}
                 <code>3D</code> 使用滞后 2 天窗口。
               </div>
-              <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
+                <span className="mr-2 inline-flex rounded-none bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                   权重规则
                 </span>
                 默认按 <code>30D 10%</code>、<code>14D 30%</code>、<code>7D 30%</code>、
                 <code>3D 30%</code> 计算；若 <code>3D</code> 缺失，则其 <code>30%</code>{' '}
                 权重全部并给 <code>7D</code>。
               </div>
-              <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-                <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
+                <span className="mr-2 inline-flex rounded-none bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
                   窗口示例
                 </span>
                 若今天是 <code>2026-03-09</code>，则 <code>3D</code> 取 <code>2026-03-05</code> 到{' '}

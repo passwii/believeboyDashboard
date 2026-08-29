@@ -107,7 +107,7 @@ function DmsBars({ row }: { row: CockpitRow }) {
         const height = w.value ? Math.max(14, Math.round((w.value / max) * 100)) : 4
         return (
           <div key={w.label} className="flex flex-col items-center gap-1">
-            <div className="flex h-9 w-6 items-end rounded-[3px] bg-[hsl(var(--surface-strong))] dark:bg-[hsl(var(--surface-overlay))]">
+            <div className="flex h-9 w-6 items-end rounded-[3px] bg-term-raised dark:bg-term-raised">
               <div
                 className={cn(
                   'w-full rounded-[3px] transition-all',
@@ -116,16 +116,16 @@ function DmsBars({ row }: { row: CockpitRow }) {
                 style={{ height: `${height}%` }}
               />
             </div>
-            <span className="text-[10px] leading-none text-muted-foreground">{w.label}</span>
-            <span className="text-[11px] font-semibold tabular-nums text-foreground/90">
+            <span className="text-[10px] leading-none text-term-muted">{w.label}</span>
+            <span className="text-[11px] font-semibold tabular-nums text-term-text/90">
               {formatNum(w.value, 1)}
             </span>
           </div>
         )
       })}
-      <div className="ml-1 flex flex-col justify-center gap-0.5 border-l border-border/60 pl-3">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">加权 DMS</div>
-        <div className="text-sm font-bold tabular-nums text-foreground">
+      <div className="ml-1 flex flex-col justify-center gap-0.5 border-l border-term-border pl-3">
+        <div className="text-[10px] uppercase tracking-wide text-term-muted">加权 DMS</div>
+        <div className="text-sm font-bold tabular-nums text-term-text">
           {formatNum(row.weighted_dms)}
         </div>
         <div className="flex items-center gap-1 text-[11px]">
@@ -145,17 +145,17 @@ function DmsBars({ row }: { row: CockpitRow }) {
                     ? 'text-orange-600 dark:text-orange-300'
                     : trendUp
                       ? 'text-emerald-600 dark:text-emerald-300'
-                      : 'text-muted-foreground'
+                      : 'text-term-muted'
                 )}
               >
                 {trendLabel}
               </span>
             </>
           ) : (
-            <span className="text-muted-foreground">--</span>
+            <span className="text-term-muted">--</span>
           )}
           {momentum && momentum !== 'stable' ? (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[10px] text-term-muted">
               · {MOMENTUM_LABELS[momentum] ?? momentum}
             </span>
           ) : null}
@@ -179,7 +179,7 @@ function AgingBar({ row }: { row: CockpitRow }) {
 
   if (!hasData) {
     return (
-      <div className="text-[11px] text-muted-foreground/70">
+      <div className="text-[11px] text-term-muted/70">
         库龄数据缺失（可售 {formatInt(row.available_inventory)}）
       </div>
     )
@@ -190,7 +190,7 @@ function AgingBar({ row }: { row: CockpitRow }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex w-full items-center gap-2">
-            <div className="flex h-2.5 flex-1 gap-px overflow-hidden rounded-full bg-[hsl(var(--surface-strong))] dark:bg-[hsl(var(--surface-overlay))]">
+            <div className="flex h-2.5 flex-1 gap-px overflow-hidden rounded-full bg-term-raised dark:bg-term-raised">
               {buckets.map((b) => {
                 const pct = share?.[b.key] ?? 0
                 if (pct <= 0) return null
@@ -203,7 +203,7 @@ function AgingBar({ row }: { row: CockpitRow }) {
                 )
               })}
             </div>
-            <span className="whitespace-nowrap text-[11px] text-muted-foreground">库龄</span>
+            <span className="whitespace-nowrap text-[11px] text-term-muted">库龄</span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[260px] space-y-1">
@@ -256,18 +256,18 @@ function CycleTimeline({ row }: { row: CockpitRow }) {
                     ? 'border-rose-400 bg-rose-400/60 dark:border-rose-500 dark:bg-rose-500/60'
                     : isSellout
                       ? 'border-foreground/50 bg-foreground/70 dark:border-foreground/60 dark:bg-foreground/70'
-                      : 'border-border bg-[hsl(var(--surface-strong))] dark:bg-[hsl(var(--surface-overlay))]'
+                      : 'border-term-border bg-term-raised dark:bg-term-raised'
                 )}
               />
               <span
                 className={cn(
                   'whitespace-nowrap text-[10px] leading-none',
-                  anchorPast ? 'font-medium text-rose-600 dark:text-rose-300' : 'text-muted-foreground'
+                  anchorPast ? 'font-medium text-rose-600 dark:text-rose-300' : 'text-term-muted'
                 )}
               >
                 {a.label}
               </span>
-              <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-foreground/90">
+              <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-term-text/90">
                 {a.date ?? '--'}
               </span>
             </div>
@@ -295,20 +295,20 @@ function SignalRow({ row }: { row: CockpitRow }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
       {phase && phase !== 'unknown' ? (
-        <span className="flex items-center gap-1 text-[11px] text-foreground/80">
+        <span className="flex items-center gap-1 text-[11px] text-term-text/80">
           <span className="text-xs">{SEASONAL_EMOJI[phase] ?? '?'}</span>
           季节性
-          <span className="font-semibold text-foreground">
+          <span className="font-semibold text-term-text">
             {SEASONAL_LABELS[phase] ?? phase}
           </span>
           {factor !== null && factor !== undefined && (
-            <span className="tabular-nums text-muted-foreground">×{formatNum(factor)}</span>
+            <span className="tabular-nums text-term-muted">×{formatNum(factor)}</span>
           )}
         </span>
       ) : (
-        <span className="text-[11px] text-muted-foreground/70">季节性 未知</span>
+        <span className="text-[11px] text-term-muted/70">季节性 未知</span>
       )}
-      <span className="flex items-center gap-1.5 text-[11px] text-foreground/80">
+      <span className="flex items-center gap-1.5 text-[11px] text-term-text/80">
         <span
           className={cn(
             'inline-block h-1.5 w-1.5 rounded-full',
@@ -320,7 +320,7 @@ function SignalRow({ row }: { row: CockpitRow }) {
           )}
         />
         置信度
-        <span className="font-medium text-foreground">
+        <span className="font-medium text-term-text">
           {CONFIDENCE_LABELS[confidence ?? ''] ?? confidence ?? '--'}
         </span>
       </span>
@@ -349,41 +349,41 @@ function DecisionBasisChip({ path }: { path: CockpitDecisionPath }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1 rounded-full border border-border/60 bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-[hsl(var(--surface-panel))] hover:text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:hover:bg-[hsl(var(--surface-overlay))]"
+          className="flex items-center gap-1 rounded-full border border-term-border bg-term-raised px-2 py-0.5 text-[10px] font-medium text-term-muted transition-colors hover:bg-term-panel hover:text-term-text dark:border-term-border dark:bg-term-raised dark:hover:bg-term-raised"
         >
           <CircleHelp className="h-3 w-3" />
           决策依据
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={6} className="w-[300px] space-y-2.5">
-        <div className="text-xs font-semibold text-foreground">决策依据 · 为什么这么判</div>
+        <div className="text-xs font-semibold text-term-text">决策依据 · 为什么这么判</div>
         {stateRule ? (
           <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-wide text-term-muted">
               状态判定 · {stateRule}
             </div>
-            <div className="text-xs text-foreground/90">
+            <div className="text-xs text-term-text/90">
               {STATE_RULE_LABELS[stateRule] ?? '未知规则'}
             </div>
           </div>
         ) : null}
         {subtype ? (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-term-muted">
             状态类型：{CRITICAL_SUBTYPE_LABELS[subtype] ?? subtype}
           </div>
         ) : null}
         {actionRule ? (
           <div className="space-y-0.5">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-wide text-term-muted">
               行动判定 · {actionRule}
             </div>
-            <div className="text-xs text-foreground/90">
+            <div className="text-xs text-term-text/90">
               {ACTION_RULE_LABELS[actionRule] ?? '未知分支'}
             </div>
           </div>
         ) : null}
         {override ? (
-          <div className="rounded-md bg-amber-100/70 px-2 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <div className="rounded-none bg-amber-100/70 px-2 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             {phase && phase !== 'unknown' ? (
               <span className="mr-1">
                 {SEASONAL_EMOJI[phase] ?? '?'} {SEASONAL_LABELS[phase] ?? phase}
@@ -414,7 +414,7 @@ export function DecisionCard({
   return (
     <div
       className={cn(
-        'group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-raised dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+        'group relative flex flex-col gap-3 overflow-hidden rounded-none border border-term-border bg-term-panel p-4 shadow-none transition-all hover:-translate-y-0.5 hover:shadow-raised dark:border-term-border dark:bg-term-raised',
         theme.rail === 'bg-rose-500' && 'hover:border-rose-300/70 dark:hover:border-rose-800/60',
         theme.rail === 'bg-orange-500' && 'hover:border-orange-300/70 dark:hover:border-orange-800/60',
         theme.rail === 'bg-amber-400' && 'hover:border-amber-300/70 dark:hover:border-amber-800/60',
@@ -428,12 +428,12 @@ export function DecisionCard({
       <div className="flex items-start justify-between gap-3 pl-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-sm font-bold tracking-tight text-foreground">
+            <span className="truncate font-mono text-sm font-bold tracking-tight text-term-text">
               {row.sku}
             </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">{row.country}</span>
+            <span className="shrink-0 text-[11px] text-term-muted">{row.country}</span>
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          <div className="mt-0.5 truncate text-xs text-term-muted">
             {row.product_name || row.asin || '--'}
           </div>
         </div>
@@ -451,20 +451,20 @@ export function DecisionCard({
 
       {/* 库存三件套 */}
       <div className="grid grid-cols-3 gap-2 pl-2">
-        <div className="rounded-lg bg-[hsl(var(--surface-soft))] px-2.5 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">可售</div>
-          <div className="text-base font-bold tabular-nums text-foreground">
+        <div className="rounded-none bg-term-raised px-2.5 py-1.5 dark:bg-term-raised">
+          <div className="text-[10px] uppercase tracking-wide text-term-muted">可售</div>
+          <div className="text-base font-bold tabular-nums text-term-text">
             {formatInt(row.available_inventory)}
           </div>
         </div>
-        <div className="rounded-lg bg-[hsl(var(--surface-soft))] px-2.5 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">在途</div>
-          <div className="text-base font-bold tabular-nums text-foreground">
+        <div className="rounded-none bg-term-raised px-2.5 py-1.5 dark:bg-term-raised">
+          <div className="text-[10px] uppercase tracking-wide text-term-muted">在途</div>
+          <div className="text-base font-bold tabular-nums text-term-text">
             {formatInt(row.in_transit_quantity)}
           </div>
         </div>
-        <div className="rounded-lg bg-[hsl(var(--surface-soft))] px-2.5 py-1.5 dark:bg-[hsl(var(--surface-strong))]">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">可售天数</div>
+        <div className="rounded-none bg-term-raised px-2.5 py-1.5 dark:bg-term-raised">
+          <div className="text-[10px] uppercase tracking-wide text-term-muted">可售天数</div>
           <div
             className={cn(
               'text-base font-bold tabular-nums',
@@ -472,7 +472,7 @@ export function DecisionCard({
                 ? 'text-rose-600 dark:text-rose-300'
                 : (row.sellable_days ?? 999) < 30
                   ? 'text-orange-600 dark:text-orange-300'
-                  : 'text-foreground'
+                  : 'text-term-text'
             )}
           >
             {formatNum(row.sellable_days, 0)}
@@ -491,12 +491,12 @@ export function DecisionCard({
       </div>
 
       {/* 库存周期时间轴 */}
-      <div className="overflow-x-auto rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]/60 px-3 py-2.5 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]/50">
+      <div className="overflow-x-auto rounded-none border border-term-border bg-term-raised/60 px-3 py-2.5 dark:border-term-border dark:bg-term-raised/50">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="text-[10px] uppercase tracking-wide text-term-muted">
             库存周期
           </span>
-          <span className="text-[10px] text-muted-foreground/70">
+          <span className="text-[10px] text-term-muted/70">
             今天 {shortDate(row.risk_anchor_date) ?? '--'}
           </span>
         </div>
@@ -504,44 +504,44 @@ export function DecisionCard({
       </div>
 
       {/* 信号行 */}
-      <div className="border-t border-border/60 px-2 pt-2.5 dark:border-border/80">
+      <div className="border-t border-term-border px-2 pt-2.5 dark:border-term-border">
         <SignalRow row={row} />
       </div>
 
       {/* 设置三件套 + 操作 */}
-      <div className="flex flex-wrap items-end gap-2 border-t border-border/60 pt-2.5 pl-2 dark:border-border/80">
+      <div className="flex flex-wrap items-end gap-2 border-t border-term-border pt-2.5 pl-2 dark:border-term-border">
         <div className="space-y-1">
-          <div className="text-[10px] text-muted-foreground">生产交货</div>
+          <div className="text-[10px] text-term-muted">生产交货</div>
           {isSnapshotMode ? (
-            <div className="flex h-8 items-center text-sm text-foreground/90">
+            <div className="flex h-8 items-center text-sm text-term-text/90">
               {row.production_lead_days} 天
             </div>
           ) : (
             <Input
               value={edit.production_lead_days}
               onChange={(e) => onEditChange({ production_lead_days: e.target.value })}
-              className="h-8 w-[68px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] text-xs shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+              className="h-8 w-[68px] rounded-none border-term-border bg-term-panel text-xs shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
             />
           )}
         </div>
         <div className="space-y-1">
-          <div className="text-[10px] text-muted-foreground">运输时间</div>
+          <div className="text-[10px] text-term-muted">运输时间</div>
           {isSnapshotMode ? (
-            <div className="flex h-8 items-center text-sm text-foreground/90">
+            <div className="flex h-8 items-center text-sm text-term-text/90">
               {row.shipping_days} 天
             </div>
           ) : (
             <Input
               value={edit.shipping_days}
               onChange={(e) => onEditChange({ shipping_days: e.target.value })}
-              className="h-8 w-[68px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] text-xs shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+              className="h-8 w-[68px] rounded-none border-term-border bg-term-panel text-xs shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
             />
           )}
         </div>
         <div className="space-y-1">
-          <div className="text-[10px] text-muted-foreground">加权系数</div>
+          <div className="text-[10px] text-term-muted">加权系数</div>
           {isSnapshotMode ? (
-            <div className="flex h-8 items-center text-sm text-foreground/90">
+            <div className="flex h-8 items-center text-sm text-term-text/90">
               {formatNum(row.safety_factor, 0)}%
             </div>
           ) : (
@@ -549,9 +549,9 @@ export function DecisionCard({
               <Input
                 value={edit.safety_factor}
                 onChange={(e) => onEditChange({ safety_factor: e.target.value })}
-                className="h-8 w-[56px] rounded-md border-border/70 bg-[hsl(var(--surface-panel))] text-xs shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+                className="h-8 w-[56px] rounded-none border-term-border bg-term-panel text-xs shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
               />
-              <span className="text-xs text-muted-foreground">%</span>
+              <span className="text-xs text-term-muted">%</span>
             </div>
           )}
         </div>
@@ -559,7 +559,7 @@ export function DecisionCard({
           {!isSnapshotMode && (
             <Button
               size="sm"
-              className="h-8 gap-1.5 text-xs dark:bg-[hsl(var(--surface-strong))] dark:text-foreground"
+              className="h-8 gap-1.5 text-xs dark:bg-term-raised dark:text-term-text"
               onClick={onSave}
               disabled={saving}
             >
@@ -570,7 +570,7 @@ export function DecisionCard({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 gap-1.5 text-xs dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
+            className="h-8 gap-1.5 text-xs dark:border-term-border dark:bg-term-raised dark:text-term-text"
             onClick={onOpenShipments}
           >
             <Send className="h-3.5 w-3.5" />

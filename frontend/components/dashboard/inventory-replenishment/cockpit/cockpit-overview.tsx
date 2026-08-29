@@ -78,9 +78,9 @@ export function CockpitOverview({
   if (loading && rows.length === 0) {
     return (
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_1fr_0.8fr]">
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-none" />
+        <Skeleton className="h-32 w-full rounded-none" />
+        <Skeleton className="h-32 w-full rounded-none" />
       </div>
     )
   }
@@ -88,15 +88,15 @@ export function CockpitOverview({
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_1fr_0.8fr]">
       {/* 状态光谱 */}
-      <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-4 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+      <div className="rounded-none border border-term-border bg-term-panel p-4 shadow-none dark:border-term-border dark:bg-term-raised">
         <div className="mb-2.5 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-semibold text-foreground">状态光谱</span>
+            <Activity className="h-3.5 w-3.5 text-term-muted" />
+            <span className="text-xs font-semibold text-term-text">状态光谱</span>
           </div>
-          <span className="text-[11px] text-muted-foreground">点击分段筛选</span>
+          <span className="text-[11px] text-term-muted">点击分段筛选</span>
         </div>
-        <div className="flex h-9 w-full gap-px overflow-hidden rounded-lg">
+        <div className="flex h-9 w-full gap-px overflow-hidden rounded-none">
           {stateCounts.map(({ state, count }) => {
             if (count === 0) return null
             const theme = STATE_THEME[state] ?? STATE_THEME.unknown
@@ -114,10 +114,10 @@ export function CockpitOverview({
                 style={{ width: `${(count / totalState) * 100}%` }}
                 title={`${STATE_LABELS[state] ?? state}: ${count}`}
               >
-                <span className="text-[11px] font-bold leading-none text-white drop-shadow-sm">
+                <span className="text-[11px] font-bold leading-none text-white drop-shadow-none">
                   {count}
                 </span>
-                <span className="text-[9px] leading-none text-white/90 drop-shadow-sm">
+                <span className="text-[9px] leading-none text-white/90 drop-shadow-none">
                   {STATE_LABELS[state] ?? state}
                 </span>
               </button>
@@ -133,8 +133,8 @@ export function CockpitOverview({
               className={cn(
                 'flex items-center gap-1 text-[11px] transition-colors',
                 stateFilter === state
-                  ? 'font-semibold text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'font-semibold text-term-text'
+                  : 'text-term-muted hover:text-term-text'
               )}
             >
               <span className={cn('inline-block h-2 w-2 rounded-full', STATE_THEME[state].dot)} />
@@ -146,13 +146,13 @@ export function CockpitOverview({
       </div>
 
       {/* 行动全景 */}
-      <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-4 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+      <div className="rounded-none border border-term-border bg-term-panel p-4 shadow-none dark:border-term-border dark:bg-term-raised">
         <div className="mb-2.5 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <PackageSearch className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-semibold text-foreground">行动全景</span>
+            <PackageSearch className="h-3.5 w-3.5 text-term-muted" />
+            <span className="text-xs font-semibold text-term-text">行动全景</span>
           </div>
-          <span className="text-[11px] text-muted-foreground">按决策优先级排序</span>
+          <span className="text-[11px] text-term-muted">按决策优先级排序</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {actionCounts.map(({ action, count }) => {
@@ -176,31 +176,31 @@ export function CockpitOverview({
             )
           })}
         </div>
-        <div className="mt-2.5 flex items-center gap-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground dark:border-border/80">
+        <div className="mt-2.5 flex items-center gap-3 border-t border-term-border pt-2 text-[11px] text-term-muted dark:border-term-border">
           <span className="flex items-center gap-1">
-            可售 <span className="font-semibold tabular-nums text-foreground">{formatInt(summary.total_available_inventory)}</span>
+            可售 <span className="font-semibold tabular-nums text-term-text">{formatInt(summary.total_available_inventory)}</span>
           </span>
           <span className="flex items-center gap-1">
-            在途 <span className="font-semibold tabular-nums text-foreground">{formatInt(summary.total_in_transit_quantity)}</span>
+            在途 <span className="font-semibold tabular-nums text-term-text">{formatInt(summary.total_in_transit_quantity)}</span>
           </span>
         </div>
       </div>
 
       {/* 库存总览 + 数据健康 */}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-1 items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-3 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+        <div className="flex flex-1 items-center justify-between rounded-none border border-term-border bg-term-panel px-4 py-3 shadow-none dark:border-term-border dark:bg-term-raised">
           <div className="flex items-center gap-2">
-            <Boxes className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">SKU 数</span>
+            <Boxes className="h-4 w-4 text-term-muted" />
+            <span className="text-xs text-term-muted">SKU 数</span>
           </div>
-          <span className="text-lg font-bold tabular-nums text-foreground">
+          <span className="text-lg font-bold tabular-nums text-term-text">
             {formatInt(summary.sku_count)}
           </span>
         </div>
-        <div className="flex flex-1 items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-3 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+        <div className="flex flex-1 items-center justify-between rounded-none border border-term-border bg-term-panel px-4 py-3 shadow-none dark:border-term-border dark:bg-term-raised">
           <div className="flex items-center gap-2">
-            <Ship className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">数据新鲜度</span>
+            <Ship className="h-4 w-4 text-term-muted" />
+            <span className="text-xs text-term-muted">数据新鲜度</span>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className={cn('text-[11px]', freshnessTone)}>
@@ -208,12 +208,12 @@ export function CockpitOverview({
             </Badge>
           </div>
         </div>
-        <div className="flex flex-1 items-center justify-between gap-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] px-4 py-3 shadow-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-          <span className="text-xs text-muted-foreground">置信度构成</span>
+        <div className="flex flex-1 items-center justify-between gap-2 rounded-none border border-term-border bg-term-panel px-4 py-3 shadow-none dark:border-term-border dark:bg-term-raised">
+          <span className="text-xs text-term-muted">置信度构成</span>
           <div className="flex gap-1.5 text-[11px]">
             <span className="text-emerald-600 dark:text-emerald-300">高 {confidenceCounts.high}</span>
             <span className="text-amber-600 dark:text-amber-300">中 {confidenceCounts.medium}</span>
-            <span className="text-muted-foreground">低 {confidenceCounts.low}</span>
+            <span className="text-term-muted">低 {confidenceCounts.low}</span>
           </div>
         </div>
       </div>
