@@ -1,28 +1,30 @@
 'use client'
 
-import { startTransition, useEffect, useMemo, useState } from 'react'
-import { Filter, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
-import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON, TermPill } from '@/components/terminal/term-controls'
 import {
-  DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
   formatDateInputValue,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+} from '@/components/terminal/header-filter-suite'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TermPill } from '@/components/terminal/term-controls'
+import { useIsMobile } from '@/hooks/use-mobile'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
@@ -51,11 +53,27 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
   return query ? `${pathname}?${query}` : pathname
 }
 
+/**
+ * BLF-889 · 广告分析页筛选上移 Top Header 中段插槽。
+ *
+ * 原页面级「广告分析筛选区」TermPanel（视图/项目/站点/日期只读胶囊 + 筛选控件
+ * + 说明文案）与头部控件信息完全重复，按 BLF-824/826 范式收敛：
+ * - 项目 / 站点 / 日期控件 portal 进 TerminalHeader（HeaderFilterControls 统一形态，
+ *   移动端自动折叠为「筛选」Popover）；
+ * - 下钻 token（活动/SKU/搜索词等）只在存在下钻参数时以 accent pill + 清空按钮
+ *   出现在插槽尾部，无下钻时零占位；
+ * - 页面内不再渲染任何筛选区块。
+ *
+ * URL param 契约不变：projectId / country / dateFrom / dateTo + 下钻参数，
+ * 下游 10 个子页 client 零改动消费。刷新语义：清 2min 客户端缓存后强刷
+ * 当前路由（子页 effect 按 URL 参数重取）。
+ */
 export function AdAnalysisTopFilters() {
   const { data: session } = useSession()
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -65,25 +83,11 @@ export function AdAnalysisTopFilters() {
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
   const dateTo = searchParams.get('dateTo') || ''
-  const activeTabLabel = useMemo(
-    () => AD_ANALYSIS_TABS.find((item) => item.href === pathname)?.label || '广告分析',
-    [pathname]
-  )
-  const drillTokens = useMemo(() => {
-    const items: Array<{ key: string; label: string; value: string }> = []
-    Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
-      const value = searchParams.get(key)
-      if (value) {
-        items.push({ key, label, value })
-      }
-    })
-    return items
-  }, [searchParams])
-
-  const selectedProjectName = useMemo(
-    () => projects.find((item) => String(item.id) === projectId)?.name || '',
-    [projectId, projects]
-  )
+  const drillTokens: Array<{ key: string; label: string; value: string }> = []
+  Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
+    const value = searchParams.get(key)
+    if (value) drillTokens.push({ key, label, value })
+  })
 
   useEffect(() => {
     let active = true
@@ -91,179 +95,131 @@ export function AdAnalysisTopFilters() {
     async function loadProjects() {
       setProjectsLoading(true)
       setProjectsError(null)
-
       try {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
-
         setProjects(payload)
-
         if (!projectId && payload[0]?.id) {
-          const nextSearchParams = new URLSearchParams(searchParams.toString())
-          nextSearchParams.set('projectId', String(payload[0].id))
-          if (!nextSearchParams.get('country')) {
-            nextSearchParams.set('country', country)
-          }
-
-          startTransition(() => {
-            router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
-          })
+          const next = new URLSearchParams(searchParams.toString())
+          next.set('projectId', String(payload[0].id))
+          if (!next.get('country')) next.set('country', country)
+          router.replace(buildHref(pathname, next), { scroll: false })
         }
       } catch (error) {
         if (!active) return
         setProjectsError(error instanceof Error ? error.message : '项目列表加载失败')
       } finally {
-        if (active) {
-          setProjectsLoading(false)
-        }
+        if (active) setProjectsLoading(false)
       }
     }
 
     void loadProjects()
-
     return () => {
       active = false
     }
   }, [country, pathname, projectId, router, searchParams, session])
 
-  const updateSearchParam = (
-    key: 'projectId' | 'country' | 'dateFrom' | 'dateTo',
-    value: string
-  ) => {
-    const nextSearchParams = new URLSearchParams(searchParams.toString())
+  const replaceSearchParams = (mutate: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(searchParams.toString())
+    mutate(next)
+    router.replace(buildHref(pathname, next), { scroll: false })
+  }
 
-    if (value) {
-      nextSearchParams.set(key, value)
-    } else {
-      nextSearchParams.delete(key)
-    }
-
-    startTransition(() => {
-      router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
+  const updateSearchParam = (key: 'projectId' | 'country', value: string) => {
+    replaceSearchParams((next) => {
+      if (value) next.set(key, value)
+      else next.delete(key)
     })
   }
 
   const updateDateRange = (range?: DateRange) => {
-    const nextSearchParams = new URLSearchParams(searchParams.toString())
-    const nextDateFrom = formatDateInputValue(range?.from)
-    const nextDateTo = formatDateInputValue(range?.to)
-
-    if (nextDateFrom) {
-      nextSearchParams.set('dateFrom', nextDateFrom)
-    } else {
-      nextSearchParams.delete('dateFrom')
-    }
-
-    if (nextDateTo) {
-      nextSearchParams.set('dateTo', nextDateTo)
-    } else {
-      nextSearchParams.delete('dateTo')
-    }
-
-    startTransition(() => {
-      router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
+    replaceSearchParams((next) => {
+      const nextDateFrom = formatDateInputValue(range?.from)
+      const nextDateTo = formatDateInputValue(range?.to)
+      if (nextDateFrom) next.set('dateFrom', nextDateFrom)
+      else next.delete('dateFrom')
+      if (nextDateTo) next.set('dateTo', nextDateTo)
+      else next.delete('dateTo')
     })
   }
 
   const clearDrillParams = () => {
-    const nextSearchParams = new URLSearchParams(searchParams.toString())
-    Object.keys(DRILL_PARAM_LABELS).forEach((key) => {
-      nextSearchParams.delete(key)
-    })
-
-    startTransition(() => {
-      router.replace(buildHref(pathname, nextSearchParams), { scroll: false })
+    replaceSearchParams((next) => {
+      Object.keys(DRILL_PARAM_LABELS).forEach((key) => next.delete(key))
     })
   }
 
-  return (
-    <TermPanel title="广告分析筛选区" bodyClassName="p-3">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-1 font-mono text-xs">
-          <TermPill tone="muted">当前视图：{activeTabLabel}</TermPill>
-          <TermPill tone="muted">项目：{selectedProjectName || '未选择'}</TermPill>
-          <TermPill tone="muted">国家站点：{COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country}</TermPill>
-          <TermPill tone="muted">日期范围：{dateFrom || '全部'} ~ {dateTo || '全部'}</TermPill>
+  // 刷新语义：清 2min 客户端缓存后 router.refresh —— 子页 effect 依 URL 参数重取，
+  // 等价于「当前筛选条件下的强刷」。
+  useHeaderRefresh(() => router.refresh())
+
+  const controls = (
+    <>
+      {projectsLoading ? (
+        <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
+      ) : (
+        <HeaderSlotSelect
+          value={projectId}
+          onChange={(value) => updateSearchParam('projectId', value)}
+          options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
+          placeholder="选择项目"
+          widthClass={TERM_HEADER_W_MD}
+          title="项目筛选"
+        />
+      )}
+
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => updateSearchParam('country', value)}
+        options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+        placeholder="选择站点"
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+
+      <HeaderSlotDateRange
+        value={parseDateRangeInputValue(dateFrom, dateTo)}
+        onChange={updateDateRange}
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_XL}
+      />
+
+      {drillTokens.length > 0 && (
+        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden">
           {drillTokens.map((item) => (
-            <TermPill key={item.key} tone="accent">{item.label}：{item.value}</TermPill>
+            <TermPill key={item.key} tone="accent" className="shrink-0">
+              {item.label}：{item.value}
+            </TermPill>
           ))}
-          {drillTokens.length > 0 ? (
-            <button type="button" onClick={clearDrillParams} className={TERM_BUTTON}>清空下钻</button>
-          ) : null}
+          <button
+            type="button"
+            onClick={clearDrillParams}
+            className="flex h-10 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          >
+            清空下钻
+          </button>
         </div>
-        <p className="font-mono text-xs leading-5 text-term-muted">筛选条件固定放在顶部，先锁定项目和国家站点，再进入各分析页继续下钻。</p>
-        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-faint">
-          <Filter className="h-3.5 w-3.5" aria-hidden /> 筛选区
-        </div>
-        {/* BLF-611：手机端筛选项 2 列网格（总则 1 / 规则 2），日期范围占满一行；md+ 行为不变 */}
-        <div className="dashboard-toolbar grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              项目
-            </div>
-            {projectsLoading ? (
-              <Skeleton className="h-8 w-full rounded-none" />
-            ) : (
-              <Select
-                value={projectId}
-                onValueChange={(value) => updateSearchParam('projectId', value)}
-              >
-                <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none">
-                  <SelectValue placeholder="请选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+      )}
 
-          <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              国家站点
-            </div>
-            <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
-              <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text shadow-none">
-                <SelectValue placeholder="请选择国家站点" />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="col-span-2 space-y-2 md:col-span-1">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              日期范围
-            </div>
-            <DateRangePicker
-              value={parseDateRangeInputValue(dateFrom, dateTo)}
-              onChange={updateDateRange}
-              className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs shadow-none"
-              timezone={COUNTRY_TIMEZONE_MAP[country]}
-            />
-          </div>
-        </div>
-
-        {projectsError ? (
-          <div className="rounded-none border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">{projectsError}</div>
-        ) : null}
-
-        {projectsLoading ? (
-          <div className="flex items-center gap-2 font-mono text-xs text-term-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            正在准备项目筛选项...
-          </div>
-        ) : null}
-      </div>
-    </TermPanel>
+      {projectsError && (
+        <span className="flex h-10 shrink-0 items-center border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
+          {projectsError}
+        </span>
+      )}
+    </>
   )
+
+  return <AdAnalysisHeaderFilters controls={controls} isMobile={isMobile} />
+}
+
+/** portal 渲染宿主（useHeaderSlot 必须在组件体内调用） */
+function AdAnalysisHeaderFilters({
+  controls,
+  isMobile,
+}: {
+  controls: React.ReactNode
+  isMobile: boolean
+}) {
+  const portal = useHeaderSlot(<HeaderFilterControls isMobileView={isMobile} controls={controls} />)
+  return <>{portal}</>
 }
