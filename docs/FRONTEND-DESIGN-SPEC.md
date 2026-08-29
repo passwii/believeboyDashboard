@@ -1,8 +1,8 @@
 # 前端设计规范（FRONTEND-DESIGN-SPEC）
 
-> **适用版本：** v1.2（BLF-497 定稿 v1.0，2026-08-07；BLF-503 增补 §8 页面模式，2026-08-08；BLF-573 增补 §9 暗黑模式层次规范，2026-08-10）
+> **适用版本：** v1.3（v1.2 基础上转 **V2 存档版**，2026-08-29：V3 Terminal 终端化已成现行权威，见 `frontend/docs/design-spec.md` §0）
 > **适用对象：** 在 `frontend/` 下新增 / 修改 UI 的工程师
-> **定位：** 全站前端设计的**总纲与对照基准**。所有页面打磨子 issue（BLF-498 ~ 501）以本文档为验收对照。
+> **定位：** V2 Geist Surface 时代的总纲与对照基准（BLF-498 ~ 501 验收依据）。**新页面 / 新组件一律按 V3 Terminal 规范**（`docs/terminal-design/master-prompt.md`），本文档用于存量 V2 页面维护与历史对照；与 V3 冲突处以 `frontend/docs/design-spec.md` 为准。
 > **原则：** 文档与实际代码一致（每个条目都指向真实代码位置）；可执行、不空谈。
 
 ---
@@ -114,13 +114,15 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ### 2.3 例外清单（登记制）
 
-**凡"刻意不走 token"的位置必须登记在 `frontend/docs/design-spec.md` §1，禁止悄悄新增例外。** 当前已登记 3 类：
+**凡"刻意不走 token"的位置必须登记在 `frontend/docs/design-spec.md` §1，禁止悄悄新增例外。** 当前已登记 5 类（以该文档为权威，本表为快照）：
 
 | 例外 | 范围 | 原因 |
 |---|---|---|
-| **AI Chat 玻璃岛** | `frontend/components/chat/*`（ai-chat-window / conversation-sidebar / model-selector / token-footer 等） | 刻意设计的恒暗玻璃岛：独立于全站双主题，页面级临时强制 dark（`app/dashboard/ai/chat/page.tsx`），离开还原，不污染他页 |
+| **AI Chat 独立设计区** | `frontend/components/chat/*`（ai-chat-window / conversation-sidebar / model-selector / token-footer 等） | 刻意设计的独立配色区（BLF-859 起已改**双主题**、不再恒暗）：浅色纸感 / 深色玻璃，独立于全站双主题与 term 令牌体系 |
 | **文档渲染白底** | `app/dashboard/tools/page-render/page-render-client.tsx`、`app/p/[id]/page-renderer.tsx` | 渲染的是用户上传的独立 HTML（`srcDoc` + sandbox），白底是"纸张画布"，跟随主题会失真；Markdown 分支已走 token + `dark:prose-invert` |
 | **数字大屏** | `app/dashboard/system/digital-display/page.tsx` | mount 时强制 dark + 全屏，恒为暗色展示页；卡片已从自制配方迁移到标准 surface token（BLF-494） |
+| **数字员工办公室投屏模式** | `app/dashboard/ai/digital-employees/office/page.tsx`（`?mode=presentation` 分支） | 同数字大屏：投屏分支 mount 强制 dark + 全屏，恒为暗色展示页 |
+| **主页 dashboard-v2 蓝色单色体系** | `app/dashboard/page.tsx` + `components/dashboard-v2/` | BLF-497 §6.2 定稿的 V2 独立体系，仅主页使用；**不是漏改**，勿顺手 term 化 |
 
 > 新增例外的流程：先在设计评审确认"刻意为之"，再写入 `design-spec.md` §1 并在本表同步一行。
 

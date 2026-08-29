@@ -60,7 +60,7 @@
 | `STICKY_LEFT_CELL` | `sticky left-0 z-30` + term-panel 实体不透明 + inset 分隔线 | 第一列数据格 |
 | `STICKY_LEFT_CELL_HOVER` | 同上 + hover 变亮（term-hover） | 第一列可点击行 |
 
-要点：sticky 单元格背景必须**实体不透明 term 令牌**（`term-raised` / `term-panel`），否则暗黑模式滚动时出现浅色带（见 `design-spec.md` §2.2）。
+要点：sticky 单元格背景必须**实体不透明 term 令牌**（`term-raised` / `term-panel`），否则暗黑模式滚动时出现浅色带（见 `design-spec.md` §2 红线第 2 条）。
 
 ### 1.6 空状态
 
