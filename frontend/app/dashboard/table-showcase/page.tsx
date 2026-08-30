@@ -26,6 +26,7 @@ import {
   StatusPill,
   type TableStatus,
 } from '@/components/ui/table-presets'
+import { TermPill } from '@/components/terminal/term-controls'
 
 // ── 共享 mock 数据（所有方向用同一份，保证可比） ──
 type Order = {
@@ -427,25 +428,23 @@ export default function TableShowcasePage() {
         <h1 className="dashboard-display">Table 设计统一 · Showcase</h1>
         <p className="max-w-2xl text-muted-foreground">
           表格是全站最高频组件，已定稿为<b className="font-semibold text-foreground">单一配方</b>：
-          <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">
+          <code className="border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[0.8em] text-term-text">
             DataTableCard / DataTableFrame
           </code>
           外壳 +{' '}
-          <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">
+          <code className="border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[0.8em] text-term-text">
             table-presets
           </code>
           的 density / numeric / StatusPill 预设。以下展示基线（默认）与两个变体的实际效果，
           全部共享同一份 mock 数据与同一套设计 token，右上角切换主题可看 dark 效果。
-          规范文档见 <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">frontend/docs/table-spec.md</code>。
+          规范文档见 <code className="border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[0.8em] text-term-text">frontend/docs/table-spec.md</code>。
         </p>
       </header>
 
       {/* 规范速览 */}
       <section className="space-y-4">
-        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-          <span className="rounded-md bg-[hsl(var(--primary)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--primary))]">
-            spec
-          </span>
+        <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+          <TermPill tone="accent">spec</TermPill>
           <h2 className="text-lg font-semibold tracking-tight">规范速览</h2>
         </div>
         <div className="animate-fade-slide-up">
@@ -455,10 +454,8 @@ export default function TableShowcasePage() {
 
       {/* 基线 */}
       <section className="space-y-4">
-        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-          <span className="rounded-md bg-[hsl(var(--data-positive)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--data-positive))]">
-            baseline
-          </span>
+        <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+          <TermPill tone="pos">baseline</TermPill>
           <h2 className="text-lg font-semibold tracking-tight">基线 · 高密度数据网格（全站默认）</h2>
         </div>
         <p className="max-w-3xl text-sm text-muted-foreground">
@@ -472,10 +469,8 @@ export default function TableShowcasePage() {
 
       {/* 变体 */}
       <section className="space-y-12">
-        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-          <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
-            variants
-          </span>
+        <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+          <TermPill tone="muted">variants</TermPill>
           <h2 className="text-lg font-semibold tracking-tight">变体（按场景选型）</h2>
         </div>
         <p className="-mt-6 max-w-3xl text-sm text-muted-foreground">
@@ -484,10 +479,8 @@ export default function TableShowcasePage() {
         </p>
 
         <div className="space-y-4">
-          <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-            <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
-              variant A
-            </span>
+          <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+            <TermPill tone="muted">variant A</TermPill>
             <h3 className="text-base font-semibold tracking-tight">宽松密度（cozy）· 展示型</h3>
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground">
@@ -499,10 +492,8 @@ export default function TableShowcasePage() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-            <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
-              variant C
-            </span>
+          <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+            <TermPill tone="muted">variant C</TermPill>
             <h3 className="text-base font-semibold tracking-tight">动效增强（行展开）· 占位</h3>
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground">
@@ -516,10 +507,8 @@ export default function TableShowcasePage() {
 
       {/* 方向差异表 */}
       <section className="space-y-4">
-        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-          <span className="rounded-md bg-[hsl(var(--primary)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--primary))]">
-            matrix
-          </span>
+        <div className="flex items-baseline gap-3 border-b border-term-border pb-2">
+          <TermPill tone="accent">matrix</TermPill>
           <h2 className="text-lg font-semibold tracking-tight">方向差异表</h2>
         </div>
         <div className="animate-fade-slide-up">
