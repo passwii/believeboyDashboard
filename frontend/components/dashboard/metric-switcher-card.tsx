@@ -17,8 +17,19 @@ import {
 
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/line-charts-6'
+
+/**
+ * 终端语义色（涨跌/状态微语义，去彩色胶囊底）。
+ * 与 `components/terminal/term-controls` 的 TermTone 同规格（BLF-908 对齐）。
+ */
+type MetricTone = 'pos' | 'neg' | 'warn' | 'muted'
+const METRIC_TONE_CLASS: Record<MetricTone, string> = {
+  pos: 'text-term-pos',
+  neg: 'text-term-neg',
+  warn: 'text-term-warn',
+  muted: 'text-term-muted',
+}
 
 /**
  * Project-standard motion easing. Mirrors `--motion-ease-out` in
@@ -397,6 +408,8 @@ function MetricCell<K extends string>({
   }
   // Inactive cell — plain render, no spring. The shared accent indicator is
   // handled here too (only the active cell renders it via layoutId).
+  // BLF-908：bar chart 顶部 stats 区域终端化——label / 数值 / hint / 对比 pill 全部切到
+  // term 语义色 + mono 字体（与 TermKpiTile 同规格；不再用 Badge 彩色胶囊底）。
   return (
     <button
       type="button"
@@ -409,18 +422,24 @@ function MetricCell<K extends string>({
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate text-sm text-muted-foreground">{metric.label}</span>
-        <Badge
-          variant="secondary"
-          className={cn('shrink-0 gap-1 text-[10px]', 'bg-transparent text-muted-foreground/70')}
+        <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
+          {metric.label}
+        </span>
+        <span
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
+            'text-term-faint'
+          )}
         >
           {hasPrev && displayPrevious !== null ? `对比 ${metric.format(displayPrevious)}` : '--'}
-        </Badge>
+        </span>
       </div>
-      <div className="truncate text-2xl font-bold tabular-nums text-muted-foreground/80">
+      <div className="truncate font-mono text-base leading-6 tabular-nums text-term-muted">
         {metric.format(displayCurrent)}
       </div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">{subLabel}</div>
+      <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
+        {subLabel}
+      </div>
     </button>
   )
 }
@@ -488,35 +507,41 @@ function ActiveMetricCell<K extends string>({
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       />
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate text-sm text-muted-foreground">{metric.label}</span>
-        <Badge
-          variant="secondary"
-          className={cn(
-            'shrink-0 gap-1 text-[10px]',
-            change === null
-              ? 'bg-muted/40 text-muted-foreground'
-              : isPositive
-                ? 'bg-secondary/10 text-secondary'
-                : 'bg-destructive/10 text-destructive'
-          )}
-        >
-          {change === null ? (
-            '--'
-          ) : isPositive ? (
-            <>
+        <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
+          {metric.label}
+        </span>
+        {/* BLF-908：Badge 彩色胶囊底改 term 语义色 + mono 等宽 pill。 */}
+        {change === null ? (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
+              METRIC_TONE_CLASS.muted
+            )}
+          >
+            --
+          </span>
+        ) : (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
+              isPositive ? METRIC_TONE_CLASS.pos : METRIC_TONE_CLASS.neg
+            )}
+          >
+            {isPositive ? (
               <ArrowUp className="size-3" />
-              {Math.abs(change).toFixed(1)}%
-            </>
-          ) : (
-            <>
+            ) : (
               <ArrowDown className="size-3" />
-              {Math.abs(change).toFixed(1)}%
-            </>
-          )}
-        </Badge>
+            )}
+            {Math.abs(change).toFixed(1)}%
+          </span>
+        )}
       </div>
-      <div className="truncate text-2xl font-bold tabular-nums text-foreground">{displayValue}</div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">{subLabel}</div>
+      <div className="truncate font-mono text-base leading-6 tabular-nums text-term-text">
+        {displayValue}
+      </div>
+      <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
+        {subLabel}
+      </div>
     </button>
   )
 }
