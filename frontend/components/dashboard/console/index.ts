@@ -1,4 +1,3 @@
-export { FilterToolbar } from './filter-toolbar'
 export { FilterField } from './filter-field'
 export { ProjectSelect } from './project-select'
 export { CountrySelect } from './country-select'
