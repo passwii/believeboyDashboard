@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
-import { RefreshCcw } from 'lucide-react'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { DailyAnalysisTable } from '@/components/terminal/daily-analysis-table'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { V2Card } from '@/components/dashboard-v2/v2-card'
@@ -23,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
 // 骨架与正式卡（V2Card gap-0 + md:col-span-2）同构：BLF-504 修复加载骨架与正式卡不一致
@@ -341,6 +346,54 @@ export default function DashboardV2Page() {
     if (projects.length > 0) void loadCountriesData()
   }, [projects, loadCountriesData])
 
+  // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
+  // 刷新语义：当前项目 + 日期区间条件下，重新拉取主数据 + 跨国家分布。
+  // handler 用 ref 桥接，projectId 变化后仍能跑最新闭包。
+  const refreshRef = useRef<() => void>(loadData)
+  refreshRef.current = () => {
+    void loadData()
+    void loadCountriesData()
+  }
+  useHeaderRefresh(() => refreshRef.current(), { loading: dataLoading || projectsLoading })
+
+  const isMobile = useIsMobile()
+
+  // 筛选控件 + 数据区间徽标 portal 进 Top Header 中段插槽；
+  // 刷新走 head 全局按钮（BLF-826 / BLF-881），页面不再渲染独立刷新控件。
+  const filterControls = (
+    <>
+      <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 md:w-[180px] [&>span]:truncate">
+          <SelectValue placeholder="选择项目" />
+        </SelectTrigger>
+        <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+          <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
+            全部项目
+          </SelectItem>
+          {projects.map((p) => (
+            <SelectItem
+              key={p.id}
+              value={String(p.id)}
+              className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+            >
+              {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {/* 数据区间徽标：固定 7 天窗口，标注口径，非筛选控件 */}
+      <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
+        <span className="font-mono text-xs uppercase tracking-wider text-term-faint">数据区间</span>
+        <span className="truncate font-mono text-xs tabular-nums text-term-text">
+          {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
+        </span>
+      </div>
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+  )
+
   if (status === 'loading') {
     return <DashboardPageLoading />
   }
@@ -355,47 +408,8 @@ export default function DashboardV2Page() {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Console 工具栏：项目过滤 + 数据区间 + 刷新（BLF-809 终端化，二档放大后 h-9 终端控件） */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="h-8 w-[180px] rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text focus:ring-0 [&>span]:truncate">
-            <SelectValue placeholder="选择项目" />
-          </SelectTrigger>
-          <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-            <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
-              全部项目
-            </SelectItem>
-            {projects.map((p) => (
-              <SelectItem
-                key={p.id}
-                value={String(p.id)}
-                className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-              >
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <span className="font-mono text-xs tabular-nums leading-5 text-term-muted">
-          {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => {
-            void loadData()
-            void loadCountriesData()
-          }}
-          disabled={anyLoading}
-          title="刷新"
-          aria-label="刷新数据"
-          className="ml-auto flex h-8 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text focus-visible:outline-none focus-visible:border-term-border-strong disabled:opacity-50"
-        >
-          <RefreshCcw strokeWidth={1.75} className={`h-3.5 w-3.5 ${anyLoading ? 'animate-spin' : ''}`} />
-          刷新
-        </button>
-      </div>
+      {/* BLF-826 阶段 C：项目过滤 + 数据区间徽标已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
 
       <V2Grid>
         {hasData || anyLoading ? (
