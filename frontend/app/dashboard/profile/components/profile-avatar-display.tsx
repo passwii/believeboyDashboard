@@ -69,9 +69,9 @@ export function ProfileAvatarDisplay({
           hasAvatar ? 'cursor-zoom-in hover:ring-4 hover:ring-primary/30' : 'cursor-default'
         )}
       >
-        <Avatar className="h-40 w-40 rounded-2xl border border-border/60 shadow-sm transition-shadow group-hover:shadow-md">
+        <Avatar className="h-40 w-40 rounded-2xl border border-border/60 shadow-none transition-shadow group-hover:shadow-none">
           {previewSrc ? <AvatarImage src={previewSrc} alt="当前头像" /> : null}
-          <AvatarFallback className="rounded-2xl bg-muted text-3xl font-semibold text-muted-foreground">
+          <AvatarFallback className="rounded-2xl bg-term-raised text-3xl font-semibold text-muted-foreground">
             <Camera className="h-12 w-12" />
           </AvatarFallback>
         </Avatar>

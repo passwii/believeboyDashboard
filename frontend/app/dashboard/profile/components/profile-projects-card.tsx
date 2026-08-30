@@ -32,8 +32,8 @@ export function ProfileProjectsCard({ items, isAdmin, roleFor }: ProfileProjects
             key={item.id}
             href={href}
             className={cn(
-              'dashboard-surface block min-h-[120px] space-y-3 rounded-xl border border-border/60 p-4 transition-all',
-              'hover:border-border hover:shadow-md hover:bg-card/80 active:scale-[0.99]',
+              'dashboard-surface block min-h-[120px] space-y-3 rounded-none border border-border/60 p-4 transition-all',
+              'hover:border-border hover:shadow-none hover:bg-card/80 active:scale-[0.99]',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
             )}
           >

@@ -88,7 +88,7 @@ function DetailSheet({
         ) : report ? (
           <div className="mt-6 space-y-6">
             {/* Period info */}
-            <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+            <div className="rounded-none border border-border/70 bg-term-raised p-4">
               <div className="grid gap-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">周期</span>
@@ -121,7 +121,7 @@ function DetailSheet({
             {report.health_data && Object.keys(report.health_data).length > 0 && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">账户健康指标</h3>
-                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-border/70 bg-term-raised p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {report.health_data.account_health_rating && (
                       <div className="flex justify-between">
@@ -180,7 +180,7 @@ function DetailSheet({
             {report.compliance_data && Object.keys(report.compliance_data).length > 0 && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">政策与合规</h3>
-                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-border/70 bg-term-raised p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {report.compliance_data.ip_infringement !== undefined && (
                       <div className="flex justify-between">
@@ -251,7 +251,7 @@ function DetailSheet({
             {report.status_summary && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">状态说明</h3>
-                <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                <div className="rounded-none border border-border/70 bg-term-raised p-4">
                   <p className="text-sm whitespace-pre-wrap">{report.status_summary}</p>
                 </div>
               </div>
@@ -267,7 +267,7 @@ function DetailSheet({
                   {report.screenshots.map((screenshot) => (
                     <div
                       key={screenshot.id}
-                      className="space-y-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-2"
+                      className="space-y-2 rounded-none border border-border/70 bg-term-raised p-2"
                     >
                       <div
                         className="cursor-pointer overflow-hidden rounded"
@@ -383,7 +383,7 @@ export default function InspectionHistory({ periodId, refreshKey }: InspectionHi
         <select
           value={selectedPeriodId}
           onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
-          className="h-9 min-h-[44px] flex-1 rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 text-sm sm:min-h-0 sm:flex-none"
+          className="h-9 min-h-[44px] flex-1 rounded-none border border-border/70 bg-term-panel px-3 text-sm sm:min-h-0 sm:flex-none"
         >
           {periods.map((period) => (
             <option key={period.id} value={period.id}>

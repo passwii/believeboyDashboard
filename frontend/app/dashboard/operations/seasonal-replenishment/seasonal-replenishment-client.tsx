@@ -663,7 +663,7 @@ export default function SeasonalReplenishmentPage() {
           {loading && rows.length === 0 ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                <Skeleton key={i} className="h-14 w-full rounded-none" />
               ))}
             </div>
           ) : (
@@ -672,7 +672,7 @@ export default function SeasonalReplenishmentPage() {
                 <div
                   key={i}
                   className={cn(
-                    'flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 lg:flex-1 lg:rounded-none lg:border-0',
+                    'flex flex-col items-center justify-center rounded-none border border-border/70 py-2.5 lg:flex-1 lg:rounded-none lg:border-0',
                     i === 0 && 'lg:pl-4',
                     i === statBarItems.length - 1 && 'lg:pr-4'
                   )}
@@ -757,7 +757,7 @@ export default function SeasonalReplenishmentPage() {
                 <DataTableCardBody>
                   <div className="relative">
                     {loading && rows.length > 0 ? (
-                      <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-border/70 bg-[hsl(var(--surface-panel))/0.95] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))/0.96] dark:text-foreground/72">
+                      <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-border/70 bg-term-panel/95 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm dark:border-border/85 dark:bg-term-overlay/96 dark:text-foreground/72">
                         季节性补货主表更新中...
                       </div>
                     ) : null}
@@ -870,7 +870,7 @@ export default function SeasonalReplenishmentPage() {
                         {rows.map((row) => (
                           <TableRow
                             key={rowKey(row)}
-                            className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-term-accent/5/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))]"
+                            className="group align-top odd:bg-term-panel even:bg-term-overlay hover:bg-term-accent/5/80 dark:odd:bg-term-panel dark:even:bg-term-overlay"
                           >
                             <TableCell
                               className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
@@ -1081,34 +1081,34 @@ export default function SeasonalReplenishmentPage() {
         )}
       </div>
 
-      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-5 py-4 text-sm text-foreground/80 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+      <div className="rounded-none border border-border/70 bg-term-raised px-5 py-4 text-sm text-foreground/80 dark:border-border/80 dark:bg-term-raised">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-foreground">口径说明</div>
           <div className="grid gap-2">
-            <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
+            <div className="rounded-none border border-border/70 bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-term-overlay/90">
+              <span className="mr-2 inline-flex rounded-none bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                 日期范围
               </span>
               选定的 <code>[from, to]</code> 是历史回看窗口。主窗口右端 = <code>to_date</code>， 4
               个 DMS 分别向前回溯 90/30/14/7 天（双闭区间）。默认 <code>[today-89, today]</code>。
             </div>
-            <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
+            <div className="rounded-none border border-border/70 bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-term-overlay/90">
+              <span className="mr-2 inline-flex rounded-none bg-term-accent/10 px-2 py-0.5 text-xs font-medium text-term-accent">
                 权重
               </span>
               加权 DMS = <code>90D×40% + 30D×30% + 14D×20% + 7D×10%</code>，长周期高权重
               （季节性商品应看 90D 趋势而非近期噪音）。任一窗口缺失则按「可用窗口」重新归一化权重。
             </div>
-            <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+            <div className="rounded-none border border-border/70 bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-term-overlay/90">
+              <span className="mr-2 inline-flex rounded-none bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                 同比口径
               </span>
               开启「去年」开关后，额外算去年同期窗口（右端 = <code>to_date - 365</code>
               ，长度同上）。 单元格颜色：当前 &lt; 去年 → 红（下滑预警），当前 &gt; 去年 →
               绿（爬坡预警）。
             </div>
-            <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-term-warn/10 px-2 py-0.5 text-xs font-medium text-term-warn">
+            <div className="rounded-none border border-border/70 bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-term-overlay/90">
+              <span className="mr-2 inline-flex rounded-none bg-term-warn/10 px-2 py-0.5 text-xs font-medium text-term-warn">
                 风险状态
               </span>
               季节性页面<b>不判定</b>风险状态（<code>健康/断货/滞销</code> 等标签不显示）， 因为

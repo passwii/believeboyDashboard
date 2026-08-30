@@ -121,7 +121,7 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
       />
 
       <div className="space-y-4">
-        <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4">
+        <div className="rounded-none border border-dashed border-border/60 bg-term-raised/20 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-medium">上传新头像</p>
@@ -131,7 +131,7 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
               </p>
             </div>
             {avatarUrl ? (
-              <div className="flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-background/60 p-1.5 pr-2 text-xs text-muted-foreground">
+              <div className="flex shrink-0 items-center gap-2 rounded-none border border-border/60 bg-background/60 p-1.5 pr-2 text-xs text-muted-foreground">
                 <Avatar className="h-6 w-6 rounded">
                   <AvatarImage src={avatarUrl} alt="当前头像" />
                   <AvatarFallback className="rounded text-[10px]">现</AvatarFallback>
@@ -203,7 +203,7 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
           />
         </div>
 
-        <div className="rounded-lg border border-border/40 bg-card/40 px-4 text-xs text-muted-foreground">
+        <div className="rounded-none border border-border/40 bg-card/40 px-4 text-xs text-muted-foreground">
           <Accordion type="single" collapsible>
             <AccordionItem value="cache">
               <AccordionTrigger>缓存说明</AccordionTrigger>

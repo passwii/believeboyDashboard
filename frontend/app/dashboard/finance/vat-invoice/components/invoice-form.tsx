@@ -80,7 +80,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
           </div>
 
           {/* 买方（Bill To） */}
-          <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] p-4">
+          <div className="rounded-none border border-border/60 bg-term-raised p-4">
             <div className="mb-3 text-sm font-medium text-foreground">买方（Bill To）</div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1.5 md:col-span-2">

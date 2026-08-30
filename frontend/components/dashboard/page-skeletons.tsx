@@ -31,8 +31,8 @@ export function PageHeaderSkeleton({ className }: PageHeaderSkeletonProps) {
         <Skeleton className="h-3 w-72" />
       </div>
       <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-28 rounded-md" />
-        <Skeleton className="h-9 w-24 rounded-md" />
+        <Skeleton className="h-9 w-28 rounded-none" />
+        <Skeleton className="h-9 w-24 rounded-none" />
       </div>
     </div>
   )
@@ -51,9 +51,9 @@ export function FilterBarSkeleton({ count = 3, className }: FilterBarSkeletonPro
       className={cn('flex flex-wrap items-center gap-3', className)}
     >
       {Array.from({ length: count }).map((_, index) => (
-        <Skeleton key={index} className="h-9 w-40 rounded-md" />
+        <Skeleton key={index} className="h-9 w-40 rounded-none" />
       ))}
-      <Skeleton className="ml-auto h-9 w-24 rounded-md" />
+      <Skeleton className="ml-auto h-9 w-24 rounded-none" />
     </div>
   )
 }
@@ -73,7 +73,7 @@ export function KpiCardsSkeleton({ count = 4, className }: KpiCardsSkeletonProps
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className="space-y-2 rounded-xl border border-border/50 bg-background/70 p-4"
+          className="space-y-2 rounded-none border border-term-border bg-term-panel p-4"
         >
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-7 w-24" />
@@ -103,19 +103,19 @@ export function DataTableSkeleton({
   return (
     <div
       data-testid="page-skeleton-table"
-      className={cn('rounded-xl border border-border/50 bg-background/70', className)}
+      className={cn('rounded-none border border-term-border bg-term-panel', className)}
     >
       {toolbar ? (
-        <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-term-border px-4 py-3">
           <Skeleton className="h-4 w-32" />
           <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-44 rounded-md" />
-            <Skeleton className="h-8 w-20 rounded-md" />
+            <Skeleton className="h-8 w-44 rounded-none" />
+            <Skeleton className="h-8 w-20 rounded-none" />
           </div>
         </div>
       ) : null}
       <div className="space-y-0 p-4">
-        <div className="grid grid-cols-6 gap-3 border-b border-border/40 pb-3">
+        <div className="grid grid-cols-6 gap-3 border-b border-term-border pb-3">
           {Array.from({ length: Math.min(columns, 6) }).map((_, index) => (
             <Skeleton key={index} className="h-3 w-full max-w-24" />
           ))}
@@ -137,9 +137,9 @@ export function DataTableSkeleton({
       <div className="flex items-center justify-between px-4 pb-4">
         <Skeleton className="h-3 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-8 rounded-md" />
-          <Skeleton className="h-8 w-8 rounded-md" />
-          <Skeleton className="h-8 w-8 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-none" />
+          <Skeleton className="h-8 w-8 rounded-none" />
+          <Skeleton className="h-8 w-8 rounded-none" />
         </div>
       </div>
     </div>
@@ -156,7 +156,7 @@ export function ChartPanelSkeleton({ height = 'h-[280px]', className }: ChartPan
   return (
     <div
       data-testid="page-skeleton-chart"
-      className={cn('rounded-xl border border-border/50 bg-background/70 p-5', className)}
+      className={cn('rounded-none border border-term-border bg-term-panel p-5', className)}
     >
       <div className="flex items-center justify-between pb-4">
         <div className="space-y-2">
@@ -164,11 +164,11 @@ export function ChartPanelSkeleton({ height = 'h-[280px]', className }: ChartPan
           <Skeleton className="h-3 w-44" />
         </div>
         <div className="flex gap-2">
-          <Skeleton className="h-8 w-16 rounded-md" />
-          <Skeleton className="h-8 w-16 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-none" />
+          <Skeleton className="h-8 w-16 rounded-none" />
         </div>
       </div>
-      <Skeleton className={cn('w-full rounded-lg', height)} />
+      <Skeleton className={cn('w-full rounded-none', height)} />
     </div>
   )
 }
@@ -188,7 +188,7 @@ export function CardListSkeleton({ count = 6, className }: CardListSkeletonProps
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className="space-y-3 rounded-xl border border-border/50 bg-background/70 p-5"
+          className="space-y-3 rounded-none border border-term-border bg-term-panel p-5"
         >
           <div className="flex items-center justify-between">
             <Skeleton className="h-4 w-28" />
@@ -198,7 +198,7 @@ export function CardListSkeleton({ count = 6, className }: CardListSkeletonProps
           <Skeleton className="h-3 w-4/5" />
           <div className="flex items-center justify-between pt-1">
             <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-8 w-20 rounded-md" />
+            <Skeleton className="h-8 w-20 rounded-none" />
           </div>
         </div>
       ))}
@@ -216,29 +216,29 @@ export function ChatPageLoading() {
       <PageHeaderSkeleton />
       <div
         data-testid="page-skeleton-chat"
-        className="space-y-4 rounded-xl border border-border/50 bg-background/70 p-5"
+        className="space-y-4 rounded-none border border-term-border bg-term-panel p-5"
       >
         <div className="flex justify-start">
-          <div className="space-y-2 rounded-lg border border-border/40 p-3">
+          <div className="space-y-2 rounded-none border border-term-border p-3">
             <Skeleton className="h-3 w-56" />
             <Skeleton className="h-3 w-40" />
           </div>
         </div>
         <div className="flex justify-end">
-          <div className="space-y-2 rounded-lg border border-border/40 p-3">
+          <div className="space-y-2 rounded-none border border-term-border p-3">
             <Skeleton className="h-3 w-48" />
           </div>
         </div>
         <div className="flex justify-start">
-          <div className="space-y-2 rounded-lg border border-border/40 p-3">
+          <div className="space-y-2 rounded-none border border-term-border p-3">
             <Skeleton className="h-3 w-64" />
             <Skeleton className="h-3 w-52" />
           </div>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Skeleton className="h-10 flex-1 rounded-md" />
-        <Skeleton className="h-10 w-20 rounded-md" />
+        <Skeleton className="h-10 flex-1 rounded-none" />
+        <Skeleton className="h-10 w-20 rounded-none" />
       </div>
     </div>
   )

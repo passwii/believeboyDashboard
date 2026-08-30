@@ -1137,7 +1137,7 @@ export default function PlatformRevenuePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="platform-revenue-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-[520px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-[520px] dark:border-border/90 dark:bg-term-panel"
         >
           <span id="platform-revenue-dialog-description" className="sr-only">
             {editingRevenue ? '修改回款记录' : '录入新的回款记录'}
@@ -1168,7 +1168,7 @@ export default function PlatformRevenuePage() {
                     }))
                   }}
                 >
-                  <SelectTrigger id="project" className="w-full dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="project" className="w-full dark:bg-term-panel">
                     <SelectValue placeholder="选择项目" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1204,7 +1204,7 @@ export default function PlatformRevenuePage() {
                   }}
                   disabled={!formData.project_id}
                 >
-                  <SelectTrigger id="country" className="w-full dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="country" className="w-full dark:bg-term-panel">
                     <SelectValue placeholder="选择站点" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1290,7 +1290,7 @@ export default function PlatformRevenuePage() {
                 >
                   <SelectTrigger
                     id="currency"
-                    className="w-full dark:bg-[hsl(var(--surface-soft))]"
+                    className="w-full dark:bg-term-panel"
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -1315,7 +1315,7 @@ export default function PlatformRevenuePage() {
                 >
                   <SelectTrigger
                     id="revenue_type"
-                    className="w-full dark:bg-[hsl(var(--surface-soft))]"
+                    className="w-full dark:bg-term-panel"
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -1408,7 +1408,7 @@ export default function PlatformRevenuePage() {
                 </div>
               )}
               {formData.attachments.length > 0 && (
-                <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
+                <div className="flex flex-wrap gap-3 rounded-none border border-border/70 bg-term-raised p-3">
                   {formData.attachments.map((image) => (
                     <div key={image.id} className="space-y-1">
                       <div
@@ -1463,7 +1463,7 @@ export default function PlatformRevenuePage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-revenue-dialog-description"
-          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-[425px]"
+          className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-[425px]"
         >
           <span id="delete-revenue-dialog-description" className="sr-only">
             确认删除回款记录
@@ -1473,7 +1473,7 @@ export default function PlatformRevenuePage() {
             <DialogDescription>您确定要删除这条回款记录吗？此操作不可恢复。</DialogDescription>
           </DialogHeader>
           {deletingRevenue && (
-            <div className="my-4 rounded-md bg-[hsl(var(--surface-subtle))] p-3 text-sm">
+            <div className="my-4 rounded-none bg-term-raised p-3 text-sm">
               <p>
                 <span className="font-medium">项目:</span> {deletingRevenue.project_name}
               </p>

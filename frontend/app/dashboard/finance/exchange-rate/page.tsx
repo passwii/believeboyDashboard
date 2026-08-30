@@ -692,7 +692,7 @@ export default function ExchangeRatePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="exchange-rate-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-[500px] dark:border-border/90 dark:bg-term-panel"
         >
           <span id="exchange-rate-dialog-description" className="sr-only">
             {editingRate ? '修改汇率信息' : '录入新的月度汇率信息，每个月每种货币仅可录入一条'}
@@ -716,7 +716,7 @@ export default function ExchangeRatePage() {
                   onValueChange={handleCurrencyChange}
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="currency" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="currency" className="dark:bg-term-panel">
                     <SelectValue placeholder="选择货币" />
                   </SelectTrigger>
                   <SelectContent>
@@ -756,7 +756,7 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                  <SelectTrigger id="year" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="year" className="dark:bg-term-panel">
                     <SelectValue placeholder="选择年份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -781,7 +781,7 @@ export default function ExchangeRatePage() {
                 >
                   <SelectTrigger
                     id="month"
-                    className="w-full max-md:min-h-[44px] sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]"
+                    className="w-full max-md:min-h-[44px] sm:w-[112px] dark:bg-term-panel"
                   >
                     <SelectValue placeholder="选择月份" />
                   </SelectTrigger>
@@ -892,7 +892,7 @@ export default function ExchangeRatePage() {
                 </div>
               )}
               {formData.noteImages.length > 0 && (
-                <div className="flex flex-wrap gap-3 rounded-md border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
+                <div className="flex flex-wrap gap-3 rounded-none border border-border/70 bg-term-raised p-3">
                   {formData.noteImages.map((image) => (
                     <div key={image.id} className="space-y-1">
                       <button
@@ -956,7 +956,7 @@ export default function ExchangeRatePage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-exchange-rate-dialog-description"
-          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-[425px]"
+          className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-[425px]"
         >
           <span id="delete-exchange-rate-dialog-description" className="sr-only">
             确认删除汇率记录
@@ -966,7 +966,7 @@ export default function ExchangeRatePage() {
             <DialogDescription>您确定要删除这条汇率记录吗？此操作不可恢复。</DialogDescription>
           </DialogHeader>
           {deletingRate && (
-            <div className="my-4 rounded-md bg-[hsl(var(--surface-subtle))] p-3 text-sm">
+            <div className="my-4 rounded-none bg-term-raised p-3 text-sm">
               <p>
                 <span className="font-medium">货币:</span> {deletingRate.currency} (
                 {deletingRate.currencyName})

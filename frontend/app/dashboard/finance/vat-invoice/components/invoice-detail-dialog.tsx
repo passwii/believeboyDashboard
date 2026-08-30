@@ -55,7 +55,7 @@ export function InvoiceDetailDialog({ invoiceId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-3xl">
+      <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>发票详情</DialogTitle>
         </DialogHeader>

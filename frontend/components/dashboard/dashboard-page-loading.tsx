@@ -2,14 +2,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 function MetricTileSkeleton() {
   return (
-    <div className="rounded-xl border border-border/50 bg-background/70 p-5 backdrop-blur-sm">
+    <div className="rounded-none border border-term-border bg-term-panel p-5 backdrop-blur-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-3 w-16" />
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-3 w-14" />
         </div>
-        <Skeleton className="h-10 w-10 rounded-lg" />
+        <Skeleton className="h-10 w-10 rounded-none" />
       </div>
       <Skeleton className="mt-2 h-8 w-full rounded" />
     </div>
@@ -30,7 +30,7 @@ function ChartSkeleton() {
         <Skeleton className="h-14 w-40" />
         <Skeleton className="h-14 w-40" />
       </div>
-      <Skeleton className="h-[280px] w-full rounded-lg" />
+      <Skeleton className="h-[280px] w-full rounded-none" />
     </div>
   )
 }
@@ -82,7 +82,7 @@ function HealthKpisSkeleton() {
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3 w-44" />
         </div>
-        <Skeleton className="h-6 w-16 rounded-md" />
+        <Skeleton className="h-6 w-16 rounded-none" />
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -101,7 +101,7 @@ function TopProjectsSkeleton() {
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3 w-44" />
         </div>
-        <Skeleton className="h-7 w-32 rounded-md" />
+        <Skeleton className="h-7 w-32 rounded-none" />
       </div>
       {/* Phase 5: 与 DashboardTopProjects 保持 10 行 + max-h 滚动条 */}
       <div className="max-h-[420px] space-y-2 overflow-y-auto">
@@ -121,7 +121,7 @@ function TopCountriesSkeleton() {
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3 w-44" />
         </div>
-        <Skeleton className="h-6 w-16 rounded-md" />
+        <Skeleton className="h-6 w-16 rounded-none" />
       </div>
       <div className="space-y-2">
         <Skeleton className="h-12 w-full" />
@@ -140,14 +140,14 @@ function AdSpendChartSkeleton() {
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-3 w-52" />
         </div>
-        <Skeleton className="h-7 w-7 rounded-md" />
+        <Skeleton className="h-7 w-7 rounded-none" />
       </div>
       <div className="grid grid-cols-2 gap-3 pb-3 sm:grid-cols-3">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
       </div>
-      <Skeleton className="h-[260px] sm:h-[320px] w-full rounded-lg" />
+      <Skeleton className="h-[260px] sm:h-[320px] w-full rounded-none" />
     </div>
   )
 }
