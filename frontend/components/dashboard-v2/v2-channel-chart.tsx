@@ -83,6 +83,7 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
               tickFormatter={(value) => String(value)}
               tickLine={false}
               tickMargin={8}
+              tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
             />
             {/* 销售额 / 广告花费量级差异大，分左右双轴 */}
             <YAxis
@@ -91,6 +92,7 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
               tickLine={false}
               width={52}
               yAxisId="left"
+              tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
             />
             <YAxis
               axisLine={false}
@@ -99,6 +101,7 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
               tickLine={false}
               width={52}
               yAxisId="right"
+              tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
             />
             <ChartTooltip
               content={<ChartTooltipContent />}

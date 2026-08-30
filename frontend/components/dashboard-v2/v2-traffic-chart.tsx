@@ -108,12 +108,14 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
                 tickFormatter={(value) => String(value)}
                 tickLine={false}
                 tickMargin={8}
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
                 width={44}
                 yAxisId="left"
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
               <YAxis
                 axisLine={false}
@@ -122,6 +124,7 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
                 tickLine={false}
                 width={44}
                 yAxisId="right"
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
               <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
               <Bar dataKey="page_views" fill="var(--color-page_views)" radius={[2, 2, 0, 0]} yAxisId="left" />
@@ -142,18 +145,30 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
         )}
       </CardContent>
       <CardFooter className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/60 px-5 py-3">
-        <span className="text-xs text-muted-foreground">
-          总浏览量 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalPageViews)}</b>
+        {/* BLF-909 终端化：footer 4 个汇总数字统一 font-mono + tabular-nums + term-text；标签 term-faint + uppercase */}
+        <span className="font-mono text-[10px] uppercase tracking-wider text-term-faint">
+          总浏览量
+          <b className="ml-1.5 font-mono text-sm font-semibold tabular-nums text-term-text">
+            {fmtNumPrecise(stats.totalPageViews)}
+          </b>
         </span>
-        <span className="text-xs text-muted-foreground">
-          访客数 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalSessions)}</b>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-term-faint">
+          访客数
+          <b className="ml-1.5 font-mono text-sm font-semibold tabular-nums text-term-text">
+            {fmtNumPrecise(stats.totalSessions)}
+          </b>
         </span>
-        <span className="text-xs text-muted-foreground">
-          转化订单 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-term-faint">
+          转化订单
+          <b className="ml-1.5 font-mono text-sm font-semibold tabular-nums text-term-text">
+            {fmtNumPrecise(stats.totalUnitsOrdered)}
+          </b>
         </span>
-        <span className="text-xs text-muted-foreground">
-          平均转化率{' '}
-          <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{stats.conversionRatePct.toFixed(2)}%</b>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-term-faint">
+          平均转化率
+          <b className="ml-1.5 font-mono text-sm font-semibold tabular-nums text-term-text">
+            {stats.conversionRatePct.toFixed(2)}%
+          </b>
         </span>
       </CardFooter>
     </V2Card>

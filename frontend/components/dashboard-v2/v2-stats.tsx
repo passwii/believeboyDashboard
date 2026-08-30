@@ -105,7 +105,10 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
       {stats.map((s) => (
         <V2Card className="transition-colors hover:bg-term-raised" key={s.label}>
           <CardHeader className="flex flex-row items-center justify-between px-4 pb-0 pt-3 md:px-4">
-            <CardTitle className="text-xs font-normal tracking-wide text-term-muted">{s.label}</CardTitle>
+            {/* BLF-909 终端化：KPI 标签 mono + uppercase + term-faint，与详情表头一致 */}
+            <CardTitle className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
+              {s.label}
+            </CardTitle>
             <Delta value={s.delta}>
               <DeltaIcon />
               <DeltaValue />
@@ -117,6 +120,5 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
           </CardContent>
         </V2Card>
       ))}
-    </>
   )
 }

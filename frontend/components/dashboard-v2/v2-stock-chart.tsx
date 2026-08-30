@@ -84,11 +84,14 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
         <CardDescription>可用库存每日变化（近 7 天）</CardDescription>
       </CardHeader>
       <CardContent>
-        {rows.length > 0 ? (
-          <>
+            {/* BLF-909 终端化：大数字 mono + tabular-nums + term-text；说明文本 term-faint */}
             <div className="mb-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
-              <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
+              <span className="font-mono text-2xl font-semibold tabular-nums text-term-text">
+                {fmtNumPrecise(current)}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-wider text-term-faint">
+                件 · 区间末快照
+              </span>
             </div>
             <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
               <AreaChart accessibilityLayer data={rows} margin={{ left: 4, right: 4, top: 4 }}>
@@ -105,6 +108,7 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
                   tickFormatter={(value) => String(value)}
                   tickLine={false}
                   tickMargin={8}
+                  tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
                 />
                 <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
                 <Area

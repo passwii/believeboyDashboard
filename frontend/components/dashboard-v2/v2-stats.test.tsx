@@ -60,4 +60,15 @@ describe('V2Stats', () => {
     expect(screen.getByText('广告花费')).toBeInTheDocument()
     expect(screen.getByText('转化率')).toBeInTheDocument()
   })
+
+  it('BLF-909 终端化：KPI 标签走 mono + uppercase + term-faint', () => {
+    const { container } = render(<V2Stats currentRows={current} comparisonRows={comparison} />)
+    // 4 个 KPI 标签都应用 mono + uppercase + term-faint（终端化视觉锚点）
+    const labels = container.querySelectorAll('[data-slot="delta"]')
+    expect(labels.length).toBeGreaterThanOrEqual(4)
+    // 标题走 CardTitle → text-term-faint + font-mono + uppercase tracking-wider
+    const titles = container.querySelectorAll('[class*="text-term-faint"][class*="font-mono"][class*="uppercase"]')
+    expect(titles.length).toBeGreaterThanOrEqual(4)
+  })
+
 })

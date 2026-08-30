@@ -97,7 +97,13 @@ export function V2CountryChart({
         ) : rows.length > 0 ? (
           <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
             <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 0, right: 8 }}>
-              <XAxis axisLine={false} tickFormatter={(value) => `$${Number(value) / 1000}k`} tickLine={false} type="number" />
+              <XAxis
+                axisLine={false}
+                tickFormatter={(value) => `$${Number(value) / 1000}k`}
+                tickLine={false}
+                type="number"
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
+              />
               <YAxis
                 axisLine={false}
                 dataKey="name"
@@ -106,6 +112,7 @@ export function V2CountryChart({
                 tickMargin={8}
                 type="category"
                 width={64}
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
               <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
               <Bar dataKey="sales" fill="var(--color-sales)" radius={[0, 2, 2, 0]} />

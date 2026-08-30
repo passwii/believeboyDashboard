@@ -71,15 +71,15 @@ export function V2ProjectChart({ projectBreakdown, projects, loading }: V2Projec
                 tickFormatter={(value) => String(value)}
                 tickLine={false}
                 tickMargin={8}
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
               <YAxis
                 axisLine={false}
                 tickFormatter={(value) => `$${Number(value) / 1000}k`}
                 tickLine={false}
                 width={44}
+                tick={{ className: 'font-mono text-[11px] tabular-nums fill-term-faint' }}
               />
-              <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-              <Bar dataKey="sales" fill="var(--color-sales)" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ChartContainer>
         ) : (
