@@ -175,7 +175,7 @@ export function UploadZone({
           disabled={disabled || isUploading}
           className="shrink-0"
         >
-          <FileUp className="mr-2 h-4 w-4" />
+          <FileUp className="h-4 w-4" />
           上传文件
         </Button>
 
@@ -187,56 +187,65 @@ export function UploadZone({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={cn(
-            'flex flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed px-4 py-5 transition-colors duration-200',
+            // 终端规格（BLF-809 / BLF-887）：零圆角 / 1px 边界 / mono 小字；
+            // 状态色与 auto-upload 拖拽区一致（drag-active 与 paste-active 都走 term-accent 语义）。
+            'flex flex-1 cursor-pointer items-center justify-center rounded-none border border-dashed px-4 py-5 transition-[border-color,background-color] duration-200',
             isDragActive
-              ? 'border-slate-400/60 bg-slate-50 dark:border-slate-500/50 dark:bg-slate-800/25'
+              ? 'border-term-accent/70 bg-term-accent/10'
               : isPasteActive
-                ? 'border-blue-400 bg-blue-50 dark:border-blue-500/50 dark:bg-blue-900/20'
-                : 'border-border/70 bg-[hsl(var(--surface-subtle))] hover:border-slate-300 dark:border-border/90 dark:hover:border-slate-600',
+                ? 'border-term-accent bg-term-accent/10'
+                : 'border-term-border bg-term-raised hover:border-term-border-strong',
             (disabled || isUploading) && 'cursor-not-allowed opacity-60'
           )}
         >
           {isUploading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-term-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {uploadingText}
             </div>
           ) : isPasteActive ? (
-            <p className="text-sm text-blue-600 dark:text-blue-400">
-              <span className="font-medium">粘贴模式已激活</span>
-              <span className="ml-2 text-muted-foreground">— 按 Ctrl+V 粘贴图片或文件</span>
+            <p className="font-mono text-xs uppercase tracking-wider text-term-accent">
+              <span className="font-semibold">粘贴模式已激活</span>
+              <span className="ml-2 text-term-muted">— 按 Ctrl+V 粘贴图片或文件</span>
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">点击此处激活粘贴上传，或拖拽文件到这里</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-term-faint">
+              点击此处激活粘贴上传，或拖拽文件到这里
+            </p>
           )}
         </div>
       </div>
 
-      {/* 错误提示 */}
-      {errorMsg ? <p className="text-sm text-term-neg">{errorMsg}</p> : null}
+      {/* 错误提示：终端 mon-neg 行高（与 crm/tasks 等终端错误条同规格） */}
+      {errorMsg ? (
+        <div className="flex items-center gap-2 rounded-none border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg">
+          ERR · {errorMsg}
+        </div>
+      ) : null}
 
-      {/* 预览区域 */}
+      {/* 预览区域：term 面板 + mono 文件名（与其它终端面板同规格） */}
       {showPreview && preview ? (
-        <div className="relative rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
+        <div className="relative rounded-none border border-term-border bg-term-panel p-3">
           <button
             type="button"
             onClick={clearPreview}
-            className="absolute right-2 top-2 rounded-full bg-slate-200/80 p-1 hover:bg-slate-300 dark:bg-slate-700/80 dark:hover:bg-slate-600"
+            aria-label="清除预览"
+            className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted transition-colors hover:border-term-border-strong hover:bg-term-hover hover:text-term-text"
           >
             <X className="h-3.5 w-3.5" />
           </button>
 
           {previewType === 'image' ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="预览" className="max-h-48 w-auto rounded-md object-contain" />
+            <img src={preview} alt="预览" className="max-h-48 w-auto rounded-none object-contain" />
           ) : (
-            <div className="flex items-center gap-3 py-2">
+            <div className="flex items-center gap-3 py-2 pr-8">
               {previewType === 'pdf' ? (
                 <FileText className="h-8 w-8 text-term-neg" />
               ) : (
-                <FileText className="h-8 w-8 text-slate-400" />
+                <ImageIcon className="h-8 w-8 text-term-faint" />
               )}
-              <span className="text-sm text-foreground">{preview}</span>
+              <span className="truncate font-mono text-xs text-term-text">{preview}</span>
             </div>
           )}
         </div>
@@ -248,8 +257,8 @@ export function UploadZone({
         type="file"
         accept={accept}
         onChange={handleInputChange}
-        className="hidden"
       />
     </div>
   )
+
 }
