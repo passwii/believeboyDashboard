@@ -103,7 +103,6 @@ export function TerminalShell({ children }: TerminalShellProps) {
           activeGroupId={activeGroupId}
           pathname={pathname}
           collapsed={subnavCollapsed}
-          onCollapse={toggleSubnav}
         />
       </div>
 
