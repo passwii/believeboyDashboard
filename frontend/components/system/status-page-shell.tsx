@@ -8,10 +8,8 @@ import { cn } from '@/lib/utils'
 type StatusTone = 'error' | 'warning'
 
 const toneClasses: Record<StatusTone, string> = {
-  error:
-    'border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))]',
-  warning:
-    'border-[hsl(var(--warning)/0.2)] bg-[hsl(var(--warning)/0.09)] text-[hsl(var(--warning))]',
+  error: 'border-term-neg/40 bg-term-neg/5 text-term-neg',
+  warning: 'border-term-warn/40 bg-term-warn/5 text-term-warn',
 }
 
 const toneIcons = {
@@ -43,7 +41,7 @@ export function StatusPageShell({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-[2rem] border border-border/70 bg-[linear-gradient(180deg,hsl(var(--surface-panel)/0.98),hsl(var(--surface-soft)/0.98))] shadow-[var(--shadow-overlay)]',
+        'relative overflow-hidden rounded-none border border-term-border bg-term-panel shadow-none',
         compact ? 'mx-auto max-w-4xl p-6 sm:p-8' : 'min-h-screen p-6 sm:p-10'
       )}
     >
@@ -57,13 +55,13 @@ export function StatusPageShell({
         <div className="max-w-2xl space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             {code ? (
-              <span className="rounded-full border border-border/80 bg-background/80 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+              <span className="rounded-none border border-term-border bg-term-bg px-4 py-1 font-mono text-xs uppercase tracking-wider text-term-muted">
                 {code}
               </span>
             ) : null}
             <span
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold',
+                'inline-flex items-center gap-2 rounded-none border px-4 py-1.5 font-mono text-xs uppercase tracking-wider',
                 toneClasses[tone]
               )}
             >
@@ -72,10 +70,10 @@ export function StatusPageShell({
             </span>
           </div>
           <div className="space-y-3">
-            <h1 className="text-4xl font-semibold tracking-[-0.05em] text-foreground sm:text-5xl">
+            <h1 className="font-mono text-3xl font-semibold tracking-tight text-term-text sm:text-4xl">
               {title}
             </h1>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+            <p className="max-w-xl font-mono text-sm leading-6 text-term-muted sm:text-base">
               {description}
             </p>
           </div>

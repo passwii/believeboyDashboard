@@ -12,10 +12,11 @@ interface FilterFieldProps {
   labelStyle?: LabelStyle
 }
 
+// BLF-893：与 console 触发器对齐 term 规格——label 改 mono + tracking-wider + term-muted。
 const LABEL_STYLES: Record<LabelStyle, string> = {
-  default: 'text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground',
-  sm: 'text-sm font-medium text-foreground',
-  lg: 'text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground',
+  default: 'font-mono text-[11px] uppercase tracking-wider text-term-muted',
+  sm: 'font-mono text-xs leading-5 text-term-text',
+  lg: 'font-mono text-[11px] uppercase tracking-wider text-term-muted',
 }
 
 export function FilterField({

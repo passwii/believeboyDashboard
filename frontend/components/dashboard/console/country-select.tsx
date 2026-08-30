@@ -52,7 +52,8 @@ export function CountrySelect({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         className={cn(
-          'h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+          // BLF-893：console 触发器统一 term 令牌 + 零圆角 + mono 字体。
+          'h-9 border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong',
           triggerClassName
         )}
       >

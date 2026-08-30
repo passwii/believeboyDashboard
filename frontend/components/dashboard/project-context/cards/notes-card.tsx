@@ -19,7 +19,7 @@ export function NotesCard({ value, onChange }: NotesCardProps) {
   return (
     <Card>
       <CardHeader
-        className="flex flex-row items-center justify-between py-3 px-4 cursor-pointer hover:bg-muted/30 rounded-t-lg transition-colors"
+        className="flex flex-row items-center justify-between py-3 px-4 cursor-pointer hover:bg-term-hover rounded-none transition-colors"
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
@@ -30,10 +30,10 @@ export function NotesCard({ value, onChange }: NotesCardProps) {
         </div>
         <div className="flex items-center gap-2">
           {!collapsed && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{preview}</span>
+            <span className="text-xs text-term-muted truncate max-w-[200px]">{preview}</span>
           )}
           <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
+            className={`h-4 w-4 text-term-muted transition-transform ${collapsed ? '-rotate-90' : ''}`}
           />
         </div>
       </CardHeader>
@@ -45,7 +45,7 @@ export function NotesCard({ value, onChange }: NotesCardProps) {
             onChange={(e) => onChange(e.target.value)}
             placeholder="在此填写任何补充信息，如特殊说明、注意事项或其他需要记录的内容..."
             rows={4}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+            className="w-full rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm ring-offset-term-bg placeholder:text-term-muted focus-visible:outline-none focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50 resize-none"
           />
         </CardContent>
       )}

@@ -28,7 +28,7 @@ type ComparisonTableProps = {
 export function ComparisonTable({ runs, sections, formatCompactDate }: ComparisonTableProps) {
   if (runs.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-none border border-dashed px-4 py-8 text-center text-sm text-term-muted">
         暂无可对比的测算结果
       </div>
     )
@@ -63,31 +63,31 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
   }
 
   return (
-    <div className="max-h-[600px] overflow-auto rounded-xl border border-border/70">
+    <div className="max-h-[600px] overflow-auto rounded-none border border-term-border">
       <table className="w-max min-w-full border-collapse text-xs">
-        <thead className="sticky top-0 z-30 bg-[hsl(var(--surface-subtle))]">
+        <thead className="sticky top-0 z-30 bg-term-panel">
           <tr>
-            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap border-b border-r bg-[hsl(var(--surface-subtle))] px-3 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap border-b border-r bg-term-panel px-3 py-2 text-left font-semibold">
               分类
             </th>
-            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap border-b border-l bg-[hsl(var(--surface-subtle))] px-3 py-2 text-left font-semibold">
+            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap border-b border-l bg-term-panel px-3 py-2 text-left font-semibold">
               明细项
             </th>
             {runs.map((run) => (
               <th
                 key={run.id}
-                className="min-w-[210px] whitespace-nowrap border-b border-l bg-[hsl(var(--surface-subtle))] px-3 py-2 align-top"
+                className="min-w-[210px] whitespace-nowrap border-b border-l bg-term-panel px-3 py-2 align-top"
               >
                 <div className="space-y-1 py-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="max-w-[150px] truncate font-semibold text-foreground">
+                    <span className="max-w-[150px] truncate font-semibold text-term-text">
                       {run.product_name}
                     </span>
                     <Badge variant="outline" className="text-[10px]">
                       #{run.id}
                     </Badge>
                   </div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-[10px] text-term-muted">
                     {formatCompactDate(run.created_at)}
                   </div>
                 </div>
@@ -101,7 +101,7 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
               <tr
                 key={`${section.title}-${row.label}`}
                 className={cn(
-                  'hover:bg-[hsl(var(--surface-subtle))]',
+                  'hover:bg-term-hover',
                   row.label === '售价' || row.label === '利润率'
                     ? 'bg-yellow-50 dark:bg-yellow-950/20'
                     : ''
@@ -111,9 +111,9 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
                   <td
                     rowSpan={section.rows.length}
                     className={cn(
-                      'sticky left-0 z-10 min-w-[116px] border-b border-r bg-[hsl(var(--surface-subtle))] p-2 align-top font-semibold whitespace-nowrap',
+                      'sticky left-0 z-10 min-w-[116px] border-b border-r bg-term-panel p-2 align-top font-semibold whitespace-nowrap',
                       sectionStyles[section.title]?.categoryCell ??
-                        'border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:bg-[hsl(var(--surface-soft))]'
+                        'border-term-border bg-term-panel text-term-text dark:bg-term-bg'
                     )}
                   >
                     {section.title}
@@ -124,8 +124,8 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
                     'sticky left-[116px] z-10 min-w-[150px] border-b border-l p-2 font-medium whitespace-nowrap',
                     row.label === '售价' || row.label === '利润率'
                       ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100'
-                      : 'text-muted-foreground',
-                    sectionStyles[section.title]?.subCell ?? 'bg-[hsl(var(--surface-panel))]'
+                      : 'text-term-muted',
+                    sectionStyles[section.title]?.subCell ?? 'bg-term-bg'
                   )}
                 >
                   {row.label}
@@ -136,9 +136,9 @@ export function ComparisonTable({ runs, sections, formatCompactDate }: Compariso
                     className={cn(
                       'whitespace-nowrap border-b border-l p-2 align-top leading-5',
                       row.label === '售价' &&
-                        'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30',
+                        'bg-yellow-50 font-semibold text-term-text dark:bg-yellow-950/30',
                       row.label === '利润率' &&
-                        'bg-yellow-50 font-semibold text-foreground dark:bg-yellow-950/30'
+                        'bg-yellow-50 font-semibold text-term-text dark:bg-yellow-950/30'
                     )}
                   >
                     {row.getDisplayValue(run)}

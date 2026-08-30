@@ -29,10 +29,9 @@ export function SimpleDropzone({
   return (
     <div
       className={cn(
-        'relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-[border-color,background-color] duration-200 cursor-pointer',
-        dragActive
-          ? 'border-slate-400/60 bg-slate-50 dark:border-slate-500/50 dark:bg-slate-800/25'
-          : 'border-border/70 bg-[hsl(var(--surface-subtle))] hover:border-slate-300 dark:border-border/90 dark:hover:border-slate-600',
+        // BLF-893：dropzone 终端化——零圆角、term 令牌、slate 拖入态走 term-accent。
+        'relative flex flex-col items-center justify-center gap-3 rounded-none border-2 border-dashed border-term-border bg-term-panel px-6 py-10 text-center transition-[border-color,background-color] duration-200 cursor-pointer hover:border-term-border-strong',
+        dragActive && 'border-term-accent bg-term-hover',
         className
       )}
       onDrop={onDrop}
@@ -51,16 +50,16 @@ export function SimpleDropzone({
         htmlFor={inputId}
         className="flex w-full cursor-pointer flex-col items-center justify-center gap-3"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]">
-          <FileUp className="h-5 w-5 text-slate-500 dark:text-slate-400" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-none border border-term-border bg-term-bg">
+          <FileUp className="h-5 w-5 text-term-muted" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">拖拽文件到这里，或点击选择</p>
-          <p className="text-xs text-muted-foreground">支持 txt、csv、xlsx</p>
+          <p className="font-mono text-xs leading-5 text-term-text">拖拽文件到这里，或点击选择</p>
+          <p className="font-mono text-[11px] leading-4 text-term-muted">支持 txt、csv、xlsx</p>
         </div>
       </label>
       {recognizing ? (
-        <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+        <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 font-mono text-[11px] leading-4 text-term-muted">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           正在识别...
         </div>

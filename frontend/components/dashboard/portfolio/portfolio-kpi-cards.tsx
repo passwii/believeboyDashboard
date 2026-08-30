@@ -43,19 +43,24 @@ interface KPICardProps {
 
 function KPICard({ label, value, icon, trend, description }: KPICardProps) {
   return (
-    <div className="dashboard-surface flex min-w-0 flex-col gap-2 rounded-xl p-3 sm:p-4">
+    // BLF-893：portfolio KPI 终端化——零圆角、term 令牌、mono 等宽数值，去掉 emerald 旧式双色。
+    <div className="flex min-w-0 flex-col gap-2 rounded-none border border-term-border bg-term-bg p-3 sm:p-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="font-mono text-[11px] uppercase tracking-wider text-term-muted">
           {label}
         </span>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--chart-1))/0.15] text-[hsl(var(--chart-1))]">
+        <div className="flex h-7 w-7 items-center justify-center rounded-none border border-term-border bg-term-panel text-term-accent">
           {icon}
         </div>
       </div>
       <div className="flex flex-col">
-        <span className="text-xl font-bold tabular-nums sm:text-2xl">{value}</span>
-        {trend && <span className="text-xs text-emerald-600 dark:text-emerald-400">{trend}</span>}
-        {description && <span className="text-xs text-muted-foreground">{description}</span>}
+        <span className="font-mono text-lg leading-6 tabular-nums text-term-text sm:text-xl">
+          {value}
+        </span>
+        {trend && <span className="font-mono text-[11px] leading-4 text-term-pos">{trend}</span>}
+        {description && (
+          <span className="font-mono text-[11px] leading-4 text-term-muted">{description}</span>
+        )}
       </div>
     </div>
   )

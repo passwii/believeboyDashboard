@@ -15,8 +15,9 @@ const typeConfig: Record<
 > = {
   success: {
     icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/40',
-    iconClassName: 'text-emerald-500',
+    // BLF-893：toast 终端化——零圆角、term 语义色，success 走 term-pos 弱底。
+    className: 'border-term-pos/30 bg-term-pos/5',
+    iconClassName: 'text-term-pos',
   },
   error: {
     icon: XCircle,
@@ -30,16 +31,17 @@ const typeConfig: Record<
   },
   info: {
     icon: Info,
-    className: 'border-blue-200 bg-blue-50 dark:border-blue-900/70 dark:bg-blue-950/40',
-    iconClassName: 'text-blue-500',
+    // BLF-893：info 走 term-accent 弱底，去掉旧 blue-200/blue-50 旧式双色。
+    className: 'border-term-accent/30 bg-term-accent/5',
+    iconClassName: 'text-term-accent',
   },
 }
 
 const typeTextClassName: Record<NotificationType, string> = {
-  success: 'text-emerald-700 dark:text-emerald-200',
+  success: 'text-term-pos',
   error: 'text-term-neg',
   warning: 'text-term-warn',
-  info: 'text-blue-700 dark:text-blue-200',
+  info: 'text-term-text',
 }
 
 interface ToastItemProps {
@@ -60,7 +62,8 @@ function ToastItem({ notification }: ToastItemProps) {
       transition={{ duration: DURATION.springPress, ease: 'easeOut' }}
       onClick={() => notification.onClick?.()}
       className={cn(
-        'pointer-events-auto flex w-72 items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm',
+        // BLF-893：toast 终端化——零圆角、term 令牌、无阴影；保留 backdrop-blur 维持半透明提示感。
+        'pointer-events-auto flex w-72 items-start gap-3 rounded-none border bg-term-bg/95 px-4 py-3 backdrop-blur-sm',
         notification.onClick ? 'cursor-pointer' : undefined,
         config.className
       )}
@@ -68,14 +71,14 @@ function ToastItem({ notification }: ToastItemProps) {
       <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', config.iconClassName)} />
       <div className="min-w-0 flex-1">
         <p
-          className={cn('text-sm font-semibold leading-snug', typeTextClassName[notification.type])}
+          className={cn('font-mono text-xs leading-5', typeTextClassName[notification.type])}
         >
           {notification.title}
         </p>
         {notification.message ? (
           <p
             className={cn(
-              'mt-0.5 text-xs leading-relaxed opacity-80',
+              'mt-0.5 font-mono text-[11px] leading-4 opacity-80',
               typeTextClassName[notification.type]
             )}
           >
@@ -90,7 +93,7 @@ function ToastItem({ notification }: ToastItemProps) {
           dismissToast(notification.id)
         }}
         className={cn(
-          'mt-0.5 shrink-0 rounded-md p-0.5 transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'mt-0.5 shrink-0 rounded-none p-0.5 transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:border-term-border-strong',
           typeTextClassName[notification.type]
         )}
         aria-label="关闭通知"

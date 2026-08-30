@@ -614,7 +614,7 @@ export function AgentAccessLogsPanel() {
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
         <DialogContent
           aria-describedby="agent-log-detail-dialog-description"
-          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
+          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border border-term-border bg-term-bg shadow-none sm:max-w-3xl"
         >
           <span id="agent-log-detail-dialog-description" className="sr-only">
             Agent 访问日志详情查看
@@ -623,82 +623,84 @@ export function AgentAccessLogsPanel() {
             <DialogTitle>Agent 访问详情</DialogTitle>
           </DialogHeader>
           {activeRow ? (
-            <div className="space-y-4 text-sm">
+            <div className="space-y-4 font-mono text-xs leading-5">
               <div className="grid gap-2 sm:grid-cols-2">
                 <p>
-                  <span className="text-muted-foreground">请求时间:</span>{' '}
-                  {formatDateTime(activeRow.created_at)}
+                  <span className="text-term-muted">请求时间:</span>{' '}
+                  <span className="text-term-text">{formatDateTime(activeRow.created_at)}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">状态码:</span>{' '}
-                  {statusMeta(activeRow.status_code).label}
+                  <span className="text-term-muted">状态码:</span>{' '}
+                  <span className="text-term-text">{statusMeta(activeRow.status_code).label}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Agent:</span>{' '}
+                  <span className="text-term-muted">Agent:</span>{' '}
                   {activeRow.agent_id ? (
                     <>
                       {activeRow.key_label ? (
-                        <span className="font-medium">{activeRow.key_label} </span>
+                        <span className="text-term-text">{activeRow.key_label} </span>
                       ) : null}
-                      <code className="font-mono">{activeRow.agent_id}</code>
+                      <code className="text-term-text">{activeRow.agent_id}</code>
                     </>
                   ) : (
-                    '未绑定 / 未鉴权'
+                    <span className="text-term-muted">未绑定 / 未鉴权</span>
                   )}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">项目:</span>{' '}
-                  {formatProjectRef(activeRow.project_id, activeRow.project_name)}
+                  <span className="text-term-muted">项目:</span>{' '}
+                  <span className="text-term-text">{formatProjectRef(activeRow.project_id, activeRow.project_name)}</span>
                 </p>
                 {/* BLF-845 ③：国家字段位（迁移 259 起后端已落库并透出） */}
                 <p>
-                  <span className="text-muted-foreground">国家:</span>{' '}
-                  {activeRow.country ?? '—'}
+                  <span className="text-term-muted">国家:</span>{' '}
+                  <span className="text-term-text">{activeRow.country ?? '—'}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">操作类型:</span>{' '}
-                  {activeRow.operation_type
-                    ? operationTypeLabel(activeRow.operation_type)
-                    : '-'}
+                  <span className="text-term-muted">操作类型:</span>{' '}
+                  <span className="text-term-text">
+                    {activeRow.operation_type
+                      ? operationTypeLabel(activeRow.operation_type)
+                      : '-'}
+                  </span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">凭据标签:</span>{' '}
-                  {activeRow.key_label || '-'}
+                  <span className="text-term-muted">凭据标签:</span>{' '}
+                  <span className="text-term-text">{activeRow.key_label || '-'}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">耗时:</span>{' '}
-                  <code className="font-mono tabular-nums">{activeRow.latency_ms}ms</code>
+                  <span className="text-term-muted">耗时:</span>{' '}
+                  <code className="text-term-text tabular-nums">{activeRow.latency_ms}ms</code>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">IP 地址:</span>{' '}
-                  <code className="font-mono">{activeRow.ip_address || '-'}</code>
+                  <span className="text-term-muted">IP 地址:</span>{' '}
+                  <code className="text-term-text">{activeRow.ip_address || '-'}</code>
                 </p>
               </div>
 
               <div className="space-y-2">
-                <p className="font-medium">请求</p>
-                <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                <p className="font-mono text-xs uppercase tracking-wider text-term-muted">请求</p>
+                <div className="rounded-none border border-term-border bg-term-panel p-3">
                   <p>
-                    <span className="text-muted-foreground">方法:</span>{' '}
-                    <code className="font-mono">{activeRow.method}</code>
+                    <span className="text-term-muted">方法:</span>{' '}
+                    <code className="text-term-text">{activeRow.method}</code>
                   </p>
                   <p className="mt-1">
-                    <span className="text-muted-foreground">路径:</span>{' '}
-                    <code className="break-all font-mono text-xs">{activeRow.path}</code>
+                    <span className="text-term-muted">路径:</span>{' '}
+                    <code className="break-all text-term-text">{activeRow.path}</code>
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <p className="font-medium">凭据</p>
-                <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                <p className="font-mono text-xs uppercase tracking-wider text-term-muted">凭据</p>
+                <div className="rounded-none border border-term-border bg-term-panel p-3">
                   <p>
-                    <span className="text-muted-foreground">API Key ID:</span>{' '}
-                    <code className="font-mono text-xs">{activeRow.api_key_id ?? '未鉴权'}</code>
+                    <span className="text-term-muted">API Key ID:</span>{' '}
+                    <code className="text-term-text">{activeRow.api_key_id ?? '未鉴权'}</code>
                   </p>
                   <p>
-                    <span className="text-muted-foreground">日志 ID:</span>{' '}
-                    <code className="font-mono text-xs">{activeRow.id}</code>
+                    <span className="text-term-muted">日志 ID:</span>{' '}
+                    <code className="text-term-text">{activeRow.id}</code>
                   </p>
                 </div>
               </div>

@@ -19,8 +19,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
 interface PortfolioComparisonTableProps {
@@ -56,7 +54,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         header: '项目',
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <span className="font-medium">{row.original.project_name}</span>
+            <span className="font-mono text-xs leading-5 text-term-text">
+              {row.original.project_name}
+            </span>
           </div>
         ),
         size: 160,
@@ -65,7 +65,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'sales_amount',
         header: '销售额',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{formatMoney(getValue() as number, country)}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {formatMoney(getValue() as number, country)}
+          </span>
         ),
         size: 120,
       },
@@ -73,7 +75,7 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'sales_contribution',
         header: '占比',
         cell: ({ getValue }) => (
-          <span className="tabular-nums text-muted-foreground">
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-muted">
             {formatPercent(getValue() as number)}
           </span>
         ),
@@ -83,7 +85,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'order_qty',
         header: '订单量',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {(getValue() as number).toLocaleString()}
+          </span>
         ),
         size: 80,
       },
@@ -91,7 +95,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'ad_spend',
         header: '广告费',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{formatMoney(getValue() as number, country)}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {formatMoney(getValue() as number, country)}
+          </span>
         ),
         size: 100,
       },
@@ -102,9 +108,10 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
           const val = getValue() as number
           const adSpend = row.original.ad_spend
           const clicks = row.original.clicks
-          if (clicks === 0) return <span className="text-muted-foreground">--</span>
+          if (clicks === 0)
+            return <span className="font-mono text-xs leading-5 text-term-muted">--</span>
           return (
-            <span className="tabular-nums">
+            <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
               {CURRENCY_SYMBOL[country] ?? '$'}
               {val.toFixed(2)}
             </span>
@@ -116,7 +123,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'conversion_rate',
         header: '转化率',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{formatPercent(getValue() as number)}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {formatPercent(getValue() as number)}
+          </span>
         ),
         size: 80,
       },
@@ -124,7 +133,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'clicks',
         header: '点击量',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {(getValue() as number).toLocaleString()}
+          </span>
         ),
         size: 80,
       },
@@ -132,7 +143,9 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
         accessorKey: 'sessions',
         header: '访问量',
         cell: ({ getValue }) => (
-          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
+          <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+            {(getValue() as number).toLocaleString()}
+          </span>
         ),
         size: 80,
       },
@@ -143,7 +156,7 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 text-xs"
+            className="h-7 gap-1 rounded-none border border-term-border bg-term-bg font-mono text-[11px] leading-4 text-term-muted hover:border-term-border-strong hover:text-term-text"
             onClick={(e) => {
               e.stopPropagation()
               router.push(
@@ -171,17 +184,18 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
   })
 
   return (
-    <div className="dashboard-surface rounded-xl">
+    // BLF-893：portfolio 表格终端化——零圆角、term 令牌、mono 等宽数值。
+    <div className="rounded-none border border-term-border bg-term-bg">
       <div className="overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="border-term-border hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
                     style={{ width: header.getSize() }}
-                    className="cursor-pointer select-none"
+                    className="cursor-pointer select-none font-mono text-[11px] uppercase tracking-wider text-term-muted"
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <div className="flex items-center gap-1">
@@ -200,7 +214,7 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className="group">
+              <TableRow key={row.id} className="group border-term-border">
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

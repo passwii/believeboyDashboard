@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useNotifications } from '@/components/notifications'
@@ -29,39 +28,35 @@ const TIER_LABEL: Record<string, string> = {
   T4: 'T4',
 }
 
+// BLF-893：Tier 色板统一走 term 令牌；T1=neg / T2=accent / T3=warn / T4=muted / UNTIERED=faint。
 const TIER_SECTION_STYLE: Record<
   string,
   { headerBg: string; headerText: string; cardAccent: string }
 > = {
   T1: {
-    headerBg:
-      'bg-gradient-to-r from-red-50 to-transparent dark:from-red-950/20 dark:to-transparent',
+    headerBg: 'bg-term-neg/5',
     headerText: 'text-term-neg',
-    cardAccent: 'border-l-4 border-l-red-500/60',
+    cardAccent: 'border-l-4 border-l-term-neg/60',
   },
   T2: {
-    headerBg:
-      'bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20 dark:to-transparent',
-    headerText: 'text-blue-700 dark:text-blue-400',
-    cardAccent: 'border-l-4 border-l-blue-500/60',
+    headerBg: 'bg-term-accent/5',
+    headerText: 'text-term-accent',
+    cardAccent: 'border-l-4 border-l-term-accent/60',
   },
   T3: {
-    headerBg:
-      'bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 dark:to-transparent',
+    headerBg: 'bg-term-warn/5',
     headerText: 'text-term-warn',
-    cardAccent: 'border-l-4 border-l-amber-500/60',
+    cardAccent: 'border-l-4 border-l-term-warn/60',
   },
   T4: {
-    headerBg:
-      'bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-800/20 dark:to-transparent',
-    headerText: 'text-slate-700 dark:text-slate-400',
-    cardAccent: 'border-l-4 border-l-slate-500/60',
+    headerBg: 'bg-term-hover',
+    headerText: 'text-term-muted',
+    cardAccent: 'border-l-4 border-l-term-border-strong',
   },
   UNTIERED: {
-    headerBg:
-      'bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-800/20 dark:to-transparent',
-    headerText: 'text-gray-500 dark:text-gray-400',
-    cardAccent: 'border-l-4 border-l-gray-400/40',
+    headerBg: 'bg-term-panel',
+    headerText: 'text-term-faint',
+    cardAccent: 'border-l-4 border-l-term-border',
   },
 }
 
@@ -141,7 +136,7 @@ function cn(...classes: (string | undefined | false)[]): string {
 
 function ContextPreview({ context }: { context: Record<string, string> | null }) {
   if (!context || Object.keys(context).length === 0) {
-    return <span className="text-sm text-muted-foreground">暂无背景信息</span>
+    return <span className="font-mono text-xs leading-5 text-term-muted">暂无背景信息</span>
   }
 
   const entries = Object.entries(context)
@@ -149,9 +144,9 @@ function ContextPreview({ context }: { context: Record<string, string> | null })
   return (
     <div className="space-y-2">
       {entries.slice(0, 5).map(([key, value]) => (
-        <div key={key} className="flex items-baseline gap-2 text-sm">
-          <span className="text-muted-foreground shrink-0 w-24 truncate text-left">{key}</span>
-          <span className="text-foreground flex-1 line-clamp-1 break-words">{value || '-'}</span>
+        <div key={key} className="flex items-baseline gap-2 font-mono text-xs leading-5">
+          <span className="w-24 shrink-0 truncate text-left text-term-muted">{key}</span>
+          <span className="line-clamp-1 flex-1 break-words text-term-text">{value || '-'}</span>
         </div>
       ))}
     </div>
@@ -173,45 +168,50 @@ function ProjectContextCard({
   return (
     <Card
       className={cn(
-        'group hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer min-h-[220px] flex flex-col',
+        // BLF-893：项目卡终端化——零圆角、term 令牌、零阴影；hover 走 term-accent 弱边。
+        'group flex min-h-[220px] cursor-pointer flex-col rounded-none border border-term-border bg-term-bg shadow-none transition-colors hover:border-term-accent',
         tierAccent
       )}
       onClick={() => onOpen(project)}
     >
-      <CardHeader className="pb-3 flex-shrink-0">
+      <CardHeader className="flex-shrink-0 pb-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex min-w-0 items-center gap-3">
             <span
               className={cn(
-                'h-3 w-3 shrink-0 rounded-full ring-2 ring-offset-2',
-                hasContext ? 'bg-green-500 ring-green-200' : 'bg-term-warn ring-term-warn/30'
+                'h-3 w-3 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-term-bg',
+                hasContext
+                  ? 'bg-term-pos ring-term-pos/30'
+                  : 'bg-term-warn ring-term-warn/30'
               )}
             />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-semibold text-foreground truncate text-base">{project.name}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="truncate font-mono text-sm leading-5 text-term-text">
+                  {project.name}
+                </h3>
                 {project.brand_name && (
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
+                  <span className="inline-flex h-5 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[10px] leading-4 text-term-muted">
                     {project.brand_name}
-                  </Badge>
+                  </span>
                 )}
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0 flex-1 flex flex-col">
+      <CardContent className="flex-1 pt-0">
         <div className="flex-1">
           <ContextPreview context={project.project_context} />
         </div>
         {hasContext && (
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
-            <span className="text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center justify-between border-t border-term-border pt-2">
+            <span className="font-mono text-[11px] leading-4 text-term-muted">
               {dimensionCount > 5 && `+${dimensionCount - 5} 更多...`}
             </span>
-            <Badge variant="outline" className="text-[10px]">
+            <span className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[10px] leading-4 text-term-muted">
               {dimensionCount} 维度
-            </Badge>
+            </span>
           </div>
         )}
       </CardContent>
