@@ -53,6 +53,17 @@ vi.mock('@/components/dashboard-v2/v2-traffic-chart', () => ({
   V2TrafficChart: () => <div data-testid="v2-traffic-chart" />,
 }))
 
+// 头部刷新/插槽在测试环境下无 Provider；mock 成 no-op 与项目惯例一致
+// （参考 finance/platform-revenue / operations/inventory-* 等页面测试）。
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+  useHeaderSlot: (node: React.ReactNode) => node,
+}))
+
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => false,
+}))
+
 import DashboardV2Page from './page'
 
 const mockRows = [
@@ -123,6 +134,14 @@ describe('DashboardV2Page', () => {
   it('渲染页面级项目选择器', async () => {
     render(<DashboardV2Page />)
     expect(screen.getByText('全部项目')).toBeInTheDocument()
+  })
+
+  it('页内不再渲染独立刷新按钮（BLF-909 收敛到 Top Head 刷新）', async () => {
+    render(<DashboardV2Page />)
+    // aria-label 唯一，queryBy 找不到即断言无该控件
+    expect(screen.queryByLabelText('刷新数据')).not.toBeInTheDocument()
+    // 数据区间徽标改为 head 渲染（mock 下内联进页面）
+    expect(screen.getByText('数据区间')).toBeInTheDocument()
   })
 
   it('渲染真实业务区块（项目排行 标题 + 四个图表占位）', async () => {
