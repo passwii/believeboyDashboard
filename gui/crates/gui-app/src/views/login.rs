@@ -26,6 +26,7 @@ use gpui::{
 use gpui_component::alert::Alert;
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::checkbox::Checkbox;
 use gui_api_client::Client;
 use gui_domain::auth::LoginResponse;
 
@@ -57,6 +58,8 @@ pub struct LoginView {
     /// 未登录的 base client（登录成功后派生带会话 client）
     client: Client,
     status: LoginStatus,
+    /// 记住密码勾选态（勾选时登录成功把凭据存系统凭据库，下次启动预填）
+    remember: bool,
     /// 本视图自己的焦点句柄（初始聚焦邮箱由首个渲染把焦点让给邮箱 Input）
     focus_handle: FocusHandle,
     /// P2-2：窗口外观变化监听（跟随系统；main.rs 注册时写入）
@@ -76,6 +79,7 @@ impl LoginView {
             input_sub: None,
             client,
             status,
+            remember: false,
             focus_handle: cx.focus_handle(),
             theme_appearance_sub: None,
         }
@@ -84,6 +88,7 @@ impl LoginView {
     /// 首个渲染时创建两个输入框 + 订阅（需要 `&mut Window` 才能建 InputState）。
     ///
     /// 输入框创建后立即把焦点交给邮箱框（等价旧实现 main.rs 的初始聚焦）。
+    /// 有「记住密码」凭据时预填邮箱/密码并勾选（Keychain 失败静默降级为空表单）。
     fn ensure_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.email.is_some() {
             return;
@@ -95,6 +100,16 @@ impl LoginView {
                 .masked(true)
         });
 
+        // 记住密码预填（读取失败不阻断登录）
+        if let Ok(Some(remembered)) = crate::keychain::load_remembered() {
+            email.update(cx, |state, cx| {
+                state.set_value(&remembered.email, window, cx)
+            });
+            password.update(cx, |state, cx| {
+                state.set_value(&remembered.password, window, cx)
+            });
+            self.remember = true;
+        }
         // 回车提交 / 输入变化清除错误（任一字段）
         let sub_email = cx.subscribe(&email, |this, _e, event: &InputEvent, cx| match event {
             InputEvent::PressEnter { .. } => this.submit_login(cx),
@@ -143,6 +158,10 @@ impl LoginView {
         self.status = LoginStatus::Submitting;
         cx.notify();
 
+        let remember = self.remember;
+        // 凭据副本：登录协程 move 原值后，成功路径还要写「记住密码」
+        let save_email = email_text.clone();
+        let save_password = password_text.clone();
         let client = self.client.clone();
         let bg = cx.background_executor().clone();
         cx.spawn(
@@ -155,6 +174,12 @@ impl LoginView {
                     .await;
                 this.update(&mut *cx, |this, cx| match result {
                     Ok((authed, user)) => {
+                        // 记住密码：勾选 → 覆盖存凭据库；未勾选 → 清除旧记忆
+                        let _ = if remember {
+                            crate::keychain::save_remembered(&save_email, &save_password)
+                        } else {
+                            crate::keychain::clear_remembered()
+                        };
                         this.status = LoginStatus::Idle;
                         cx.emit(LoginViewEvent {
                             client: authed,
@@ -304,6 +329,18 @@ impl Render for LoginView {
                             )
                             .mask_toggle(),
                     ),
+            )
+            .child(
+                // 记住密码（勾选 → 登录成功后凭据进系统凭据库，下次启动预填）
+                div().child(
+                    Checkbox::new("login-remember-password")
+                        .label("记住密码")
+                        .checked(self.remember)
+                        .on_click(cx.listener(move |this, checked: &bool, _window, cx| {
+                            this.remember = *checked;
+                            cx.notify();
+                        })),
+                ),
             )
             .child(
                 Button::new("login-submit")

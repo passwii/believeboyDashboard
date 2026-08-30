@@ -505,7 +505,11 @@ impl RootView {
                     if this.active_category != category {
                         this.active_category = category.clone();
                         this.rail
-                            .update(cx, |rail_view, cx| rail_view.set_active(category, cx));
+                            .update(cx, |rail_view, cx| rail_view.set_active(category.clone(), cx));
+                        // L2 同步：⌘K 面板 / 键盘跳转与 Rail 点击同链——目标分类
+                        // 驱动 Sub-Nav 展开（空态→有分类带宽度动画）；回着陆页收拢
+                        this.sub_nav
+                            .update(cx, |sub_nav, cx| sub_nav.set_active(category.clone(), cx));
                     }
                     // Stage13（BLF-804）：着陆页路由——点击 Logo / 返回首页时回到
                     // Dashboard（接控制条项目选择器）；复用 reset_all_show_flags
@@ -3623,6 +3627,10 @@ impl Render for RootView {
                     .child(
                         div()
                             .id("center-col")
+                            // 必须显式 .flex()——gpui Div 默认 Display::Block，
+                            // Block 下 canvas 的 flex_1 不生效 → 内容塌缩成内容高
+                            // （Table 表体空白 / 页脚聚合条上浮的根因）
+                            .flex()
                             .flex_col()
                             .flex_1()
                             .min_w_0()
@@ -3846,9 +3854,11 @@ fn caption_buttons(
             button_base("caption-minimize", btn_w, theme)
                 .window_control_area(WindowControlArea::Min)
                 .child(
+                    // svg 必须自带 text_color（BLF-712：未设则完全不绘制）
                     gpui::svg()
                         .path("icons/window-minimize.svg")
-                        .size(icon_size),
+                        .size(icon_size)
+                        .text_color(theme.text_secondary),
                 ),
         )
         .child(snap_layout_button(
@@ -3877,7 +3887,12 @@ fn caption_buttons(
                         .text_color(crate::theme::hex_color(0xffffff))
                 })
                 .active(|style| style.bg(theme.danger).opacity(0.8))
-                .child(gpui::svg().path("icons/window-close.svg").size(icon_size)),
+                .child(
+                    gpui::svg()
+                        .path("icons/window-close.svg")
+                        .size(icon_size)
+                        .text_color(theme.text_secondary),
+                ),
         )
         .into_any_element()
 }
@@ -3916,7 +3931,12 @@ fn snap_layout_button(
                 cx.notify();
             }
         }))
-        .child(gpui::svg().path(maximize_icon).size(icon_size))
+        .child(
+            gpui::svg()
+                .path(maximize_icon)
+                .size(icon_size)
+                .text_color(theme.text_secondary),
+        )
         // Snap 浮层（absolute 定位在按钮下方右对齐；仅展开态渲染）。
         // 注意：浮层元素**不**注册 WindowControlArea——鼠标进入浮层即离开
         // 最大化钮 hitbox，on_hover(false) 收起逻辑由 open 状态门控（浮层自身

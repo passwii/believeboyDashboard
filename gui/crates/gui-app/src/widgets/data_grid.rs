@@ -548,7 +548,10 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
                 }
                 let active = self.sort.map(|(ix, _)| ix == col_ix).unwrap_or(false);
                 cells.push(
+                    // 每列包装器必须 flex_none——默认 flex_shrink 会在窄容器下
+                    // 把表头列压缩叠字（数据行单元格自带 flex_none 不受影响）
                     h_flex()
+                        .flex_none()
                         .child(self.render_header_cell(col_ix, col, active, &theme, cx))
                         .child(self.render_resize_handle(col_ix, &theme, cx))
                         .into_any_element(),
@@ -629,16 +632,20 @@ impl<T: Clone + PartialEq + 'static> Render for DataGrid<T> {
         };
 
         // 横向滚动容器：表头 + 行列表同容器 → 横滚时表头与列同步平移；
-        // 纵滚发生在 uniform_list 内部 → 表头粘性不漂移
+        // 纵滚发生在 uniform_list 内部 → 表头粘性不漂移。
+        // 必须显式 .flex().flex_col()——gpui Div 默认 Block，Block 下内部
+        // flex 链失效（表头被裁成细条 / 行高坍缩，与 center-col 同类根因）
         div()
             .id(SharedString::from(format!("{id}-hscroll")))
+            .flex()
+            .flex_col()
             .flex_1()
             .min_h_0()
             .min_w_0()
             .w_full()
             .overflow_x_scroll()
             .bg(theme.window_bg)
-            .child(v_flex().h_full().child(body))
+            .child(v_flex().h_full().flex_1().min_h_0().child(body))
     }
 }
 

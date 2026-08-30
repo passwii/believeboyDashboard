@@ -119,11 +119,18 @@ impl SubNavView {
 
     /// 反向同步：Rail 分类变化时更新本列内容。分类切换后游标跟随已选中的
     /// 子项（无选中则归零），保证 ↑↓ 从高亮项继续遍历。
+    /// 空态 ↔ 有分类互切时把旧展示宽记为动画起点（0 ↔ fit_width 的
+    /// 展开/收拢动效，对齐 toggle 折叠动画；减弱动态时瞬时切换）。
     pub(crate) fn set_active(&mut self, group_id: Option<String>, cx: &mut Context<Self>) {
         if self.active_group == group_id {
             return;
         }
+        let prev_width = self.width();
+        let was_empty = self.visible_items().is_empty();
         self.active_group = group_id;
+        if was_empty != self.visible_items().is_empty() {
+            self.width_anim_from = prev_width;
+        }
         self.cursor = self
             .selected_url
             .as_deref()
@@ -189,9 +196,11 @@ impl SubNavView {
         self.badges.get(url).copied().unwrap_or(0)
     }
 
-    /// 当前列宽：折叠 0 / 展开 [`fit_width`]（按激活分类最长标题自适应）
+    /// 当前列宽：折叠 0 / 无激活分类（着陆页）0 / 展开 [`fit_width`]
+    /// （按激活分类最长标题自适应）。空态零占位——对齐用户预期「打开时
+    /// L2 不空白占位，选中分类才展开」。
     pub(crate) fn width(&self) -> f32 {
-        if self.collapsed {
+        if self.collapsed || self.visible_items().is_empty() {
             return 0.0;
         }
         let longest = self
@@ -529,6 +538,27 @@ mod tests {
             mid > SUB_NAV_WIDTH_MIN && mid < SUB_NAV_WIDTH_MAX,
             "混排长标题列宽 {mid} 应在区间中段"
         );
+    }
+
+    /// 空态零占位契约：无激活分类（着陆页）列宽必须为 0；选中分类后
+    /// 恢复 fit_width 展开宽（用户反馈：打开时 L2 不允许空白占位）。
+    #[gpui::test]
+    async fn width_zero_when_no_active_group(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_component::init);
+        let (view, cx) = cx.add_window_view(|_window, cx| SubNavView::new(false, cx));
+        cx.read(|app| {
+            assert_eq!(view.read(app).width(), 0.0, "着陆页（无分类）列宽必须为 0");
+        });
+        view.update(cx, |v, cx| {
+            v.set_active(Some("operations".into()), cx)
+        });
+        cx.read(|app| {
+            let w = view.read(app).width();
+            assert!(w > 0.0, "选中分类后列宽必须展开，实际 {w}");
+        });
+        // 回到着陆页 → 再次收起为 0
+        view.update(cx, |v, cx| v.set_active(None, cx));
+        cx.read(|app| assert_eq!(view.read(app).width(), 0.0, "回着陆页必须再收起"));
     }
 
     /// 折叠契约：toggle 后宽度 0、emit Collapsed、动画起点记录切换前宽度。
