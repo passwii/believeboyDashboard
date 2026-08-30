@@ -118,7 +118,8 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
             {/* BLF-809：KPI 数值一律等宽字体（font-mono + tabular-nums） */}
             <p className="font-mono text-xl font-semibold tabular-nums text-term-text">{s.value}</p>
           </CardContent>
-        </V2Card>
-      ))}
-  )
+          </V2Card>
+        ))}
+      </>
+   )
 }

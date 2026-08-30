@@ -84,6 +84,8 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
         <CardDescription>可用库存每日变化（近 7 天）</CardDescription>
       </CardHeader>
       <CardContent>
+        {rows.length > 0 ? (
+          <>
             {/* BLF-909 终端化：大数字 mono + tabular-nums + term-text；说明文本 term-faint */}
             <div className="mb-2 flex items-baseline gap-1.5">
               <span className="font-mono text-2xl font-semibold tabular-nums text-term-text">
@@ -128,5 +130,5 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
         )}
       </CardContent>
     </V2Card>
-  )
+   )
 }
