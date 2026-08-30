@@ -50,26 +50,29 @@ use gpui::{point, px, rgb, App, BoxShadow, Hsla, Window};
 use gpui_component::{ActiveTheme, ThemeMode};
 
 // ---------------------------------------------------------------------------
-// 背景栈与微语义色（grep 审计锚点；BLF-792「色板值与规格一一对应」）
+// 背景栈与微语义色（grep 审计锚点；2026-08-30 起与 frontend `globals.css`
+// 的 `--term-*` 暗色令牌一一对应——BLF-809 终端令牌为唯一权威，
+// 改色先改前端再同步此处与 `dark_utility_background_stack_contract`）
 // ---------------------------------------------------------------------------
 
-/// 背景栈 L0：应用根底（Root）
-pub const BG_ROOT: u32 = 0x0d0d0e;
-/// 背景栈 L1：面板（Panel，侧栏/工具条）
-pub const BG_PANEL: u32 = 0x141417;
-/// 背景栈 L2：卡片表面（Card）
-pub const BG_CARD: u32 = 0x1c1c21;
-/// 背景栈 L3：hover 与选中底（Hover & Selected）
-pub const BG_HOVER: u32 = 0x272730;
-/// 背景栈·Master Rail 细分底（BLF-793：主图标栏专属，介于 Root 与 Panel 之间）
-pub const BG_RAIL: u32 = 0x121214;
-/// 分隔线 / 边框（1px 表达层级，不用重投影）
-pub const BORDER_SEPARATOR: u32 = 0x232328;
-/// 微语义色：正向 / 有货 / 涨
+/// 背景栈 L0：应用根底（Root）＝ `--term-bg` #0c0c0e
+pub const BG_ROOT: u32 = 0x0c0c0e;
+/// 背景栈 L1：面板（Panel，侧栏/工具条）＝ `--term-panel` #131316
+pub const BG_PANEL: u32 = 0x131316;
+/// 背景栈 L2：卡片表面（Card）＝ `--term-raised` #1a1a1e
+pub const BG_CARD: u32 = 0x1a1a1e;
+/// 背景栈 L3：hover 与选中底（Hover & Selected）＝ `--term-hover` #232329
+pub const BG_HOVER: u32 = 0x232329;
+/// 背景栈·Master Rail 细分底（对齐前端 rail＝`--term-panel`：同值，
+/// 与 Sub-Nav/Header 的分工仅靠 1px 边界，不再自设中间层）
+pub const BG_RAIL: u32 = 0x131316;
+/// 分隔线 / 边框（1px 表达层级，不用重投影）＝ `--term-border` #242429
+pub const BORDER_SEPARATOR: u32 = 0x242429;
+/// 微语义色：正向 / 有货 / 涨 ＝ `--term-pos`（与 BLF-792 值一致，未漂移）
 pub const SEMANTIC_POSITIVE: u32 = 0x22c55e;
-/// 微语义色：警示 / 待处理
+/// 微语义色：警示 / 待处理 ＝ `--term-warn`（与 BLF-792 值一致，未漂移）
 pub const SEMANTIC_WARNING: u32 = 0xf59e0b;
-/// 微语义色：危险 / 缺货 / 跌
+/// 微语义色：危险 / 缺货 / 跌 ＝ `--term-neg`（与 BLF-792 值一致，未漂移）
 pub const SEMANTIC_DANGER: u32 = 0xef4444;
 
 // ---------------------------------------------------------------------------
@@ -333,45 +336,45 @@ impl AppTheme {
             radius: 6.0,
             radius_lg: 8.0,
 
-            // 背景层级（macOS light system colors）
+            // 背景层级（对齐 frontend `--term-*` 明色令牌；休眠但同步收口）
             window_bg: c(0xf5f5f7),
             card_bg: c(0xffffff),
-            muted_fill: c(0xebebf0),
-            separator: c(0xe5e5e5),
+            muted_fill: c(0xececef),
+            separator: c(0xe3e3e8),
             card_shadow: c(0x000000).alpha(0.06),
-            panel_bg: c(0xececec),
-            rail_bg: c(0xe4e4e9),
+            panel_bg: c(0xffffff),
+            rail_bg: c(0xffffff),
 
             // 表格行态
-            table_row_hover: c(0xebebf0).alpha(0.65),
-            table_row_stripe: c(0xebebf0).alpha(0.5),
+            table_row_hover: c(0xececef).alpha(0.65),
+            table_row_stripe: c(0xececef).alpha(0.5),
 
             // 侧栏
-            sidebar_bg: c(0xececec),
-            sidebar_border: c(0xe5e5e5),
-            sidebar_text: c(0x1d1d1f),
-            sidebar_group_text: c(0x86868b),
-            sidebar_item_hover: c(0xe8e8ec),
-            sidebar_item_active_bg: c(0xffffff),
-            sidebar_item_active_text: c(0x1d1d1f),
+            sidebar_bg: c(0xffffff),
+            sidebar_border: c(0xe3e3e8),
+            sidebar_text: c(0x1b1b1f),
+            sidebar_group_text: c(0x71717a),
+            sidebar_item_hover: c(0xececef),
+            sidebar_item_active_bg: c(0xececef),
+            sidebar_item_active_text: c(0x1b1b1f),
             sidebar_item_shadow: c(0x000000).alpha(0.06),
-            sidebar_footer_text: c(0x86868b),
+            sidebar_footer_text: c(0x71717a),
 
-            // 文字层级（Apple HIG）
-            text_primary: c(0x1d1d1f),
-            text_secondary: c(0x6e6e73),
-            text_muted: c(0xaeaeb2),
+            // 文字层级（--term-text / --term-muted / --term-faint）
+            text_primary: c(0x1b1b1f),
+            text_secondary: c(0x71717a),
+            text_muted: c(0xa1a1aa),
 
-            // 强调 / 状态（macOS system colors）
-            accent: c(0x007aff),
-            accent_hover: c(0x0066cc),
+            // 强调 / 状态（--term-accent / --term-warn / --term-pos / --term-neg）
+            accent: c(0x2563eb),
+            accent_hover: c(0x1d4ed8),
             on_accent: c(0xffffff),
-            accent_soft: c(0x007aff).alpha(0.12),
-            success: c(0x34c759),
-            warning: c(0xff9f0a),
-            danger: c(0xff3b30),
-            success_soft: c(0x34c759).alpha(0.12),
-            danger_soft: c(0xff3b30).alpha(0.12),
+            accent_soft: c(0x2563eb).alpha(0.12),
+            success: c(0x16a34a),
+            warning: c(0xd97706),
+            danger: c(0xdc2626),
+            success_soft: c(0x16a34a).alpha(0.12),
+            danger_soft: c(0xdc2626).alpha(0.12),
 
             // 图表序列色
             chart_primary: c(0x2563eb),
@@ -380,7 +383,8 @@ impl AppTheme {
         }
     }
 
-    /// 深色外观语义色板（唯一活跃外观；BLF-792 暗色工具主题基准值）
+    /// 深色外观语义色板（唯一活跃外观；2026-08-30 起对齐 frontend `--term-*`
+    /// 暗色令牌，见背景栈常量区注释）
     pub fn dark() -> Self {
         Self {
             dark: true,
@@ -389,8 +393,8 @@ impl AppTheme {
             radius: 6.0,
             radius_lg: 8.0,
 
-            // 背景栈：Root #0d0d0e / Card #1c1c21 / Hover #272730 / Panel #141417 /
-            // 分隔线 #232328；投影全透明（1px 边界表达层级，无重投影）
+            // 背景栈：Root #0c0c0e / Card #1a1a1e / Hover #232329 / Panel #131316 /
+            // 分隔线 #242429；投影全透明（1px 边界表达层级，无重投影）
             window_bg: c(BG_ROOT),
             card_bg: c(BG_CARD),
             muted_fill: c(BG_HOVER),
@@ -407,22 +411,22 @@ impl AppTheme {
             // 侧栏：Panel 层底 + Hover 层选中胶囊，扁平无边框投影
             sidebar_bg: c(BG_PANEL),
             sidebar_border: c(BORDER_SEPARATOR),
-            sidebar_text: c(0xf5f5f7),
-            sidebar_group_text: c(0x98989d),
+            sidebar_text: c(0xededed),
+            sidebar_group_text: c(0x888890),
             sidebar_item_hover: c(BG_HOVER),
             sidebar_item_active_bg: c(BG_HOVER),
-            sidebar_item_active_text: c(0xf5f5f7),
+            sidebar_item_active_text: c(0xededed),
             sidebar_item_shadow: c(0x000000).alpha(0.0),
-            sidebar_footer_text: c(0x98989d),
+            sidebar_footer_text: c(0x888890),
 
-            // 文字层级（深底三阶灰）
-            text_primary: c(0xf5f5f7),
-            text_secondary: c(0xa1a1a6),
-            text_muted: c(0x7c7c80),
+            // 文字层级（--term-text / --term-muted / --term-faint 三阶）
+            text_primary: c(0xededed),
+            text_secondary: c(0x888890),
+            text_muted: c(0x5c5c66),
 
-            // 微语义色（规格定值）+ controlAccent 蓝
-            accent: c(0x0a84ff),
-            accent_hover: c(0x409cff),
+            // 强调色（--term-accent #5b8def）+ hover 提亮一档
+            accent: c(0x5b8def),
+            accent_hover: c(0x7ba3f2),
             on_accent: c(0xffffff),
             accent_soft: c(0x0a84ff).alpha(0.16),
             success: c(SEMANTIC_POSITIVE), // #22c55e 正向 / 有货 / 涨
@@ -623,41 +627,95 @@ mod tests {
         assert_ne!(light.success, dark.success);
     }
 
-    /// BLF-792 回归锁：暗色四层背景栈 + 分隔线 + 微语义色必须与规格一字不差
-    /// （theme.rs 常量为 grep 审计锚点；本测试防止任何一环悄悄漂移）。
+    /// 回归锁：暗色四层背景栈 + 分隔线 + 微语义色必须与 frontend `--term-*`
+    /// 暗色令牌一字不差（theme.rs 常量为 grep 审计锚点；本测试防止任何一环悄悄漂移）。
     #[test]
     fn dark_utility_background_stack_contract() {
         let dark = AppTheme::dark();
 
-        // 四层背景栈：Root / Panel / Card / Hover&选中
+        // 四层背景栈：Root / Panel / Card / Hover&选中（--term-bg/panel/raised/hover）
         assert_eq!(dark.window_bg, c(BG_ROOT));
-        assert_eq!(c(BG_ROOT), c(0x0d0d0e), "Root 层规格值 #0d0d0e");
+        assert_eq!(
+            c(BG_ROOT),
+            c(0x0c0c0e),
+            "Root 层规格值 #0c0c0e（--term-bg）"
+        );
         assert_eq!(dark.panel_bg, c(BG_PANEL));
-        assert_eq!(c(BG_PANEL), c(0x141417), "Panel 层规格值 #141417");
+        assert_eq!(
+            c(BG_PANEL),
+            c(0x131316),
+            "Panel 层规格值 #131316（--term-panel）"
+        );
         assert_eq!(dark.card_bg, c(BG_CARD));
-        assert_eq!(c(BG_CARD), c(0x1c1c21), "Card 层规格值 #1c1c21");
+        assert_eq!(
+            c(BG_CARD),
+            c(0x1a1a1e),
+            "Card 层规格值 #1a1a1e（--term-raised）"
+        );
         assert_eq!(
             dark.sidebar_bg, dark.panel_bg,
             "侧栏取 Panel 层（Master Rail 细分色见 rail_bg）"
         );
-        // BLF-793：Master Rail 细分底 #121214（Root 与 Panel 之间的独立层级）
+        // 对齐前端：Rail 与 Panel 同用 --term-panel，1px 边界分工
         assert_eq!(dark.rail_bg, c(BG_RAIL));
-        assert_eq!(c(BG_RAIL), c(0x121214), "Rail 层规格值 #121214");
+        assert_eq!(
+            c(BG_RAIL),
+            c(0x131316),
+            "Rail 层规格值 #131316（--term-panel）"
+        );
         assert_eq!(dark.muted_fill, c(BG_HOVER));
-        assert_eq!(c(BG_HOVER), c(0x272730), "Hover&选中层规格值 #272730");
+        assert_eq!(
+            c(BG_HOVER),
+            c(0x232329),
+            "Hover&选中层规格值 #232329（--term-hover）"
+        );
         assert_eq!(dark.sidebar_item_hover, c(BG_HOVER));
         assert_eq!(dark.sidebar_item_active_bg, c(BG_HOVER));
 
         // 分隔线 + 微语义色
         assert_eq!(dark.separator, c(BORDER_SEPARATOR));
-        assert_eq!(c(BORDER_SEPARATOR), c(0x232328), "分隔线规格值 #232328");
+        assert_eq!(
+            c(BORDER_SEPARATOR),
+            c(0x242429),
+            "分隔线规格值 #242429（--term-border）"
+        );
         assert_eq!(dark.sidebar_border, c(BORDER_SEPARATOR));
         assert_eq!(dark.success, c(SEMANTIC_POSITIVE));
-        assert_eq!(c(SEMANTIC_POSITIVE), c(0x22c55e), "正向规格值 #22c55e");
+        assert_eq!(
+            c(SEMANTIC_POSITIVE),
+            c(0x22c55e),
+            "正向规格值 #22c55e（--term-pos）"
+        );
         assert_eq!(dark.warning, c(SEMANTIC_WARNING));
-        assert_eq!(c(SEMANTIC_WARNING), c(0xf59e0b), "警示规格值 #f59e0b");
+        assert_eq!(
+            c(SEMANTIC_WARNING),
+            c(0xf59e0b),
+            "警示规格值 #f59e0b（--term-warn）"
+        );
         assert_eq!(dark.danger, c(SEMANTIC_DANGER));
-        assert_eq!(c(SEMANTIC_DANGER), c(0xef4444), "危险规格值 #ef4444");
+        assert_eq!(
+            c(SEMANTIC_DANGER),
+            c(0xef4444),
+            "危险规格值 #ef4444（--term-neg）"
+        );
+
+        // 文字三阶 + 强调色（--term-text/muted/faint/accent）
+        assert_eq!(
+            dark.text_primary,
+            c(0xededed),
+            "主文字 #ededed（--term-text）"
+        );
+        assert_eq!(
+            dark.text_secondary,
+            c(0x888890),
+            "次文字 #888890（--term-muted）"
+        );
+        assert_eq!(
+            dark.text_muted,
+            c(0x5c5c66),
+            "辅助文字 #5c5c66（--term-faint）"
+        );
+        assert_eq!(dark.accent, c(0x5b8def), "强调色 #5b8def（--term-accent）");
 
         // 层级单调性：Root < Panel < Card < Hover（亮度递增的可感知层级）
         for (upper, lower, name) in [

@@ -107,8 +107,8 @@ const MOD: &str = if cfg!(target_os = "macos") {
 /// 质感意向（不宣称是原生 Mica）。消费点：root.rs 根容器背景叠加层。
 pub const WIN11_MICA_TOP: u32 = 0x1f1f23;
 
-/// Mica 近似渐变底色（窗口底部，更深 #141417，与 BG_PANEL 同相衔接）
-pub const WIN11_MICA_BOTTOM: u32 = 0x141417;
+/// Mica 近似渐变底色（窗口底部，更深 #131316，与 BG_PANEL 同相衔接）
+pub const WIN11_MICA_BOTTOM: u32 = 0x131316;
 
 /// Win11 窗口圆角半径（px，逻辑单位）。DWM 在 Win11 上自动给顶层窗口加 ~8px
 /// 圆角裁切客户区四角；GPUI 无法主动请求 DWMWCP_ROUND，但根容器四角内容若为

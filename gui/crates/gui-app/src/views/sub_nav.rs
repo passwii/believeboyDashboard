@@ -4,8 +4,8 @@
 //! （数据源唯一 = [`gui_domain::sidebar::sidebar_groups`]，禁止前端侧复制第二份清单）。
 //!
 //! 规格（父 issue「空间栅格」节）：
-//! - 宽度 180~220px 随内容自适应（[`fit_width`]），整列可折叠至 0；
-//! - 活动项 4px accent 左指示条 + hover Hover 层底（暗色 `#272730`）；
+//! - 宽度 200~260px 随内容自适应（[`fit_width`]，基准 224），整列可折叠至 0；
+//! - 活动项 4px accent 左指示条 + hover Hover 层底（暗色 `#232329`，--term-hover）；
 //! - 折叠状态持久化（[`crate::prefs::UiPrefs::sub_nav_collapsed`]）；
 //! - ⌘K/Ctrl+K 搜索入口在头部按钮 + 全局快捷键（命令面板见
 //!   [`crate::views::command_palette`]）。
@@ -43,12 +43,12 @@ pub enum SubNavEvent {
     Collapsed { collapsed: bool },
 }
 
-/// 列宽下限（规格 180px）
-pub(crate) const SUB_NAV_WIDTH_MIN: f32 = 180.0;
-/// 列宽上限（规格 220px）
-pub(crate) const SUB_NAV_WIDTH_MAX: f32 = 220.0;
+/// 列宽下限（frontend `TERMINAL_SUBNAV_WIDTH` 224px 两侧各留一档弹性）
+pub(crate) const SUB_NAV_WIDTH_MIN: f32 = 200.0;
+/// 列宽上限
+pub(crate) const SUB_NAV_WIDTH_MAX: f32 = 260.0;
 
-/// 由最长标题（全角位数）估算展开列宽（180~220px 随内容自适应）：
+/// 由最长标题（全角位数）估算展开列宽（200~260px 随内容自适应）：
 /// 左右留白 24px + 图标槽 26px + 文字宽（13px 字号 × 全角位数）+ 徽标余量 20px。
 pub(crate) fn fit_width(longest_title_units: f32) -> f32 {
     const CHAR_PX: f32 = 13.0;
@@ -518,13 +518,13 @@ mod tests {
         assert_eq!(display_width(""), 0.0);
     }
 
-    /// 列宽契约：展开态必须落在规格区间 180~220px；`fit_width` 输出被夹紧。
+    /// 列宽契约：展开态必须落在规格区间 200~260px；`fit_width` 输出被夹紧。
     #[test]
     fn width_contract_stays_in_spec_range() {
         assert_eq!(fit_width(0.0), SUB_NAV_WIDTH_MIN, "极短标题夹到下限");
         assert_eq!(fit_width(100.0), SUB_NAV_WIDTH_MAX, "极长标题夹到上限");
-        // 混排长标题（Markdown/HTML 渲染）落在区间中段
-        let mid = fit_width(display_width("Markdown/HTML 渲染"));
+        // 混排长标题落在区间中段
+        let mid = fit_width(display_width("站点库存调拨追踪看板 v2"));
         assert!(
             mid > SUB_NAV_WIDTH_MIN && mid < SUB_NAV_WIDTH_MAX,
             "混排长标题列宽 {mid} 应在区间中段"

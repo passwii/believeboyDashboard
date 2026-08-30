@@ -1,4 +1,9 @@
-//! AI 智能 → AI洞察（BLF-803 Stage12 新建；Pattern B/C 混合形态）
+//! AI 智能 → AI洞察 / AI 广告分析（BLF-803 Stage12 新建；Pattern B/C 混合形态）
+//!
+//! 同一历史查看器骨架服务两个侧栏入口（对齐 web 端两个页面的共用结构）：
+//! - `AI_INSIGHTS_URL`（AI洞察，全类型历史）；
+//! - `AI_AD_ANALYSIS_URL`（AI 广告分析，`insight_type=ad_analysis` 过滤，
+//!   对齐 web `app/dashboard/ai/ad-analysis/page.tsx` 的 HistoryList 口径）。
 //!
 //! 对齐 web 端 `app/dashboard/ai/insights/page.tsx`（约 3260 行）的**查看主面**：
 //! - 项目 / 站点筛选 + 生成入口（写操作引导走 web）；
@@ -35,6 +40,72 @@ use crate::widgets::state_views::{self, SkeletonBlock};
 /// sidebar「AI 智能 → AI洞察」URL（数据权威 gui-domain::sidebar）
 pub const AI_INSIGHTS_URL: &str = "/dashboard/ai/insights";
 
+/// sidebar「AI 智能 → AI 广告分析」URL（数据权威 gui-domain::sidebar）
+pub const AI_AD_ANALYSIS_URL: &str = "/dashboard/ai/ad-analysis";
+
+/// 历史查看器的页面形态配置（AI洞察 与 AI 广告分析 共用骨架，仅文案与
+/// 数据过滤不同；两入口的 insight_type 口径对齐 backend `list_insights`）
+pub(crate) struct InsightsViewConfig {
+    /// 元素 id 前缀（view_key 同源，保证双实例不撞 id）
+    pub view_id: &'static str,
+    /// PageHeader 主标题
+    pub page_title: &'static str,
+    /// 四态通用副标题（历史查看定位）
+    pub subtitle_idle: &'static str,
+    /// 列表 `insight_type` 过滤（AI洞察 = None 全类型，广告分析 = ad_analysis）
+    pub insight_type: Option<&'static str>,
+    /// 底部聚合条计数名
+    pub counter_label: &'static str,
+    /// 列表计数副标题中的量词（共 N 条 …）
+    pub history_noun: &'static str,
+    /// 空态主文案
+    pub empty_title: &'static str,
+    /// 空态引导（生成走 web 端的入口指引）
+    pub empty_hint: &'static str,
+    /// 各态容器元素 id（&'static str，state_views / 工具栏测试定位用）
+    pub error_id: &'static str,
+    pub empty_id: &'static str,
+    pub body_id: &'static str,
+    pub project_filter_id: &'static str,
+    pub country_filter_id: &'static str,
+    pub refresh_id: &'static str,
+}
+
+static INSIGHTS_CONFIG: InsightsViewConfig = InsightsViewConfig {
+    view_id: "ai-insights",
+    page_title: "AI洞察",
+    subtitle_idle: "运营数据 AI 分析与洞察（历史查看）",
+    insight_type: None,
+    counter_label: "洞察条数",
+    history_noun: "历史洞察",
+    empty_title: "暂无历史洞察",
+    empty_hint: "生成洞察请在 web 端「AI 智能 → AI洞察」页发起",
+    error_id: "ai-insights-error",
+    empty_id: "ai-insights-empty",
+    body_id: "ai-insights-body",
+    project_filter_id: "ai-insights-project-filter",
+    country_filter_id: "ai-insights-country-filter",
+    refresh_id: "ai-insights-refresh",
+};
+
+/// 「AI 广告分析」页面形态（root.rs 接线时引用；insight_type 过滤广告域）
+pub(crate) static AD_ANALYSIS_CONFIG: InsightsViewConfig = InsightsViewConfig {
+    view_id: "ai-ad-analysis",
+    page_title: "AI 广告分析",
+    subtitle_idle: "广告投放 AI 复盘与优化（历史查看；生成 / 定时任务在 web 端）",
+    insight_type: Some("ad_analysis"),
+    counter_label: "广告分析条数",
+    history_noun: "历史广告分析",
+    empty_title: "暂无历史广告分析",
+    empty_hint: "生成广告分析请在 web 端「AI 智能 → AI 广告分析」页发起",
+    error_id: "ai-ad-analysis-error",
+    empty_id: "ai-ad-analysis-empty",
+    body_id: "ai-ad-analysis-body",
+    project_filter_id: "ai-ad-analysis-project-filter",
+    country_filter_id: "ai-ad-analysis-country-filter",
+    refresh_id: "ai-ad-analysis-refresh",
+};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum InsightsState {
     Loading,
@@ -51,8 +122,10 @@ enum DetailState {
     Error(String),
 }
 
-/// AI洞察视图
+/// AI洞察 / AI 广告分析视图（历史查看器骨架）
 pub struct AiInsightsView {
+    /// 页面形态配置（AI洞察 / AI 广告分析 双入口）
+    config: &'static InsightsViewConfig,
     client: Client,
     state: Entity<InsightsState>,
     /// 项目列表（reload 刷新；筛选菜单数据源）
@@ -73,8 +146,18 @@ const COUNTRY_OPTIONS: [(&str, &str); 4] = [
 
 impl AiInsightsView {
     pub fn new(cx: &mut Context<Self>, client: Client) -> Self {
+        Self::new_with_config(cx, client, &INSIGHTS_CONFIG)
+    }
+
+    /// 按页面形态构造（AI洞察 / AI 广告分析 双入口共用）
+    pub fn new_with_config(
+        cx: &mut Context<Self>,
+        client: Client,
+        config: &'static InsightsViewConfig,
+    ) -> Self {
         let state = cx.new(|_| InsightsState::Loading);
         Self {
+            config,
             client,
             state,
             projects: Vec::new(),
@@ -100,6 +183,8 @@ impl AiInsightsView {
         } else {
             Some(self.country)
         };
+        // insight_type 是 'static 值（无引用），拷出避免跨 spawn 借用 self
+        let insight_type = self.config.insight_type;
         self.state.update(cx, |state, cx| {
             *state = InsightsState::Loading;
             cx.notify();
@@ -115,7 +200,7 @@ impl AiInsightsView {
                             .await
                             .map_err(|e| e.user_message())?;
                         let list = client
-                            .ai_insight_list(project_id, country, 50, 0)
+                            .ai_insight_list(project_id, country, insight_type, 50, 0)
                             .await
                             .map_err(|e| e.user_message())?;
                         Ok::<_, String>((projects, list))
@@ -206,26 +291,26 @@ impl Render for AiInsightsView {
         match state {
             InsightsState::Loading => pattern_a_shell(
                 &app_theme,
-                "ai-insights",
-                PageHeader::new("AI洞察").subtitle("运营数据 AI 分析与洞察（历史查看）"),
+                self.config.view_id,
+                PageHeader::new(self.config.page_title).subtitle(self.config.subtitle_idle),
                 div(),
                 state_views::skeleton_loading(
                     &app_theme,
                     &[SkeletonBlock::Filter(3), SkeletonBlock::Table(280.0)],
                 ),
-                aggregate_footer(&view, &app_theme, None),
+                aggregate_footer(&view, &app_theme, None, self.config),
             )
             .into_any_element(),
             InsightsState::Error(msg) => pattern_a_shell(
                 &app_theme,
-                "ai-insights",
-                PageHeader::new("AI洞察").subtitle("运营数据 AI 分析与洞察（历史查看）"),
+                self.config.view_id,
+                PageHeader::new(self.config.page_title).subtitle(self.config.subtitle_idle),
                 div(),
                 state_views::error_state(
                     &view,
                     &app_theme,
-                    "ai-insights-error",
-                    "AI洞察加载失败",
+                    self.config.error_id,
+                    format!("{}加载失败", self.config.page_title),
                     msg,
                     |this, cx| this.reload(cx),
                 ),
@@ -234,16 +319,22 @@ impl Render for AiInsightsView {
             .into_any_element(),
             InsightsState::Empty => pattern_a_shell(
                 &app_theme,
-                "ai-insights",
-                PageHeader::new("AI洞察").subtitle("运营数据 AI 分析与洞察（历史查看）"),
-                render_toolbar(&view, &app_theme, self.selected_project_id, self.country),
+                self.config.view_id,
+                PageHeader::new(self.config.page_title).subtitle(self.config.subtitle_idle),
+                render_toolbar(
+                    &view,
+                    &app_theme,
+                    self.selected_project_id,
+                    self.country,
+                    self.config,
+                ),
                 state_views::empty_state_with_action_desc(
                     &view,
                     &app_theme,
-                    "ai-insights-empty",
+                    self.config.empty_id,
                     "icons/sparkles.svg",
-                    "暂无历史洞察",
-                    Some("生成洞察请在 web 端「AI 智能 → AI洞察」页发起".to_string()),
+                    self.config.empty_title,
+                    Some(self.config.empty_hint.to_string()),
                     "刷新",
                     |this, cx| this.reload(cx),
                 ),
@@ -251,10 +342,12 @@ impl Render for AiInsightsView {
             )
             .into_any_element(),
             InsightsState::Loaded(items, total) => {
-                let header = PageHeader::new("AI洞察")
-                    .subtitle(format!("共 {} 条历史洞察 · 生成请在 web 端操作", total));
+                let header = PageHeader::new(self.config.page_title).subtitle(format!(
+                    "共 {} 条{} · 生成请在 web 端操作",
+                    total, self.config.history_noun
+                ));
                 let body = v_flex()
-                    .id("ai-insights-body")
+                    .id(self.config.body_id)
                     .size_full()
                     .min_h_0()
                     .overflow_y_scroll()
@@ -269,11 +362,17 @@ impl Render for AiInsightsView {
                     .child(div().id("ai-insights-detail").w_full().child(detail_el));
                 pattern_a_shell(
                     &app_theme,
-                    "ai-insights",
+                    self.config.view_id,
                     header,
-                    render_toolbar(&view, &app_theme, self.selected_project_id, self.country),
+                    render_toolbar(
+                        &view,
+                        &app_theme,
+                        self.selected_project_id,
+                        self.country,
+                        self.config,
+                    ),
                     body,
-                    aggregate_footer(&view, &app_theme, Some(total)),
+                    aggregate_footer(&view, &app_theme, Some(total), self.config),
                 )
                 .into_any_element()
             }
@@ -329,12 +428,13 @@ impl AiInsightsView {
     }
 }
 
-/// 工具栏：项目 + 站点 + 刷新
+/// 工具栏：项目 + 站点 + 刷新（元素 id 由页面形态配置下发，双实例不撞 id）
 fn render_toolbar(
     view: &Entity<AiInsightsView>,
     theme: &AppTheme,
     selected_project_id: Option<i64>,
     country: &'static str,
+    config: &InsightsViewConfig,
 ) -> impl IntoElement {
     let project_label: SharedString = match selected_project_id {
         Some(id) => format!("项目 #{id}").into(),
@@ -358,7 +458,7 @@ fn render_toolbar(
             theme,
             "项目",
             project_label,
-            "ai-insights-project-filter",
+            config.project_filter_id,
             move |menu, _window, _cx| {
                 let mut menu = menu;
                 let view_all = view_for_project.clone();
@@ -377,7 +477,7 @@ fn render_toolbar(
             theme,
             "站点",
             country_label_text,
-            "ai-insights-country-filter",
+            config.country_filter_id,
             move |menu, _window, _cx| {
                 let mut menu = menu;
                 for (value, label) in COUNTRY_OPTIONS {
@@ -395,7 +495,7 @@ fn render_toolbar(
         ))
         .child(div().flex_1())
         .child(
-            Button::new("ai-insights-refresh")
+            Button::new(config.refresh_id)
                 .outline()
                 .small()
                 .label("刷新")
@@ -410,15 +510,16 @@ fn aggregate_footer(
     _view: &Entity<AiInsightsView>,
     theme: &AppTheme,
     total: Option<i64>,
+    config: &InsightsViewConfig,
 ) -> gpui::AnyElement {
     let items: Vec<AggregateItem> = match total {
-        Some(t) => vec![AggregateItem::new("洞察条数", t.to_string())],
+        Some(t) => vec![AggregateItem::new(config.counter_label, t.to_string())],
         None => Vec::new(),
     };
     if items.is_empty() {
         return div().into_any_element();
     }
-    crate::widgets::data_grid::aggregate_strip(theme, "ai-insights", &items).into_any_element()
+    crate::widgets::data_grid::aggregate_strip(theme, config.view_id, &items).into_any_element()
 }
 
 /// 单条洞察行（点击展开详情）

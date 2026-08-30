@@ -1,14 +1,18 @@
 //! 应用外壳六区栅格常量（BLF-793，父 issue「空间栅格」节）
 //!
+//! 2026-08-30 起尺寸对齐 frontend `components/terminal/terminal-constants.ts`
+//! （唯一权威：RAIL 64 / SUBNAV 224 / HEADER 56 / FOOTER 36 / INSPECTOR 360，
+//! BLF-844·BLF-850·BLF-887 批次），前端改规格时同步本模块与回归锁。
+//!
 //! 主窗口 root 布局 = 零外边距平铺六区：
 //!
 //! ```text
 //! ┌────┬──────────┬────────────────────┬───────────┐
-//! │Rail│ Sub-Nav  │ Console Bar (36px) │ Inspector │
-//! │48  │          ├────────────────────┤  (300)    │
+//! │Rail│ Sub-Nav  │ Console Bar (56px) │ Inspector │
+//! │64  │          ├────────────────────┤  (360)    │
 //! │px  │          │ Canvas (flex-1)    │           │
 //! ├────┴──────────┴────────────────────┴───────────┤
-//! │ Footer (24px)                                   │
+//! │ Footer (36px)                                   │
 //! └─────────────────────────────────────────────────┘
 //! ```
 //!
@@ -16,38 +20,41 @@
 //! 边界表达（无重投影）。全部区宽/区高常量集中在本模块管理——后续阶段
 //! （Stage3 折叠 / Stage5 拖拽调宽 / Stage6 Footer）只改这里，不散落视图。
 
-/// Master Rail 主图标栏宽度（规格 48~52px）
-pub const RAIL_WIDTH: f32 = 48.0;
+/// Master Rail 主图标栏宽度＝ frontend `TERMINAL_RAIL_WIDTH`（64px）
+pub const RAIL_WIDTH: f32 = 64.0;
 
-/// Sub-Nav 子导航列基准宽度（规格 180~220px）。
+/// Sub-Nav 子导航列基准宽度＝ frontend `TERMINAL_SUBNAV_WIDTH`（224px）。
 ///
 /// BLF-794 起 Sub-Nav 实装为可折叠模块选择器：实际展开宽度按内容自适应
 /// （`sub_nav::fit_width`，以本常量为缺省基准），折叠至 0；本常量保留为
 /// 布局契约锚点（shell 尺寸回归锁 + 动画起点初值）。
-pub const SUB_NAV_WIDTH: f32 = 200.0;
+pub const SUB_NAV_WIDTH: f32 = 224.0;
 
-/// 顶部 Console Bar 控制条高度（规格固定 36px）。
+/// 顶部 Console Bar 控制条高度＝ frontend `TERMINAL_HEADER_HEIGHT`（56px，
+/// BLF-887 统一上调批次）。
 ///
 /// 本期插槽由内容区头部 chrome（面包屑 + 用户/退出 + 窗口拖拽区）占位，
 /// Stage4 换成四件套筛选条组件。
-pub const CONSOLE_BAR_HEIGHT: f32 = 36.0;
+pub const CONSOLE_BAR_HEIGHT: f32 = 56.0;
 
-/// 右侧 Inspector 插槽宽度（规格 280~340px 可调，默认值）。
+/// 右侧 Inspector 插槽宽度（默认值＝ frontend `TERMINAL_INSPECTOR_WIDTH`
+/// 360px）。
 ///
 /// BLF-796 起实装 Cmd+B 自适应抽屉：实际宽度可拖拽（[`INSPECTOR_WIDTH_MIN`]
 /// ~ [`INSPECTOR_WIDTH_MAX`] 区间）并持久化，本常量保留为默认宽度锚点。
-pub const INSPECTOR_WIDTH: f32 = 300.0;
+pub const INSPECTOR_WIDTH: f32 = 360.0;
 
-/// Inspector 拖拽调宽下限（父 issue「空间栅格」规格）
-pub const INSPECTOR_WIDTH_MIN: f32 = 280.0;
+/// Inspector 拖拽调宽下限（默认锚点两侧对称一档 ±60px）
+pub const INSPECTOR_WIDTH_MIN: f32 = 320.0;
 
 /// Inspector 拖拽调宽上限
-pub const INSPECTOR_WIDTH_MAX: f32 = 340.0;
+pub const INSPECTOR_WIDTH_MAX: f32 = 420.0;
 
-/// 全局 Footer 状态栏高度（规格固定 24px）。
+/// 全局 Footer 状态栏高度＝ frontend `TERMINAL_FOOTER_HEIGHT`（36px，
+/// BLF-887 统一上调批次）。
 ///
-/// 本期为空面板占位；Stage6 实装汇率 ticker / 同步状态 / 通知徽标。
-pub const FOOTER_HEIGHT: f32 = 24.0;
+/// Stage6 实装汇率 ticker / 同步状态 / 通知徽标。
+pub const FOOTER_HEIGHT: f32 = 36.0;
 
 // ---------------------------------------------------------------------------
 // BLF-831：布局弹性断点（P4 窄窗折行 / Inspector 最小宽度）
@@ -94,25 +101,25 @@ pub fn inspector_effective_width(
 mod tests {
     use super::*;
 
-    /// BLF-793 契约：六区尺寸必须落在父 issue「空间栅格」规格区间内。
+    /// 契约：六区尺寸必须与 frontend `terminal-constants.ts` 一致。
     #[test]
     fn shell_zone_dimensions_match_spec() {
-        assert!(
-            (48.0..=52.0).contains(&RAIL_WIDTH),
-            "Master Rail 宽度必须在 48~52px，实际 {RAIL_WIDTH}"
+        assert_eq!(RAIL_WIDTH, 64.0, "Master Rail ＝ TERMINAL_RAIL_WIDTH 64px");
+        assert_eq!(
+            CONSOLE_BAR_HEIGHT, 56.0,
+            "Console Bar ＝ TERMINAL_HEADER_HEIGHT 56px"
         );
-        assert_eq!(CONSOLE_BAR_HEIGHT, 36.0, "Console Bar 固定 36px");
-        assert!(
-            (180.0..=220.0).contains(&SUB_NAV_WIDTH),
-            "Sub-Nav 目标宽度必须在 180~220px，实际 {SUB_NAV_WIDTH}"
+        assert_eq!(
+            SUB_NAV_WIDTH, 224.0,
+            "Sub-Nav 基准宽 ＝ TERMINAL_SUBNAV_WIDTH 224px"
         );
-        assert!(
-            (280.0..=340.0).contains(&INSPECTOR_WIDTH),
-            "Inspector 宽度必须在 280~340px，实际 {INSPECTOR_WIDTH}"
+        assert_eq!(
+            INSPECTOR_WIDTH, 360.0,
+            "Inspector 默认宽 ＝ TERMINAL_INSPECTOR_WIDTH 360px"
         );
-        assert_eq!(INSPECTOR_WIDTH_MIN, 280.0, "Inspector 调宽下限 280px");
-        assert_eq!(INSPECTOR_WIDTH_MAX, 340.0, "Inspector 调宽上限 340px");
-        assert_eq!(FOOTER_HEIGHT, 24.0, "Footer 固定 24px");
+        assert_eq!(INSPECTOR_WIDTH_MIN, 320.0, "Inspector 调宽下限 320px");
+        assert_eq!(INSPECTOR_WIDTH_MAX, 420.0, "Inspector 调宽上限 420px");
+        assert_eq!(FOOTER_HEIGHT, 36.0, "Footer ＝ TERMINAL_FOOTER_HEIGHT 36px");
     }
 }
 
@@ -206,7 +213,7 @@ mod blf831_tests {
     /// （拖拽调宽 / 偏好恢复的值原样生效）。
     #[test]
     fn inspector_effective_width_keeps_user_width_when_space_allows() {
-        let left = RAIL_WIDTH + SUB_NAV_WIDTH; // ~248px
+        let left = RAIL_WIDTH + SUB_NAV_WIDTH; // 288px
         assert_eq!(
             inspector_effective_width(1280.0, left, 320.0, true),
             Some(320.0),
@@ -214,16 +221,21 @@ mod blf831_tests {
         );
     }
 
-    /// Inspector 弹性宽度契约·最小窗口即进入压缩带：960 宽下
-    /// （Rail+Sub-Nav 展开）用户上限 340 会把 Canvas 压到 420 以下 →
-    /// 压缩到恰好满足底线（292 ≥ Inspector 下限 280 合法）。
+    /// Inspector 弹性宽度契约·最小窗口自动收起：960 宽下（Rail+Sub-Nav
+    /// 展开）usable=672 < 下限 320 + Canvas 底线 420 → 直接临时收起；
+    /// 1040 宽起进入压缩带：用户 340 被压到恰好满足底线（332 ≥ 320 合法）。
     #[test]
     fn inspector_effective_width_compresses_at_min_window() {
         let left = RAIL_WIDTH + SUB_NAV_WIDTH;
         assert_eq!(
             inspector_effective_width(960.0, left, 340.0, true),
-            Some(292.0),
-            "最小窗口下压缩到 Canvas 底线恰好满足"
+            None,
+            "960 宽击穿底线 → 自动收起"
+        );
+        assert_eq!(
+            inspector_effective_width(1040.0, left, 340.0, true),
+            Some(332.0),
+            "1040 宽进入压缩带，压缩到 Canvas 底线恰好满足"
         );
     }
 
@@ -232,28 +244,28 @@ mod blf831_tests {
     #[test]
     fn inspector_effective_width_compresses_to_protect_canvas() {
         let left = RAIL_WIDTH + SUB_NAV_WIDTH;
-        // Sub-Nav 折叠（left≈48）：usable=952 → 压缩目标 532 > 340 → 用户宽原样
+        // Sub-Nav 折叠（left=64）：usable=936 → 压缩目标 516 > 340 → 用户宽原样
         assert_eq!(
             inspector_effective_width(1000.0, RAIL_WIDTH, 340.0, true),
             Some(340.0)
         );
-        // 展开态：usable=752 → 理论压到 332（≥280）→ 生效
+        // 展开态（left=288）：usable=772 → 理论压到 352（≥320）→ 生效
         assert_eq!(
-            inspector_effective_width(1000.0, left, 340.0, true),
-            Some(332.0)
+            inspector_effective_width(1060.0, left, 400.0, true),
+            Some(352.0)
         );
-        // 只压不放：用户手动收窄到 300 时压缩目标 332 不生效
+        // 只压不放：用户手动收窄到 320 时压缩目标 352 不生效
         assert_eq!(
-            inspector_effective_width(1000.0, left, 300.0, true),
-            Some(300.0)
+            inspector_effective_width(1060.0, left, 320.0, true),
+            Some(320.0)
         );
     }
 
     /// Inspector 弹性宽度契约·自动收起：可用空间连「Inspector 下限 +
-    /// Canvas 底线」都放不下（usable < 700）→ None，调用方临时收起抽屉。
+    /// Canvas 底线」都放不下（usable < 740）→ None，调用方临时收起抽屉。
     #[test]
     fn inspector_effective_width_none_when_floor_cannot_hold() {
-        // window=940 展开态：usable=692 < 700 → 收起（与压缩带边界衔接）
+        // window=940 展开态：usable=652 < 740 → 收起（与压缩带边界衔接）
         assert_eq!(
             inspector_effective_width(940.0, RAIL_WIDTH + SUB_NAV_WIDTH, 340.0, true),
             None,
@@ -263,7 +275,7 @@ mod blf831_tests {
         assert_eq!(
             inspector_effective_width(660.0, 0.0, 340.0, true),
             None,
-            "left=0 且窗口 660：660-420=240 < 280 → 必须自动收起"
+            "left=0 且窗口 660：660-420=240 < 320 → 必须自动收起"
         );
     }
 

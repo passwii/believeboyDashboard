@@ -1,6 +1,6 @@
 //! 右侧 Inspector 上下文抽屉（BLF-796，Stage5）
 //!
-//! 六区外壳最右列的实装：280~340px 可调宽、Cmd+B 显隐切换（可见性与宽度经
+//! 六区外壳最右列的实装：320~420px 可调宽、Cmd+B 显隐切换（可见性与宽度经
 //! [`crate::prefs`] 持久化，组合根读写）、按 Canvas 当前视图自适应三种内容形态。
 //!
 //! **三态内容适配器**：[`InspectorMode`] 枚举 + [`mode_for_view`] 静态注册表
@@ -96,7 +96,7 @@ pub(crate) fn mode_for_view(view_key: &str) -> Option<InspectorMode> {
 // 尺寸契约与事件
 // ---------------------------------------------------------------------------
 
-/// 宽度夹紧到 280~340 规格区间（拖拽调宽 / 偏好恢复共用纯函数）
+/// 宽度夹紧到 320~420 规格区间（拖拽调宽 / 偏好恢复共用纯函数）
 pub(crate) fn clamp_width(width: f32) -> f32 {
     width.clamp(INSPECTOR_WIDTH_MIN, INSPECTOR_WIDTH_MAX)
 }
@@ -1151,23 +1151,23 @@ mod tests {
         }
     }
 
-    /// 宽度夹紧契约：280~340 闭区间，越界收敛边界（拖拽与偏好恢复共用口径）
+    /// 宽度夹紧契约：320~420 闭区间，越界收敛边界（拖拽与偏好恢复共用口径）
     #[test]
     fn clamp_width_bounds() {
-        assert_eq!(clamp_width(260.0), 280.0, "下限收敛");
-        assert_eq!(clamp_width(350.0), 340.0, "上限收敛");
-        assert_eq!(clamp_width(300.0), 300.0);
-        assert_eq!(clamp_width(280.0), 280.0);
-        assert_eq!(clamp_width(340.0), 340.0);
+        assert_eq!(clamp_width(260.0), 320.0, "下限收敛");
+        assert_eq!(clamp_width(450.0), 420.0, "上限收敛");
+        assert_eq!(clamp_width(360.0), 360.0);
+        assert_eq!(clamp_width(320.0), 320.0);
+        assert_eq!(clamp_width(420.0), 420.0);
     }
 
     /// 拖拽调宽几何契约：手柄贴抽屉左缘，目标宽 = 窗口宽 - 指针 x（向左拖变宽）
     #[test]
     fn width_for_pointer_math() {
         assert_eq!(width_for_pointer(1280.0, 960.0), 320.0);
-        assert_eq!(width_for_pointer(1280.0, 1000.0), 280.0, "右推至下限");
-        assert_eq!(width_for_pointer(1280.0, 900.0), 340.0, "左拉至上限");
-        assert_eq!(width_for_pointer(1280.0, 0.0), 340.0, "极端左拉夹上限");
+        assert_eq!(width_for_pointer(1280.0, 1000.0), 320.0, "右推至下限");
+        assert_eq!(width_for_pointer(1280.0, 860.0), 420.0, "左拉至上限");
+        assert_eq!(width_for_pointer(1280.0, 0.0), 420.0, "极端左拉夹上限");
     }
 
     /// mock 轮转确定性契约：无随机数；tick 驱动池内轮转且长度恒定（订单 5 /

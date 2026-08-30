@@ -7,7 +7,7 @@
 //! - **后续每次 frontend sidebar 变化，必须同步本模块**（通过 PR review 流程对齐）；
 //! - 条目数核对表（2026-08-14，与 frontend 一致）：
 //!   运营 15 + 报表中心 7 + 财务资金 4 + 广告 2 + AI 智能 7 + CRM 7 + 工具箱 2 + 系统管理 8 = **52 子项**；
-//! - `icon` 字段存 frontend `IconMap` 的 key（如 `"LayoutDashboard"` / `"ChatGptIcon"` / `"SettingsIcon"`），
+//! - `icon` 字段存 frontend `IconMap` 的 key（如 `"LayoutDashboard"` / `"Sparkles"` / `"SettingsIcon"`），
 //!   GUI 端暂不做图标渲染，仅保留名称以便未来 1:1 映射。
 
 use serde::{Deserialize, Serialize};
@@ -195,7 +195,7 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
         SidebarGroup {
             id: "ai".into(),
             label: "AI 智能".into(),
-            icon: "ChatGptIcon".into(),
+            icon: "Sparkles".into(),
             items: vec![
                 item("AI洞察", "/dashboard/ai/insights", "TrendingUp"),
                 item_with_prefixes(
@@ -204,7 +204,7 @@ pub fn sidebar_groups() -> Vec<SidebarGroup> {
                     &["/dashboard/ai/ad-analysis"],
                     "BarChart3",
                 ),
-                item("AI Chat", "/dashboard/ai/chat", "ChatGptIcon"),
+                item("AI Chat", "/dashboard/ai/chat", "Sparkles"),
                 item_with_prefixes(
                     "模型选型",
                     "/dashboard/ai/believeboy-models",
@@ -567,14 +567,24 @@ mod tests {
         Some(&rest[open..close])
     }
 
-    /// 取 `IconMap.` 之后的标识符（图标名）
+    /// 取图标名：优先 `IconMap.X`；BLF-850 起兼容直接导入的 Lucide 图标
+    /// （如 `icon: Sparkles`，无 IconMap 前缀）
     fn icon_after(line: &str) -> Option<String> {
-        let idx = line.find("IconMap.")? + "IconMap.".len();
-        let ident: String = line[idx..]
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
+        if let Some(idx) = line.find("IconMap.") {
+            let idx = idx + "IconMap.".len();
+            let ident: String = ident_at(&line[idx..]);
+            return (!ident.is_empty()).then_some(ident);
+        }
+        let idx = line.find("icon:")? + "icon:".len();
+        let ident = ident_at(line[idx..].trim_start());
         (!ident.is_empty()).then_some(ident)
+    }
+
+    /// 取一段文本开头的标识符（字母数字下划线）
+    fn ident_at(s: &str) -> String {
+        s.chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect()
     }
 
     /// 解析器自身契约：单行子项 / 多行子项 / matchPrefixes / 分组 icon 四种形态
@@ -604,10 +614,18 @@ export const SIDEBAR_TOP_GROUPS = [
       },
     ],
   },
+  {
+    id: 'ai',
+    label: 'AI 智能',
+    icon: Sparkles,
+    items: [
+      { title: 'AI Chat', url: '/d', icon: Sparkles },
+    ],
+  },
 ]
 "#;
         let groups = parse_ts_groups(src);
-        assert_eq!(groups.len(), 1);
+        assert_eq!(groups.len(), 2);
         let g = &groups[0];
         assert_eq!(
             (g.id.as_str(), g.label.as_str(), g.icon.as_str()),
@@ -625,6 +643,10 @@ export const SIDEBAR_TOP_GROUPS = [
         );
         assert_eq!(g.items[1].match_prefixes, vec!["/b".to_string()]);
         assert_eq!(g.items[2].match_prefixes, vec!["/c", "/sea"]);
+        // BLF-850：分组与子项的**直接导入图标**（无 IconMap 前缀）同样取到
+        let ai = &groups[1];
+        assert_eq!(ai.icon, "Sparkles", "分组裸标识符图标");
+        assert_eq!(ai.items[0].icon, "Sparkles", "单行子项裸标识符图标");
     }
 
     /// 从 TS 源码提取的分组 / 子项原始条目
@@ -750,7 +772,7 @@ export const SIDEBAR_TOP_GROUPS = [
                 }
                 continue;
             }
-            if line.contains("IconMap.") {
+            if line.starts_with("icon:") || line.contains("IconMap.") {
                 if let Some(icon) = icon_after(line) {
                     if let Some(it) = current_item.as_mut() {
                         it.icon = icon;

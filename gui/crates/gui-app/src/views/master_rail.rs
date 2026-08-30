@@ -28,12 +28,12 @@ use crate::theme::{AppTheme, FONT_BASE};
 use crate::views::shell::RAIL_WIDTH;
 use crate::views::sub_nav::SidebarTooltip;
 
-/// 图标按钮命中区高度（48px 栏宽、左右各缩进 4px 下约 40×40 触控目标）
-const RAIL_BUTTON_HEIGHT: f32 = 40.0;
-/// 图标边长
-const RAIL_ICON_SIZE: f32 = 20.0;
+/// 图标按钮命中区高度（64px 栏宽、左右各缩进 4px 下约 56×56 触控目标）
+const RAIL_BUTTON_HEIGHT: f32 = 48.0;
+/// 图标边长＝ frontend `TERMINAL_RAIL_ICON_SIZE`（24px，BLF-887 上调批次）
+const RAIL_ICON_SIZE: f32 = 24.0;
 /// 头像圆徽标直径
-const AVATAR_SIZE: f32 = 28.0;
+const AVATAR_SIZE: f32 = 32.0;
 /// macOS traffic lights 避让高度（红绿灯悬于 Rail 顶部之上，同 sidebar.rs 契约）
 const TRAFFIC_LIGHTS_CLEARANCE: f32 = 34.0;
 

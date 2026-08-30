@@ -41,7 +41,9 @@ use crate::views::ad_analysis::{AdAnalysisEvent, AdAnalysisView, AD_ANALYSIS_URL
 use crate::views::ad_data::{AdDataView, AD_DATA_URL};
 use crate::views::agent_management::{AgentManagementView, AGENT_MANAGEMENT_URL};
 use crate::views::ai_chat::{AiChatEvent, AiChatView, AI_CHAT_URL};
-use crate::views::ai_insights::{AiInsightsView, AI_INSIGHTS_URL};
+use crate::views::ai_insights::{
+    AiInsightsView, AD_ANALYSIS_CONFIG, AI_AD_ANALYSIS_URL, AI_INSIGHTS_URL,
+};
 use crate::views::auto_upload::{AutoUploadView, AUTO_UPLOAD_URL};
 use crate::views::command_palette::{CommandPaletteEvent, CommandPaletteView};
 use crate::views::commission::{CommissionView, COMMISSION_URL};
@@ -247,6 +249,8 @@ pub struct RootView {
     ai_chat: Option<Entity<AiChatView>>,
     /// BLF-803：AI 洞察真实视图（历史查看）
     ai_insights: Option<Entity<AiInsightsView>>,
+    /// AI 广告分析（与 AI洞察共用历史查看器骨架；insight_type=ad_analysis）
+    ai_ad_analysis: Option<Entity<AiInsightsView>>,
     /// BLF-803：客服交流真实视图（场景化话术生成，V2 SSE 流式）
     customer_service: Option<Entity<CustomerServiceView>>,
     /// BLF-803：数字员工 / 虚拟办公室真实视图（管理列表 + 办公室卡片墙双形态）
@@ -328,6 +332,8 @@ pub struct RootView {
     show_ai_chat: bool,
     /// BLF-803：内容区当前是否显示 AI 洞察视图
     show_ai_insights: bool,
+    /// 内容区当前是否显示 AI 广告分析视图（历史查看器第二实例）
+    show_ai_ad_analysis: bool,
     /// BLF-803：内容区当前是否显示客服交流视图
     show_customer_service: bool,
     /// BLF-803：内容区当前是否显示数字员工/虚拟办公室视图
@@ -486,6 +492,7 @@ impl RootView {
                     this.show_ai_insights = false;
                     this.show_customer_service = false;
                     this.show_virtual_office = false;
+                    this.show_ai_ad_analysis = false;
                     this.show_dashboard = false;
                     this.current_title = title.clone();
                     this.breadcrumb = breadcrumb_for(url).unwrap_or_else(|| vec![title.clone()]);
@@ -2366,6 +2373,23 @@ impl RootView {
                         });
                         this.reset_all_show_flags();
                         this.show_ai_insights = true;
+                    } else if url == AI_AD_ANALYSIS_URL {
+                        // AI 广告分析视图懒创建（与 AI洞察共用历史查看器骨架，
+                        // insight_type=ad_analysis 过滤；生成/定时任务引导走 web）
+                        this.ai_ad_analysis.get_or_insert_with(|| {
+                            let client = this.session.as_ref().map(|s| s.client.clone());
+                            cx.new(|cx| {
+                                let mut view = AiInsightsView::new_with_config(
+                                    cx,
+                                    client.unwrap_or_else(|| Client::new("")),
+                                    &AD_ANALYSIS_CONFIG,
+                                );
+                                view.reload(cx);
+                                view
+                            })
+                        });
+                        this.reset_all_show_flags();
+                        this.show_ai_ad_analysis = true;
                     } else if url == CUSTOMER_SERVICE_URL {
                         // BLF-803：客服交流视图懒创建（V2 SSE 场景化生成）
                         this.customer_service.get_or_insert_with(|| {
@@ -2707,6 +2731,7 @@ impl RootView {
             changelog: None,
             ai_chat: None,
             ai_insights: None,
+            ai_ad_analysis: None,
             customer_service: None,
             virtual_office: None,
             markdown_to_word: None,
@@ -2749,6 +2774,7 @@ impl RootView {
             show_crm_audit: false,
             show_ai_chat: false,
             show_ai_insights: false,
+            show_ai_ad_analysis: false,
             show_customer_service: false,
             show_virtual_office: false,
             show_markdown_to_word: false,
@@ -2823,6 +2849,7 @@ impl RootView {
         self.show_account_management = false;
         self.show_auto_upload = false;
         self.show_ai_insights = false;
+        self.show_ai_ad_analysis = false;
         self.show_customer_service = false;
         self.show_virtual_office = false;
         // Stage13（BLF-804）：新增十视图
@@ -3112,6 +3139,8 @@ impl RootView {
             "ai-chat"
         } else if self.show_ai_insights {
             "ai-insights"
+        } else if self.show_ai_ad_analysis {
+            "ai-ad-analysis"
         } else if self.show_customer_service {
             "customer-service"
         } else if self.show_virtual_office {
@@ -3352,6 +3381,11 @@ impl RootView {
             )
         } else if self.show_ai_insights {
             self.ai_insights.clone().map_or_else(
+                || self.content.clone().into_any_element(),
+                |view| view.into_any_element(),
+            )
+        } else if self.show_ai_ad_analysis {
+            self.ai_ad_analysis.clone().map_or_else(
                 || self.content.clone().into_any_element(),
                 |view| view.into_any_element(),
             )
@@ -4507,6 +4541,7 @@ mod tests {
             ("/dashboard/advertising/ad-data", "广告数据", "ad-data"),
             // BLF-803：AI 智能三页 + 数字员工/虚拟办公室
             ("/dashboard/ai/insights", "AI洞察", "ai-insights"),
+            ("/dashboard/ai/ad-analysis", "AI 广告分析", "ai-ad-analysis"),
             (
                 "/dashboard/ai/customer-service",
                 "客服交流",
@@ -5091,6 +5126,29 @@ mod tests {
                 "/dashboard/reports/product-analysis",
                 "产品分析",
                 "product-analysis",
+            ),
+            // AI 广告分析 ↔ 相邻视图两步切换（锁 AI_AD_ANALYSIS_URL 分支与
+            // 既有分支的 show_ai_ad_analysis 复位完整；同骨架双实例互不残留）
+            (
+                "/dashboard/ai/insights",
+                "AI洞察",
+                "/dashboard/ai/ad-analysis",
+                "AI 广告分析",
+                "ai-ad-analysis",
+            ),
+            (
+                "/dashboard/ai/ad-analysis",
+                "AI 广告分析",
+                "/dashboard/ai/insights",
+                "AI洞察",
+                "ai-insights",
+            ),
+            (
+                "/dashboard/ai/ad-analysis",
+                "AI 广告分析",
+                "/dashboard/operations/daily-analysis",
+                "销售数据",
+                "daily-analysis",
             ),
         ];
         for (url_a, title_a, url_b, title_b, expected_key) in transitions {

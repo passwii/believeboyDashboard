@@ -26,10 +26,15 @@ impl Client {
     ///
     /// 对齐 frontend `page.tsx::loadInsights` 的 query 口径：project_id /
     /// country / status_filter / insight_type 可选，limit 默认 20。
+    ///
+    /// `insight_type`：`Some("ad_analysis")` 供「AI 广告分析」页过滤广告域
+    /// 洞察（backend `list_insights::insight_type`）；AI洞察主面不传（None，
+    /// 与 web 端列表口径一致）。
     pub async fn ai_insight_list(
         &self,
         project_id: Option<i64>,
         country: Option<&str>,
+        insight_type: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> Result<AiInsightListResponse, ApiError> {
@@ -39,6 +44,9 @@ impl Client {
         }
         if let Some(c) = country {
             query.push(("country", c.to_string()));
+        }
+        if let Some(t) = insight_type {
+            query.push(("insight_type", t.to_string()));
         }
         self.get_json(INSIGHTS_PATH, &query).await
     }
@@ -119,12 +127,37 @@ mod tests {
 
         let client = session_client(&server.url());
         let resp = client
-            .ai_insight_list(Some(3), Some("US"), 20, 0)
+            .ai_insight_list(Some(3), Some("US"), None, 20, 0)
             .await
             .expect("请求失败");
         m.assert();
         assert_eq!(resp.items.len(), 1);
         assert_eq!(resp.items[0].title, "近7天销售洞察");
+    }
+
+    #[tokio::test]
+    async fn ai_insight_list_sends_insight_type_filter() {
+        let mut server = mockito::Server::new_async().await;
+        let m = server
+            .mock("GET", INSIGHTS_PATH)
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("limit".into(), "50".into()),
+                Matcher::UrlEncoded("offset".into(), "0".into()),
+                Matcher::UrlEncoded("insight_type".into(), "ad_analysis".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"items": [], "total": 0}"#)
+            .create();
+
+        let client = session_client(&server.url());
+        let resp = client
+            .ai_insight_list(None, None, Some("ad_analysis"), 50, 0)
+            .await
+            .expect("请求失败");
+        m.assert();
+        assert!(resp.items.is_empty());
+        assert_eq!(resp.total, 0);
     }
 
     #[tokio::test]
