@@ -43,3 +43,32 @@ describe('metric-switcher-card · 指标卡片区内边距（BLF-529）', () => 
     expect(container.textContent).toContain('指标B')
   })
 })
+
+// BLF-908：bar chart 顶部 stats 区域终端化——label / 数值 / hint / 对比 pill
+// 全部切到 term 语义色 + mono 字体（与 TermKpiTile 同规格），不再使用 Badge
+// 彩色胶囊底。回归测试锁契约：mono + term-* 颜色 + 零圆角 pill。
+describe('metric-switcher-card · stats 终端化（BLF-908）', () => {
+  it('label / 数值 / hint 使用 mono 字体 + term 语义色', () => {
+    const { container } = renderCard()
+    // label：mono + uppercase + tracking-wider + term-muted
+    const label = container.querySelector('span.uppercase')
+    expect(label?.className).toContain('font-mono')
+    expect(label?.className).toContain('text-term-muted')
+    // 数值：mono + tabular-nums + leading-6
+    const value = container.querySelector('div.leading-6')
+    expect(value?.className).toContain('font-mono')
+    expect(value?.className).toContain('tabular-nums')
+    expect(value?.className).toMatch(/text-term-(muted|text)/)
+  })
+
+  it('对比 pill 改用 term 终端规格（mono + 零圆角 + 1px current 边）', () => {
+    const { container } = renderCard()
+    // 不再使用 Badge 彩色胶囊底（无 bg-secondary / bg-destructive 等）
+    expect(container.innerHTML).not.toMatch(/bg-secondary\//)
+    expect(container.innerHTML).not.toMatch(/bg-destructive\//)
+    // pill 元素带 rounded-none + border-current/30 + font-mono
+    const pill = container.querySelector('span.rounded-none')
+    expect(pill?.className).toContain('border-current/30')
+    expect(pill?.className).toContain('font-mono')
+  })
+})
