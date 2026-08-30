@@ -22,6 +22,7 @@ from app.services.daily.analysis import (
     build_daily_analysis,
     build_daily_analysis_all_countries,
     build_daily_analysis_all_projects,
+    build_daily_analysis_all_projects_countries,
 )
 from app.services.daily.sales import _load_sales_metrics
 from app.services.daily.ad import _load_ad_metrics
@@ -32,6 +33,7 @@ __all__ = [
     "build_daily_analysis",
     "build_daily_analysis_all_projects",
     "build_daily_analysis_all_countries",
+    "build_daily_analysis_all_projects_countries",
     # Internal (for testing / compat)
     "_MetricBucket",
     "_aggregate_buckets",

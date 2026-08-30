@@ -875,3 +875,232 @@ def build_daily_analysis_all_countries(
         "currency": "USD",
         "currency_note": "金额字段已按当月 CNY 中转折算为 USD 统一展示；非金额字段（订单/曝光/点击/库存等）保持原值。",
     }
+
+def build_daily_analysis_all_projects_countries(
+    db: Session,
+    *,
+    project_ids: list[int],
+    start_date: str,
+    end_date: str,
+    sku: str | None = None,
+) -> dict[str, object]:
+    """BLF-913：全部项目 × 全部国家站点聚合（USD 基准）。
+
+    行为约定（合并 all_projects 与 all_countries 两条既有路径的口径）：
+    - 对每个 (project, country) 组合独立装载 metrics，先把该国家金额字段按
+      当月 ``source_to_cny / usd_to_cny`` 因子折算成 USD，再合并进 global；
+      非金额字段保持原值（复用 ``_convert_bucket_amounts_to_usd``）。
+    - ``country_breakdown[country]``：该国家内跨项目合并后的分桶（折算后 USD）。
+    - ``project_breakdown[project_id]``：该项目跨 US/DE/UK 合并后的分桶
+      （折算后 USD），key 与 all_projects 响应一致，前端可无缝复用。
+    - 不应用 sku 过滤（单 SKU 无法跨国家/跨项目求和，两条既有路径同款约定）。
+    - 汇率预加载复用 ``_load_usd_factors_for_countries``：某月汇率缺失（连
+      回退都没有）时整个请求 422，避免半截折算的不一致数据。
+    """
+    normalized_start = parse_yyyy_mm_dd(start_date, "start_date")
+    normalized_end = parse_yyyy_mm_dd(end_date, "end_date")
+
+    if normalized_start > normalized_end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date cannot be greater than end_date",
+        )
+
+    year_months = _year_months_in_range(normalized_start, normalized_end)
+    usd_factors = _load_usd_factors_for_countries(
+        db,
+        countries=ALL_COUNTRIES_AGGREGATION,
+        year_months=year_months,
+    )
+
+    global_buckets: dict[tuple[str, str], _MetricBucket] = {}
+    global_in_transit_map: dict[str, int] = {}
+    # 国家 → 跨项目合并 buckets / 在途量（单趟扫描同时累积三路分桶）。
+    country_by_project_buckets: dict[str, dict[tuple[str, str], _MetricBucket]] = {}
+    country_in_transit_maps: dict[str, dict[str, int]] = {}
+    country_breakdown: dict[str, dict[str, object]] = {}
+    project_breakdown: dict[int, dict[str, object]] = {}
+    available_dates: dict[str, list[str]] = {
+        "sales_report": [],
+        "ad_product_report": [],
+        "inventory_report": [],
+        "business_report": [],
+    }
+    report_type_key_map = {
+        "latest_sales_date": "sales_report",
+        "latest_ad_date": "ad_product_report",
+        "latest_inventory_date": "inventory_report",
+        "latest_business_date": "business_report",
+    }
+
+    def _merge_buckets(
+        target: dict[tuple[str, str], _MetricBucket],
+        source: dict[tuple[str, str], _MetricBucket],
+    ) -> None:
+        for key, bucket in source.items():
+            target_bucket = target.setdefault(key, _MetricBucket())
+            _set_asin_if_blank(target_bucket, bucket.asin)
+            target_bucket.order_qty += bucket.order_qty
+            target_bucket.pending_order_qty += bucket.pending_order_qty
+            target_bucket.sales_amount += bucket.sales_amount
+            target_bucket.impressions += bucket.impressions
+            target_bucket.clicks += bucket.clicks
+            target_bucket.ad_spend += bucket.ad_spend
+            target_bucket.ad_orders += bucket.ad_orders
+            target_bucket.available_qty += bucket.available_qty
+            target_bucket.page_views += bucket.page_views
+            target_bucket.units_ordered += bucket.units_ordered
+            target_bucket.sessions += bucket.sessions
+            target_bucket.business_sales_amount += bucket.business_sales_amount
+
+    for project_id in project_ids:
+        project = _get_project_or_404(db, project_id)
+        project_buckets: dict[tuple[str, str], _MetricBucket] = {}
+        project_in_transit_map: dict[str, int] = {}
+
+        for country_value in ALL_COUNTRIES_AGGREGATION:
+            detail_buckets: dict[tuple[str, str], _MetricBucket] = {}
+
+            _load_sales_metrics(
+                db,
+                detail_buckets=detail_buckets,
+                project_id=project_id,
+                country=country_value,
+                start_date=normalized_start,
+                end_date=normalized_end,
+            )
+            _load_ad_metrics(
+                db,
+                detail_buckets=detail_buckets,
+                project_id=project_id,
+                country=country_value,
+                start_date=normalized_start,
+                end_date=normalized_end,
+            )
+            _load_inventory_metrics(
+                db,
+                detail_buckets=detail_buckets,
+                project_id=project_id,
+                country=country_value,
+                start_date=normalized_start,
+                end_date=normalized_end,
+            )
+            asin_to_sku_map = _build_asin_to_sku_map(
+                db,
+                project_id=project_id,
+                country=country_value,
+                start_date=normalized_start,
+                end_date=normalized_end,
+            )
+            _load_business_metrics(
+                db,
+                detail_buckets=detail_buckets,
+                project_id=project_id,
+                country=country_value,
+                start_date=normalized_start,
+                end_date=normalized_end,
+                asin_to_sku_map=asin_to_sku_map,
+            )
+
+            # 折算该国家金额到 USD，再做 project / country / global 三路合并。
+            _convert_bucket_amounts_to_usd(
+                detail_buckets,
+                country=country_value,
+                usd_factors=usd_factors,
+            )
+
+            _merge_buckets(project_buckets, detail_buckets)
+            _merge_buckets(
+                country_by_project_buckets.setdefault(country_value, {}),
+                detail_buckets,
+            )
+
+            cell_in_transit_map = _load_in_transit_quantities(
+                db, project_id, country_value
+            )
+            for sku_key, qty in cell_in_transit_map.items():
+                project_in_transit_map[sku_key] = (
+                    project_in_transit_map.get(sku_key, 0) + qty
+                )
+                country_in_transit_maps.setdefault(country_value, {})[sku_key] = (
+                    country_in_transit_maps.get(country_value, {}).get(sku_key, 0) + qty
+                )
+                global_in_transit_map[sku_key] = (
+                    global_in_transit_map.get(sku_key, 0) + qty
+                )
+
+            proj_dates = _load_latest_available_dates(
+                db, project_id=project_id, country=country_value
+            )
+            for key, latest_date in proj_dates.items():
+                if latest_date is None:
+                    continue
+                report_type = report_type_key_map.get(key)
+                if report_type is None:
+                    continue
+                current = available_dates[report_type]
+                if not current or latest_date > current[0]:
+                    available_dates[report_type] = [latest_date]
+
+        project_detail, project_summary = _aggregate_buckets(
+            project_buckets, sku_filter=None
+        )
+        for row in project_detail:
+            row["in_transit_qty"] = project_in_transit_map.get(row["sku"], 0)
+        project_breakdown[int(project.id)] = {
+            "project_name": project.project_name,
+            "summary_rows": project_summary,
+            "detail_rows": project_detail,
+        }
+
+        _merge_buckets(global_buckets, project_buckets)
+
+    for country_value in ALL_COUNTRIES_AGGREGATION:
+        country_detail, country_summary = _aggregate_buckets(
+            country_by_project_buckets.get(country_value, {}), sku_filter=None
+        )
+        in_transit_map = country_in_transit_maps.get(country_value, {})
+        for row in country_detail:
+            row["in_transit_qty"] = in_transit_map.get(row["sku"], 0)
+            row["country"] = country_value
+        country_breakdown[country_value] = {
+            "summary_rows": country_summary,
+            "detail_rows": country_detail,
+            "currency": "USD",
+            "source_currency": ALL_COUNTRIES_CURRENCY.get(country_value, "USD"),
+        }
+
+    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=None)
+    for row in global_detail:
+        row["in_transit_qty"] = global_in_transit_map.get(row["sku"], 0)
+
+    return {
+        "console": {
+            "project_id": 0,
+            "project_name": "全部项目",
+            "country": "ALL",
+            "start_date": normalized_start.isoformat(),
+            "end_date": normalized_end.isoformat(),
+            "requested_days": len(
+                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+            ),
+            "summary_days": len(global_summary),
+            "detail_rows": len(global_detail),
+            "sales_source_days": 0,
+            "ad_source_days": 0,
+            "inventory_source_days": 0,
+            "business_source_days": 0,
+            "missing_dates": [],
+            "latest_sales_date": None,
+            "latest_ad_date": None,
+            "latest_inventory_date": None,
+            "latest_business_date": None,
+        },
+        "summary_rows": global_summary,
+        "detail_rows": global_detail,
+        "available_dates": available_dates,
+        "project_breakdown": project_breakdown,
+        "country_breakdown": country_breakdown,
+        "currency": "USD",
+        "currency_note": "金额字段已按当月 CNY 中转折算为 USD 统一展示；非金额字段（订单/曝光/点击/库存等）保持原值。",
+    }

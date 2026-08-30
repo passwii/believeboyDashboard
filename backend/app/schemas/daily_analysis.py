@@ -97,3 +97,24 @@ class DailyAnalysisAllCountriesResponse(BaseModel):
     country_breakdown: dict[str, dict[str, object]]
     currency: str = "USD"
     currency_note: str | None = None
+
+
+class DailyAnalysisAllProjectsCountriesResponse(BaseModel):
+    """全部项目 × 全部国家站点的聚合响应（BLF-913）。
+
+    金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按
+    ``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段
+    （订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。
+    响应顶层 ``currency`` 字段固定为 ``"USD"``。
+    ``project_breakdown`` key 为项目 id（该项目跨 US/DE/UK 合并），
+    ``country_breakdown`` key 为国家码（该国家跨项目合并），均为 USD 口径。
+    """
+
+    console: DailyAnalysisConsoleResponse
+    summary_rows: list[DailyAnalysisSummaryRow]
+    detail_rows: list[DailyAnalysisDetailRow]
+    available_dates: dict[str, Any]
+    project_breakdown: dict[int, dict[str, object]]
+    country_breakdown: dict[str, dict[str, object]]
+    currency: str = "USD"
+    currency_note: str | None = None
