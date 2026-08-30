@@ -1,6 +1,5 @@
 'use client'
 
-import { Bar, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { Activity } from 'lucide-react'
 
 import {
@@ -10,15 +9,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
+import { ComposedChartCard, buildChartConfig } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
-
 import { V2Card } from './v2-card'
+
 
 export interface V2TrafficRow {
   date: string
@@ -54,16 +48,10 @@ export interface V2TrafficChartProps {
   loading?: boolean
 }
 
-const chartConfig = {
-  page_views: {
-    label: '浏览量',
-    color: '#93c5fd',
-  },
-  conversion_rate: {
-    label: '转化率',
-    color: '#2563eb',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(
+  ['page_views', 'conversion_rate'],
+  { page_views: '浏览量', conversion_rate: '转化率' }
+)
 
 /** ISO 日期 → "M/D" */
 function dayLabel(isoDate: string): string {
@@ -95,46 +83,22 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
       </CardHeader>
       <CardContent>
         {rows.length > 0 ? (
-          <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
-            <ComposedChart
-              accessibilityLayer
-              data={rows}
-              margin={{ left: 4, right: 4, top: 4 }}
-            >
-              <XAxis
-                axisLine={false}
-                dataKey="day"
-                interval={0}
-                tickFormatter={(value) => String(value)}
-                tickLine={false}
-                tickMargin={8}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                width={44}
-                yAxisId="left"
-              />
-              <YAxis
-                axisLine={false}
-                orientation="right"
-                tickFormatter={(value) => `${Number(value)}%`}
-                tickLine={false}
-                width={44}
-                yAxisId="right"
-              />
-              <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-              <Bar dataKey="page_views" fill="var(--color-page_views)" radius={[2, 2, 0, 0]} yAxisId="left" />
-              <Line
-                dataKey="conversion_rate"
-                dot={false}
-                stroke="var(--color-conversion_rate)"
-                strokeWidth={2}
-                type="monotone"
-                yAxisId="right"
-              />
-            </ComposedChart>
-          </ChartContainer>
+          <ComposedChartCard
+            data={rows}
+            xKey="day"
+            config={chartConfig}
+            dualAxis
+            rightYFormatter={(v) => `${v}%`}
+            series={[
+              { kind: 'bar', dataKey: 'page_views', name: '浏览量', yAxisId: 'left' },
+              {
+                kind: 'line',
+                dataKey: 'conversion_rate',
+                name: '转化率',
+                yAxisId: 'right',
+              },
+            ]}
+          />
         ) : (
           <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
             {loading ? '加载中…' : '暂无流量数据'}

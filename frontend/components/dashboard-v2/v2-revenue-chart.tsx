@@ -2,7 +2,6 @@
 
 import type * as React from 'react'
 import { TrendingUp } from 'lucide-react'
-import { Bar, BarChart, Line, XAxis, YAxis } from 'recharts'
 
 import {
   CardContent,
@@ -10,14 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
+import { ComposedChartCard, buildChartConfig } from '@/components/charts'
 
 import { V2Card } from './v2-card'
 import { Delta, DeltaIcon, DeltaValue } from './v2-delta'
@@ -30,37 +22,23 @@ export interface V2RevenueChartProps {
   comparisonRows?: RevenueRow[]
 }
 
-const chartConfig = {
-  sales: {
-    label: '销售额',
-    color: '#2563eb',
-  },
-  volume: {
-    label: '销量',
-    color: '#60a5fa',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(
+  ['sales', 'volume'],
+  { sales: '销售额', volume: '销量' }
+)
 
 function CustomGradientBar(
-  props: React.SVGProps<SVGRectElement> & {
-    index?: number
-    dataKey?: string | number
-  }
-) {
-  const { fill, x = 0, y = 0, width = 0, height = 0, dataKey = 'sales', index = 0 } = props
-  const gid = `v2-gradient-bar-${String(dataKey)}-${index}`
-
+  props: React.SVGProps<SVGRectElement> & { fill?: string }
+): React.ReactElement {
+  const { fill, ...rest } = props
   return (
-    <>
-      <rect fill={`url(#${gid})`} height={height} stroke="none" width={width} x={x} y={y} />
-      <rect fill={fill} height={2} stroke="none" width={width} x={x} y={y} />
-      <defs>
-        <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={fill} stopOpacity={0.5} />
-          <stop offset="100%" stopColor={fill} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-    </>
+    <rect
+      {...rest}
+      fill={fill ?? 'var(--color-sales)'}
+      style={{
+        ...(rest.style as React.CSSProperties | undefined),
+      }}
+    />
   )
 }
 
@@ -97,57 +75,22 @@ export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueCh
         <CardDescription>每日销售额与销量（近 7 天）</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer className="aspect-auto h-60 w-full md:h-80" config={chartConfig}>
-          <BarChart
-            accessibilityLayer
-            data={chartRows}
-            margin={{ left: 4, right: 4, top: 8 }}
-          >
-            <XAxis
-              axisLine={false}
-              dataKey="day"
-              interval={0}
-              tickFormatter={(value) => String(value)}
-              tickLine={false}
-              tickMargin={10}
-            />
-            {/* 销售额 / 销量量级差异大，分左右双轴 */}
-            <YAxis
-              axisLine={false}
-              tickFormatter={(value) => formatCompactCurrency(Number(value))}
-              tickLine={false}
-              width={52}
-              yAxisId="left"
-            />
-            <YAxis
-              axisLine={false}
-              orientation="right"
-              tickLine={false}
-              width={44}
-              yAxisId="right"
-            />
-            <ChartTooltip
-              content={<ChartTooltipContent hideLabel />}
-              cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }}
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Bar
-              dataKey="sales"
-              fill="var(--color-sales)"
-              shape={<CustomGradientBar />}
-              yAxisId="left"
-            />
-            <Line
-              activeDot={{ r: 4 }}
-              dataKey="volume"
-              dot={false}
-              stroke="var(--color-volume)"
-              strokeWidth={2.5}
-              type="monotone"
-              yAxisId="right"
-            />
-          </BarChart>
-        </ChartContainer>
+        <ComposedChartCard
+          data={chartRows}
+          xKey="day"
+          config={chartConfig}
+          dualAxis
+          yTickFormatter={formatCompactCurrency}
+          series={[
+            { kind: 'bar', dataKey: 'sales', name: '销售额', yAxisId: 'left' },
+            {
+              kind: 'line',
+              dataKey: 'volume',
+              name: '销量',
+              yAxisId: 'right',
+            },
+          ]}
+        />
       </CardContent>
     </V2Card>
   )

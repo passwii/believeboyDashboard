@@ -10,16 +10,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
+  AreaChartCard,
+  type ChartConfig,
+} from '@/components/charts'
 import { cn } from '@/lib/utils'
 import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
+
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
@@ -383,50 +379,27 @@ export default function DigitalDisplayPage() {
           {/* ── Sales Trend Chart ── */}
           <div className="mb-6">
             <ChartCard title="7日销售趋势">
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={displayData.sales_trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 14 }}
-                    tickFormatter={(v) => v.slice(5)}
-                    stroke="rgba(255,255,255,0.1)"
-                  />
-                  <YAxis
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 14 }}
-                    stroke="rgba(255,255,255,0.1)"
-                    tickFormatter={(v) => fmtNum(v)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: 12,
-                      fontSize: 14,
-                    }}
-                    formatter={(value: number, name: string) => [
-                      name === 'sales_amount' ? fmtMoney(value) : fmtNum(value),
-                      name === 'sales_amount' ? '销售额' : name === 'order_qty' ? '订单量' : '会话',
-                    ]}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="sales_amount"
-                    stroke="#6366f1"
-                    fill="rgba(99,102,241,0.15)"
-                    strokeWidth={2}
-                    name="sales_amount"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="order_qty"
-                    stroke="#10b981"
-                    fill="rgba(16,185,129,0.1)"
-                    strokeWidth={2}
-                    name="order_qty"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <AreaChartCard
+                data={displayData.sales_trend as unknown as Array<Record<string, unknown>>}
+
+                xKey="date"
+                config={{
+                  sales_amount: { label: '销售额', color: 'var(--chart-1)' },
+                  order_qty: { label: '订单量', color: 'var(--chart-2)' },
+                }}
+
+                className="h-[280px] w-full"
+                yTickFormatter={fmtNum}
+                tooltipFormatter={(value, name) => {
+                  const numValue = Number(value)
+                  if (name === 'sales_amount') return fmtMoney(numValue)
+                  return fmtNum(numValue)
+                }}
+                series={[
+                  { dataKey: 'sales_amount', name: '销售额' },
+                  { dataKey: 'order_qty', name: '订单量' },
+                ]}
+              />
             </ChartCard>
           </div>
 

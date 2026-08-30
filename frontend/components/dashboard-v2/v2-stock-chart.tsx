@@ -1,6 +1,5 @@
 'use client'
 
-import { Area, AreaChart, XAxis } from 'recharts'
 import { Boxes } from 'lucide-react'
 
 import {
@@ -9,12 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
+import { AreaChartCard, buildChartConfig } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
 
 import { V2Card } from './v2-card'
@@ -58,12 +52,7 @@ export interface V2StockChartProps {
   loading?: boolean
 }
 
-const chartConfig = {
-  qty: {
-    label: '可用库存',
-    color: '#1d4ed8',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(['qty'], { qty: '可用库存' })
 
 export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2StockChartProps) {
   const { rows, current, delta } = computeStockTrend(currentRows, comparisonRows)
@@ -90,32 +79,13 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
               <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
               <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
             </div>
-            <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
-              <AreaChart accessibilityLayer data={rows} margin={{ left: 4, right: 4, top: 4 }}>
-                <defs>
-                  <linearGradient id="v2-stock-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-qty)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="var(--color-qty)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  axisLine={false}
-                  dataKey="day"
-                  interval={0}
-                  tickFormatter={(value) => String(value)}
-                  tickLine={false}
-                  tickMargin={8}
-                />
-                <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-                <Area
-                  dataKey="qty"
-                  fill="url(#v2-stock-fill)"
-                  stroke="var(--color-qty)"
-                  strokeWidth={2}
-                  type="monotone"
-                />
-              </AreaChart>
-            </ChartContainer>
+            <AreaChartCard
+              data={rows}
+              xKey="day"
+              series={[{ dataKey: 'qty' }]}
+              config={chartConfig}
+              gradient
+            />
           </>
         ) : (
           <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">

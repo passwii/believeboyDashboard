@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import {
+  AreaChartCard,
+  type ChartConfig,
+} from '@/components/charts'
 import {
   TrendingUp,
   TrendingDown,
@@ -16,12 +19,6 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
 import {
   DataCard,
   DataCardHeader,
@@ -2056,101 +2053,37 @@ export default function DisplayTab() {
           {showSkeleton ? (
             <Skeleton className="h-[320px] w-full" />
           ) : trendPoints.length > 0 ? (
-            <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
-              <AreaChart
-                accessibilityLayer
-                data={trendPoints}
-                margin={isMobile ? { top: 10, right: 4, left: 0, bottom: 0 } : { top: 10, right: 10, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-income_sales)" stopOpacity={0.7} />
-                    <stop offset="95%" stopColor="var(--color-income_sales)" stopOpacity={0.05} />
-                  </linearGradient>
-                  <linearGradient id="fillRefund" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-income_refund)" stopOpacity={0.7} />
-                    <stop offset="95%" stopColor="var(--color-income_refund)" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                <XAxis
-                  dataKey="month_label"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={12}
-                  minTickGap={isMobile ? 12 : 32}
-                  tick={{
-                    fill: 'hsl(var(--muted-foreground))',
-                    fontSize: 12,
-                  }}
-                />
-                {/* 手机端隐藏 Y 轴（图表区域手机端优化）：消除左侧留白，由 tooltip 承载数值 */}
-                {!isMobile && (
-                  <YAxis
-                    tickFormatter={(v) => formatCompactCurrency(Number(v))}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={12}
-                    tick={{
-                      fill: 'hsl(var(--muted-foreground))',
-                      fontSize: 12,
-                    }}
-                    width={70}
-                  />
-                )}
-                <ChartTooltip
-                  cursor={{
-                    stroke: 'hsl(var(--muted-foreground))',
-                    strokeWidth: 1,
-                    strokeDasharray: '4 4',
-                  }}
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(value) => String(value)}
-                      formatter={(value, name) => {
-                        // 将英文 dataKey 映射为中文
-                        const nameMap: Record<string, string> = {
-                          income_sales: '销售额',
-                          income_refund: '退款',
-                        }
-                        const displayName = nameMap[String(name)] || String(name)
-                        return (
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-muted-foreground">{displayName}</span>
-                            <span className="font-medium">
-                              {formatCurrency(Number(value), currencySymbol)}
-                            </span>
-                          </div>
-                        )
-                      }}
-                      indicator="dot"
-                    />
-                  }
-                />
-                {visibleLines.income_refund && (
-                  <Area
-                    type="monotone"
-                    dataKey="income_refund"
-                    stroke="var(--color-income_refund)"
-                    fill="url(#fillRefund)"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
-                  />
-                )}
-                {visibleLines.income_sales && (
-                  <Area
-                    type="monotone"
-                    dataKey="income_sales"
-                    stroke="var(--color-income_sales)"
-                    fill="url(#fillSales)"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
-                  />
-                )}
-              </AreaChart>
-            </ChartContainer>
+            <AreaChartCard
+              data={trendPoints}
+              xKey="month_label"
+              config={chartConfig}
+              className="aspect-auto h-[320px] w-full"
+              yTickFormatter={formatCompactCurrency}
+              showLegend={false}
+              tooltipFormatter={(value, name) => {
+                const nameMap: Record<string, string> = {
+                  income_sales: '销售额',
+                  income_refund: '退款',
+                }
+                const displayName = nameMap[name] ?? name
+                return (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">{displayName}</span>
+                    <span className="font-medium">
+                      {formatCurrency(Number(value), currencySymbol)}
+                    </span>
+                  </div>
+                )
+              }}
+              series={[
+                ...(visibleLines.income_refund
+                  ? [{ dataKey: 'income_refund', name: '退款' }]
+                  : []),
+                ...(visibleLines.income_sales
+                  ? [{ dataKey: 'income_sales', name: '销售额' }]
+                  : []),
+              ]}
+            />
           ) : (
             <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
               暂无趋势数据
