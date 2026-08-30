@@ -581,7 +581,7 @@ export function AgentOperationLogsPanel() {
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
         <DialogContent
           aria-describedby="agent-operation-detail-dialog-description"
-          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
+          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border border-term-border bg-term-bg shadow-none sm:max-w-3xl"
         >
           <span id="agent-operation-detail-dialog-description" className="sr-only">
             Agent 写操作明细查看
@@ -590,73 +590,75 @@ export function AgentOperationLogsPanel() {
             <DialogTitle>写操作明细{activeDescription ? ` · ${activeDescription.title}` : ''}</DialogTitle>
           </DialogHeader>
           {activeRow && activeDescription ? (
-            <div className="space-y-4 text-sm">
+            <div className="space-y-4 font-mono text-xs leading-5">
               <div className="grid gap-2 sm:grid-cols-2">
                 <p>
-                  <span className="text-muted-foreground">操作时间:</span>{' '}
-                  {formatDateTime(activeRow.created_at)}
+                  <span className="text-term-muted">操作时间:</span>{' '}
+                  <span className="text-term-text">{formatDateTime(activeRow.created_at)}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Agent:</span>{' '}
+                  <span className="text-term-muted">Agent:</span>{' '}
                   {activeRow.agent_name ? (
-                    <span className="font-medium">{activeRow.agent_name} </span>
+                    <span className="text-term-text">{activeRow.agent_name} </span>
                   ) : null}
                   {activeRow.agent_id ? (
-                    <code className="font-mono">{activeRow.agent_id}</code>
+                    <code className="text-term-text">{activeRow.agent_id}</code>
                   ) : (
-                    '-'
+                    <span className="text-term-muted">-</span>
                   )}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">对象:</span>{' '}
-                  {targetTypeLabel(activeRow.target_type)}
+                  <span className="text-term-muted">对象:</span>{' '}
+                  <span className="text-term-text">{targetTypeLabel(activeRow.target_type)}</span>
                   {activeRow.target_label ? (
-                    <span className="font-mono"> #{activeRow.target_label}</span>
+                    <span className="text-term-text"> #{activeRow.target_label}</span>
                   ) : activeRow.target_id ? (
-                    <span className="font-mono"> #{activeRow.target_id}</span>
+                    <span className="text-term-text"> #{activeRow.target_id}</span>
                   ) : null}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">项目:</span>{' '}
-                  {formatProjectRef(activeRow.project_id, activeRow.project_name)}
+                  <span className="text-term-muted">项目:</span>{' '}
+                  <span className="text-term-text">{formatProjectRef(activeRow.project_id, activeRow.project_name)}</span>
                 </p>
                 {/* BLF-845 ③：国家字段位。后端 country 字段就绪前恒显 '—'。 */}
                 <p>
-                  <span className="text-muted-foreground">国家:</span>{' '}
-                  {'country' in activeRow && (activeRow as { country?: string | null }).country
-                    ? (activeRow as { country: string }).country
-                    : '—'}
+                  <span className="text-term-muted">国家:</span>{' '}
+                  <span className="text-term-text">
+                    {'country' in activeRow && (activeRow as { country?: string | null }).country
+                      ? (activeRow as { country: string }).country
+                      : '—'}
+                  </span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">结果:</span>{' '}
-                  {resultMeta(activeRow.result).label}
+                  <span className="text-term-muted">结果:</span>{' '}
+                  <span className="text-term-text">{resultMeta(activeRow.result).label}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">请求方法:</span>{' '}
-                  <code className="font-mono">{activeRow.request_method || '-'}</code>
+                  <span className="text-term-muted">请求方法:</span>{' '}
+                  <code className="text-term-text">{activeRow.request_method || '-'}</code>
                 </p>
               </div>
 
               {activeRow.request_path ? (
                 <div className="space-y-2">
-                  <p className="font-medium">请求路径</p>
-                  <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                    <code className="break-all font-mono text-xs">{activeRow.request_path}</code>
+                  <p className="font-mono text-xs uppercase tracking-wider text-term-muted">请求路径</p>
+                  <div className="rounded-none border border-term-border bg-term-panel p-3">
+                    <code className="break-all text-term-text">{activeRow.request_path}</code>
                   </div>
                 </div>
               ) : null}
 
               <div className="space-y-2">
-                <p className="font-medium">变更明细</p>
+                <p className="font-mono text-xs uppercase tracking-wider text-term-muted">变更明细</p>
                 {activeDescription.changes.length === 0 ? (
-                  <div className="rounded-md border border-border/70 bg-muted/40 p-3 text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                  <div className="rounded-none border border-term-border bg-term-panel p-3 text-term-muted">
                     无可展示的字段级变更（before/after 无差异或均为空）
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-md border border-border/70 dark:border-border/80">
-                    <table className="w-full text-sm">
+                  <div className="overflow-x-auto rounded-none border border-term-border">
+                    <table className="w-full font-mono text-xs leading-5">
                       <thead>
-                        <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
+                        <tr className="border-b border-term-border bg-term-panel text-left text-term-muted">
                           <th className="px-3 py-2 font-medium">字段</th>
                           <th className="px-3 py-2 font-medium">变更前</th>
                           <th className="px-3 py-2 font-medium">变更后</th>
@@ -664,12 +666,12 @@ export function AgentOperationLogsPanel() {
                       </thead>
                       <tbody>
                         {activeDescription.changes.map((change, index) => (
-                          <tr key={`${change.field}-${index}`} className="border-b last:border-0">
-                            <td className="px-3 py-2 whitespace-nowrap">{change.field}</td>
-                            <td className="px-3 py-2 text-muted-foreground">
+                          <tr key={`${change.field}-${index}`} className="border-b border-term-border last:border-0">
+                            <td className="px-3 py-2 whitespace-nowrap text-term-text">{change.field}</td>
+                            <td className="px-3 py-2 text-term-muted">
                               {change.from ?? <span className="italic">—</span>}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2 text-term-text">
                               {change.to ?? <span className="italic">—</span>}
                             </td>
                           </tr>
@@ -682,27 +684,27 @@ export function AgentOperationLogsPanel() {
 
               {activeRow.error_message ? (
                 <div className="space-y-2">
-                  <p className="font-medium">错误信息</p>
-                  <div className="rounded-md border border-term-neg/30 bg-term-neg/5 p-3 font-mono text-xs text-term-neg">
+                  <p className="font-mono text-xs uppercase tracking-wider text-term-muted">错误信息</p>
+                  <div className="rounded-none border border-term-neg/30 bg-term-neg/5 p-3 text-term-neg">
                     {activeRow.error_message}
                   </div>
                 </div>
               ) : null}
 
               <div className="space-y-2">
-                <p className="font-medium">原始数据</p>
+                <p className="font-mono text-xs uppercase tracking-wider text-term-muted">原始数据</p>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                    <p className="mb-1 text-xs text-muted-foreground">before_json</p>
-                    <pre className="max-h-48 overflow-auto font-mono text-xs">
+                  <div className="rounded-none border border-term-border bg-term-panel p-3">
+                    <p className="mb-1 text-term-muted">before_json</p>
+                    <pre className="max-h-48 overflow-auto text-term-text">
                       {activeRow.before_json == null
                         ? 'null'
                         : JSON.stringify(activeRow.before_json, null, 2)}
                     </pre>
                   </div>
-                  <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                    <p className="mb-1 text-xs text-muted-foreground">after_json</p>
-                    <pre className="max-h-48 overflow-auto font-mono text-xs">
+                  <div className="rounded-none border border-term-border bg-term-panel p-3">
+                    <p className="mb-1 text-term-muted">after_json</p>
+                    <pre className="max-h-48 overflow-auto text-term-text">
                       {activeRow.after_json == null
                         ? 'null'
                         : JSON.stringify(activeRow.after_json, null, 2)}
@@ -710,9 +712,9 @@ export function AgentOperationLogsPanel() {
                   </div>
                 </div>
                 {activeRow.idempotency_key ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-term-muted">
                     幂等键:{' '}
-                    <code className="font-mono">{activeRow.idempotency_key}</code>
+                    <code className="text-term-text">{activeRow.idempotency_key}</code>
                   </p>
                 ) : null}
               </div>

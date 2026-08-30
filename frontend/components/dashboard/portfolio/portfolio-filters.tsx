@@ -16,7 +16,6 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Badge } from '@/components/ui/badge'
 import { CountrySelect } from '@/components/dashboard/console'
 import { RefreshButton } from '@/components/dashboard/console'
 import { DateRangePicker } from '@/components/ui/date-picker'
@@ -100,7 +99,7 @@ export function PortfolioFilters({
       {/* Multi-project selector */}
       <div className="col-span-2 w-full md:col-span-1 md:w-72">
         {loadingProjects ? (
-          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-none" />
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -108,8 +107,9 @@ export function PortfolioFilters({
                 variant="outline"
                 role="combobox"
                 className={cn(
-                  'h-10 w-full justify-between font-normal',
-                  projectIds.length === 0 && 'text-muted-foreground'
+                  // BLF-893：portfolio 筛选终端化——零圆角、term 触发器基线（h-10）。
+                  'h-10 w-full justify-between rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none hover:border-term-border-strong',
+                  projectIds.length === 0 && 'text-term-muted'
                 )}
               >
                 {projectIds.length === 0 ? (
@@ -118,14 +118,17 @@ export function PortfolioFilters({
                   <span className="flex flex-wrap gap-1 overflow-hidden">
                     {selectedProjects.length <= 3 ? (
                       selectedProjects.map((p) => (
-                        <Badge key={p.id} variant="secondary" className="h-5 text-xs">
+                        <span
+                          key={p.id}
+                          className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[11px] leading-4 text-term-text"
+                        >
                           {p.name}
-                        </Badge>
+                        </span>
                       ))
                     ) : (
-                      <Badge variant="secondary" className="h-5 text-xs">
+                      <span className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[11px] leading-4 text-term-text">
                         已选 {selectedProjects.length} 个项目
-                      </Badge>
+                      </span>
                     )}
                   </span>
                 )}

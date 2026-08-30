@@ -100,8 +100,8 @@ export function ProjectSelect({
   if (loading) {
     return (
       <div className={cn('space-y-2', className)}>
-        <div className="h-4 w-12 rounded" />
-        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="h-4 w-12 rounded-none" />
+        <Skeleton className="h-10 w-full rounded-none" />
       </div>
     )
   }
@@ -109,8 +109,8 @@ export function ProjectSelect({
   if (error) {
     return (
       <div className={cn('space-y-2', className)}>
-        <div className="h-4 w-12 rounded" />
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="h-4 w-12 rounded-none" />
+        <div className="rounded-none border border-term-neg/30 bg-term-neg/5 px-3 py-2 font-mono text-xs leading-5 text-term-neg">
           {error}
         </div>
       </div>
@@ -121,7 +121,8 @@ export function ProjectSelect({
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger
         className={cn(
-          'h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+          // BLF-893：console 触发器统一 term 令牌 + 零圆角；保持 h-10 适配 FilterField 排版。
+          'h-10 border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong',
           triggerClassName
         )}
       >

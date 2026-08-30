@@ -187,7 +187,7 @@ export function PricingSnapshotSelector({
           <Clock className="mr-2 h-4 w-4" />
           <div className="flex flex-col">
             <span>实时数据</span>
-            <span className="text-xs text-muted-foreground">使用当前最新核算结果</span>
+            <span className="text-xs text-term-muted">使用当前最新核算结果</span>
           </div>
           {isLiveMode && <Badge className="ml-auto">当前</Badge>}
         </DropdownMenuItem>
@@ -200,7 +200,7 @@ export function PricingSnapshotSelector({
             <Skeleton className="h-8 w-full" />
           </div>
         ) : snapshots.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">暂无快照</div>
+          <div className="p-4 text-center text-sm text-term-muted">暂无快照</div>
         ) : (
           <>
             {snapshots.map((snapshot) => (
@@ -215,7 +215,7 @@ export function PricingSnapshotSelector({
                 <Camera className="mr-2 h-4 w-4" />
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="truncate">{formatSnapshotLabel(snapshot)}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-term-muted">
                     {snapshot.created_by ? `${snapshot.created_by} · ` : ''}
                     {formatRelativeTime(snapshot.created_at)} · {snapshot.row_count} 个 SKU
                   </span>
@@ -226,7 +226,7 @@ export function PricingSnapshotSelector({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-muted-foreground hover:text-primary"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-term-muted hover:text-term-accent"
                       onClick={(e) => {
                         e.stopPropagation()
                         onEditSnapshot(snapshot)
@@ -237,7 +237,7 @@ export function PricingSnapshotSelector({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-muted-foreground hover:text-destructive"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/snapshot:opacity-100 text-term-muted hover:text-term-neg"
                       disabled={deletingId === snapshot.id}
                       onClick={(e) => void handleDelete(e, snapshot.id)}
                     >

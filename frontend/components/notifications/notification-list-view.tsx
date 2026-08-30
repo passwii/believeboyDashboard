@@ -26,15 +26,21 @@ function NotificationRow({
     <button
       type="button"
       onClick={() => onOpen(n)}
-      className={`flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted ${
-        n.read ? 'opacity-70' : 'bg-primary/5'
+      className={`flex w-full items-start gap-2 rounded-none border border-transparent px-3 py-2.5 text-left transition-colors hover:border-term-border hover:bg-term-hover ${
+        n.read ? 'opacity-70' : 'border-term-accent/30 bg-term-accent/5'
       }`}
     >
-      {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+      {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-term-accent" />}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{n.title}</div>
-        {n.message && <div className="truncate text-xs text-muted-foreground">{n.message}</div>}
-        <div className="mt-0.5 text-xs text-muted-foreground">{timeAgo(n.created_at)}</div>
+        <div className="truncate font-mono text-xs leading-5 text-term-text">{n.title}</div>
+        {n.message && (
+          <div className="truncate font-mono text-[11px] leading-4 text-term-muted">
+            {n.message}
+          </div>
+        )}
+        <div className="mt-0.5 font-mono text-[11px] leading-4 text-term-faint">
+          {timeAgo(n.created_at)}
+        </div>
       </div>
     </button>
   )
@@ -76,23 +82,25 @@ export function NotificationListView({ onBack, onNavigateClose }: NotificationLi
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header — 返回 + 标题 + 全部已读 */}
-      <div className="flex items-center gap-1 border-b border-border/60 pb-3">
+      <div className="flex items-center gap-1 border-b border-term-border pb-3">
         <button
           type="button"
           onClick={onBack}
           aria-label="返回"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          // BLF-893：去掉已不存在的 --sidebar-foreground 令牌（旧侧栏遗产），
+          // 改走 term-* 令牌；hover/focus 用 term-hover + term-border-strong。
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none text-term-muted transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:border-term-border-strong"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <span className="min-w-0 flex-1 truncate text-[0.88rem] font-semibold text-sidebar-foreground">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs uppercase tracking-wider text-term-muted">
           通知
         </span>
         <button
           type="button"
           onClick={() => void markAllRead()}
           disabled={unreadCount === 0}
-          className="flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-sidebar-foreground/55 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          className="flex h-8 shrink-0 items-center gap-1 rounded-none px-2 font-mono text-[11px] leading-4 text-term-muted transition-colors hover:bg-term-hover hover:text-term-text disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:border-term-border-strong"
         >
           <CheckCheck className="h-3.5 w-3.5" />
           全部已读
@@ -102,9 +110,13 @@ export function NotificationListView({ onBack, onNavigateClose }: NotificationLi
       {/* List */}
       <div className="min-h-0 flex-1 overflow-y-auto pt-1">
         {loading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">加载中…</div>
+          <div className="py-8 text-center font-mono text-xs leading-5 text-term-muted">
+            加载中…
+          </div>
         ) : items.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">暂无通知</div>
+          <div className="py-8 text-center font-mono text-xs leading-5 text-term-muted">
+            暂无通知
+          </div>
         ) : (
           <div className="space-y-1">
             {items.map((n) => (

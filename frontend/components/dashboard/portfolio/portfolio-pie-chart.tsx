@@ -88,16 +88,18 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
 
   if (projects.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">暂无数据</div>
+      <div className="flex h-64 items-center justify-center font-mono text-xs leading-5 text-term-muted">
+        暂无数据
+      </div>
     )
   }
 
   return (
-    <div className="dashboard-surface rounded-xl p-3 sm:p-4">
+    <div className="rounded-none border border-term-border bg-term-bg p-3 sm:p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">各项目贡献占比</h3>
+        <h3 className="font-mono text-xs uppercase tracking-wider text-term-text">各项目贡献占比</h3>
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-          <SelectTrigger className="h-9 w-32">
+          <SelectTrigger className="h-9 w-32 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -132,11 +134,11 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
                   const payload = item?.payload as { contribution?: number } | undefined
                   return (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium tabular-nums">
+                      <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
                         {formatValue(Number(value), metric, country)}
                       </span>
                       {payload?.contribution !== undefined && (
-                        <span className="text-muted-foreground">
+                        <span className="font-mono text-[11px] leading-4 text-term-muted">
                           ({payload.contribution.toFixed(1)}%)
                         </span>
                       )}
@@ -151,25 +153,29 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
       </ChartContainer>
       {/* Contribution table below */}
       <div className="mt-4">
-        <div className="flex items-center justify-between border-b px-2 py-1 text-xs font-medium text-muted-foreground">
+        <div className="flex items-center justify-between border-b border-term-border px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-term-muted">
           <span>项目</span>
           <span>贡献占比</span>
         </div>
         {pieData.map((d, i) => (
           <div
             key={d.name}
-            className="flex items-center justify-between gap-3 border-b px-2 py-1.5 last:border-0"
+            className="flex items-center justify-between gap-3 border-b border-term-border px-2 py-1.5 last:border-0"
           >
             <div className="flex min-w-0 items-center gap-2">
               <div
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                className="h-2.5 w-2.5 shrink-0 rounded-none"
                 style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
               />
-              <span className="truncate text-sm">{d.name}</span>
+              <span className="truncate font-mono text-xs leading-5 text-term-text">{d.name}</span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span className="text-sm tabular-nums">{formatValue(d.value, metric, country)}</span>
-              <span className="text-xs text-muted-foreground">({d.contribution.toFixed(1)}%)</span>
+              <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+                {formatValue(d.value, metric, country)}
+              </span>
+              <span className="font-mono text-[11px] leading-4 text-term-muted">
+                ({d.contribution.toFixed(1)}%)
+              </span>
             </div>
           </div>
         ))}

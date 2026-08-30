@@ -117,8 +117,8 @@ const GROUP_COLORS = {
   },
   操作: {
     header:
-      'bg-[hsl(var(--surface-subtle))] text-[hsl(var(--foreground))] dark:bg-[hsl(var(--surface-soft))]',
-    sub: 'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
+      'bg-term-panel text-[hsl(var(--foreground))] dark:bg-term-bg',
+    sub: 'bg-term-panel dark:bg-term-bg',
   },
 } as const
 
@@ -135,9 +135,9 @@ export function ShopCalculationTable({
   isSnapshotMode = false,
 }: ShopCalculationTableProps) {
   const compactInputClassName =
-    'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
+    'h-8 w-[52px] min-w-[52px] rounded-none border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
   const compactSelectClassName =
-    'flex h-8 w-[84px] min-w-[84px] rounded-md border border-input bg-background px-1.5 py-1 text-xs ring-offset-background focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[96px] sm:min-w-[96px]'
+    'flex h-8 w-[84px] min-w-[84px] rounded-none border border-input bg-background px-1.5 py-1 text-xs ring-offset-term-bg focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[96px] sm:min-w-[96px]'
 
   return (
     <Table className="w-max min-w-full text-xs" containerClassName="max-h-[72vh] overflow-auto">
@@ -475,20 +475,20 @@ export function ShopCalculationTable({
             <TableRow
               key={item.id}
               className={cn(
-                'align-middle transition-colors duration-75 hover:bg-[hsl(var(--surface-subtle)/0.7)]',
-                idx % 2 === 1 && 'bg-[hsl(var(--surface-subtle)/0.35)]'
+                'align-middle transition-colors duration-75 hover:bg-term-hover',
+                idx % 2 === 1 && 'bg-term-bg'
               )}
             >
               {/* SKU / 项目 */}
               <TableCell
                 className={cn(
-                  'sticky left-0 z-20 whitespace-nowrap border-r bg-[hsl(var(--surface-panel))] px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-[hsl(var(--surface-base))]',
+                  'sticky left-0 z-20 whitespace-nowrap border-r bg-term-bg px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-term-bg',
                   getGroupStyle('店铺产品', 'sub')
                 )}
               >
                 <div className="min-w-[136px]">
-                  <p className="truncate font-semibold text-foreground">{item.sku}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{item.project_name}</p>
+                  <p className="truncate font-semibold text-term-text">{item.sku}</p>
+                  <p className="truncate text-[11px] text-term-muted">{item.project_name}</p>
                 </div>
               </TableCell>
 
@@ -497,7 +497,7 @@ export function ShopCalculationTable({
                 {item.fob_unit_cost > 0 ? (
                   item.fob_unit_cost.toFixed(2)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
@@ -568,14 +568,14 @@ export function ShopCalculationTable({
                 {ddpRmb !== null ? (
                   ddpRmb.toFixed(2)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {ddpUsd !== null ? (
                   formatCurrency(ddpUsd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -614,7 +614,7 @@ export function ShopCalculationTable({
                 {result ? (
                   formatCurrency(result.fees.advertising_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -630,28 +630,28 @@ export function ShopCalculationTable({
                 {result ? (
                   formatCurrency(result.fees.return_loss_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.referral_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.fba_fulfillment_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.inbound_config_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -667,7 +667,7 @@ export function ShopCalculationTable({
                 {result ? (
                   formatCurrency(result.fees.storage_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
@@ -676,21 +676,21 @@ export function ShopCalculationTable({
                 {result ? (
                   formatCurrency(result.fees.total_fee_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">
                 {result ? (
                   formatCurrency(result.profit.payout_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
                   !result
-                    ? 'text-muted-foreground'
+                    ? 'text-term-muted'
                     : result.profit.profit_usd >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-term-neg'
@@ -699,14 +699,14 @@ export function ShopCalculationTable({
                 {result ? (
                   formatCurrency(result.profit.profit_usd)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
                   !result
-                    ? 'text-muted-foreground'
+                    ? 'text-term-muted'
                     : result.profit.profit_rate >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-term-neg'
@@ -715,7 +715,7 @@ export function ShopCalculationTable({
                 {result ? (
                   formatPercent(result.profit.profit_rate)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
@@ -728,12 +728,12 @@ export function ShopCalculationTable({
               >
                 {result ? (
                   <div className="leading-5">
-                    <div className="inline-block rounded-[4px] bg-[hsl(var(--primary)/0.1)] px-1.5 py-0.5 text-[11px] font-medium text-[hsl(var(--primary))]">
+                    <div className="inline-block rounded-[4px] bg-term-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-term-accent">
                       {result.size_tier_label}
                     </div>
                   </div>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
@@ -743,9 +743,9 @@ export function ShopCalculationTable({
                 )}
               >
                 {result ? (
-                  <div className="text-[11px] text-muted-foreground">{result.price_band_label}</div>
+                  <div className="text-[11px] text-term-muted">{result.price_band_label}</div>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
@@ -755,38 +755,38 @@ export function ShopCalculationTable({
                 )}
               >
                 {result ? (
-                  <div className="space-y-0.5 text-[11px] text-muted-foreground">
+                  <div className="space-y-0.5 text-[11px] text-term-muted">
                     <p className="truncate">派送: {result.fulfillment_fee_rule_label}</p>
                     <p className="truncate">配置: {result.inbound_config_fee_rule_label}</p>
                     <p className="truncate">仓储: {result.storage_fee_rule_label}</p>
                   </div>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
               {/* 状态 */}
               <TableCell className="px-3 py-2 text-center">
                 {rowState?.error ? (
-                  <div className="mx-auto max-w-[88px] truncate rounded-md bg-destructive/10 px-1.5 py-1 text-[11px] leading-4 text-destructive">
+                  <div className="mx-auto max-w-[88px] truncate rounded-none bg-term-neg/5 px-1.5 py-1 text-[11px] leading-4 text-term-neg">
                     {rowState.error}
                   </div>
                 ) : result?.warnings?.length ? (
                   <div
-                    className="mx-auto max-w-[88px] truncate rounded-md bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
+                    className="mx-auto max-w-[88px] truncate rounded-none bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
                     title={result.warnings.join('；')}
                   >
                     {result.warnings[0]}
                   </div>
                 ) : result ? (
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-term-pos" />
                     <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
                       已测算
                     </span>
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground/60">待测算</span>
+                  <span className="text-[11px] text-term-muted/60">待测算</span>
                 )}
               </TableCell>
 
@@ -795,7 +795,7 @@ export function ShopCalculationTable({
                 <div className="flex flex-col items-center gap-1.5">
                   {isSnapshotMode ? (
                     // 历史快照只读视图
-                    <span className="text-xs text-muted-foreground">只读</span>
+                    <span className="text-xs text-term-muted">只读</span>
                   ) : (
                     <>
                       <select

@@ -100,7 +100,8 @@ export function SlidingTabsTrigger({
               'absolute inset-0 -z-10 border shadow-none',
               isTerm
                 ? 'rounded-none border-transparent bg-term-raised after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-term-accent after:shadow-[0_0_8px_color-mix(in_srgb,var(--term-accent)_60%,transparent),0_0_16px_color-mix(in_srgb,var(--term-accent)_30%,transparent)]'
-                : 'rounded-[inherit] border-term-border-strong bg-term-raised [.dark_&]:border-[hsl(var(--surface-high))]'
+                : // BLF-893：非 term 分支的暗主题边框改走 term-border-strong（与 isTerm 路径基线对齐）。
+                'rounded-[inherit] border-term-border-strong bg-term-raised'
             )}
           />
         ) : null}

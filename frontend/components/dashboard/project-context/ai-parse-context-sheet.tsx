@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/components/notifications'
 import { Plus, Trash2 } from 'lucide-react'
@@ -133,17 +132,19 @@ export function AiParseContextSheet({
     >
       <SheetContent className="w-full max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <span className="text-2xl">🤖</span>
+          <SheetTitle className="flex items-center gap-2 font-mono text-base leading-5 text-term-text">
+            <span>🤖</span>
             AI 辅助填充项目背景
           </SheetTitle>
-          <div className="text-sm text-muted-foreground">项目：{projectName}</div>
+          <div className="font-mono text-[11px] leading-4 text-term-muted">项目：{projectName}</div>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
           {/* 输入区域 */}
           <div className="space-y-3">
-            <label className="text-sm font-medium">项目背景描述</label>
+            <label className="font-mono text-xs uppercase tracking-wider text-term-muted">
+              项目背景描述
+            </label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -159,12 +160,19 @@ export function AiParseContextSheet({
 目前库存周转率偏低，风险是交期延误。"
 
 支持任意格式的输入，AI 会自动分类整理成 Key-Value 形式。`}
-              className="min-h-[180px] text-sm"
+              className="min-h-[180px] rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text"
               disabled={parsing}
             />
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">AI 会自动识别并生成维度名称和对应描述</p>
-              <Button onClick={handleParse} disabled={parsing || !description.trim()} size="sm">
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-[11px] leading-4 text-term-muted">
+                AI 会自动识别并生成维度名称和对应描述
+              </p>
+              <Button
+                onClick={handleParse}
+                disabled={parsing || !description.trim()}
+                size="sm"
+                className="rounded-none border border-term-border bg-term-bg font-mono text-[11px] leading-4 text-term-text hover:border-term-border-strong disabled:opacity-50"
+              >
                 {parsing ? (
                   <>
                     <span className="mr-2 animate-spin">⏳</span>
@@ -180,14 +188,21 @@ export function AiParseContextSheet({
           {/* 预览/编辑区域 */}
           {isEditing && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <label className="text-sm font-medium">解析结果（可编辑）</label>
+              <div className="flex items-center justify-between border-b border-term-border pb-2">
+                <label className="font-mono text-xs uppercase tracking-wider text-term-muted">
+                  解析结果（可编辑）
+                </label>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
+                  <span className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[11px] leading-4 text-term-muted">
                     {Object.keys(editingItems).length} 个维度
-                  </Badge>
-                  <Button variant="ghost" size="sm" onClick={handleAdd} className="h-7 text-xs">
-                    <Plus className="h-3 w-3 mr-1" />
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAdd}
+                    className="h-7 rounded-none font-mono text-[11px] leading-4 text-term-muted hover:text-term-text"
+                  >
+                    <Plus className="mr-1 h-3 w-3" />
                     添加维度
                   </Button>
                 </div>
@@ -198,21 +213,21 @@ export function AiParseContextSheet({
                 {Object.entries(editingItems).map(([key, value], index) => (
                   <div
                     key={`${key}-${index}`}
-                    className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-2"
+                    className="space-y-2 rounded-none border border-term-border bg-term-panel p-4"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">📋</span>
+                      <span>📋</span>
                       <Input
                         value={key}
                         onChange={(e) => handleKeyChange(key, e.target.value)}
-                        className="font-medium h-8"
+                        className="h-8 rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text"
                         placeholder="维度名称"
                       />
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDelete(key)}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        className="h-8 w-8 rounded-none p-0 text-term-muted hover:text-term-neg"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -220,14 +235,14 @@ export function AiParseContextSheet({
                     <Textarea
                       value={value}
                       onChange={(e) => handleValueChange(key, e.target.value)}
-                      className="min-h-[60px] text-sm resize-none"
+                      className="min-h-[60px] resize-none rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text"
                       placeholder="输入维度描述..."
                     />
                   </div>
                 ))}
 
                 {Object.keys(editingItems).length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
+                  <div className="py-8 text-center font-mono text-xs leading-5 text-term-muted">
                     暂无维度，请添加或重新解析
                   </div>
                 )}
@@ -237,7 +252,7 @@ export function AiParseContextSheet({
 
           {/* 操作按钮 */}
           {isEditing && (
-            <div className="flex items-center justify-between border-t border-border/60 pt-4">
+            <div className="flex items-center justify-between border-t border-term-border pt-4">
               <Button
                 variant="ghost"
                 size="sm"
@@ -247,14 +262,25 @@ export function AiParseContextSheet({
                   setEditingItems({})
                   setIsEditing(false)
                 }}
+                className="rounded-none font-mono text-[11px] leading-4 text-term-muted hover:text-term-text"
               >
                 重新输入
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={onClose}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onClose}
+                  className="rounded-none border border-term-border bg-term-bg font-mono text-[11px] leading-4 text-term-muted hover:border-term-border-strong hover:text-term-text"
+                >
                   取消
                 </Button>
-                <Button size="sm" onClick={handleSave} disabled={!hasAnyContent}>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasAnyContent}
+                  className="rounded-none border border-term-border bg-term-bg font-mono text-[11px] leading-4 text-term-text hover:border-term-border-strong disabled:opacity-50"
+                >
                   填充到表单
                 </Button>
               </div>

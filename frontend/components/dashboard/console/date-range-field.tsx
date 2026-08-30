@@ -27,7 +27,8 @@ export function DateRangeField({
       value={value}
       onChange={onChange}
       className={cn(
-        'h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+        // BLF-893：console 触发器统一 term 令牌 + 零圆角；h-10 与同排筛选对齐。
+        'h-10 w-full border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
         triggerClassName
       )}
       timezone={timezone}
@@ -40,9 +41,7 @@ export function DateRangeField({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
-      </div>
+      <div className="font-mono text-[11px] uppercase tracking-wider text-term-muted">{label}</div>
       {content}
     </div>
   )

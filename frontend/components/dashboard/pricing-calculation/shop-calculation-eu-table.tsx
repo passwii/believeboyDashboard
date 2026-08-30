@@ -119,8 +119,8 @@ const GROUP_COLORS = {
   },
   操作: {
     header:
-      'bg-[hsl(var(--surface-subtle))] text-[hsl(var(--foreground))] dark:bg-[hsl(var(--surface-soft))]',
-    sub: 'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
+      'bg-term-panel text-[hsl(var(--foreground))] dark:bg-term-bg',
+    sub: 'bg-term-panel dark:bg-term-bg',
   },
 } as const
 
@@ -138,7 +138,7 @@ export function ShopCalculationEuTable({
   isSnapshotMode = false,
 }: ShopCalculationEuTableProps) {
   const compactInputClassName =
-    'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
+    'h-8 w-[52px] min-w-[52px] rounded-none border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
 
   return (
     <Table className="w-max min-w-full text-xs" containerClassName="max-h-[72vh] overflow-auto">
@@ -443,20 +443,20 @@ export function ShopCalculationEuTable({
             <TableRow
               key={item.id}
               className={cn(
-                'align-middle transition-colors duration-75 hover:bg-[hsl(var(--surface-subtle)/0.7)]',
-                idx % 2 === 1 && 'bg-[hsl(var(--surface-subtle)/0.35)]'
+                'align-middle transition-colors duration-75 hover:bg-term-hover',
+                idx % 2 === 1 && 'bg-term-bg'
               )}
             >
               {/* SKU / 项目 */}
               <TableCell
                 className={cn(
-                  'sticky left-0 z-20 whitespace-nowrap border-r bg-[hsl(var(--surface-panel))] px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-[hsl(var(--surface-base))]',
+                  'sticky left-0 z-20 whitespace-nowrap border-r bg-term-bg px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-term-bg',
                   getGroupStyle('店铺产品', 'sub')
                 )}
               >
                 <div className="min-w-[136px]">
-                  <p className="truncate font-semibold text-foreground">{item.sku}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{item.project_name}</p>
+                  <p className="truncate font-semibold text-term-text">{item.sku}</p>
+                  <p className="truncate text-[11px] text-term-muted">{item.project_name}</p>
                 </div>
               </TableCell>
 
@@ -465,7 +465,7 @@ export function ShopCalculationEuTable({
                 {item.fob_unit_cost > 0 ? (
                   item.fob_unit_cost.toFixed(2)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
@@ -540,14 +540,14 @@ export function ShopCalculationEuTable({
                 {ddpRmb !== null ? (
                   ddpRmb.toFixed(2)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {ddpUsd !== null ? (
                   formatCurrency(ddpUsd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -579,7 +579,7 @@ export function ShopCalculationEuTable({
                 {result?.fees?.platform_fee_usd != null ? (
                   formatCurrency(result.fees.platform_fee_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -597,7 +597,7 @@ export function ShopCalculationEuTable({
                 {result ? (
                   formatCurrency(result.fees.advertising_fee_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -615,7 +615,7 @@ export function ShopCalculationEuTable({
                 {result ? (
                   formatCurrency(result.fees.return_loss_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-2 py-2">
@@ -658,7 +658,7 @@ export function ShopCalculationEuTable({
                 {result ? (
                   formatCurrency(result.fees.total_fee_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
@@ -667,7 +667,7 @@ export function ShopCalculationEuTable({
                 {result ? (
                   formatCurrency(result.profit.payout_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
@@ -676,7 +676,7 @@ export function ShopCalculationEuTable({
                     {formatCurrency(result.profit.vat_usd, selectedCountry)}
                   </div>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
@@ -686,7 +686,7 @@ export function ShopCalculationEuTable({
                     ? profitAfterVat >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-term-neg'
-                    : 'text-muted-foreground'
+                    : 'text-term-muted'
                 )}
               >
                 {profitAfterVat !== undefined && profitAfterVat !== null ? (
@@ -694,7 +694,7 @@ export function ShopCalculationEuTable({
                 ) : result?.profit?.profit_usd !== undefined ? (
                   formatCurrency(result.profit.profit_usd, selectedCountry)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
               <TableCell
@@ -704,45 +704,45 @@ export function ShopCalculationEuTable({
                     ? profitRateAfterVat >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-term-neg'
-                    : 'text-muted-foreground'
+                    : 'text-term-muted'
                 )}
               >
                 {profitRateAfterVat !== undefined && profitRateAfterVat !== null ? (
                   formatPercent(profitRateAfterVat)
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-term-muted">—</span>
                 )}
               </TableCell>
 
               {/* 状态 */}
               <TableCell className="px-3 py-2 text-center">
                 {rowState?.error ? (
-                  <div className="mx-auto max-w-[88px] rounded-md bg-destructive/10 px-1.5 py-1 text-[11px] leading-4 text-destructive">
+                  <div className="mx-auto max-w-[88px] rounded-none bg-term-neg/5 px-1.5 py-1 text-[11px] leading-4 text-term-neg">
                     {rowState.error}
                   </div>
                 ) : result?.warnings?.length ? (
                   <div
-                    className="mx-auto max-w-[88px] truncate rounded-md bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
+                    className="mx-auto max-w-[88px] truncate rounded-none bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
                     title={result.warnings.join('；')}
                   >
                     {result.warnings[0]}
                   </div>
                 ) : result ? (
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-term-pos" />
                     <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
                       已测算
                     </span>
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground/60">待测算</span>
+                  <span className="text-[11px] text-term-muted/60">待测算</span>
                 )}
               </TableCell>
 
               {/* 测算按钮 */}
               <TableCell className="px-3 py-2 text-center">
                 {isSnapshotMode ? (
-                  <span className="text-xs text-muted-foreground">只读</span>
+                  <span className="text-xs text-term-muted">只读</span>
                 ) : (
                   <Button
                     type="button"

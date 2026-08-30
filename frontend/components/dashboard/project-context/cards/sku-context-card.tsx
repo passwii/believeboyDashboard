@@ -70,7 +70,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
   return (
     <Card>
       <CardHeader
-        className="flex flex-row items-center justify-between py-3 px-4 cursor-pointer hover:bg-muted/30 rounded-t-lg transition-colors"
+        className="flex flex-row items-center justify-between py-3 px-4 cursor-pointer hover:bg-term-hover rounded-none transition-colors"
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
@@ -85,9 +85,9 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {!collapsed && <span className="text-xs text-muted-foreground">{preview}</span>}
+          {!collapsed && <span className="text-xs text-term-muted">{preview}</span>}
           <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
+            className={`h-4 w-4 text-term-muted transition-transform ${collapsed ? '-rotate-90' : ''}`}
           />
         </div>
       </CardHeader>
@@ -95,7 +95,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
       {!collapsed && (
         <CardContent className="space-y-4 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
           {skuList.map(([sku, item]) => (
-            <div key={sku} className="border rounded-lg p-3 space-y-2 relative bg-muted/20">
+            <div key={sku} className="border rounded-none p-3 space-y-2 relative bg-term-hover">
               <div className="flex items-center justify-between gap-2">
                 <Input
                   value={sku}
@@ -114,7 +114,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">状态</label>
+                  <label className="text-xs text-term-muted mb-1 block">状态</label>
                   <Input
                     value={item.status || ''}
                     onChange={(e) => handleUpdateSku(sku, 'status', e.target.value)}
@@ -123,7 +123,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">开始日期</label>
+                  <label className="text-xs text-term-muted mb-1 block">开始日期</label>
                   <Input
                     type="date"
                     value={item.startDate || ''}
@@ -133,7 +133,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">原因</label>
+                <label className="text-xs text-term-muted mb-1 block">原因</label>
                 <Input
                   value={item.reason || ''}
                   onChange={(e) => handleUpdateSku(sku, 'reason', e.target.value)}
@@ -142,7 +142,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">行动</label>
+                <label className="text-xs text-term-muted mb-1 block">行动</label>
                 <Input
                   value={item.action || ''}
                   onChange={(e) => handleUpdateSku(sku, 'action', e.target.value)}
@@ -151,7 +151,7 @@ export function SkuContextCard({ value, onChange }: SkuContextCardProps) {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">结束日期</label>
+                <label className="text-xs text-term-muted mb-1 block">结束日期</label>
                 <Input
                   type="date"
                   value={item.endDate || ''}

@@ -802,7 +802,7 @@ export function ShopCalculationUsSection({
     <div className="space-y-3">
       {/* Snapshot loading error banner */}
       {snapshotError && (
-        <div className="flex items-center gap-2 rounded-md border border-term-warn/30 bg-term-warn/5 px-3 py-2 text-xs text-term-warn">
+        <div className="flex items-center gap-2 rounded-none border border-term-warn/30 bg-term-warn/5 px-3 py-2 text-xs text-term-warn">
           <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-term-warn/30 text-term-warn font-bold">
             !
           </span>
@@ -819,31 +819,31 @@ export function ShopCalculationUsSection({
             ))}
           </div>
         ) : storeSkusError ? (
-          <div className="flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold">
+          <div className="flex items-center gap-2.5 rounded-none border border-term-neg/30 bg-term-neg/5 px-4 py-3 text-sm text-term-neg">
+            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-term-neg/10 text-[10px] font-bold">
               !
             </span>
             {storeSkusError}
           </div>
         ) : !selectedProjectName ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
-              <Package className="h-5 w-5 text-muted-foreground/40" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-none border border-dashed border-term-border bg-term-panel">
+              <Package className="h-5 w-5 text-term-muted/40" />
             </div>
-            <p className="text-sm text-muted-foreground">请选择项目以加载 SKU 数据</p>
+            <p className="text-sm text-term-muted">请选择项目以加载 SKU 数据</p>
           </div>
         ) : filteredSkus.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
-              <Search className="h-5 w-5 text-muted-foreground/40" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-none border border-dashed border-term-border bg-term-panel">
+              <Search className="h-5 w-5 text-term-muted/40" />
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-term-muted">
               {skuKeyword ? `没有找到匹配的 SKU（${skuKeyword}）` : `该项目在美国站下没有活跃 SKU`}
             </p>
             {skuKeyword && (
               <button
                 onClick={() => onSkuKeywordChange('')}
-                className="text-xs text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+                className="text-xs text-term-accent underline-offset-2 hover:underline"
               >
                 清除搜索
               </button>

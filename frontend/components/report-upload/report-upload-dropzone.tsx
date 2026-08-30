@@ -77,13 +77,13 @@ export function ReportUploadDropzone({
   uploadingAny,
 }: Props) {
   return (
-    <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm">
+    <Card className="overflow-hidden rounded-none border border-term-border bg-term-panel shadow-none">
       <CardContent className="p-4 md:p-5">
         <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.02fr)_minmax(300px,0.98fr)]">
           <div className="flex h-full min-h-[252px] flex-col gap-4 pt-2">
             <div className="flex flex-wrap items-center gap-3">
               <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] dark:border-border/95 dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="h-10 w-[160px] rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong">
                   <SelectValue placeholder="选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -109,10 +109,9 @@ export function ReportUploadDropzone({
 
             <div
               className={cn(
-                'relative flex flex-1 rounded-xl border px-5 py-5 transition-[border-color,background-color] duration-200',
-                dragActive
-                  ? 'border-slate-400/60 bg-slate-50 dark:border-slate-500/50 dark:bg-slate-800/25'
-                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
+                // BLF-893：dropzone 终端化——零圆角 + term 令牌 + term-accent 拖入态。
+                'relative flex flex-1 rounded-none border border-term-border bg-term-panel px-5 py-5 transition-[border-color,background-color] duration-200',
+                dragActive && 'border-term-accent bg-term-hover'
               )}
               onDrop={onDrop}
               onDragOver={onDragOver}
@@ -130,20 +129,20 @@ export function ReportUploadDropzone({
                 htmlFor="report-upload-input"
                 className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]">
-                  <FileUp className="h-6 w-6 text-slate-500 dark:text-slate-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-none border border-term-border bg-term-bg">
+                  <FileUp className="h-6 w-6 text-term-muted" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground sm:text-base">
+                  <p className="font-mono text-xs leading-5 text-term-text sm:text-sm">
                     拖拽文件到这里，或点击选择
                   </p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">
+                  <p className="font-mono text-[11px] leading-4 text-term-muted sm:text-xs">
                     支持 `txt`、`csv`、`xlsx`
                   </p>
                 </div>
               </label>
               {recognizing ? (
-                <div className="absolute inset-x-0 bottom-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <div className="absolute inset-x-0 bottom-4 flex items-center justify-center gap-2 font-mono text-xs leading-5 text-term-muted">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   正在识别
                 </div>
@@ -151,55 +150,55 @@ export function ReportUploadDropzone({
             </div>
           </div>
 
-          <div className="mt-2 flex h-full max-h-[252px] min-h-[252px] flex-col overflow-hidden rounded-xl border border-border/50 bg-[hsl(var(--surface-soft))]">
-            <div className="flex items-center justify-between border-b border-border/60 bg-[hsl(var(--surface-subtle))]/80 px-4 pb-3 pt-5">
-              <p className="text-sm font-semibold text-foreground">本次识别文件</p>
-              <span className="text-xs text-muted-foreground">{items.length} 个</span>
+          <div className="mt-2 flex h-full max-h-[252px] min-h-[252px] flex-col overflow-hidden rounded-none border border-term-border bg-term-panel">
+            <div className="flex items-center justify-between border-b border-term-border bg-term-bg px-4 pb-3 pt-5">
+              <p className="font-mono text-xs leading-5 text-term-text">本次识别文件</p>
+              <span className="font-mono text-[11px] leading-4 text-term-muted">{items.length} 个</span>
             </div>
             <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {items.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground dark:border-border/85 dark:bg-[hsl(var(--surface-low))]/75">
+                  <div className="rounded-none border border-dashed border-term-border bg-term-panel px-4 py-8 text-center font-mono text-xs leading-5 text-term-muted">
                     暂无文件
                   </div>
                 ) : null}
                 {items.map((item) => (
                   <div
                     key={item.localId}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-subtle))]/75 px-3 py-3"
+                    className="flex items-start justify-between gap-3 rounded-none border border-term-border bg-term-bg px-3 py-3"
                   >
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-medium text-foreground">
+                      <p className="truncate font-mono text-xs leading-5 text-term-text">
                         {item.originalFileName}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-mono text-[11px] leading-4 text-term-muted">
                         {item.recognitionStatus === 'pending'
                           ? '识别中'
                           : `类型：${getReportTypeLabel(item.reportType)}`}
                       </p>
                       {item.recognitionStatus !== 'pending' ? (
                         <>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-mono text-[11px] leading-4 text-term-muted">
                             国家：
                             {item.detectedCountry
                               ? getReportUploadCountryLabel(item.detectedCountry, true)
                               : '未识别'}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-mono text-[11px] leading-4 text-term-muted">
                             项目：{item.recognizedProject || '未识别'}
                           </p>
                           {item.detectedDate ? (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="font-mono text-[11px] leading-4 text-term-muted">
                               日期：{item.detectedDate}
                             </p>
                           ) : isDateRequired(item.reportType) ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-term-warn">
+                              <span className="font-mono text-[11px] leading-4 text-term-warn">
                                 日期：
                               </span>
                               <input
                                 type="date"
-                                className="h-5 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[11px]"
+                                className="h-5 rounded-none border border-term-border bg-term-bg px-1.5 py-0.5 font-mono text-[11px] leading-4 text-term-text"
                                 value={item.userReportDate ?? ''}
                                 onChange={(e) => onDateChange(item.localId, e.target.value || null)}
                               />
@@ -208,20 +207,20 @@ export function ReportUploadDropzone({
                         </>
                       ) : null}
                       {item.error ? (
-                        <p className="text-xs text-term-neg">{item.error}</p>
+                        <p className="font-mono text-[11px] leading-4 text-term-neg">{item.error}</p>
                       ) : null}
                       {item.commitError ? (
-                        <p className="text-xs text-term-neg">
+                        <p className="font-mono text-[11px] leading-4 text-term-neg">
                           {item.commitError}
                         </p>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />
+                        <Loader2 className="h-4 w-4 animate-spin text-term-muted" />
                       ) : null}
                       {item.fileCommitStatus === 'success' ? (
-                        <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        <CheckCircle2 className="h-4 w-4 text-term-muted" />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
                         <XCircle className="h-4 w-4 text-term-neg" />
@@ -230,7 +229,7 @@ export function ReportUploadDropzone({
                         variant="ghost"
                         size="icon"
                         onClick={() => onRemove(item.localId)}
-                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-term-neg/10 hover:text-term-neg"
+                        className="h-8 w-8 shrink-0 rounded-none text-term-muted hover:bg-term-neg/10 hover:text-term-neg"
                       >
                         <XCircle className="h-4 w-4" />
                         <span className="sr-only">remove</span>

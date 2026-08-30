@@ -11,7 +11,6 @@ import {
   PackageSearch,
 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import {
@@ -53,7 +52,7 @@ function statusBadge(state: ReportCardState) {
   if (state.commitStatus === 'success') {
     return (
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-500 text-white"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos"
         aria-label="已完成"
         title="已完成"
       >
@@ -61,12 +60,32 @@ function statusBadge(state: ReportCardState) {
       </span>
     )
   }
-  if (state.commitStatus === 'saving')
-    return <Badge className="bg-slate-600 text-white hover:bg-slate-600">处理中</Badge>
-  if (state.commitStatus === 'error') return <Badge variant="destructive">失败</Badge>
-  if (state.candidates.length > 1) return <Badge variant="secondary">多文件待确认</Badge>
-  if (state.recognition) return <Badge variant="secondary">待确认</Badge>
-  return <Badge variant="outline">未识别</Badge>
+  if (state.commitStatus === 'saving') {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-warn/40 bg-term-warn/10 px-2 font-mono text-[11px] leading-4 text-term-warn">
+        处理中
+      </span>
+    )
+  }
+  if (state.commitStatus === 'error') {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-neg/40 bg-term-neg/10 px-2 font-mono text-[11px] leading-4 text-term-neg">
+        失败
+      </span>
+    )
+  }
+  if (state.candidates.length > 1 || state.recognition) {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-warn/40 bg-term-warn/10 px-2 font-mono text-[11px] leading-4 text-term-warn">
+        待确认
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex h-6 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-[11px] leading-4 text-term-muted">
+      未识别
+    </span>
+  )
 }
 
 function needsProjectAttention(state: ReportCardState) {
@@ -131,13 +150,13 @@ export function ReportStatusCard({
             <div className="group relative mt-0.5 shrink-0">
               <button
                 type="button"
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-none text-term-muted transition-colors hover:text-term-text focus-visible:outline-none focus-visible:border-term-border-strong"
                 aria-label="查看识别字段"
                 title={config.subtitle}
               >
                 <CircleHelp className="h-4 w-4" />
               </button>
-              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-md border border-border/80 bg-popover px-3 py-1.5 text-xs leading-5 text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-border/95 u-floating-glass">
+              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-[11px] leading-4 text-term-text opacity-0 shadow-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
                 {config.subtitle}
               </div>
             </div>
@@ -145,17 +164,17 @@ export function ReportStatusCard({
           {statusBadge(state)}
         </div>
         <div className="space-y-2 rounded-none border border-term-border bg-term-raised px-3 py-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+          <div className="flex items-center gap-2 font-mono text-xs leading-5 text-term-text">
+            <FileText className="h-4 w-4 text-term-muted" />
             当前文件
           </div>
           {state.candidates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">等待左侧上传区识别到该报表。</p>
+            <p className="font-mono text-[11px] leading-4 text-term-muted">等待左侧上传区识别到该报表。</p>
           ) : (
             <>
               {state.candidates.length > 1 ? (
                 <Select value={state.activeTempFileId || ''} onValueChange={onPickCandidate}>
-                  <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text">
+                  <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
                     <SelectValue placeholder="选择要使用的文件" />
                   </SelectTrigger>
                   <SelectContent>
@@ -169,7 +188,7 @@ export function ReportStatusCard({
               ) : null}
               {recognition && state.candidates.length <= 1 ? (
                 <p
-                  className="truncate text-xs font-medium text-muted-foreground"
+                  className="truncate font-mono text-[11px] leading-4 text-term-muted"
                   title={recognition.original_filename}
                 >
                   {recognition.original_filename}
@@ -185,8 +204,8 @@ export function ReportStatusCard({
               <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <PackageSearch
                   className={cn(
-                    'h-4 w-4 text-slate-400 dark:text-slate-500',
-                    projectWarning && 'text-slate-500 dark:text-slate-400'
+                    'h-4 w-4 text-term-muted',
+                    projectWarning && 'text-term-warn'
                   )}
                 />
               </div>
@@ -197,9 +216,8 @@ export function ReportStatusCard({
               >
                 <SelectTrigger
                   className={cn(
-                    'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
-                    projectWarning &&
-                      'border-slate-400/70 bg-slate-50/80 text-slate-700 ring-offset-background focus:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
+                    'h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    projectWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
                   )}
                 >
                   <SelectValue placeholder="请选择项目" />
@@ -218,22 +236,21 @@ export function ReportStatusCard({
               <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
                 <CalendarDays
                   className={cn(
-                    'h-4 w-4 text-slate-400 dark:text-slate-500',
-                    dateWarning && 'text-slate-500 dark:text-slate-400'
+                    'h-4 w-4 text-term-muted',
+                    dateWarning && 'text-term-warn'
                   )}
                 />
               </div>
               {datesLocked ? (
-                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
                   {periodLabel || '使用核算参数中的日期范围'}
                 </div>
               ) : useRangePicker ? (
                 <DateRangePicker
                   value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
                   className={cn(
-                    'w-full h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
-                    dateWarning &&
-                      'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
+                    'h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    dateWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
                   )}
                   onChange={(range) => {
                     onDateChange('reportStartDate', formatDateInputValue(range?.from))
@@ -241,32 +258,31 @@ export function ReportStatusCard({
                   }}
                 />
               ) : isMultiCommitWithDerivedDates(state) ? (
-                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
                   每个文件将自动提取各自的日期
                 </div>
               ) : recognition?.date_input_mode === 'multi_auto' ? (
-                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
                   {recognition.detected_start_date && recognition.detected_end_date
                     ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                     : '将按 purchase-date 自动拆分多个日期'}
                 </div>
               ) : recognition?.date_input_mode === 'range_auto' ? (
-                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
                   {recognition.detected_start_date && recognition.detected_end_date
                     ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
                     : '已从文件中自动识别日期范围'}
                 </div>
               ) : recognition?.date_input_mode === 'single_auto' ? (
-                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-xs text-term-muted">
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
                   {recognition.detected_date || '已从文件中自动识别日期'}
                 </div>
               ) : (
                 <SingleDatePicker
                   value={parseDateInputValue(state.reportDate)}
                   className={cn(
-                    'h-8 rounded-none border-term-border bg-term-bg text-xs text-term-text',
-                    dateWarning &&
-                      'border-slate-400/70 bg-slate-50/80 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-400/50 dark:bg-slate-800/50 dark:text-slate-200'
+                    'h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    dateWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
                   )}
                   onChange={(date) => onDateChange('reportDate', formatDateInputValue(date))}
                 />

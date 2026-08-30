@@ -96,18 +96,18 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
 
   if (projects.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
+      <div className="flex h-64 items-center justify-center font-mono text-xs leading-5 text-term-muted">
         暂无趋势数据
       </div>
     )
   }
 
   return (
-    <div className="dashboard-surface rounded-xl p-3 sm:p-4">
+    <div className="rounded-none border border-term-border bg-term-bg p-3 sm:p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">多项目趋势对比</h3>
+        <h3 className="font-mono text-xs uppercase tracking-wider text-term-text">多项目趋势对比</h3>
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-          <SelectTrigger className="h-9 w-32">
+          <SelectTrigger className="h-9 w-32 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -128,7 +128,7 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
               : { top: 5, right: 20, left: 10, bottom: 5 }
           }
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--term-border))" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
           {/* 手机端隐藏 Y 轴消除留白（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
           {!isMobile && (
@@ -143,8 +143,10 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
                 labelFormatter={(label) => `日期: ${label}`}
                 formatter={(value, name) => (
                   <div className="flex w-full items-center justify-between gap-4">
-                    <span className="text-muted-foreground">{String(name)}</span>
-                    <span className="font-medium tabular-nums">
+                    <span className="font-mono text-[11px] leading-4 text-term-muted">
+                      {String(name)}
+                    </span>
+                    <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
                       {formatMetricValue(Number(value), metric, country)}
                     </span>
                   </div>
