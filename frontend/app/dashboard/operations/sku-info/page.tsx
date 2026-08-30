@@ -1017,7 +1017,7 @@ export default function SkuInfoPage() {
           <div className="flex gap-2">
             <Badge
               variant="outline"
-              className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]"
+              className="border-border/60 bg-term-panel text-muted-foreground dark:bg-term-panel"
             >
               {loading && items.length === 0
                 ? '数据准备中...'
@@ -1064,14 +1064,14 @@ export default function SkuInfoPage() {
                   style={{ maxHeight: 'calc(100vh - 260px)' }}
                 >
                     {loading && items.length > 0 ? (
-                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                         数据更新中...
                       </div>
                     ) : null}
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead className="[&_tr]:border-b">
-                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10">
+                      <tr className="border-b bg-term-raised">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-2 text-center w-10">
                           <input
                             type="checkbox"
                             className="h-4 w-4 rounded border-border/60"
@@ -1087,31 +1087,31 @@ export default function SkuInfoPage() {
                             }}
                           />
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           排序
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           项目名
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           品名
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           头程成本(历史加权)
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           FOB
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           国家
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           状态
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           操作
                         </th>
                       </tr>
@@ -1121,7 +1121,7 @@ export default function SkuInfoPage() {
                       {items.map((row) => (
                         <tr
                           key={row.id}
-                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
+                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-term-raised' : 'hover:bg-term-raised'} `}
                         >
                           <td className="border-b border-r border-border/60 p-4 align-top text-center w-10">
                             <input
@@ -1302,7 +1302,7 @@ export default function SkuInfoPage() {
                                 className={
                                   row.is_active
                                     ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                    : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                                    : 'border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground'
                                 }
                               >
                                 {row.is_active ? '活跃' : '不活跃'}
@@ -1388,38 +1388,38 @@ export default function SkuInfoPage() {
                 </DataTableCardHeader>
                 <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead className="[&_tr]:border-b">
-                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <tr className="border-b bg-term-raised">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           项目名
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           单品尺寸
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           单品重量
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           外箱尺寸
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           外箱重量
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           装箱数量
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           状态
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           操作
                         </th>
                       </tr>
@@ -1431,7 +1431,7 @@ export default function SkuInfoPage() {
                       {items.map((row) => (
                         <tr
                           key={row.id}
-                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
+                          className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-term-raised' : 'hover:bg-term-raised'} `}
                         >
                           <td className="border-b border-r border-border/60 p-4 align-top font-medium">
                             {row.project_name}
@@ -1623,7 +1623,7 @@ export default function SkuInfoPage() {
                                 className={
                                   row.is_active
                                     ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                    : 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                                    : 'border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground'
                                 }
                               >
                                 {row.is_active ? '活跃' : '不活跃'}
@@ -1697,29 +1697,29 @@ export default function SkuInfoPage() {
                  </DataTableCardHeader>
                  <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead className="[&_tr]:border-b">
-                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <tr className="border-b bg-term-raised">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           项目名
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           产品属性
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           编辑人
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           更新时间
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           操作
                         </th>
                       </tr>
@@ -1730,7 +1730,7 @@ export default function SkuInfoPage() {
                       ) : null}
                       {items.map((row) => (
                         <Fragment key={row.id}>
-                          <tr className="border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]">
+                          <tr className="border-b border-border/50 transition-colors hover:bg-term-raised">
                             <td className="border-b border-r border-border/60 p-4 align-top font-medium">
                               {row.project_name}
                             </td>
@@ -1786,7 +1786,7 @@ export default function SkuInfoPage() {
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className="border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+                                  className="border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground"
                                 >
                                   未填写
                                 </Badge>
@@ -1859,14 +1859,14 @@ export default function SkuInfoPage() {
                  </DataTableCardHeader>
                  <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead className="[&_tr]:border-b">
-                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10">
+                      <tr className="border-b bg-term-raised">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-2 text-center w-10">
                           <input
                             type="checkbox"
                             className="h-4 w-4 rounded border-border/60"
@@ -1883,19 +1883,19 @@ export default function SkuInfoPage() {
                             }}
                           />
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           项目名
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           产品名称
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           标签状态
                         </th>
-                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           操作
                         </th>
                       </tr>
@@ -1906,7 +1906,7 @@ export default function SkuInfoPage() {
                       ) : null}
                       {items.map((row) => (
                         <Fragment key={row.id}>
-                          <tr className="border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]">
+                          <tr className="border-b border-border/50 transition-colors hover:bg-term-raised">
                             <td className="border-b border-r border-border/60 p-4 align-top text-center w-10">
                               <input
                                 type="checkbox"
@@ -1949,7 +1949,7 @@ export default function SkuInfoPage() {
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className="border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+                                  className="border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground"
                                 >
                                   未上传
                                 </Badge>
@@ -1982,7 +1982,7 @@ export default function SkuInfoPage() {
                             </td>
                           </tr>
                           {labelUploadingId === row.id && (
-                            <tr className="border-b border-border/50 bg-[hsl(var(--surface-subtle))]">
+                            <tr className="border-b border-border/50 bg-term-raised">
                               <td colSpan={6} className="px-6 py-4">
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-sm font-medium text-foreground">

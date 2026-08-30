@@ -114,7 +114,7 @@ type PT1DetailsResponse = {
 }
 
 function WeeklyStatSkeleton() {
-  return <Skeleton className="h-[132px] w-full rounded-lg" />
+  return <Skeleton className="h-[132px] w-full rounded-none" />
 }
 
 function LoadingScrim({
@@ -1808,10 +1808,10 @@ export default function WeeklyProductAnalysisPage() {
                     sales_amount: !prev.sales_amount,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
                   visibleLines.sales_amount
                     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                    : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'
+                    : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised'
                 }`}
               >
                 {visibleLines.sales_amount ? (
@@ -1833,7 +1833,7 @@ export default function WeeklyProductAnalysisPage() {
                     units_sold: !prev.units_sold,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.units_sold ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.units_sold ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
               >
                 {visibleLines.units_sold ? (
                   <Eye className="h-3 w-3" />
@@ -1854,7 +1854,7 @@ export default function WeeklyProductAnalysisPage() {
                     ad_spend: !prev.ad_spend,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_spend ? 'border-term-neg/30 bg-term-neg/10 text-term-neg dark:text-term-neg' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_spend ? 'border-term-neg/30 bg-term-neg/10 text-term-neg dark:text-term-neg' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
               >
                 {visibleLines.ad_spend ? (
                   <Eye className="h-3 w-3" />
@@ -1875,7 +1875,7 @@ export default function WeeklyProductAnalysisPage() {
                     ad_clicks: !prev.ad_clicks,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_clicks ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-[hsl(var(--surface-soft))]/70 text-muted-foreground line-through dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]' }`}
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_clicks ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
               >
                 {visibleLines.ad_clicks ? (
                   <Eye className="h-3 w-3" />
@@ -1896,7 +1896,7 @@ export default function WeeklyProductAnalysisPage() {
                     organic_traffic: !prev.organic_traffic,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.organic_traffic ? 'border-term-warn/30 bg-term-warn/10 text-term-warn dark:text-term-warn' : 'border-muted bg-muted/30 text-muted-foreground line-through' }`}
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.organic_traffic ? 'border-term-warn/30 bg-term-warn/10 text-term-warn dark:text-term-warn' : 'border-muted bg-muted/30 text-muted-foreground line-through' }`}
               >
                 {visibleLines.organic_traffic ? (
                   <Eye className="h-3 w-3" />
@@ -1917,7 +1917,7 @@ export default function WeeklyProductAnalysisPage() {
                     acos: !prev.acos,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
                   visibleLines.acos
                     ? 'border-chart-3/30 bg-chart-3/10 text-chart-3 dark:text-chart-3'
                     : 'border-muted bg-muted/30 text-muted-foreground line-through'
@@ -1942,7 +1942,7 @@ export default function WeeklyProductAnalysisPage() {
                     ctr: !prev.ctr,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
                   visibleLines.ctr
                     ? 'border-warning/30 bg-warning/10 text-warning dark:text-warning'
                     : 'border-muted bg-muted/30 text-muted-foreground line-through'
@@ -1963,7 +1963,7 @@ export default function WeeklyProductAnalysisPage() {
           }
         />
         <DataTableCardStatBar
-          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
+          className="border-b border-border/70 bg-term-raised"
           items={[
             {
               label: '销售额合计',
@@ -1983,7 +1983,7 @@ export default function WeeklyProductAnalysisPage() {
           {showSummarySkeleton ? (
             <Skeleton className="h-[320px] w-full" />
           ) : trendPoints.length > 0 ? (
-            <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-3 sm:p-4">
+            <div className="rounded-none bg-term-panel/82 p-3 sm:p-4">
               <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
                 <ComposedChart
                   accessibilityLayer
@@ -2225,13 +2225,13 @@ export default function WeeklyProductAnalysisPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
               暂无趋势数据
             </div>
           )}
           {loading && trendPoints.length > 0 ? (
             <LoadingScrim className="w-full px-4">
-              <Skeleton className="h-[320px] w-full rounded-xl" />
+              <Skeleton className="h-[320px] w-full rounded-none" />
             </LoadingScrim>
           ) : null}
         </div>
@@ -2249,7 +2249,7 @@ export default function WeeklyProductAnalysisPage() {
       >
         {/* 骨架屏覆盖层：切换项目/国家时覆盖表格区域 */}
         {skeletonState === 'loading' && (
-          <div className="absolute inset-0 z-10 rounded-xl border border-border/70 bg-background">
+          <div className="absolute inset-0 z-10 rounded-none border border-border/70 bg-background">
             <div className="space-y-4 p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Skeleton className="h-10 w-full" />
@@ -2274,7 +2274,7 @@ export default function WeeklyProductAnalysisPage() {
                   onValueChange={setSelectedWeekId}
                   disabled={summaryRows.length === 0}
                 >
-                  <SelectTrigger className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
+                  <SelectTrigger className="h-10 w-full border-border/70 bg-term-panel shadow-none dark:border-border/85 dark:bg-term-overlay sm:w-[250px]">
                     <SelectValue placeholder="选择周次" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2330,7 +2330,7 @@ export default function WeeklyProductAnalysisPage() {
               >
                 {recomputing ? '重新核算中...' : '重新核算'}
               </Button>
-              <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+              <div className="inline-flex rounded-none border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-term-raised">
                 <button
                   type="button"
                   className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
@@ -2483,14 +2483,14 @@ export default function WeeklyProductAnalysisPage() {
                   </TableFooter>
                 </Table>
               ) : (
-                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                   当前筛选条件暂无产品分析周汇总数据
                 </div>
               )
             ) : showDetailsSkeleton ? (
               <BarSkeleton rows={8} />
             ) : detailsError ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {detailsError}
               </div>
             ) : detailRows.length > 0 ? (
@@ -2633,7 +2633,7 @@ export default function WeeklyProductAnalysisPage() {
                 </TableFooter>
               </Table>
             ) : (
-              <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
                 当前周次暂无 SKU明细 数据
               </div>
             )}

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { PanelLeftClose, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
@@ -21,7 +21,6 @@ interface TerminalSubnavProps {
   activeGroupId?: string
   pathname: string
   collapsed: boolean
-  onCollapse: () => void
 }
 
 /**
@@ -31,8 +30,11 @@ interface TerminalSubnavProps {
  * - 壳层 width 动画，Main Canvas 平滑跟随；
  * - 内容层（组头文字 / 搜索框 / 列表项）收缩时先淡出 + 轻微 translateX，
  *   展开时按 stagger 级联入场；激活指示条独立于内容层，过渡期不闪烁。
+ *
+ * 折叠入口（BLF-907）已统一到 Top Header 的 `<PanelLeft>` 按钮：L2 组头不再
+ * 重复渲染折叠按钮，避免两处触发器造成操作歧义。
  */
-export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onCollapse }: TerminalSubnavProps) {
+export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: TerminalSubnavProps) {
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? groups[0]
   const items = activeGroup?.items ?? []
 
@@ -62,21 +64,12 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed, onC
     >
       {/* 内容层统一包裹：收缩时整体淡出，展开时级联入场 */}
       <div className="flex h-full min-w-0 flex-1 flex-col" style={{ minWidth: TERMINAL_SUBNAV_WIDTH }}>
-        {/* 组头：域名 + 折叠按钮（高度 = 顶部基准带，BLF-832；BLF-825 动效类不动） */}
+        {/* 组头：域名（高度 = 顶部基准带，BLF-832；BLF-825 动效类不动）。
+            折叠按钮（BLF-907）已迁到 Top Header 的常驻入口，本处不再重复。 */}
         <div className="term-subnav-content flex shrink-0 items-center gap-1 border-b border-term-border pl-3 pr-1" style={{ ...contentStyle(0), minWidth: TERMINAL_SUBNAV_WIDTH, height: TERMINAL_TOP_STRIP_HEIGHT }}>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wider text-term-muted">
             {activeGroup?.label ?? '导航'}
           </span>
-          <button
-            type="button"
-            onClick={onCollapse}
-            title="折叠侧栏"
-            aria-label="折叠侧栏"
-            aria-expanded={!collapsed}
-            className="flex h-9 w-9 items-center justify-center rounded-none text-term-faint shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
-          >
-            <PanelLeftClose className="h-5 w-5" strokeWidth={1.75} />
-          </button>
         </div>
 
         {/* ⌘K 搜索入口 */}

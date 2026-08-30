@@ -58,7 +58,6 @@ function renderSubnav(props: Partial<Parameters<typeof TerminalSubnav>[0]> = {})
       activeGroupId="operations"
       pathname="/dashboard/operations/daily-analysis"
       collapsed={false}
-      onCollapse={vi.fn()}
       {...props}
     />
   )
@@ -77,23 +76,16 @@ describe('TerminalSubnav', () => {
     expect(inactive.className).not.toContain('bg-term-raised')
   })
 
-  it('搜索按钮派发全局 ⌘K 打开事件；折叠按钮回调 onCollapse', () => {
-    const onCollapse = vi.fn()
+  it('搜索按钮派发全局 ⌘K 打开事件', () => {
     const handler = vi.fn()
     window.addEventListener(OPEN_SEARCH_EVENT, handler)
-    renderSubnav({ onCollapse })
+    renderSubnav()
 
     const searchBtn = screen.getByRole('button', { name: /搜索/ })
     act(() => {
       searchBtn.click()
     })
     expect(handler).toHaveBeenCalledTimes(1)
-
-    const collapseBtn = screen.getByRole('button', { name: '折叠侧栏' })
-    act(() => {
-      collapseBtn.click()
-    })
-    expect(onCollapse).toHaveBeenCalledTimes(1)
     window.removeEventListener(OPEN_SEARCH_EVENT, handler)
   })
 
@@ -115,8 +107,7 @@ describe('TerminalSubnav', () => {
     )
     expect(aside.className).toContain('term-subnav-expanded')
     expect(aside.className).not.toContain('term-subnav-collapsed')
-    // 展开态可聚焦、可达
-    expect(screen.getByRole('button', { name: '折叠侧栏' }).getAttribute('aria-expanded')).toBe('true')
+    // 展开态可达（aside 自身不隐藏）
     expect(aside.getAttribute('aria-hidden')).toBe('false')
   })
 
@@ -139,9 +130,6 @@ describe('TerminalSubnav', () => {
     const { container } = renderSubnav({ collapsed: false })
     const groupHeader = container.querySelector('aside .term-subnav-content') as HTMLElement
     expect(groupHeader.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
-    // A3：折叠钮与 Header 图标钮同档 h-9（BLF-887 上档）
-    const collapseBtn = screen.getByRole('button', { name: '折叠侧栏' })
-    expect(collapseBtn.className).toContain('h-9 w-9')
   })
 
   it('BLF-825 入场 stagger：列表项级联延迟按 slot * step 递增且封顶', () => {

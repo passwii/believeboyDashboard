@@ -334,7 +334,7 @@ export function SellerCard({
             </div>
           </div>
         ) : selectedProjectId != null && !loadingEntities ? (
-          <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--data-warning)/0.4)] bg-[hsl(var(--data-warning)/0.08)] px-3 py-2 text-xs text-[hsl(var(--data-warning))]">
+          <div className="flex items-start gap-2 rounded-none border border-[hsl(var(--data-warning)/0.4)] bg-[hsl(var(--data-warning)/0.08)] px-3 py-2 text-xs text-[hsl(var(--data-warning))]">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。</div>
           </div>
@@ -348,7 +348,7 @@ export function SellerCard({
               加载 Seller…
             </div>
           ) : currentSeller ? (
-            <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] p-4">
+            <div className="rounded-none border border-border/60 bg-term-raised p-4">
               <div className="space-y-1 text-sm">
                 <div className="font-semibold text-foreground">
                   {currentSeller.company_name || '（未填写公司名）'}
@@ -382,7 +382,7 @@ export function SellerCard({
 
       {/* 编辑 / 新增 Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-xl">
+        <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {editMode === 'add' ? '新增 Seller' : `编辑 ${selectedCountry} Seller`}
@@ -489,7 +489,7 @@ export function SellerCard({
 
       {/* 删除确认 */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-sm">
+        <DialogContent className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
             <DialogDescription>

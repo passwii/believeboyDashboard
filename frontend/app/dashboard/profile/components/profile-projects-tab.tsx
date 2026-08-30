@@ -77,7 +77,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
 
   if (error && !items) {
     return (
-      <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+      <div className="rounded-none border border-dashed border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
         {error}
       </div>
     )
@@ -96,7 +96,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
 
   if (visibleItems.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-none border border-dashed border-border/60 bg-term-raised/20 p-8 text-center text-sm text-muted-foreground">
         暂无可管理的项目。如果你认为自己应该出现在这里，请联系管理员核对运营 / 助理运营名是否一致。
       </div>
     )
@@ -146,7 +146,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
                     const role = isAdmin ? '管理员' : roleFor(item)
                     const tierClass = item.project_tier ? TIER_BADGE_CLASS[item.project_tier] : ''
                     return (
-                      <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
+                      <TableRow key={item.id} className="transition-colors hover:bg-term-raised/40">
                         <TableCell className="sticky left-0 z-10 bg-background/95 font-medium text-foreground backdrop-blur supports-[backdrop-filter]:bg-background/60">
                           {item.name}
                         </TableCell>

@@ -442,7 +442,7 @@ export default function InspectionForm({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="space-y-1.5">
-                  <div className="h-4 w-20 rounded bg-[hsl(var(--surface-subtle))]" />
+                  <div className="h-4 w-20 rounded bg-term-raised" />
                   <div className="h-9 w-full rounded border" />
                 </div>
               ))}
@@ -463,7 +463,7 @@ export default function InspectionForm({
         <div className="space-y-4 py-4 animate-fade-slide-up">
           {/* Threshold warnings */}
           {warnings.length > 0 && (
-            <div className="rounded-lg border border-term-warn/30 bg-term-warn/5 p-4">
+            <div className="rounded-none border border-term-warn/30 bg-term-warn/5 p-4">
               <div className="flex items-center gap-2 text-term-warn">
                 <AlertTriangle className="h-5 w-5" />
                 <span className="font-medium">检测到 {warnings.length} 个指标异常</span>
@@ -671,7 +671,7 @@ export default function InspectionForm({
                   {screenshots.map((screenshot, index) => (
                     <div
                       key={screenshot.url}
-                      className="group relative rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-2"
+                      className="group relative rounded-none border border-border/70 bg-term-raised p-2"
                     >
                       <button
                         type="button"

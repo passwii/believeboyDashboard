@@ -110,7 +110,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-12 items-center gap-2 rounded-lg border border-border/60 bg-background/50 p-2"
+                  className="grid grid-cols-12 items-center gap-2 rounded-none border border-border/60 bg-background/50 p-2"
                 >
                   <div className="col-span-12 md:col-span-5">
                     <Label className="text-xs text-muted-foreground md:hidden">商品描述</Label>
@@ -194,7 +194,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
             })}
 
             {/* 运费行 */}
-            <div className="grid grid-cols-12 items-center gap-2 rounded-lg border border-dashed border-border/60 bg-[hsl(var(--surface-subtle))] p-2">
+            <div className="grid grid-cols-12 items-center gap-2 rounded-none border border-dashed border-border/60 bg-term-raised p-2">
               <div className="col-span-12 flex items-center gap-1.5 text-sm font-medium md:col-span-7">
                 <Truck className="h-3.5 w-3.5 text-muted-foreground" />
                 运费（含税） · VAT 跟随第一行：{firstItemRate ?? 0}%

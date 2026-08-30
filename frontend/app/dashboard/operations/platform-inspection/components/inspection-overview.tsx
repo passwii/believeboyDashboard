@@ -200,7 +200,7 @@ interface MetricBadgeProps {
 function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) {
   if (value === undefined || value === null) {
     return (
-      <div className="flex items-center justify-between rounded-md bg-[hsl(var(--surface-subtle))] px-2.5 py-1.5">
+      <div className="flex items-center justify-between rounded-none bg-term-raised px-2.5 py-1.5">
         <span className="text-xs text-muted-foreground">{label}</span>
         <span className="text-xs text-muted-foreground/60">--</span>
       </div>
@@ -212,7 +212,7 @@ function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) 
 
   return (
     <div
-      className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${styles.bg || 'bg-[hsl(var(--surface-subtle))]'}`}
+      className={`flex items-center justify-between rounded-none px-2.5 py-1.5 ${styles.bg || 'bg-term-raised'}`}
     >
       <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-1">
@@ -235,7 +235,7 @@ function StatusSummaryIndicator({ content }: { content: string | null | undefine
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-[hsl(var(--surface-subtle))] hover:text-foreground"
+          className="rounded-none p-1 text-muted-foreground transition-colors hover:bg-term-raised hover:text-foreground"
           aria-label="查看状态说明"
         >
           <FileText className="h-3.5 w-3.5" />
@@ -261,7 +261,7 @@ function ScreenshotCount({ count, onPreview }: { count: number; onPreview: () =>
         e.stopPropagation()
         onPreview()
       }}
-      className="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--surface-subtle))] px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      className="inline-flex items-center gap-1 rounded-none bg-term-raised px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
     >
       <ImageIcon className="h-3 w-3" />
       {count}张截图
@@ -313,7 +313,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
               </div>
             )}
             <div
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ serviceTotal > 0 ? 'border-term-warn/30 bg-term-warn/[0.07] dark:bg-term-warn/10' : 'border-border/70 bg-[hsl(var(--surface-subtle))]' }`}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ serviceTotal > 0 ? 'border-term-warn/30 bg-term-warn/[0.07] dark:bg-term-warn/10' : 'border-border/70 bg-term-raised' }`}
             >
               <span className="text-xs text-muted-foreground">客服</span>
               {serviceTotal > 0 ? (
@@ -351,7 +351,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
               threshold={SHIPPING_THRESHOLDS.on_time_delivery_rate}
             />
             <div
-              className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${ (item.compliance_total ?? 0) >= 3 ? 'bg-term-neg/[0.07] dark:bg-term-neg/10' : (item.compliance_total ?? 0) >= 1 ? 'bg-term-warn/[0.07] dark:bg-term-warn/10' : 'bg-[hsl(var(--surface-subtle))]' }`}
+              className={`flex items-center justify-between rounded-none px-2.5 py-1.5 ${ (item.compliance_total ?? 0) >= 3 ? 'bg-term-neg/[0.07] dark:bg-term-neg/10' : (item.compliance_total ?? 0) >= 1 ? 'bg-term-warn/[0.07] dark:bg-term-warn/10' : 'bg-term-raised' }`}
             >
               <span className="text-xs text-muted-foreground">合规问题</span>
               {(item.compliance_total ?? 0) > 0 ? (
@@ -473,7 +473,7 @@ export default function InspectionOverview({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-4">
+        <div className="rounded-none border border-border/70 bg-term-panel p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
               <Skeleton className="h-6 w-48" />
@@ -498,7 +498,7 @@ export default function InspectionOverview({
 
   if (!overview) {
     return (
-      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-8 text-center">
+      <div className="rounded-none border border-border/70 bg-term-panel p-8 text-center">
         <p className="text-muted-foreground">暂无巡检数据</p>
       </div>
     )
@@ -542,7 +542,7 @@ export default function InspectionOverview({
           </div>
 
           <div className="mt-4 space-y-2">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-term-raised">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
@@ -552,7 +552,7 @@ export default function InspectionOverview({
         </div>
 
         {hasAlerts && (
-          <div className="flex items-center gap-3 rounded-lg border border-term-warn/20 bg-term-warn/[0.05] px-4 py-2.5[0.06]">
+          <div className="flex items-center gap-3 rounded-none border border-term-warn/20 bg-term-warn/[0.05] px-4 py-2.5[0.06]">
             <AlertTriangle className="h-4 w-4 shrink-0 text-term-warn" />
             <p className="text-sm">
               {overview.overdue_count > 0 && (
