@@ -116,7 +116,10 @@ beforeEach(() => {
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/daily-analysis/all-countries')) {
+      if (
+        url.includes('/daily-analysis/all-countries') ||
+        url.includes('/daily-analysis/all-projects-countries')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ country_breakdown: countryBreakdown }),
@@ -176,12 +179,25 @@ describe('DashboardV2Page', () => {
     expect(analysisCall).toContain('/api/backend/api/v1/daily-analysis/all')
   })
 
-  it('跨国家图用代表项目请求 all-countries（全部项目时回退第一个）', async () => {
+  // BLF-913：「全部项目」时跨国家图走新聚合端点 /all-projects-countries，project_ids 全选；
+  // 单项目时走既有 /all-countries，project_id=具体 id。
+  it('跨国家图：全部项目时请求 all-projects-countries（project_ids 全选，不再回退第一个）', async () => {
     render(<DashboardV2Page />)
     await screen.findByText('项目排行')
     const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
-    const countryCall = calls.map((c) => String(c[0])).find((u) => u.includes('all-countries'))
-    expect(countryCall).toContain('project_id=1')
-    expect(countryCall).toContain('/api/backend/api/v1/daily-analysis/all-countries')
+    const countryCall = calls
+      .map((c) => String(c[0]))
+      .find((u) => u.includes('all-projects-countries'))
+    expect(countryCall).toBeDefined()
+    expect(countryCall).toContain('project_ids=1%2C2')
+    expect(countryCall).toContain('/api/backend/api/v1/daily-analysis/all-projects-countries')
+    // 旧「全部项目时回退第一个项目去 /all-countries」的契约已废止。
+    const legacyCall = calls
+      .map((c) => String(c[0]))
+      .find(
+        (u) =>
+          u.includes('all-countries') && !u.includes('all-projects-countries')
+      )
+    expect(legacyCall).toBeUndefined()
   })
 })

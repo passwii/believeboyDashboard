@@ -140,6 +140,14 @@ type DailyAnalysisAllCountriesResponse = {
   currency_note?: string | null
 }
 
+// BLF-913：全部项目 × 全部国家站点聚合（USD 基准）。
+// 该端点 country_breakdown 的每项与 /all-countries 的 CountryBreakdownEntry 同构。
+type DailyAnalysisAllProjectsCountriesResponse = {
+  summary_rows: DailyAnalysisRow[]
+  country_breakdown?: Record<string, CountryBreakdownEntry>
+  currency_note?: string | null
+}
+
 const US_TIMEZONE = 'America/Los_Angeles'
 
 /** 页面级项目过滤选项：'all' = 全部项目（= v1 行为） */
@@ -280,14 +288,19 @@ export default function DashboardV2Page() {
   }, [projects, loadData])
 
   /**
-   * 跨国家分布（V2CountryChart 数据源）：/all-countries 只接受单 project_id。
-   * 页面选择单项目时用该项目；"全部项目"时回退到第一个项目。随选择变化自动重拉。
+   * 跨国家分布（V2CountryChart 数据源）。
+   * BLF-913：单项目走 /all-countries；"全部项目"走 /all-projects-countries（USD 基准，
+   * 跨项目合并后的 country_breakdown），不再回退到第一个项目。随选择变化自动重拉。
    */
   const loadCountriesData = useCallback(async () => {
     if (projects.length === 0) return
-    const effectiveProjectId =
-      selectedProjectId === ALL_PROJECTS ? String(projects[0]?.id ?? '') : selectedProjectId
-    if (!effectiveProjectId) return
+    if (!selectedProjectId) return
+
+    const isAll = selectedProjectId === ALL_PROJECTS
+    const idsParam = isAll
+      ? projects.map((p) => String(p.id)).join(',')
+      : selectedProjectId
+    if (!idsParam) return
 
     const startDate = formatYMD(dateRange.from)
     const endDate = formatYMD(dateRange.to)
@@ -299,23 +312,28 @@ export default function DashboardV2Page() {
     const requestId = ++latestCountriesRequestRef.current
     setCountriesLoading(true)
 
+    const paramKey = isAll ? 'project_ids' : 'project_id'
+    const endpoint = isAll
+      ? '/api/backend/api/v1/daily-analysis/all-projects-countries'
+      : '/api/backend/api/v1/daily-analysis/all-countries'
+
     try {
       const params = new URLSearchParams({
-        project_id: effectiveProjectId,
+        [paramKey]: idsParam,
         start_date: startDate,
         end_date: endDate,
       })
       const compareParams = new URLSearchParams({
-        project_id: effectiveProjectId,
+        [paramKey]: idsParam,
         start_date: formatYMD(prevFrom),
         end_date: formatYMD(prevTo),
       })
 
       const [res, compareRes] = await Promise.all([
-        fetch(`/api/backend/api/v1/daily-analysis/all-countries?${params.toString()}`, {
+        fetch(`${endpoint}?${params.toString()}`, {
           cache: 'no-store',
         }),
-        fetch(`/api/backend/api/v1/daily-analysis/all-countries?${compareParams.toString()}`, {
+        fetch(`${endpoint}?${compareParams.toString()}`, {
           cache: 'no-store',
         }),
       ])
@@ -400,10 +418,13 @@ export default function DashboardV2Page() {
 
   const anyLoading = dataLoading || projectsLoading
   const hasData = currentRows.length > 0
-  /** 跨国家图代表项目名（"全部项目"时取第一个） */
+  /**
+   * 跨国家图代表项目名：单项目时显该名；"全部项目"时为 null（图表描述退化为"各站点销售额分布"，
+   * 避免与 BLF-913 的"全部项目 × 全部国家"真实数据混用某单一项目名）。
+   */
   const representativeProjectName =
     selectedProjectId === ALL_PROJECTS
-      ? (projects[0]?.name ?? null)
+      ? null
       : (projects.find((p) => String(p.id) === selectedProjectId)?.name ?? null)
 
   return (
