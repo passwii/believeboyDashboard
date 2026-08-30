@@ -1538,6 +1538,40 @@ pub(crate) mod shader_resources {
             Ok(compile_blob.unwrap())
         }
     }
+
+    /// 运行期着色器编译回归：8 模块 × 顶点/片段全量过 D3DCompile（依赖系统
+    /// d3dcompiler_47.dll，仅 Windows 有效）。BLF-887 追查启动期 emoji 管线
+    /// X3003 用；后续改 HLSL 先跑本测试。
+    #[cfg(test)]
+    mod shader_compile_tests {
+        use super::*;
+
+        #[test]
+        fn all_shader_modules_compile_via_d3dcompiler() {
+            let mut failures = Vec::new();
+            for module in [
+                ShaderModule::Quad,
+                ShaderModule::Shadow,
+                ShaderModule::Underline,
+                ShaderModule::PathRasterization,
+                ShaderModule::PathSprite,
+                ShaderModule::MonochromeSprite,
+                ShaderModule::PolychromeSprite,
+                ShaderModule::EmojiRasterization,
+            ] {
+                for target in [ShaderTarget::Vertex, ShaderTarget::Fragment] {
+                    if let Err(e) = build_shader_blob(module, target) {
+                        failures.push(format!("{module:?}/{target:?}: {e}"));
+                    }
+                }
+            }
+            assert!(
+                failures.is_empty(),
+                "着色器编译失败：\n{}",
+                failures.join("\n")
+            );
+        }
+    }
 }
 
 mod nvidia {

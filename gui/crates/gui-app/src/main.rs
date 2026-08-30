@@ -301,6 +301,14 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
     let bounds = Bounds::centered(None, size(px(1280.0), px(800.0)), cx);
     // BLF-794：Sub-Nav 折叠态从 UI 偏好恢复（组合根负责持久化读写）
     let sub_nav_collapsed = prefs::load_ui_prefs().sub_nav_collapsed;
+    // 主窗口首层包 gpui-component `Root`（登录窗同款）——gpui-component 的
+    // Input / 弹层（⌘K 命令面板检索框等）强依赖 Root::read 做焦点跟踪，
+    // 缺 Root 会在打开面板时 panic（Windows 实测复现）。BLF-709 起主窗口
+    // 已收敛为不透明背景，Root 铺 theme.background 不再与 macOS 模糊材质
+    // 冲突；RootView 每帧自管 rem_size，Root::render 的默认 rem 写入被
+    // 子视图覆盖，密度档位不受影响。
+    let main_root_view: Rc<RefCell<Option<Entity<RootView>>>> = Default::default();
+    let root_view_slot = main_root_view.clone();
     let window = cx
         .open_window(
             WindowOptions {
@@ -318,27 +326,36 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
                 window_min_size: Some(size(px(960.0), px(640.0))),
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| RootView::new(cx, Some(session))),
+            |window, cx| {
+                let view = cx.new(|cx| RootView::new(cx, Some(session)));
+                *root_view_slot.borrow_mut() = Some(view.clone());
+                cx.new(|cx| Root::new(view, window, cx))
+            },
         )
         .expect("打开主窗口失败");
 
     if sub_nav_collapsed {
+        let root_view = main_root_view.borrow().clone().expect("主窗口根视图");
         window
-            .update(cx, |root, _, cx| root.restore_sub_nav_collapsed(true, cx))
+            .update(cx, |_, _, cx| {
+                root_view.update(cx, |root, cx| root.restore_sub_nav_collapsed(true, cx))
+            })
             .ok();
     }
 
     // P2-2：监听主窗口外观变化（跟随系统时同步全局外观并重绘，无闪烁）
     window
-        .update(cx, |root, window, _cx| {
-            root.theme_appearance_sub =
-                Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+        .update(cx, |_, window, cx| {
+            let root_view = main_root_view.borrow().clone().expect("主窗口根视图");
+            root_view.update(cx, |root, _cx| {
+                root.theme_appearance_sub =
+                    Some(window.observe_window_appearance(theme::on_window_appearance_changed));
+            });
         })
         .ok();
 
-    let root = window
-        .update(cx, |_, _, cx| cx.entity())
-        .expect("主窗口根视图");
+    // 组合根实体句柄（窗口根实体现为 Root；RootViewEvent 订阅走捕获句柄）
+    let root = main_root_view.borrow().clone().expect("主窗口根视图");
     let main_window = window;
 
     // 退出登录 → 清 Keychain → 关主窗 → 回登录窗；Sub-Nav 折叠 → 持久化 UI 偏好
@@ -413,8 +430,10 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
 
     // 初始聚焦 Sub-Nav（键盘 ↑/↓ 导航立即可用）
     window
-        .update(cx, |root, window, cx| {
-            window.focus(&root.sub_nav.read(cx).focus_handle(cx));
+        .update(cx, |_, window, cx| {
+            let root_view = main_root_view.borrow().clone().expect("主窗口根视图");
+            let focus_handle = root_view.read(cx).sub_nav.read(cx).focus_handle(cx);
+            window.focus(&focus_handle);
             cx.activate(true);
         })
         .ok();
@@ -424,6 +443,7 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
     let validate_client = client.clone();
     let login_base = client.without_session();
     let validate_window = window;
+    let warning_root_view = main_root_view.clone();
     cx.spawn(async move |cx: &mut gpui::AsyncApp| {
         let result = bg
             .spawn(async move { crate::runtime::runtime().block_on(validate_client.me()) })
@@ -439,8 +459,11 @@ fn open_main_window(cx: &mut App, client: Client, user: LoginResponse, warning: 
             }
             Err(e) => {
                 let msg = format!("⚠️ 无法连接服务器：{}", e.user_message());
+                let root_view = warning_root_view.borrow().clone().expect("主窗口根视图");
                 validate_window
-                    .update(cx, |root, _window, cx| root.set_warning(msg, cx))
+                    .update(cx, |_, _window, cx| {
+                        root_view.update(cx, |root, cx| root.set_warning(msg, cx))
+                    })
                     .ok();
             }
         });
