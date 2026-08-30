@@ -1,7 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PieChart, Pie, Cell } from 'recharts'
+import {
+  Pie,
+  PieChart,
+  Cell,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/charts'
 import {
   Select,
   SelectContent,
@@ -9,14 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
 import { useMobile } from '@/lib/hooks/use-mobile'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
@@ -25,6 +27,11 @@ interface PortfolioPieChartProps {
   country: string
 }
 
+/**
+ * Per-slice palette — uses `--chart-N` CSS variables so light/dark themes
+ * stay in sync. The same palette is referenced by the contribution table
+ * below to keep swatches and pie wedges aligned.
+ */
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
   'hsl(var(--chart-2))',
@@ -66,8 +73,11 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
   // ChartTooltipContent 走 item.name（= 项目名）——都以项目名为 config key。
   const chartConfig = useMemo<ChartConfig>(() => {
     const cfg: ChartConfig = {}
-    projects.forEach((p) => {
-      cfg[p.project_name] = { label: p.project_name }
+    projects.forEach((p, idx) => {
+      cfg[p.project_name] = {
+        label: p.project_name,
+        color: CHART_COLORS[idx % CHART_COLORS.length],
+      }
     })
     return cfg
   }, [projects])
@@ -124,7 +134,11 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
             nameKey="name"
           >
             {pieData.map((d, i) => (
-              <Cell key={d.name} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+              <Cell
+                key={d.name}
+                fill={CHART_COLORS[i % CHART_COLORS.length]}
+                stroke="none"
+              />
             ))}
           </Pie>
           <ChartTooltip

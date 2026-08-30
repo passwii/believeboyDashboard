@@ -1,6 +1,5 @@
 'use client'
 
-import { Bar, BarChart, XAxis, YAxis } from 'recharts'
 import { Store } from 'lucide-react'
 
 import {
@@ -9,13 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BarChartCard, buildChartConfig } from '@/components/charts'
 
 import { V2Card } from './v2-card'
 import {
@@ -30,12 +24,7 @@ export interface V2ProjectChartProps {
   loading?: boolean
 }
 
-const chartConfig = {
-  sales: {
-    label: '销售额',
-    color: '#2563eb',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(['sales'], { sales: '销售额' })
 
 /** 项目名过长截断（与表格一致） */
 function truncateName(name: string, max = 10): string {
@@ -62,26 +51,14 @@ export function V2ProjectChart({ projectBreakdown, projects, loading }: V2Projec
         {loading && rows.length === 0 ? (
           <Skeleton className="h-52 w-full" />
         ) : rows.length > 0 ? (
-          <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
-            <BarChart accessibilityLayer data={rows} margin={{ left: 0, right: 0, top: 4 }}>
-              <XAxis
-                axisLine={false}
-                dataKey="name"
-                interval={0}
-                tickFormatter={(value) => String(value)}
-                tickLine={false}
-                tickMargin={8}
-              />
-              <YAxis
-                axisLine={false}
-                tickFormatter={(value) => `$${Number(value) / 1000}k`}
-                tickLine={false}
-                width={44}
-              />
-              <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-              <Bar dataKey="sales" fill="var(--color-sales)" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ChartContainer>
+          <BarChartCard
+            data={rows}
+            xKey="name"
+            series={[{ dataKey: 'sales' }]}
+            config={chartConfig}
+            yTickFormatter={(v) => `$${Number(v) / 1000}k`}
+            showLegend={false}
+          />
         ) : (
           <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
             暂无项目数据

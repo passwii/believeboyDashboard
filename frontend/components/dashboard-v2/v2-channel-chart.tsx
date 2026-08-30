@@ -1,7 +1,6 @@
 'use client'
 
 import { BarChart3 } from 'lucide-react'
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
 import {
   CardContent,
@@ -9,14 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
+import { LineChartCard, buildChartConfig } from '@/components/charts'
 
 import { V2Card } from './v2-card'
 import { Delta, DeltaIcon, DeltaValue } from './v2-delta'
@@ -29,16 +21,10 @@ export interface V2ChannelChartProps {
   comparisonRows?: ChannelRow[]
 }
 
-const chartConfig = {
-  sales_amount: {
-    label: '销售额',
-    color: '#2563eb',
-  },
-  ad_spend: {
-    label: '广告花费',
-    color: '#60a5fa',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(
+  ['sales_amount', 'ad_spend'],
+  { sales_amount: '销售额', ad_spend: '广告花费' }
+)
 
 export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelChartProps) {
   const total = currentRows.reduce((s, r) => s + r.sales_amount, 0)
@@ -69,61 +55,23 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
         </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer className="aspect-auto h-60 w-full p-0 md:h-80" config={chartConfig}>
-          <LineChart
-            accessibilityLayer
-            data={data}
-            margin={{ left: 4, right: 4, top: 8 }}
-          >
-            <CartesianGrid className="stroke-blue-100 dark:stroke-[hsl(var(--border)/0.6)]" vertical={false} />
-            <XAxis
-              axisLine={false}
-              dataKey="day"
-              interval={0}
-              tickFormatter={(value) => String(value)}
-              tickLine={false}
-              tickMargin={8}
-            />
-            {/* 销售额 / 广告花费量级差异大，分左右双轴 */}
-            <YAxis
-              axisLine={false}
-              tickFormatter={(value) => formatCompactCurrency(Number(value))}
-              tickLine={false}
-              width={52}
-              yAxisId="left"
-            />
-            <YAxis
-              axisLine={false}
-              orientation="right"
-              tickFormatter={(value) => formatCompactCurrency(Number(value))}
-              tickLine={false}
-              width={52}
-              yAxisId="right"
-            />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }}
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Line
-              activeDot={{ r: 4 }}
-              dataKey="sales_amount"
-              dot={false}
-              strokeWidth={2.5}
-              type="monotone"
-              yAxisId="left"
-            />
-            <Line
-              activeDot={{ r: 4 }}
-              dataKey="ad_spend"
-              dot={false}
-              strokeDasharray="6 4"
-              strokeWidth={2}
-              type="monotone"
-              yAxisId="right"
-            />
-          </LineChart>
-        </ChartContainer>
+        <LineChartCard
+          data={data}
+          xKey="day"
+          config={chartConfig}
+          dualAxis
+          yTickFormatter={formatCompactCurrency}
+          rightYFormatter={formatCompactCurrency}
+          series={[
+            { dataKey: 'sales_amount', name: '销售额', yAxisId: 'left' },
+            {
+              dataKey: 'ad_spend',
+              name: '广告花费',
+              yAxisId: 'right',
+              lineProps: { strokeDasharray: '6 4', strokeWidth: 2 },
+            },
+          ]}
+        />
       </CardContent>
     </V2Card>
   )

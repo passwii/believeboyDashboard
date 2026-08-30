@@ -1,6 +1,5 @@
 'use client'
 
-import { Bar, BarChart, XAxis, YAxis } from 'recharts'
 import { Globe2 } from 'lucide-react'
 
 import {
@@ -9,13 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BarChartCard, buildChartConfig } from '@/components/charts'
 import { getCountryLabel } from '@/lib/country'
 
 import { V2Card } from './v2-card'
@@ -59,12 +53,7 @@ export interface V2CountryChartProps {
   loading?: boolean
 }
 
-const chartConfig = {
-  sales: {
-    label: '销售额',
-    color: '#60a5fa',
-  },
-} satisfies ChartConfig
+const chartConfig = buildChartConfig(['sales'], { sales: '销售额' })
 
 export function V2CountryChart({
   countryRowsByCode,
@@ -95,22 +84,15 @@ export function V2CountryChart({
         {loading && rows.length === 0 ? (
           <Skeleton className="h-52 w-full" />
         ) : rows.length > 0 ? (
-          <ChartContainer className="aspect-auto h-52 w-full md:h-64" config={chartConfig}>
-            <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 0, right: 8 }}>
-              <XAxis axisLine={false} tickFormatter={(value) => `$${Number(value) / 1000}k`} tickLine={false} type="number" />
-              <YAxis
-                axisLine={false}
-                dataKey="name"
-                tickFormatter={(value) => String(value)}
-                tickLine={false}
-                tickMargin={8}
-                type="category"
-                width={64}
-              />
-              <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-              <Bar dataKey="sales" fill="var(--color-sales)" radius={[0, 2, 2, 0]} />
-            </BarChart>
-          </ChartContainer>
+          <BarChartCard
+            data={rows}
+            xKey="name"
+            series={[{ dataKey: 'sales', barProps: { radius: [0, 2, 2, 0] } }]}
+            config={chartConfig}
+            layout="horizontal"
+            xTickFormatter={(value) => `$${Number(value) / 1000}k`}
+            showLegend={false}
+          />
         ) : (
           <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
             暂无国家数据
