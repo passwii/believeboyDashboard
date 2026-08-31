@@ -72,6 +72,10 @@ export const TERMINAL_TICKER = {
     changelog: true,
     /** 库存预警：低于安全库存（断货风险/短期断货/长期断货）的 SKU 数，复用补货分析 summary.out_of_stock_risk_count */
     inventoryAlert: true,
+    /** 报表上传完成度：当日报表 N/M（缺口 >0 才渲染），复用 RPA 状态矩阵端点 */
+    uploadStatus: true,
+    /** 数据新鲜度：关键报表最新数据日期（数据至 MM-DD），随快报响应透出 */
+    dataFreshness: true,
   },
 } as const
 

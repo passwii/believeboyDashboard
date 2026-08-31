@@ -23,12 +23,25 @@ const { alertMock } = vi.hoisted(() => ({ alertMock: vi.fn() }))
 vi.mock('@/lib/hooks/use-inventory-alert', () => ({
   useInventoryAlert: alertMock,
 }))
+const { uploadMock } = vi.hoisted(() => ({ uploadMock: vi.fn() }))
+vi.mock('@/lib/hooks/use-report-upload-status', () => ({
+  useReportUploadStatus: uploadMock,
+}))
 
 // 默认：库存预警频道加载中（不渲染具体数字），保证其余用例不被影响
 alertMock.mockReturnValue({ count: null, status: 'loading' })
+// 默认：报表上传完成度加载中（频道不渲染），保证其余用例不被影响
+uploadMock.mockReturnValue({ uploaded: null, total: null, missing: null, status: 'loading' })
 
 function mockAlert(count: number | null, status: 'loading' | 'ok' | 'error' = 'ok') {
   alertMock.mockReturnValue({ count, status })
+}
+
+function mockUpload(
+  counts: { uploaded: number | null; total: number | null; missing: number | null },
+  status: 'loading' | 'ok' | 'error' = 'ok'
+) {
+  uploadMock.mockReturnValue({ ...counts, status })
 }
 
 afterEach(() => {
@@ -37,6 +50,9 @@ afterEach(() => {
   briefMock.mockReset()
   unreadMock.mockReset()
   alertMock.mockReset().mockReturnValue({ count: null, status: 'loading' })
+  uploadMock
+    .mockReset()
+    .mockReturnValue({ uploaded: null, total: null, missing: null, status: 'loading' })
 })
 
 function mockTicker(
@@ -68,6 +84,7 @@ function mockBrief(
     gmvWoW: number | null
     ordersDoD: number | null
     ordersWoW: number | null
+    latestSalesDate: string | null
   }>,
   status: 'ok' | 'error' = 'ok'
 ) {
@@ -82,11 +99,63 @@ function mockBrief(
       gmvWoW: null,
       ordersDoD: null,
       ordersWoW: null,
+      latestSalesDate: null,
       ...brief,
     },
     status,
   })
 }
+
+describe('TerminalFooter BLF-921 Stage 2：数据可信度频道', () => {
+  it('报表上传缺口时渲染「报表 N/M」并以 text-term-warn 高亮（双拷贝）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockUpload({ uploaded: 20, total: 21, missing: 1 })
+    render(<TerminalFooter />)
+    const reportEls = screen.getAllByText('20/21')
+    expect(reportEls.length).toBeGreaterThan(0)
+    expect(reportEls[0].className).toContain('text-term-warn')
+    // label「报表」也双拷贝渲染
+    expect(screen.getAllByText('报表').length).toBeGreaterThan(0)
+  })
+
+  it('报表全齐（21/21）时频道不渲染', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockUpload({ uploaded: 21, total: 21, missing: 0 })
+    render(<TerminalFooter />)
+    expect(screen.queryByText('报表')).toBeNull()
+    expect(screen.queryByText('21/21')).toBeNull()
+  })
+
+  it('数据新鲜度：latestSalesDate 渲染「数据至 MM-DD」（双拷贝）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3, latestSalesDate: '2026-08-30' })
+    render(<TerminalFooter />)
+    const freshEls = screen.getAllByText('08-30')
+    expect(freshEls.length).toBeGreaterThan(0)
+    expect(screen.getAllByText('数据至').length).toBeGreaterThan(0)
+  })
+
+  it('开关关闭时两频道均不渲染（契约断言，BLF-840 范式）', () => {
+    const channels = TERMINAL_TICKER.channels as Record<string, boolean>
+    const prev = { ...channels }
+    channels.uploadStatus = false
+    channels.dataFreshness = false
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3, latestSalesDate: '2026-08-30' })
+      mockUpload({ uploaded: 20, total: 21, missing: 1 })
+      render(<TerminalFooter />)
+      expect(screen.queryByText('报表')).toBeNull()
+      expect(screen.queryByText('20/21')).toBeNull()
+      expect(screen.queryByText('数据至')).toBeNull()
+      expect(screen.queryByText('08-30')).toBeNull()
+    } finally {
+      Object.assign(channels, prev)
+    }
+  })
+})
 
 describe('TerminalFooter BLF-920 Stage 1：快报环比与广告数字', () => {
   it('GMV/订单渲染 DoD 环比箭头着色（▲绿/▼红）+ WoW 周环比 + 广告数字', () => {
