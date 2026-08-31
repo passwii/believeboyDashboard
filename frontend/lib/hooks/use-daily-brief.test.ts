@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { computeChangePct, reduceDailyBrief } from './use-daily-brief'
 
 // 上周同日基线 fixture：gmv 1100 / orders 9（供 WoW 计算；DoD 用例中不参与比较）
