@@ -50,8 +50,20 @@ export { Area, Bar, BarChart, CartesianGrid, Line, LineChart, Pie, PieChart, Res
 
 
 /**
+ * Common axis tick props — 11px mono with term-muted fill. Applied to every
+ * axis via `defaultXAxisProps` / `defaultYAxisProps` so all unified charts
+ * get the terminal typography without per-call repetition (BLF-909 stage B).
+ */
+export const termAxisTick = {
+  fontSize: 11,
+  fontFamily: 'var(--font-mono, monospace)',
+  fill: 'var(--term-muted)',
+} as const
+
+/**
  * Default XAxis override. Use as `<XAxis {...defaultXAxisProps} … />`.
- * No axis line, no tick line, with breathing room.
+ * No axis line, no tick line, with breathing room. `tick` carries
+ * termAxisTick so every chart axes is mono + term-muted by default.
  */
 export const defaultXAxisProps = {
   axisLine: false,
@@ -59,15 +71,18 @@ export const defaultXAxisProps = {
   tickMargin: 8,
   interval: 0,
   minTickGap: 24,
+  tick: termAxisTick,
 } as const
 
 /**
  * Default YAxis override. width gives ~3 chars of headroom.
+ * `tick` carries termAxisTick so vertical axes match XAxis typography.
  */
 export const defaultYAxisProps = {
   axisLine: false,
   tickLine: false,
   width: 52,
+  tick: termAxisTick,
 } as const
 
 /** Right-side YAxis — narrower (44) since most y labels are shorter. */
@@ -128,13 +143,6 @@ export function defaultXTickFormatter(value: unknown): string {
   if (/^\d{4}-\d{2}$/.test(s)) return s.slice(5)
   return s
 }
-
-/** Common axis tick props — 11px mono (used by term-* dashboards). */
-export const termAxisTick = {
-  fontSize: 11,
-  fontFamily: 'var(--font-mono, monospace)',
-  fill: 'var(--term-muted)',
-} as const
 
 // ---------- Chart height rhythm (matches existing v2-* cards) -------------
 
