@@ -105,23 +105,19 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
           </div>
         )}
       </CardContent>
-      {/* BLF-909 阶段 B：footer 4 个汇总数字统一 mono + tabular-nums + term-text（去原 light/dark 显式蓝色不一致）；标签 mono + uppercase + term-faint */}
       <CardFooter className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/60 px-5 py-3">
-        <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
-          总浏览量{' '}
-          <b className="ml-1 font-mono text-sm tabular-nums text-term-text">{fmtNumPrecise(stats.totalPageViews)}</b>
+        <span className="text-xs text-muted-foreground">
+          总浏览量 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalPageViews)}</b>
         </span>
-        <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
-          访客数{' '}
-          <b className="ml-1 font-mono text-sm tabular-nums text-term-text">{fmtNumPrecise(stats.totalSessions)}</b>
+        <span className="text-xs text-muted-foreground">
+          访客数 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalSessions)}</b>
         </span>
-        <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
-          转化订单{' '}
-          <b className="ml-1 font-mono text-sm tabular-nums text-term-text">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
+        <span className="text-xs text-muted-foreground">
+          转化订单 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
         </span>
-        <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
+        <span className="text-xs text-muted-foreground">
           平均转化率{' '}
-          <b className="ml-1 font-mono text-sm tabular-nums text-term-text">{stats.conversionRatePct.toFixed(2)}%</b>
+          <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{stats.conversionRatePct.toFixed(2)}%</b>
         </span>
       </CardFooter>
     </V2Card>

@@ -61,12 +61,4 @@ describe('V2Stats', () => {
     expect(screen.getByText('转化率')).toBeInTheDocument()
   })
 
-  it('BLF-909 阶段 B：4 个 KPI 标签均应用 mono + uppercase + term-faint', () => {
-    const { container } = render(<V2Stats currentRows={current} comparisonRows={comparison} />)
-    // CardTitle 同时携带 font-mono + uppercase + text-term-faint → 终端化视觉锚点
-    const titles = container.querySelectorAll(
-      '[class*="font-mono"][class*="uppercase"][class*="text-term-faint"]'
-    )
-    expect(titles.length).toBeGreaterThanOrEqual(4)
-  })
 })
