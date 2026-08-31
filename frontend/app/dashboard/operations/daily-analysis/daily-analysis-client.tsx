@@ -175,6 +175,36 @@ type DailyAnalysisAllCountriesResponse = {
   currency_note: string | null
 }
 
+// BLF-913：全部项目 × 全部国家站点聚合（USD 基准）。
+// 结构是 /all（按项目分桶）与 /all-countries（按国家分桶）的并集：
+// 顶层 summary_rows / detail_rows 是 global 聚合（项目×国家求和），
+// project_breakdown / country_breakdown 供两种下钻。
+type DailyAnalysisAllProjectsCountriesResponse = {
+  console: DailyAnalysisConsole
+  summary_rows: DailyAnalysisRow[]
+  detail_rows: DailyAnalysisDetailRow[]
+  available_dates: Record<string, string[]>
+  project_breakdown: Record<
+    number,
+    {
+      project_name: string
+      summary_rows: DailyAnalysisRow[]
+      detail_rows: DailyAnalysisDetailRow[]
+    }
+  >
+  country_breakdown: Record<
+    string,
+    {
+      summary_rows: DailyAnalysisRow[]
+      detail_rows: DailyAnalysisDetailRow[]
+      currency: string
+      source_currency: string
+    }
+  >
+  currency: string
+  currency_note: string | null
+}
+
 type DetailDisplayRow = {
   row: DailyAnalysisDetailRow
   rowKey: string
@@ -944,16 +974,47 @@ export default function DailyAnalysisPage() {
       try {
         if (isAllProjects) {
           if (country === 'ALL') {
-            // 全部项目 + 全部国家 当前后端未支持聚合矩阵，回退到逐项目跨国家循环不在前端承担。
-            // 此处给出明确提示，避免静默错误。
-            notify({
-              type: 'error',
-              title: '暂不支持「全部项目 × 全部站点」',
-              message: '请先选定具体项目，再选择"全部站点"以查看跨国家汇总。',
+            // BLF-913：全部项目 × 全部国家 — 单次请求后端聚合端点（USD 基准）。
+            // 响应同时带 project_breakdown / country_breakdown 两种下钻；金额符号切 USD。
+            if (projects.length === 0) return
+            const allIds = projects.map((p) => String(p.id)).join(',')
+            const allSearch = new URLSearchParams({
+              project_ids: allIds,
+              start_date: startDate,
+              end_date: endDate,
+              ...(skipRedis && { no_cache: 'true' }),
             })
-            setData(null)
-            setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
-            setComparisonDetailRows(EMPTY_DETAIL_ROWS)
+            const allCompareSearch = previousRange
+              ? new URLSearchParams({
+                  project_ids: allIds,
+                  start_date: formatYMD(previousRange.from!),
+                  end_date: formatYMD(previousRange.to!),
+                })
+              : null
+
+            // BEL-423：分析数据走 2min 客户端缓存（重复 mount 0 请求）；
+            // "刷新数据"（skipRedis）force 跳过缓存。
+            const [payload, comparePayload] = await Promise.all([
+              fetchOpsJsonCached<DailyAnalysisAllProjectsCountriesResponse>(
+                `${API_BASE}/api/v1/daily-analysis/all-projects-countries?${allSearch.toString()}`,
+                { session, force: skipRedis, fallbackError: '销售数据加载失败' }
+              ),
+              allCompareSearch
+                ? fetchOpsJsonCached<DailyAnalysisAllProjectsCountriesResponse>(
+                    `${API_BASE}/api/v1/daily-analysis/all-projects-countries?${allCompareSearch.toString()}`,
+                    { session, force: skipRedis, fallbackError: '销售数据对比加载失败' }
+                  )
+                : Promise.resolve(null),
+            ])
+            if (requestId !== latestLoadRequestRef.current) return
+            setData({
+              console: payload.console,
+              summary_rows: payload.summary_rows,
+              detail_rows: payload.detail_rows,
+              available_dates: payload.available_dates,
+            })
+            setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
+            setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
             return
           }
           if (projects.length === 0) return
