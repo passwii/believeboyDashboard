@@ -75,14 +75,9 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
       <CardContent>
         {rows.length > 0 ? (
           <>
-            {/* BLF-909 阶段 B：末库存大数字 mono + term-text；单位标签 mono + uppercase + term-faint */}
             <div className="mb-2 flex items-baseline gap-1.5">
-              <span className="font-mono text-2xl font-semibold tabular-nums text-term-text">
-                {fmtNumPrecise(current)}
-              </span>
-              <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-term-faint">
-                件 · 区间末快照
-              </span>
+              <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
+              <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
             </div>
             <AreaChartCard
               data={rows}
