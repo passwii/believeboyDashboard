@@ -53,6 +53,10 @@ vi.mock('@/components/dashboard-v2/v2-traffic-chart', () => ({
   V2TrafficChart: () => <div data-testid="v2-traffic-chart" />,
 }))
 
+vi.mock('@/components/dashboard-v2/v2-order-flow-panel', () => ({
+  V2OrderFlowPanel: () => <div data-testid="v2-order-flow-panel" />,
+}))
+
 // 头部刷新/插槽在测试环境下无 Provider；mock 成 no-op 与项目惯例一致
 // （参考 finance/platform-revenue / operations/inventory-* 等页面测试）。
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
@@ -145,6 +149,11 @@ describe('DashboardV2Page', () => {
     expect(screen.queryByLabelText('刷新数据')).not.toBeInTheDocument()
     // 数据区间徽标改为 head 渲染（mock 下内联进页面）
     expect(screen.getByText('数据区间')).toBeInTheDocument()
+  })
+
+  it('渲染右侧订单流面板（BLF-926）', async () => {
+    render(<DashboardV2Page />)
+    expect(await screen.findByTestId('v2-order-flow-panel')).toBeInTheDocument()
   })
 
   it('渲染真实业务区块（项目排行 标题 + 四个图表占位）', async () => {

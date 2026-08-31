@@ -16,6 +16,7 @@ import { V2Card } from '@/components/dashboard-v2/v2-card'
 import { V2Grid } from '@/components/dashboard-v2/v2-grid'
 import { V2Stats } from '@/components/dashboard-v2/v2-stats'
 import { V2TopProjects } from '@/components/dashboard-v2/v2-top-projects'
+import { V2OrderFlowPanel } from '@/components/dashboard-v2/v2-order-flow-panel'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
@@ -432,51 +433,63 @@ export default function DashboardV2Page() {
       {/* BLF-826 阶段 C：项目过滤 + 数据区间徽标已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
 
-      <V2Grid>
-        {hasData || anyLoading ? (
-          <>
-            <V2Stats currentRows={currentRows} comparisonRows={comparisonRows} loading={anyLoading} />
-            <LazyV2RevenueChart currentRows={currentRows} comparisonRows={comparisonRows} />
-            <LazyV2ChannelChart currentRows={currentRows} comparisonRows={comparisonRows} />
-            <LazyV2ProjectChart
+      {/* BLF-926：主区（flex-1）+ 右侧订单流面板（lg 显示，默认折叠窄条 / 展开 320px） */}
+      <div className="flex items-stretch gap-px">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <V2Grid>
+            {hasData || anyLoading ? (
+              <>
+                <V2Stats currentRows={currentRows} comparisonRows={comparisonRows} loading={anyLoading} />
+                <LazyV2RevenueChart currentRows={currentRows} comparisonRows={comparisonRows} />
+                <LazyV2ChannelChart currentRows={currentRows} comparisonRows={comparisonRows} />
+                <LazyV2ProjectChart
+                  projectBreakdown={projectBreakdown}
+                  projects={projects}
+                  loading={anyLoading}
+                />
+                <LazyV2CountryChart
+                  countryRowsByCode={countryRowsByCode}
+                  representativeProjectName={representativeProjectName}
+                  loading={countriesLoading}
+                />
+                <LazyV2StockChart currentRows={currentRows} comparisonRows={comparisonRows} loading={dataLoading} />
+                <LazyV2TrafficChart currentRows={currentRows} loading={dataLoading} />
+              </>
+            ) : (
+              <V2Card className="col-span-full gap-0">
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
+                  <span>暂无销售数据</span>
+                  <button
+                    type="button"
+                    onClick={() => void loadData()}
+                    className="border border-term-border px-3 py-1 text-xs text-term-muted transition-colors hover:text-term-text"
+                  >
+                    重试
+                  </button>
+                </div>
+              </V2Card>
+            )}
+            <V2TopProjects
               projectBreakdown={projectBreakdown}
+              compareProjectBreakdown={compareProjectBreakdown}
               projects={projects}
               loading={anyLoading}
             />
-            <LazyV2CountryChart
-              countryRowsByCode={countryRowsByCode}
-              representativeProjectName={representativeProjectName}
-              loading={countriesLoading}
-            />
-            <LazyV2StockChart currentRows={currentRows} comparisonRows={comparisonRows} loading={dataLoading} />
-            <LazyV2TrafficChart currentRows={currentRows} loading={dataLoading} />
-          </>
-        ) : (
-          <V2Card className="col-span-full gap-0">
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
-              <span>暂无销售数据</span>
-              <button
-                type="button"
-                onClick={() => void loadData()}
-                className="border border-term-border px-3 py-1 text-xs text-term-muted transition-colors hover:text-term-text"
-              >
-                重试
-              </button>
-            </div>
-          </V2Card>
-        )}
-        <V2TopProjects
+          </V2Grid>
+
+          {/* Pattern A 高密度明细表：近 14 天销售数据（日环比着色 + 等宽数字） */}
+          <TermPanel title="近 14 天明细" bodyClassName="overflow-hidden">
+            <DailyAnalysisTable rows={currentRows} loading={dataLoading && currentRows.length === 0} />
+          </TermPanel>
+        </div>
+
+        <V2OrderFlowPanel
+          currentRows={currentRows}
           projectBreakdown={projectBreakdown}
-          compareProjectBreakdown={compareProjectBreakdown}
           projects={projects}
           loading={anyLoading}
         />
-      </V2Grid>
-
-      {/* Pattern A 高密度明细表：近 14 天销售数据（日环比着色 + 等宽数字） */}
-      <TermPanel title="近 14 天明细" bodyClassName="overflow-hidden">
-        <DailyAnalysisTable rows={currentRows} loading={dataLoading && currentRows.length === 0} />
-      </TermPanel>
+      </div>
     </div>
   )
 }
