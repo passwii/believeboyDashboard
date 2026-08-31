@@ -54,7 +54,15 @@ def get_daily_analysis(
 
 @router.get("/daily-analysis/all", response_model=DailyAnalysisAllProjectsResponse)
 def get_daily_analysis_all(
-    project_ids: Annotated[str, Query(description="comma-separated project IDs")],
+    project_ids: Annotated[
+        str,
+        Query(
+            description=(
+                "comma-separated project IDs, or 'all' for the caller's "
+                "visible active projects (admin sees every active project)"
+            )
+        ),
+    ],
     start_date: Annotated[str, Query(min_length=10, max_length=10)],
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
@@ -63,28 +71,56 @@ def get_daily_analysis_all(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
-    try:
-        ids = [int(x.strip()) for x in project_ids.split(",") if x.strip()]
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="project_ids must be comma-separated integers",
-        )
-    if not ids:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="at least one project_id is required",
-        )
-
     normalized_operator = (operator or "").strip()
-    for pid in ids:
-        project_service.ensure_project_access(
+
+    if project_ids.strip().lower() == "all":
+        # BLF-915 跟进：首页顶栏 KPI / Footer 快报 hook 传 all 哨兵。
+        # 解析为调用者可见的活跃项目集 —— 与 /projects/manage 同一套
+        # operator 过滤（list_accessible_project_ids → list_project_items），
+        # 因此这里无需再逐个 ensure_project_access（可见集本身就是授权结果）。
+        accessible = project_service.list_accessible_project_ids(
             db,
-            pid,
             operator=normalized_operator,
             is_admin=bool(is_admin),
         )
+        if accessible is None:
+            # admin → None 表示"全部项目"：展开为全部活跃项目 id
+            # （与 /projects/manage 的 admin 列表同口径）。
+            ids = [
+                row.id
+                for row in project_service.list_project_items(
+                    db,
+                    operator=normalized_operator,
+                    is_admin=True,
+                )
+            ]
+        else:
+            ids = accessible
+    else:
+        try:
+            ids = [int(x.strip()) for x in project_ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="project_ids must be comma-separated integers",
+            )
+        if not ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="at least one project_id is required",
+            )
 
+        for pid in ids:
+            project_service.ensure_project_access(
+                db,
+                pid,
+                operator=normalized_operator,
+                is_admin=bool(is_admin),
+            )
+
+    # 可见项目集为空是合法状态（如 operator 名下无项目），照常走空聚合
+    # 而不是 422 —— hook 拿到 200 才能正常显示 0 而非一直 --。
+    # build_daily_analysis_all_projects 对空 project_ids 自然返回空响应。
     return build_daily_analysis_all_projects(
         db,
         project_ids=ids,

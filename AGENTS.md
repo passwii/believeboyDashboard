@@ -147,6 +147,15 @@ Tia 收到后按其把关流程处理（机器 4 项检查（Kilo 已 bypass） 
   1. 结束方必须写明：交付了什么、验证结果、下一步需要谁做什么；
   2. 接手方只从结果评论开始，不重做已交付部分；
   3. 明确"谁接手"（用 @mention 或子 issue 结构），不要只说"请后续推进"。
+## 完成后必须主动提交 PR（Yawei 要求，2026-08-27，BLF-878）
+
+**铁律：做完 issue 就主动提 PR，绝不等用户提醒。**
+
+1. **判断「完成」即进入提 PR 流程**：本地改动可提交、测试/构建按需通过（前端 `pnpm lint` / `pnpm build` / `pnpm test`，后端 `pytest`，含迁移则 `check_alembic.py`）→ 立即 `git add` → `git commit`（author `jr.way123@gmail.com / DamonRock`，中文 Conventional Commits + `Closes BLF-XXX`）→ `git push` → `gh pr create`（标题含 `Closes BLF-XXX`，正文写清变更/验证/风险/关联 issue）。
+2. **分支与推送**：在 `agent/seth/<id>` 分支上提交；推送前自检 BEL-153（author email）、无 TODO/console.log、无未格式化。
+3. **PR 后必做三件套**：在 issue 评论一次写全 PR URL + PR 号 + head SHA + 关联 issue、风险等级 `[risk:normal|high]`、`[@代码质量工程师 Tia](mention://agent/d64098c0-685d-43d0-a6b7-a39881e6c135)` 交棒。
+4. **例外才不提**：仅当用户明确说“先不提 PR / 仅本地验证”时可暂缓，否则一律默认提交。
+5. **自检失败不掩盖**：若 lint/build/test 未过，先修复再提 PR，不要以“待用户提醒再提”拖延。
 
 ## Requesting User
 
