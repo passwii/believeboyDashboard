@@ -76,6 +76,8 @@ export const TERMINAL_TICKER = {
     uploadStatus: true,
     /** 数据新鲜度：关键报表最新数据日期（数据至 MM-DD），随快报响应透出 */
     dataFreshness: true,
+    /** 告警事件：全局 active 告警计数（totalActive>0 才渲染），分级着色 */
+    alertEvents: true,
   },
 } as const
 

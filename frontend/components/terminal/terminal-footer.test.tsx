@@ -28,10 +28,30 @@ vi.mock('@/lib/hooks/use-report-upload-status', () => ({
   useReportUploadStatus: uploadMock,
 }))
 
+const { alertStatsMock } = vi.hoisted(() => ({ alertStatsMock: vi.fn() }))
+vi.mock('@/lib/hooks/use-alert-stats', () => ({
+  useAlertStats: alertStatsMock,
+}))
+
+const { presenceMock } = vi.hoisted(() => ({ presenceMock: vi.fn() }))
+vi.mock('@/lib/hooks/use-presence-count', () => ({
+  usePresenceCount: presenceMock,
+}))
+
 // 默认：库存预警频道加载中（不渲染具体数字），保证其余用例不被影响
 alertMock.mockReturnValue({ count: null, status: 'loading' })
 // 默认：报表上传完成度加载中（频道不渲染），保证其余用例不被影响
 uploadMock.mockReturnValue({ uploaded: null, total: null, missing: null, status: 'loading' })
+// 默认：告警统计加载中（频道不渲染）
+alertStatsMock.mockReturnValue({
+  totalActive: null,
+  criticalCount: null,
+  warningCount: null,
+  severity: 'none',
+  status: 'loading',
+})
+// 默认：在线人数加载中（右侧不显示）
+presenceMock.mockReturnValue({ online: null, status: 'loading' })
 
 function mockAlert(count: number | null, status: 'loading' | 'ok' | 'error' = 'ok') {
   alertMock.mockReturnValue({ count, status })
@@ -44,6 +64,22 @@ function mockUpload(
   uploadMock.mockReturnValue({ ...counts, status })
 }
 
+function mockAlertStats(
+  summary: {
+    totalActive: number | null
+    criticalCount: number | null
+    warningCount: number | null
+    severity: 'critical' | 'warning' | 'none'
+  },
+  status: 'loading' | 'ok' | 'error' = 'ok'
+) {
+  alertStatsMock.mockReturnValue({ ...summary, status })
+}
+
+function mockPresence(online: number | null, status: 'loading' | 'ok' | 'error' = 'ok') {
+  presenceMock.mockReturnValue({ online, status })
+}
+
 afterEach(() => {
   cleanup()
   tickerMock.mockReset()
@@ -53,6 +89,16 @@ afterEach(() => {
   uploadMock
     .mockReset()
     .mockReturnValue({ uploaded: null, total: null, missing: null, status: 'loading' })
+  alertStatsMock
+    .mockReset()
+    .mockReturnValue({
+      totalActive: null,
+      criticalCount: null,
+      warningCount: null,
+      severity: 'none',
+      status: 'loading',
+    })
+  presenceMock.mockReset().mockReturnValue({ online: null, status: 'loading' })
 })
 
 function mockTicker(
@@ -355,6 +401,82 @@ describe('TerminalFooter', () => {
       expect(screen.queryByText('库存预警')).toBeNull()
     } finally {
       channels.inventoryAlert = prev
+    }
+  })
+})
+
+describe('TerminalFooter BLF-922 Stage 3：告警事件频道 + 在线人数', () => {
+  it('告警 totalActive 5 / critical 2 → 「告警 5」text-term-neg（双拷贝）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlertStats({ totalActive: 5, criticalCount: 2, warningCount: 3, severity: 'critical' })
+    render(<TerminalFooter />)
+    // 数字与 label 分 span 渲染，用 textContent 匹配（BLF-832 A5 数字 mono）
+    const alertEls = screen.getAllByText((_, el) => el?.textContent === '告警 5')
+    expect(alertEls.length).toBeGreaterThan(0)
+    for (const el of alertEls) {
+      expect(el.className).toContain('text-term-neg')
+    }
+  })
+
+  it('告警 totalActive 3 / critical 0（仅 warning）→ text-term-warn', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlertStats({ totalActive: 3, criticalCount: 0, warningCount: 3, severity: 'warning' })
+    render(<TerminalFooter />)
+    const alertEls = screen.getAllByText((_, el) => el?.textContent === '告警 3')
+    expect(alertEls.length).toBeGreaterThan(0)
+    for (const el of alertEls) {
+      expect(el.className).toContain('text-term-warn')
+      expect(el.className).not.toContain('text-term-neg')
+    }
+  })
+
+  it('告警 totalActive 0 → 频道不渲染', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlertStats({ totalActive: 0, criticalCount: 0, warningCount: 0, severity: 'none' })
+    render(<TerminalFooter />)
+    expect(screen.queryByText(/告警/)).toBeNull()
+  })
+
+  it('告警 hook error → 频道降级隐藏不崩溃', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockAlertStats({ totalActive: null, criticalCount: null, warningCount: null, severity: 'none' }, 'error')
+    render(<TerminalFooter />)
+    expect(screen.getByTestId('terminal-footer')).toBeInTheDocument()
+    expect(screen.queryByText(/告警/)).toBeNull()
+  })
+
+  it('在线人数 online 4 → 右侧出现「4 人在线」', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockPresence(4, 'ok')
+    render(<TerminalFooter />)
+    expect(screen.getAllByText((_, el) => el?.textContent === '4 人在线').length).toBeGreaterThan(0)
+  })
+
+  it('在线人数 online null（加载中/失败）→ 右侧不显示', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    mockPresence(null, 'loading')
+    render(<TerminalFooter />)
+    expect(screen.queryByText(/人在线/)).toBeNull()
+  })
+
+  it('channels.alertEvents = false → 契约断言不渲染（BLF-840 范式）', () => {
+    const channels = TERMINAL_TICKER.channels as Record<string, boolean>
+    const prev = { ...channels }
+    channels.alertEvents = false
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+      mockAlertStats({ totalActive: 5, criticalCount: 2, warningCount: 3, severity: 'critical' })
+      render(<TerminalFooter />)
+      expect(screen.queryByText(/告警/)).toBeNull()
+    } finally {
+      Object.assign(channels, prev)
     }
   })
 })

@@ -6,6 +6,8 @@ import { Bell } from 'lucide-react'
 import { useExchangeRateTicker } from '@/lib/hooks/use-exchange-rate-ticker'
 import { useDailyBrief } from '@/lib/hooks/use-daily-brief'
 import { useReportUploadStatus } from '@/lib/hooks/use-report-upload-status'
+import { useAlertStats } from '@/lib/hooks/use-alert-stats'
+import { usePresenceCount } from '@/lib/hooks/use-presence-count'
 import { useInventoryAlert } from '@/lib/hooks/use-inventory-alert'
 import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import {
@@ -48,7 +50,7 @@ function changeColorClass(changePct: number | null): string {
 /**
  * Global Footer 系统状态栏（固定 36px，BLF-887 高度上档 2026-08-29）：
  * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 报表上传完成度 · 数据新鲜度
- * · 库存预警 · 数据更新时间 · 更新日志摘要） · 同步引擎状态 · 未读通知 · 双时区时钟。
+ * · 告警事件 · 库存预警 · 数据更新时间 · 更新日志摘要） · 同步引擎状态 · 未读通知 · 在线人数 · 双时区时钟。
  * 各段以 1px 竖分隔线切分；移动端隐藏（<sm）。
  */
 export function TerminalFooter() {
@@ -56,6 +58,8 @@ export function TerminalFooter() {
   const { brief, status: briefStatus } = useDailyBrief()
   const inventoryAlert = useInventoryAlert()
   const uploadStatus = useReportUploadStatus()
+  const alertStats = useAlertStats()
+  const { online } = usePresenceCount()
   const { unreadCount } = useServerNotifications()
 
   // 时钟仅在客户端挂载后渲染，避免 SSR 水合不一致
@@ -229,6 +233,31 @@ export function TerminalFooter() {
       }
     }
 
+    if (TERMINAL_TICKER.channels.alertEvents) {
+      const alertReady = alertStats.status === 'ok'
+      const totalActive = alertStats.totalActive
+      const hasActive = alertReady && totalActive != null && totalActive > 0
+      if (hasActive) {
+        const severityClass =
+          alertStats.severity === 'critical'
+            ? 'text-term-neg'
+            : alertStats.severity === 'warning'
+              ? 'text-term-warn'
+              : 'text-term-faint'
+        items.push(
+          <span
+            key={`alert-events-${key++}`}
+            className={cn('flex shrink-0 items-center', severityClass)}
+          >
+            <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">
+              告警
+            </span>{' '}
+            <span className="font-mono tabular-nums">{totalActive}</span>
+          </span>
+        )
+      }
+    }
+
     if (TERMINAL_TICKER.channels.inventoryAlert) {
       const alertReady = inventoryAlert.status === 'ok'
       const alertCount = inventoryAlert.count
@@ -252,7 +281,7 @@ export function TerminalFooter() {
     }
 
     return items
-  }, [ticks, brief, briefStatus, lastSyncLabel, changelog, inventoryAlert, uploadStatus])
+  }, [ticks, brief, briefStatus, lastSyncLabel, changelog, inventoryAlert, uploadStatus, alertStats])
 
   // 频道间分隔符 + 双拷贝（无缝 marquee）
   const tickerContent = (copy: number) => (
@@ -356,6 +385,14 @@ export function TerminalFooter() {
         <div className="flex shrink-0 items-center gap-1 border-l border-term-border px-3 text-term-text">
           <Bell className="h-3.5 w-3.5" />
           <span className="font-mono tabular-nums">{unreadCount}</span>
+        </div>
+      )}
+
+      {/* 在线人数（lg 起与时钟同区；观察者只读，不发 heartbeat） */}
+      {online != null && (
+        <div className="hidden shrink-0 items-center gap-1 border-l border-term-border px-3 text-term-text lg:flex">
+          <span className="font-mono tabular-nums">{online}</span>
+          <span> 人在线</span>
         </div>
       )}
 
