@@ -257,6 +257,7 @@ export function UploadZone({
         type="file"
         accept={accept}
         onChange={handleInputChange}
+        className="hidden"
       />
     </div>
   )
