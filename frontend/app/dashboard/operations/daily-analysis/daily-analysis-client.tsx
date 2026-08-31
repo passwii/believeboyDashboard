@@ -134,6 +134,7 @@ type ProjectSkuOption = {
   carton_width_cm: number | null
   carton_height_cm: number | null
   carton_weight_kg: number | null
+  is_active: boolean
 }
 
 type DailyAnalysisResponse = {
@@ -1199,9 +1200,11 @@ export default function DailyAnalysisPage() {
         let hasNextPage = true
 
         while (hasNextPage) {
+          // BLF-917：仅加载激活 SKU，下拉与表格都按 is_active 过滤。
           const params = new URLSearchParams({
             project_name: projectName,
             country: countryValue,
+            is_active: 'true',
             page: String(nextPage),
             page_size: '200',
           })
@@ -1222,6 +1225,7 @@ export default function DailyAnalysisPage() {
               carton_width_cm: number | null
               carton_height_cm: number | null
               carton_weight_kg: number | null
+              is_active: boolean
             }>
             has_next: boolean
           }
@@ -1236,12 +1240,12 @@ export default function DailyAnalysisPage() {
               carton_width_cm: item.carton_width_cm,
               carton_height_cm: item.carton_height_cm,
               carton_weight_kg: item.carton_weight_kg,
+              is_active: item.is_active,
             }))
           )
           hasNextPage = payload.has_next
           nextPage += 1
         }
-
         setSkuOptions(allItems)
       } catch (loadError) {
         setSkuOptions([])
@@ -1334,10 +1338,20 @@ export default function DailyAnalysisPage() {
     () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
     [rawSummaryRows, granularity]
   )
-  const detailRows = useMemo(
-    () => (granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows),
-    [rawDetailRows, granularity]
-  )
+  // BLF-917：SKU 明细 Tab 按 SKU info 的 is_active 过滤；activeSkuMap 来自 skuOptions。
+  // 未拉取（skuOptions 仍空且不在加载中）时不强行过滤，避免首屏空白。
+  const activeSkuMap = useMemo<Record<string, true> | null>(() => {
+    if (skuOptions.length === 0) return null
+    const map: Record<string, true> = {}
+    for (const option of skuOptions) map[option.sku] = true
+    return map
+  }, [skuOptions])
+  const detailRows = useMemo(() => {
+    const bucketed =
+      granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
+    if (!activeSkuMap) return bucketed
+    return bucketed.filter((row) => activeSkuMap[row.sku] === true)
+  }, [rawDetailRows, granularity, activeSkuMap])
   const comparisonSummaryRows = useMemo(
     () =>
       granularity === 'monthly'
@@ -1345,12 +1359,17 @@ export default function DailyAnalysisPage() {
         : rawComparisonSummaryRows,
     [rawComparisonSummaryRows, granularity]
   )
+  // BLF-917：比较期明细同样只保留当前激活的 SKU，避免对比图混入历史 SKU。
   const comparisonDetailRows = useMemo(
-    () =>
-      granularity === 'monthly'
-        ? bucketDetailByMonth(rawComparisonDetailRows)
-        : rawComparisonDetailRows,
-    [rawComparisonDetailRows, granularity]
+    () => {
+      const bucketed =
+        granularity === 'monthly'
+          ? bucketDetailByMonth(rawComparisonDetailRows)
+          : rawComparisonDetailRows
+      if (!activeSkuMap) return bucketed
+      return bucketed.filter((row) => activeSkuMap[row.sku] === true)
+    },
+    [rawComparisonDetailRows, granularity, activeSkuMap]
   )
   const consoleData = data?.console ?? null
 
