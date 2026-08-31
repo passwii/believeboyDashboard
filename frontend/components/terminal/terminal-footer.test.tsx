@@ -57,9 +57,86 @@ function mockTicker(
   unreadMock.mockReturnValue({ unreadCount: 2 })
 }
 
-function mockBrief(brief: { gmv: number | null; orders: number | null; pending: number | null }, status: 'ok' | 'error' = 'ok') {
-  briefMock.mockReturnValue({ brief, status })
+function mockBrief(
+  brief: Partial<{
+    gmv: number | null
+    orders: number | null
+    pending: number | null
+    adSpend: number | null
+    adOrders: number | null
+    gmvDoD: number | null
+    gmvWoW: number | null
+    ordersDoD: number | null
+    ordersWoW: number | null
+  }>,
+  status: 'ok' | 'error' = 'ok'
+) {
+  briefMock.mockReturnValue({
+    brief: {
+      gmv: null,
+      orders: null,
+      pending: null,
+      adSpend: null,
+      adOrders: null,
+      gmvDoD: null,
+      gmvWoW: null,
+      ordersDoD: null,
+      ordersWoW: null,
+      ...brief,
+    },
+    status,
+  })
 }
+
+describe('TerminalFooter BLF-920 Stage 1：快报环比与广告数字', () => {
+  it('GMV/订单渲染 DoD 环比箭头着色（▲绿/▼红）+ WoW 周环比 + 广告数字', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({
+      gmv: 12345,
+      orders: 42,
+      pending: 3,
+      adSpend: 80,
+      adOrders: 5,
+      gmvDoD: 20,
+      gmvWoW: 9.09,
+      ordersDoD: -5,
+      ordersWoW: null,
+    })
+    render(<TerminalFooter />)
+    // GMV 环比：▲20%（涨绿）
+    const gmvUp = screen.getAllByText('▲20%')
+    expect(gmvUp.length).toBeGreaterThan(0)
+    expect(gmvUp[0].className).toContain('text-term-pos')
+    // 订单环比：▼5%（跌红）
+    const ordersDown = screen.getAllByText('▼5%')
+    expect(ordersDown.length).toBeGreaterThan(0)
+    expect(ordersDown[0].className).toContain('text-term-neg')
+    // WoW 周环比带「周」标记；ordersWoW null → 「—」
+    const gmvWow = screen.getAllByText('周▲9%')
+    expect(gmvWow.length).toBeGreaterThan(0)
+    expect(gmvWow[0].className).toContain('text-term-pos')
+    const ordersWow = screen.getAllByText('周—')
+    expect(ordersWow.length).toBeGreaterThan(0)
+    expect(ordersWow[0].className).toContain('text-term-faint')
+    // 广告花费 + 广告订单
+    expect(screen.getAllByText('$80').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('5').length).toBeGreaterThan(0)
+    // 中文标签不 mono（BLF-832 A5）
+    for (const label of ['广告', '广告单']) {
+      const el = screen.getAllByText(label)[0]
+      expect(el.className).not.toContain('font-mono')
+    }
+  })
+
+  it('briefReady 为 false 时环比与广告全部 "--" 不崩溃', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: null, orders: null, pending: null }, 'error')
+    render(<TerminalFooter />)
+    expect(screen.getByTestId('terminal-footer')).toBeInTheDocument()
+    // 降级占位：全部数值 '--'（数量随字段增加，只断言存在）
+    expect(screen.getAllByText('--').length).toBeGreaterThan(0)
+  })
+})
 
 describe('TerminalFooter', () => {
   it('无数据时汇率与快报显示 "--" 占位且不报错', () => {

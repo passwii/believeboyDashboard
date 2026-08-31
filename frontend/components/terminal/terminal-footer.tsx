@@ -124,20 +124,49 @@ export function TerminalFooter() {
 
     if (TERMINAL_TICKER.channels.dailyBrief) {
       const briefReady = briefStatus === 'ok'
+      // 环比 span：DoD 紧跟数值（▲20%）；WoW 带「周」前缀（周▲9%）。
+      // changePct null（基数 0 / 无数据）或非 ready → '—' 灰。
+      const renderChange = (changePct: number | null, wow: boolean) => {
+        if (!briefReady) return <span className="font-mono tabular-nums text-term-faint">--</span>
+        const arrow = changePct == null ? '—' : changePct > 0 ? '▲' : changePct < 0 ? '▼' : '—'
+        const text =
+          changePct == null
+            ? '—'
+            : `${arrow}${Math.abs(changePct).toFixed(0)}%`
+        return (
+          <span
+            className={cn('ml-1 font-mono tabular-nums', changeColorClass(changePct))}
+          >
+            {wow ? `周${text}` : text}
+          </span>
+        )
+      }
       items.push(
         <span key={`brief-${key++}`} className="flex shrink-0 items-center">
           <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">快报</span>
           <span className="text-term-faint">GMV</span>
-          <span className={cn('ml-1 mr-3 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.gmv != null ? formatMoney(brief.gmv) : '--'}
           </span>
-          <span className="text-term-faint">订单</span>
-          <span className={cn('ml-1 mr-3 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+          {renderChange(brief.gmvDoD, false)}
+          {renderChange(brief.gmvWoW, true)}
+          <span className="ml-3 text-term-faint">订单</span>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.orders != null ? brief.orders : '--'}
           </span>
-          <span className="text-term-faint">Pending</span>
+          {renderChange(brief.ordersDoD, false)}
+          {renderChange(brief.ordersWoW, true)}
+          <span className="ml-3 text-term-faint">Pending</span>
           <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.pending != null ? brief.pending : '--'}
+          </span>
+          <span className="ml-3 text-term-faint">广告</span>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+            {briefReady && brief.adSpend != null ? formatMoney(brief.adSpend) : '--'}
+          </span>
+          <span className="ml-3 text-term-faint">广告单</span>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+            {briefReady && brief.adOrders != null ? brief.adOrders : '--'}
           </span>
         </span>
       )
