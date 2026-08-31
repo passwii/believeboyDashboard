@@ -34,6 +34,8 @@ export type DailyBrief = {
   ordersDoD: number | null
   /** 订单环比 vs 上周同日（百分比；基数为 0 或无数据 → null） */
   ordersWoW: number | null
+  /** 关键报表最新数据日期（available_dates.sales_report[0]，YYYY-MM-DD；无 → null，BLF-921 数据新鲜度） */
+  latestSalesDate: string | null
 }
 
 export type DailyBriefStatus = 'loading' | 'ok' | 'error'
@@ -99,6 +101,7 @@ export function computeChangePct(
     ordersDoD: pct(today.orders, yesterday.orders),
     gmvWoW: pct(today.gmv, lastWeek.gmv),
     ordersWoW: pct(today.orders, lastWeek.orders),
+    latestSalesDate: null,
   }
 }
 
@@ -114,9 +117,21 @@ function shiftYMD(ymd: string, days: number): string {
   return shifted.toISOString().slice(0, 10)
 }
 
+/**
+ * 纯函数：从 daily-analysis 响应的 available_dates 提取最新销售数据日期。
+ * 仅取 sales_report[0]（后端已保证数组内唯一且为各项目最新最大值）；
+ * 缺失/空数组/非法响应 → null（数据新鲜度频道随之隐藏）。
+ */
+export function pickLatestSalesDate(
+  availableDates: Record<string, string[] | undefined> | null | undefined
+): string | null {
+  const dates = availableDates?.sales_report
+  return Array.isArray(dates) && dates.length > 0 ? dates[0] : null
+}
+
 const US_TIMEZONE = 'America/Los_Angeles'
 
-async function fetchDailyTotals(date: string): Promise<BriefTotals> {
+async function fetchDailyTotals(date: string): Promise<{ totals: BriefTotals; availableDates: Record<string, string[]> | undefined }> {
   const params = new URLSearchParams({
     project_ids: 'all',
     country: 'US',
@@ -127,8 +142,14 @@ async function fetchDailyTotals(date: string): Promise<BriefTotals> {
     cache: 'no-store',
   })
   if (!response.ok) throw new Error(`daily-analysis ${response.status}`)
-  const payload = (await response.json()) as { summary_rows?: SummaryRow[] }
-  return reduceDailyBrief(Array.isArray(payload.summary_rows) ? payload.summary_rows : [])
+  const payload = (await response.json()) as {
+    summary_rows?: SummaryRow[]
+    available_dates?: Record<string, string[]>
+  }
+  return {
+    totals: reduceDailyBrief(Array.isArray(payload.summary_rows) ? payload.summary_rows : []),
+    availableDates: payload.available_dates,
+  }
 }
 
 export function useDailyBrief(): { brief: DailyBrief; status: DailyBriefStatus } {
@@ -142,22 +163,26 @@ export function useDailyBrief(): { brief: DailyBrief; status: DailyBriefStatus }
     gmvWoW: null,
     ordersDoD: null,
     ordersWoW: null,
+    latestSalesDate: null,
   })
   const [status, setStatus] = useState<DailyBriefStatus>('loading')
   const requestSeqRef = useRef(0)
-
   const load = useCallback(async () => {
     const seq = ++requestSeqRef.current
     try {
       // 三请求并发：今天 + 昨天 + 上周同日（同端点同参数，仅日期不同）
       const today = todayYMDinTimezone(US_TIMEZONE)
-      const [todayTotals, yesterdayTotals, lastWeekTotals] = await Promise.all([
+      const [todayResult, yesterdayTotals, lastWeekTotals] = await Promise.all([
         fetchDailyTotals(today),
         fetchDailyTotals(shiftYMD(today, -1)),
         fetchDailyTotals(shiftYMD(today, -7)),
       ])
       if (seq !== requestSeqRef.current) return
-      setBrief(computeChangePct(todayTotals, yesterdayTotals, lastWeekTotals))
+      // 数据新鲜度（BLF-921）：available_dates 随「今天」响应顺带透出，零额外请求
+      setBrief({
+        ...computeChangePct(todayResult.totals, yesterdayTotals.totals, lastWeekTotals.totals),
+        latestSalesDate: pickLatestSalesDate(todayResult.availableDates),
+      })
       setStatus('ok')
     } catch {
       if (seq !== requestSeqRef.current) return

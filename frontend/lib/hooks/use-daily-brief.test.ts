@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeChangePct, reduceDailyBrief } from './use-daily-brief'
+import { computeChangePct, pickLatestSalesDate, reduceDailyBrief } from './use-daily-brief'
 
 // 上周同日基线 fixture：gmv 1100 / orders 9（供 WoW 计算；DoD 用例中不参与比较）
 const lastWeekBase = { gmv: 1100, orders: 9, pending: 0, adSpend: 0, adOrders: 0 }
@@ -33,6 +33,20 @@ describe('reduceDailyBrief 广告字段求和（BLF-920 Stage 1）', () => {
     ])
     expect(brief.adSpend).toBe(100.5)
     expect(brief.adOrders).toBe(7)
+  })
+})
+
+describe('pickLatestSalesDate（BLF-921 Stage 2）', () => {
+  it('从 available_dates.sales_report 取最新销售数据日期', () => {
+    expect(
+      pickLatestSalesDate({ sales_report: ['2026-08-30'], inventory_report: ['2026-08-29'] })
+    ).toBe('2026-08-30')
+  })
+
+  it('缺 sales_report / 空数组 / null → null（频道降级隐藏）', () => {
+    expect(pickLatestSalesDate({ inventory_report: ['2026-08-29'] })).toBeNull()
+    expect(pickLatestSalesDate({ sales_report: [] })).toBeNull()
+    expect(pickLatestSalesDate(undefined)).toBeNull()
   })
 })
 
