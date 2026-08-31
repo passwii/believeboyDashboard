@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 function MetricTileSkeleton() {
   return (
-    <div className="rounded-none border border-term-border bg-term-panel p-5 backdrop-blur-sm">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-3 w-16" />
@@ -11,20 +11,20 @@ function MetricTileSkeleton() {
         </div>
         <Skeleton className="h-10 w-10 rounded-none" />
       </div>
-      <Skeleton className="mt-2 h-8 w-full rounded" />
+      <Skeleton className="mt-2 h-8 w-full rounded-none" />
     </div>
   )
 }
 
 function ChartSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-center justify-between pb-4">
         <div className="space-y-2">
           <Skeleton className="h-5 w-28" />
           <Skeleton className="h-3 w-36" />
         </div>
-        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-9 w-16 rounded-none" />
       </div>
       <div className="flex gap-3 pb-4">
         <Skeleton className="h-14 w-40" />
@@ -37,7 +37,7 @@ function ChartSkeleton() {
 
 function StatusSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <Skeleton className="h-5 w-24" />
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -58,7 +58,7 @@ function StatusSkeleton() {
 
 function AlertWidgetSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <Skeleton className="h-5 w-20" />
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Skeleton className="h-16 w-full" />
@@ -76,7 +76,7 @@ function AlertWidgetSkeleton() {
 
 function HealthKpisSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-center justify-between pb-3">
         <div className="space-y-2">
           <Skeleton className="h-5 w-32" />
@@ -95,7 +95,7 @@ function HealthKpisSkeleton() {
 
 function TopProjectsSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-center justify-between pb-3">
         <div className="space-y-2">
           <Skeleton className="h-5 w-32" />
@@ -115,7 +115,7 @@ function TopProjectsSkeleton() {
 
 function TopCountriesSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-center justify-between pb-3">
         <div className="space-y-2">
           <Skeleton className="h-5 w-32" />
@@ -134,7 +134,7 @@ function TopCountriesSkeleton() {
 
 function AdSpendChartSkeleton() {
   return (
-    <div className="dashboard-surface p-5">
+    <div className="rounded-none border border-term-border bg-term-panel p-5">
       <div className="flex items-center justify-between pb-3">
         <div className="space-y-2">
           <Skeleton className="h-5 w-40" />
@@ -179,7 +179,7 @@ export function DashboardPageLoading() {
         <TopProjectsSkeleton />
       </div>
 
-      {/* Row 3: 跨国家 TOP + 销售 vs 广告花费(与 page.tsx Row 3 布局保持一致) */}
+      {/* Row 3: 跨国家 TOP + 销售 vs 广告花费(与 page.tsx Row 3 三列布局保持一致) */}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <TopCountriesSkeleton />
         <AdSpendChartSkeleton />

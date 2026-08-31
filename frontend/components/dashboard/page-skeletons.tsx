@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 /**
- * BEL-419 统一骨架屏模块。
+ * BEL-419 统一骨架屏模块（BLF-924 终端化适配）。
  *
  * 约定：
  * - 所有路由级 `loading.tsx` 一律使用本模块导出的组合骨架，禁止再直接复用
@@ -14,6 +14,12 @@ import { cn } from '@/lib/utils'
  * - 表格类页面（CRM / reports / finance / operations / system）→ `TablePageLoading`
  * - 分析类页面（advertising / operations / ad-analysis）→ `AnalyticsPageLoading`
  * - 卡片/hub 类页面（ai hub 等）→ `SimplePageLoading`
+ *
+ * 终端化规范（BLF-924）：
+ * - 控件高度：筛选条 h-10、工具条按钮 h-9、分页按钮 h-9
+ * - 面板容器：border border-term-border bg-term-panel rounded-none shadow-none
+ * - 字号：标题 text-sm font-semibold uppercase tracking-wider text-term-muted
+ * - 边框：统一 border-term-border，禁止 border-border/20 等非 term 变体
  */
 
 interface PageHeaderSkeletonProps {
@@ -26,13 +32,13 @@ export function PageHeaderSkeleton({ className }: PageHeaderSkeletonProps) {
       data-testid="page-skeleton-header"
       className={cn('flex items-center justify-between', className)}
     >
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-52" />
-        <Skeleton className="h-3 w-72" />
+      <div className="space-y-1.5">
+        <Skeleton className="h-8 w-52" />
+        <Skeleton className="h-4 w-72" />
       </div>
       <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-28 rounded-none" />
-        <Skeleton className="h-9 w-24 rounded-none" />
+        <Skeleton className="h-10 w-28 rounded-none" />
+        <Skeleton className="h-10 w-24 rounded-none" />
       </div>
     </div>
   )
@@ -51,9 +57,9 @@ export function FilterBarSkeleton({ count = 3, className }: FilterBarSkeletonPro
       className={cn('flex flex-wrap items-center gap-3', className)}
     >
       {Array.from({ length: count }).map((_, index) => (
-        <Skeleton key={index} className="h-9 w-40 rounded-none" />
+        <Skeleton key={index} className="h-10 w-40 rounded-none" />
       ))}
-      <Skeleton className="ml-auto h-9 w-24 rounded-none" />
+      <Skeleton className="ml-auto h-10 w-24 rounded-none" />
     </div>
   )
 }
@@ -106,29 +112,32 @@ export function DataTableSkeleton({
       className={cn('rounded-none border border-term-border bg-term-panel', className)}
     >
       {toolbar ? (
-        <div className="flex items-center justify-between border-b border-term-border px-4 py-3">
+        <div className="flex h-10 items-center justify-between border-b border-term-border px-4">
           <Skeleton className="h-4 w-32" />
           <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-44 rounded-none" />
-            <Skeleton className="h-8 w-20 rounded-none" />
+            <Skeleton className="h-9 w-44 rounded-none" />
+            <Skeleton className="h-9 w-20 rounded-none" />
           </div>
         </div>
       ) : null}
       <div className="space-y-0 p-4">
         <div className="grid grid-cols-6 gap-3 border-b border-term-border pb-3">
           {Array.from({ length: Math.min(columns, 6) }).map((_, index) => (
-            <Skeleton key={index} className="h-3 w-full max-w-24" />
+            <Skeleton key={index} className="h-3.5 w-full max-w-24" />
           ))}
         </div>
         {Array.from({ length: rows }).map((_, rowIndex) => (
           <div
             key={rowIndex}
-            className="grid grid-cols-6 items-center gap-3 border-b border-border/20 py-3 last:border-b-0"
+            className="grid grid-cols-6 items-center gap-3 border-b border-term-border py-3 last:border-b-0"
           >
             {Array.from({ length: Math.min(columns, 6) }).map((_, cellIndex) => (
               <Skeleton
                 key={cellIndex}
-                className={cn('h-4', cellIndex === 0 ? 'w-full max-w-32' : 'w-full max-w-20')}
+                className={cn(
+                  'h-3.5',
+                  cellIndex === 0 ? 'w-full max-w-32' : 'w-full max-w-20',
+                )}
               />
             ))}
           </div>
@@ -137,9 +146,9 @@ export function DataTableSkeleton({
       <div className="flex items-center justify-between px-4 pb-4">
         <Skeleton className="h-3 w-24" />
         <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-8 rounded-none" />
-          <Skeleton className="h-8 w-8 rounded-none" />
-          <Skeleton className="h-8 w-8 rounded-none" />
+          <Skeleton className="h-9 w-9 rounded-none" />
+          <Skeleton className="h-9 w-9 rounded-none" />
+          <Skeleton className="h-9 w-9 rounded-none" />
         </div>
       </div>
     </div>
@@ -164,8 +173,8 @@ export function ChartPanelSkeleton({ height = 'h-[280px]', className }: ChartPan
           <Skeleton className="h-3 w-44" />
         </div>
         <div className="flex gap-2">
-          <Skeleton className="h-8 w-16 rounded-none" />
-          <Skeleton className="h-8 w-16 rounded-none" />
+          <Skeleton className="h-9 w-16 rounded-none" />
+          <Skeleton className="h-9 w-16 rounded-none" />
         </div>
       </div>
       <Skeleton className={cn('w-full rounded-none', height)} />
@@ -198,7 +207,7 @@ export function CardListSkeleton({ count = 6, className }: CardListSkeletonProps
           <Skeleton className="h-3 w-4/5" />
           <div className="flex items-center justify-between pt-1">
             <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-8 w-20 rounded-none" />
+            <Skeleton className="h-9 w-20 rounded-none" />
           </div>
         </div>
       ))}
