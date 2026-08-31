@@ -125,6 +125,8 @@ export function LineChartCard({
   const isMobile = useMobile()
   const shouldShowLegend = showLegend ?? series.length > 1
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
+  /** 有 series 显式声明 yAxisId 时，左轴挂 'left' 供其命中；否则保持 recharts 默认轴 id (0) */
+  const hasExplicitYAxisId = series.some((s) => s.yAxisId != null)
 
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
@@ -138,16 +140,20 @@ export function LineChartCard({
         {!hideYAxis && !isMobile && (
           <YAxis
             {...defaultYAxisProps}
+            {...(hasExplicitYAxisId && { yAxisId: 'left' })}
             tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
           />
         )}
+
         {dualAxis && (
           <YAxis
             {...rightYAxisProps}
+            yAxisId="right"
             unit={rightYUnit}
             tickFormatter={(v) => (rightYFormatter ? rightYFormatter(Number(v)) : String(v))}
           />
         )}
+
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -470,6 +476,8 @@ export function ComposedChartCard({
   const isMobile = useMobile()
   const shouldShowLegend = showLegend ?? series.length > 1
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
+  /** 有 series 显式声明 yAxisId 时，左轴挂 'left' 供其命中；否则保持 recharts 默认轴 id (0) */
+  const hasExplicitYAxisId = series.some((s) => s.yAxisId != null)
 
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
@@ -483,12 +491,14 @@ export function ComposedChartCard({
         {!hideYAxis && !isMobile && (
           <YAxis
             {...defaultYAxisProps}
+            {...(hasExplicitYAxisId && { yAxisId: 'left' })}
             tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
           />
         )}
         {dualAxis && (
           <YAxis
             {...rightYAxisProps}
+            yAxisId="right"
             unit={rightYUnit}
             tickFormatter={(v) => (rightYFormatter ? rightYFormatter(Number(v)) : String(v))}
           />
