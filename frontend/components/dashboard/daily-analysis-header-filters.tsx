@@ -47,8 +47,8 @@ export type ProjectSkuOption = {
   carton_width_cm: number | null
   carton_height_cm: number | null
   carton_weight_kg: number | null
+  is_active: boolean
 }
-
 type SkuSearchFieldProps = {
   value: string
   options: ProjectSkuOption[]
