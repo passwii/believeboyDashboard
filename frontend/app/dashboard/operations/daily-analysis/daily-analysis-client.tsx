@@ -1277,6 +1277,14 @@ export default function DailyAnalysisPage() {
     void loadProjectSkus(projectId, country)
   }, [projectId, country, loadProjectSkus])
 
+  // BLF-925：切换到「SKU 明细」Tab 时确保 SKU 列表已加载——品名列依赖 skuOptions
+  // 查品名（BEL-423 懒加载只在打开 SKU 筛选器时拉取，直接进明细 Tab 会显示 --）。
+  useEffect(() => {
+    if (activeTab === 'details') {
+      ensureSkuOptions()
+    }
+  }, [activeTab, ensureSkuOptions])
+
   useEffect(() => {
     if (!projectId) return
     // 全部站点跨国家聚合时，SKU 按国家过滤无意义，清空选项。

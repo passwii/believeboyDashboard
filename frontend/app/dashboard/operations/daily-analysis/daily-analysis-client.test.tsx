@@ -263,3 +263,68 @@ describe('daily-analysis-client BLF-819/BLF-882 头部→页面绑定 effect（�
     expect(calls.loadData.every((c) => c.projectId === '42')).toBe(true)
   })
 })
+
+// ===== BLF-925：SKU 明细 Tab 品名列依赖 skuOptions —— 切换 Tab 必须触发 SKU 列表加载 =====
+// 镜像 daily-analysis-client.tsx 中 `ensureSkuOptions` 守卫（requestedRef 幂等 + projectId 守卫
+// + country=ALL 排除）与新增的「activeTab === 'details' → ensureSkuOptions()」effect 实现路径。
+
+describe('daily-analysis-client BLF-925 SKU 明细 Tab 触发 SKU 列表加载（源码镜像契约测试）', () => {
+  let loadSkuCalls: number
+  let skuOptionsRequestedRef: { current: boolean }
+
+  // 与源码一致的 ensureSkuOptions 镜像（含幂等 requestedRef + projectId/country 守卫）
+  const ensureSkuOptions = (pid: string, c: string) => {
+    if (skuOptionsRequestedRef.current) return
+    if (!pid || c === 'ALL') return
+    skuOptionsRequestedRef.current = true
+    loadSkuCalls += 1
+  }
+
+  // 与源码一致的 tab-switch effect 镜像
+  function TabEffectHarness({ tab, pid, c }: { tab: 'summary' | 'details'; pid: string; c: string }) {
+    useEffect(() => {
+      if (tab === 'details') {
+        ensureSkuOptions(pid, c)
+      }
+    }, [tab, pid, c])
+    return <div data-testid="tab-harness" />
+  }
+
+  beforeEach(() => {
+    loadSkuCalls = 0
+    skuOptionsRequestedRef = { current: false }
+  })
+
+  it('切到 SKU 明细 Tab 时触发 SKU 列表加载（品名列能查到品名）', () => {
+    const { rerender } = render(<TabEffectHarness tab="details" pid="1" c="US" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(1)
+
+    // 再切回再切回 → 幂等，不重复拉取
+    rerender(<TabEffectHarness tab="summary" pid="1" c="US" />)
+    rerender(<TabEffectHarness tab="details" pid="1" c="US" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(1)
+  })
+
+  it('一直停在汇总 Tab 时不会拉取 SKU 列表（保持 BEL-423 懒加载收益）', () => {
+    const { rerender } = render(<TabEffectHarness tab="summary" pid="1" c="US" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(0)
+    rerender(<TabEffectHarness tab="summary" pid="1" c="US" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(0)
+  })
+
+  it('项目/国家守卫：无项目或 country=ALL 时不拉取（与 ensureSkuOptions 守卫一致）', () => {
+    // 无项目
+    render(<TabEffectHarness tab="details" pid="" c="US" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(0)
+
+    // country=ALL（跨站点聚合，SKU 按国家过滤无意义）
+    render(<TabEffectHarness tab="details" pid="1" c="ALL" />)
+    act(() => {})
+    expect(loadSkuCalls).toBe(0)
+  })
+})
