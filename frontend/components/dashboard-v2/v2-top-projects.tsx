@@ -1,14 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Store } from 'lucide-react'
 
-import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -17,11 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { fmtMoneyPrecise, fmtNumPrecise, renderChangeIndicator } from '@/lib/dashboard-format'
 
-import { V2Card } from './v2-card'
+import { ChartCard } from '@/components/charts/chart-card'
 
 /** 与 v1 dashboard-top-projects 的 ProjectBreakdownEntry 对齐 —— 只声明本组件用到的字段 */
 export interface V2TopProjectRow {
@@ -116,84 +108,72 @@ export function V2TopProjects({
   )
 
   return (
-    <V2Card className="relative gap-0 col-span-2 lg:col-span-4">
-      <CardHeader className="border-b">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-1">
-            <CardTitle className="text-base">项目排行</CardTitle>
-            <CardDescription>各项目销售额与广告花费对比（近 7 天）</CardDescription>
-          </div>
-          <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-            {(
-              [
-                { key: 'sales' as const, label: '销售额' },
-                { key: 'ad_spend' as const, label: '广告花费' },
-              ]
-            ).map((tab) => (
-              <button
-                className={cn(
-                  'rounded px-2 py-1 text-xs transition-colors',
-                  sortKey === tab.key
-                    ? 'bg-blue-100 font-medium text-blue-700 dark:bg-[hsl(var(--surface-subtle))] dark:text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                key={tab.key}
-                onClick={() => setSortKey(tab.key)}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+    <ChartCard
+      title="项目排行"
+      description="各项目销售额与广告花费对比（近 7 天）"
+      className="col-span-2 lg:col-span-4"
+      actions={
+        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+          {(
+            [
+              { key: 'sales' as const, label: '销售额' },
+              { key: 'ad_spend' as const, label: '广告花费' },
+            ]
+          ).map((tab) => (
+            <button
+              className={cn(
+                'rounded px-2 py-1 text-xs transition-colors',
+                sortKey === tab.key
+                  ? 'bg-blue-100 font-medium text-blue-700 dark:bg-[hsl(var(--surface-subtle))] dark:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              key={tab.key}
+              onClick={() => setSortKey(tab.key)}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent className="px-0">
-        {loading && rows.length === 0 ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton className="h-9 w-full" key={i} />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-sm text-muted-foreground">
-            <Store className="h-5 w-5 opacity-50" />
-            <span>暂无项目数据</span>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="ps-6">项目</TableHead>
-                <TableHead className="text-right">销售额</TableHead>
-                <TableHead className="text-right">广告花费</TableHead>
-                <TableHead className="text-right">订单量</TableHead>
-                <TableHead className="pe-6 text-right">环比</TableHead>
+      }
+      loading={loading && rows.length === 0}
+      empty={rows.length === 0}
+      emptyText="暂无项目数据"
+    >
+      {rows.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="ps-6">项目</TableHead>
+              <TableHead className="text-right">销售额</TableHead>
+              <TableHead className="text-right">广告花费</TableHead>
+              <TableHead className="text-right">订单量</TableHead>
+              <TableHead className="pe-6 text-right">环比</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow className="h-12" key={row.projectId}>
+                <TableCell className="max-w-40 truncate ps-6 font-medium">
+                  {row.projectName}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {fmtMoneyPrecise(row.totalSales)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {fmtMoneyPrecise(row.totalAdSpend)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {fmtNumPrecise(row.totalOrders)}
+                </TableCell>
+                <TableCell className="pe-6 text-right">
+                  {renderChangeIndicator(row.change)}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow className="h-12" key={row.projectId}>
-                  <TableCell className="max-w-40 truncate ps-6 font-medium">
-                    {row.projectName}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMoneyPrecise(row.totalSales)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {fmtMoneyPrecise(row.totalAdSpend)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {fmtNumPrecise(row.totalOrders)}
-                  </TableCell>
-                  <TableCell className="pe-6 text-right">
-                    {renderChangeIndicator(row.change)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </V2Card>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </ChartCard>
   )
 }
