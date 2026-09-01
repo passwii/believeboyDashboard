@@ -7,8 +7,13 @@ import dynamic from 'next/dynamic'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
+  MobileFilterStrip,
+  MobileFilterWide,
+} from '@/components/terminal/mobile-filter-strip'
+import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { DailyAnalysisTable } from '@/components/terminal/daily-analysis-table'
 import { TermPanel } from '@/components/terminal/term-panel'
@@ -28,7 +33,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
 // 骨架与正式卡（V2Card gap-0 + md:col-span-2）同构：BLF-504 修复加载骨架与正式卡不一致
@@ -375,42 +379,61 @@ export default function DashboardV2Page() {
   }
   useHeaderRefresh(() => refreshRef.current(), { loading: dataLoading || projectsLoading })
 
-  const isMobile = useIsMobile()
-
-  // 筛选控件 + 数据区间徽标 portal 进 Top Header 中段插槽；
-  // 刷新走 head 全局按钮（BLF-826 / BLF-881），页面不再渲染独立刷新控件。
-  const filterControls = (
-    <>
-      <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 md:w-[180px] [&>span]:truncate">
-          <SelectValue placeholder="选择项目" />
-        </SelectTrigger>
-        <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-          <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
-            全部项目
+  // 项目选择（桌面 / 移动端共用同一受控状态，联动一致）
+  const projectSelect = (
+    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 md:w-[180px] [&>span]:truncate">
+        <SelectValue placeholder="选择项目" />
+      </SelectTrigger>
+      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+        <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
+          全部项目
+        </SelectItem>
+        {projects.map((p) => (
+          <SelectItem
+            key={p.id}
+            value={String(p.id)}
+            className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+          >
+            {p.name}
           </SelectItem>
-          {projects.map((p) => (
-            <SelectItem
-              key={p.id}
-              value={String(p.id)}
-              className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-            >
-              {p.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {/* 数据区间徽标：固定 7 天窗口，标注口径，非筛选控件 */}
-      <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
-        <span className="font-mono text-xs uppercase tracking-wider text-term-faint">数据区间</span>
-        <span className="truncate font-mono text-xs tabular-nums text-term-text">
-          {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
-        </span>
-      </div>
-    </>
+        ))}
+      </SelectContent>
+    </Select>
   )
+
+  // 数据区间徽标：固定 7 天窗口，标注口径，非筛选控件
+  const dateRangeBadge = (className = '') => (
+    <div
+      className={`flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2 ${className}`}
+    >
+      <span className="font-mono text-xs uppercase tracking-wider text-term-faint">数据区间</span>
+      <span className="truncate font-mono text-xs tabular-nums text-term-text">
+        {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
+      </span>
+    </div>
+  )
+
+  // 筛选控件 + 数据区间徽标 portal 进 Top Header 中段插槽（桌面端）；
+  // 刷新走 head 全局按钮（BLF-826 / BLF-881），页面不再渲染独立刷新控件。
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={<>{projectSelect}{dateRangeBadge()}</>} />
+  )
+
+  // BLF-930 · 移动端：筛选控件下迁为正文顶部可折叠筛选条。
+  // 摘要 = 当前项目名 · 日期范围；展开态 grid-cols-2：项目 Select 占 1/2，
+  // 数据区间徽标（宽）用 MobileFilterWide 占整行。
+  const mobileFilterSummary = `${selectedProjectId === ALL_PROJECTS ? '全部项目' : (projects.find((p) => String(p.id) === selectedProjectId)?.name ?? '')} · ${formatYMD(dateRange.from)} → ${formatYMD(dateRange.to)}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          {projectSelect}
+          <MobileFilterWide>{dateRangeBadge('w-full')}</MobileFilterWide>
+        </>
+      }
+    />
   )
 
   if (status === 'loading') {
@@ -432,6 +455,8 @@ export default function DashboardV2Page() {
     <div className="flex flex-col gap-2">
       {/* BLF-826 阶段 C：项目过滤 + 数据区间徽标已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-930：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* BLF-926：主区（flex-1）+ 右侧订单流面板（lg 显示，默认折叠窄条 / 展开 320px） */}
       <div className="flex items-stretch gap-px">

@@ -57,6 +57,8 @@ type SkuSearchFieldProps = {
   disabled?: boolean
   /** 打开选择器时回调（父级据此懒加载 SKU 列表）。 */
   onOpen?: () => void
+  /** 宽度类覆盖：默认 TERM_HEADER_W_LG（w-[200px]）；移动端折叠条内传 w-full。 */
+  widthClass?: string
 }
 
 /**
@@ -71,6 +73,7 @@ export function SkuSearchField({
   onChange,
   disabled = false,
   onOpen,
+  widthClass = TERM_HEADER_W_LG,
 }: SkuSearchFieldProps) {
   const [open, setOpen] = React.useState(false)
   const selectedSku = options.find((option) => option.sku === value)
@@ -90,7 +93,7 @@ export function SkuSearchField({
           title="搜索并选择 SKU（清空即恢复全部 SKU）"
           className={cn(
             TERM_HEADER_TRIGGER,
-            TERM_HEADER_W_LG,
+            widthClass,
             'justify-between px-2 font-mono font-normal shadow-none',
             disabled && 'cursor-not-allowed opacity-50'
           )}

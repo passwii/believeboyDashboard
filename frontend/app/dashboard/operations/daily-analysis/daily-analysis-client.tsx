@@ -19,11 +19,18 @@ import {
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
 } from '@/components/ui/data-card'
-import { COUNTRY_TIMEZONE_MAP, parseDateInputValue } from '@/components/ui/date-picker'
+import { COUNTRY_TIMEZONE_MAP, DateRangePicker, parseDateInputValue } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
 import {
@@ -47,9 +54,11 @@ import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import {
   addMonths,
@@ -1627,12 +1636,108 @@ export default function DailyAnalysisPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={headerFilterControls} />
+    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
+  )
+
+  // BLF-930 · 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，宽控件 col-span-2）。
+  // 摘要 = 当前项目名 · 站点 · 日期范围；展开态 grid-cols-2 完整四件套（项目/站点/日期/SKU）。
+  // 数据经 props 与页面共享真相源：与 xl+ 全局四件套 / md~xl 降级三件套完全一致，联动天然同步。
+  const mobileProjectLabel =
+    projectId === 'all'
+      ? '全部项目'
+      : (projects.find((p) => String(p.id) === projectId)?.name ?? '')
+  const mobileCountryLabel =
+    country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileDateLabel =
+    dateRange?.from && dateRange?.to
+      ? `${formatYMD(dateRange.from)} ~ ${formatYMD(dateRange.to)}`
+      : '未选日期'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
+
+  const mobileProjectSelect = (
+    <Select value={projectId} onValueChange={setProjectId}>
+      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 [&>span]:truncate">
+        <SelectValue placeholder="选择项目" />
+      </SelectTrigger>
+      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+        <SelectItem value="all" className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
+          全部项目
+        </SelectItem>
+        {projects.map((p) =>
+          p.id == null ? null : (
+            <SelectItem
+              key={p.id}
+              value={String(p.id)}
+              className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+            >
+              {p.name}
+            </SelectItem>
+          )
+        )}
+      </SelectContent>
+    </Select>
+  )
+
+  const mobileCountrySelect = (
+    <Select value={country} onValueChange={(v) => setCountry(v as CountryOption)}>
+      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 [&>span]:truncate">
+        <SelectValue placeholder="选择站点" />
+      </SelectTrigger>
+      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+        {COUNTRY_OPTIONS.map((opt) => (
+          <SelectItem
+            key={opt.value}
+            value={opt.value}
+            className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+          >
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          {mobileProjectSelect}
+          {mobileCountrySelect}
+          <MobileFilterWide>
+            <DateRangePicker
+              value={dateRange}
+              timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
+              onChange={(range) => {
+                setDateRange(range)
+                setDatePresetKey(undefined)
+              }}
+              onApply={() => void loadData()}
+              placeholder="选择日期范围"
+              className="h-10 w-full rounded-none border-term-border bg-term-panel font-mono text-xs font-normal text-term-text shadow-none focus:ring-0 data-[state=open]:border-term-border-strong [&>span]:truncate justify-start px-2 text-left"
+            />
+          </MobileFilterWide>
+          <MobileFilterWide>
+            <SkuSearchField
+              value={selectedSku}
+              options={skuOptions}
+              loading={skuLoading}
+              disabled={country === 'ALL'}
+              onOpen={ensureSkuOptions}
+              onChange={handleSkuChange}
+              widthClass="w-full"
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {headerSlotPortal}
+      {/* BLF-930：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
       {goalProgress && goalProgress.target_amount > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border border-term-border bg-term-panel px-3 py-2">
           <Target className="h-4 w-4 shrink-0 text-blue-500" />
