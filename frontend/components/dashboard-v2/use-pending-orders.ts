@@ -16,6 +16,8 @@ import { buildBackendClientHeaders } from '@/lib/backend-auth'
  *   `fetchAbortRef` 模式），杜绝并发堆积。
  * - 分页："加载更多"模式 —— hook 维护 page，新页数据 append（去重按 id），reset 时机 =
  *   enabled/projectIds/dateFrom/dateTo 变化。
+ * - BLF-928：展开态 30s 可见感知轮询（仅 page=1 时刷新首页，不打断用户翻页）；
+ *   失败/超时静默保留上次列表。
  */
 
 /** 订单级 pending 行（overview items 的子集字段） */
@@ -43,6 +45,9 @@ interface PendingOrdersResponse {
 /** 面板一页条数：320px 宽高密度表，20 行/页平衡首屏与滚动 */
 export const PENDING_ORDERS_PAGE_SIZE = 20
 
+/** 展开态轮询间隔（ms）：30s 与 live-stream / pending-count 同节奏 */
+export const PENDING_ORDERS_POLL_MS = 30_000
+
 export interface UsePendingOrdersParams {
   /** 仅展开时轮询/请求 */
   enabled: boolean
@@ -62,6 +67,8 @@ export interface UsePendingOrdersResult {
   error: string | null
   hasMore: boolean
   loadMore: () => void
+  /** BLF-928：立即刷新首页（展开/收起时用） */
+  refresh: () => void
 }
 
 export function usePendingOrders({
@@ -83,6 +90,10 @@ export function usePendingOrders({
   // 入参序列化：任一变化即回到第 1 页重新拉
   const projectIdsKey = projectIds.join(',')
   const ready = enabled && projectIds.length > 0 && !!dateFrom && !!dateTo
+
+  // BLF-928：30s 轮询时静默刷新首页（不闪 loading），用 ref 桥接（避免进 effect 依赖）
+  const silentRefreshRef = useRef(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!ready) {
@@ -111,8 +122,10 @@ export function usePendingOrders({
     fetchAbortRef.current = ctrl
 
     const isFirstPage = page === 1
-    if (isFirstPage) setLoading(true)
-    else setLoadingMore(true)
+    const isSilent = silentRefreshRef.current
+    silentRefreshRef.current = false
+    if (isFirstPage && !isSilent) setLoading(true)
+    else if (!isFirstPage) setLoadingMore(true)
     if (isFirstPage) setError(null)
 
     async function load() {
@@ -165,9 +178,31 @@ export function usePendingOrders({
     return () => {
       ctrl.abort()
     }
-    // session 变化会触发重拉（带上 X-Operator 头）；ready false→true 首拉
+    // session 变化会触发重拉（带上 X-Operator 头）；ready false→true 首拉；refreshKey 驱动 30s 轮询
     // eslint-disable-next-line react-hooks/exhaustive-deps -- projectIds 用序列化 key，page 由 loadMore/reset 驱动
-  }, [ready, page, projectIdsKey, dateFrom, dateTo, session])
+  }, [ready, page, projectIdsKey, dateFrom, dateTo, session, refreshKey])
+
+  // BLF-928：展开态 30s 可见感知轮询（仅 page=1 时刷新首页，不打断用户翻页）
+  const pageRef = useRef(page)
+  pageRef.current = page
+  useEffect(() => {
+    if (!ready) return
+    const poll = () => {
+      if (pageRef.current === 1 && document.visibilityState === 'visible') {
+        silentRefreshRef.current = true
+        setRefreshKey((k) => k + 1)
+      }
+    }
+    const intervalId = setInterval(poll, PENDING_ORDERS_POLL_MS)
+    function onVisible() {
+      if (document.visibilityState === 'visible') poll()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [ready])
 
   // 卸载时 abort
   useEffect(() => {
@@ -182,5 +217,11 @@ export function usePendingOrders({
     setPage((p) => p + 1)
   }
 
-  return { items, total, loading, loadingMore, error, hasMore, loadMore }
+  const refresh = () => {
+    setPage(1)
+    silentRefreshRef.current = true
+    setRefreshKey((k) => k + 1)
+  }
+
+  return { items, total, loading, loadingMore, error, hasMore, loadMore, refresh }
 }
