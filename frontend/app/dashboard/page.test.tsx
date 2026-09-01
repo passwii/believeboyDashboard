@@ -62,6 +62,7 @@ vi.mock('@/components/dashboard-v2/v2-order-flow-panel', () => ({
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: () => ({ setLoading: vi.fn() }),
   useHeaderSlot: (node: React.ReactNode) => node,
+  useMobileFilterStrip: () => null,
 }))
 
 vi.mock('@/hooks/use-mobile', () => ({
