@@ -24,12 +24,13 @@ import {
   TermTHead,
   TermTable,
 } from '@/components/terminal/term-table'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -186,7 +187,6 @@ function SummaryTile({
 export default function InventoryAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
-  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -564,7 +564,73 @@ export default function InventoryAnalysisPage() {
   )
 
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileSnapshotLabel =
+    selectedSnapshotDate === 'current'
+      ? '最新'
+      : selectedSnapshotDate
+        ? formatBusinessDate(selectedSnapshotDate)
+        : '未选'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileSnapshotLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none">
+              <SelectValue placeholder="请选择项目" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={String(project.id)}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <CountrySelect
+            value={country}
+            onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+            triggerClassName="h-10 w-full border-term-border bg-term-panel text-xs shadow-none"
+          />
+          <MobileFilterWide>
+            <Select
+              value={selectedSnapshotDate}
+              onValueChange={setSelectedSnapshotDate}
+              open={snapshotSelectOpen}
+              onOpenChange={setSnapshotSelectOpen}
+            >
+              <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none">
+                <SelectValue placeholder="选择业务日期" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">最新业务日期</SelectItem>
+                {snapshotOptions.map((option) => (
+                  <SelectItem key={option.report_date} value={option.report_date}>
+                    {formatBusinessDate(option.report_date)}
+                    {option.is_current ? ' (当前)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </MobileFilterWide>
+          <MobileFilterWide>
+            <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
+              <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
+              <span className="truncate font-mono text-xs tabular-nums text-term-text">
+                {reportDate ? formatBusinessDate(reportDate) : '--'}
+              </span>
+            </div>
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   const colCount = 12 + shipmentColumns.length
@@ -573,6 +639,8 @@ export default function InventoryAnalysisPage() {
     <div className="flex min-w-0 flex-col gap-3">
       {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 统计条：终端磁贴（mono 数值 + 语义色） */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

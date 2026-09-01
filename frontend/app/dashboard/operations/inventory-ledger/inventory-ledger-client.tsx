@@ -25,13 +25,13 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_W_MD,
   TERM_HEADER_W_SM,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
@@ -196,8 +196,6 @@ export default function InventoryLedgerPage() {
   loadDataRef.current = loadData
   useHeaderRefresh(() => loadDataRef.current(), { loading })
 
-  const isMobile = useIsMobile()
-
   // ── 筛选选项（从原始行派生） ────────────────────────────────────────────
   const rawSummary = summaryRows?.rows ?? []
   const rawDetail = detailRows?.rows ?? []
@@ -322,13 +320,93 @@ export default function InventoryLedgerPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileFilterSummary = `${mobileProjectLabel} · ${month || '未选月份'}${activeFilterCount > 0 ? ` · ${activeFilterCount} 个筛选` : ''}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+            placeholder="选择项目"
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={month}
+            onChange={setMonth}
+            options={months.map((m) => ({ value: m, label: m }))}
+            placeholder="选择月份"
+            widthClass={TERM_HEADER_W_SM}
+            title="月份筛选"
+          />
+          <HeaderSlotSelect
+            value={filters.msku}
+            onChange={(v) => setFilters({ msku: v })}
+            options={[
+              { value: ALL, label: '全部 SKU' },
+              ...filterOptions.mskus.map((s) => ({ value: s, label: s })),
+            ]}
+            widthClass={TERM_HEADER_W_MD}
+            title="SKU 筛选"
+          />
+          <HeaderSlotSelect
+            value={filters.fc}
+            onChange={(v) => setFilters({ fc: v })}
+            options={[
+              { value: ALL, label: '全部仓库' },
+              ...filterOptions.locations.map((l) => ({ value: l, label: l })),
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="仓库筛选"
+          />
+          <HeaderSlotSelect
+            value={filters.disp}
+            onChange={(v) => setFilters({ disp: v })}
+            options={[
+              { value: ALL, label: '全部状态' },
+              ...filterOptions.dispositions.map((d) => ({ value: d, label: dispositionLabel(d) })),
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="状态筛选"
+          />
+          <HeaderSlotSelect
+            value={filters.evt}
+            onChange={(v) => setFilters({ evt: v })}
+            options={[
+              { value: ALL, label: '全部事件类型' },
+              ...filterOptions.eventTypes.map((e) => ({ value: e, label: eventTypeLabel(e) })),
+            ]}
+            widthClass={TERM_HEADER_W_MD}
+            title="事件类型筛选"
+          />
+          <MobileFilterWide>
+            <button
+              type="button"
+              onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
+              className="flex h-10 w-full shrink-0 items-center justify-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+            >
+              清除筛选（{activeFilterCount}）
+            </button>
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* Load error banner（BEL-417：真实错误 + 重试，不再静默假空态；destructive token 自动适配 dark） */}
       {loadError && (

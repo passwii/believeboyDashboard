@@ -42,11 +42,12 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 
 // 预定义货币选项
@@ -143,7 +144,6 @@ export default function ExchangeRatePage() {
   const [rates, setRates] = useState<ExchangeRate[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const isMobile = useIsMobile()
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 12,
@@ -509,13 +509,94 @@ export default function ExchangeRatePage() {
   )
 
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileCurrencyLabel = filters.currency ? (CURRENCY_OPTIONS.find((o) => o.value === filters.currency)?.label ?? filters.currency) : '全部货币'
+  const mobileYearLabel = filters.year ? `${filters.year} 年` : '全部年份'
+  const mobileMonthLabel = filters.month ? `${filters.month} 月` : '全部月份'
+  const mobileFilterSummary = `${mobileCurrencyLabel} · ${mobileYearLabel} · ${mobileMonthLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <Select
+            value={filters.currency || ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
+            }
+          >
+            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
+              <SelectValue placeholder="全部货币" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>全部货币</SelectItem>
+              {CURRENCY_OPTIONS.map((currency) => (
+                <SelectItem key={currency.value} value={currency.value}>
+                  {currency.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.year || ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
+            }
+          >
+            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
+              <SelectValue placeholder="全部年份" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
+              {getYearOptions().map((year) => (
+                <SelectItem key={year.value} value={year.value.toString()}>
+                  {year.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.month || ALL_FILTER_VALUE}
+            onValueChange={(value) =>
+              handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
+            }
+          >
+            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
+              <SelectValue placeholder="全部月份" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
+              {MONTH_OPTIONS.map((month) => (
+                <SelectItem key={month.value} value={month.value.toString()}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <MobileFilterWide>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetFilters}
+              className="h-10 w-full rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+            >
+              重置
+            </Button>
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 数据表格 */}
       <TermPanel

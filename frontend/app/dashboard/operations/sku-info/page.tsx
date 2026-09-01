@@ -22,14 +22,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_W_MD,
   TERM_HEADER_W_SM,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { useConfirm } from '@/hooks/use-confirm'
-import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DataTableCard,
   DataTableCardHeader,
@@ -581,8 +581,6 @@ export default function SkuInfoPage() {
   handleHeaderRefreshRef.current = handleHeaderRefresh
   useHeaderRefresh(() => handleHeaderRefreshRef.current(), { loading })
 
-  const isMobile = useIsMobile()
-
   // 5 个筛选控件 + 查询/重置按钮 portal 进 Top Header 中段插槽（提交制：选择/填写不自动查询）
   const filterControls = (
     <>
@@ -656,7 +654,88 @@ export default function SkuInfoPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projectFilter || '未选项目'
+  const mobileCountryLabel = countryFilter === 'all' ? '全部站点' : (COUNTRY_OPTIONS.find((o) => o.value === countryFilter)?.label ?? countryFilter)
+  const mobileStatusLabel = statusFilter === 'all' ? '全部状态' : (statusFilter === 'active' ? '活跃' : '不活跃')
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileStatusLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectFilter}
+            onChange={setProjectFilter}
+            options={projects.map((project) => ({ value: project.name, label: project.name }))}
+            placeholder={
+              projectLoadError
+                ? '项目加载失败'
+                : projectsLoading
+                  ? '项目加载中…'
+                  : projects.length
+                    ? '选择项目'
+                    : '暂无可选项目'
+            }
+            disabled={projectsLoading || projects.length === 0}
+            widthClass={TERM_HEADER_W_MD}
+            title={projectLoadError ?? '项目筛选'}
+          />
+          <HeaderSlotSelect
+            value={countryFilter}
+            onChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
+            options={[
+              { value: 'all', label: '全部站点' },
+              ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <Input
+            size="lg"
+            value={skuFilter}
+            onChange={(event) => setSkuFilter(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void onSearch()
+            }}
+            placeholder="输入 SKU"
+            className={cn('w-full', TERM_HEADER_W_MD)}
+            title="SKU 筛选"
+          />
+          <Input
+            size="lg"
+            value={asinFilter}
+            onChange={(event) => setAsinFilter(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void onSearch()
+            }}
+            placeholder="输入 ASIN"
+            className={cn('w-full', TERM_HEADER_W_MD)}
+            title="ASIN 筛选"
+          />
+          <HeaderSlotSelect
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
+            options={[
+              { value: 'all', label: '全部状态' },
+              { value: 'active', label: '活跃' },
+              { value: 'inactive', label: '不活跃' },
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="状态筛选"
+          />
+          <button type="button" className={TERM_HEADER_BUTTON_PRIMARY} onClick={() => void onSearch()}>
+            查询
+          </button>
+          <button type="button" className={TERM_HEADER_BUTTON_MUTED} onClick={onResetFilters}>
+            重置
+          </button>
+        </>
+      }
+    />
   )
 
   const onPageSizeChange = (value: string) => {
@@ -958,6 +1037,8 @@ export default function SkuInfoPage() {
       {/* Header 化：5 个筛选控件 + 查询/重置按钮已上移 Top Header 中段插槽（提交制查询），
           页面仅渲染 portal 宿主；全局刷新按钮为唯一刷新入口（operations header migration B3） */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
       <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}

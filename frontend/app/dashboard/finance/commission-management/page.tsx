@@ -20,11 +20,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
@@ -141,7 +142,6 @@ export default function CommissionManagementPage() {
   const [loading, setLoading] = useState(true)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [recomputing, setRecomputing] = useState(false)
-  const isMobile = useIsMobile()
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
   const [monthlySummary, setMonthlySummary] = useState<CommissionYearlyMonthlySummaryItem[]>([])
@@ -557,13 +557,89 @@ export default function CommissionManagementPage() {
   )
 
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileMonthLabel = activeTab === 'detail' ? month : `${summaryYear} 年`
+  const mobileCountryLabel = countryFilter === 'all' ? '全部站点' : (SITE_INFO[countryFilter]?.label ?? countryFilter)
+  const mobileFilterSummary = `${mobileMonthLabel} · ${mobileCountryLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <MobileFilterWide>
+            {activeTab === 'detail' ? (
+              <MonthPicker
+                value={parseMonthInputValue(month)}
+                onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
+                className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none"
+              />
+            ) : (
+              <Select
+                value={summaryYear}
+                onValueChange={(value) => setSummaryYear(value)}
+              >
+                <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
+                  <SelectValue placeholder="年份" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}年
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </MobileFilterWide>
+          <Select
+            value={countryFilter}
+            onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
+          >
+            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
+              <SelectValue placeholder="站点" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部站点</SelectItem>
+              {SITE_ORDER.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {SITE_INFO[code].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activeTab === 'detail' ? (
+            <MobileFilterWide>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void handleRecompute()}
+                disabled={recomputing || loading}
+                className="h-10 w-full gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              >
+                {recomputing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+                核算
+              </Button>
+            </MobileFilterWide>
+          ) : null}
+        </>
+      }
+    />
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {/* BLF-826 阶段 C：月份/年份 + 站点 + 核算已上移 Top Header 中段插槽 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* Tab 切换：BLF-883 全局统一 variant="term" + 前置 icon */}
       <Tabs

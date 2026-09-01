@@ -79,6 +79,7 @@ import {
 import { ShipmentBatchCombobox } from '@/components/dashboard/shipment/shipment-batch-combobox'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_TRIGGER,
@@ -87,8 +88,7 @@ import {
   TERM_HEADER_W_SM,
   TERM_SELECT_CONTENT,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -2902,8 +2902,6 @@ export default function ShipmentManagementPage() {
             : loading,
   })
 
-  const isMobile = useIsMobile()
-
   // 筛选控件 portal 进 Top Header 中段插槽（项目 / 状态 / 国家 / 货件编号，term 规格）
   const filterControls = (
     <>
@@ -2949,7 +2947,74 @@ export default function ShipmentManagementPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel =
+    projectFilter === 'all'
+      ? '全部项目'
+      : (projects.find((p) => String(p.id) === projectFilter)?.name ?? projectFilter)
+  const mobileStatusLabel =
+    statusFilter === 'all' ? '全部状态' : (STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? statusFilter)
+  const mobileCountryLabel =
+    countryFilter === 'all' ? '全部国家' : (COUNTRY_OPTIONS.find((o) => o.value === countryFilter)?.label ?? countryFilter)
+  const mobileShipmentLabel =
+    shipmentNoFilter.length === 0
+      ? '全部货件'
+      : shipmentNoFilter.length === 1
+        ? shipmentNoFilter[0]
+        : `${shipmentNoFilter.length} 个货件`
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileStatusLabel} · ${mobileCountryLabel} · ${mobileShipmentLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectFilter}
+            onChange={setProjectFilter}
+            options={[
+              { value: 'all', label: '全部项目' },
+              ...projects.map((project) => ({ value: String(project.id), label: project.name })),
+            ]}
+            placeholder={projectsLoading ? '项目加载中…' : '全部项目'}
+            disabled={projectsLoading}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: 'all', label: '全部状态' },
+              ...STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="状态筛选"
+          />
+          <HeaderSlotSelect
+            value={countryFilter}
+            onChange={setCountryFilter}
+            options={[
+              { value: 'all', label: '全部国家' },
+              ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+            ]}
+            widthClass={TERM_HEADER_W_SM}
+            title="国家筛选"
+          />
+          <MobileFilterWide>
+            <SearchableShipmentNoFilter
+              value={shipmentNoFilter}
+              options={shipmentNoOptions}
+              loading={shipmentNoOptionsLoading}
+              onChange={setShipmentNoFilter}
+              onOpen={handleShipmentNoFilterOpen}
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
@@ -2958,6 +3023,8 @@ export default function ShipmentManagementPage() {
     <div className="min-w-0 space-y-6 text-term-text">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 写操作栏：新建批次 / 下载模板 / 批量导入 csv（写语义留正文，不进 header 插槽） */}
       <div className="flex flex-wrap items-center justify-end gap-2">

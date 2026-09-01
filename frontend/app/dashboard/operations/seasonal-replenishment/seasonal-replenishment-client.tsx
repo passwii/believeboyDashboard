@@ -24,8 +24,8 @@ import {
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotDateRange,
   HeaderSlotSelect,
@@ -34,7 +34,7 @@ import {
   TERM_HEADER_W_SM,
   TERM_HEADER_W_XL,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -598,8 +598,6 @@ export default function SeasonalReplenishmentPage() {
   handleRefreshRecalcRef.current = handleRefreshRecalc
   useHeaderRefresh(() => handleRefreshRecalcRef.current(), { loading })
 
-  const isMobile = useIsMobile()
-
   // 5 个筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围 / 关键词 / 同比开关）
   const filterControls = (
     <>
@@ -649,13 +647,76 @@ export default function SeasonalReplenishmentPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileDateLabel =
+    dateRange?.from && dateRange?.to
+      ? `${formatIsoDate(dateRange.from) ?? ''} ~ ${formatIsoDate(dateRange.to) ?? ''}`
+      : '未选日期'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.name,
+            }))}
+            placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+            disabled={projectsLoading}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+            options={COUNTRY_SLOT_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <MobileFilterWide>
+            <HeaderSlotDateRange
+              value={dateRange}
+              onChange={setDateRange}
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
+              widthClass={TERM_HEADER_W_XL}
+            />
+          </MobileFilterWide>
+          <MobileFilterWide>
+            <Input
+              size="lg"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索 SKU / ASIN"
+              className={cn('w-full', TERM_HEADER_W_LG)}
+              title="关键词筛选（SKU / ASIN）"
+            />
+          </MobileFilterWide>
+          <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-none border border-term-border bg-term-bg px-2.5">
+            <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy-mobile" />
+            <label htmlFor="compare-yoy-mobile" className="cursor-pointer font-mono text-sm text-term-text">
+              去年
+            </label>
+          </div>
+        </>
+      }
+    />
   )
 
   return (
     <div className="w-full space-y-6">
       {/* Header 化：5 个筛选控件（项目/站点/日期/关键词/同比）已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 5 格统计条（原控制台内容，保留） */}
       <div className="dashboard-surface">

@@ -28,6 +28,7 @@ vi.mock('@/lib/project-client-cache', () => ({
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: () => vi.fn(),
   useHeaderSlot: (node: React.ReactNode) => null,
+  useMobileFilterStrip: () => null,
 }))
 
 vi.mock('@/hooks/use-mobile', () => ({

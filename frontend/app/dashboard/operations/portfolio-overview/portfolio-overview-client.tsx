@@ -16,14 +16,15 @@ import {
   TermTable,
 } from '@/components/terminal/term-table'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { BarChart3, PieChart, TrendingUp, type LucideIcon } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { usePortfolioData, type ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
+import { BarChart3, PieChart, TrendingUp, type LucideIcon } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type Tab = 'comparison' | 'trend' | 'contribution'
 
@@ -181,7 +182,6 @@ function ComparisonTable({
 
 export default function PortfolioOverviewClient() {
   const router = useRouter()
-  const isMobile = useIsMobile()
   const { data: session } = useSession()
   const [projectIds, setProjectIds] = useState<number[]>([])
   const [country, setCountry] = useState('US')
@@ -220,7 +220,27 @@ export default function PortfolioOverviewClient() {
   )
 
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileFilterSummary = `${projectIds.length === 0 ? '全部项目' : `${projectIds.length} 个项目`} · ${country} · ${startDate || '?'}~${endDate || '?'}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={<PortfolioFilters
+        projectIds={projectIds}
+        onProjectIdsChange={setProjectIds}
+        country={country}
+        onCountryChange={setCountry}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onRefresh={refresh}
+        loading={loading}
+      />}
+    />
   )
 
   useEffect(() => {
@@ -237,6 +257,8 @@ export default function PortfolioOverviewClient() {
     <div className="flex min-w-0 flex-col gap-3">
       {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
       {/* 页面级标题已由 TerminalHeader 面包屑承载；不再渲染 PageHeader 胶囊（BLF-824 去重原则） */}
 
       {error && (

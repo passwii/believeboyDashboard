@@ -87,6 +87,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     headerCapture.slotNode = node
     return null
   },
+  useMobileFilterStrip: () => null,
 }))
 
 // 日历视图走 next/dynamic + recharts；jsdom 下用 stub 替身

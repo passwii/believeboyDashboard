@@ -60,6 +60,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedSlotNode = node
     return node
   },
+  useMobileFilterStrip: () => null,
 }))
 
 // ── fixtures ─────────────────────────────────────────────────────────────────

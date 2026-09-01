@@ -40,15 +40,15 @@ import {
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_W_LG,
   TERM_HEADER_W_MD,
   TERM_HEADER_W_SM,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -870,8 +870,6 @@ export default function InventoryReplenishmentPage() {
     loading: loading || refreshingAll,
   })
 
-  const isMobile = useIsMobile()
-
   // 4 个筛选控件 portal 进 Top Header 中段插槽（项目 / 关键词 / 站点 / 风险状态）
   const filterControls = (
     <>
@@ -921,7 +919,66 @@ export default function InventoryReplenishmentPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileRiskLabel = RISK_FILTER_OPTIONS.find((o) => o.value === riskFilter)?.label ?? riskFilter
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileRiskLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={(id) => {
+              setProjectId(id)
+              setSelectedSnapshotId(null)
+              syncUrlParams(id, country)
+            }}
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.name,
+            }))}
+            placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+            disabled={projectsLoading}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(c) => {
+              setCountry(c)
+              setSelectedSnapshotId(null)
+              syncUrlParams(projectId, c)
+            }}
+            options={COUNTRY_SLOT_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <MobileFilterWide>
+            <Input
+              size="lg"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索 SKU / ASIN"
+              className={cn('w-full', TERM_HEADER_W_LG)}
+              title="关键词筛选（SKU / ASIN）"
+            />
+          </MobileFilterWide>
+          <HeaderSlotSelect
+            value={riskFilter}
+            onChange={setRiskFilter}
+            options={RISK_FILTER_OPTIONS}
+            widthClass={TERM_HEADER_W_MD}
+            title="风险状态筛选"
+          />
+        </>
+      }
+    />
   )
 
   async function exportToExcel() {
@@ -1136,6 +1193,8 @@ export default function InventoryReplenishmentPage() {
     <div className="w-full space-y-6">
       {/* Header 化：4 个筛选控件（项目/关键词/站点/风险状态）已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 原控制台内容收口：筛选控件已上移 header 插槽，「刷新重算」按钮已删（全局刷新唯一入口）；
           快照选择（含创建/编辑入口，偏重）与三段式指挥带保留正文 */}

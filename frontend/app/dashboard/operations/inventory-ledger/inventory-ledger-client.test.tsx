@@ -80,6 +80,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     return { setLoading: vi.fn() }
   },
   useHeaderSlot: (node: React.ReactNode) => node,
+  useMobileFilterStrip: () => null,
 }))
 
 import InventoryLedgerPage from './inventory-ledger-client'
