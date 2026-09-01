@@ -52,6 +52,15 @@
 - 坐标轴字号：10–12px（`tick={{ fontSize: 11 }}` 常见，移动端可降 10）。
 - 图表容器：外层卡片 `dashboard-surface rounded-xl p-4`（销售页）或 DataCard 均可。
 
+### 1.6 图表卡壳（ChartCard，BLF-911）
+
+- 所有带表头的图表卡（标题/描述/Delta/操作区/页脚/加载/空态）一律用
+  `components/charts/chart-card.tsx` 的 `ChartCard`，禁止手写 `CardHeader + CardTitle +
+  CardDescription + CardContent` 模板。
+- 图表本体仍用 §1.1-1.5 的 `ChartContainer` / `ChartXxxCard`，作为 `ChartCard` children 传入。
+- 视觉：surface 面板风（rounded-lg + border + bg-card + shadow-soft/dark:shadow-level-2），
+  非 terminal 黑底；数字保留 `tabular-nums` 数据感。
+
 ## 2. 本次收口记录（BLF-495）
 
 | 文件 | 改动 |
@@ -70,12 +79,12 @@
 | 位置 | 内容 | 豁免原因 |
 | --- | --- | --- |
 | `app/dashboard/ai/insights/page.tsx` | SVG data-URL 图表内 hex（`#3b82f6`/`#e2e8f0`/`#94a3b8` 等，17 处） | SVG data-URL 是独立图片，无法解析 CSS 变量；`CHART_COLORS_HEX` 已按 chart-1..5 逐项映射并注释，代码内有说明 |
-| `components/dashboard-v2/v2-*.tsx`（6 个） | chartConfig `color: '#2563eb'/'#60a5fa'/'#1d4ed8'/'#93c5fd'` | dashboard-v2 为 Dashboard 主页独立蓝色单色设计体系（卡片 hover/图标均 blue 系），套 chart-1..8 会引入绿色等异色破坏整体；已用 ChartContainer/ChartLegendContent/ChartTooltipContent，仅色板刻意独立，随 v2 后续收口 |
+| ~~`components/dashboard-v2/v2-*.tsx`（6 个）~~ | ~~chartConfig `color: '#2563eb'/'#60a5fa'/'#1d4ed8'/'#93c5fd'`~~ | **已收口（BLF-911）**：V2Card/V2Grid 对齐 surface 体系，6 图表与 TopProjects 统一到 `components/charts/chart-card.tsx`（ChartCard）壳，色板改走 `--chart-N` / surface 令牌 |
 | `app/dashboard/system/digital-display/page.tsx` | 裸 recharts + hex 系列色 + 自写 Tooltip contentStyle | 全屏数字展示页，独立视觉（大字号 tooltip、白色网格、TV 场景），非销售页；如需统一另立任务 |
 | `components/ui/demo.tsx`、`components/dashboard/metric-switcher-card.tsx` | 从 `line-charts-6.tsx` 导入 | 组件展示页 + Dashboard 主页 metric 切换卡片，与 chart.tsx 同构无行为差异，登记后逐步迁移 |
 | `components/ai-chat-message-content.tsx` | Prism 行号 `color: '#6b7280'` | 代码高亮行号色，非图表 |
 
-> 豁免 ≠ 永久。dashboard-v2 与 line-charts-6 两处随对应页面重构收口。
+> 豁免 ≠ 永久。dashboard-v2 已收口（BLF-911），line-charts-6 随对应页面重构收口。
 
 ## 4. 验收基线（BLF-495 验收命令）
 
