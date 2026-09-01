@@ -57,6 +57,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedRefreshLoading = opts?.loading
   },
   useHeaderSlot: (node: React.ReactNode) => null,
+  useMobileFilterStrip: () => null,
 }))
 
 const SUMMARY = {

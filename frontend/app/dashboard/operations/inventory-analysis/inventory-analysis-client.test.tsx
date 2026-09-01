@@ -133,6 +133,7 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: () => ({ setLoading: vi.fn() }),
   useHeaderSlot: (node: React.ReactNode) => null,
+  useMobileFilterStrip: () => null,
 }))
 
 import InventoryAnalysisClient from './inventory-analysis-client'

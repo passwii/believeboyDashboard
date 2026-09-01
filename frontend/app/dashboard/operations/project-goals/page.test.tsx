@@ -52,6 +52,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedSlotNode = node
     return null
   },
+  useMobileFilterStrip: () => null,
 }))
 
 // 缓存层探针：记录 fetchOpsJsonCached 收到的 force 入参（断言 header 刷新的 force 语义）；

@@ -48,8 +48,8 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotDateRange,
   HeaderSlotSelect,
@@ -60,6 +60,7 @@ import {
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
@@ -660,8 +661,6 @@ export default function ReturnAnalysisPage() {
   loadDataRef.current = loadData
   useHeaderRefresh(() => loadDataRef.current(true), { loading })
 
-  const isMobile = useIsMobile()
-
   // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围）
   const filterControls = (
     <>
@@ -694,7 +693,53 @@ export default function ReturnAnalysisPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = getCountryLabel(country)
+  const mobileDateLabel =
+    dateRange?.from && dateRange?.to
+      ? `${formatYMD(dateRange.from)} ~ ${formatYMD(dateRange.to)}`
+      : '未选日期'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.name,
+            }))}
+            placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+            disabled={projectsLoading}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as CountryOption)}
+            options={COUNTRY_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <MobileFilterWide>
+            <HeaderSlotDateRange
+              value={dateRange}
+              onChange={setDateRange}
+              onApply={() => void loadData()}
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
+              widthClass={TERM_HEADER_W_XL}
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   const chartConfig = {
@@ -708,6 +753,8 @@ export default function ReturnAnalysisPage() {
     <div className="flex flex-col gap-5">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 统计磁贴条（原控制台 Summary Stats，终端规格） */}
       {data && (

@@ -66,6 +66,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedSlotNode = node
     return null
   },
+  useMobileFilterStrip: () => null,
 }))
 
 const SUMMARY = {

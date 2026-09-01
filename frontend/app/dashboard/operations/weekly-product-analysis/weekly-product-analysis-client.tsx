@@ -61,7 +61,8 @@ import {
   TERM_HEADER_W_SM,
   TERM_HEADER_W_XL,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 
 type ProjectOption = {
   id: number | null
@@ -1770,13 +1771,60 @@ export default function WeeklyProductAnalysisPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = getCountryLabel(country)
+  const mobileDateLabel =
+    startDate && endDate ? `${startDate} ~ ${endDate}` : '未选日期'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.name,
+            }))}
+            placeholder={projectsLoading ? '店铺加载中…' : '选择店铺'}
+            disabled={projectsLoading || projects.length === 0}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目（店铺）筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as CountryOption)}
+            options={COUNTRY_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <MobileFilterWide>
+            <HeaderSlotDateRange
+              value={parseDateRangeInputValue(startDate, endDate)}
+              onChange={(range) => {
+                setStartDate(formatDateInputValue(range?.from))
+                setEndDate(formatDateInputValue(range?.to))
+              }}
+              widthClass={TERM_HEADER_W_XL}
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
   )
 
   return (
     <div className="w-full space-y-6">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {/* 错误反馈：原由控制台卡片承载，控制台移除后保留为独立块（数据逻辑不变） */}
       {projectLoadError ? (

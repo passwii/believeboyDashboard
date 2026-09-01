@@ -20,12 +20,13 @@ import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/compone
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TERM_BUTTON, TermPill } from '@/components/terminal/term-controls'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_W_MD,
   TERM_HEADER_W_SM,
 } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import {
   Dialog,
   DialogContent,
@@ -51,7 +52,6 @@ import { clearOpsClientCaches, fetchOpsJsonCached } from '@/lib/ops-client-cache
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 const API_BASE = '/api/backend/api/v1'
@@ -459,10 +459,7 @@ export default function ProjectGoalsPage() {
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
-  const isMobile = useIsMobile()
-
-  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 年份，term 规格；
-  // <md 由 HeaderFilterControls 折叠为「筛选」Popover；标题与说明由 header 面包屑承载）
+  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 年份，term 规格）
   const filterControls = (
     <>
       <HeaderSlotSelect
@@ -490,13 +487,52 @@ export default function ProjectGoalsPage() {
     </>
   )
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={isMobile} controls={filterControls} />
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === selectedProjectId)?.name ?? selectedProjectId
+  const mobileCountryLabel = selectedCountry === 'ALL' ? '全部站点' : (COUNTRY_OPTIONS.find((o) => o.value === selectedCountry)?.label ?? selectedCountry)
+  const mobileYearLabel = selectedYear ? `${selectedYear} 年` : '未选年份'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileYearLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={selectedProjectId}
+            onChange={setSelectedProjectId}
+            options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+            placeholder="选择项目"
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={selectedCountry}
+            onChange={setSelectedCountry}
+            options={COUNTRY_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <HeaderSlotSelect
+            value={selectedYear}
+            onChange={setSelectedYear}
+            options={years.map((y) => ({ value: String(y), label: `${y} 年` }))}
+            widthClass={TERM_HEADER_W_SM}
+            title="年份筛选"
+          />
+        </>
+      }
+    />
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，正文仅渲染 portal 宿主 */}
       {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
 
       {!selectedProjectId ? (
         <div className="flex h-48 items-center justify-center border border-dashed border-term-border bg-term-panel font-mono text-xs text-term-muted">

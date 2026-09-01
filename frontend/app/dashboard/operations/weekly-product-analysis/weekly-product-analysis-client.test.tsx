@@ -75,6 +75,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedRefreshLoading = opts?.loading
   },
   useHeaderSlot: () => null,
+  useMobileFilterStrip: () => null,
 }))
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
