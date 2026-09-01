@@ -61,11 +61,14 @@ function BindingHarness({
   onSetCountry,
   onLoadData,
   initialProjectId = '',
+  projects = [],
 }: {
   onSetProjectId: (v: string) => void
   onSetCountry: (v: string) => void
   onLoadData: (call: LoadDataCall) => void
   initialProjectId?: string
+  /** 模拟「项目列表异步到达」（源码 fetchManagedProjectsCached resolve 后 setProjects） */
+  projects?: Array<{ id: number | null; name: string }>
 }) {
   const globalFilter = useTerminalGlobalFilter()
   const gfProjectId = globalFilter.ready ? globalFilter.projectId : null
@@ -104,6 +107,8 @@ function BindingHarness({
   const loadDataRef = useRef<((rangeOverride?: DateRange) => void) | null>(null)
   loadDataRef.current = (range) => loadData(range, 'direct')
 
+  // BLF-925 follow-up 源码镜像：owned 守卫 —— 头部写入项目后，页面「自动选第一个项目」不再覆盖
+  const gfProjectOwnedRef = useRef(false)
   const lastAppliedGfRef = useRef('')
   useEffect(() => {
     if (!globalFilter.ready) return
@@ -115,10 +120,13 @@ function BindingHarness({
       if (!gfProjectId) return
     }
     const projectWillChange = Boolean(gfProjectId) && gfProjectId !== projectId
-    if (gfProjectId && projectWillChange) {
-      const next = gfProjectId === 'all' ? 'all' : gfProjectId
-      onSetProjectId(next)
-      setProjectIdState(next)
+    if (gfProjectId) {
+      gfProjectOwnedRef.current = true
+      if (projectWillChange) {
+        const next = gfProjectId === 'all' ? 'all' : gfProjectId
+        onSetProjectId(next)
+        setProjectIdState(next)
+      }
     }
     if (gfCountry && ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) && gfCountry !== country) {
       onSetCountry(gfCountry)
@@ -139,6 +147,24 @@ function BindingHarness({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalFilter.ready, gfProjectId, gfCountry, gfDateFrom, gfDateTo])
+
+  // 源码「自动选第一个项目」effect 镜像（BLF-925 follow-up：owned 守卫下不抢跑覆盖头部项目）
+  // projects 由 prop 注入，模拟项目列表异步到达（缓存命中时几乎立即）。
+  useEffect(() => {
+    if (projects.length === 0) return
+    if (gfProjectOwnedRef.current) return
+    const isAllSentinel = projectId === 'all'
+    const existsInList =
+      projectId && !isAllSentinel && projects.some((p) => String(p.id) === projectId)
+    if (!projectId || (!isAllSentinel && !existsInList)) {
+      const first = projects.find((item) => item.id !== null)
+      if (first?.id != null) {
+        onSetProjectId(String(first.id))
+        setProjectIdState(String(first.id))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, projects])
 
   // 源码 [loadData] effect 镜像：projectId/dateRange 落定后自然触发加载
   useEffect(() => {
@@ -261,6 +287,40 @@ describe('daily-analysis-client BLF-819/BLF-882 头部→页面绑定 effect（�
       )).toBe(true)
     })
     expect(calls.loadData.every((c) => c.projectId === '42')).toBe(true)
+  })
+
+  it('BLF-925 回归：头部带持久化项目（50）而页面 URL 无项目时，项目列表到达（首项 14）不得抢跑覆盖——URL/请求与 head 始终是 50', async () => {
+    // 场景复刻：切走再切回本页 → head localStorage 水合出 50 → 绑定 effect setProjectId(50)
+    //（router.replace 回填 URL 需一拍）；同一拍内项目列表（2min 缓存命中）到达，
+    // 修复前「自动选第一个」以旧 URL 值 '' 覆盖成 14 → head 50 / URL&请求 14 不一致。
+    setGf({ projectId: '50', country: 'US', dateFrom: '', dateTo: '' })
+    const { calls } = renderHarness({
+      initialProjectId: '',
+      projects: [
+        { id: 14, name: '项目14' },
+        { id: 50, name: '项目50' },
+      ],
+    })
+
+    await waitFor(() => expect(calls.setProjectId).toContain('50'))
+    // 等所有 effect 沉淀（含 autoselect effect 运行机会）
+    await act(async () => {})
+    await act(async () => {})
+    // 头部项目 50 之后，autoselect 不再以任何值覆盖
+    expect(calls.setProjectId).toEqual(['50'])
+    // 最终发起的数据请求必须仍是 50（不出现 14 的错配请求）
+    expect(calls.loadData.every((c) => c.projectId !== '14')).toBe(true)
+  })
+
+  it('BLF-925 守卫边界：头部无项目（首次进入未持久化）时保留自动选第一个项目行为', async () => {
+    setGf({ projectId: '', country: 'US', dateFrom: '', dateTo: '' })
+    const { calls } = renderHarness({
+      initialProjectId: '',
+      projects: [{ id: 14, name: '项目14' }],
+    })
+
+    await waitFor(() => expect(calls.setProjectId).toContain('14'))
+    expect(calls.setProjectId).toEqual(['14'])
   })
 })
 
