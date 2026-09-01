@@ -3,6 +3,9 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
+
 /**
  * BLF-826 · Top Header 中段插槽 + 全局刷新事件总线。
  *
@@ -29,6 +32,9 @@ export interface TerminalHeaderSlotContextValue {
   /** header 内插槽挂载点；null = header 尚未挂载（SSR / 首帧） */
   anchor: HTMLElement | null
 
+  /** 移动端筛选条挂载点（正文顶部）；null = 尚未挂载（SSR / 首帧） */
+  mobileStripAnchor: HTMLElement | null
+
   /** 刷新回调是否已由当前页面提供（决定头部刷新按钮点击走页面回调还是 router.refresh 兜底） */
   refreshRegistered: boolean
   /** 刷新进行中（头部按钮转 spinner、禁点） */
@@ -44,6 +50,7 @@ const Ctx = React.createContext<TerminalHeaderSlotContextValue | null>(null)
 
 export function TerminalHeaderSlotProvider({ children }: { children: React.ReactNode }) {
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
+  const [mobileStripAnchor, setMobileStripAnchor] = React.useState<HTMLElement | null>(null)
   const [refreshLoading, setRefreshLoadingState] = React.useState(false)
   const [refreshRegistered, setRefreshRegistered] = React.useState(false)
 
@@ -84,19 +91,28 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const value = React.useMemo<TerminalHeaderSlotContextValue>(
     () => ({
       anchor,
+      mobileStripAnchor,
       refreshRegistered,
       refreshLoading,
       setRefreshLoading,
       registerRefresh,
       triggerRefresh,
     }),
-    [anchor, refreshRegistered, refreshLoading, setRefreshLoading, registerRefresh, triggerRefresh]
+    [
+      anchor,
+      mobileStripAnchor,
+      refreshRegistered,
+      refreshLoading,
+      setRefreshLoading,
+      registerRefresh,
+      triggerRefresh,
+    ]
   )
 
   return (
-    <AnchorSetterCtx.Provider value={setAnchor}>
+    <SlotBindingsCtx.Provider value={{ setAnchor, setMobileStripAnchor }}>
       <Ctx.Provider value={value}>{children}</Ctx.Provider>
-    </AnchorSetterCtx.Provider>
+    </SlotBindingsCtx.Provider>
   )
 }
 
@@ -126,20 +142,50 @@ export function HeaderSlotMount({
   return <div ref={setAnchor} className={className} data-testid="terminal-header-slot">{children}</div>
 }
 
-// —— HeaderSlotMount ↔ Provider 的 anchor 绑定 ——
+/**
+ * 移动端筛选条挂载点（正文顶部）。
+ *
+ * BLF-933 · Stage 1 基础设施：TerminalShell 在 main 顶部渲染此容器（`md:hidden`，
+ * 仅 <768px 可见），页面在 `isMobile` 时经 `useMobileFilterStrip` portal 进此处，
+ * 把筛选控件从 header 中段（`hidden md:flex` 的 HeaderSlotMount）下迁到正文顶部。
+ */
+export function MobileStripMount({
+  className,
+  children,
+}: {
+  className?: string
+  children?: React.ReactNode
+}) {
+  const { setMobileStripAnchor } = useSlotMountBinding()
+
+  return (
+    <div
+      ref={setMobileStripAnchor}
+      className={cn('md:hidden', className)}
+      data-testid="terminal-mobile-strip"
+    >
+      {children}
+    </div>
+  )
+}
+
+// —— HeaderSlotMount / MobileStripMount ↔ Provider 的 anchor 绑定 ——
 // 用独立 Context 存 setter，避免把 setState 混进公开的 slot 值对象。
 
-const AnchorSetterCtx = React.createContext<((el: HTMLElement | null) => void) | null>(null)
-
-/** @internal Provider 内部包装：向 HeaderSlotMount 暴露 anchor setter */
-function useSlotMountBinding(): {
+interface SlotBindings {
   setAnchor: (el: HTMLElement | null) => void
-} {
-  const setAnchor = React.useContext(AnchorSetterCtx)
-  if (!setAnchor) {
-    throw new Error('HeaderSlotMount 必须在 TerminalHeaderSlotProvider 内使用')
+  setMobileStripAnchor: (el: HTMLElement | null) => void
+}
+
+const SlotBindingsCtx = React.createContext<SlotBindings | null>(null)
+
+/** @internal Provider 内部包装：向 HeaderSlotMount / MobileStripMount 暴露 anchor setter */
+function useSlotMountBinding(): SlotBindings {
+  const bindings = React.useContext(SlotBindingsCtx)
+  if (!bindings) {
+    throw new Error('HeaderSlotMount / MobileStripMount 必须在 TerminalHeaderSlotProvider 内使用')
   }
-  return { setAnchor }
+  return bindings
 }
 
 /**
@@ -163,6 +209,29 @@ export function useHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
 
   if (!anchor) return null
   return createPortal(node, anchor)
+}
+
+/**
+ * 页面侧 hook：把移动端筛选条 portal 进正文顶部挂载点，unmount 自动清除。
+ *
+ * BLF-933 · 移动端挂载机制：`isMobile`（<768px）且挂载点就绪时才渲染 ——
+ * 桌面端（`md+`）返回 null，保持现有 `useHeaderSlot` portal 行为完全不变。
+ *
+ * ```tsx
+ * // 页面：桌面端走 useHeaderSlot，移动端走 useMobileFilterStrip
+ * const desktopSlot = useHeaderSlot(<HeaderFilterControls isMobileView={false} controls={filters} />)
+ * const mobileStrip = useMobileFilterStrip(
+ *   <MobileFilterStrip summary="玥涵 · US · 06/01~09/01" controls={filters} />,
+ * )
+ * return <>{desktopSlot}{mobileStrip}</>
+ * ```
+ */
+export function useMobileFilterStrip(node: React.ReactNode): React.ReactPortal | null {
+  const { mobileStripAnchor } = useTerminalHeaderSlot()
+  const isMobile = useIsMobile()
+
+  if (!isMobile || !mobileStripAnchor) return null
+  return createPortal(node, mobileStripAnchor)
 }
 
 /**
