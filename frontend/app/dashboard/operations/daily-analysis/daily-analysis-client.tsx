@@ -825,8 +825,10 @@ export default function DailyAnalysisPage() {
 
   // BLF-819 头部 → 页面同步：头部四件套变化（含首次水合出的持久化值）写入本页筛选。
   // 只在头部值真正变化时触发，页面内手动切换不受影响；日期仅在头部有完整范围时应用。
-  // BLF-819 头部 → 页面同步：头部四件套变化（含首次水合出的持久化值）写入本页筛选。
-  // loadData 在下方才定义，用 ref 桥接避免依赖顺序问题。
+  // BLF-925 follow-up：头部有项目时置 owned 守卫（对齐 order-info 的 gfProjectOwnedRef）——
+  // 否则「自动选第一个项目」effect 可能在头部 setProjectId 的 router.replace 回填 URL 之前
+  // 抢跑覆盖（列表缓存命中时两帧内竞态），导致 head 显示 A、URL/请求却打到 B。
+  const gfProjectOwnedRef = useRef(false)
   const loadDataRef = useRef<((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null>(null)
   const lastAppliedGfRef = useRef('')
   useEffect(() => {
@@ -841,8 +843,11 @@ export default function DailyAnalysisPage() {
       if (!gfProjectId) return
     }
     const projectWillChange = Boolean(gfProjectId) && gfProjectId !== projectId
-    if (gfProjectId && projectWillChange) {
-      setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
+    if (gfProjectId) {
+      gfProjectOwnedRef.current = true
+      if (projectWillChange) {
+        setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
+      }
     }
     if (
       gfCountry &&
@@ -938,6 +943,9 @@ export default function DailyAnalysisPage() {
     // 1. URL 没指定 projectId（空字符串）→ 选第一个
     // 2. URL 指定了 "all"（"全部项目"）→ 保留
     // 3. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+    // BLF-925 follow-up：头部项目已接管（owned）时不再自动选第一个 —— 否则会在头部
+    // setProjectId 的 URL 回填完成前抢跑覆盖，造成 head 显示与 URL/请求不一致。
+    if (gfProjectOwnedRef.current) return
     const isAllSentinel = projectId === 'all'
     const existsInList =
       projectId && !isAllSentinel && projects.some((p) => String(p.id) === projectId)
