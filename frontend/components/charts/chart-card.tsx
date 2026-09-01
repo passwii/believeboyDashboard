@@ -62,8 +62,10 @@ export function ChartCard({
   heightClass = 'aspect-auto h-52 w-full md:h-64',
   children,
 }: ChartCardProps) {
-  const showSkeleton = loading && !empty
-  const showEmpty = empty && !loading
+  // loading 优先：调用方传 loading={pageLoading && !hasData} + empty={!hasData}，
+  // 两者可同时为真（"加载中且无数据"），此时应显示骨架而非空白或空态。
+  const showSkeleton = loading
+  const showEmpty = !loading && empty
 
   return (
     <div

@@ -54,6 +54,18 @@ describe('ChartCard', () => {
     expect(screen.queryByText('不应出现')).not.toBeInTheDocument()
   })
 
+  it('loading 与 empty 同时为真时渲染骨架（loading 优先）', () => {
+    render(
+      <ChartCard title="加载中" loading empty emptyText="暂无数据">
+        <div>不应出现</div>
+      </ChartCard>
+    )
+    // loading 优先 → 显示骨架，非空态文案
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.queryByText('暂无数据')).not.toBeInTheDocument()
+    expect(screen.queryByText('不应出现')).not.toBeInTheDocument()
+  })
+
   it('className 透传（col-span 等布局）', () => {
     const { container } = render(<ChartCard title="测试" className="col-span-2"><div /></ChartCard>)
     expect(container.firstElementChild?.className).toContain('col-span-2')
