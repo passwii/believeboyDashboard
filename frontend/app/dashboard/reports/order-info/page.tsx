@@ -1,7 +1,8 @@
 'use client'
 
-import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
   AlertCircle,
@@ -44,7 +45,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
-import { getOrderStatusLabel } from '@/lib/order-status'
+import {
+  getOrderStatusLabel,
+  getOrderStatusTone,
+  ORDER_STATUS_TONE_PILL_CLASS,
+  type OrderStatusTone,
+} from '@/lib/order-status'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
@@ -182,31 +188,14 @@ function defaultLast7Days(): { from: string; to: string } {
   }
 }
 
-/** 微语义色 tone：完成（已发货）绿 · 待处理（Pending）琥珀 · 异常（取消/无法履约）红 · 其他灰 */
-type StatusTone = 'pos' | 'warn' | 'neg' | 'muted'
-
-function statusTone(status: string): StatusTone {
-  const s = status.toLowerCase()
-  if (s.includes('cancel') || s.includes('unfulfillable')) return 'neg'
-  if (s.includes('pending')) return 'warn'
-  if (s.includes('ship')) return 'pos'
-  return 'muted'
-}
-
-const TONE_PILL_CLASS: Record<StatusTone, string> = {
-  pos: 'border-term-pos/50 text-term-pos',
-  warn: 'border-term-warn/50 text-term-warn',
-  neg: 'border-term-neg/50 text-term-neg',
-  muted: 'border-term-border-strong text-term-muted',
-}
-
-/** 终端状态 pill：18px 高、方角、1px 语义色边界（禁投影） */
-function StatusPill({ label, tone }: { label: string; tone: StatusTone }) {
+/** 终端状态 pill：18px 高、方角、1px 语义色边界（禁投影）。
+ * tone 映射与 pill class 已提炼为公共导出（BLF-927）：lib/order-status.ts */
+function StatusPill({ label, tone }: { label: string; tone: OrderStatusTone }) {
   return (
     <span
       className={cn(
         'inline-flex h-[18px] items-center whitespace-nowrap border px-1 font-mono text-[10px] leading-none',
-        TONE_PILL_CLASS[tone]
+        ORDER_STATUS_TONE_PILL_CLASS[tone]
       )}
     >
       {label}
@@ -224,7 +213,7 @@ function fmtAmount(n: number): string {
 
 // ======================== 主组件 ========================
 
-export default function OrderInfoPage() {
+function OrderInfoPageInner() {
   // session：用于向后端注入 X-Operator / X-Is-Admin（数据级权限控制）
   const { data: session, status: sessionStatus } = useSession()
   const { notify } = useNotifications()
@@ -324,6 +313,22 @@ export default function OrderInfoPage() {
 
   // 首次加载时自动选中第一个店铺，避免默认全部店铺导致全量数据慢查询
   const initialProjectAutoselected = useRef(false)
+  // BLF-927：URL order_statuses 预填（如 ?order_statuses=Pending）。仅 mount 时读一次，
+  // 与 BLF-819 全局头部水合互不冲突（g* 参数走 globalFilter，本机制只写 orderStatuses）。
+  const searchParams = useSearchParams()
+  const urlStatusPrefillApplied = useRef(false)
+  useEffect(() => {
+    if (urlStatusPrefillApplied.current) return
+    const raw = searchParams.getAll('order_statuses').join(',')
+    const values = raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+    if (values.length === 0) return
+    urlStatusPrefillApplied.current = true
+    setOrderStatuses(values)
+    setPage(1)
+  }, [searchParams])
 
   // 当前在飞的 list/stats 请求控制器：发新请求前 abort 上一次，
   // 避免快速切换筛选时多个重型请求并发堆积压垮后端（CPU/内存飙升根因之一）。
@@ -1147,7 +1152,7 @@ export default function OrderInfoPage() {
                       <TermCell>
                         <StatusPill
                           label={getOrderStatusLabel(item.order_status)}
-                          tone={statusTone(item.order_status)}
+                          tone={getOrderStatusTone(item.order_status)}
                         />
                       </TermCell>
                       <TermCell tone="muted">
@@ -1300,5 +1305,19 @@ function SkeletonRows({ rows = 12 }: { rows?: number }) {
         </tr>
       ))}
     </>
+  )
+}
+
+/**
+ * BLF-927：URL 预填支持（`?order_statuses=Pending&order_statuses=Shipped`，逗号分隔亦可）。
+ * Dashboard 订单流面板等入口跳转时用 query 告知本页初始状态筛选；
+ * 与 BLF-819 全局头部筛选（g* 参数）互不冲突——本机制只读 order_statuses。
+ * useSearchParams 在静态预渲染下需要 Suspense 边界（Next.js 构建要求）。
+ */
+export default function OrderInfoPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrderInfoPageInner />
+    </Suspense>
   )
 }

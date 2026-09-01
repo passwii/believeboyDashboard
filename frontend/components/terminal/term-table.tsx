@@ -65,6 +65,7 @@ export function TermRow({
   className,
   highlight,
   onClick,
+  'aria-label': ariaLabel,
 }: {
   children: React.ReactNode
   className?: string
@@ -72,10 +73,13 @@ export function TermRow({
   highlight?: boolean
   /** 可选行点击（如台账行打开详情）；传入时自动带 cursor-pointer */
   onClick?: () => void
+  /** 行的可访问名称（如「订单 111-xxx · SKU」）；此前调用方传了但被丢弃，现补齐透传 */
+  'aria-label'?: string
 }) {
   return (
     <tr
       onClick={onClick}
+      aria-label={ariaLabel}
       className={cn(
         'transition-colors hover:bg-term-hover',
         highlight && 'bg-term-raised',

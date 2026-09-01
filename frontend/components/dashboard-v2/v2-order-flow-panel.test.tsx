@@ -10,6 +10,28 @@ vi.mock('@/components/terminal/use-live-stream', () => ({
   useLiveStream: (...args: Parameters<typeof mockUseLiveStream>) => mockUseLiveStream(...args),
 }))
 
+// mock usePendingOrders — BLF-927 订单级 pending 列表数据源（默认空态）
+import type { UsePendingOrdersParams, UsePendingOrdersResult } from '@/components/dashboard-v2/use-pending-orders'
+const mockUsePendingOrders = vi.fn<(params?: UsePendingOrdersParams) => UsePendingOrdersResult>(() => ({
+  items: [],
+  total: 0,
+  loading: false,
+  loadingMore: false,
+  error: null,
+  hasMore: false,
+  loadMore: vi.fn(),
+}))
+
+vi.mock('@/components/dashboard-v2/use-pending-orders', () => ({
+  usePendingOrders: (...args: unknown[]) => mockUsePendingOrders(...(args as [])),
+}))
+
+// mock next/navigation router（行点击跳转断言用）
+const mockRouterPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockRouterPush, replace: vi.fn() }),
+}))
+
 // mock next/link（简化：渲染为 <a>）
 vi.mock('next/link', () => ({
   default: ({
@@ -55,9 +77,29 @@ const projects = [
   { id: 4, name: '项目D' },
 ]
 
+/** 面板公共 props（BLF-927 起必填 dateFrom/dateTo） */
+const panelProps = {
+  currentRows: mockRows,
+  projectBreakdown,
+  projects,
+  dateFrom: '2026-08-25',
+  dateTo: '2026-08-31',
+}
+
 describe('V2OrderFlowPanel', () => {
   beforeEach(() => {
     mockUseLiveStream.mockReturnValue([])
+    mockUsePendingOrders.mockReset()
+    mockUsePendingOrders.mockReturnValue({
+      items: [],
+      total: 0,
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasMore: false,
+      loadMore: vi.fn(),
+    })
+    mockRouterPush.mockClear()
     // 默认 localStorage 无值 → 折叠态
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(() => null),
@@ -68,11 +110,7 @@ describe('V2OrderFlowPanel', () => {
   describe('折叠态（默认）', () => {
     it('渲染折叠窄条', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       expect(screen.getByText('订单流')).toBeInTheDocument()
       expect(screen.getByLabelText('展开订单流面板')).toBeInTheDocument()
@@ -80,11 +118,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('显示待处理计数徽标（最后一行 pending_order_qty = 7）', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       expect(screen.getByText('7')).toBeInTheDocument()
     })
@@ -92,6 +126,7 @@ describe('V2OrderFlowPanel', () => {
     it('pending 为 0 时不显示徽标', () => {
       render(
         <V2OrderFlowPanel
+          {...panelProps}
           currentRows={[{ date: '2026-08-31', pending_order_qty: 0, order_qty: 0, sales_amount: 0 }]}
           projectBreakdown={{}}
           projects={[]}
@@ -103,6 +138,7 @@ describe('V2OrderFlowPanel', () => {
     it('pending > 99 显示 99+', () => {
       render(
         <V2OrderFlowPanel
+          {...panelProps}
           currentRows={[{ date: '2026-08-31', pending_order_qty: 150, order_qty: 0, sales_amount: 0 }]}
           projectBreakdown={{}}
           projects={[]}
@@ -115,11 +151,7 @@ describe('V2OrderFlowPanel', () => {
   describe('展开态', () => {
     it('点击折叠窄条展开面板', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.getByText('订单流 · 待处理')).toBeInTheDocument()
@@ -132,11 +164,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('收起按钮回到折叠态', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       fireEvent.click(screen.getByLabelText('收起订单流面板'))
@@ -146,11 +174,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('展开时显示待处理件数 = 最新 pending_order_qty', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       // 最后一行 pending_order_qty = 7（头部徽标 + 摘要 + 项目分解出现多次，取摘要区的第一个）
@@ -160,11 +184,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('项目分解按 pending 排序取 Top 5', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       // 待处理项目标题
@@ -180,11 +200,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('展开时显示今日出单区块', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.getByText('今日出单')).toBeInTheDocument()
@@ -194,11 +210,7 @@ describe('V2OrderFlowPanel', () => {
 
     it('底部链接指向订单信息页', () => {
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.getByText('查看完整订单信息')).toBeInTheDocument()
@@ -212,11 +224,7 @@ describe('V2OrderFlowPanel', () => {
         { id: '2:222', title: '项目B $18.50', timeLabel: '10:12' },
       ])
       render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.getByText('项目A $25.00')).toBeInTheDocument()
@@ -227,11 +235,7 @@ describe('V2OrderFlowPanel', () => {
     it('useLiveStream 仅在展开时被启用', () => {
       mockUseLiveStream.mockClear()
       const { unmount } = render(
-        <V2OrderFlowPanel
-          currentRows={mockRows}
-          projectBreakdown={projectBreakdown}
-          projects={projects}
-        />
+        <V2OrderFlowPanel {...panelProps} />
       )
       // 折叠态：enabled=false
       expect(mockUseLiveStream).toHaveBeenLastCalledWith(false)
@@ -246,6 +250,7 @@ describe('V2OrderFlowPanel', () => {
     it('currentRows 为空时 pending 显示 ——', () => {
       render(
         <V2OrderFlowPanel
+          {...panelProps}
           currentRows={[]}
           projectBreakdown={{}}
           projects={[]}
@@ -260,6 +265,7 @@ describe('V2OrderFlowPanel', () => {
     it('loading 且无数据时显示骨架', () => {
       const { container } = render(
         <V2OrderFlowPanel
+          {...panelProps}
           currentRows={[]}
           projectBreakdown={{}}
           projects={[]}
@@ -275,13 +281,165 @@ describe('V2OrderFlowPanel', () => {
     it('无 projectBreakdown 时不渲染待处理项目区', () => {
       render(
         <V2OrderFlowPanel
-          currentRows={mockRows}
+          {...panelProps}
           projectBreakdown={undefined}
-          projects={projects}
         />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.queryByText('待处理项目')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('订单级 pending 列表（BLF-927 Stage 2）', () => {
+    const pendingItem = {
+      id: 101,
+      amazon_order_id: '111-1111111-0000001',
+      sku: 'SKU-TEST-LONG-NAME',
+      asin: 'B0TEST0001',
+      product_name: '测试商品A',
+      quantity: 2,
+      item_price: 10,
+      shipping_price: 5,
+      currency: 'USD',
+      country: 'US',
+      purchase_at_utc: '2026-08-30T02:30:00Z',
+      purchase_at_pt: '2026-08-29 19:30:00',
+      order_status: 'Pending',
+    }
+
+    it('usePendingOrders 仅在展开时被启用，且传入项目列表与日期窗口', () => {
+      mockUsePendingOrders.mockClear()
+      render(<V2OrderFlowPanel {...panelProps} />)
+      // 折叠态：enabled=false
+      expect(mockUsePendingOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: false })
+      )
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      // 展开态：enabled=true + 项目 + 日期窗口（BEL-422 护栏参数）
+      expect(mockUsePendingOrders).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          enabled: true,
+          projectIds: [1, 2, 3, 4],
+          dateFrom: '2026-08-25',
+          dateTo: '2026-08-31',
+        })
+      )
+    })
+
+    it('渲染待处理订单行（SKU / 国家 / PT 时间 / 金额 / warn 语义色状态）', () => {
+      mockUsePendingOrders.mockReturnValue({
+        items: [pendingItem],
+        total: 1,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        hasMore: false,
+        loadMore: vi.fn(),
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      expect(screen.getByText('待处理订单')).toBeInTheDocument()
+      // SKU + 国家·PT 时间（窄列压缩格式 MM-DD HH:MM）
+      expect(screen.getByText('SKU-TEST-LONG-NAME')).toBeInTheDocument()
+      expect(screen.getByText('US · 08-29 19:30')).toBeInTheDocument()
+      // 金额 = item_price + shipping_price（15.00 USD，与 order-info 同口径）
+      expect(screen.getByText('15.00 USD')).toBeInTheDocument()
+      // 状态标签 warn 语义色 + 数量
+      const status = screen.getByText('×2 · 处理中')
+      expect(status.className).toContain('text-term-warn')
+      expect(status.className).toContain('border-term-warn/50')
+    })
+
+    it('加载中显示骨架（aria-busy）', () => {
+      mockUsePendingOrders.mockReturnValue({
+        items: [],
+        total: 0,
+        loading: true,
+        loadingMore: false,
+        error: null,
+        hasMore: false,
+        loadMore: vi.fn(),
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      const section = screen.getByTestId('order-flow-pending-list')
+      expect(section.querySelector('[aria-busy="true"]')).not.toBeNull()
+    })
+
+    it('请求失败显示 ERR 提示', () => {
+      mockUsePendingOrders.mockReturnValue({
+        items: [],
+        total: 0,
+        loading: false,
+        loadingMore: false,
+        error: '待处理订单加载失败 (500)',
+        hasMore: false,
+        loadMore: vi.fn(),
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      expect(screen.getByText(/ERR · 待处理订单加载失败 \(500\)/)).toBeInTheDocument()
+    })
+
+    it('空数据显示空态文案', () => {
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      expect(screen.getByTestId('order-flow-pending-empty')).toBeInTheDocument()
+      expect(screen.getByText('当前区间暂无待处理订单')).toBeInTheDocument()
+    })
+
+    it('有更多数据时显示「加载更多」并回调 loadMore', () => {
+      const loadMore = vi.fn()
+      mockUsePendingOrders.mockReturnValue({
+        items: [pendingItem],
+        total: 25,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        hasMore: true,
+        loadMore,
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      const moreBtn = screen.getByTestId('order-flow-pending-more')
+      expect(moreBtn).toHaveTextContent('加载更多（1/25）')
+      fireEvent.click(moreBtn)
+      expect(loadMore).toHaveBeenCalledTimes(1)
+    })
+
+    it('hasMore=false 时不显示加载更多按钮', () => {
+      mockUsePendingOrders.mockReturnValue({
+        items: [pendingItem],
+        total: 1,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        hasMore: false,
+        loadMore: vi.fn(),
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      expect(screen.queryByTestId('order-flow-pending-more')).not.toBeInTheDocument()
+    })
+
+    it('行点击跳转 order-info 页并预填 Pending 筛选', () => {
+      mockUsePendingOrders.mockReturnValue({
+        items: [pendingItem],
+        total: 1,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        hasMore: false,
+        loadMore: vi.fn(),
+      })
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      fireEvent.click(
+        screen.getByRole('row', { name: /待处理订单 111-1111111-0000001/ })
+      )
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        '/dashboard/reports/order-info?order_statuses=Pending'
+      )
     })
   })
 })
