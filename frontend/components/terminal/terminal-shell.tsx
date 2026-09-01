@@ -10,6 +10,7 @@ import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
 import {
+  MobileStripMount,
   TerminalHeaderSlotProvider,
 } from '@/components/terminal/terminal-header-slot'
 import { TerminalFooter } from '@/components/terminal/terminal-footer'
@@ -123,6 +124,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
             id="main-content"
             className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto rounded-none p-1 shadow-none md:p-2 term-scroll"
           >
+            <MobileStripMount className="sticky top-0 z-10" />
             <PageTransition>{children}</PageTransition>
           </main>
           <TerminalInspector
