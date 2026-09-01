@@ -147,7 +147,7 @@ describe('usePendingOrders（BLF-927）', () => {
   })
 
   it('enabled 翻转（收起面板）时清空列表且 abort 在飞请求', async () => {
-    let abortSignal: AbortSignal | undefined
+    let abortSignal: AbortSignal | null | undefined
     fetchMock.mockImplementation(async (_input: RequestInfo | URL, init?: RequestInit) => {
       abortSignal = init?.signal
       return jsonResponse({ items: ROW_PAGE_1, total: 20 })

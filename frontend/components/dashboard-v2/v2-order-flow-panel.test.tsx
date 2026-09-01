@@ -11,7 +11,8 @@ vi.mock('@/components/terminal/use-live-stream', () => ({
 }))
 
 // mock usePendingOrders — BLF-927 订单级 pending 列表数据源（默认空态）
-const mockUsePendingOrders = vi.fn(() => ({
+import type { UsePendingOrdersParams, UsePendingOrdersResult } from '@/components/dashboard-v2/use-pending-orders'
+const mockUsePendingOrders = vi.fn<(params?: UsePendingOrdersParams) => UsePendingOrdersResult>(() => ({
   items: [],
   total: 0,
   loading: false,

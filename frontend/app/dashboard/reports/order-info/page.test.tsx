@@ -45,7 +45,7 @@ function setGf(patch: Partial<typeof gfState>) {
 }
 
 const mockSearchParams = {
-  getAll: vi.fn((): string[] => []),
+  getAll: vi.fn((_key: string): string[] => []),
   get: vi.fn((): string | null => null),
 }
 
@@ -181,7 +181,7 @@ function jsonResponse(payload: unknown): Response {
   } as unknown as Response
 }
 
-const fetchMock = vi.fn(async () =>
+const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
   jsonResponse({
     items: MOCK_ITEMS,
     total: 3,
