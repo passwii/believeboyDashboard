@@ -2,17 +2,8 @@
 
 import { Globe2 } from 'lucide-react'
 
-import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { BarChartCard, buildChartConfig } from '@/components/charts'
+import { BarChartCard, ChartCard, buildChartConfig } from '@/components/charts'
 import { getCountryLabel } from '@/lib/country'
-
-import { V2Card } from './v2-card'
 
 export interface V2CountryRow {
   date: string
@@ -64,41 +55,31 @@ export function V2CountryChart({
     name: r.label,
     sales: r.totalSales,
   }))
+  const hasData = rows.length > 0
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] col-span-2">
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-[hsl(var(--surface-subtle))] dark:text-muted-foreground">
-            <Globe2 className="size-4" />
-          </span>
-          <CardTitle>跨国家销售额</CardTitle>
-        </div>
-        <CardDescription>
-          {representativeProjectName
-            ? `${representativeProjectName} · 各站点销售额分布`
-            : '各站点销售额分布'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading && rows.length === 0 ? (
-          <Skeleton className="h-52 w-full" />
-        ) : rows.length > 0 ? (
-          <BarChartCard
-            data={rows}
-            xKey="name"
-            series={[{ dataKey: 'sales', barProps: { radius: [0, 2, 2, 0] } }]}
-            config={chartConfig}
-            layout="horizontal"
-            xTickFormatter={(value) => `$${Number(value) / 1000}k`}
-            showLegend={false}
-          />
-        ) : (
-          <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-            暂无国家数据
-          </div>
-        )}
-      </CardContent>
-    </V2Card>
+    <ChartCard
+      icon={<Globe2 className="size-4" />}
+      title="跨国家销售额"
+      description={
+        representativeProjectName
+          ? `${representativeProjectName} · 各站点销售额分布`
+          : '各站点销售额分布'
+      }
+      loading={loading && !hasData}
+      empty={!hasData}
+      emptyText="暂无国家数据"
+      className="col-span-2"
+    >
+      <BarChartCard
+        data={rows}
+        xKey="name"
+        series={[{ dataKey: 'sales', barProps: { radius: [0, 2, 2, 0] } }]}
+        config={chartConfig}
+        layout="horizontal"
+        xTickFormatter={(value) => `$${Number(value) / 1000}k`}
+        showLegend={false}
+      />
+    </ChartCard>
   )
 }

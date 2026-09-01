@@ -465,8 +465,8 @@ export default function DashboardV2Page() {
             {hasData || anyLoading ? (
               <>
                 <V2Stats currentRows={currentRows} comparisonRows={comparisonRows} loading={anyLoading} />
-                <LazyV2RevenueChart currentRows={currentRows} comparisonRows={comparisonRows} />
-                <LazyV2ChannelChart currentRows={currentRows} comparisonRows={comparisonRows} />
+                <LazyV2RevenueChart currentRows={currentRows} comparisonRows={comparisonRows} loading={anyLoading} />
+                <LazyV2ChannelChart currentRows={currentRows} comparisonRows={comparisonRows} loading={anyLoading} />
                 <LazyV2ProjectChart
                   projectBreakdown={projectBreakdown}
                   projects={projects}
@@ -487,7 +487,7 @@ export default function DashboardV2Page() {
                   <button
                     type="button"
                     onClick={() => void loadData()}
-                    className="border border-term-border px-3 py-1 text-xs text-term-muted transition-colors hover:text-term-text"
+                    className="border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                   >
                     重试
                   </button>

@@ -13,6 +13,7 @@ import {
   ChartLegend,
   ChartLegendContent,
   type ChartConfig,
+  ChartCard,
 } from '@/components/charts'
 import {
   Select,
@@ -107,9 +108,9 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
   }
 
   return (
-    <div className="rounded-none border border-term-border bg-term-bg p-3 sm:p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-term-text">多项目趋势对比</h3>
+    <ChartCard
+      title="多项目趋势对比"
+      actions={
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
           <SelectTrigger className="h-9 w-32 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
             <SelectValue />
@@ -122,7 +123,8 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
             ))}
           </SelectContent>
         </Select>
-      </div>
+      }
+    >
       <ChartContainer config={chartConfig} className="h-[300px] w-full sm:h-[350px]">
         <LineChart
           data={chartData}
@@ -172,6 +174,6 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
           ))}
         </LineChart>
       </ChartContainer>
-    </div>
+    </ChartCard>
   )
 }

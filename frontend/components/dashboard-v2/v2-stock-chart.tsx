@@ -2,17 +2,8 @@
 
 import { Boxes } from 'lucide-react'
 
-import {
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { AreaChartCard, buildChartConfig } from '@/components/charts'
+import { AreaChartCard, ChartCard, buildChartConfig } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
-
-import { V2Card } from './v2-card'
-import { Delta, DeltaIcon, DeltaValue } from './v2-delta'
 
 export interface V2StockRow {
   date: string
@@ -56,43 +47,32 @@ const chartConfig = buildChartConfig(['qty'], { qty: '可用库存' })
 
 export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2StockChartProps) {
   const { rows, current, delta } = computeStockTrend(currentRows, comparisonRows)
+  const hasData = rows.length > 0
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] col-span-2">
-      <CardHeader className="gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-[hsl(var(--surface-subtle))] dark:text-muted-foreground">
-            <Boxes className="size-4" />
-          </span>
-          <CardTitle>库存水位</CardTitle>
-          <Delta value={delta} variant="badge">
-            <DeltaIcon variant="trend" />
-            <DeltaValue />
-          </Delta>
+    <ChartCard
+      icon={<Boxes className="size-4" />}
+      title="库存水位"
+      description="可用库存每日变化（近 7 天）"
+      delta={{ value: delta, variant: 'badge' }}
+      loading={loading && !hasData}
+      empty={!hasData}
+      emptyText="暂无库存数据"
+      className="col-span-2"
+      actions={
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
+          <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
         </div>
-        <CardDescription>可用库存每日变化（近 7 天）</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {rows.length > 0 ? (
-          <>
-            <div className="mb-2 flex items-baseline gap-1.5">
-              <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
-              <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
-            </div>
-            <AreaChartCard
-              data={rows}
-              xKey="day"
-              series={[{ dataKey: 'qty' }]}
-              config={chartConfig}
-              gradient
-            />
-          </>
-        ) : (
-          <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-            {loading ? '加载中…' : '暂无库存数据'}
-          </div>
-        )}
-      </CardContent>
-    </V2Card>
+      }
+    >
+      <AreaChartCard
+        data={rows}
+        xKey="day"
+        series={[{ dataKey: 'qty' }]}
+        config={chartConfig}
+        gradient
+      />
+    </ChartCard>
   )
 }

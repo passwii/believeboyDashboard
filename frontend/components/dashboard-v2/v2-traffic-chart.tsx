@@ -2,17 +2,8 @@
 
 import { Activity } from 'lucide-react'
 
-import {
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { ComposedChartCard, buildChartConfig } from '@/components/charts'
+import { ChartCard, ComposedChartCard, buildChartConfig } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
-import { V2Card } from './v2-card'
-
 
 export interface V2TrafficRow {
   date: string
@@ -69,57 +60,62 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
     }
   })
   const stats = computeTrafficStats(currentRows)
+  const hasData = rows.length > 0
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] col-span-2">
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-[hsl(var(--surface-subtle))] dark:text-muted-foreground">
-            <Activity className="size-4" />
+    <ChartCard
+      icon={<Activity className="size-4" />}
+      title="流量与转化"
+      description="浏览量趋势与转化率（近 7 天）"
+      loading={loading && !hasData}
+      empty={!hasData}
+      emptyText="暂无流量数据"
+      className="col-span-2"
+      footer={
+        <>
+          <span className="text-xs text-muted-foreground">
+            总浏览量{' '}
+            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+              {fmtNumPrecise(stats.totalPageViews)}
+            </b>
           </span>
-          <CardTitle>流量与转化</CardTitle>
-        </div>
-        <CardDescription>浏览量趋势与转化率（近 7 天）</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {rows.length > 0 ? (
-          <ComposedChartCard
-            data={rows}
-            xKey="day"
-            config={chartConfig}
-            dualAxis
-            rightYFormatter={(v) => `${v}%`}
-            series={[
-              { kind: 'bar', dataKey: 'page_views', name: '浏览量', yAxisId: 'left' },
-              {
-                kind: 'line',
-                dataKey: 'conversion_rate',
-                name: '转化率',
-                yAxisId: 'right',
-              },
-            ]}
-          />
-        ) : (
-          <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-            {loading ? '加载中…' : '暂无流量数据'}
-          </div>
-        )}
-      </CardContent>
-      <CardFooter className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/60 px-5 py-3">
-        <span className="text-xs text-muted-foreground">
-          总浏览量 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalPageViews)}</b>
-        </span>
-        <span className="text-xs text-muted-foreground">
-          访客数 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalSessions)}</b>
-        </span>
-        <span className="text-xs text-muted-foreground">
-          转化订单 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
-        </span>
-        <span className="text-xs text-muted-foreground">
-          平均转化率{' '}
-          <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{stats.conversionRatePct.toFixed(2)}%</b>
-        </span>
-      </CardFooter>
-    </V2Card>
+          <span className="text-xs text-muted-foreground">
+            访客数{' '}
+            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+              {fmtNumPrecise(stats.totalSessions)}
+            </b>
+          </span>
+          <span className="text-xs text-muted-foreground">
+            转化订单{' '}
+            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+              {fmtNumPrecise(stats.totalUnitsOrdered)}
+            </b>
+          </span>
+          <span className="text-xs text-muted-foreground">
+            平均转化率{' '}
+            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+              {stats.conversionRatePct.toFixed(2)}%
+            </b>
+          </span>
+        </>
+      }
+    >
+      <ComposedChartCard
+        data={rows}
+        xKey="day"
+        config={chartConfig}
+        dualAxis
+        rightYFormatter={(v) => `${v}%`}
+        series={[
+          { kind: 'bar', dataKey: 'page_views', name: '浏览量', yAxisId: 'left' },
+          {
+            kind: 'line',
+            dataKey: 'conversion_rate',
+            name: '转化率',
+            yAxisId: 'right',
+          },
+        ]}
+      />
+    </ChartCard>
   )
 }
