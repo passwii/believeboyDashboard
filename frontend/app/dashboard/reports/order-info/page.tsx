@@ -313,21 +313,46 @@ function OrderInfoPageInner() {
 
   // 首次加载时自动选中第一个店铺，避免默认全部店铺导致全量数据慢查询
   const initialProjectAutoselected = useRef(false)
-  // BLF-927：URL order_statuses 预填（如 ?order_statuses=Pending）。仅 mount 时读一次，
-  // 与 BLF-819 全局头部水合互不冲突（g* 参数走 globalFilter，本机制只写 orderStatuses）。
+  // BLF-927：URL order_statuses 预填（如 ?order_statuses=Pending）。
+  // BLF-939：URL project_id / date_from / date_to 预填（从首页订单流面板跳转时带入）。
+  // 仅 mount 时读一次，与 BLF-819 全局头部水合互不冲突（g* 参数走 globalFilter，本机制只写页面级状态）。
   const searchParams = useSearchParams()
-  const urlStatusPrefillApplied = useRef(false)
+  const urlPrefillApplied = useRef(false)
   useEffect(() => {
-    if (urlStatusPrefillApplied.current) return
-    const raw = searchParams.getAll('order_statuses').join(',')
-    const values = raw
+    if (urlPrefillApplied.current) return
+    let changed = false
+
+    // order_statuses
+    const rawStatuses = searchParams.getAll('order_statuses').join(',')
+    const statuses = rawStatuses
       .split(',')
       .map((v) => v.trim())
       .filter(Boolean)
-    if (values.length === 0) return
-    urlStatusPrefillApplied.current = true
-    setOrderStatuses(values)
-    setPage(1)
+    if (statuses.length > 0) {
+      setOrderStatuses(statuses)
+      changed = true
+    }
+
+    // project_id（与 globalFilter 的 gProject 不同，本参数直写页面 projectId）
+    const pid = searchParams.get('project_id')
+    if (pid && pid !== DEFAULT_PROJECT_VALUE) {
+      setProjectId(pid)
+      gfProjectOwnedRef.current = true
+      changed = true
+    }
+
+    // date_from / date_to
+    const df = searchParams.get('date_from')
+    const dt = searchParams.get('date_to')
+    if (df && dt) {
+      setDateFrom(df)
+      setDateTo(dt)
+      urlDatePrefilledRef.current = true
+      changed = true
+    }
+
+    if (changed) setPage(1)
+    urlPrefillApplied.current = true
   }, [searchParams])
 
   // 当前在飞的 list/stats 请求控制器：发新请求前 abort 上一次，
@@ -511,9 +536,12 @@ function OrderInfoPageInner() {
     }
   }, [])
 
-  // 首屏默认近 7 天：在 mount 后 effect 里 setState 而不是 useState 初值，
+  // 首屏默认近 7 天：仅在 URL 未预填日期时设置
+  // 在 mount 后 effect 里 setState 而不是 useState 初值，
   // 避免 SSR pre-render 与 CSR hydrate 不一致导致 React hydration mismatch。
+  const urlDatePrefilledRef = useRef(false)
   useEffect(() => {
+    if (urlDatePrefilledRef.current) return
     const { from, to } = defaultLast7Days()
     setDateFrom(from)
     setDateTo(to)
