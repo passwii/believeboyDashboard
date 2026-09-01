@@ -679,6 +679,86 @@ tickFormatter={(value) => {
 
 ---
 
+### Terminal 移动端筛选折叠条（BLF-933 / BLF-930 / BLF-931）
+
+> Terminal 终端页面的移动端筛选适配方案：把散落在 header 中段插槽的筛选项，在手机端**下迁为正文顶部的可折叠筛选条**，折叠态只占一行、展示当前筛选摘要，展开态用 2 列网格承载控件。桌面端行为完全不变（零回归）。
+
+#### 新组件
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `MobileFilterStrip` | `frontend/components/terminal/mobile-filter-strip.tsx` | 可折叠筛选条主体：折叠态=筛选图标+摘要+展开按钮；展开态=`grid-cols-2` 网格渲染 `controls` |
+| `MobileFilterWide` | 同上 | 宽筛选项容器（`col-span-2` 占整行），用于日期范围 / SKU 搜索等宽控件 |
+| `MobileStripMount` | `frontend/components/terminal/terminal-header-slot.tsx` | 正文顶部挂载点（`md:hidden`，仅 <768px 可见，`sticky top-0`） |
+| `useMobileFilterStrip` | 同上 | 页面侧 hook：`isMobile` 时把折叠条 portal 进正文顶部挂载点；桌面端返回 null |
+
+#### 设计决策
+
+1. **折叠优先**：默认折叠，只显示当前筛选摘要（如「玥涵 · US · 06/01~09/01」），不遮挡正文数据区；点开才露出控件，收起即还原。
+2. **2 列网格 + 宽控件整行**：短控件（项目/站点 Select）各占 1/2，宽控件（日期范围/SKU 搜索）用 `MobileFilterWide` 占整行——对应规则 2/9 的 2 列网格基线。
+3. **下迁不复制**：复用页面上已有的筛选控件（同一份 state / 回调闭包），通过 portal 从 header 中段插槽（桌面）下迁到正文顶部（手机），避免双份控件导致状态分叉。
+4. **桌面零回归**：桌面端 `useHeaderSlot` 行为完全不变；`useMobileFilterStrip` 在非 `isMobile` 时返回 null，不渲染任何内容。
+5. **Terminal 终端风格**：与终端视觉一致——1px border / 零圆角 / `term-*` 色组 / mono 数值，融入现有终端页面。
+6. **触控友好**：折叠条按钮 `min-h-[44px]`，满足规则 5 最小触摸面积。
+
+#### Stage 1-3 关键改动
+
+| Stage | Issue | 内容 |
+|-------|-------|------|
+| Stage 1（基础设施） | BLF-933 | `MobileFilterStrip`/`MobileFilterWide` 组件 + `MobileStripMount` 挂载点 + `useMobileFilterStrip` hook；`TerminalShell` 正文 `main` 顶部挂载；组件/挂载机制双测试（`mobile-filter-strip.test.tsx` / `mobile-strip-mount.test.tsx`） |
+| Stage 2（试点页面） | BLF-930 | 首页 `dashboard/page.tsx`（项目 Select + 数据区间徽标）+ `daily-analysis`（项目/站点/日期/SKU 四件套）接入；Playwright 试点冒烟 `mobile-filter-strip-pilot.spec.ts`（360px/390px 折叠渲染、摘要、展开交互、URL 同步、桌面零回归） |
+| Stage 3（批量推广 13 页） | BLF-931 | 模式复制到 13 个终端页面，统一「桌面 `isMobileView={false}` + 手机 `useMobileFilterStrip`」双轨；12 页移除 `useIsMobile` 导入（仅 weekly-product-analysis 保留用于图表渲染）；各页测试补 mock `useMobileFilterStrip: () => null` |
+
+#### 验证通过的移动端页面清单（Stage 3 批量推广）
+
+| 页面 | 筛选控件形态 |
+|------|--------------|
+| 首页 `dashboard` | 项目 Select + 数据区间徽标 |
+| 每日分析 `daily-analysis` | 项目/站点（短）+ 日期/SKU（宽）四件套 |
+| 库存分析 `inventory-analysis` | 项目 + 国家站点 + 快照日期 + 业务日期徽标 |
+| 库存流水 `inventory-ledger` | 6 维 Select（项目/月份/SKU/仓库/状态/事件）+ 清除筛选 |
+| 补货分析 `inventory-replenishment` | 项目 + 关键词 + 站点 + 风险状态 |
+| 组合总览 `portfolio-overview` | PortfolioFilters（多项目/站点/日期范围/刷新） |
+| 周商品分析 `weekly-product-analysis` | Select × 2 + 日期范围 |
+| SKU 信息 `sku-info` | 项目 + SKU 输入 + ASIN 输入 + 站点 + 状态 + 查询/重置 |
+| 货件管理 `shipment-management` | 项目 + 状态 + 国家 + 货件编号搜索 |
+| 季节性补货 `seasonal-replenishment` | 项目 + 站点 + 日期范围 + 关键词 + 同比开关 |
+| 退货分析 `return-analysis` | 项目 + 站点 + 日期范围 |
+| 目标管理 `project-goals` | 项目 + 站点 + 年份 |
+| 平台收入 `finance/platform-revenue` | 项目 + 年份 + 月份 + 币种 + 回款类型 + 重置 |
+| 汇率管理 `finance/exchange-rate` | 币种 + 年份 + 月份 + 重置 |
+| 佣金管理 `finance/commission-management` | 月/年选择器 + 站点 + 核算按钮 |
+
+#### 实现模式
+
+```tsx
+// 页面侧：桌面端走 useHeaderSlot，手机端走 useMobileFilterStrip（同一份筛选控件）
+const desktopSlot = useHeaderSlot(
+  <HeaderFilterControls isMobileView={false} controls={filters} />
+)
+const mobileStrip = useMobileFilterStrip(
+  <MobileFilterStrip
+    summary={summaryText /* 如 '玥涵 · US · 06/01~09/01' */}
+    controls={
+      <>
+        <HeaderProjectSelect ... />   {/* 短控件：1/2 列 */}
+        <HeaderCountrySelect ... />   {/* 短控件：1/2 列 */}
+        <MobileFilterWide><HeaderDateRangePicker ... /></MobileFilterWide> {/* 宽：整行 */}
+        <MobileFilterWide><SkuSearch ... /></MobileFilterWide>            {/* 宽：整行 */}
+      </>
+    }
+  />
+)
+return <>{desktopSlot}{mobileStrip}</>
+```
+
+**关键点**：
+- 折叠摘要 `summary` 由页面根据当前筛选值自行构造，筛选变化时保持同步；
+- `useMobileFilterStrip` 仅在 `<768px`（`useIsMobile`）且挂载点就绪时渲染，SSR / 首帧挂载点未就绪时返回 null 不报错；
+- 控件经 portal 进正文顶部 `MobileStripMount`，页面 unmount / 路由切换自动清除，不残留。
+
+---
+
 ## 附录：常用断点参考
 
 | 断点 | 范围 | 典型设备 |
