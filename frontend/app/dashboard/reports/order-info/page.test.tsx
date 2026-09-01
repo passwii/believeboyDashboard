@@ -410,4 +410,54 @@ describe('订单信息页终端化（BLF-817）', () => {
       expect(lastUrl).not.toContain('order_statuses=')
     })
   })
+
+  // ====== BLF-939：URL project_id / date_from / date_to 预填（首页订单流面板跳转带入） ======
+
+  it('BLF-939 URL 预填：project_id + date_from + date_to + order_statuses 全参数生效', async () => {
+    const realGet = mockSearchParams.get
+    const realGetAll = mockSearchParams.getAll
+    mockSearchParams.get = vi.fn((key: string) => {
+      if (key === 'project_id') return '3'
+      if (key === 'date_from') return '2026-08-01'
+      if (key === 'date_to') return '2026-08-05'
+      return null
+    })
+    mockSearchParams.getAll = vi.fn((key: string) =>
+      key === 'order_statuses' ? ['Pending'] : []
+    )
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      await waitFor(() => {
+        const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+        expect(lastUrl).toContain('project_ids=3')
+        expect(lastUrl).toContain('order_statuses=Pending')
+        expect(lastUrl).toContain('date_from=2026-08-01')
+        expect(lastUrl).toContain('date_to=2026-08-05')
+      })
+    } finally {
+      mockSearchParams.get = realGet
+      mockSearchParams.getAll = realGetAll
+    }
+  })
+
+  it('BLF-939 URL 预填：无 project_id 时保持自动选中第一个店铺', async () => {
+    setGf({ ready: true, projectId: '', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    mockSearchParams.get = vi.fn(() => null)
+    mockSearchParams.getAll = vi.fn(() => [])
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    // 无 project_id 参数 → autoselect 生效，首请求带 project_ids=1
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('project_ids=1')
+  })
 })

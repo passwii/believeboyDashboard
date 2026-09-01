@@ -251,8 +251,8 @@ describe('V2OrderFlowPanel', () => {
         <V2OrderFlowPanel {...panelProps} />
       )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
-      // 待处理项目标题
-      expect(screen.getByText('待处理项目')).toBeInTheDocument()
+      // 待处理订单模块标题
+      expect(screen.getAllByText('待处理订单').length).toBeGreaterThanOrEqual(1)
       // 项目A(7) > 项目C(2) > 项目B(0排除)
       expect(screen.getByText('项目A')).toBeInTheDocument()
       expect(screen.getByText('项目C')).toBeInTheDocument()
@@ -386,6 +386,8 @@ describe('V2OrderFlowPanel', () => {
   describe('订单级 pending 列表（BLF-927 Stage 2）', () => {
     const pendingItem = {
       id: 101,
+      project_id: 1,
+      project_name: '项目A',
       amazon_order_id: '111-1111111-0000001',
       sku: 'SKU-TEST-LONG-NAME',
       asin: 'B0TEST0001',
@@ -419,7 +421,7 @@ describe('V2OrderFlowPanel', () => {
       )
     })
 
-    it('渲染待处理订单行（SKU / 国家 / PT 时间 / 金额 / warn 语义色状态）', () => {
+    it('渲染待处理订单行（OrderID / SKU / 数量 / 金额 / 状态 / 国家 / 时间）', () => {
       mockUsePendingOrders.mockReturnValue({
         items: [pendingItem],
         total: 1,
@@ -432,16 +434,18 @@ describe('V2OrderFlowPanel', () => {
       })
       render(<V2OrderFlowPanel {...panelProps} />)
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      // 项目组展开（项目A breakdown pending = 7）
+      fireEvent.click(screen.getByLabelText('项目A · 7 单待处理'))
       expect(screen.getAllByText('待处理订单').length).toBeGreaterThanOrEqual(1)
-      // SKU + 国家·PT 时间（窄列压缩格式 MM-DD HH:MM）
-      expect(screen.getByText('SKU-TEST-LONG-NAME')).toBeInTheDocument()
-      expect(screen.getByText('US · 08-29 19:30')).toBeInTheDocument()
-      // 金额 = item_price + shipping_price（15.00 USD，与 order-info 同口径）
-      expect(screen.getByText('15.00 USD')).toBeInTheDocument()
-      // 状态标签 warn 语义色 + 数量
-      const status = screen.getByText('×2 · 处理中')
-      expect(status.className).toContain('text-term-warn')
-      expect(status.className).toContain('border-term-warn/50')
+      // OrderID（第一行）
+      expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
+      // 第二行：SKU · ×数量 · 金额 · 状态 · 国家 · 时间
+      expect(screen.getByText(/SKU-TEST-LONG-NAME/)).toBeInTheDocument()
+      expect(screen.getByText(/15\.00 USD/)).toBeInTheDocument()
+      expect(screen.getByText(/×2/)).toBeInTheDocument()
+      expect(screen.getByText(/处理中/)).toBeInTheDocument()
+      expect(screen.getByText(/US/)).toBeInTheDocument()
+      expect(screen.getByText(/08-29 19:30/)).toBeInTheDocument()
     })
 
     it('加载中显示骨架（aria-busy）', () => {
@@ -457,7 +461,7 @@ describe('V2OrderFlowPanel', () => {
       })
       render(<V2OrderFlowPanel {...panelProps} />)
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
-      const section = screen.getByTestId('order-flow-pending-list')
+      const section = screen.getByTestId('order-flow-pending-grouped')
       expect(section.querySelector('[aria-busy="true"]')).not.toBeNull()
     })
 
@@ -477,8 +481,13 @@ describe('V2OrderFlowPanel', () => {
       expect(screen.getByText(/ERR · 待处理订单加载失败 \(500\)/)).toBeInTheDocument()
     })
 
-    it('空数据显示空态文案', () => {
-      render(<V2OrderFlowPanel {...panelProps} />)
+    it('空数据显示空态文案（无 projectBreakdown 时）', () => {
+      render(
+        <V2OrderFlowPanel
+          {...panelProps}
+          projectBreakdown={undefined}
+        />
+      )
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
       expect(screen.getByTestId('order-flow-pending-empty')).toBeInTheDocument()
       expect(screen.getByText('当前区间暂无待处理订单')).toBeInTheDocument()
@@ -520,9 +529,25 @@ describe('V2OrderFlowPanel', () => {
       expect(screen.queryByTestId('order-flow-pending-more')).not.toBeInTheDocument()
     })
 
-    it('行点击跳转 order-info 页并预填 Pending 筛选', () => {
+    it('行点击跳转 order-info 页并预填 Pending + 项目 + 日期', () => {
       mockUsePendingOrders.mockReturnValue({
-        items: [pendingItem],
+        items: [{
+          id: 101,
+          project_id: 1,
+          project_name: '项目A',
+          amazon_order_id: '111-1111111-0000001',
+          sku: 'SKU-TEST-LONG-NAME',
+          asin: 'B0TEST0001',
+          product_name: '测试商品A',
+          quantity: 2,
+          item_price: 10,
+          shipping_price: 5,
+          currency: 'USD',
+          country: 'US',
+          purchase_at_utc: '2026-08-30T02:30:00Z',
+          purchase_at_pt: '2026-08-29 19:30:00',
+          order_status: 'Pending',
+        }],
         total: 1,
         loading: false,
         loadingMore: false,
@@ -533,18 +558,22 @@ describe('V2OrderFlowPanel', () => {
       })
       render(<V2OrderFlowPanel {...panelProps} />)
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      // 先展开项目组（项目A breakdown pending = 7，测试用 mockRows 最新 pending_order_qty）
+      fireEvent.click(screen.getByLabelText('项目A · 7 单待处理'))
       fireEvent.click(
         screen.getByRole('row', { name: /待处理订单 111-1111111-0000001/ })
       )
       expect(mockRouterPush).toHaveBeenCalledWith(
-        '/dashboard/reports/order-info?order_statuses=Pending'
+        '/dashboard/reports/order-info?order_statuses=Pending&project_id=1&date_from=2026-08-25&date_to=2026-08-31'
       )
     })
   })
 
-  describe('Stage 3：实时计数 + 操作闭环（BLF-928）', () => {
+  describe('Stage 3：实时计数（BLF-928）+ 按项目聚合（BLF-939）', () => {
     const pendingItem = {
       id: 101,
+      project_id: 1,
+      project_name: '项目A',
       amazon_order_id: '111-1111111-0000001',
       sku: 'SKU-TEST-LONG-NAME',
       asin: 'B0TEST0001',
@@ -557,22 +586,6 @@ describe('V2OrderFlowPanel', () => {
       purchase_at_utc: '2026-08-30T02:30:00Z',
       purchase_at_pt: '2026-08-29 19:30:00',
       order_status: 'Pending',
-    }
-
-    function renderPendingOne() {
-      mockUsePendingOrders.mockReturnValue({
-        items: [pendingItem],
-        total: 1,
-        loading: false,
-        loadingMore: false,
-        error: null,
-        hasMore: false,
-        loadMore: vi.fn(),
-        refresh: vi.fn(),
-      })
-      mockUsePendingCount.mockReturnValue({ count: 1, loading: false, refresh: vi.fn() })
-      render(<V2OrderFlowPanel {...panelProps} />)
-      fireEvent.click(screen.getByLabelText('展开订单流面板'))
     }
 
     it('usePendingCount 仅在面板收起时被启用（展开复用 pendingOrders.total 避免双请求）', () => {
@@ -590,7 +603,7 @@ describe('V2OrderFlowPanel', () => {
       unmount()
     })
 
-    it('展开态计数 = pendingOrders.total - 已处理数（本地闭环）', () => {
+    it('展开态计数 = pendingOrders.total（纯展示，不再减去已处理）', () => {
       mockUsePendingOrders.mockReturnValue({
         items: [pendingItem],
         total: 5,
@@ -601,71 +614,45 @@ describe('V2OrderFlowPanel', () => {
         loadMore: vi.fn(),
         refresh: vi.fn(),
       })
-      mockUseProcessedOrders.mockReturnValue({
-        processedIds: new Set([101]),
-        markProcessed: mockMarkProcessed,
+      render(<V2OrderFlowPanel {...panelProps} />)
+      fireEvent.click(screen.getByLabelText('展开订单流面板'))
+      // 纯展示：直接显示服务端 total = 5
+      expect(screen.getAllByText('5').length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('BLF-939：待处理订单按项目分组，项目可展开/折叠', () => {
+      const items = [
+        { ...pendingItem, id: 101 },
+        { ...pendingItem, id: 102, project_id: 2, project_name: '项目B', amazon_order_id: '222-2222222-0000002' },
+      ]
+      mockUsePendingOrders.mockReturnValue({
+        items,
+        total: 2,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        hasMore: false,
+        loadMore: vi.fn(),
+        refresh: vi.fn(),
       })
       render(<V2OrderFlowPanel {...panelProps} />)
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
-      // 5 - 1 = 4
-      expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1)
+      // 项目组标题可见（项目A breakdown pending = 7，项目C = 2）
+      expect(screen.getByLabelText('项目A · 7 单待处理')).toBeInTheDocument()
+      expect(screen.getByLabelText('项目C · 2 单待处理')).toBeInTheDocument()
+      // 默认折叠：订单行不可见
+      expect(screen.queryByText('111-1111111-0000001')).not.toBeInTheDocument()
+      // 展开项目A → 订单行可见
+      fireEvent.click(screen.getByLabelText('项目A · 7 单待处理'))
+      expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
+      // 项目C 仍折叠
+      expect(screen.queryByText('222-2222222-0000002')).not.toBeInTheDocument()
+      // 再点收起项目A → 订单行隐藏
+      fireEvent.click(screen.getByLabelText('项目A · 7 单待处理'))
+      expect(screen.queryByText('111-1111111-0000001')).not.toBeInTheDocument()
     })
 
-    it('点击「处理」调用 PATCH（对齐 OrderEditDialog 的 X-Operator 头）并本地移除', async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ id: 101, updated_by: '测试用户' }),
-      })
-      vi.stubGlobal('fetch', fetchMock)
-      const localMark = vi.fn()
-      mockUseProcessedOrders.mockReturnValue({
-        processedIds: new Set(),
-        markProcessed: localMark,
-      })
-      renderPendingOne()
-      fireEvent.click(screen.getByLabelText('标记订单 111-1111111-0000001 为已处理'))
-
-      await vi.waitFor(() => {
-        expect(fetchMock).toHaveBeenCalled()
-      })
-      const [url, init] = fetchMock.mock.calls[0]!
-      expect(url).toBe('/api/backend/api/v1/order-info/101')
-      expect(init.method).toBe('PATCH')
-      // 请求头带 X-Operator 会话上下文
-      expect(init.headers).toBeDefined()
-      const body = JSON.parse(init.body as string)
-      expect(body.updated_by).toBe('测试用户')
-      expect(localMark).toHaveBeenCalledWith([101])
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'success', title: '已标记处理' })
-      )
-    })
-
-    it('标记处理失败时不本地移除并提示错误', async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 403,
-        json: async () => ({ detail: '无权限' }),
-        text: async () => '',
-      })
-      vi.stubGlobal('fetch', fetchMock)
-      const localMark = vi.fn()
-      mockUseProcessedOrders.mockReturnValue({
-        processedIds: new Set(),
-        markProcessed: localMark,
-      })
-      renderPendingOne()
-      fireEvent.click(screen.getByLabelText('标记订单 111-1111111-0000001 为已处理'))
-
-      await vi.waitFor(() => expect(notify).toHaveBeenCalled())
-      expect(localMark).not.toHaveBeenCalled()
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'error', title: '标记处理失败' })
-      )
-    })
-
-    it('操作闭环：标记处理后的行从列表消失（processedIds 过滤）', () => {
-      // 初始 processedIds 含 101 → 该行被过滤
+    it('BLF-939：纯展示——不渲染「处理」按钮与「清空 pending」入口', () => {
       mockUsePendingOrders.mockReturnValue({
         items: [pendingItem],
         total: 1,
@@ -676,46 +663,13 @@ describe('V2OrderFlowPanel', () => {
         loadMore: vi.fn(),
         refresh: vi.fn(),
       })
-      mockUseProcessedOrders.mockReturnValue({
-        processedIds: new Set([101]),
-        markProcessed: mockMarkProcessed,
-      })
       render(<V2OrderFlowPanel {...panelProps} />)
       fireEvent.click(screen.getByLabelText('展开订单流面板'))
-      expect(screen.queryByText('SKU-TEST-LONG-NAME')).not.toBeInTheDocument()
-      // 空态
-      expect(screen.getByTestId('order-flow-pending-empty')).toBeInTheDocument()
-    })
-
-    it('清空 pending：先确认后批量标记，列表清空', () => {
-      mockUsePendingOrders.mockReturnValue({
-        items: [pendingItem],
-        total: 1,
-        loading: false,
-        loadingMore: false,
-        error: null,
-        hasMore: false,
-        loadMore: vi.fn(),
-        refresh: vi.fn(),
-      })
-      const localMark = vi.fn()
-      mockUseProcessedOrders.mockReturnValue({
-        processedIds: new Set(),
-        markProcessed: localMark,
-      })
-      render(<V2OrderFlowPanel {...panelProps} />)
-      fireEvent.click(screen.getByLabelText('展开订单流面板'))
-      const clearBtn = screen.getByTestId('order-flow-clear-pending')
-      // 第一次点击进入确认态
-      fireEvent.click(clearBtn)
-      expect(clearBtn.textContent).toContain('确认清空 1 单？')
-      expect(localMark).not.toHaveBeenCalled()
-      // 第二次点击执行
-      fireEvent.click(clearBtn)
-      expect(localMark).toHaveBeenCalledWith([101])
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'success', title: '已清空 pending' })
-      )
+      fireEvent.click(screen.getByLabelText('项目A · 7 单待处理'))
+      // 无「处理」按钮
+      expect(screen.queryByLabelText('标记订单 111-1111111-0000001 为已处理')).not.toBeInTheDocument()
+      // 无「清空 pending」
+      expect(screen.queryByTestId('order-flow-clear-pending')).not.toBeInTheDocument()
     })
 
     it('移动端底部条可见，点击打开 Sheet 抽屉', () => {

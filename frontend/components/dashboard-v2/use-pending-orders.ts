@@ -23,6 +23,8 @@ import { buildBackendClientHeaders } from '@/lib/backend-auth'
 /** 订单级 pending 行（overview items 的子集字段） */
 export interface PendingOrderItem {
   id: number
+  project_id: number
+  project_name: string
   amazon_order_id: string
   sku: string | null
   asin: string | null

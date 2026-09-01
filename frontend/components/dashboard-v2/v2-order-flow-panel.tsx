@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Check, ChevronUp, ExternalLink, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ExternalLink, X } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useLiveStream } from '@/components/terminal/use-live-stream'
 import { TermBody, TermCell, TermRow, TermTable } from '@/components/terminal/term-table'
 import {
@@ -14,33 +14,17 @@ import {
   type PendingOrderItem,
 } from '@/components/dashboard-v2/use-pending-orders'
 import { usePendingCount } from '@/components/dashboard-v2/use-pending-count'
-import { useProcessedOrders } from '@/components/dashboard-v2/use-processed-orders'
 import { getOrderStatusLabel, getOrderStatusTone, ORDER_STATUS_TONE_PILL_CLASS } from '@/lib/order-status'
-import { buildBackendClientHeaders } from '@/lib/backend-auth'
-import { normalizeErrorMessage } from '@/lib/error-utils'
-import { useNotifications } from '@/components/notifications'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
 import type { LiveStreamItem } from '@/components/terminal/terminal-inspector'
 import { cn } from '@/lib/utils'
 
 /**
- * BLF-926：Dashboard 首页右侧新订单流面板。
+ * BLF-939：Dashboard 首页右侧订单流面板重构。
  *
- * ## Stage 1（已实现）
- * - 桌面（lg+）右侧面板，默认折叠窄条（w-11），点击展开 w-[320px]；折叠状态持久化。
- *
- * ## Stage 2（BLF-927 已实现）
- * - 订单级 pending 列表（overview 单请求，仅展开时请求，项目+日期窗口限定 BEL-422）。
- * - 行点击跳转 order-info 并预填 Pending 筛选。
- *
- * ## Stage 3（BLF-928 本期）
- * - 实时计数：`usePendingCount`（30s 可见感知轮询，收起时也更新折叠徽标）；
- *   展开态列表 `usePendingOrders` 自身 30s 可见感知轮询首页。
- * - 操作闭环：行内「标记处理」（PATCH /api/v1/order-info/{id}，对齐 OrderEditDialog 的
- *   X-Operator 请求头模式）+「清空 pending」入口；已处理 id 持久化（localStorage），
- *   本地计数/列表即时更新。
- * - 移动端（<lg）：底部折叠条 + Sheet 抽屉（对齐 terminal-shell 移动端抽屉范式），
- *   与左侧导航 Sheet（side=left）互不冲突。
+ * - 纯展示：去掉「处理」按钮与「清空 pending」入口（点 1）。
+ * - 按项目聚合：待处理项目与待处理订单合并为一个模块，项目可展开/折叠（点 2）。
+ * - 完整信息：OrderID / SKU / 数量 / 金额 / 状态 / 国家 / 时间，多行小字排列（点 3）。
+ * - 点击行跳转 order-info 并携带参数（点 4b）。
  */
 
 // ======================== 类型 ========================
@@ -81,8 +65,6 @@ export interface V2OrderFlowPanelProps {
 
 const STORAGE_KEY = 'bb.dashboard.order-flow.open'
 const MAX_PROJECT_ROWS = 5
-/** 清空确认按钮自动复位时长（ms） */
-const CLEAR_CONFIRM_TIMEOUT_MS = 4_000
 
 // ======================== 工具函数 ========================
 
@@ -131,9 +113,6 @@ export function V2OrderFlowPanel({
   dateFrom,
   dateTo,
 }: V2OrderFlowPanelProps) {
-  const { data: session } = useSession()
-  const { notify } = useNotifications()
-
   // 桌面展开态（持久化）+ 移动端 Sheet 态（会话级）
   const [open, setOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -174,27 +153,13 @@ export function V2OrderFlowPanel({
     dateTo,
   })
 
-  // 已处理 id 集合（窗口级持久化）——「操作后本地计数/列表即时更新」的关键
-  const windowKey = `${projectIds.join(',')}|${dateFrom}|${dateTo}`
-  const { processedIds, markProcessed } = useProcessedOrders(windowKey)
-
   // 今日出单流（仅任一面板展开时轮询）
   const liveStreamItems = useLiveStream(panelActive)
 
   // 服务端待处理订单数：展开取列表 total，收起取轻量轮询 count
   const serverCount = panelActive ? pendingOrders.total : pendingCount.count
-  // 展示计数 = 服务端总数 - 已处理数（本地闭环）
-  const liveCount = Math.max(0, serverCount - processedIds.size)
   const countLoading =
     (panelActive ? pendingOrders.loading : pendingCount.loading) && serverCount === 0
-
-  // 已处理订单过滤后的可见列表
-  const visibleItems = useMemo(
-    () => pendingOrders.items.filter((it) => !processedIds.has(it.id)),
-    [pendingOrders.items, processedIds]
-  )
-  const visibleTotal = Math.max(0, pendingOrders.total - processedIds.size)
-  const hasMore = visibleItems.length < visibleTotal
 
   // 展开/收起时立即刷新两个数据源（各自内部守卫 active 才真正发请求）
   const refreshLive = useCallback(() => {
@@ -226,105 +191,35 @@ export function V2OrderFlowPanel({
     return rows.sort((a, b) => b.pending - a.pending).slice(0, MAX_PROJECT_ROWS)
   }, [projectBreakdown, projects])
 
-  // 行点击 → order-info 页预填 Pending 筛选
+  // 行点击 → order-info 页预填 Pending 筛选 + 项目 + 日期
   const router = useRouter()
-  const goToOrderInfo = useCallback(() => {
-    router.push('/dashboard/reports/order-info?order_statuses=Pending')
-  }, [router])
-
-  // 当前登录用户名（默认填到 updated_by，与 order-info 页 currentUserName 同口径）
-  const operatorName = useMemo(() => {
-    const u = session?.user
-    if (!u) return undefined
-    const candidates = [u.operatorNameZh, u.name, u.email]
-    for (const c of candidates) {
-      if (typeof c === 'string' && c.trim()) return c.trim()
-    }
-    return undefined
-  }, [session])
-
-  // —— 标记处理（PATCH，对齐 OrderEditDialog 的 X-Operator 请求头模式）——
-  const handleMarkProcessed = useCallback(
-    async (orderId: number) => {
-      if (!operatorName) {
-        notify({ type: 'error', title: '无法识别操作人', message: '请检查登录会话后重试' })
-        return
-      }
-      try {
-        const headers = buildBackendClientHeaders(session, { contentType: 'application/json' })
-        const response = await fetch(`/api/backend/api/v1/order-info/${orderId}`, {
-          method: 'PATCH',
-          headers: { ...Object.fromEntries(headers.entries()) },
-          body: JSON.stringify({ updated_by: operatorName }),
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          const errPayload = (await response.json().catch(() => null)) as {
-            error?: string
-            detail?: string
-            message?: string
-          } | null
-          const msg = errPayload?.error || errPayload?.detail || errPayload?.message
-          throw new Error(normalizeErrorMessage(msg, '标记处理失败'))
-        }
-        markProcessed([orderId])
-        notify({ type: 'success', title: '已标记处理' })
-      } catch (error) {
-        notify({
-          type: 'error',
-          title: '标记处理失败',
-          message: normalizeErrorMessage(error, '未知错误'),
-        })
-      }
+  const goToOrderInfo = useCallback(
+    (projectId?: number) => {
+      const params = new URLSearchParams()
+      params.set('order_statuses', 'Pending')
+      if (projectId) params.set('project_id', String(projectId))
+      params.set('date_from', dateFrom)
+      params.set('date_to', dateTo)
+      router.push(`/dashboard/reports/order-info?${params.toString()}`)
     },
-    [operatorName, session, notify, markProcessed]
+    [router, dateFrom, dateTo]
   )
 
-  // —— 清空 pending（本地闭环：批量标记为已处理）——
-  const [confirmClear, setConfirmClear] = useState(false)
-  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    return () => {
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
-    }
-  }, [])
-
-  const handleClearPending = useCallback(() => {
-    if (!confirmClear) {
-      setConfirmClear(true)
-      clearTimerRef.current = setTimeout(() => setConfirmClear(false), CLEAR_CONFIRM_TIMEOUT_MS)
-      return
-    }
-    if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
-    setConfirmClear(false)
-    const ids = visibleItems.map((it) => it.id)
-    if (ids.length === 0) return
-    markProcessed(ids)
-    notify({ type: 'success', title: '已清空 pending', message: `标记 ${ids.length} 单为已处理` })
-  }, [confirmClear, visibleItems, markProcessed, notify])
-
   const bodyProps: OrderFlowPanelBodyProps = {
-    pendingCount: liveCount,
+    pendingCount: serverCount,
     countLoading,
     projectRows: projectPendingRows,
     pendingOrders: {
-      items: visibleItems,
-      total: visibleTotal,
+      items: pendingOrders.items,
+      total: pendingOrders.total,
       loading: pendingOrders.loading,
       loadingMore: pendingOrders.loadingMore,
       error: pendingOrders.error,
-      hasMore,
+      hasMore: pendingOrders.hasMore,
       loadMore: pendingOrders.loadMore,
     },
     liveStreamItems,
     onToggle: handleToggle,
-    onMarkProcessed: (orderId: number) => void handleMarkProcessed(orderId),
-    onClearPending: handleClearPending,
-    confirmClear,
-    onCancelClear: () => {
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
-      setConfirmClear(false)
-    },
     goToOrderInfo,
   }
 
@@ -349,9 +244,9 @@ export function V2OrderFlowPanel({
             >
               订单流
             </span>
-            {liveCount > 0 && (
+            {serverCount > 0 && (
               <span className="flex h-5 min-w-[20px] items-center justify-center rounded-none border border-term-warn/60 px-1 font-mono text-[10px] leading-none text-term-warn">
-                {liveCount > 99 ? '99+' : liveCount}
+                {serverCount > 99 ? '99+' : serverCount}
               </span>
             )}
           </button>
@@ -374,9 +269,9 @@ export function V2OrderFlowPanel({
           <span className="text-xs font-semibold uppercase tracking-widest text-term-muted">
             订单流
           </span>
-          {liveCount > 0 && (
+          {serverCount > 0 && (
             <span className="flex h-5 min-w-[20px] items-center justify-center rounded-none border border-term-warn/60 px-1 font-mono text-[10px] leading-none text-term-warn">
-              {liveCount > 99 ? '99+' : liveCount}
+              {serverCount > 99 ? '99+' : serverCount}
             </span>
           )}
           <span className="flex-1" />
@@ -400,7 +295,7 @@ export function V2OrderFlowPanel({
 // ======================== 面板展开态内容（桌面 aside / 移动 Sheet 共用） ========================
 
 interface OrderFlowPanelBodyProps {
-  /** 展示计数（服务端 pending - 已处理） */
+  /** 展示计数（服务端 pending） */
   pendingCount: number
   countLoading: boolean
   /** 项目 pending 分解（来自 daily-analysis snapshot） */
@@ -417,11 +312,7 @@ interface OrderFlowPanelBodyProps {
   liveStreamItems: LiveStreamItem[]
   /** 收起（桌面 aside → toggle；移动 Sheet → 关抽屉） */
   onToggle: () => void
-  onMarkProcessed: (orderId: number) => void
-  onClearPending: () => void
-  confirmClear: boolean
-  onCancelClear: () => void
-  goToOrderInfo: () => void
+  goToOrderInfo: (projectId?: number) => void
 }
 
 function OrderFlowPanelBody({
@@ -431,12 +322,73 @@ function OrderFlowPanelBody({
   pendingOrders,
   liveStreamItems,
   onToggle,
-  onMarkProcessed,
-  onClearPending,
-  confirmClear,
-  onCancelClear,
   goToOrderInfo,
 }: OrderFlowPanelBodyProps) {
+  // 按项目展开折叠状态
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
+  const toggleProject = useCallback((projectId: number) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) {
+        next.delete(projectId)
+      } else {
+        next.add(projectId)
+      }
+      return next
+    })
+  }, [])
+
+  // 按项目维度聚合（BLF-939）：项目行头以 projectBreakdown（daily-analysis pending 数）为权威
+  // 「统计数字」；展开后展示该项目的已加载 pending 订单（pendingOrders.items 按 project_id 分组）。
+  // 项目行顺序 = projectRows（breakdown pending 降序）；有已加载订单但不在 breakdown 的项目补在后面。
+  const projectGroups = useMemo(() => {
+    const byId = new Map<number, { projectName: string; items: PendingOrderItem[] }>()
+    for (const item of pendingOrders.items) {
+      const existing = byId.get(item.project_id)
+      if (existing) {
+        existing.items.push(item)
+      } else {
+        byId.set(item.project_id, { projectName: item.project_name, items: [item] })
+      }
+    }
+    const ordered: {
+      projectId: number
+      projectName: string
+      pending: number
+      items: PendingOrderItem[]
+    }[] = []
+    const seen = new Set<number>()
+    // 1) breakdown 项目行头（统计数字 = pending 数，排序已在 projectRows 完成）
+    for (const pr of projectRows) {
+      seen.add(pr.projectId)
+      const group = byId.get(pr.projectId)
+      ordered.push({
+        projectId: pr.projectId,
+        projectName: pr.projectName,
+        pending: pr.pending,
+        items: group?.items ?? [],
+      })
+    }
+    // 2) 有已加载订单但不在 breakdown 里的项目（如 pending_order_qty 尚未快照），按项目名排序补尾
+    const extra: {
+      projectId: number
+      projectName: string
+      pending: number
+      items: PendingOrderItem[]
+    }[] = []
+    for (const [projectId, group] of byId) {
+      if (seen.has(projectId)) continue
+      extra.push({
+        projectId,
+        projectName: group.projectName,
+        pending: group.items.length,
+        items: group.items,
+      })
+    }
+    extra.sort((a, b) => a.projectName.localeCompare(b.projectName))
+    return [...ordered, ...extra]
+  }, [projectRows, pendingOrders.items])
+
   return (
     <aside className="flex w-[320px] flex-col border-l border-term-border bg-term-panel">
       {/* 头部 */}
@@ -472,53 +424,20 @@ function OrderFlowPanelBody({
           {countLoading && <Skeleton className="mt-2 h-3 w-32" />}
         </section>
 
-        {/* 项目分解 */}
-        {projectRows.length > 0 && (
-          <section className="border-b border-term-border p-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
-              待处理项目
-            </h3>
-            <div className="flex flex-col gap-1">
-              {projectRows.map((row) => (
-                <div
-                  key={row.projectId}
-                  className="flex items-center justify-between gap-2 py-1"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm text-term-text">
-                    {row.projectName}
-                  </span>
-                  <span className="shrink-0 font-mono text-xs tabular-nums text-term-warn">
-                    {row.pending}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* 订单级 pending 列表（TermTable Pattern A 高密度表，窄宽裁剪列） */}
-        <section className="border-b border-term-border" data-testid="order-flow-pending-list">
+        {/* ====== BLF-939：合并待处理项目 + 待处理订单，按项目维度聚合 ====== */}
+        <section className="border-b border-term-border" data-testid="order-flow-pending-grouped">
+          {/* 项目/订单合并标题 */}
           <div className="flex items-center gap-1 px-3 pb-2 pt-3">
             <h3 className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wider text-term-faint">
               待处理订单
             </h3>
             {pendingOrders.total > 0 && (
-              <button
-                type="button"
-                onClick={onClearPending}
-                aria-label="清空 pending 待处理订单"
-                data-testid="order-flow-clear-pending"
-                className={cn(
-                  'shrink-0 font-mono text-[10px] leading-none transition-colors',
-                  confirmClear
-                    ? 'border border-term-warn/60 px-1.5 py-1 text-term-warn'
-                    : 'px-1.5 py-1 text-term-muted hover:text-term-text'
-                )}
-              >
-                {confirmClear ? `确认清空 ${pendingOrders.total} 单？` : '清空 pending'}
-              </button>
+              <span className="shrink-0 font-mono text-[10px] text-term-faint">
+                {pendingOrders.items.length}/{pendingOrders.total}
+              </span>
             )}
           </div>
+
           {pendingOrders.loading && pendingOrders.items.length === 0 ? (
             <div aria-busy="true" className="space-y-1.5 px-3 pb-3" role="status" aria-label="待处理订单加载中">
               {[0, 1, 2, 3].map((i) => (
@@ -533,68 +452,98 @@ function OrderFlowPanelBody({
             <p className="px-3 pb-3 font-mono text-xs text-term-neg">
               ERR · {pendingOrders.error}
             </p>
-          ) : pendingOrders.items.length === 0 ? (
+          ) : projectGroups.length === 0 ? (
             <p className="px-3 pb-3 text-xs text-term-faint" data-testid="order-flow-pending-empty">
               当前区间暂无待处理订单
             </p>
           ) : (
-            <TermTable aria-label="待处理订单列表">
-              <TermBody>
-                {pendingOrders.items.map((item) => (
-                  <TermRow
-                    key={item.id}
-                    onClick={goToOrderInfo}
-                    aria-label={`待处理订单 ${item.amazon_order_id} · ${item.sku ?? '—'} · ${getOrderStatusLabel(item.order_status)}`}
-                  >
-                    <TermCell className="max-w-0 px-2 py-1.5">
-                      <div className="flex flex-col leading-tight">
-                        <span className="truncate" title={item.sku ?? undefined}>
-                          {item.sku ?? '—'}
-                        </span>
-                        <span
-                          className="truncate text-term-faint"
-                          title={`${item.country} · ${formatPanelPtDate(item.purchase_at_pt)}`}
-                        >
-                          {item.country} · {formatPanelPtDate(item.purchase_at_pt)}
-                        </span>
+            <div className="flex flex-col" data-testid="order-flow-pending-grouped-items">
+              {projectGroups.map((group) => {
+                const isExpanded = expandedProjects.has(group.projectId)
+                return (
+                  <div key={group.projectId} className="border-b border-term-border last:border-b-0">
+                    {/* 项目行头（可点击展开/折叠） */}
+                    <button
+                      type="button"
+                      onClick={() => toggleProject(group.projectId)}
+                      className="flex h-8 w-full items-center gap-1 px-3 text-left transition-colors hover:bg-term-hover"
+                      aria-expanded={isExpanded}
+                      aria-label={`${group.projectName} · ${group.pending} 单待处理`}
+                    >
+                      <span className="shrink-0 text-term-faint">
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-term-text">
+                        {group.projectName}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-term-warn">
+                        {group.pending}
+                      </span>
+                    </button>
+
+                    {/* 展开态：订单列表 */}
+                    {isExpanded && (
+                      <div className="border-t border-term-border/50">
+                        {group.items.length === 0 ? (
+                          <p className="px-3 py-2 text-[10px] text-term-faint">
+                            暂无该项目的待处理订单明细
+                          </p>
+                        ) : (
+                          <TermTable aria-label={`${group.projectName} 待处理订单列表`}>
+                            <TermBody>
+                              {group.items.map((item) => (
+                                <TermRow
+                                  key={item.id}
+                                  onClick={() => goToOrderInfo(group.projectId)}
+                                  aria-label={`待处理订单 ${item.amazon_order_id} · ${item.sku ?? '—'} · ${getOrderStatusLabel(item.order_status)}`}
+                                >
+                                  <TermCell className="max-w-0 px-2 py-1">
+                                    <div className="flex flex-col gap-0.5 leading-tight">
+                                      {/* 第一行：OrderID */}
+                                      <span
+                                        className="truncate font-mono text-[10px] text-term-text"
+                                        title={item.amazon_order_id}
+                                      >
+                                        {item.amazon_order_id}
+                                      </span>
+                                      {/* 第二行：SKU · 数量 · 金额 · 状态 · 国家 · 时间 */}
+                                      <span className="truncate text-[9px] text-term-faint">
+                                        {item.sku ?? '—'}{' · '}
+                                        ×{item.quantity}{' · '}
+                                        {fmtPanelAmount(item.item_price + item.shipping_price)}{' '}
+                                        {item.currency ?? ''}{' · '}
+                                        <span
+                                          className={cn(
+                                            ORDER_STATUS_TONE_PILL_CLASS[
+                                              getOrderStatusTone(item.order_status)
+                                            ]
+                                          )}
+                                        >
+                                          {getOrderStatusLabel(item.order_status)}
+                                        </span>
+                                        {' · '}
+                                        {item.country}{' · '}
+                                        {formatPanelPtDate(item.purchase_at_pt)}
+                                      </span>
+                                    </div>
+                                  </TermCell>
+                                </TermRow>
+                              ))}
+                            </TermBody>
+                          </TermTable>
+                        )}
                       </div>
-                    </TermCell>
-                    <TermCell numeric className="px-2 py-1.5">
-                      <div className="flex flex-col items-end leading-tight">
-                        <span className="tabular-nums">
-                          {fmtPanelAmount(item.item_price + item.shipping_price)}{' '}
-                          {item.currency ?? ''}
-                        </span>
-                        <span
-                          className={cn(
-                            'font-mono text-[10px] leading-none',
-                            ORDER_STATUS_TONE_PILL_CLASS[getOrderStatusTone(item.order_status)]
-                          )}
-                        >
-                          ×{item.quantity} · {getOrderStatusLabel(item.order_status)}
-                        </span>
-                      </div>
-                    </TermCell>
-                    <TermCell className="px-1 py-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onMarkProcessed(item.id)
-                        }}
-                        title="标记为已处理（记录操作人，本面板内移除）"
-                        aria-label={`标记订单 ${item.amazon_order_id} 为已处理`}
-                        className="inline-flex h-5 items-center gap-0.5 border border-term-border px-1 font-mono text-[10px] text-term-accent transition-colors hover:border-term-accent hover:text-term-accent"
-                      >
-                        <Check className="h-3 w-3" strokeWidth={2} />
-                        处理
-                      </button>
-                    </TermCell>
-                  </TermRow>
-                ))}
-              </TermBody>
-            </TermTable>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
+          {/* 加载更多 */}
           {pendingOrders.hasMore && pendingOrders.items.length > 0 && (
             <div className="p-1.5">
               <button
