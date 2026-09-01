@@ -1,11 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ExternalLink, X } from 'lucide-react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLiveStream } from '@/components/terminal/use-live-stream'
+import { TermBody, TermCell, TermRow, TermTable } from '@/components/terminal/term-table'
+import { usePendingOrders } from '@/components/dashboard-v2/use-pending-orders'
+import { getOrderStatusLabel, getOrderStatusTone, ORDER_STATUS_TONE_PILL_CLASS } from '@/lib/order-status'
 import { cn } from '@/lib/utils'
 
 /**
@@ -20,10 +24,12 @@ import { cn } from '@/lib/utils'
  * - 项目分解：复用首页 `projectBreakdown`，按项目最新 pending_order_qty 排序取 Top 5。
  * - 今日出单流：复用 `useLiveStream` hook（仅面板展开时轮询，30s 间隔）。
  *
- * ## Stage 2（规划）
- * - 调用 `order-info/overview?order_statuses=Pending` 获取订单级 pending 列表
- * - 状态 pill（语义色：warn = 待处理）
- * - 链接到 order-info 页面预填 Pending 筛选
+ * ## Stage 2（BLF-927 已实现）
+ * - 订单级 pending 列表：`usePendingOrders`（overview 单请求，仅展开时请求，
+ *   项目 + 日期窗口限定，收起即 abort 在飞请求）。
+ * - 状态 pill：`getOrderStatusLabel` + `getOrderStatusTone`（lib/order-status.ts 公共导出）。
+ * - 行点击 → 跳转 order-info 页并预填 Pending 筛选（?order_statuses=Pending）。
+ * - 加载更多分页（TermTable Pattern A 高密度表，320px 窄宽列裁剪）。
  *
  * ## Stage 3（规划）
  * - 实时刷新（页面可见性 + 轮询 pending 计数）
@@ -60,6 +66,12 @@ export interface V2OrderFlowPanelProps {
   projects: V2ProjectOption[]
   /** 数据加载中 */
   loading?: boolean
+  /**
+   * BLF-927：当前区间日期窗口（PT 时区 YYYY-MM-DD，与首页 currentRows 对应区间一致），
+   * 供订单级 pending 列表限定扫描范围（BEL-422 护栏：绝不裸拉全时段）。
+   */
+  dateFrom: string
+  dateTo: string
 }
 
 // ======================== 常量 ========================
@@ -86,6 +98,21 @@ function writeFlag(value: boolean) {
   }
 }
 
+
+/** PT naive datetime（'YYYY-MM-DD HH:MM:SS'）→ 'MM-DD HH:MM'（面板窄列压缩展示） */
+function formatPanelPtDate(pt: string): string {
+  // purchase_at_pt 是 naive datetime（不带 tz），仅按 UTC 字段取值，
+  // 避免被运行时环境时区影响（与 order-info 页 formatLocalDate 同理）
+  const m = pt.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
+  if (!m) return pt
+  return `${m[2]}-${m[3]} ${m[4]}:${m[5]}`
+}
+
+/** 金额：千位分隔 + 两位小数（与 order-info 页 fmtAmount 同口径） */
+function fmtPanelAmount(n: number): string {
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 /** 从 summary_rows 取最新一条 pending_order_qty（当前 snapshot） */
 function latestPending(rows: V2OrderFlowRow[]): number {
   if (rows.length === 0) return 0
@@ -99,6 +126,8 @@ export function V2OrderFlowPanel({
   projectBreakdown,
   projects,
   loading = false,
+  dateFrom,
+  dateTo,
 }: V2OrderFlowPanelProps) {
   const [open, setOpen] = useState(false)
 
@@ -143,7 +172,23 @@ export function V2OrderFlowPanel({
   // 今日出单流（仅面板展开时轮询；展开后才传 true，收起即停）
   const liveStreamItems = useLiveStream(open)
 
-  // ========== 折叠态：窄条 ==========
+  // BLF-927：订单级 pending 列表（仅展开时请求；项目 + 日期窗口限定，BEL-422 护栏）
+  const projectIds = useMemo(
+    () => projects.map((p) => p.id).filter((id): id is number => id !== null),
+    [projects]
+  )
+  const pendingOrders = usePendingOrders({
+    enabled: open,
+    projectIds,
+    dateFrom,
+    dateTo,
+  })
+
+  // 行点击 → order-info 页预填 Pending 筛选（BLF-927 URL 预填机制）
+  const router = useRouter()
+  const goToOrderInfo = useCallback(() => {
+    router.push('/dashboard/reports/order-info?order_statuses=Pending')
+  }, [router])
 
   if (!open) {
     return (
@@ -240,7 +285,88 @@ export function V2OrderFlowPanel({
             </section>
           )}
 
-          {/* 今日出单流 */}
+
+          {/* BLF-927：订单级 pending 列表（TermTable Pattern A 高密度表，窄宽裁剪列） */}
+          <section className="border-b border-term-border" data-testid="order-flow-pending-list">
+            <h3 className="px-3 pb-2 pt-3 text-xs font-semibold uppercase tracking-wider text-term-faint">
+              待处理订单
+            </h3>
+            {pendingOrders.loading ? (
+              <div aria-busy="true" className="space-y-1.5 px-3 pb-3" role="status" aria-label="待处理订单加载中">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-6 w-full animate-pulse bg-term-hover"
+                    style={{ opacity: 1 - i * 0.25 }}
+                  />
+                ))}
+              </div>
+            ) : pendingOrders.error ? (
+              <p className="px-3 pb-3 font-mono text-xs text-term-neg">
+                ERR · {pendingOrders.error}
+              </p>
+            ) : pendingOrders.items.length === 0 ? (
+              <p className="px-3 pb-3 text-xs text-term-faint" data-testid="order-flow-pending-empty">
+                当前区间暂无待处理订单
+              </p>
+            ) : (
+              <TermTable aria-label="待处理订单列表">
+                <TermBody>
+                  {pendingOrders.items.map((item) => (
+                    <TermRow
+                      key={item.id}
+                      onClick={goToOrderInfo}
+                      aria-label={`待处理订单 ${item.amazon_order_id} · ${item.sku ?? '—'} · ${getOrderStatusLabel(item.order_status)}`}
+                    >
+                      <TermCell className="max-w-0 px-2 py-1.5">
+                        <div className="flex flex-col leading-tight">
+                          <span className="truncate" title={item.sku ?? undefined}>
+                            {item.sku ?? '—'}
+                          </span>
+                          <span
+                            className="truncate text-term-faint"
+                            title={`${item.country} · ${formatPanelPtDate(item.purchase_at_pt)}`}
+                          >
+                            {item.country} · {formatPanelPtDate(item.purchase_at_pt)}
+                          </span>
+                        </div>
+                      </TermCell>
+                      <TermCell numeric className="px-2 py-1.5">
+                        <div className="flex flex-col leading-tight">
+                          <span className="tabular-nums">
+                            {fmtPanelAmount(item.item_price + item.shipping_price)}{' '}
+                            {item.currency ?? ''}
+                          </span>
+                          <span
+                            className={cn(
+                              'font-mono text-[10px] leading-none',
+                              ORDER_STATUS_TONE_PILL_CLASS[getOrderStatusTone(item.order_status)]
+                            )}
+                          >
+                            ×{item.quantity} · {getOrderStatusLabel(item.order_status)}
+                          </span>
+                        </div>
+                      </TermCell>
+                    </TermRow>
+                  ))}
+                </TermBody>
+              </TermTable>
+            )}
+            {pendingOrders.hasMore && pendingOrders.items.length > 0 && (
+              <div className="p-1.5">
+                <button
+                  type="button"
+                  onClick={pendingOrders.loadMore}
+                  disabled={pendingOrders.loadingMore}
+                  className="flex h-7 w-full items-center justify-center border border-term-border bg-term-bg font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="加载更多待处理订单"
+                  data-testid="order-flow-pending-more"
+                >
+                  {pendingOrders.loadingMore ? '加载中…' : `加载更多（${pendingOrders.items.length}/${pendingOrders.total}）`}
+                </button>
+              </div>
+            )}
+          </section>
           <section className="border-b border-term-border p-3">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
               今日出单

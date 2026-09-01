@@ -488,6 +488,8 @@ export default function DashboardV2Page() {
           projectBreakdown={projectBreakdown}
           projects={projects}
           loading={anyLoading}
+          dateFrom={formatYMD(dateRange.from)}
+          dateTo={formatYMD(dateRange.to)}
         />
       </div>
     </div>

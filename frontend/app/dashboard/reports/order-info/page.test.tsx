@@ -44,9 +44,15 @@ function setGf(patch: Partial<typeof gfState>) {
   gfVersion += 1
 }
 
+const mockSearchParams = {
+  getAll: vi.fn((): string[] => []),
+  get: vi.fn((): string | null => null),
+}
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => '/dashboard/reports/order-info',
+  useSearchParams: () => mockSearchParams,
 }))
 
 vi.mock('next-auth/react', () => ({
@@ -340,6 +346,68 @@ describe('订单信息页终端化（BLF-817）', () => {
     await waitFor(() => {
       const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
       expect(lastUrl).not.toContain('project_ids=')
+    })
+  })
+
+  // ====== BLF-927：URL order_statuses 预填 ======
+
+  it('BLF-927 URL 预填：?order_statuses=Pending 时状态筛选预填且请求带 Pending', async () => {
+    mockSearchParams.getAll.mockImplementation((key: string) =>
+ key === 'order_statuses' ? ['Pending'] : []
+    )
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      // 注：状态徽标文案依赖 filter-options（BEL-422 按需加载，测试内未触发下拉），
+      // 这里断言核心契约 —— 状态筛选已生效：请求带 order_statuses=Pending。
+      await screen.findByText('111-1111111-0000001')
+      // 数据请求带 order_statuses=Pending
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('order_statuses=Pending')
+      })
+    } finally {
+      mockSearchParams.getAll.mockImplementation(() => [])
+    }
+  })
+
+  it('BLF-927 URL 预填：逗号分隔多状态（Pending,Shipped）均预填', async () => {
+    mockSearchParams.getAll.mockImplementation((key: string) =>
+      key === 'order_statuses' ? ['Pending,Shipped'] : []
+    )
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      await waitFor(() => {
+        const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+        expect(lastUrl).toContain('order_statuses=Pending')
+        expect(lastUrl).toContain('order_statuses=Shipped')
+      })
+    } finally {
+      mockSearchParams.getAll.mockImplementation(() => [])
+    }
+  })
+
+  it('BLF-927 URL 无 order_statuses 时保持既有行为（状态筛选为空）', async () => {
+    setGf({ ready: true, projectId: '', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    await waitFor(() => {
+      const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+      expect(lastUrl).not.toContain('order_statuses=')
     })
   })
 })
