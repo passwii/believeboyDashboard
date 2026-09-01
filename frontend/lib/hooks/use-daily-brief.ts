@@ -86,6 +86,29 @@ function pct(current: number, base: number): number | null {
   return ((current - base) / base) * 100
 }
 
+/** 单日快照是否「有数据」：任一业务字段非 0 即视为有数据。
+ * 供 T+1 数据滞后回退判断——请求「美西今天」通常还没数据，需回退到最近有数据日（BLF-xxx）。 */
+export function hasData(totals: BriefTotals): boolean {
+  return (
+    totals.gmv > 0 ||
+    totals.orders > 0 ||
+    totals.pending > 0 ||
+    totals.adSpend > 0 ||
+    totals.adOrders > 0
+  )
+}
+
+/** 从「日期从新到旧」的候选里选出最近一个有数据的日期；全无 → null。
+ * 与 hasData 配合实现「美西今天无数据时回退到最近销售日」的快报展示。 */
+export function pickLatestDataDay(
+  candidates: Array<{ date: string; totals: BriefTotals }>
+): string | null {
+  for (const c of candidates) {
+    if (hasData(c.totals)) return c.date
+  }
+  return null
+}
+
 /**
  * 纯函数：用今天/昨天/上周同日三个单日快照合成带环比的完整快报。
  * 今天或昨天缺数据时对应环比为 null（渲染层显示「—」）。
@@ -130,6 +153,8 @@ export function pickLatestSalesDate(
 }
 
 const US_TIMEZONE = 'America/Los_Angeles'
+/** T+1 数据滞后回退的最大天数：美西「今天」通常次日才入库，最多往前找 7 天 */
+const MAX_FALLBACK_DAYS = 7
 
 async function fetchDailyTotals(date: string): Promise<{ totals: BriefTotals; availableDates: Record<string, string[]> | undefined }> {
   const params = new URLSearchParams({
@@ -152,6 +177,19 @@ async function fetchDailyTotals(date: string): Promise<{ totals: BriefTotals; av
   }
 }
 
+/**
+ * 从「美西今天」起逐日回退，找最近有销售数据的日期（T+1 数据滞后回退，BLF-xxx）。
+ * 命中即返回该日期；窗口内（含今天）全无数据 → null（快报整体降级，避免误导性 $0）。
+ */
+async function findLatestDataDay(today: string): Promise<string | null> {
+  for (let offset = 0; offset <= MAX_FALLBACK_DAYS; offset++) {
+    const candidate = shiftYMD(today, -offset)
+    const { totals } = await fetchDailyTotals(candidate)
+    if (hasData(totals)) return candidate
+  }
+  return null
+}
+
 export function useDailyBrief(): { brief: DailyBrief; status: DailyBriefStatus } {
   const [brief, setBrief] = useState<DailyBrief>({
     gmv: null,
@@ -170,18 +208,26 @@ export function useDailyBrief(): { brief: DailyBrief; status: DailyBriefStatus }
   const load = useCallback(async () => {
     const seq = ++requestSeqRef.current
     try {
-      // 三请求并发：今天 + 昨天 + 上周同日（同端点同参数，仅日期不同）
       const today = todayYMDinTimezone(US_TIMEZONE)
-      const [todayResult, yesterdayTotals, lastWeekTotals] = await Promise.all([
-        fetchDailyTotals(today),
-        fetchDailyTotals(shiftYMD(today, -1)),
-        fetchDailyTotals(shiftYMD(today, -7)),
+      // 回退锚点：优先「美西今天」，今天无数据（T+1 未入库）则取最近有数据日
+      const anchorDate = await findLatestDataDay(today)
+      if (seq !== requestSeqRef.current) return
+      if (anchorDate == null) {
+        // 窗口内无任何销售数据：整体降级（保持占位），不显示误导性的 $0
+        setStatus('error')
+        return
+      }
+      // 锚点日 + 昨日 + 上周同日并发取数，计算环比参照（同端点同参数，仅日期不同）
+      const [anchorTotals, yesterdayTotals, lastWeekTotals] = await Promise.all([
+        fetchDailyTotals(anchorDate),
+        fetchDailyTotals(shiftYMD(anchorDate, -1)),
+        fetchDailyTotals(shiftYMD(anchorDate, -7)),
       ])
       if (seq !== requestSeqRef.current) return
-      // 数据新鲜度（BLF-921）：available_dates 随「今天」响应顺带透出，零额外请求
+      // 数据新鲜度：直接以锚点日（最近有数据日）呈现，比 available_dates 更可信
       setBrief({
-        ...computeChangePct(todayResult.totals, yesterdayTotals.totals, lastWeekTotals.totals),
-        latestSalesDate: pickLatestSalesDate(todayResult.availableDates),
+        ...computeChangePct(anchorTotals.totals, yesterdayTotals.totals, lastWeekTotals.totals),
+        latestSalesDate: anchorDate,
       })
       setStatus('ok')
     } catch {

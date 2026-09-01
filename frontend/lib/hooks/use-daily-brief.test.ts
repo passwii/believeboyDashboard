@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeChangePct, pickLatestSalesDate, reduceDailyBrief } from './use-daily-brief'
+import {
+  computeChangePct,
+  hasData,
+  pickLatestDataDay,
+  pickLatestSalesDate,
+  reduceDailyBrief,
+} from './use-daily-brief'
 
 // 上周同日基线 fixture：gmv 1100 / orders 9（供 WoW 计算；DoD 用例中不参与比较）
 const lastWeekBase = { gmv: 1100, orders: 9, pending: 0, adSpend: 0, adOrders: 0 }
@@ -47,6 +53,42 @@ describe('pickLatestSalesDate（BLF-921 Stage 2）', () => {
     expect(pickLatestSalesDate({ inventory_report: ['2026-08-29'] })).toBeNull()
     expect(pickLatestSalesDate({ sales_report: [] })).toBeNull()
     expect(pickLatestSalesDate(undefined)).toBeNull()
+  })
+})
+
+describe('hasData / pickLatestDataDay（BLF-xxx T+1 数据滞后回退）', () => {
+  const emptyTotals = { gmv: 0, orders: 0, pending: 0, adSpend: 0, adOrders: 0 }
+  const withData = { gmv: 0, orders: 3, pending: 0, adSpend: 0, adOrders: 0 }
+
+  it('hasData：全 0 视为无数据，任一字段非 0 视为有数据', () => {
+    expect(hasData(emptyTotals)).toBe(false)
+    expect(hasData(withData)).toBe(true)
+    expect(hasData({ ...emptyTotals, adSpend: 12.5 })).toBe(true)
+    expect(hasData({ ...emptyTotals, adOrders: 1 })).toBe(true)
+  })
+
+  it('pickLatestDataDay：取日期从新到旧首个有数据日', () => {
+    expect(
+      pickLatestDataDay([
+        { date: '2026-09-01', totals: emptyTotals },
+        { date: '2026-08-31', totals: emptyTotals },
+        { date: '2026-08-30', totals: withData },
+        { date: '2026-08-29', totals: withData },
+      ])
+    ).toBe('2026-08-30')
+  })
+
+  it('pickLatestDataDay：全部无数据 → null', () => {
+    expect(
+      pickLatestDataDay([
+        { date: '2026-09-01', totals: emptyTotals },
+        { date: '2026-08-31', totals: emptyTotals },
+      ])
+    ).toBeNull()
+  })
+
+  it('pickLatestDataDay：空候选 → null', () => {
+    expect(pickLatestDataDay([])).toBeNull()
   })
 })
 
