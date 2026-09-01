@@ -103,17 +103,17 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
   return (
     <>
       {stats.map((s) => (
-        <V2Card className="transition-colors hover:bg-term-raised" key={s.label}>
+        <V2Card className="transition-colors hover:bg-surface-subtle" key={s.label}>
           <CardHeader className="flex flex-row items-center justify-between px-4 pb-0 pt-3 md:px-4">
-            <CardTitle className="text-xs font-normal tracking-wide text-term-muted">{s.label}</CardTitle>
+            <CardTitle className="text-xs font-normal tracking-wide text-muted-foreground">{s.label}</CardTitle>
             <Delta value={s.delta}>
               <DeltaIcon />
               <DeltaValue />
             </Delta>
           </CardHeader>
           <CardContent className="flex flex-row items-center gap-2 px-4 pb-3 md:px-4">
-            {/* BLF-809：KPI 数值一律等宽字体（font-mono + tabular-nums） */}
-            <p className="font-mono text-xl font-semibold tabular-nums text-term-text">{s.value}</p>
+            {/* 保留 tabular-nums 数据感；去掉 font-mono（视觉更系统，对齐 ChartCard 数字语言） */}
+            <p className="text-xl font-semibold tabular-nums text-foreground">{s.value}</p>
           </CardContent>
         </V2Card>
       ))}
