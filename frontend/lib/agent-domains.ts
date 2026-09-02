@@ -104,6 +104,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'platform_inspection',
+    label: '平台巡检',
+    description: '平台巡检写侧：模板 + 填写/更新/提交报告 + 截图上传/删除（写 5 条，读侧走 account-health，BLF-944）',
+    status: 'live',
+    routeCount: 5,
+    capabilities: { read: false, write: true },
+  },
+  {
     code: 'sales',
     label: '销售数据',
     description: '销售订单明细/聚合统计：原始行 + ASIN×日/ASIN/日聚合（Sales Data）',
