@@ -31,11 +31,11 @@ import {
 import { cn } from '@/lib/utils'
 import { useMobile } from '@/lib/hooks/use-mobile'
 
+import { LegendRow, type LegendItemProps, type LegendSwatchVariant } from './legend'
 import {
   buildAreaGradient,
   ChartContainer,
   ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   defaultChartContainerClass,
@@ -53,6 +53,64 @@ import {
 // Re-export Cell for consumers building pie charts.
 export { Cell }
 
+// ---------- Legend bridge (BLF-942) ----------------------------------------
+
+/**
+ * Converts a recharts Legend payload into the unified ChartLegend UI.
+ * Used as `<ChartLegend content={<LegendBridge variantMap={…} />} />`.
+ * The variant/label maps come from the series specs (geometry-aware).
+ */
+export interface LegendBridgeProps {
+  payload?: Array<{
+    value?: string
+    dataKey?: string
+    type?: string
+    color?: string
+  }>
+  verticalAlign?: 'top' | 'bottom' | 'middle'
+  /** dataKey → swatch variant. Falls back to recharts item.type mapping. */
+  variantMap?: Record<string, LegendSwatchVariant>
+  /** dataKey → display label override. Falls back to item.value. */
+  labelMap?: Record<string, string>
+  size?: 'sm' | 'md'
+}
+
+/** Fallback variant mapping for recharts payload `type` values. */
+const PAYLOAD_TYPE_VARIANT: Record<string, LegendSwatchVariant> = {
+  rect: 'bar',
+  bar: 'bar',
+  line: 'line',
+  area: 'dot',
+  circle: 'dot',
+  square: 'dot',
+}
+
+export function LegendBridge({
+  payload,
+  verticalAlign = 'bottom',
+  variantMap,
+  labelMap,
+  size = 'md',
+}: LegendBridgeProps) {
+  if (!payload?.length) return null
+
+  const items: LegendItemProps[] = payload
+    .filter((item) => item.type !== 'none')
+    .map((item) => {
+      const key = String(item.dataKey ?? item.value ?? '')
+      return {
+        label: labelMap?.[key] ?? item.value ?? '',
+        color: item.color,
+        variant: variantMap?.[key] ?? PAYLOAD_TYPE_VARIANT[item.type ?? ''] ?? 'dot',
+        size,
+      }
+    })
+
+  if (!items.length) return null
+
+  return <LegendRow items={items} verticalAlign={verticalAlign === 'middle' ? 'bottom' : verticalAlign} />
+}
+
 // ---------- LineChartCard --------------------------------------------------
 
 export interface LineSeriesSpec {
@@ -69,6 +127,11 @@ export interface LineSeriesSpec {
   }
   /** yAxisId to attach this line to. Defaults to 'left' (recharts default). */
   yAxisId?: string
+  /** Legend overrides — swatch variant + display label (BLF-942). */
+  legend?: {
+    variant?: LegendSwatchVariant
+    label?: string
+  }
 }
 
 export interface LineChartCardProps {
@@ -127,6 +190,20 @@ export function LineChartCard({
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
   /** 有 series 显式声明 yAxisId 时，左轴挂 'left' 供其命中；否则保持 recharts 默认轴 id (0) */
   const hasExplicitYAxisId = series.some((s) => s.yAxisId != null)
+  /** BLF-942：按系列几何推断图例 swatch 变体（line / dashed） */
+  const legendVariantMap = React.useMemo(() => {
+    const map: Record<string, LegendSwatchVariant> = {}
+    for (const s of series) {
+      map[s.dataKey] =
+        s.legend?.variant ?? (s.lineProps?.strokeDasharray ? 'dashed' : 'line')
+    }
+    return map
+  }, [series])
+  const legendLabelMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of series) if (s.legend?.label) map[s.dataKey] = s.legend.label
+    return map
+  }, [series])
 
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
@@ -166,7 +243,9 @@ export function LineChartCard({
           }
           cursor={defaultTooltipCursor}
         />
-        {shouldShowLegend && <ChartLegend content={<ChartLegendContent />} />}
+        {shouldShowLegend && (
+          <ChartLegend content={<LegendBridge variantMap={legendVariantMap} labelMap={legendLabelMap} />} />
+        )}
         {series.map((s) => (
           <Line
             key={s.dataKey}
@@ -200,6 +279,11 @@ export interface BarSeriesSpec {
   }
   /** yAxisId to attach this bar to. */
   yAxisId?: string
+  /** Legend overrides — swatch variant + display label (BLF-942). */
+  legend?: {
+    variant?: LegendSwatchVariant
+    label?: string
+  }
 }
 
 export interface BarChartCardProps {
@@ -246,6 +330,17 @@ export function BarChartCard({
   const isMobile = useMobile()
   const shouldShowLegend = showLegend ?? series.length > 1
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
+  /** BLF-942：柱状系列 → bar 方块图例 */
+  const legendVariantMap = React.useMemo(() => {
+    const map: Record<string, LegendSwatchVariant> = {}
+    for (const s of series) map[s.dataKey] = s.legend?.variant ?? 'bar'
+    return map
+  }, [series])
+  const legendLabelMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of series) if (s.legend?.label) map[s.dataKey] = s.legend.label
+    return map
+  }, [series])
 
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
@@ -293,7 +388,9 @@ export function BarChartCard({
           }
           cursor={hiddenTooltipCursor}
         />
-        {shouldShowLegend && <ChartLegend content={<ChartLegendContent />} />}
+        {shouldShowLegend && (
+          <ChartLegend content={<LegendBridge variantMap={legendVariantMap} labelMap={legendLabelMap} />} />
+        )}
         {series.map((s) => (
           <Bar
             key={s.dataKey}
@@ -322,6 +419,11 @@ export interface AreaSeriesSpec {
     type?: 'monotone' | 'linear' | 'step' | 'stepAfter' | 'stepBefore' | 'natural'
     strokeWidth?: number
     fillOpacity?: number
+  }
+  /** Legend overrides — swatch variant + display label (BLF-942). */
+  legend?: {
+    variant?: LegendSwatchVariant
+    label?: string
   }
 }
 
@@ -363,6 +465,17 @@ export function AreaChartCard({
   const isMobile = useMobile()
   const shouldShowLegend = showLegend ?? series.length > 1
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
+  /** BLF-942：面积系列 → dot 圆点图例 */
+  const legendVariantMap = React.useMemo(() => {
+    const map: Record<string, LegendSwatchVariant> = {}
+    for (const s of series) map[s.dataKey] = s.legend?.variant ?? 'dot'
+    return map
+  }, [series])
+  const legendLabelMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of series) if (s.legend?.label) map[s.dataKey] = s.legend.label
+    return map
+  }, [series])
 
   // Unique prefix for gradient ids so multiple AreaCharts on one page do not
   // collide (recharts defs are document-global).
@@ -402,7 +515,9 @@ export function AreaChartCard({
           }
           cursor={defaultTooltipCursor}
         />
-        {shouldShowLegend && <ChartLegend content={<ChartLegendContent />} />}
+        {shouldShowLegend && (
+          <ChartLegend content={<LegendBridge variantMap={legendVariantMap} labelMap={legendLabelMap} />} />
+        )}
         {series.map((s) => (
           <Area
             key={s.dataKey}
@@ -478,6 +593,21 @@ export function ComposedChartCard({
   const tooltipProps = series.length === 1 ? singleSeriesTooltipContentProps : {}
   /** 有 series 显式声明 yAxisId 时，左轴挂 'left' 供其命中；否则保持 recharts 默认轴 id (0) */
   const hasExplicitYAxisId = series.some((s) => s.yAxisId != null)
+  /** BLF-942：复合图按系列 kind 推断图例 swatch 变体（bar / line / dashed） */
+  const legendVariantMap = React.useMemo(() => {
+    const map: Record<string, LegendSwatchVariant> = {}
+    for (const s of series) {
+      map[s.dataKey] =
+        s.legend?.variant ??
+        (s.kind === 'bar' ? 'bar' : s.lineProps?.strokeDasharray ? 'dashed' : 'line')
+    }
+    return map
+  }, [series])
+  const legendLabelMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of series) if (s.legend?.label) map[s.dataKey] = s.legend.label
+    return map
+  }, [series])
 
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
@@ -515,7 +645,9 @@ export function ComposedChartCard({
           }
           cursor={defaultTooltipCursor}
         />
-        {shouldShowLegend && <ChartLegend content={<ChartLegendContent />} />}
+        {shouldShowLegend && (
+          <ChartLegend content={<LegendBridge variantMap={legendVariantMap} labelMap={legendLabelMap} />} />
+        )}
         {series.map((s) => {
           if (s.kind === 'bar') {
             return (
@@ -560,6 +692,11 @@ export interface PieSliceSpec {
   valueKey: string
   /** Name field name in `data` (used by Tooltip / Legend). */
   nameKey: string
+  /** Legend overrides — swatch variant + display label (BLF-942). */
+  legend?: {
+    variant?: LegendSwatchVariant
+    label?: string
+  }
 }
 
 export interface PieChartCardProps {
@@ -627,7 +764,7 @@ export function PieChartCard({
             />
           }
         />
-        {showLegend && <ChartLegend content={<ChartLegendContent />} />}
+        {showLegend && <ChartLegend content={<LegendBridge />} />}
       </PieChart>
     </ChartContainer>
   )
