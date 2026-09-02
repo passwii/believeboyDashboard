@@ -264,6 +264,30 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=platform_inspection 输出平台巡检写侧示例（BLF-948，R0+W1–W4 共 5 条路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'platform_inspection',
+    })
+    expect(text).toContain('平台巡检')
+    expect(text).toContain('/platform-inspection/template')
+    expect(text).toContain(
+      '/platform-inspection/periods/{period_id}/projects/$PROJECT_ID/screenshots'
+    )
+    expect(text).toContain(
+      '/platform-inspection/periods/{period_id}/projects/$PROJECT_ID/submit'
+    )
+    expect(text).toContain('/platform-inspection/periods/{period_id}/projects/$PROJECT_ID')
+    expect(text).toContain('/platform-inspection/screenshots/{screenshot_id}')
+    expect(text).toContain('confirm_token')
+    expect(text).toContain('X-Confirm-Token')
+    expect(text).toContain('显式字段合并')
+    expect(text).toContain('account_health')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
