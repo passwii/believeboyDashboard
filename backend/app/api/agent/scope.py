@@ -52,6 +52,8 @@ KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
         "ad_analysis",
         "agent_provisioning",
         "inventory_ledger",
+        # 平台巡检写侧域（BLF-944）：R0+W1–W4，写巡检报告/截图。
+        "platform_inspection",
     }
 )
 

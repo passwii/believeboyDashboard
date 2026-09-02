@@ -32,6 +32,7 @@ from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
+from app.api.v1.endpoints.agent.platform_inspection import platform_inspection_router
 from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
     pricing_snapshots_router,
 )
@@ -205,6 +206,15 @@ agent_router.include_router(
 agent_router.include_router(
     provisioning_router,
     dependencies=[Depends(require_business_scope("agent_provisioning"))],
+)
+# 平台巡检写侧域（BLF-944）：R0 模板 + W1 保存 / W2 提交 / W3 截图上传 /
+# W4 截图删除（confirm 矩阵 spec §7 D5：W2 提交 / W4 删除 confirm 两步，
+# W1 保存 / W3 上传不 confirm）。挂 business_scope("platform_inspection")
+# （D1，KNOWN_BUSINESS_DOMAINS 已加）。读侧同数据底座由 account-health 覆盖
+# （D3 读写边界）。必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    platform_inspection_router,
+    dependencies=[Depends(require_business_scope("platform_inspection"))],
 )
 
 
