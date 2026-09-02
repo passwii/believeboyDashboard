@@ -792,6 +792,104 @@ function buildSkuInfoGuide(opts: {
   第一步一致（multipart 重放可换 boundary）。`
 }
 
+/** 平台巡检域调用说明（BLF-948）：写侧 R0+W1–W4 共 5 条路由，读侧走 account-health。 */
+function buildPlatformInspectionGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 巡检表单模板（R0，写输入 schema 的唯一事实源）】
+
+  curl "${apiBase}/api/v1/agent/platform-inspection/template" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回写侧字段全集（类型/枚举/阈值），W1 请求体以此为 schema：
+  health_fields（账户健康评级 select，1）+ service_performance_fields（客服绩效，3）+
+  shipping_performance_fields（配送绩效，4）+ compliance_fields（合规计数，10）。
+  注意 W1 的 health_data 块是合并的 8 key（rating + 客服 3 + 配送 4），与模板分组
+  同字段、不同源形态。
+
+【3. 填写 / 更新草稿（W1 PUT，upsert 幂等，不 confirm，可反复覆盖）】
+
+  curl -X PUT "${apiBase}/api/v1/agent/platform-inspection/periods/{period_id}/projects/$PROJECT_ID" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Content-Type: application/json" \\
+    -d '{"health_data":{"account_health_rating":"Good","negative_feedback":2,"late_shipment_rate":1.5},"compliance_data":{"ip_infringement":0,"listing_policy_violations":1},"status_summary":"本周账户状况良好，无异常"}'
+
+  upsert：(period_id, project_id) 无草稿 → 新建；有 → 覆盖更新（重复 PUT 不新建）。
+  显式字段合并：只透传显式提供的 key——health_data / compliance_data 未提供的子键
+  保持当前值（不置 null 覆盖）；status_summary 显式提供才更新；缺失整块 → 保持现状。
+  account_health_rating 枚举 ∈ Healthy / Good / At Risk / Critical（非法 → 400
+  VALIDATION_FAILED）；阈值 warn 1 / crit 3（负反馈、A2Z、chargeback、合规计数）、
+  late_shipment_rate warn 2.0 / crit 4.0、valid_tracking_rate / on_time_delivery_rate
+  warn 97.0 / crit 95.0 below。**不提供 screenshot_ids**（截图一律经 W3 上传挂靠 report）。
+
+【4. 上传截图（W3 POST，multipart，不 confirm；需先有草稿）】
+
+  curl -X POST "${apiBase}/api/v1/agent/platform-inspection/periods/{period_id}/projects/$PROJECT_ID/screenshots" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -F "file=@./screenshot.png"
+
+  前置要求：该 (period, project) 必须先有草稿报告（先 W1 建档再传图，无草稿 → 404）。
+  multipart 字段仅 file：image/jpeg|png|webp|gif、≤10MB（超限 → 400 VALIDATION_FAILED）。
+  响应**不含 presigned URL**（R2 私桶临时凭证不外泄），只给 screenshot_id + filename /
+  content_type / file_size / caption / sort_order / created_at。
+
+【5. 提交报告（W2 POST，confirm 两步，不可逆）】
+
+  提交前先 W1 建档（无草稿 → 404 RESOURCE_NOT_FOUND）。确认后
+  status=submitted + submitted_by=<agent_id> + submitted_at，**无 unsubmit 回退路径**。
+
+  第一步（预览，返回 confirm_token，不落库）：
+  curl -X POST "${apiBase}/api/v1/agent/platform-inspection/periods/{period_id}/projects/$PROJECT_ID/submit" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -H "Content-Type: application/json" \\
+    -d '{}'
+
+  第二步（向用户确认后重放，请求体必须与第一步完全一致）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"
+
+  响应透出 warnings（阈值告警列表），Agent 应向用户汇报异常指标。
+
+【6. 删除截图（W4 DELETE，confirm 两步，不可逆）】
+
+  第一步（预览，返回 confirm_token，不落库）：
+  curl -X DELETE "${apiBase}/api/v1/agent/platform-inspection/screenshots/{screenshot_id}" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>"
+
+  第二步（向用户确认后重放；DELETE 无请求体，重放保持同样不带 body）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"
+
+  不可逆：R2 原图 + 缩略图 + DB 行一并删除，无恢复路径。项目范围在服务端按截图
+  归属校验（不在凭据范围 → 403）；截图不存在 → 404 RESOURCE_NOT_FOUND。
+
+【7. 读写分离与调用顺序】
+
+  本域 = 巡检数据写侧；**读走 account-health 域**（周期列表/当前周期/概览/单店报告/
+  历史），当前周期 ID 先经 account-health R2 /account-health/periods/current 拿。
+  标准流程：**先 W1 建档 → W3 传图 → W2 提交**（W3 需草稿存在；W2 提交后不可逆，
+  确认无误再交）。W4 可随时删除（无需先提交），但属删除性操作必须 confirm。
+  草稿阶段可反复 W1 覆盖（不 confirm）；提交后无法修改，需新周期重填。两侧响应均
+  不含 presigned URL（读侧只给 screenshot_count、写侧只给 id + 元数据），如需查看
+  截图请引导用户去前端「平台巡检」页面。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -850,6 +948,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildSalesGuide({ key, agentId, apiBase })
   } else if (domain === 'sku_info') {
     domainGuide = buildSkuInfoGuide({ key, agentId, apiBase })
+  } else if (domain === 'platform_inspection') {
+    domainGuide = buildPlatformInspectionGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }
