@@ -13,7 +13,7 @@
 - **env 变量名（统一三件套）**：`AGENT_KEY`（明文 Key）/ `AGENT_ID`（X-Agent-Id 业务主键）/ `API_BASE`（Base URL，可省略走默认 `https://dash-api.believeboy.com/api/v1/agent`）
 - **凭据纪律**：skill 内**禁止**写明文 Key——方法进 skill，凭据进各 agent 的 `custom_env`（skill 是共享制品，会分配给多个 agent）
 
-## 文件清单（12 个域 · 全部已建）
+## 文件清单（13 个域 · 全部已建）
 
 | 文件 | 业务域 | 路由数 | 说明 |
 |---|---|---|---|
@@ -29,6 +29,7 @@
 | `believeboy-new-product-calculation.md` | new_product_calculations（新品测算） | 5 | 读3（列表/详情/审计）+ 写1 + 试算1；4 种 calculation_type |
 | `believeboy-return-analysis.md` | return_analysis（退货分析） | 5（纯读） | overview/聚合/raw（PII 剥离）/单 SKU/coverage；R2 country 必填 |
 | `believeboy-report-upload-status.md` | report_upload_status（报表上传状态） | 1 | GET /report-upload-status（report_date 必填；路径不带 project_id；BLF-486 缺报清单数据源） |
+| `believeboy-platform-inspection.md` | platform_inspection（平台巡检·写侧） | 5（读1+写4） | R0 模板 / W1 upsert 草稿 / W2 提交（confirm）/ W3 截图上传 / W4 截图删除（confirm）；读侧走 account-health |
 
 ## 维护规约（双写）
 
