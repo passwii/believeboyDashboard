@@ -28,6 +28,16 @@ vi.mock('@/components/terminal/global-filter-context', async (importOriginal) =>
   }
 })
 
+// BLF-940：header slot / mobile strip / refresh 走 mock，避免挂载点缺失抛错。
+// 插槽内容直接渲染回页面正文（便于断言筛选控件存在性，生产环境 portal 进 head）。
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: vi.fn((_handler: () => void | Promise<void>) => ({
+    setLoading: vi.fn(),
+  })),
+  useHeaderSlot: (node: React.ReactNode) => node,
+  useMobileFilterStrip: () => null,
+}))
+
 /** 测试内修改全局筛选态（模拟用户在头部操作）；bump 版本号让 mock 返回新引用触发重渲染 */
 let gfVersion = 0
 const gfValue = new Proxy(gfState, {
@@ -302,9 +312,8 @@ describe('订单信息页终端化（BLF-817）', () => {
     const { rerender } = render(<OrderInfoPage />)
 
     await screen.findByText('111-1111111-0000001')
-    // 店铺下拉显示自动选中的第一个店铺「店铺A」（而非 __all__）
-    const projectTrigger = screen.getByRole('combobox', { name: '店铺' })
-    expect(projectTrigger).toHaveTextContent('店铺A')
+    // BLF-940：页面项目 Select 已移除（由 head 全局四件套承担），
+    // 自动选第一个店铺的行为通过请求参数验证。
     // 首次请求带的是 autoselect 出的 project_ids=1
     const firstCall = String(fetchMock.mock.calls[0]![0])
     expect(firstCall).toContain('project_ids=1')
