@@ -145,6 +145,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
+  it('platform_inspection 已接入且 routeCount=5、只写（BLF-944）', () => {
+    const domain = getAgentDomain('platform_inspection')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('平台巡检')
+    expect(domain?.routeCount).toBe(5)
+    expect(domain?.capabilities).toEqual({ read: false, write: true })
+  })
+
   it('sales 已接入且 routeCount=1、纯读（BLF-569）', () => {
     const domain = getAgentDomain('sales')
     expect(domain?.status).toBe('live')
