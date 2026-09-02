@@ -30,6 +30,20 @@
 - 不要传 `formatter` 改字号/样式；需要控制位置用 `verticalAlign="top|bottom"`。
 - 图例间距/字号由 `ChartLegendContent` 统一（`gap-4`、swatch 8px、`pt-3` 底部留白）。
 
+#### 1.2.1 统一图例系统（BLF-942，Stage 1）
+
+手写 `ChartLegendContent` 的默认样式（8px 方块 + 纯文本）在 dark 下偏 terminal、且 swatch 不随系列
+几何对齐。新增统一图例体系 `components/charts/legend.tsx`（`LegendSwatch` / `LegendItem` / `LegendRow`）：
+
+- **swatch 变体按系列几何自动推断**：`components/charts/cards.tsx` 各包装器默认按系列类型映射
+  （`bar` → `bar` 方块、`line` → `line` 短线、`line + strokeDasharray` → `dashed` 虚线、
+  `area`/`pie` → `dot` 圆点），调用方零改动即获得“图例与图形一致”的系统化观感。
+- **颜色走 CSS 变量**（`var(--color-<key>)` / `hsl(var(--chart-N))`），light/dark 双主题自适应，**无纯黑**。
+- **交互预留**：`LegendItem` 支持 `onClick` / `active`（Stage 2 toggle 隐藏/显示系列）。
+- **布局**：`LegendRow` 支持 `align`（center/start/end）+ `flex-wrap` 换行 + `verticalAlign` 上下留白。
+- 优先走 `LegendBridge`（`cards.tsx` 内置，recharts payload → `LegendRow`）；手写 `ChartContainer` 页面
+  可直接用 `LegendRow` + `LegendItem`。
+
 ### 1.3 Tooltip
 
 - 一律 `<ChartTooltip content={<ChartTooltipContent ... />} />`。
