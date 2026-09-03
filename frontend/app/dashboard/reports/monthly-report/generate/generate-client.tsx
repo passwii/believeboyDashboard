@@ -21,9 +21,8 @@ type RecognizedFileType =
   | 'monthly_summary_pdf'
   | 'unknown'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  MonthPicker,
   formatMonthInputValue,
   parseMonthInputValue,
 } from '@/components/ui/date-picker'
@@ -35,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -44,12 +42,19 @@ import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
+import { MonthNavigation } from '@/components/dashboard/console'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
-  CountrySelect,
-  FilterField,
-  MonthNavigation,
-  RefreshButton,
-} from '@/components/dashboard/console'
+  HeaderSlotSelect,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import {
+  useHeaderSlot,
+  useMobileFilterStrip,
+} from '@/components/terminal/terminal-header-slot'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
@@ -58,14 +63,11 @@ type UploadStatus = 'empty' | 'ready' | 'uploading' | 'success' | 'error'
 type ProjectOption = { id?: number | null; name: string }
 type CountryOption = ReportUploadCountry
 
-function ReportFilterSkeleton() {
-  return (
-    <div className="space-y-2">
-      <Skeleton className="h-4 w-20" />
-      <Skeleton className="h-10 w-full" />
-    </div>
-  )
-}
+const GENERATE_COUNTRY_SLOT_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+] as const
 
 type MappingRow = {
   id: string
@@ -833,74 +835,120 @@ export default function GenerateTab() {
         message: `下载失败：${error instanceof Error ? error.message : '未知错误'}`,
         filename: downloadTarget.filenameHint,
       })
+
       setDownloadTarget((prev) => ({ ...prev, downloading: false }))
     }
   }
 
+  // —— BLF-963 · head 插槽（复用 BLF-962 display 试点模式）——
+  // 本页无刷新语义（上传 / 生成流程），不注册 useHeaderRefresh。
+  // 桌面端：项目 / 国家 / 账期月份三个控件 portal 进 Top Header 中段。
+  // 项目沿用页面原生选项集（按名称 value）；国家沿用 US/DE/UK 三站集合
+  //（与旧 CountrySelect 默认 options 一致）；账期月份保留前后月切换语义
+  //（handleShiftReportMonth），在插槽内用紧凑 MonthNavigation 变体呈现。
+  const projectSlotOptions = projects.map((project) => ({
+    value: project.name,
+    label: project.name,
+  }))
+  const reportMonthDate = parseMonthInputValue(reportMonth)
+  const headerFilterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectName}
+        onChange={setProjectName}
+        options={projectSlotOptions}
+        placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+        disabled={projectsLoading || projects.length === 0}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as CountryOption)}
+        options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
+        widthClass={TERM_HEADER_W_SM}
+        title="国家站点筛选"
+      />
+      <MonthNavigation
+        value={reportMonthDate}
+        onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+        onPrev={() => handleShiftReportMonth(-1)}
+        onNext={() => handleShiftReportMonth(1)}
+        showCurrentMonth={false}
+        monthLabel=""
+        className={cn(
+          TERM_HEADER_TRIGGER,
+          TERM_HEADER_W_MD,
+          '[&>button]:h-8 [&>button]:w-8 [&_span]:text-xs'
+        )}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
+  )
+
+  // 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，月份占整行）。
+  const mobileProjectLabel = projectName || '选择项目'
+  const mobileCountryLabel =
+    GENERATE_COUNTRY_SLOT_OPTIONS.find((opt) => opt.value === country)?.label ?? country
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${reportMonth || '——'}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectName}
+            onChange={setProjectName}
+            options={projectSlotOptions}
+            placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+            disabled={projectsLoading || projects.length === 0}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as CountryOption)}
+            options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
+            widthClass={TERM_HEADER_W_SM}
+            title="国家站点筛选"
+          />
+          <MobileFilterWide>
+            <MonthNavigation
+              value={reportMonthDate}
+              onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+              onPrev={() => handleShiftReportMonth(-1)}
+              onNext={() => handleShiftReportMonth(1)}
+              showCurrentMonth={false}
+              monthLabel=""
+              className="h-10 w-full"
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
+
   return (
     <div className="grid w-full gap-6 text-foreground xl:grid-cols-[minmax(0,1fr)_360px]">
+      {headerSlotPortal}
+      {/* 移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
       <div className="space-y-6">
         <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
           <CardHeader>
             <CardTitle className="text-lg">控制台</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              {projectsLoading ? (
-                <ReportFilterSkeleton />
-              ) : (
-                <FilterField label="项目名称" labelStyle="sm">
-                  <Select
-                    value={projectName}
-                    onValueChange={setProjectName}
-                    disabled={projects.length === 0}
-                  >
-                    <SelectTrigger
-                      id="project_name"
-                      className="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
-                    >
-                      <SelectValue
-                        placeholder={projects.length ? '请选择项目名称' : '暂无可选项目'}
-                      />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64 overflow-y-auto">
-                      {projects.map((project) => (
-                        <SelectItem key={project.name} value={project.name}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!projectsLoading && !projectLoadError && projects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      暂无项目，请先到项目信息页面新增。
-                    </p>
-                  ) : null}
-                  {projectLoadError ? (
-                    <p className="text-xs text-destructive">{projectLoadError}</p>
-                  ) : null}
-                </FilterField>
-              )}
-
-              <FilterField label="国家站点" labelStyle="sm">
-                <CountrySelect
-                  value={country}
-                  onChange={(value) => setCountry(value as CountryOption)}
-                  triggerClassName="h-10 transition-all duration-200 data-[state=open]:ring-2 data-[state=open]:ring-blue-500/30"
-                />
-              </FilterField>
-
-              <FilterField label="账期月份" labelStyle="sm" className="col-span-2 md:col-span-1">
-                <MonthNavigation
-                  value={parseMonthInputValue(reportMonth)}
-                  onChange={(date) => setReportMonth(formatMonthInputValue(date))}
-                  onPrev={() => handleShiftReportMonth(-1)}
-                  onNext={() => handleShiftReportMonth(1)}
-                  showCurrentMonth={false}
-                  monthLabel=""
-                />
-              </FilterField>
-            </div>
+            {!projectsLoading && !projectLoadError && projects.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                暂无项目，请先到项目信息页面新增。
+              </p>
+            ) : null}
+            {projectLoadError ? (
+              <p className="text-xs text-destructive">{projectLoadError}</p>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
               <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
