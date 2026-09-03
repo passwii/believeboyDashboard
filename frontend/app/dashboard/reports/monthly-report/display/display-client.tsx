@@ -54,19 +54,30 @@ import {
 } from '@/components/ui/table'
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
-import { useMobile } from '@/lib/hooks/use-mobile'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { getCountryLabel } from '@/lib/country'
 import { getExcelNumFmt } from './excel-num-fmt'
-import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
 import { VAT_COUNTRIES } from '@/lib/console-constants'
-import { CountrySelect, FilterField, RefreshButton } from '@/components/dashboard/console'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import {
+  HeaderSlotSelect,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+  useMobileFilterStrip,
+} from '@/components/terminal/terminal-header-slot'
 
 export type ProjectOption = {
   id: number | null
@@ -732,19 +743,15 @@ function formatCompactCurrency(value: number): string {
   return formatCurrency(value)
 }
 
-function FinancialFilterSkeleton() {
-  return (
-    <div className="space-y-1.5">
-      <Skeleton className="h-3 w-14" />
-      <Skeleton className="h-9 w-full" />
-    </div>
-  )
-}
+const DISPLAY_COUNTRY_SLOT_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+] as const
 
 export default function DisplayTab() {
   const { data: session, status: sessionStatus } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const isMobile = useMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
@@ -1827,120 +1834,105 @@ export default function DisplayTab() {
     currencySymbol,
   ])
   const showSkeleton = loading && !data
+  // —— BLF-962 · head 插槽（display 试点，确立 generate / reconcile 复用模式）——
+  // 刷新语义与原「财务分析」RefreshButton 一致：当前筛选条件下强刷（跳缓存）。
+  useHeaderRefresh(() => loadFinancialSeries({ force: true }), { loading })
 
-  return (
-    <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
-      <DataCard>
-        <DataCardHeader
-          title="财务分析"
-          titleClassName="text-2xl tracking-tight"
-          badge={<p className="dashboard-kicker">分析控制台</p>}
-        />
-        <DataCardContent className="px-4 pb-4 pt-4">
-          {/* 手机端：2列网格无标签 */}
-          <div className="grid grid-cols-2 gap-2 lg:hidden">
-            {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-none bg-term-raised" />
-            ) : (
-              <Select
-                value={projectId}
-                onValueChange={setProjectId}
-                disabled={projects.length === 0}
-              >
-                <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-bg">
-                  <SelectValue placeholder="选择店铺" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as ReportUploadCountry)}
-              triggerClassName="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs"
-            />
+  // 桌面端：筛选控件 portal 进 Top Header 中段（店铺 / 国家 / 起止月份）。
+  // 店铺沿用页面原生选项集（不含 ALL 全选位，与既有行为一致）；国家沿用 US/DE/UK
+  // 三站集合（与旧 CountrySelect 默认 options 一致）。
+  const projectSlotOptions = projects
+    .filter((project) => project.id !== null)
+    .map((project) => ({ value: String(project.id), label: project.name }))
+  const headerFilterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projectSlotOptions}
+        placeholder={projectsLoading ? '项目加载中…' : '请选择店铺'}
+        disabled={projectsLoading || projects.length === 0}
+        widthClass={TERM_HEADER_W_MD}
+        title="店铺筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as ReportUploadCountry)}
+        options={[...DISPLAY_COUNTRY_SLOT_OPTIONS]}
+        widthClass={TERM_HEADER_W_SM}
+        title="国家站点筛选"
+      />
+      <MonthPicker
+        value={parseMonthInputValue(startMonth)}
+        onChange={handleStartMonthChange}
+        placeholder="开始月份"
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'justify-start px-2 text-left')}
+      />
+      <MonthPicker
+        value={parseMonthInputValue(endMonth)}
+        onChange={handleEndMonthChange}
+        placeholder="结束月份"
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'justify-start px-2 text-left')}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
+  )
+
+  // 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，起止月份占整行）。
+  const mobileProjectLabel =
+    projects.find((project) => String(project.id) === projectId)?.name || projectId || '选择店铺'
+  const mobileCountryLabel =
+    DISPLAY_COUNTRY_SLOT_OPTIONS.find((opt) => opt.value === country)?.label ?? country
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${startMonth || '——'}~${endMonth || '——'}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projectSlotOptions}
+            placeholder={projectsLoading ? '项目加载中…' : '请选择店铺'}
+            disabled={projectsLoading || projects.length === 0}
+            widthClass={TERM_HEADER_W_MD}
+            title="店铺筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as ReportUploadCountry)}
+            options={[...DISPLAY_COUNTRY_SLOT_OPTIONS]}
+            widthClass={TERM_HEADER_W_SM}
+            title="国家站点筛选"
+          />
+          <MobileFilterWide>
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
               onChange={handleStartMonthChange}
-              className="h-9 w-full"
+              placeholder="开始月份"
+              className="h-10 w-full"
             />
+          </MobileFilterWide>
+          <MobileFilterWide>
             <MonthPicker
               value={parseMonthInputValue(endMonth)}
               onChange={handleEndMonthChange}
-              className="h-9 w-full"
+              placeholder="结束月份"
+              className="h-10 w-full"
             />
-            <RefreshButton
-              onClick={() => void loadFinancialSeries({ force: true })}
-              loading={loading}
-              label="刷新"
-              variant="outline"
-              className="col-span-2 h-9 w-full rounded-none border-term-border bg-term-bg"
-            />
-          </div>
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
 
-          {/* 桌面端：横向排列 */}
-          <div className="hidden lg:flex lg:flex-row lg:flex-wrap lg:items-end lg:gap-3">
-            {projectsLoading ? (
-              <div className="min-w-[180px]">
-                <FinancialFilterSkeleton />
-              </div>
-            ) : (
-              <FilterField label="店铺">
-                <Select
-                  value={projectId}
-                  onValueChange={setProjectId}
-                  disabled={projects.length === 0}
-                >
-                  <SelectTrigger className="h-9 w-[200px] border-term-border bg-term-bg">
-                    <SelectValue placeholder="请选择店铺" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FilterField>
-            )}
-            <FilterField label="国家站点">
-              <CountrySelect
-                value={country}
-                onChange={(value) => setCountry(value as ReportUploadCountry)}
-                triggerClassName="h-9"
-              />
-            </FilterField>
-            <FilterField label="开始月份">
-              <MonthPicker
-                value={parseMonthInputValue(startMonth)}
-                onChange={handleStartMonthChange}
-                className="h-9 w-[170px]"
-              />
-            </FilterField>
-            <FilterField label="结束月份">
-              <MonthPicker
-                value={parseMonthInputValue(endMonth)}
-                onChange={handleEndMonthChange}
-                className="h-9 w-[170px]"
-              />
-            </FilterField>
-            <RefreshButton
-              onClick={() => void loadFinancialSeries({ force: true })}
-              loading={loading}
-              label="刷新数据"
-              variant="outline"
-              className="h-9 border-term-border bg-term-bg"
-            />
-          </div>
-        </DataCardContent>
-      </DataCard>
-
+  return (
+    <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
+      {headerSlotPortal}
+      {/* 移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
       {projectLoadError ? (
         <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
           {projectLoadError}
