@@ -80,6 +80,7 @@ def _seed(
     *,
     projects: list[str] = ("A", "B", "C"),
     with_current_period: bool = True,
+    country_map: dict[str, str] | None = None,
 ):
     """建项目 + 周期 + 报告；返回 id 字典。报告/周期/项目在 teardown 清理。"""
     suffix = uuid.uuid4().hex[:8]
@@ -100,6 +101,7 @@ def _seed(
                 assistant_operator=None,
                 sort_order=len(pids),
                 is_active=True,
+                **({"country": country_map[name]} if country_map and name in country_map else {}),
             )
             db.add(p)
             db.flush()
@@ -831,5 +833,227 @@ class TestInternalRegression:
             assert by_pid[env["pids"]["A"]]["compliance_total"] == 1
             assert by_pid[env["pids"]["B"]]["compliance_total"] is None
             assert "health_data" not in by_pid[env["pids"]["A"]]
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+
+# ============================================================
+# country 维度（BLF-956）：全部 5 条路由 ?country= 过滤
+# ============================================================
+
+
+class TestCountryDimension:
+    """巡检无国家列（数据按 (period, project)）；国家 = Project.country。
+
+    seed 默认 A/B/C 均 US；country_map={"B": "DE"} 时 B 变德国站——
+    cur 周期 A(submitted)+B(submitted)，past 周期 A(submitted)，C 无报告
+    （overview 里以 pending 出现）。
+    """
+
+    def _headers(self, make_api_key, agent_id: str) -> dict:
+        return _make_headers(
+            make_api_key, agent_id, business_scope="account_health"
+        )
+
+    # ── R1 周期列表：submitted_count 按国家过滤 ────────────────────
+    def test_r1_submitted_count_filtered_by_country(self, client, make_api_key):
+        env = _seed(with_current_period=True, country_map={"B": "DE"})
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            resp = client.get(
+                "/api/v1/agent/account-health/periods?country=DE", headers=headers
+            )
+            assert resp.status_code == 200, resp.text
+            by_id = {i["period_id"]: i for i in resp.json()["data"]["items"]}
+            # cur：只有 B(DE) submitted → 1；past：A(US) → 0。
+            assert by_id[env["period_ids"]["cur"]]["submitted_count"] == 1
+            assert by_id[env["period_ids"]["past"]]["submitted_count"] == 0
+
+            # 多站点聚合：country=US,DE → cur=2 / past=1。
+            resp2 = client.get(
+                "/api/v1/agent/account-health/periods?country=US,DE",
+                headers=headers,
+            )
+            assert resp2.status_code == 200, resp2.text
+            by_id2 = {i["period_id"]: i for i in resp2.json()["data"]["items"]}
+            assert by_id2[env["period_ids"]["cur"]]["submitted_count"] == 2
+            assert by_id2[env["period_ids"]["past"]]["submitted_count"] == 1
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_r1_invalid_country_400(self, client, make_api_key):
+        env = _seed(with_current_period=True)
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            resp = client.get(
+                "/api/v1/agent/account-health/periods?country=XX", headers=headers
+            )
+            assert resp.status_code == 400, resp.text
+            body = resp.json()
+            assert body["ok"] is False
+            assert body["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    # ── R2 当前周期：country 仅归一化校验（周期全局共享） ───────────
+    def test_r2_accepts_valid_country_and_rejects_invalid(
+        self, client, make_api_key
+    ):
+        env = _seed(with_current_period=True)
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            ok = client.get(
+                "/api/v1/agent/account-health/periods/current?country=US",
+                headers=headers,
+            )
+            assert ok.status_code == 200, ok.text
+            assert ok.json()["data"]["period_id"] == env["period_ids"]["cur"]
+
+            bad = client.get(
+                "/api/v1/agent/account-health/periods/current?country=XX",
+                headers=headers,
+            )
+            assert bad.status_code == 400, bad.text
+            assert bad.json()["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_r3_overview_filtered_by_country(self, client, make_api_key):
+        env = _seed(with_current_period=True, country_map={"B": "DE"})
+        try:
+            headers = _make_headers(
+                make_api_key,
+                env["agent_id"],
+                business_scope="account_health",
+                project_scope=",".join(str(p) for p in env["pids"].values()),
+            )
+            url = (
+                f"/api/v1/agent/account-health/periods/{env['period_ids']['cur']}"
+                "/overview"
+            )
+            # 只看 DE → 只有 B。
+            resp_de = client.get(url + "?country=DE", headers=headers)
+            assert resp_de.status_code == 200, resp_de.text
+            data_de = resp_de.json()["data"]
+            assert {i["project_id"] for i in data_de["items"]} == {env["pids"]["B"]}
+            assert data_de["total_projects"] == 1
+            assert data_de["submitted_count"] == 1
+            # 行响应回传 normalized country。
+            assert data_de["items"][0]["country"] == "DE"
+
+            # 只看 US → A(submitted) + C(pending，无报告)。
+            resp_us = client.get(url + "?country=US", headers=headers)
+            assert resp_us.status_code == 200, resp_us.text
+            data_us = resp_us.json()["data"]
+            assert {i["project_id"] for i in data_us["items"]} == {
+                env["pids"]["A"],
+                env["pids"]["C"],
+            }
+            assert data_us["submitted_count"] == 1
+            by_pid = {i["project_id"]: i for i in data_us["items"]}
+            assert by_pid[env["pids"]["A"]]["country"] == "US"
+            assert by_pid[env["pids"]["C"]]["country"] == "US"
+
+            # 多站点 US,DE → 三店齐全。
+            resp_both = client.get(url + "?country=US,DE", headers=headers)
+            assert resp_both.status_code == 200, resp_both.text
+            assert {i["project_id"] for i in resp_both.json()["data"]["items"]} == {
+                env["pids"]["A"],
+                env["pids"]["B"],
+                env["pids"]["C"],
+            }
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_r3_invalid_country_400(self, client, make_api_key):
+        env = _seed(with_current_period=True)
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            resp = client.get(
+                f"/api/v1/agent/account-health/periods/{env['period_ids']['cur']}"
+                "/overview?country=XX",
+                headers=headers,
+            )
+            assert resp.status_code == 400, resp.text
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    # ── R4 单店明细：country 校验项目国家，不匹配 → 404 ────────────
+    def test_r4_country_mismatch_404_match_200(self, client, make_api_key):
+        env = _seed(with_current_period=True, country_map={"B": "DE"})
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            # A 是美国站：country=US → 200；country=DE → 404。
+            url_a = (
+                f"/api/v1/agent/account-health/periods/{env['period_ids']['cur']}"
+                f"/projects/{env['pids']['A']}"
+            )
+            ok = client.get(url_a + "?country=US", headers=headers)
+            assert ok.status_code == 200, ok.text
+            assert ok.json()["data"]["country"] == "US"
+
+            mismatch = client.get(url_a + "?country=DE", headers=headers)
+            assert mismatch.status_code == 404, mismatch.text
+            assert mismatch.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+            # B 是德国站：country=DE → 200。
+            url_b = (
+                f"/api/v1/agent/account-health/periods/{env['period_ids']['cur']}"
+                f"/projects/{env['pids']['B']}"
+            )
+            ok_b = client.get(url_b + "?country=DE", headers=headers)
+            assert ok_b.status_code == 200, ok_b.text
+            assert ok_b.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    # ── R5 历史趋势：行按国家过滤 ──────────────────────────────────
+    def test_r5_history_filtered_by_country(self, client, make_api_key):
+        env = _seed(with_current_period=True, country_map={"B": "DE"})
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            # 无过滤：cur×A + cur×B + past×A = 3 行。
+            all_rows = client.get("/api/v1/agent/account-health/history", headers=headers)
+            assert all_rows.status_code == 200, all_rows.text
+            assert all_rows.json()["data"]["total"] == 3
+
+            # country=DE → 只有 cur×B。
+            de = client.get(
+                "/api/v1/agent/account-health/history?country=DE", headers=headers
+            )
+            assert de.status_code == 200, de.text
+            data_de = de.json()["data"]
+            assert data_de["total"] == 1
+            assert data_de["items"][0]["project_id"] == env["pids"]["B"]
+            assert data_de["items"][0]["country"] == "DE"
+
+            # country=US → cur×A + past×A = 2 行。
+            us = client.get(
+                "/api/v1/agent/account-health/history?country=US", headers=headers
+            )
+            assert us.status_code == 200, us.text
+            data_us = us.json()["data"]
+            assert data_us["total"] == 2
+            assert {i["project_id"] for i in data_us["items"]} == {env["pids"]["A"]}
+
+            # 多站点 US,DE → 3 行。
+            both = client.get(
+                "/api/v1/agent/account-health/history?country=US,DE", headers=headers
+            )
+            assert both.status_code == 200, both.text
+            assert both.json()["data"]["total"] == 3
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_r5_invalid_country_400(self, client, make_api_key):
+        env = _seed(with_current_period=True)
+        try:
+            headers = self._headers(make_api_key, env["agent_id"])
+            resp = client.get(
+                "/api/v1/agent/account-health/history?country=XX", headers=headers
+            )
+            assert resp.status_code == 400, resp.text
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
         finally:
             _teardown(env["suffix"], env["pids"])
