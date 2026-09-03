@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import type { ReactNode } from 'react'
 
 import DisplayTab, {
   type FinancialSeriesResponse,
@@ -43,6 +44,26 @@ vi.mock('@/lib/project-client-cache', () => ({
 
 vi.mock('@/lib/operation-audit', () => ({
   logClientOperation: vi.fn().mockResolvedValue(undefined),
+}))
+
+// ── BLF-962 · head 插槽 mock：捕获刷新回调 / loading / 插槽节点 ───────────────
+//（inventory-replenishment-client.test.tsx:75-91 同模式）
+const headerCapture = vi.hoisted(() => ({
+  refreshHandler: null as (() => void) | null,
+  refreshLoading: undefined as boolean | undefined,
+  slotNode: null as ReactNode,
+}))
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => void, opts?: { loading?: boolean }) => {
+    headerCapture.refreshHandler = handler
+    headerCapture.refreshLoading = opts?.loading
+    return { setLoading: vi.fn() }
+  },
+  useHeaderSlot: (node: ReactNode) => {
+    headerCapture.slotNode = node
+    return null
+  },
+  useMobileFilterStrip: () => null,
 }))
 
 // ── 数据构造 ─────────────────────────────────────────────────────────────────
@@ -144,6 +165,9 @@ const SERIES_CACHE_KEY = 'bb-dashboard-cache:financial:series:1:US:2025-08:2026-
 
 beforeEach(() => {
   vi.clearAllMocks()
+  headerCapture.refreshHandler = null
+  headerCapture.refreshLoading = undefined
+  headerCapture.slotNode = null
   ;(fetchManagedProjectsCached as ReturnType<typeof vi.fn>).mockResolvedValue([
     { id: 1, name: '铨富' },
   ])
@@ -192,8 +216,10 @@ describe('月度明细 tab 默认月份选择', () => {
     await waitForMonthInSelect('2026年6月')
 
     // 7 月源报表上传并核算完成，接口返回含 7 月的最新数据
+    // BLF-962：刷新按钮已上移 Top Header，此处调用头部注册的刷新回调
     financialPayload = makePayload(['2026-05', '2026-06', '2026-07'])
-    fireEvent.click(screen.getByRole('button', { name: '刷新数据' }))
+    expect(headerCapture.refreshHandler).not.toBeNull()
+    headerCapture.refreshHandler?.()
 
     await waitForMonthInSelect('2026年7月')
   })
@@ -233,9 +259,10 @@ describe('月度明细 tab 默认月份选择', () => {
     fireEvent.click(await screen.findByRole('option', { name: '2026年5月' }))
     await waitForMonthInSelect('2026年5月')
 
-    // 数据刷新带来 7 月
+    // 数据刷新带来 7 月（刷新入口已上移头部，调用注册回调）
     financialPayload = makePayload(['2026-05', '2026-06', '2026-07'])
-    fireEvent.click(screen.getByRole('button', { name: '刷新数据' }))
+    expect(headerCapture.refreshHandler).not.toBeNull()
+    headerCapture.refreshHandler?.()
 
     // 7 月进入可选项（说明新数据已生效）
     openMonthSelect('2026年5月')
@@ -322,5 +349,28 @@ describe('月份窗口 URL 参数（fromMonth/toMonth/monthRange）', () => {
     // 月度明细默认落在显式窗口内的最新月份（6 月，而非窗口外的 7 月）
     await switchToAccountingTab()
     await waitForMonthInSelect('2026年6月')
+  })
+})
+
+describe('BLF-962 头部插槽契约', () => {
+  it('正文不再渲染筛选控件与刷新按钮，店铺/国家/起止月份注册进头部插槽', async () => {
+    render(<DisplayTab />)
+    await screen.findByRole('button', { name: '月度明细' })
+    expect(headerCapture.slotNode).not.toBeNull()
+    expect(headerCapture.refreshHandler).not.toBeNull()
+
+    // 正文（插槽 mock 不渲染 portal 内容）不应出现筛选控件与旧控制台文案
+    expect(screen.queryByText('财务分析')).not.toBeInTheDocument()
+    expect(screen.queryByText('分析控制台')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '刷新数据' })).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('请选择店铺')).not.toBeInTheDocument()
+
+    // 单独渲染插槽节点：店铺 / 国家 / 起止月份 4 个控件确实都在插槽内容里
+    //（已选中具体值时渲染选中文本而非 placeholder：店铺=铨富、国家=美国站、月份=yyyy-MM）
+    render(<>{headerCapture.slotNode}</>)
+    expect(await screen.findByText('铨富')).toBeInTheDocument()
+    expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+    expect(screen.getByText('2025-08')).toBeInTheDocument()
+    expect(screen.getByText('2026-07')).toBeInTheDocument()
   })
 })
