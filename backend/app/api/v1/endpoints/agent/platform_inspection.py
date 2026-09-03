@@ -171,6 +171,7 @@ def _serialize_report(report: InspectionReport) -> dict[str, Any]:
         "report_id": int(report.id),
         "period_id": int(report.period_id),
         "project_id": int(report.project_id),
+        "country": report.country,
         "status": report.status,
         "health_data": {k: health.get(k) for k in _HEALTH_KEYS},
         "compliance_data": {k: compliance.get(k) for k in _COMPLIANCE_KEYS},
@@ -354,18 +355,26 @@ async def upsert_report(
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED, human_message="请求体必须是 JSON 对象"
         )
+    country = body.get("country", "US")
+    if not isinstance(country, str) or len(country) != 2:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="country 必须是 ISO-2 国家代码（如 US/DE/UK）",
+        )
+    country = country.upper()
     with _service_errors():
         _get_period_or_shell_404(db, period_id)
         current = db.execute(
             select(InspectionReport).where(
                 InspectionReport.period_id == period_id,
                 InspectionReport.project_id == project_id,
+                InspectionReport.country == country,
             )
         ).scalar_one_or_none()
         before = _serialize_report(current) if current is not None else None
         payload = _merge_report_payload(body, current)
         report = inspection_service.create_or_update_report(
-            db, period_id, project_id, payload, operator=None
+            db, period_id, project_id, payload, operator=None, country=country,
         )
         append_operation_audit_log(
             db,
@@ -390,9 +399,9 @@ async def upsert_report(
 
 
 def _resolve_report_for_submit(
-    db: Session, period_id: int, project_id: int, settings
+    db: Session, period_id: int, project_id: int, settings, *, country: str = "US",
 ) -> InspectionReport:
-    report = inspection_service.get_report(db, period_id, project_id, settings)
+    report = inspection_service.get_report(db, period_id, project_id, settings, country=country)
     if report is None:
         raise AgentApiError(
             ErrorCode.RESOURCE_NOT_FOUND,
@@ -401,14 +410,28 @@ def _resolve_report_for_submit(
     return report
 
 
+def _parse_country_from_body(body: dict | None) -> str:
+    """解析 body 中的 country 字段（W2 用）；缺省 US。"""
+    if not body:
+        return "US"
+    country = body.get("country", "US")
+    if not isinstance(country, str) or len(country) != 2:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="country 必须是 ISO-2 国家代码（如 US/DE/UK）",
+        )
+    return country.upper()
+
+
 def _w2_preview(body: dict, request: Request) -> dict:
     """W2 confirm 预览摘要（spec §6.3）：from_status / 摘要 / warnings。"""
     period_id = int(request.path_params["period_id"])
     project_id = int(request.path_params["project_id"])
+    country = _parse_country_from_body(body)
     db = SessionLocal()
     try:
         period = _get_period_or_shell_404(db, period_id)
-        report = _resolve_report_for_submit(db, period_id, project_id, get_settings())
+        report = _resolve_report_for_submit(db, period_id, project_id, get_settings(), country=country)
         project = db.get(Project, project_id)
         compliance = report.compliance_data or {}
         warnings = inspection_service.check_thresholds(report)
@@ -418,6 +441,7 @@ def _w2_preview(body: dict, request: Request) -> dict:
         "project_id": project_id,
         "project_name": project.project_name if project else None,
         "period_id": period_id,
+        "country": country,
         "week_start": period.week_start.isoformat(),
         "week_end": period.week_end.isoformat(),
         "from_status": report.status,
@@ -437,10 +461,11 @@ def _w2_validate(body: dict, request: Request) -> None:
     _check_idempotency_header(request)
     period_id = int(request.path_params["period_id"])
     project_id = int(request.path_params["project_id"])
+    country = _parse_country_from_body(body)
     db = SessionLocal()
     try:
         _get_period_or_shell_404(db, period_id)
-        _resolve_report_for_submit(db, period_id, project_id, get_settings())
+        _resolve_report_for_submit(db, period_id, project_id, get_settings(), country=country)
     finally:
         db.close()
 
@@ -468,7 +493,10 @@ async def submit_report(
     响应透出 ``warnings``（阈值告警，Agent 可向用户汇报异常指标）。
     """
     agent_id = getattr(request.state, "agent_id", None)
-    report = _resolve_report_for_submit(db, period_id, project_id, settings)
+    raw = await request.body()
+    body = json.loads(raw) if raw else {}
+    country = _parse_country_from_body(body)
+    report = _resolve_report_for_submit(db, period_id, project_id, settings, country=country)
     report, warnings = inspection_service.submit_report(db, report.id, agent_id)
     append_operation_audit_log(
         db,
