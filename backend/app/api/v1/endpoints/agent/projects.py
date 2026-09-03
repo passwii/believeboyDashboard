@@ -6,7 +6,7 @@ BLF-583 镜像已删除，本模块为唯一实现，external/projects.py 端点
 删除，逻辑全部在原生模块内）：
 
 * 查询契约与删除前的 ``get_external_projects`` 完全一致（``status`` 过滤 +
-  ``ProjectItem{project_id, project_name}`` 形状），parity 测试锁定
+  ``ProjectItem{project_id, project_name, country, country_name}`` 形状），parity 测试锁定
   （agent 通道 == ``projects_query.list_projects`` 直调）。
 * ``?name=``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」
   的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；未命中
@@ -35,6 +35,7 @@ from app.api.deps import get_read_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
 from app.schemas.external.projects import ProjectItem
+from app.utils.country import get_country_label_cn
 from app.services.external import projects_query
 
 projects_router = APIRouter(tags=["agent-projects"])
@@ -78,7 +79,7 @@ def get_agent_projects(
     name: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> dict:
-    """``/agent/projects`` 列表：项目名 + id。
+    """``/agent/projects`` 列表：项目名 + id + 站点国家/地区。
 
     复用 ``projects_query.list_projects``（与删除前的 external handler 同一
     服务函数）；``?name=`` 精确过滤；受 scope 限制的 key 按 project_scope
@@ -108,6 +109,8 @@ def get_agent_projects(
                 ProjectItem(
                     project_id=p.id,
                     project_name=p.project_name,
+                    country=p.country,
+                    country_name=get_country_label_cn(p.country),
                 )
             )
             for p in projects

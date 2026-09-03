@@ -2,7 +2,7 @@
 
 覆盖（对齐 BLF-580 test_ad_campaigns.py 模板）：
 1. parity：agent 通道 data == ``projects_query.list_projects`` 直调
-   （``ProjectItem{project_id, project_name}`` 形状，``?status=`` 过滤）。
+   （``ProjectItem{project_id, project_name, country, country_name}`` 形状，``?status=`` 过滤）。
 2. 鉴权/壳：401 未鉴权；``?name=`` 精确过滤（BLF-461 语义）；
    project_scope 白名单过滤。
 3. 路由面/镜像排除：/agent/projects 原生路由注册；external_mirror 无
@@ -86,6 +86,7 @@ def test_projects_list_parity(client, projects_env):
     """agent 通道 data == projects_query.list_projects 直调的 ProjectItem 列表。"""
     from app.schemas.external.projects import ProjectItem
     from app.services.external import projects_query
+    from app.utils.country import get_country_label_cn
 
     resp = client.get("/api/v1/agent/projects", headers=projects_env["headers"])
     assert resp.status_code == 200, resp.text
@@ -97,9 +98,12 @@ def test_projects_list_parity(client, projects_env):
     try:
         rows = projects_query.list_projects(db, status="active")
         expected = [
-            ProjectItem(project_id=p.id, project_name=p.project_name).model_dump(
-                mode="json"
-            )
+            ProjectItem(
+                project_id=p.id,
+                project_name=p.project_name,
+                country=p.country,
+                country_name=get_country_label_cn(p.country),
+            ).model_dump(mode="json")
             for p in rows
         ]
     finally:
@@ -109,6 +113,11 @@ def test_projects_list_parity(client, projects_env):
     assert any(p["project_id"] == projects_env["project_id"] for p in agent_data), (
         "agent 通道应包含本次 fixture 创建的项目"
     )
+    fixture_item = next(
+        p for p in agent_data if p["project_id"] == projects_env["project_id"]
+    )
+    assert fixture_item["country"] == "US"
+    assert fixture_item["country_name"] == "美国站"
 
 
 def test_projects_list_name_filter(client, projects_env):
