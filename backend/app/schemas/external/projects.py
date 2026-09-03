@@ -7,12 +7,13 @@ from pydantic import BaseModel
 
 
 class ProjectItem(BaseModel):
-    """Minimal project descriptor returned by ``GET /external/projects``.
+    """Minimal project descriptor returned by the agent projects list.
 
-    Only ``project_id`` and ``project_name`` are exposed. Country / status /
-    timestamps live in the project resource and can be fetched via the
-    internal ``/projects`` endpoint when needed.
+    ``country`` is the canonical country code; ``country_name`` is the
+    Chinese site label rendered for agents.
     """
 
     project_id: int
     project_name: str
+    country: str = "US"
+    country_name: str | None = None
