@@ -92,24 +92,34 @@ def _reset_agent_rate_limit():
     agent_write_limiter.reset()
 
 
-def _seed(*, projects: tuple[str, ...] = ("A", "B")):
-    """建项目 + 周期；返回 id 字典。inspection 表在 teardown 清理。"""
+def _seed(
+    *,
+    projects: tuple[str, ...] = ("A", "B"),
+    country_map: dict[str, str] | None = None,
+):
+    """建项目 + 周期；返回 id 字典。inspection 表在 teardown 清理。
+
+    ``country_map={name: "DE"}`` 覆盖 Project.country（默认 US）。
+    """
     suffix = uuid.uuid4().hex[:8]
     agent_id = f"pi-agent-{suffix}"
 
     db = SessionLocal()
     try:
+        db.execute(delete(InspectionScreenshot))
         db.execute(delete(InspectionReport))
         db.execute(delete(InspectionPeriod))
 
         pids: dict[str, int] = {}
         for name in projects:
+            kw = {**({"country": country_map[name]} if country_map and name in country_map else {})}
             p = Project(
                 project_name=f"agent-pi-{name}-{suffix}",
                 project_operator=None,
                 assistant_operator=None,
                 sort_order=len(pids),
                 is_active=True,
+                **kw,
             )
             db.add(p)
             db.flush()
@@ -797,6 +807,203 @@ class TestW4Delete:
             _teardown(env["suffix"], env["pids"])
 
 
+# ============================================================
+# 6. country 维度（BLF-958）：写侧防错校验 + 响应回传
+# ============================================================
+
+
+class TestCountryDimension:
+    """巡检无国家列（数据按 (period, project)）；站点国家 = Project.country。
+
+    W1/W2 body 可选 ``country``：提供时与目标项目国家一致才放行（不一致 →
+    400 ``VALIDATION_FAILED``，防错填站点）；缺省不校验（向后兼容）。
+    W1/W2/W3/W4 响应与确认预览回传 ``country``（归一化码）。
+    R0 ``?country=`` 仅做归一化校验（模板为全局共享常量）。
+    """
+
+    def test_r0_valid_and_invalid_country_param(self, client, make_api_key):
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            ok = client.get(
+                "/api/v1/agent/platform-inspection/template?country=DE",
+                headers=headers,
+            )
+            assert ok.status_code == 200, ok.text
+            # 模板内容与内部一致（回归锁定：全局共享常量）
+            bad = client.get(
+                "/api/v1/agent/platform-inspection/template?country=XX",
+                headers=headers,
+            )
+            assert bad.status_code == 400, bad.text
+            assert bad.json()["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_response_echoes_project_country_default(self, client, make_api_key):
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            r = client.put(_w2_url(env, env["pids"]["A"]), json=_w1_body(), headers=headers)
+            assert r.status_code == 200, r.text
+            # 未传 country → 默认项目国家 US 回传
+            assert r.json()["data"]["country"] == "US"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_country_match_accepts_normalized(self, client, make_api_key):
+        env = _seed(country_map={"A": "DE"})
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            # 小写别名归一化后与项目国家一致 → 200
+            r = client.put(
+                _w2_url(env, env["pids"]["A"]),
+                json=_w1_body(country="de"),
+                headers=headers,
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_country_mismatch_400(self, client, make_api_key):
+        env = _seed(country_map={"A": "DE"})
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            r = client.put(
+                _w2_url(env, env["pids"]["A"]),
+                json=_w1_body(country="US"),
+                headers=headers,
+            )
+            assert r.status_code == 400, r.text
+            body = r.json()
+            assert body["error"]["code"] == "VALIDATION_FAILED"
+            assert "DE" in body["error"]["human_message"]
+            # 校验失败不落库
+            assert _count_reports() == 0
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_invalid_country_400(self, client, make_api_key):
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            r = client.put(
+                _w2_url(env, env["pids"]["A"]),
+                json=_w1_body(country="XX"),
+                headers=headers,
+            )
+            assert r.status_code == 400, r.text
+            assert r.json()["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_project_not_found_404(self, client, make_api_key):
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            r = client.put(
+                f"/api/v1/agent/platform-inspection/periods/{env['period_id']}/projects/999999",
+                json=_w1_body(),
+                headers=headers,
+            )
+            assert r.status_code == 404, r.text
+            assert r.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w2_preview_echoes_country_and_mismatch_400(self, client, make_api_key, confirm_memory_store):
+        env = _seed(country_map={"A": "DE"})
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            client.put(_w2_url(env, env["pids"]["A"]), json=_w1_body(), headers=headers)
+            url = _w2_url(env, env["pids"]["A"]) + "/submit"
+
+            # 预览带 country（项目国家 DE）
+            preview = client.post(url, json={"country": "DE"}, headers=headers)
+            assert preview.status_code == 200, preview.text
+            assert preview.json()["preview"]["country"] == "DE"
+
+            # 声明 country=US 与项目 DE 不匹配 → confirm 前 400，不签 token
+            bad = client.post(url, json={"country": "US"}, headers=headers)
+            assert bad.status_code == 400, bad.text
+            assert bad.json()["error"]["code"] == "VALIDATION_FAILED"
+            assert "confirm_token" not in bad.json()
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w2_submit_response_echoes_country(self, client, make_api_key, confirm_memory_store):
+        env = _seed(country_map={"A": "DE"})
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            client.put(_w2_url(env, env["pids"]["A"]), json=_w1_body(), headers=headers)
+            url = _w2_url(env, env["pids"]["A"]) + "/submit"
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            h = dict(headers)
+            h["Idempotency-Key"] = idem
+            preview = client.post(url, json={"country": "DE"}, headers=h)
+            token = preview.json()["confirm_token"]
+            h2 = dict(headers)
+            h2["Idempotency-Key"] = idem
+            h2["X-Confirm-Token"] = token
+            replay = client.post(url, json={"country": "DE"}, headers=h2)
+            assert replay.status_code == 200, replay.text
+            assert replay.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w3_response_echoes_country(self, client, make_api_key):
+        env = _seed(country_map={"A": "DE"})
+        stack = _patch_r2()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            client.put(_w2_url(env, env["pids"]["A"]), json=_w1_body(), headers=headers)
+            with stack:
+                r = client.post(
+                    _w3_url(env, env["pids"]["A"]),
+                    files={"file": ("shot.png", RED_PNG, "image/png")},
+                    headers=headers,
+                )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w4_preview_and_response_echo_country(self, client, make_api_key, confirm_memory_store):
+        env = _seed(country_map={"A": "DE"})
+        stack1 = _patch_r2()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            client.put(_w2_url(env, env["pids"]["A"]), json=_w1_body(), headers=headers)
+            with stack1:
+                up = client.post(
+                    _w3_url(env, env["pids"]["A"]),
+                    files={"file": ("shot.png", RED_PNG, "image/png")},
+                    headers=headers,
+                )
+            sid = up.json()["data"]["screenshot_id"]
+            url = _w4_url(sid)
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            h = dict(headers)
+            h["Idempotency-Key"] = idem
+
+            preview = client.delete(url, headers=h)
+            assert preview.status_code == 200, preview.text
+            assert preview.json()["preview"]["country"] == "DE"
+
+            h2 = dict(headers)
+            h2["Idempotency-Key"] = idem
+            h2["X-Confirm-Token"] = preview.json()["confirm_token"]
+            with _patch_r2():
+                replay = client.delete(url, headers=h2)
+            assert replay.status_code == 200, replay.text
+            assert replay.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+
+# ============================================================
+# 7. 路由注册（spec §10 #7）：兜底路由之前
 # ============================================================
 # 7. 路由注册（spec §10 #7）：兜底路由之前
 # ============================================================
