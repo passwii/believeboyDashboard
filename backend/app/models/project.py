@@ -3,28 +3,40 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, JSON, Numeric, String, Text, UniqueConstraint, CheckConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    CheckConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
 
 
 class Project(Base):
-    __tablename__ = 'projects'
+    __tablename__ = "projects"
     __table_args__ = (
-        UniqueConstraint('project_name', name='projects_project_name_key'),
-        CheckConstraint('sort_order >= 0', name='projects_sort_order_check'),
+        UniqueConstraint("project_name", name="projects_project_name_key"),
+        CheckConstraint("sort_order >= 0", name="projects_sort_order_check"),
         CheckConstraint(
             "commission_basis is null or commission_basis in ('sales_amount', 'cash_received', 'profit_margin')",
-            name='projects_commission_basis_check',
+            name="projects_commission_basis_check",
         ),
         CheckConstraint(
-            'commission_rate is null or (commission_rate >= 0 and commission_rate <= 1)',
-            name='projects_commission_rate_check',
+            "commission_rate is null or (commission_rate >= 0 and commission_rate <= 1)",
+            name="projects_commission_rate_check",
         ),
         CheckConstraint(
             "project_tier is null or project_tier in ('T1','T2','T3','T4')",
-            name='projects_project_tier_check',
+            name="projects_project_tier_check",
         ),
     )
 
@@ -39,18 +51,34 @@ class Project(Base):
     project_operator: Mapped[str | None] = mapped_column(Text, nullable=True)
     assistant_operator: Mapped[str | None] = mapped_column(Text, nullable=True)
     commission_basis: Mapped[str | None] = mapped_column(String, nullable=True)
-    commission_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    commission_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(7, 4), nullable=True
+    )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     project_tier: Mapped[str | None] = mapped_column(String(8), nullable=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
-    vat_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
-    project_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
+    country: Mapped[str] = mapped_column(
+        String(2), nullable=False, server_default="US", default="US"
+    )
+    vat_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="0"
+    )
+    project_context: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, default=dict
+    )
     sku_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
     sku_records: Mapped[list["SkuRecord"]] = relationship(back_populates="project")
-    platform_revenues: Mapped[list["PlatformRevenue"]] = relationship(back_populates="project")
+    platform_revenues: Mapped[list["PlatformRevenue"]] = relationship(
+        back_populates="project"
+    )
