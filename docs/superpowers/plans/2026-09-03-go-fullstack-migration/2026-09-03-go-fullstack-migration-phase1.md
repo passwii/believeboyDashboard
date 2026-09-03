@@ -2,7 +2,7 @@
 
 > 父 plan：`2026-09-03-go-fullstack-migration.md`
 > **状态：** ⬜ 未开始
-> 前置：Phase 0 + Phase S Exit Criteria 全绿（S 跑通的 excelize/COPY/decimal 模式是本 Phase 的起点）
+> 前置：Phase 0 Exit Criteria 全绿
 
 **Goal:** 把 Python 里“纯计算/纯转换”逻辑搬进 `go/pkg/` 下的领域包，每个包带从 pytest 移植的用例。这是**内存与 CPU 优化的主战场**（18 处 `iterrows()`、23 个 pandas 文件大多在此解决），也是资金计算正确性的第一道防线。
 
@@ -23,7 +23,7 @@
 | pandas `groupby().agg(lambda)` | 改写为“SQL GROUP BY（Phase 2）或 Go map 分组 + decimal 累加”，**禁止直译 lambda** | `app/services/payment/aggregate.py:27-62` |
 | `np.polyfit` 趋势 | `gonum/stat` 线性回归；先对 `market_trend.py:24-26,112-114,188-189` 建 5 组黄金用例 | `app/services/category/analytics/market_trend.py` |
 
-- [ ] **Step 0（Task 1.0）：** 以 Phase S 沉淀的 `DECISIONS.md` + 语义坑清单为底稿，写完上表文档并经人工 review 通过，再开工后续 Task。Commit：`docs(go): 数值/时区语义对照表`。
+- [ ] **Step 0（Task 1.0）：** 写完上表文档并经人工 review 通过，再开工后续 Task。Commit：`docs(go): 数值/时区语义对照表`。
 
 ## 任务
 
@@ -49,7 +49,7 @@
 
 ### Task 1.3：解析器 → `go/pkg/ingest`（内存优化核心）
 
-**源文件：** `backend/app/utils/parsers.py`（6 处 `iterrows()`）+ `backend/app/services/ad/upload/persistence.py`（875 行，10 个 `_ingest_*_rows`——其中 1 个已在 Phase S 试点跑通，本 Task 复制该模式做剩下 9 个）
+**源文件：** `backend/app/utils/parsers.py`（6 处 `iterrows()`：parse_payment_rows / parse_sales_rows / parse_refund_rows / parse_inventory_rows 等）+ `backend/app/services/ad/upload/persistence.py`（875 行，10 个 `_ingest_*_rows`，每行 `series.to_dict()` + 15–30 字段抽取）
 
 - [ ] Step 1: 对每个解析函数，先用生产样例文件（`backend/storage/` 或 R2 样例）录制“输入文件 → 输出行数/字段”黄金快照（存 `pkg/ingest/testdata/`）。
 - [ ] Step 2: `excelize` 流式读（`Rows()` 迭代器，**禁止全表 `GetRows()`**）→ 逐行转 struct → 按 batch（默认 1000 行）输出 `[][]any` 给 Phase 2 做 `COPY`。内存目标：万行文件峰值 < 100MB（单测里用 `runtime.MemStats` 断言，可放宽到 CI 机器）。

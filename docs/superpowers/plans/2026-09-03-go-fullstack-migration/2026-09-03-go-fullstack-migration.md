@@ -10,7 +10,6 @@
 
 ## Global Constraints
 
-- **⛔ 重构期禁 push**：从 Phase 0 开始到 Phase 4 切换完成，`go/` 与 plan 文档的所有改动**只在本地提交（local commit），一律不 `git push`**，避免触发 `git deploy` / CI / Vercel 误部署，影响生产端前后端运行。需要备份时用本地分支或本地 tag（`git tag local/go-<date>`，不 push）。**首次 push 由用户显式批准后才执行**（Phase 4 切换窗口）。
 - 所有 git commit 的 author email 必须是 `jr.way123@gmail.com`（BEL-153，否则 Vercel 拒部署），提交前跑 `git config --show-origin --get user.email` 自查。
 - Commit 信息用中文 + Conventional Commits（`feat/fix/docs/test/chore…`），关联 issue 用 `Closes BLF-XXX`。
 - 迁移期间 **绝不改 `backend/` 下任何生产代码**（只读参照），所有 Go 代码进 `go/` 新目录；pytest 一律走 `BLF_test` 库，绝不写 `BLF` 生产快照库。
@@ -47,18 +46,14 @@
 | Phase | 文档 | 内容 | 预估（AI 辅助） | 前置 |
 |-------|------|------|----------------|------|
 | 0 | `…-phase0-foundation.md` | `go/` 工程骨架、工具链、CI、契约测试 harness 骨架 | 3–5 天 | — |
-| 📊 | `…-baseline.md` | **基线快照：Python 现状资源占用（已测，Go 对比验收标准）** | ✅ 已完成 | — |
-| **S** | `…-phaseS.md` | **先锋验证：1 种广告报表 ingest 切 Go CLI，生产 shadow→on，拿耗时/内存数据** | **1–2 周** | **P0** |
-| 1 | `…-phase1-domain.md` | 共享领域包：定价引擎、库存算法、解析器、支付聚合、类目分析、告警检测（复用 S 跑通的模式） | 2–3 周 | P0 + PS |
+| 1 | `…-phase1-domain.md` | 共享领域包：定价引擎、库存算法、解析器、支付聚合、类目分析、告警检测 | 2–3 周 | P0 |
 | 2 | `…-phase2-api.md` | Go API 服务：config/db/auth/中间件 + 405 路由分 10 组移植 | 3–4 周 | P1（领域包） |
-| 3 | `…-phase3-workers.md` | Asynq 任务 + 调度器 + 报告管线 + Rod 截图 + 邮件 | 2–3 周 | P1（与 P2 并行） |
+| 3 | `…-phase3-workers.md` | Asynq 任务 + 调度器 + 报告管线 + Rod 截图 + 邮件 | 2–3 周 | P1 |
 | 4 | `…-phase4-parity-cutover.md` | 契约全量 diff、影子流量、Alembic 基线冻结、切换 runbook | 1–2 周 | P2 + P3 |
 | 5 | `…-phase5-wails.md` | 前端 API 抽象层 + Wails 桌面端打包分发 | 1–2 周 | P4（API 稳定后） |
 | 6 | `…-phase6-decommission.md` | 下线 Python：systemd 替换、VPS 清理、仓库归档 | 3–5 天 | P4（P5 可并行） |
 
-**总工期（AI 全力辅助）：9–15 周。** 其中 Phase S 是**止损点**：1–2 周内若 Go 在试点上达不到耗时 ≥10x / 内存 ≤1/3，或语义坑过大，整个迁移可低成本叫停，只损失约 2 周工作量。
-
-**节奏原则（先易后益）：** P0 → PS 先拿生产数据和信心；P1 按“解析器（已验证模式）→ 聚合 → 定价/佣金（资金红线最后啃）”排序；P2 按 misc → inventory → pricing → analysis → … 顺序，每组独立可上线验证。
+**总工期（AI 全力辅助）：8–13 周。** 瓶颈在 Phase 1/2 的业务逻辑验证（资金相关必须人工 review），不在代码生成速度。
 
 ## 关键架构决策（已定，执行中不再讨论）
 
@@ -77,8 +72,7 @@
 
 | # | 风险 | 等级 | 缓解（指向 Phase） |
 |---|------|------|-------------------|
-| R0 | Go 路线本身不成立（性能/语义坑过大） | 🟡 中 | **Phase S 试点 1–2 周证伪，损失可控**；不达标则停，不进入 P1 |
-| R1 | 资金计算（定价/佣金/对账）翻译精度 bug | 🔴 高 | Phase S 先验证 decimal 语义 → Phase 1 双跑 diff + 人工 review；Phase 4 全量回归 |
+| R1 | 资金计算（定价/佣金/对账）翻译精度 bug | 🔴 高 | Phase 1 双跑 diff + 人工 review；Phase 4 全量回归 |
 | R2 | pandas 语义（NaN/时区/Decimal）与 Go 行为差异 | 🔴 高 | Phase 1 建 `docs/` 语义对照表 + 边界用例库 |
 | R3 | Rod 截图与 Playwright 像素不一致 | 🟡 中 | Phase 3 像素 diff 阈值（<1%）+ Python sidecar fallback |
 | R4 | 405 路由一次性切换风险 | 🔴 高 | Phase 4 按 10 组灰度 + 影子流量先行 |

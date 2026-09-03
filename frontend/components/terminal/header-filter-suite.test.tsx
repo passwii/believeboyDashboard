@@ -120,6 +120,20 @@ describe('header-filter-suite', () => {
     expect(document.body.textContent).toContain('英国站 (UK)')
   })
 
+  it('项目选择器：选项展示「项目名 · 中文站点名」（country_name 优先，兜底 getCountryLabel）', async () => {
+    fetchManagedProjectsCachedMock.mockResolvedValue([
+      { id: 7, name: '店铺甲', country: 'US', country_name: '美国站' },
+      { id: 8, name: '店铺乙', country: 'DE', country_name: null },
+    ])
+    renderSuite()
+    const trigger = await screen.findByTitle('全局项目筛选')
+    await vi.waitFor(() => expect(trigger).toHaveTextContent('店铺甲'))
+    fireEvent.pointerDown(trigger, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(trigger)
+    await vi.waitFor(() => expect(document.body.textContent).toContain('店铺甲 · 美国站'))
+    expect(document.body.textContent).toContain('店铺乙 · 德国站')
+  })
+
   it('Stage 4 三区常量：TERM_HEADER_TRIGGER / 4 档宽度 / 弹层 tokens 单源收敛（BLF-887 上档 h-10）', () => {
     expect(TERM_HEADER_TRIGGER).toContain('h-10')
     expect(TERM_HEADER_TRIGGER).toContain('border-term-border')

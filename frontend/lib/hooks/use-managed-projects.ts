@@ -13,6 +13,8 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 export interface ManagedProjectOption {
   id: number
   name: string
+  country?: string
+  country_name?: string | null
 }
 
 export interface UseManagedProjectsResult {
