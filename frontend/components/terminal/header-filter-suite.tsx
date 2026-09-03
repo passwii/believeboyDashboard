@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { COUNTRY_LABELS } from '@/lib/country'
+import { getCountryLabel, COUNTRY_LABELS } from '@/lib/country'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -43,7 +43,7 @@ const TERM_SELECT_ITEM = 'rounded-none text-sm focus:bg-term-hover focus:text-te
 
 // ======================== ProjectSelect ========================
 
-type ManagedProjectOption = { id: number; name: string }
+type ManagedProjectOption = { id: number; name: string; country?: string; country_name?: string | null }
 
 /**
  * 头部项目选择器：走 /api/v1/projects/manage（X-Operator 过滤可见项目），
@@ -96,11 +96,14 @@ export function HeaderProjectSelect({
         <SelectItem value="all" className={TERM_SELECT_ITEM}>
           全部项目
         </SelectItem>
-        {projects.map((p) => (
-          <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
-            {p.name}
-          </SelectItem>
-        ))}
+        {projects.map((p) => {
+          const siteLabel = p.country_name ?? getCountryLabel(p.country ?? '')
+          return (
+            <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
+              {p.name}{siteLabel ? ` · ${siteLabel}` : ''}
+            </SelectItem>
+          )
+        })}
       </SelectContent>
     </Select>
   )
