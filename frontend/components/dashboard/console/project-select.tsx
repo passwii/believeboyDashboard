@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import type { ManagedProjectOption } from '@/lib/hooks/use-managed-projects'
 
@@ -130,15 +129,11 @@ export function ProjectSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {projects.map((item) => {
-          const siteLabel = item.country_name ?? getCountryLabel(item.country ?? '')
-          return (
-            <SelectItem key={item.id} value={String(item.id)}>
-              {item.name}
-              {siteLabel ? ` · ${siteLabel}` : ''}
-            </SelectItem>
-          )
-        })}
+        {projects.map((item) => (
+          <SelectItem key={item.id} value={String(item.id)}>
+            {item.name}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   )
