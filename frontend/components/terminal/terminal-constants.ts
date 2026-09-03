@@ -70,7 +70,7 @@ export const TERMINAL_TICKER = {
   channels: {
     /** 汇率频道：全部可用币种 + 环比涨跌着色 */
     fx: true,
-    /** 全局快报（近 7 天，T-1 终点）：GMV / 订单数 / Pending / 广告花费 / 广告订单数，单指标环比 vs 上一周期（BLF-950） */
+    /** 全局快报（近 7 天，T-1 终点）：GMV / 订单数 / Pending / 广告花费 / 广告订单数 / 本月至今 GMV，单指标环比 vs 上一周期（本月 vs 上月同期，BLF-950/967） */
     dailyBrief: true,
     /** 最近同步完成时刻（复用汇率频道成功时间） */
     syncTime: true,

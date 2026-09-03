@@ -196,6 +196,11 @@ export function TerminalFooter() {
             {briefReady && brief.acoas != null ? `${brief.acoas.toFixed(1)}%` : '--'}
           </span>
           {renderChangeAcoas(brief.acoasDelta)}
+          <span className="ml-3 text-term-faint">本月</span>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+            {briefReady && brief.mtdGmv != null ? formatMoney(brief.mtdGmv) : '--'}
+          </span>
+          {renderChange(brief.mtdGmvDelta)}
         </span>
       )
     }

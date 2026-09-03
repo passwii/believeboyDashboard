@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   aggregateWindow,
+  mtdWindows,
   pickLatestSalesDate,
   ppChange,
   type SummaryRow,
@@ -149,5 +150,52 @@ describe('ACOAS 计算（adSpend / gmv × 100，百分点差值环比）', () =>
     // computeAcoas(gmv=0) → null
     const acoas = result.gmv <= 0 ? null : Math.round((result.adSpend / result.gmv) * 1000) / 10
     expect(acoas).toBeNull()
+  })
+})
+
+describe('mtdWindows（BLF-967：本月至今 vs 上月同期）', () => {
+  it('月中：end=2026-09-02（T-1）→ 本月 09-01~09-02，上月同期 08-01~08-02', () => {
+    expect(mtdWindows('2026-09-02')).toEqual({
+      mtdStart: '2026-09-01',
+      mtdEnd: '2026-09-02',
+      prevStart: '2026-08-01',
+      prevEnd: '2026-08-02',
+    })
+  })
+
+  it('月初：end=2026-09-01 → 本月仅 1 天，上月同期 08-01 单日', () => {
+    expect(mtdWindows('2026-09-01')).toEqual({
+      mtdStart: '2026-09-01',
+      mtdEnd: '2026-09-01',
+      prevStart: '2026-08-01',
+      prevEnd: '2026-08-01',
+    })
+  })
+
+  it('跨年：end=2026-01-05 → 本月 01-01~01-05，上月同期 2025-12-01~12-05', () => {
+    expect(mtdWindows('2026-01-05')).toEqual({
+      mtdStart: '2026-01-01',
+      mtdEnd: '2026-01-05',
+      prevStart: '2025-12-01',
+      prevEnd: '2025-12-05',
+    })
+  })
+
+  it('上月天数不足时钳制：end=2026-03-31 → 上月同期 02-01~02-28（2026 非闰年）', () => {
+    expect(mtdWindows('2026-03-31')).toEqual({
+      mtdStart: '2026-03-01',
+      mtdEnd: '2026-03-31',
+      prevStart: '2026-02-01',
+      prevEnd: '2026-02-28',
+    })
+  })
+
+  it('闰年 2 月：end=2024-03-30 → 上月同期 02-01~02-29（28 天钳制到 29 天）', () => {
+    expect(mtdWindows('2024-03-30')).toEqual({
+      mtdStart: '2024-03-01',
+      mtdEnd: '2024-03-30',
+      prevStart: '2024-02-01',
+      prevEnd: '2024-02-29',
+    })
   })
 })
