@@ -21,6 +21,7 @@ from app.services.infra import (
     _make_cache_key,
 )
 from app.utils.constants import ALLOWED_COMMISSION_BASIS
+from app.utils.country import get_country_label_cn, normalize_country
 from typing import Any
 
 DEFAULT_PROJECTS_CSV_PATH = (
@@ -263,12 +264,35 @@ def bulk_upsert_projects(
     return rows, inserted, updated
 
 
+def _normalize_country(value: str | None) -> str:
+    """Normalize a country value to a canonical SUPPORTED_COUNTRIES code.
+
+    Mirrors the Pydantic schema validator, but raises HTTP 422 (matching the
+    other ``_normalize_*`` helpers here) so direct service callers get the
+    same error contract.
+    """
+    try:
+        return normalize_country(value)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="country must be one of US, DE, UK",
+        )
+
+
 PROJECTS_CACHE_KEY_PREFIX = "projects:manage"
 
 
-def _projects_cache_key(*, operator: str | None, is_admin: bool, include_inactive: bool = False) -> str:
+def _projects_cache_key(
+    *, operator: str | None, is_admin: bool, include_inactive: bool = False
+) -> str:
     op = (operator or "").strip() or "none"
-    return _make_cache_key(PROJECTS_CACHE_KEY_PREFIX, f"admin:{is_admin}", f"op:{op}", f"inactive:{include_inactive}")
+    return _make_cache_key(
+        PROJECTS_CACHE_KEY_PREFIX,
+        f"admin:{is_admin}",
+        f"op:{op}",
+        f"inactive:{include_inactive}",
+    )
 
 
 def _serialize_project_for_cache(row: Project) -> dict:
@@ -288,6 +312,8 @@ def _serialize_project_for_cache(row: Project) -> dict:
         "source_file": row.source_file,
         "has_context": bool(row.project_context or row.sku_context),
         "project_tier": row.project_tier,
+        "country": row.country,
+        "country_name": get_country_label_cn(row.country),
     }
 
 
@@ -307,7 +333,11 @@ def list_project_items(
         if not normalized_operator:
             return []
 
-    cache_key = _projects_cache_key(operator=normalized_operator, is_admin=is_admin, include_inactive=include_inactive)
+    cache_key = _projects_cache_key(
+        operator=normalized_operator,
+        is_admin=is_admin,
+        include_inactive=include_inactive,
+    )
     cached = cache_get(cache_key)
     if cached is not None:
         project_ids = [item["id"] for item in cached]
@@ -426,13 +456,19 @@ def ensure_project_creation_allowed(
 def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
     rows = list_project_items(db)
     if rows:
-        return [{"id": row.id, "name": row.project_name} for row in rows]
+        return [
+            {
+                "id": row.id,
+                "name": row.project_name,
+                "country": row.country,
+                "country_name": get_country_label_cn(row.country),
+            }
+            for row in rows
+        ]
 
     # Backward-compatible fallback: if projects table is empty, use sku_records distinct project names.
     fallback_stmt = (
-        select(SkuRecord.project_name)
-        .distinct()
-        .order_by(SkuRecord.project_name.asc())
+        select(SkuRecord.project_name).distinct().order_by(SkuRecord.project_name.asc())
     )
     try:
         names = [row[0] for row in db.execute(fallback_stmt).all()]
@@ -468,6 +504,7 @@ def create_single_project(
     source_file: str | None = None,
     project_tier: str | None = None,
     vat_enabled: bool | None = None,
+    country: str | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -477,7 +514,12 @@ def create_single_project(
 
     # 使用 PostgreSQL advisory lock 消除并发创建同名项目的竞争窗口
     # 对项目名取 hash 作为锁 ID，确保同名项目必然获得相同锁
-    name_hash = int(hashlib.md5(project_name.encode()).hexdigest()[:16], 16)
+    # 注意：md5[:16] 产生 64 位值，但 pg_advisory_xact_lock 接受 bigint（63 位），
+    # 因此 mask 到 63 位防止溢出。
+    name_hash = (
+        int(hashlib.md5(project_name.encode()).hexdigest()[:16], 16)
+        & 0x7FFFFFFFFFFFFFFF
+    )
     db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": name_hash})
 
     existing = (
@@ -496,6 +538,7 @@ def create_single_project(
     normalized_commission_rate = _normalize_commission_rate(commission_rate)
     normalized_source_file = (source_file or "").strip() or "manual_single_add"
     normalized_project_tier = _normalize_project_tier(project_tier)
+    normalized_country = _normalize_country(country) if country is not None else "US"
 
     def _build_row() -> Project:
         max_sort_order = db.execute(
@@ -513,6 +556,7 @@ def create_single_project(
             source_file=normalized_source_file,
             project_tier=normalized_project_tier,
             vat_enabled=bool(vat_enabled) if vat_enabled is not None else False,
+            country=normalized_country,
         )
 
     row = _build_row()
@@ -558,6 +602,7 @@ def update_project(
     is_active: bool | None = True,
     project_tier: str | None = None,
     vat_enabled: bool | None = None,
+    country: str | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -592,6 +637,8 @@ def update_project(
     row.commission_rate = _normalize_commission_rate(commission_rate)
     row.is_active = is_active if is_active is not None else True
     row.project_tier = _normalize_project_tier(project_tier)
+    if country is not None:
+        row.country = _normalize_country(country)
     if vat_enabled is not None:
         row.vat_enabled = vat_enabled
     db.flush()
@@ -617,7 +664,7 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
 
     current_order = row.sort_order
 
-    if direction == 'up':
+    if direction == "up":
         # Find the project with the next lower sort_order
         neighbor = (
             db.execute(
@@ -630,8 +677,10 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
             .first()
         )
         if not neighbor:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已在最顶部")
-    elif direction == 'down':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="已在最顶部"
+            )
+    elif direction == "down":
         # Find the project with the next higher sort_order
         neighbor = (
             db.execute(
@@ -644,9 +693,14 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
             .first()
         )
         if not neighbor:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已在最底部")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="已在最底部"
+            )
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="direction must be 'up' or 'down'")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="direction must be 'up' or 'down'",
+        )
 
     # Swap sort_order values
     row.sort_order, neighbor.sort_order = neighbor.sort_order, row.sort_order
@@ -656,7 +710,9 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
     return row
 
 
-def get_project_context(db: Session, project_id: int) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+def get_project_context(
+    db: Session, project_id: int
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Get the project context and SKU context for a project.
 
     Args:
@@ -682,11 +738,7 @@ def _deep_merge(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
     """
     result = dict(base)
     for key, value in update.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
         else:
             result[key] = value
