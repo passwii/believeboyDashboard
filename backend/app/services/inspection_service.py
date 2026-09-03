@@ -202,11 +202,14 @@ def get_overview(
 
 def get_report(
     db: Session, period_id: int, project_id: int, settings: Settings,
+    *,
+    country: str = "US",
 ) -> InspectionReport | None:
     report = db.execute(
         select(InspectionReport).where(
             InspectionReport.period_id == period_id,
             InspectionReport.project_id == project_id,
+            InspectionReport.country == country,
         ),
     ).scalar_one_or_none()
 
@@ -223,11 +226,14 @@ def create_or_update_report(
     project_id: int,
     data: dict[str, Any],
     operator: str | None,
+    *,
+    country: str = "US",
 ) -> InspectionReport:
     report = db.execute(
         select(InspectionReport).where(
             InspectionReport.period_id == period_id,
             InspectionReport.project_id == project_id,
+            InspectionReport.country == country,
         ),
     ).scalar_one_or_none()
 
@@ -235,6 +241,7 @@ def create_or_update_report(
         report = InspectionReport(
             period_id=period_id,
             project_id=project_id,
+            country=country,
             status="draft",
         )
         db.add(report)

@@ -48,10 +48,14 @@ class InspectionPeriod(Base):
 class InspectionReport(Base):
     __tablename__ = 'inspection_reports'
     __table_args__ = (
-        UniqueConstraint('period_id', 'project_id', name='uq_inspection_reports_period_project'),
+        UniqueConstraint(
+            'period_id', 'project_id', 'country',
+            name='uq_inspection_reports_period_project_country',
+        ),
         Index('idx_inspection_reports_period_id', 'period_id'),
         Index('idx_inspection_reports_project_id', 'project_id'),
         Index('idx_inspection_reports_period_status', 'period_id', 'status'),
+        Index('idx_inspection_reports_project_country', 'project_id', 'country'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -69,6 +73,7 @@ class InspectionReport(Base):
         ForeignKey('projects.id', ondelete='CASCADE'),
         nullable=False,
     )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
     status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='draft')
     health_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     compliance_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)

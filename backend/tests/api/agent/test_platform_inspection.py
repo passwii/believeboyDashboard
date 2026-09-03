@@ -592,6 +592,155 @@ class TestW2Submit:
 
 
 # ============================================================
+# 9. 按国家区分写入（BLF-969）
+# ============================================================
+
+
+class TestCountryAwareWrite:
+    def test_w1_upsert_creates_separate_reports_per_country(self, client, make_api_key):
+        """同一 project 不同 country → 独立报告"""
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            url = _w2_url(env, env["pids"]["A"])
+
+            # US 站
+            r_us = client.put(
+                url,
+                json={"country": "US", "health_data": {"account_health_rating": "Good"}},
+                headers=headers,
+            )
+            assert r_us.status_code == 200, r_us.text
+            d_us = r_us.json()["data"]
+            assert d_us["country"] == "US"
+
+            # DE 站
+            r_de = client.put(
+                url,
+                json={"country": "DE", "health_data": {"account_health_rating": "At Risk"}},
+                headers=headers,
+            )
+            assert r_de.status_code == 200, r_de.text
+            d_de = r_de.json()["data"]
+            assert d_de["country"] == "DE"
+
+            # 两条独立记录
+            assert d_us["report_id"] != d_de["report_id"]
+            assert _count_reports() == 2
+
+            # 更新 US 不影响 DE
+            r_us2 = client.put(
+                url,
+                json={"country": "US", "health_data": {"account_health_rating": "Healthy"}},
+                headers=headers,
+            )
+            assert r_us2.status_code == 200
+            assert r_us2.json()["data"]["report_id"] == d_us["report_id"]
+            assert _count_reports() == 2
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_default_country_us(self, client, make_api_key):
+        """不传 country → 默认 US"""
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            url = _w2_url(env, env["pids"]["A"])
+            r = client.put(
+                url,
+                json={"health_data": {"account_health_rating": "Good"}},
+                headers=headers,
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["country"] == "US"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_invalid_country_400(self, client, make_api_key):
+        """country 非 ISO-2 → 400"""
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            resp = client.put(
+                _w2_url(env, env["pids"]["A"]),
+                json={"country": "USA", "health_data": {}},
+                headers=headers,
+            )
+            assert resp.status_code == 400, resp.text
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w2_submit_with_country(self, client, make_api_key, confirm_memory_store):
+        """W2 提交指定 country 的报告"""
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            url = _w2_url(env, env["pids"]["A"])
+
+            # 创建 US 和 DE 两份草稿
+            client.put(
+                url,
+                json={"country": "US", "health_data": {"account_health_rating": "Good"}},
+                headers=headers,
+            )
+            client.put(
+                url,
+                json={"country": "DE", "health_data": {"account_health_rating": "At Risk"}},
+                headers=headers,
+            )
+
+            # 提交 DE
+            submit_url = url + "/submit"
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            h = dict(headers)
+            h["Idempotency-Key"] = idem
+            preview = client.post(submit_url, json={"country": "DE"}, headers=h)
+            assert preview.status_code == 200
+            token = preview.json()["confirm_token"]
+
+            h2 = dict(headers)
+            h2["Idempotency-Key"] = idem
+            h2["X-Confirm-Token"] = token
+            replay = client.post(submit_url, json={"country": "DE"}, headers=h2)
+            assert replay.status_code == 200, replay.text
+            data = replay.json()["data"]
+            assert data["country"] == "DE"
+            assert data["status"] == "submitted"
+
+            # US 仍是 draft
+            db = SessionLocal()
+            try:
+                us_report = db.execute(
+                    select(InspectionReport).where(
+                        InspectionReport.project_id == env["pids"]["A"],
+                        InspectionReport.country == "US",
+                    )
+                ).scalar_one()
+                assert us_report.status == "draft"
+            finally:
+                db.close()
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+    def test_w1_country_case_insensitive(self, client, make_api_key):
+        """country 大小写不敏感（统一大写存储）"""
+        env = _seed()
+        try:
+            headers = _make_headers(make_api_key, env["agent_id"])
+            url = _w2_url(env, env["pids"]["A"])
+            r = client.put(
+                url,
+                json={"country": "de", "health_data": {"account_health_rating": "Good"}},
+                headers=headers,
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["country"] == "DE"
+        finally:
+            _teardown(env["suffix"], env["pids"])
+
+
+# ============================================================
 # 4. W3 截图上传（multipart；不 confirm；spec §10 #4）
 # ============================================================
 
