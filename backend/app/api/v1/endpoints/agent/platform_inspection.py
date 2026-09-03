@@ -16,6 +16,13 @@
 * 与 account-health 读写分离：读巡检数据走 account-health，本域只覆盖写路径；
   **零新增表/迁移**，数据底座复用 ``inspection_periods`` / ``inspection_reports`` /
   ``inspection_screenshots``（同 account-health 一套）。
+* country 维度（BLF-958）：巡检报告按 (period, project) 存储**无国家列**；
+  项目本身按国家分离（``Project.country``，BLF-952；弥森-US / 弥森-DE 为不同
+  project_id），故站点国家一律经 ``Project.country`` 解析，**零新增列/迁移**
+  （与 account_health BLF-956 数据层决策同步）。W1/W2 body 可选 ``country``，
+  提供时与目标项目国家做防错校验（不一致 → 400 ``VALIDATION_FAILED``，避免
+  把数据填错站点）；W1/W2/W3/W4 响应与确认预览回传 ``country``（归一化码）；
+  R0 ``?country=`` 仅做归一化校验（阈值配置为全局共享常量，无国家维度）。
 * 服务层**零改造复用**：``create_or_update_report`` / ``submit_report`` /
   ``upload_screenshot`` / ``delete_screenshot`` / ``get_report`` /
   ``get_report_by_id`` / ``get_period``（spec §2.4，0 签名/行为改动）。
@@ -38,7 +45,7 @@ import json
 from contextlib import contextmanager
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -50,6 +57,7 @@ from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_primary_db_session
+from app.api.v1.endpoints.agent._helpers import parse_country
 from app.constants.inspection_template import (
     COMPLIANCE_FIELDS,
     HEALTH_FIELDS,
@@ -123,6 +131,23 @@ def _check_idempotency_header(request: Request) -> None:
         )
 
 
+def _parse_optional_country(value) -> str | None:
+    """``country``（query/body）归一化：缺失/空 → None（不校验）；非法 → 400。
+
+    巡检报告按 (period, project) 存储，站点国家在 ``Project.country``
+    （BLF-952；BLF-958：写侧防错校验——Agent 声明的 country 必须与目标
+    项目一致，避免把数据填错站点；R0 模板为全局共享，country 仅校验）。
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        return parse_country(str(value))
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+
+
 def _compliance_total(compliance: dict | None) -> int | None:
     """10 项合规计数求和（口径与内部 overview / history 一致）。"""
     if not compliance:
@@ -160,9 +185,14 @@ def _get_period_or_shell_404(db: Session, period_id: int) -> InspectionPeriod:
     return period
 
 
-def _serialize_report(report: InspectionReport) -> dict[str, Any]:
+def _serialize_report(
+    report: InspectionReport, country: str | None = None
+) -> dict[str, Any]:
     """写侧序列化：对齐 account_health 拍平口径，但**不含 presigned URL**
     （D6），含 ``screenshot_count``（spec §6.2 W1 响应形态）。
+
+    ``country``（BLF-958）：站点国家（来自 ``Project.country``，报告按
+    (period, project) 存储无国家列）——回传让 Agent 确认写入的站点。
     """
     health = report.health_data or {}
     compliance = report.compliance_data or {}
@@ -171,6 +201,7 @@ def _serialize_report(report: InspectionReport) -> dict[str, Any]:
         "report_id": int(report.id),
         "period_id": int(report.period_id),
         "project_id": int(report.project_id),
+        "country": country,
         "status": report.status,
         "health_data": {k: health.get(k) for k in _HEALTH_KEYS},
         "compliance_data": {k: compliance.get(k) for k in _COMPLIANCE_KEYS},
@@ -186,8 +217,12 @@ def _serialize_report(report: InspectionReport) -> dict[str, Any]:
     }
 
 
-def _serialize_screenshot(s: InspectionScreenshot) -> dict[str, Any]:
+def _serialize_screenshot(
+    s: InspectionScreenshot, country: str | None = None
+) -> dict[str, Any]:
     """截图写侧序列化（D6）：只给 id + 元数据，**不含 r2_key / presigned URL**。
+
+    ``country``（BLF-958）：截图归属报告的站点国家（经 report → project）。
     """
     return {
         "screenshot_id": int(s.id),
@@ -196,6 +231,7 @@ def _serialize_screenshot(s: InspectionScreenshot) -> dict[str, Any]:
         "file_size": int(s.file_size),
         "caption": s.caption,
         "sort_order": int(s.sort_order),
+        "country": country,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     }
 
@@ -219,9 +255,17 @@ def _get_report_or_shell_404(
 
 
 @platform_inspection_router.get("/template")
-def get_template() -> dict:
+def get_template(
+    country: str = Query(default=""),
+) -> dict:
     """R0 巡检表单模板：与内部 ``GET /inspections/template`` 同源引用共享常量。
+
+    ``?country=``（BLF-958）：巡检模板阈值为全局共享常量（无国家维度），
+    country 仅做归一化校验（非法值 → 400 ``VALIDATION_FAILED``），响应
+    模板内容不随国家变化（回归锁定：与内部 ``GET /inspections/template``
+    完全一致）。
     """
+    _parse_optional_country(country)
     return agent_ok(
         {
             "health_fields": [f.model_dump() for f in HEALTH_FIELDS],
@@ -346,6 +390,11 @@ async def upsert_report(
     周期不存在 → 404 ``RESOURCE_NOT_FOUND``；项目不在凭据范围 → 403
     ``AGENT_PROJECT_OUT_OF_SCOPE``（``require_project_scope`` 直取）。
     幂等：重复 PUT 更新同一条不新建。
+
+    ``country``（BLF-958）：body 可选。巡检报告按 (period, project) 存储，
+    站点国家 = ``Project.country``（BLF-952；零新增列）；Agent 提供时做
+    防错校验——与目标项目国家不一致 → 400 ``VALIDATION_FAILED``（避免把
+    DE 站数据填进 US 项目）。响应 ``country`` 恒回传项目国家（归一化码）。
     """
     _check_idempotency_header(request)
     raw = await request.body()
@@ -356,13 +405,33 @@ async def upsert_report(
         )
     with _service_errors():
         _get_period_or_shell_404(db, period_id)
+        project = db.get(Project, project_id)
+        if project is None:
+            raise AgentApiError(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                human_message=f"项目 {project_id} 不存在",
+            )
+        country = _parse_optional_country(body.get("country"))
+        if country is not None and country != project.country:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=(
+                    f"项目 {project_id} 属于国家 {project.country}，"
+                    f"与请求体 country={country} 不匹配（巡检报告按站点填报）"
+                ),
+            )
+        effective_country = country or project.country
         current = db.execute(
             select(InspectionReport).where(
                 InspectionReport.period_id == period_id,
                 InspectionReport.project_id == project_id,
             )
         ).scalar_one_or_none()
-        before = _serialize_report(current) if current is not None else None
+        before = (
+            _serialize_report(current, effective_country)
+            if current is not None
+            else None
+        )
         payload = _merge_report_payload(body, current)
         report = inspection_service.create_or_update_report(
             db, period_id, project_id, payload, operator=None
@@ -374,12 +443,12 @@ async def upsert_report(
             target_id=report.id,
             operator=None,
             before=before,
-            after=_serialize_report(report),
+            after=_serialize_report(report, effective_country),
             **_audit_kwargs(request),
         )
         db.commit()
     return agent_ok(
-        _serialize_report(report),
+        _serialize_report(report, effective_country),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
 
@@ -417,6 +486,7 @@ def _w2_preview(body: dict, request: Request) -> dict:
     return {
         "project_id": project_id,
         "project_name": project.project_name if project else None,
+        "country": project.country if project else None,
         "period_id": period_id,
         "week_start": period.week_start.isoformat(),
         "week_end": period.week_end.isoformat(),
@@ -433,7 +503,11 @@ def _w2_preview(body: dict, request: Request) -> dict:
 
 
 def _w2_validate(body: dict, request: Request) -> None:
-    """W2 业务校验（先于 confirm 签发 token；短路不生成 token）。"""
+    """W2 业务校验（先于 confirm 签发 token；短路不生成 token）。
+
+    ``country``（BLF-958）：body 可选，与 W1 同口径防错校验——Agent 声明
+    的 country 与目标项目国家不一致 → 400 ``VALIDATION_FAILED``。
+    """
     _check_idempotency_header(request)
     period_id = int(request.path_params["period_id"])
     project_id = int(request.path_params["project_id"])
@@ -441,6 +515,17 @@ def _w2_validate(body: dict, request: Request) -> None:
     try:
         _get_period_or_shell_404(db, period_id)
         _resolve_report_for_submit(db, period_id, project_id, get_settings())
+        project = db.get(Project, project_id)
+        country = _parse_optional_country(body.get("country"))
+        if country is not None and (project is None or country != project.country):
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=(
+                    f"项目 {project_id} 属于国家 "
+                    f"{project.country if project else '未知'}，"
+                    f"与请求体 country={country} 不匹配（巡检报告按站点填报）"
+                ),
+            )
     finally:
         db.close()
 
@@ -466,9 +551,11 @@ async def submit_report(
 
     ``submitted_by=<agent_id>``、``submitted_at`` 由 ``submit_report`` 写入；
     响应透出 ``warnings``（阈值告警，Agent 可向用户汇报异常指标）。
+    响应带 ``country``（BLF-958：项目站点国家，归一化码）。
     """
     agent_id = getattr(request.state, "agent_id", None)
     report = _resolve_report_for_submit(db, period_id, project_id, settings)
+    project = db.get(Project, report.project_id)
     report, warnings = inspection_service.submit_report(db, report.id, agent_id)
     append_operation_audit_log(
         db,
@@ -481,7 +568,12 @@ async def submit_report(
     )
     db.commit()
     return agent_ok(
-        {**_serialize_report(report), "warnings": warnings},
+        {
+            **_serialize_report(
+                report, project.country if project is not None else None
+            ),
+            "warnings": warnings,
+        },
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
 
@@ -519,6 +611,7 @@ async def upload_screenshot(
     report = _get_report_or_shell_404(db, period_id, project_id, settings)
     project = db.get(Project, project_id)
     project_slug = project.project_name if project else "unknown"
+    country = project.country if project is not None else None
     try:
         screenshot = inspection_service.upload_screenshot(
             db, settings, upload_file, report.id, project_slug
@@ -535,6 +628,7 @@ async def upload_screenshot(
             "report_id": report.id,
             "period_id": period_id,
             "project_id": project_id,
+            "country": country,
             "screenshot_id": screenshot.id,
             "filename": screenshot.filename,
             "file_size": screenshot.file_size,
@@ -544,7 +638,7 @@ async def upload_screenshot(
     )
     db.commit()
     return agent_ok(
-        _serialize_screenshot(screenshot),
+        _serialize_screenshot(screenshot, country),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
 
@@ -567,7 +661,10 @@ def _get_screenshot_or_shell_404(
 
 
 def _w4_preview(body: dict, request: Request) -> dict:
-    """W4 confirm 预览摘要（spec §6.5）：删除范围（R2 原图 + 缩略图 + DB 行）。"""
+    """W4 confirm 预览摘要（spec §6.5）：删除范围（R2 原图 + 缩略图 + DB 行）。
+
+    ``country``（BLF-958）：截图归属报告 → 项目站点国家（只读透传，无参数）。
+    """
     screenshot_id = int(request.path_params["screenshot_id"])
     db = SessionLocal()
     try:
@@ -583,6 +680,7 @@ def _w4_preview(body: dict, request: Request) -> dict:
         "period_id": report.period_id if report else None,
         "project_id": report.project_id if report else None,
         "project_name": project.project_name if project else None,
+        "country": project.country if project else None,
         "week_start": period.week_start.isoformat() if period else None,
         "delete_scope": "R2 原图 + 缩略图 + DB 行，无恢复路径",
         "note": "删除后截图不可恢复，请确认",
@@ -652,4 +750,9 @@ async def delete_screenshot(
             **_audit_kwargs(request),
         )
         db.commit()
-    return agent_ok({"deleted": True, "screenshot_id": screenshot_id})
+    project = db.get(Project, report.project_id) if report else None
+    return agent_ok({
+        "deleted": True,
+        "screenshot_id": screenshot_id,
+        "country": project.country if project else None,
+    })
