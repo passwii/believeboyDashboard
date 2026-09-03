@@ -61,6 +61,12 @@ export const TERMINAL_TICKER = {
   staticWhenContentFits: true,
   /** 各频道数据轮询间隔（毫秒） */
   pollIntervalMs: 5 * 60 * 1000,
+  /** 手动 scrub（BLF-966）：滚轮回看灵敏度 */
+  manualScrub: {
+    /** 每单位滚轮增量的偏移像素；Shift 按住时加速 */
+    pxPerDelta: 1,
+    shiftMultiplier: 3,
+  },
   channels: {
     /** 汇率频道：全部可用币种 + 环比涨跌着色 */
     fx: true,
