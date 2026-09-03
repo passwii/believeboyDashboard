@@ -130,6 +130,8 @@ function mockBrief(
     ordersDelta: number | null
     adSpendDelta: number | null
     adOrdersDelta: number | null
+    acoas: number | null
+    acoasDelta: number | null
     latestSalesDate: string | null
   }>,
   status: 'ok' | 'error' = 'ok'
@@ -145,6 +147,8 @@ function mockBrief(
       ordersDelta: null,
       adSpendDelta: null,
       adOrdersDelta: null,
+      acoas: null,
+      acoasDelta: null,
       latestSalesDate: null,
       ...brief,
     },
@@ -247,6 +251,45 @@ describe('TerminalFooter BLF-950：快报近 7 天聚合与单指标百分比', 
     expect(screen.getByTestId('terminal-footer')).toBeInTheDocument()
     // 降级占位：全部数值 '--'（数量随字段增加，只断言存在）
     expect(screen.getAllByText('--').length).toBeGreaterThan(0)
+  })
+
+  it('ACOAS 渲染在广告单之后：值 + pp 差值 + 反向着色', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({
+      gmv: 10000,
+      adSpend: 500,
+      adOrders: 10,
+      acoas: 5.0,
+      acoasDelta: 2.2,
+    })
+    render(<TerminalFooter />)
+    // ACOAS 标签
+    expect(screen.getAllByText('ACOAS').length).toBeGreaterThan(0)
+    // ACOAS 值 5.0%
+    expect(screen.getAllByText('5.0%').length).toBeGreaterThan(0)
+    // ACOAS 环比 ▲2.2pp（上升=标红，反向着色）
+    const acoasUp = screen.getAllByText('▲2.2pp')
+    expect(acoasUp.length).toBeGreaterThan(0)
+    expect(acoasUp[0].className).toContain('text-term-neg')
+    // ACOAS 在广告单之后（DOM 位置断言）
+    const adOrderLabel = screen.getAllByText('广告单')[0]
+    const acoasLabel = screen.getAllByText('ACOAS')[0]
+    // eslint-disable-next-line no-bitwise
+    expect(adOrderLabel.compareDocumentPosition(acoasLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('ACOAS 下降时标绿（反向着色）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({
+      gmv: 10000,
+      adSpend: 500,
+      acoas: 5.0,
+      acoasDelta: -1.5,
+    })
+    render(<TerminalFooter />)
+    const acoasDown = screen.getAllByText('▼1.5pp')
+    expect(acoasDown.length).toBeGreaterThan(0)
+    expect(acoasDown[0].className).toContain('text-term-pos')
   })
 })
 

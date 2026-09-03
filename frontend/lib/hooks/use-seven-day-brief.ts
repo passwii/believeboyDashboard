@@ -40,6 +40,10 @@ export type SevenDayBrief = {
   adSpendDelta: number | null
   /** 广告订单数变化百分比：近 7 天 vs 上一周期 */
   adOrdersDelta: number | null
+  /** ACOAS（广告花费占销售额比）：近 7 天累计 adSpend / gmv × 100 */
+  acoas: number | null
+  /** ACOAS 变化百分点：近 7 天 ACOAS vs 上一周期 ACOAS（pp 差值） */
+  acoasDelta: number | null
   /** 关键报表最新数据日期（available_dates.sales_report[0]，YYYY-MM-DD；无 → null） */
   latestSalesDate: string | null
 }
@@ -94,6 +98,19 @@ export function aggregateWindow(rows: SummaryRow[]): {
 /** 美西时区 YYYY-MM-DD */
 function todayYMDinTimezone(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date())
+}
+
+/** 百分点差值（percentage point difference）：current - previous（两个百分数的绝对差）
+ *  用于 ACOAS 等比率指标的环比（非百分比变化率），避免歧义。 */
+export function ppChange(current: number, previous: number): number {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return 0
+  return current - previous
+}
+
+/** 计算 ACOAS = adSpend / gmv × 100（保留 1 位小数） */
+function computeAcoas(adSpend: number, gmv: number): number | null {
+  if (gmv <= 0) return null
+  return Math.round((adSpend / gmv) * 1000) / 10
 }
 
 /** 把 YYYY-MM-DD 平移 N 天 */
@@ -152,6 +169,8 @@ export function useSevenDayBrief(): {
     ordersDelta: null,
     adSpendDelta: null,
     adOrdersDelta: null,
+    acoas: null,
+    acoasDelta: null,
     latestSalesDate: null,
   })
   const [status, setStatus] = useState<SevenDayBriefStatus>('loading')
@@ -188,6 +207,13 @@ export function useSevenDayBrief(): {
         ordersDelta: pctChange(cur.orders, prev.orders),
         adSpendDelta: pctChange(cur.adSpend, prev.adSpend),
         adOrdersDelta: pctChange(cur.adOrders, prev.adOrders),
+        acoas: computeAcoas(cur.adSpend, cur.gmv),
+        acoasDelta: (() => {
+          const curAcoas = computeAcoas(cur.adSpend, cur.gmv)
+          const prevAcoas = computeAcoas(prev.adSpend, prev.gmv)
+          if (curAcoas == null || prevAcoas == null) return null
+          return Math.round(ppChange(curAcoas, prevAcoas) * 10) / 10
+        })(),
         latestSalesDate: pickLatestSalesDate(current.availableDates) ?? endDate,
       })
       setStatus('ok')
