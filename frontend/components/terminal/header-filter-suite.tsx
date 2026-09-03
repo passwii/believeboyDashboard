@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getCountryLabel, COUNTRY_LABELS } from '@/lib/country'
+import { COUNTRY_LABELS } from '@/lib/country'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -96,14 +96,11 @@ export function HeaderProjectSelect({
         <SelectItem value="all" className={TERM_SELECT_ITEM}>
           全部项目
         </SelectItem>
-        {projects.map((p) => {
-          const siteLabel = p.country_name ?? getCountryLabel(p.country ?? '')
-          return (
-            <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
-              {p.name}{siteLabel ? ` · ${siteLabel}` : ''}
-            </SelectItem>
-          )
-        })}
+        {projects.map((p) => (
+          <SelectItem key={p.id} value={String(p.id)} className={TERM_SELECT_ITEM}>
+            {p.name}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   )
