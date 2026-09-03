@@ -14,6 +14,13 @@
   （项目不在凭据范围 → 404 ``RESOURCE_NOT_FOUND``）；
 * R5 ``/account-health/history`` —— 历史趋势（period/project 筛选 + 白名单排序）。
 
+country 维度（BLF-956）：巡检数据按 (period, project) 粒度存储，无国家列；
+项目本身按国家分离（``Project.country``，BLF-952；弥森-US / 弥森-DE 为不同
+project_id），故国家过滤经 ``Project.country`` 关联实现，**零新增表/迁移**。
+R1/R3/R5 支持 ``?country=US,DE`` 多站点（``parse_countries`` 归一化，对齐
+sales）；R4 单店直取校验项目国家（不匹配 → 404）；R2 周期全局、country 仅
+校验。行响应带 ``country``（拍平行/历史行 = normalized code）。
+
 设计要点（spec §6 公共约定 / §7）：
 * 鉴权 + 读限流由 ``agent/__init__.py`` 命名空间级依赖保证；域级
   ``require_business_scope("account_health")`` 也在装配时挂载（本模块不重复挂）。
@@ -41,6 +48,7 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import SCOPE_ALL
 from app.api.deps import get_read_db_session
+from app.api.v1.endpoints.agent._helpers import parse_countries, parse_country
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
@@ -121,6 +129,38 @@ def _service_errors():
         raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail) from None
 
 
+def _parse_country_param(country: str) -> str | None:
+    """``?country=`` 单国家归一化：空串 → None（不过滤）；非法 → 400。
+
+    翻译 ``_helpers.parse_country`` 的 ``PeriodParseError``（ValueError）为
+    统一 400 壳——``_service_errors`` 只认 HTTPException，ValueError 会 500。
+    """
+    if not country:
+        return None
+    try:
+        return parse_country(country)
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+
+
+def _parse_countries_param(country: str) -> list[str] | None:
+    """``?country=`` 逗号分隔多国家归一化：空串 → None（不过滤）；非法 → 400。
+
+    列表路由（R1/R3/R5）用多值版本，对齐 sales ``parse_countries`` 语义；
+    ``country=US,DE`` 同时聚合两个站点。返回 None 表示未提供（全放行）。
+    """
+    if not country:
+        return None
+    try:
+        return parse_countries(country)
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+
+
 def _visible_project_ids(request: Request) -> set[int] | None:
     """凭据 project_scope 的可见项目集合；``*`` / 缺省 → None（全放行）。
 
@@ -187,6 +227,7 @@ def _flatten_row(
         "week_end": period.week_end.isoformat(),
         "project_id": project.id,
         "project_name": project.project_name,
+        "country": project.country,
         "status": report.status if report else None,
         "submitted_at": (
             report.submitted_at.isoformat() if report and report.submitted_at else None
@@ -210,6 +251,7 @@ def _history_subset(row: dict) -> dict:
         "week_end": row["week_end"],
         "project_id": row["project_id"],
         "project_name": row["project_name"],
+        "country": row["country"],
         "status": row["status"],
         "account_health_rating": row["account_health_rating"],
         "compliance_total": row["compliance_total"],
@@ -227,21 +269,33 @@ def _history_subset(row: dict) -> dict:
 def list_periods(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    country: str = Query(default=""),
     db: Session = Depends(get_read_db_session),
 ) -> dict:
-    """R1 周期列表：复用 ``inspection_service.list_periods``（纯读，零改造）。"""
+    """R1 周期列表：复用 ``inspection_service.list_periods``（纯读，零改造）。
+
+    ``?country=``（BLF-956）：按 ``Project.country`` 过滤 submitted_count
+    （周期本身全局共享，不过滤周期列表）。
+    """
     with _service_errors():
+        countries = _parse_countries_param(country)
+
         items, total = inspection_service.list_periods(db, limit=limit, offset=offset)
         page_ids = [p.id for p in items]
         counts: dict[int, int] = {}
         if page_ids:
-            rows = db.execute(
+            count_query = (
                 select(InspectionReport.period_id, func.count())
                 .where(
                     InspectionReport.period_id.in_(page_ids),
                     InspectionReport.status == "submitted",
                 )
-                .group_by(InspectionReport.period_id)
+                .join(Project, InspectionReport.project_id == Project.id)
+            )
+            if countries:
+                count_query = count_query.where(Project.country.in_(countries))
+            rows = db.execute(
+                count_query.group_by(InspectionReport.period_id)
             ).all()
             counts = {pid: cnt for pid, cnt in rows}
         payload_items = [
@@ -257,11 +311,19 @@ def list_periods(
 
 
 @account_health_router.get("/periods/current")
-def get_current_period(db: Session = Depends(get_read_db_session)) -> dict:
+def get_current_period(
+    country: str = Query(default=""),
+    db: Session = Depends(get_read_db_session),
+) -> dict:
     """R2 当前周期：**纯读**（``inspection_service.get_current_period``，无建行
     副作用——内部 ``get_or_create_current_period`` 无周期时会 INSERT，Agent 通道
-    不可复用）。无周期 → 404 ``RESOURCE_NOT_FOUND``。"""
+    不可复用）。无周期 → 404 ``RESOURCE_NOT_FOUND``。
+
+    ``?country=``（BLF-956）：周期为全局共享资源，country 仅做归一化校验
+    （非法值 → 400），不影响返回的周期。
+    """
     with _service_errors():
+        _parse_country_param(country)  # validate/normalize；周期本身是全局的
         period = inspection_service.get_current_period(db)
         if period is None:
             raise AgentApiError(
@@ -280,13 +342,20 @@ def get_current_period(db: Session = Depends(get_read_db_session)) -> dict:
 def get_period_overview(
     period_id: int,
     request: Request,
+    country: str = Query(default=""),
     db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """R3 周期概览：复用 ``inspection_service.get_overview``（状态推导 / 逾期口径
     与内部端点一致）→ 逐店行拍平（§7.3 字段）→ 按凭据 project_scope 过滤 items，
-    计数在过滤后重算。周期不存在 → 404 ``RESOURCE_NOT_FOUND``。"""
+    计数在过滤后重算。周期不存在 → 404 ``RESOURCE_NOT_FOUND``。
+
+    ``?country=``（BLF-956）：按 ``Project.country`` 过滤 items（多站点逗号
+    分隔聚合）。
+    """
     with _service_errors():
+        countries = _parse_countries_param(country)
+
         result = inspection_service.get_overview(
             db, period_id, settings, operator=None, is_admin=True
         )
@@ -308,12 +377,14 @@ def get_period_overview(
         )
         report_map = {r.project_id: r for r in reports}
         project_ids = [item["project_id"] for item in result["items"]]
+        projects_query = (
+            select(Project)
+            .where(Project.id.in_(project_ids))
+        )
+        if countries:
+            projects_query = projects_query.where(Project.country.in_(countries))
         projects = (
-            list(
-                db.execute(select(Project).where(Project.id.in_(project_ids)))
-                .scalars()
-                .all()
-            )
+            list(db.execute(projects_query).scalars().all())
             if project_ids
             else []
         )
@@ -359,12 +430,17 @@ def get_project_report(
         default=False,
         description="可选：true 时返回 status_summary（默认不返回，覆盖率低）",
     ),
+    country: str = Query(default=""),
     db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """R4 单店报告明细：复用 ``inspection_service.get_report``（纯读）+
     project_scope 语义——项目不在凭据范围 → 404；无报告 → 404。
-    ``include_summary=true`` 才带 ``status_summary``。"""
+    ``include_summary=true`` 才带 ``status_summary``。
+
+    ``?country=``（BLF-956）：提供时校验项目国家匹配（不匹配 → 404
+    ``RESOURCE_NOT_FOUND``，对齐 R4 直取语义）。
+    """
     with _service_errors():
         if not _project_in_scope(request, project_id):
             raise AgentApiError(
@@ -384,6 +460,15 @@ def get_project_report(
                 human_message=f"周期 {period_id} 项目 {project_id} 无巡检报告",
             )
         project = db.get(Project, project_id)
+        assert project is not None, f"项目 {project_id} 不存在"  # FK 保证，防御型
+        normalized = _parse_country_param(country)
+        if normalized is not None and project.country != normalized:
+            raise AgentApiError(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                human_message=(
+                    f"项目 {project_id} 不属于国家 {normalized}（项目国家：{project.country}）"
+                ),
+            )
         row = _flatten_row(period, project, report)
         if include_summary:
             row["status_summary"] = report.status_summary
@@ -426,12 +511,14 @@ def get_history(
     offset: int = Query(default=0, ge=0),
     order_by: str = Query(default="week_start"),
     order_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    country: str = Query(default=""),
     db: Session = Depends(get_read_db_session),
 ) -> dict:
     """R5 历史趋势：与内部 ``/api/v1/inspections/history`` 同构查询（拍平 +
     compliance_total 派生）→ 按凭据 project_scope 过滤 → 白名单排序 → 分页。
 
     ``order_by`` 非法 → 400 ``VALIDATION_FAILED``；空结果 → 200 + 空 items。
+    ``?country=``（BLF-956）：按 ``Project.country`` 过滤（多站点逗号分隔聚合）。
     """
     with _service_errors():
         if order_by not in _ORDER_BY_SET:
@@ -440,6 +527,8 @@ def get_history(
                 ErrorCode.VALIDATION_FAILED,
                 human_message=f"order_by 必须是白名单之一（{allowed}），收到 {order_by!r}",
             )
+
+        countries = _parse_countries_param(country)
 
         query = (
             select(InspectionReport, InspectionPeriod, Project)
@@ -451,6 +540,8 @@ def get_history(
             query = query.where(InspectionReport.period_id == period_id)
         if project_id is not None:
             query = query.where(InspectionReport.project_id == project_id)
+        if countries:
+            query = query.where(Project.country.in_(countries))
         visible = _visible_project_ids(request)
         if visible is not None:
             query = query.where(InspectionReport.project_id.in_(visible))
