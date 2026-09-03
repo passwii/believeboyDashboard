@@ -44,6 +44,10 @@ export type SevenDayBrief = {
   acoas: number | null
   /** ACOAS 变化百分点：近 7 天 ACOAS vs 上一周期 ACOAS（pp 差值） */
   acoasDelta: number | null
+  /** 本月至今 GMV 合计（美元，BLF-967：当月 1 日 → T-1） */
+  mtdGmv: number | null
+  /** 本月 GMV 变化百分比：本月至今 vs 上月同期（同 pctChange 口径） */
+  mtdGmvDelta: number | null
   /** 关键报表最新数据日期（available_dates.sales_report[0]，YYYY-MM-DD；无 → null） */
   latestSalesDate: string | null
 }
@@ -119,6 +123,35 @@ function shiftYMD(ymd: string, days: number): string {
   const shifted = new Date(Date.UTC(y!, m! - 1, d!) + days * 86_400_000)
   return shifted.toISOString().slice(0, 10)
 }
+/**
+ * 本月至今 vs 上月同期窗口（BLF-967）。
+ *
+ * 输入 endDate 为数据终点（调用方传 T-1，如 '2026-09-02'）：
+ * - 本月窗口：当月 1 日 → endDate（含，`day` 天）
+ * - 上月同期：上月 1 日 → 上月 `min(day, 上月天数)` 日（天数不足钳制，如 3-31 → 上月 02-01~02-28）
+ *
+ * 纯函数：与 shiftYMD 同风格（UTC + toISOString 切片），单测覆盖月中/月初/跨年/钳制/闰月。
+ */
+export function mtdWindows(endDate: string): {
+  mtdStart: string
+  mtdEnd: string
+  prevStart: string
+  prevEnd: string
+} {
+  const [y, m, d] = endDate.split('-').map(Number)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const mtdStart = `${y}-${pad(m!)}-01`
+  const prevMonth = m === 1 ? 12 : m! - 1
+  const prevYear = m === 1 ? y! - 1 : y
+  const prevMonthDays = new Date(Date.UTC(prevYear!, prevMonth, 0)).getUTCDate()
+  const prevDay = Math.min(d!, prevMonthDays)
+  return {
+    mtdStart,
+    mtdEnd: endDate,
+    prevStart: `${prevYear}-${pad(prevMonth)}-01`,
+    prevEnd: `${prevYear}-${pad(prevMonth)}-${pad(prevDay)}`,
+  }
+}
 
 /** 从 available_dates 提取最新销售数据日期 */
 export function pickLatestSalesDate(
@@ -171,6 +204,8 @@ export function useSevenDayBrief(): {
     adOrdersDelta: null,
     acoas: null,
     acoasDelta: null,
+    mtdGmv: null,
+    mtdGmvDelta: null,
     latestSalesDate: null,
   })
   const [status, setStatus] = useState<SevenDayBriefStatus>('loading')
@@ -187,15 +222,20 @@ export function useSevenDayBrief(): {
       const prevEndDate = shiftYMD(startDate, -1)
       const prevStartDate = shiftYMD(prevEndDate, -6)
 
-      // 当前窗口 + 上一周期窗口并发取数
-      const [current, previous] = await Promise.all([
+      // 当前窗口 + 上一周期窗口 + 本月至今/上月同期（BLF-967，4 路并发，失败整体降级 error）
+      const mtd = mtdWindows(endDate)
+      const [current, previous, mtdCur, mtdPrev] = await Promise.all([
         fetchDailyTotals(startDate, endDate),
         fetchDailyTotals(prevStartDate, prevEndDate),
+        fetchDailyTotals(mtd.mtdStart, mtd.mtdEnd),
+        fetchDailyTotals(mtd.prevStart, mtd.prevEnd),
       ])
       if (seq !== requestSeqRef.current) return
 
       const cur = aggregateWindow(current.rows)
       const prev = aggregateWindow(previous.rows)
+      const mtdCurAgg = aggregateWindow(mtdCur.rows)
+      const mtdPrevAgg = aggregateWindow(mtdPrev.rows)
 
       setBrief({
         gmv: cur.gmv,
@@ -214,6 +254,8 @@ export function useSevenDayBrief(): {
           if (curAcoas == null || prevAcoas == null) return null
           return Math.round(ppChange(curAcoas, prevAcoas) * 10) / 10
         })(),
+        mtdGmv: mtdCurAgg.gmv,
+        mtdGmvDelta: pctChange(mtdCurAgg.gmv, mtdPrevAgg.gmv),
         latestSalesDate: pickLatestSalesDate(current.availableDates) ?? endDate,
       })
       setStatus('ok')

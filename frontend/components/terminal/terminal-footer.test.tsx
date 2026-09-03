@@ -132,6 +132,8 @@ function mockBrief(
     adOrdersDelta: number | null
     acoas: number | null
     acoasDelta: number | null
+    mtdGmv: number | null
+    mtdGmvDelta: number | null
     latestSalesDate: string | null
   }>,
   status: 'ok' | 'error' = 'ok'
@@ -149,6 +151,8 @@ function mockBrief(
       adOrdersDelta: null,
       acoas: null,
       acoasDelta: null,
+      mtdGmv: null,
+      mtdGmvDelta: null,
       latestSalesDate: null,
       ...brief,
     },
@@ -290,6 +294,55 @@ describe('TerminalFooter BLF-950：快报近 7 天聚合与单指标百分比', 
     const acoasDown = screen.getAllByText('▼1.5pp')
     expect(acoasDown.length).toBeGreaterThan(0)
     expect(acoasDown[0].className).toContain('text-term-pos')
+  })
+})
+
+describe('TerminalFooter BLF-967：本月至今 GMV vs 上月同期', () => {
+  it('本月段渲染在 ACOAS 之后：值 + 同比箭头（▲绿/▼红）', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({
+      gmv: 10000,
+      adSpend: 500,
+      acoas: 5.0,
+      acoasDelta: 0,
+      mtdGmv: 250000,
+      mtdGmvDelta: 12,
+    })
+    render(<TerminalFooter />)
+    // 本月标签
+    expect(screen.getAllByText('本月').length).toBeGreaterThan(0)
+    // 本月值 $250,000
+    expect(screen.getAllByText('$250,000').length).toBeGreaterThan(0)
+    // 同比 ▲12%（涨绿，复用 renderChange 同口径）
+    const mtdUp = screen.getAllByText('▲12%')
+    expect(mtdUp.length).toBeGreaterThan(0)
+    expect(mtdUp[0].className).toContain('text-term-pos')
+    // 本月在 ACOAS 之后（DOM 位置断言）
+    const acoasLabel = screen.getAllByText('ACOAS')[0]
+    const mtdLabel = screen.getAllByText('本月')[0]
+    // eslint-disable-next-line no-bitwise
+    expect(acoasLabel.compareDocumentPosition(mtdLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // 中文标签不 mono（BLF-832 A5）
+    expect(mtdLabel.className).not.toContain('font-mono')
+  })
+
+  it('本月同比下跌标红；无数据时本月值 "--" 不崩溃', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ mtdGmv: 180000, mtdGmvDelta: -8 })
+    render(<TerminalFooter />)
+    const mtdDown = screen.getAllByText('▼8%')
+    expect(mtdDown.length).toBeGreaterThan(0)
+    expect(mtdDown[0].className).toContain('text-term-neg')
+  })
+
+  it('briefReady 为 false 时本月值 "--" 不崩溃', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+    mockBrief({ gmv: null, orders: null, pending: null, mtdGmv: null, mtdGmvDelta: null }, 'error')
+    render(<TerminalFooter />)
+    expect(screen.getByTestId('terminal-footer')).toBeInTheDocument()
+    // 本月标签仍渲染（频道存在），值为 -- 占位
+    expect(screen.getAllByText('本月').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('--').length).toBeGreaterThan(0)
   })
 })
 
