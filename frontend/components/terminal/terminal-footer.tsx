@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Bell } from 'lucide-react'
 
 import { useExchangeRateTicker } from '@/lib/hooks/use-exchange-rate-ticker'
-import { useDailyBrief } from '@/lib/hooks/use-daily-brief'
+import { useSevenDayBrief } from '@/lib/hooks/use-seven-day-brief'
 import { useReportUploadStatus } from '@/lib/hooks/use-report-upload-status'
 import { useAlertStats } from '@/lib/hooks/use-alert-stats'
 import { usePresenceCount } from '@/lib/hooks/use-presence-count'
@@ -55,7 +55,7 @@ function changeColorClass(changePct: number | null): string {
  */
 export function TerminalFooter() {
   const { ticks, status, lastSuccessAt } = useExchangeRateTicker()
-  const { brief, status: briefStatus } = useDailyBrief()
+  const { brief, status: briefStatus } = useSevenDayBrief()
   const inventoryAlert = useInventoryAlert()
   const uploadStatus = useReportUploadStatus()
   const alertStats = useAlertStats()
@@ -130,23 +130,26 @@ export function TerminalFooter() {
 
     if (TERMINAL_TICKER.channels.dailyBrief) {
       const briefReady = briefStatus === 'ok'
-      // 环比 span：DoD 紧跟数值（▲20%）；WoW 带「周」前缀（周▲9%）。
-      // changePct null（基数 0 / 无数据）或非 ready → '—' 灰。
-      const renderChange = (changePct: number | null, wow: boolean) => {
+      // 指标 span：近 7 天快报（BLF-950）——聚合值 + 单一变化百分比
+      // （近 7 天 vs 上一周期），简洁明了；delta null（基数 0 / 无数据）或非 ready → '—' 灰。
+      const renderChange = (delta: number | null) => {
         if (!briefReady) return <span className="font-mono tabular-nums text-term-faint">--</span>
-        const arrow = changePct == null ? '—' : changePct > 0 ? '▲' : changePct < 0 ? '▼' : '—'
-        const text =
-          changePct == null
-            ? '—'
-            : `${arrow}${Math.abs(changePct).toFixed(0)}%`
+        // 无变化（null/0）→ '—'，只展示上升/下降百分比（BLF-950 简洁原则）
+        if (delta == null || delta === 0) {
+          return <span className={cn('ml-1 font-mono tabular-nums', changeColorClass(delta))}>—</span>
+        }
+        const arrow = delta > 0 ? '▲' : '▼'
         return (
-          <span
-            className={cn('ml-1 font-mono tabular-nums', changeColorClass(changePct))}
-          >
-            {wow ? `周${text}` : text}
+          <span className={cn('ml-1 font-mono tabular-nums', changeColorClass(delta))}>
+            {arrow}{Math.abs(delta).toFixed(0)}%
           </span>
         )
       }
+      const renderValue = (value: number | null) => (
+        <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+          {briefReady && value != null ? value : '--'}
+        </span>
+      )
       items.push(
         <span key={`brief-${key++}`} className="flex shrink-0 items-center">
           <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">快报</span>
@@ -154,26 +157,20 @@ export function TerminalFooter() {
           <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.gmv != null ? formatMoney(brief.gmv) : '--'}
           </span>
-          {renderChange(brief.gmvDoD, false)}
-          {renderChange(brief.gmvWoW, true)}
+          {renderChange(brief.gmvDelta)}
           <span className="ml-3 text-term-faint">订单</span>
-          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
-            {briefReady && brief.orders != null ? brief.orders : '--'}
-          </span>
-          {renderChange(brief.ordersDoD, false)}
-          {renderChange(brief.ordersWoW, true)}
+          {renderValue(brief.orders)}
+          {renderChange(brief.ordersDelta)}
           <span className="ml-3 text-term-faint">Pending</span>
-          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
-            {briefReady && brief.pending != null ? brief.pending : '--'}
-          </span>
+          {renderValue(brief.pending)}
           <span className="ml-3 text-term-faint">广告</span>
           <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
             {briefReady && brief.adSpend != null ? formatMoney(brief.adSpend) : '--'}
           </span>
+          {renderChange(brief.adSpendDelta)}
           <span className="ml-3 text-term-faint">广告单</span>
-          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
-            {briefReady && brief.adOrders != null ? brief.adOrders : '--'}
-          </span>
+          {renderValue(brief.adOrders)}
+          {renderChange(brief.adOrdersDelta)}
         </span>
       )
     }

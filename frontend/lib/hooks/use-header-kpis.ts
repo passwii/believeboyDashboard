@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * BLF-819 · Top Header KPI 磁贴数据源。
  *
  * 复用 Footer「全局快报」同一聚合端点（daily-analysis/all，美西今天），
- * 取今日 GMV / 订单数 / Pending 数。与 useDailyBrief 的差别：
+ * 取今日 GMV / 订单数 / Pending 数。与 Footer 快报 hook（useSevenDayBrief，近 7 天聚合）的差别：
  * 该 hook 暴露 loading 态（磁贴显示 ··· 动画），且轮询间隔独立可调。
  * 失败仅本模块降级（value=null → 显示 "--"），不影响头部其他控件。
  */

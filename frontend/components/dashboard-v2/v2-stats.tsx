@@ -41,6 +41,8 @@ function pctChange(current: number, previous: number): number {
   return previous > 0 ? ((current - previous) / previous) * 100 : 0
 }
 
+export { pctChange }
+
 export function computeStats(currentRows: V2StatRow[], comparisonRows: V2StatRow[]): V2Stat[] {
   const totalSales = sum(currentRows, 'sales_amount')
   const totalOrders = sum(currentRows, 'order_qty')

@@ -10,8 +10,8 @@ vi.mock('@/lib/hooks/use-exchange-rate-ticker', () => ({
 }))
 
 const { briefMock } = vi.hoisted(() => ({ briefMock: vi.fn() }))
-vi.mock('@/lib/hooks/use-daily-brief', () => ({
-  useDailyBrief: briefMock,
+vi.mock('@/lib/hooks/use-seven-day-brief', () => ({
+  useSevenDayBrief: briefMock,
 }))
 
 const { unreadMock } = vi.hoisted(() => ({ unreadMock: vi.fn() }))
@@ -126,10 +126,10 @@ function mockBrief(
     pending: number | null
     adSpend: number | null
     adOrders: number | null
-    gmvDoD: number | null
-    gmvWoW: number | null
-    ordersDoD: number | null
-    ordersWoW: number | null
+    gmvDelta: number | null
+    ordersDelta: number | null
+    adSpendDelta: number | null
+    adOrdersDelta: number | null
     latestSalesDate: string | null
   }>,
   status: 'ok' | 'error' = 'ok'
@@ -141,10 +141,10 @@ function mockBrief(
       pending: null,
       adSpend: null,
       adOrders: null,
-      gmvDoD: null,
-      gmvWoW: null,
-      ordersDoD: null,
-      ordersWoW: null,
+      gmvDelta: null,
+      ordersDelta: null,
+      adSpendDelta: null,
+      adOrdersDelta: null,
       latestSalesDate: null,
       ...brief,
     },
@@ -203,8 +203,8 @@ describe('TerminalFooter BLF-921 Stage 2：数据可信度频道', () => {
   })
 })
 
-describe('TerminalFooter BLF-920 Stage 1：快报环比与广告数字', () => {
-  it('GMV/订单渲染 DoD 环比箭头着色（▲绿/▼红）+ WoW 周环比 + 广告数字', () => {
+describe('TerminalFooter BLF-950：快报近 7 天聚合与单指标百分比', () => {
+  it('GMV/订单/广告/广告单渲染单一环比箭头（▲绿/▼红），无周环比', () => {
     mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
     mockBrief({
       gmv: 12345,
@@ -212,10 +212,10 @@ describe('TerminalFooter BLF-920 Stage 1：快报环比与广告数字', () => {
       pending: 3,
       adSpend: 80,
       adOrders: 5,
-      gmvDoD: 20,
-      gmvWoW: 9.09,
-      ordersDoD: -5,
-      ordersWoW: null,
+      gmvDelta: 20,
+      ordersDelta: -5,
+      adSpendDelta: null,
+      adOrdersDelta: 0,
     })
     render(<TerminalFooter />)
     // GMV 环比：▲20%（涨绿）
@@ -226,13 +226,10 @@ describe('TerminalFooter BLF-920 Stage 1：快报环比与广告数字', () => {
     const ordersDown = screen.getAllByText('▼5%')
     expect(ordersDown.length).toBeGreaterThan(0)
     expect(ordersDown[0].className).toContain('text-term-neg')
-    // WoW 周环比带「周」标记；ordersWoW null → 「—」
-    const gmvWow = screen.getAllByText('周▲9%')
-    expect(gmvWow.length).toBeGreaterThan(0)
-    expect(gmvWow[0].className).toContain('text-term-pos')
-    const ordersWow = screen.getAllByText('周—')
-    expect(ordersWow.length).toBeGreaterThan(0)
-    expect(ordersWow[0].className).toContain('text-term-faint')
+    // 广告花费：无变化 → 无百分比（-- 降级由其它用例覆盖）；广告单持平 0% → '—'
+    expect(screen.queryAllByText('周▲9%').length).toBe(0)
+    const flat = screen.getAllByText('—')
+    expect(flat.length).toBeGreaterThan(0)
     // 广告花费 + 广告订单
     expect(screen.getAllByText('$80').length).toBeGreaterThan(0)
     expect(screen.getAllByText('5').length).toBeGreaterThan(0)
