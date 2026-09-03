@@ -82,6 +82,7 @@ class IntegrityCheckResult(BaseModel):
     """Cross-month ledger integrity check result."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     status: Literal["OK", "MISMATCH", "PENDING"]
     mismatch_count: int
     mismatches: list[IntegrityMismatch] = []
@@ -92,6 +93,7 @@ class MonthlySnapshotResponse(BaseModel):
     """Full monthly snapshot: SKU EOM + disposition summary + integrity."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     sku_count: int
     total_qty: int
     disposition_summary: list[DispositionSummary] = []
@@ -103,6 +105,7 @@ class EventsResponse(BaseModel):
     """SKU event flow response."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     skus: list[SkuMonthEvents] = []
 
 
@@ -110,6 +113,7 @@ class ReceiptClustersResponse(BaseModel):
     """Receipt clusters response."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     clusters: list[ReceiptCluster] = []
 
 
@@ -117,6 +121,7 @@ class LocationDetailResponse(BaseModel):
     """Location detail response."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     rows: list[LocationDetail] = []
 
 
@@ -124,6 +129,7 @@ class MonthsResponse(BaseModel):
     """Available months list."""
 
     project_id: int
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     months: list[date] = []
 
 
@@ -146,6 +152,7 @@ class TrendResponse(BaseModel):
     """Multi-month trend response."""
 
     project_id: int
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     months: list[TrendMonthItem] = []
 
 
@@ -189,6 +196,7 @@ class LedgerSummaryResponse(BaseModel):
     """Daily water-level rows for a period."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     rows: list[LedgerSummaryRow] = []
 
 
@@ -223,6 +231,7 @@ class LedgerDetailResponse(BaseModel):
     """Event-level detail rows for a period."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     rows: list[LedgerDetailRow] = []
 
 
@@ -256,6 +265,7 @@ class IngestBatchesResponse(BaseModel):
     """Ingest batch list for a project."""
 
     project_id: int
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     batches: list[IngestBatchInfo] = []
 
 
@@ -274,6 +284,7 @@ class ConsistencyCheckResult(BaseModel):
     """Cross-table (detail vs summary) reconciliation result."""
 
     report_month: date
+    country: str | None = Field(default=None, description="国家/地区（归一化）")
     status: Literal["OK", "MISMATCH", "PENDING"]
     mismatch_count: int
     mismatches: list[ConsistencyMismatch] = []

@@ -33,6 +33,7 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
+from app.api.v1.endpoints.agent._helpers import parse_country
 from app.api.v1.endpoints.inventory_ledger_common import (
     resolve_period_inputs,
 )
@@ -106,6 +107,23 @@ def _to_json(value) -> dict:
     return value.model_dump(mode="json")
 
 
+def _parse_country_param(country: str) -> str | None:
+    """``country`` 查询参数归一化（对齐 account_health 域 BLF-956 约定）。
+
+    空串 → None（不过滤，向后兼容——老调用方不传 country 行为不变）；
+    非空 → :func:`parse_country` 严格归一化 + 校验（非法值 → 400
+    VALIDATION_FAILED 壳，与既有 agent 约定一致）。
+    """
+    if not country or not country.strip():
+        return None
+    try:
+        return parse_country(country)
+    except Exception as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+
+
 def _prev_period(report_month: date) -> tuple[date, date]:
     if report_month.month == 1:
         prev = date(report_month.year - 1, 12, 1)
@@ -123,14 +141,23 @@ def _prev_period(report_month: date) -> tuple[date, date]:
 @inventory_ledger_router.get("/months")
 def get_agent_inventory_ledger_months(
     project_id: int,
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """月度盘点：有台账数据的月份列表（YYYY-MM-DD，每月 1 号）。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
-        months = get_available_months(db, project_id)
-        resp = MonthsResponse(project_id=project_id, months=months)
+        normalized_country = _parse_country_param(country)
+        months = get_available_months(db, project_id, country=normalized_country)
+        resp = MonthsResponse(
+            project_id=project_id,
+            country=normalized_country,
+            months=months,
+        )
     return agent_ok(_to_json(resp))
 
 
@@ -143,12 +170,17 @@ def get_agent_inventory_ledger_snapshot(
     ),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """月度快照：SKU EOM + 处置汇总 + 完整性（整月窗口跑跨月完整性校验）。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, report_month = resolve_period_inputs(
             period,
             start_date,
@@ -160,16 +192,23 @@ def get_agent_inventory_ledger_snapshot(
         if report_month:
             prev_start, prev_end = _prev_period(report_month)
 
-        skus = get_sku_month_eom(db, project_id, start, end, prev_start, prev_end)
-        disposition_summary = get_month_disposition_summary(db, project_id, start, end)
+        skus = get_sku_month_eom(
+            db, project_id, start, end, prev_start, prev_end, country=normalized_country
+        )
+        disposition_summary = get_month_disposition_summary(
+            db, project_id, start, end, country=normalized_country
+        )
 
         integrity = None
         if report_month:
-            integrity = check_ledger_integrity(db, project_id, report_month)
+            integrity = check_ledger_integrity(
+                db, project_id, report_month, country=normalized_country
+            )
 
         total_qty = sum(s.qty_eom for s in skus)
         resp = MonthlySnapshotResponse(
             report_month=start,
+            country=normalized_country,
             sku_count=len(skus),
             total_qty=total_qty,
             disposition_summary=disposition_summary,
@@ -188,19 +227,24 @@ def get_agent_inventory_ledger_events(
     ),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """SKU 事件流：周期内每 SKU 各事件列合计。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, _report_month = resolve_period_inputs(
             period,
             start_date,
             end_date,
         )
-        skus = get_sku_month_events(db, project_id, start, end)
-        resp = EventsResponse(report_month=start, skus=skus)
+        skus = get_sku_month_events(db, project_id, start, end, country=normalized_country)
+        resp = EventsResponse(report_month=start, country=normalized_country, skus=skus)
     return agent_ok(_to_json(resp))
 
 
@@ -213,19 +257,24 @@ def get_agent_inventory_ledger_receipt_clusters(
     ),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """收货簇：按（日期 × 仓库）归组收货。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, _report_month = resolve_period_inputs(
             period,
             start_date,
             end_date,
         )
-        clusters = get_receipt_clusters(db, project_id, start, end)
-        resp = ReceiptClustersResponse(report_month=start, clusters=clusters)
+        clusters = get_receipt_clusters(db, project_id, start, end, country=normalized_country)
+        resp = ReceiptClustersResponse(report_month=start, country=normalized_country, clusters=clusters)
     return agent_ok(_to_json(resp))
 
 
@@ -239,12 +288,17 @@ def get_agent_inventory_ledger_integrity(
             "this_month, ytd, YYYY-MM, YYYY-MM-DD)."
         ),
     ),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """跨月完整性校验：上月期末 vs 本月期初（每 SKU × 库位 × 处置）。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, report_month_date = resolve_period_inputs(
             period,
             None,
@@ -260,7 +314,9 @@ def get_agent_inventory_ledger_integrity(
                     "YYYY-MM-DD)"
                 ),
             )
-        resp = check_ledger_integrity(db, project_id, report_month_date)
+        resp = check_ledger_integrity(
+            db, project_id, report_month_date, country=normalized_country
+        )
     return agent_ok(_to_json(resp))
 
 
@@ -268,14 +324,21 @@ def get_agent_inventory_ledger_integrity(
 def get_agent_inventory_ledger_trend(
     project_id: int,
     months: int = Query(6, ge=1, le=24, description="Number of recent months"),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """多月度趋势：最近 N 个月（默认 6，最大 24）聚合序列。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
-        items = get_trend(db, project_id, months=months)
-        resp = TrendResponse(project_id=project_id, months=items)
+        normalized_country = _parse_country_param(country)
+        items = get_trend(db, project_id, months=months, country=normalized_country)
+        resp = TrendResponse(
+            project_id=project_id, country=normalized_country, months=items
+        )
     return agent_ok(_to_json(resp))
 
 
@@ -291,12 +354,17 @@ def get_agent_inventory_ledger_detail(
     msku: str | None = Query(default=None),
     fulfillment_center: str | None = Query(default=None),
     event_type: str | None = Query(default=None),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """事件级明细行（Detailed 视图）+ msku/fulfillment_center/event_type 过滤。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, _report_month = resolve_period_inputs(
             period,
             start_date,
@@ -310,8 +378,11 @@ def get_agent_inventory_ledger_detail(
             msku=msku,
             fulfillment_center=fulfillment_center,
             event_type=event_type,
+            country=normalized_country,
         )
-        resp = LedgerDetailResponse(report_month=start, rows=rows)
+        resp = LedgerDetailResponse(
+            report_month=start, country=normalized_country, rows=rows
+        )
     return agent_ok(_to_json(resp))
 
 
@@ -327,12 +398,17 @@ def get_agent_inventory_ledger_summary(
     msku: str | None = Query(default=None),
     location: str | None = Query(default=None),
     disposition: str | None = Query(default=None),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
-    """日水位行（Summary 视图）+ msku/location/disposition 过滤。"""
+    """日水位行（Summary 视图）+ msku/location/disposition/country 过滤。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         start, end, _report_month = resolve_period_inputs(
             period,
             start_date,
@@ -346,8 +422,11 @@ def get_agent_inventory_ledger_summary(
             msku=msku,
             location=location,
             disposition=disposition,
+            country=normalized_country,
         )
-        resp = LedgerSummaryResponse(report_month=start, rows=rows)
+        resp = LedgerSummaryResponse(
+            report_month=start, country=normalized_country, rows=rows
+        )
     return agent_ok(_to_json(resp))
 
 
@@ -355,15 +434,23 @@ def get_agent_inventory_ledger_summary(
 def get_agent_inventory_ledger_batches(
     project_id: int,
     limit: int = Query(100, ge=1, le=500, description="Max batches to return"),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """CSV 导入批次（溯源）：文件标识 + 行数 + 状态 + 跨表一致性结果。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
-        batches = list_ingest_batches(db, project_id, limit=limit)
+        normalized_country = _parse_country_param(country)
+        batches = list_ingest_batches(
+            db, project_id, limit=limit, country=normalized_country
+        )
         resp = IngestBatchesResponse(
             project_id=project_id,
+            country=normalized_country,
             batches=[IngestBatchInfo.model_validate(b) for b in batches],
         )
     return agent_ok(_to_json(resp))
@@ -376,12 +463,17 @@ def get_agent_inventory_ledger_consistency(
         ...,
         description="REQUIRED. Must resolve to a full calendar month.",
     ),
+    country: str = Query(
+        default="",
+        description="OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。",
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """跨表一致性校验（Detail vs Summary 真值表）：OK / MISMATCH / PENDING。"""
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
+        normalized_country = _parse_country_param(country)
         _start, _end, report_month = resolve_period_inputs(period, None, None)
         if report_month is None:
             raise HTTPException(
@@ -391,5 +483,7 @@ def get_agent_inventory_ledger_consistency(
                     "consistency check requires a complete ledger partition"
                 ),
             )
-        resp = check_ledger_consistency(db, project_id, report_month)
+        resp = check_ledger_consistency(
+            db, project_id, report_month, country=normalized_country
+        )
     return agent_ok(_to_json(resp))

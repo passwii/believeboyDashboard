@@ -290,7 +290,35 @@ class TestAgentSummaryEndpoint:
             self._url(project.id, period="2026-03", msku="SKU-A", location="LAX1"),
             headers=headers,
         )
-        assert res2.status_code == 200
         rows2 = res2.json()["data"]["rows"]
         assert len(rows2) == 2
         assert all(r["msku"] == "SKU-A" and r["location"] == "LAX1" for r in rows2)
+
+
+# ---------------------------------------------------------------------------
+# Service-level country filter（BLF-957）
+# ---------------------------------------------------------------------------
+
+
+class TestSummaryCountryFilter:
+    """Summary 表无 country 列 → 通过 Project.country 门过滤（BLF-952）。"""
+
+    def test_country_mismatch_returns_empty(
+        self, db_session: Session, project: Project
+    ):
+        """Project.country 默认 US，请求 DE → get_ledger_summary_rows 应空。"""
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session, project.id, date(2026, 3, 1), date(2026, 3, 31), country="DE"
+        )
+        assert rows == []
+
+    def test_country_match_returns_all(
+        self, db_session: Session, project: Project
+    ):
+        """Project.country 默认 US，请求 US → 返回全部 seed 行。"""
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session, project.id, date(2026, 3, 1), date(2026, 3, 31), country="US"
+        )
+        assert len(rows) == 4

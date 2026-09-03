@@ -31,6 +31,7 @@ from app.models.inventory_ledger import (
     InventoryLedgerIngestBatch,
     InventoryLedgerSummary,
 )
+from app.models.project import Project
 from app.schemas.inventory_ledger import (
     ConsistencyCheckResult,
     ConsistencyMismatch,
@@ -136,7 +137,15 @@ DETAIL_REQUIRED_COLUMNS = {
 DETAIL_NEGATIVE_EVENT_TYPES = {"Shipments", "VendorReturns", "Adjustments"}
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+def _project_country_matches(db: Session, project_id: int, country: str | None) -> bool:
+    """Summary 表无 country 列（Amazon Summary 视图 CSV 无国家列），
+    country 维度只能关联 Project.country（单项目=单站点，BLF-952）。
+    返回 False 表示该项目站点与请求国家不符 → 调用方应返回空数据。
+    """
+    if not country:
+        return True
+    project = db.get(Project, project_id)
+    return project is not None and project.country == country
 
 
 def parse_report_month(value: str) -> date:
@@ -294,8 +303,12 @@ def get_sku_month_eom(
     end: date,
     prev_start: date | None = None,
     prev_end: date | None = None,
+    country: str | None = None,
 ) -> list[SkuMonthEom]:
     """Per-SKU end-of-period total inventory (all dispositions summed)."""
+    if not _project_country_matches(db, project_id, country):
+        return []
+
     subq = _eom_subquery(db, project_id, start, end)
 
     stmt = (
@@ -419,8 +432,12 @@ def get_month_disposition_summary(
     project_id: int,
     start: date,
     end: date,
+    country: str | None = None,
 ) -> list[DispositionSummary]:
     """Disposition breakdown with percentage."""
+    if not _project_country_matches(db, project_id, country):
+        return []
+
     subq = _eom_subquery(db, project_id, start, end)
 
     stmt = (
@@ -451,9 +468,16 @@ def get_month_disposition_summary(
 
 
 def get_receipt_clusters(
-    db: Session, project_id: int, start: date, end: date
+    db: Session,
+    project_id: int,
+    start: date,
+    end: date,
+    country: str | None = None,
 ) -> list[ReceiptCluster]:
     """Receipt clusters: group by (date, location), aggregate SKUs."""
+    if not _project_country_matches(db, project_id, country):
+        return []
+
     stmt = (
         select(
             InventoryLedgerSummary.date,
@@ -496,9 +520,16 @@ def get_receipt_clusters(
 
 
 def get_sku_month_events(
-    db: Session, project_id: int, start: date, end: date
+    db: Session,
+    project_id: int,
+    start: date,
+    end: date,
+    country: str | None = None,
 ) -> list[SkuMonthEvents]:
     """Per-SKU event totals for the period (from the Summary truth table)."""
+    if not _project_country_matches(db, project_id, country):
+        return []
+
     stmt = (
         select(
             InventoryLedgerSummary.msku,
@@ -579,12 +610,23 @@ def check_ledger_integrity(
     db: Session,
     project_id: int,
     report_month: date,
+    country: str | None = None,
 ) -> IntegrityCheckResult:
     """Cross-month continuity: prev month ending == curr month starting.
 
     Operates on the Summary truth table (same semantics as the old raw-based
     check — BEL-417 P0 regression coverage preserved).
     """
+    if not _project_country_matches(db, project_id, country):
+        return IntegrityCheckResult(
+            report_month=report_month,
+            country=country,
+            status="PENDING",
+            mismatch_count=0,
+            mismatches=[],
+            checked_at=datetime.now(timezone.utc),
+        )
+
     # Previous month
     if report_month.month == 1:
         prev_month = date(report_month.year - 1, 12, 1)
@@ -609,6 +651,7 @@ def check_ledger_integrity(
     if prev_count == 0:
         return IntegrityCheckResult(
             report_month=report_month,
+            country=country,
             status="PENDING",
             mismatch_count=0,
             mismatches=[],
@@ -677,6 +720,7 @@ def check_ledger_integrity(
 
     return IntegrityCheckResult(
         report_month=report_month,
+        country=country,
         status="MISMATCH" if mismatches else "OK",
         mismatch_count=len(mismatches),
         mismatches=mismatches,
@@ -687,33 +731,49 @@ def check_ledger_integrity(
 # ─── 8. get_available_months ──────────────────────────────────────────────────
 
 
-def get_available_months(db: Session, project_id: int) -> list[date]:
+def get_available_months(
+    db: Session, project_id: int, country: str | None = None
+) -> list[date]:
     """List distinct report_months that have data for this project.
 
     Unions Summary + Detail partitions so a month shows up as soon as either
-    view has been uploaded.
+    view has been uploaded. ``country`` 过滤：Summary 分支按 Project.country
+    门（表无 country 列），Detail 分支按 ``detail.country`` 行级过滤。
     """
+    summary_ok = _project_country_matches(db, project_id, country)
+    detail_where = [InventoryLedgerDetail.project_id == project_id]
+    if country:
+        detail_where.append(InventoryLedgerDetail.country == country)
+
     stmt = (
         select(InventoryLedgerSummary.report_month)
-        .where(InventoryLedgerSummary.project_id == project_id)
-        .union(
-            select(InventoryLedgerDetail.report_month).where(
-                InventoryLedgerDetail.project_id == project_id
-            )
+        .where(
+            InventoryLedgerSummary.project_id == project_id
         )
-        .order_by(InventoryLedgerSummary.report_month.desc())
+        if summary_ok
+        else select(InventoryLedgerSummary.report_month).where(False)
     )
+    detail_q = select(InventoryLedgerDetail.report_month).where(*detail_where)
+    stmt = stmt.union(detail_q)
+    stmt = stmt.order_by(InventoryLedgerSummary.report_month.desc())
     return [r[0] for r in db.execute(stmt).all()]
 
 
 # ─── 9. get_trend ─────────────────────────────────────────────────────────────
 
 
-def get_trend(db: Session, project_id: int, months: int = 6) -> list[dict]:
+def get_trend(
+    db: Session,
+    project_id: int,
+    months: int = 6,
+    country: str | None = None,
+) -> list[dict]:
     """Multi-month aggregated trend: EOM qty, events, damaged pct per month."""
+    if not _project_country_matches(db, project_id, country):
+        return []
     from app.schemas.inventory_ledger import TrendMonthItem
 
-    available = get_available_months(db, project_id)
+    available = get_available_months(db, project_id, country)
     # Take the most recent N months
     target_months = available[:months]
 
@@ -788,9 +848,14 @@ def get_ledger_detail_rows(
     msku: str | None = None,
     fulfillment_center: str | None = None,
     event_type: str | None = None,
+    country: str | None = None,
     limit: int = 2000,
 ) -> list[LedgerDetailRow]:
-    """Event-level rows from the Detailed view, newest first."""
+    """Event-level rows from the Detailed view, newest first.
+
+    ``country`` 直接按 ``InventoryLedgerDetail.country`` 列行级过滤
+    （detail 表有 country 列）。
+    """
     filters = [
         InventoryLedgerDetail.project_id == project_id,
         InventoryLedgerDetail.date >= start,
@@ -802,6 +867,8 @@ def get_ledger_detail_rows(
         filters.append(InventoryLedgerDetail.fulfillment_center == fulfillment_center)
     if event_type:
         filters.append(InventoryLedgerDetail.event_type == event_type)
+    if country:
+        filters.append(InventoryLedgerDetail.country == country)
 
     stmt = (
         select(InventoryLedgerDetail)
@@ -850,6 +917,7 @@ def get_ledger_summary_rows(
     msku: str | None = None,
     location: str | None = None,
     disposition: str | None = None,
+    country: str | None = None,
     limit: int = 5000,
 ) -> list[LedgerSummaryRow]:
     """Daily water-level rows from the Summary view, newest first.
@@ -857,7 +925,10 @@ def get_ledger_summary_rows(
     Mirrors ``get_ledger_detail_rows``: same period contract, optional
     dimension filters, capped result. The Summary view is the truth source
     (1 row = 1 FNSKU × FC × Disposition × Date snapshot, sparse).
+    ``country`` 走 Project.country 门（summary 表无 country 列）。
     """
+    if not _project_country_matches(db, project_id, country):
+        return []
     filters = [
         InventoryLedgerSummary.project_id == project_id,
         InventoryLedgerSummary.date >= start,
@@ -913,9 +984,17 @@ def get_ledger_summary_rows(
 
 
 def list_ingest_batches(
-    db: Session, project_id: int, limit: int = 100
+    db: Session,
+    project_id: int,
+    limit: int = 100,
+    country: str | None = None,
 ) -> list[InventoryLedgerIngestBatch]:
-    """List recent ingest batches for a project, newest first."""
+    """List recent ingest batches for a project, newest first.
+
+    ``country`` 走 Project.country 门（批次表无 country 列）。
+    """
+    if not _project_country_matches(db, project_id, country):
+        return []
     stmt = (
         select(InventoryLedgerIngestBatch)
         .where(InventoryLedgerIngestBatch.project_id == project_id)
@@ -932,8 +1011,12 @@ def check_ledger_consistency(
     db: Session,
     project_id: int,
     report_month: date,
+    country: str | None = None,
 ) -> ConsistencyCheckResult:
     """Cross-table reconciliation for a full month.
+
+    ``country`` 走 Project.country 门（summary 表无 country 列；国家不符
+    直接 PENDING，避免跨站点真值表误报）。
 
     Method (matches the 4 rounds of manual reconciliation that hit 0 mismatch
     on real data): per (msku, location, disposition) —
@@ -944,6 +1027,16 @@ def check_ledger_consistency(
     one view is skipped (Amazon writes sparse ledgers — a transfer row may
     exist in detail but not in summary for that date, etc.).
     """
+    if not _project_country_matches(db, project_id, country):
+        return ConsistencyCheckResult(
+            report_month=report_month,
+            country=country,
+            status="PENDING",
+            mismatch_count=0,
+            mismatches=[],
+            checked_at=datetime.now(timezone.utc),
+        )
+
     last_day = calendar.monthrange(report_month.year, report_month.month)[1]
     month_end = date(report_month.year, report_month.month, last_day)
 
@@ -973,6 +1066,7 @@ def check_ledger_consistency(
     if not summary_exists and not detail_exists:
         return ConsistencyCheckResult(
             report_month=report_month,
+            country=country,
             status="PENDING",
             mismatch_count=0,
             mismatches=[],
@@ -1085,6 +1179,7 @@ def check_ledger_consistency(
 
     return ConsistencyCheckResult(
         report_month=report_month,
+        country=country,
         status="MISMATCH" if mismatches else "OK",
         mismatch_count=len(mismatches),
         mismatches=mismatches,

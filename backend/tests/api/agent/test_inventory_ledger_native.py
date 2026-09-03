@@ -227,6 +227,47 @@ def test_inventory_ledger_integrity_partial_period_400(client, ledger_env):
 
 
 # ---------------------------------------------------------------------------
+# 4. country 参数（BLF-957）：归一化校验 / 响应回传 / summary 门
+# ---------------------------------------------------------------------------
+
+
+def test_inventory_ledger_invalid_country_400(client, ledger_env):
+    """非法 country → 400 VALIDATION_FAILED 壳（parse_country 契约）。"""
+    pid = ledger_env["project_id"]
+    resp = client.get(
+        f"/api/v1/agent/projects/{pid}/inventory-ledger/months?country=XX",
+        headers=ledger_env["headers"],
+    )
+    assert resp.status_code == 400
+    assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_inventory_ledger_months_country_echo_normalized(client, ledger_env):
+    """country=us（小写）→ 归一化 US 且响应回传 normalized country。"""
+    pid = ledger_env["project_id"]
+    resp = client.get(
+        f"/api/v1/agent/projects/{pid}/inventory-ledger/months?country=us",
+        headers=ledger_env["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["country"] == "US"
+    assert resp.json()["data"]["months"] == []
+
+
+def test_inventory_ledger_country_omitted_no_filter_backward_compat(
+    client, ledger_env
+):
+    """不传 country → 响应 country=None，行为与 BLF-582 一致（不过滤）。"""
+    pid = ledger_env["project_id"]
+    resp = client.get(
+        f"/api/v1/agent/projects/{pid}/inventory-ledger/months",
+        headers=ledger_env["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["country"] is None
+
+
+# ---------------------------------------------------------------------------
 # 3. 路由面 / 镜像排除（模板断言）
 # ---------------------------------------------------------------------------
 

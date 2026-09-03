@@ -34,16 +34,22 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 | # | 方法 | 路径 | 用途 |
 |---|---|---|---|
-| 1 | GET | `/months` | 有台账数据的月份列表（YYYY-MM-DD，每月 1 号） |
-| 2 | GET | `/snapshot?period=` | 月度快照：SKU EOM + 处置汇总 + 完整性 |
-| 3 | GET | `/events?period=` | SKU 事件流：周期内每 SKU 各事件列合计 |
-| 4 | GET | `/receipt-clusters?period=` | 收货簇：按（日期 × 仓库）归组收货 |
-| 5 | GET | `/integrity?period=` | 跨月完整性校验（**必须整月**） |
-| 6 | GET | `/trend?months=N` | 多月趋势（默认 6，最大 24） |
-| 7 | GET | `/detail?period=&msku=&fulfillment_center=&event_type=` | 事件级明细行（Detailed 视图） |
-| 8 | GET | `/summary?period=&msku=&location=&disposition=` | 日水位行（Summary 视图） |
-| 9 | GET | `/batches?limit=` | CSV 导入批次溯源（limit 默认 100，≤500） |
-| 10 | GET | `/consistency?period=` | 跨表一致性校验 Detail vs Summary（**必须整月**） |
+| 1 | GET | `/months?country=` | 有台账数据的月份列表（YYYY-MM-DD，每月 1 号） |
+| 2 | GET | `/snapshot?period=&country=` | 月度快照：SKU EOM + 处置汇总 + 完整性 |
+| 3 | GET | `/events?period=&country=` | SKU 事件流：周期内每 SKU 各事件列合计 |
+| 4 | GET | `/receipt-clusters?period=&country=` | 收货簇：按（日期 × 仓库）归组收货 |
+| 5 | GET | `/integrity?period=&country=` | 跨月完整性校验（**必须整月**） |
+| 6 | GET | `/trend?months=N&country=` | 多月趋势（默认 6，最大 24） |
+| 7 | GET | `/detail?period=&msku=&fulfillment_center=&event_type=&country=` | 事件级明细行（Detailed 视图） |
+| 8 | GET | `/summary?period=&msku=&location=&disposition=&country=` | 日水位行（Summary 视图） |
+| 9 | GET | `/batches?limit=&country=` | CSV 导入批次溯源（limit 默认 100，≤500） |
+| 10 | GET | `/consistency?period=&country=` | 跨表一致性校验 Detail vs Summary（**必须整月**） |
+
+> **`?country=` 约定（BLF-957）**：全部 10 条路由支持可选 `?country=`
+> （`US`/`DE`/`UK`，大小写不敏感，自动归一化）。传了则按站点国家过滤；
+> 缺省不过滤（向后兼容）。非法值 → 400 `VALIDATION_FAILED`。Summary 视图
+> 无 country 列，按项目站点（`Project.country`，BLF-952）校验；Detailed 视图
+> 按行级 `country` 列过滤。响应回传归一化后的 `country` 字段。
 
 ## 3. `?period=` 语法（唯一输入约定）
 
@@ -62,25 +68,25 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 ```bash
 # 对账上月（最常用）：EOM + 完整性 + 处置分布
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/snapshot?period=last_month" "${AUTH[@]}" \
-  | jq '{report_month, sku_count, total_qty, integrity: .integrity.status, disposition_summary}'
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/snapshot?period=last_month&country=US" "${AUTH[@]}" \
+  | jq '{report_month, country, sku_count, total_qty, integrity: .integrity.status, disposition_summary}'
 
 # 指定月事件（top 收货 SKU）
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=2026-01" "${AUTH[@]}" \
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=2026-01&country=US" "${AUTH[@]}" \
   | jq '.skus | sort_by(-.total_receipts) | .[0:10]'
 
 # 近 30 天（无完整性校验）
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=30d" "${AUTH[@]}"
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=30d&country=US" "${AUTH[@]}"
 
 # 自定义区间
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=custom&start_date=2026-01-01&end_date=2026-03-31" "${AUTH[@]}"
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/events?period=custom&start_date=2026-01-01&end_date=2026-03-31&country=US" "${AUTH[@]}"
 
 # 先发现可用月份，再逐月对账
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/months" "${AUTH[@]}"
-# → {"project_id":1,"months":["2026-06-01","2026-05-01",...]}
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/months?country=US" "${AUTH[@]}"
+# → {"project_id":1,"country":"US","months":["2026-06-01","2026-05-01",...]}
 
 # 6 个月趋势（含 damaged_pct，>5% 标记风险）
-curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/trend?months=6" "${AUTH[@]}" \
+curl -s "$BASE/projects/$PROJECT_ID/inventory-ledger/trend?months=6&country=US" "${AUTH[@]}" \
   | jq '.months[] | {report_month, total_qty_eom, damaged_pct}'
 ```
 
