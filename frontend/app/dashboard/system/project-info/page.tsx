@@ -62,6 +62,7 @@ import {
 } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
+import { getCountryLabel } from '@/lib/country'
 
 type ProjectItem = {
   id: number
@@ -77,6 +78,8 @@ type ProjectItem = {
   source_file: string | null
   has_context: boolean
   project_tier: string | null
+  country: string
+  country_name: string | null
 }
 
 type CommissionBasisOption = {
@@ -105,6 +108,11 @@ const TIER_OPTIONS = [
 ]
 
 const TIER_LABEL: Record<string, string> = { T1: 'T1', T2: 'T2', T3: 'T3', T4: 'T4' }
+
+const PROJECT_COUNTRY_OPTIONS = ['US', 'DE', 'UK'].map((code) => ({
+  value: code,
+  label: `${getCountryLabel(code)} (${code})`,
+}))
 
 const TIER_BADGE_CLASS: Record<string, string> = {
   T1: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
@@ -278,6 +286,7 @@ export default function StoreInfoPage() {
   const [addCommissionMode, setAddCommissionMode] = useState('')
   const [addCommissionRate, setAddCommissionRate] = useState('')
   const [addProjectTier, setAddProjectTier] = useState('')
+  const [addCountry, setAddCountry] = useState('US')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
@@ -290,6 +299,7 @@ export default function StoreInfoPage() {
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
   const [editProjectTier, setEditProjectTier] = useState('')
+  const [editCountry, setEditCountry] = useState('US')
 
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false)
   const [contextProjectId, setContextProjectId] = useState<number | null>(null)
@@ -415,6 +425,7 @@ export default function StoreInfoPage() {
               ? parseFloat(addCommissionRate)
               : null,
           project_tier: addProjectTier || null,
+          country: addCountry,
         }),
       })
       if (!response.ok) {
@@ -428,6 +439,7 @@ export default function StoreInfoPage() {
       setAddCommissionMode('')
       setAddCommissionRate('')
       setAddProjectTier('')
+      setAddCountry('US')
       setAddDialogOpen(false)
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已新增', message: normalizedName })
@@ -456,6 +468,7 @@ export default function StoreInfoPage() {
     setEditCommissionRate(points?.toString() ?? '')
     setEditIsActive(item.is_active)
     setEditProjectTier(item.project_tier ?? '')
+    setEditCountry(item.country ?? 'US')
     setEditDialogOpen(true)
   }
 
@@ -493,6 +506,7 @@ export default function StoreInfoPage() {
               : null,
           is_active: editIsActive,
           project_tier: editProjectTier || null,
+          country: editCountry,
         }),
       })
       if (!response.ok) {
@@ -507,6 +521,7 @@ export default function StoreInfoPage() {
       setEditCommissionMode('')
       setEditCommissionRate('')
       setEditProjectTier('')
+      setEditCountry('US')
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已更新', message: normalizedName })
       await loadProjects()
@@ -758,6 +773,24 @@ export default function StoreInfoPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <label
+                        htmlFor="project-add-country"
+                        className="text-sm font-medium text-foreground"
+                      >
+                        站点
+                      </label>
+                      <Select value={addCountry} onValueChange={setAddCountry} disabled={submitting}>
+                        <SelectTrigger id="project-add-country">
+                          <SelectValue placeholder="选择站点" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROJECT_COUNTRY_OPTIONS.map((option) => (
+                            <SelectItem key={`country-add-${option.value}`} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <DialogFooter>
                       <Button
@@ -788,6 +821,7 @@ export default function StoreInfoPage() {
                       <TableRow className={STICKY_TOP_ROW}>
                         <TableHead className="w-[80px]">ID</TableHead>
                         <TableHead>项目名称</TableHead>
+                        <TableHead className="w-[110px]">站点</TableHead>
                         <TableHead>品牌名称</TableHead>
                         <TableHead>运营</TableHead>
                         <TableHead>助理运营</TableHead>
@@ -804,13 +838,13 @@ export default function StoreInfoPage() {
                       {showSkeleton ? (
                         Array.from({ length: 6 }).map((_, index) => (
                           <TableRow key={`skeleton-${index}`}>
-                            <TableCell colSpan={13} className="p-4">
+                            <TableCell colSpan={14} className="p-4">
                               <Skeleton className="h-6 w-full" />
                             </TableCell>
                           </TableRow>
                         ))
                       ) : items.length === 0 ? (
-                        <EmptyTableState colSpan={13} message="暂无项目数据，请先新增一个项目。" />
+                        <EmptyTableState colSpan={14} message="暂无项目数据，请先新增一个项目。" />
                       ) : (
                         items.map((item) => (
                           <TableRow key={item.id}>
@@ -828,6 +862,7 @@ export default function StoreInfoPage() {
                                 </span>
                               </div>
                             </TableCell>
+                            <TableCell>{item.country_name ?? getCountryLabel(item.country)}</TableCell>
                             <TableCell>{item.brand_name || '-'}</TableCell>
                             <TableCell className="whitespace-pre-wrap break-words">
                               {item.project_operator || '-'}
@@ -1109,6 +1144,21 @@ export default function StoreInfoPage() {
               <SelectContent>
                 {TIER_OPTIONS.map((option) => (
                   <SelectItem key={`tier-edit-${option.value}`} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label htmlFor="project-edit-country" className="text-sm font-medium text-foreground">
+              站点
+            </label>
+            <Select value={editCountry} onValueChange={setEditCountry} disabled={submitting}>
+              <SelectTrigger id="project-edit-country">
+                <SelectValue placeholder="选择站点" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROJECT_COUNTRY_OPTIONS.map((option) => (
+                  <SelectItem key={`country-edit-${option.value}`} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
