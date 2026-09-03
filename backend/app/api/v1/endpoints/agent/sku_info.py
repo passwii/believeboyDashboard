@@ -1,6 +1,6 @@
 """Agent SKU Info（商品主数据）域路由（BLF-579 S2 + BLF-628 W4；spec §4/§5）。
 
-在 ``/api/v1/agent/projects/{project_id}/sku-info/*`` 开放 7 条路由：
+在 ``/api/v1/agent/projects/{project_id}/sku-info/*`` 开放 8 条路由：
 
 * R1 列表 / R2 单 SKU 详情 / R3 审计 —— 读路由，不落审计；
 * W1 upsert（新建+更新同路由，confirm 两步：``sku_info.upsert``）+ 写桶限流
@@ -14,6 +14,8 @@
 * W4 FNSKU 标签 PDF 上传（BLF-628，multipart confirm：``sku_info.upload_fnsku_label``）
   ——表单字段 + 文件上传 R2，**不做 FNSKU 内容验证**（D10 用户拍板），
   multipart 兼容 confirm（D9 Option A：指纹绑定 source+filename+文件字节）。
+* W5 删除（confirm：``sku_info.delete``）——硬删除（crud ``delete_sku_record``），
+  不清理 R2 文件（fnsku-label / product-image，对齐内部删除语义）。
 
 所有路由统一挂 ``Depends(require_project_scope)``（BLF-441 硬前置）。
 写操作审计行 ``target_type="sku_info"``、``target_id=<row.id>``、
@@ -61,6 +63,7 @@ from app.services.data.sku_info import (
     list_sku_records,
     update_sku_record_by_id,
     upsert_sku_record,
+    delete_sku_record,
 )
 from app.services.data.sku_info.cache import invalidate_sku_financial_cache
 from app.utils.country import normalize_country
@@ -746,6 +749,89 @@ async def transition_sku_info_status(
         db.commit()
     return agent_ok(
         _serialize_sku_record(updated),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
+
+
+# ============================================================
+# W5 删除（confirm；不可逆硬删除；对齐内部 delete_sku_record 语义）
+# ============================================================
+
+
+def _validate_delete(body: dict, request: Request) -> None:
+    """W5 业务校验（先于 confirm 签发 token；短路不生成 token）。"""
+    _check_idempotency_header(request)
+    project_id = int(request.path_params["project_id"])
+    sku_record_id = int(request.path_params["sku_record_id"])
+
+    db = SessionLocal()
+    try:
+        _get_record_or_shell_404(db, project_id, sku_record_id)
+    finally:
+        db.close()
+
+
+def _preview_delete(body: dict, request: Request) -> dict:
+    """W5 confirm 预览摘要：待删 SKU 标识（sku/asin/country/is_active）。"""
+    project_id = int(request.path_params["project_id"])
+    sku_record_id = int(request.path_params["sku_record_id"])
+
+    db = SessionLocal()
+    try:
+        row = _get_record_or_shell_404(db, project_id, sku_record_id)
+    finally:
+        db.close()
+
+    return {
+        "action": "sku_info.delete",
+        "sku_record_id": sku_record_id,
+        "sku": str(row.sku),
+        "asin": str(row.asin),
+        "country": str(row.country),
+        "is_active": bool(row.is_active),
+        "note": "将永久删除该 SKU 成本记录（不可恢复），成本字段影响 PT4 财务汇总/"
+        "补货/报表，请确认",
+    }
+
+
+@sku_info_router.delete(
+    "/{sku_record_id}", dependencies=[Depends(require_agent_write_rate_limit)]
+)
+@require_confirmation(
+    action="sku_info.delete",
+    build_preview=_preview_delete,
+    validate=_validate_delete,
+)
+async def delete_sku_info(
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    _scope=Depends(require_project_scope),
+) -> dict:
+    """W5 删除：confirm 两步后硬删除（crud ``delete_sku_record``）+ 审计 + 缓存失效。
+
+    对齐内部 ``DELETE /sku-info/{sku_record_id}`` 语义：不清理 R2 文件
+    （fnsku-label / product-image）；记录不存在或不属于该项目 → agent shell 404。
+    """
+    project_id = int(request.path_params["project_id"])
+    sku_record_id = int(request.path_params["sku_record_id"])
+    with _service_errors():
+        _get_project_or_shell_404(db, project_id)
+        row = _get_record_or_shell_404(db, project_id, sku_record_id)
+        before = _serialize_sku_record(row)
+        delete_sku_record(db, sku_record_id)
+        append_operation_audit_log(
+            db,
+            action="sku_info.delete",
+            target_type="sku_info",
+            target_id=sku_record_id,
+            operator=None,
+            before=before,
+            **_audit_kwargs(request),
+        )
+        invalidate_sku_financial_cache(project_id)
+        db.commit()
+    return agent_ok(
+        {"deleted": True, "sku_record_id": sku_record_id},
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
 
