@@ -4,32 +4,29 @@ import React, { useRef, useEffect, useState, useMemo, useCallback, type FormEven
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { useLoginAnimations } from './use-login-animations'
-import LeftBrandPanel from './left-brand-panel'
-import RightFormPanel from './right-form-panel'
+import TerminalWindow from './terminal-window'
+import BootSequence from './boot-sequence'
+import TerminalFormPanel from './terminal-form-panel'
 
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
 
-interface SignInCardProps {
-  theme: 'light' | 'dark'
-}
-
-const SignInCard = ({ theme }: SignInCardProps) => {
-  const cardRef = useRef<HTMLDivElement>(null)
+/**
+ * Terminal 风格登录卡（BLF-965 重制）。
+ * 登录逻辑（next-auth credentials + 全局 navigation loading + 错误映射）
+ * 与旧版 sign-in-card 完全一致，仅表现层替换为终端窗口：
+ * 左列 boot 输出 + 右列命令式表单，窄屏自动上下堆叠。
+ */
+const SignInCard = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const loadingPendingRef = useRef(false)
-  const loadingWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
+  const loadingWatchdogRef = useRef<number | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = useMemo(() => searchParams.get('callbackUrl') || '/dashboard', [searchParams])
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
-
-  // GSAP entrance timeline
-  useLoginAnimations(cardRef)
 
   // Do not prefetch the callback route while the login page is still unauthenticated:
   // the request can be rewritten by middleware to the login page and poison the
@@ -40,7 +37,7 @@ const SignInCard = ({ theme }: SignInCardProps) => {
     if (!loadingPendingRef.current) return
     loadingPendingRef.current = false
     if (loadingWatchdogRef.current) {
-      clearTimeout(loadingWatchdogRef.current)
+      window.clearTimeout(loadingWatchdogRef.current)
       loadingWatchdogRef.current = null
     }
     endGlobalLoading('navigation')
@@ -50,7 +47,7 @@ const SignInCard = ({ theme }: SignInCardProps) => {
     if (loadingPendingRef.current) return
     loadingPendingRef.current = true
     startGlobalLoading('navigation')
-    loadingWatchdogRef.current = setTimeout(() => {
+    loadingWatchdogRef.current = window.setTimeout(() => {
       finishNavigationLoading()
     }, SIGNIN_LOADING_WATCHDOG_MS)
   }, [finishNavigationLoading, startGlobalLoading])
@@ -119,22 +116,41 @@ const SignInCard = ({ theme }: SignInCardProps) => {
 
   return (
     <div className="flex h-full w-full items-center justify-center sm:px-2 md:px-4 lg:px-0">
-      <div
-        ref={cardRef}
-        className="login-card flex w-full max-w-[min(92vw,56rem)] overflow-hidden rounded-none bg-white shadow-none sm:rounded-2xl sm:shadow-xl dark:bg-[hsl(var(--card))]"
-        style={{ perspective: '1000px' }}
-      >
-        <LeftBrandPanel theme={theme} />
-        <RightFormPanel
-          email={email}
-          setEmail={setEmail}
-          password={password}
-          setPassword={setPassword}
-          submitting={submitting}
-          error={error}
-          onSubmit={handleSignIn}
-        />
-      </div>
+      <TerminalWindow>
+        <div className="grid bg-white dark:bg-[#2d2d30] md:grid-cols-[1fr_1.2fr]">
+          {/* 左：品牌 + boot 输出（窄屏隐藏 boot，保留品牌行） */}
+          <div className="border-b border-neutral-200 p-6 dark:border-white/10 md:border-b-0 md:border-r">
+            <p className="font-mono text-xs tracking-widest text-neutral-400 uppercase dark:text-neutral-500">
+              believeboy // 跨境增长终端
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-neutral-900 dark:text-neutral-50">
+              彼励扶跨境
+            </h1>
+            <p className="mt-1 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+              为跨境销售与全球推广团队提供高效、可执行的品牌增长支持
+            </p>
+            <div className="mt-6 hidden md:block">
+              <BootSequence />
+            </div>
+          </div>
+
+          {/* 右：命令式表单 */}
+          <div className="p-6 md:p-7">
+            <TerminalFormPanel
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              submitting={submitting}
+              error={error}
+              onSubmit={handleSignIn}
+            />
+            <p className="mt-5 border-t border-dashed border-neutral-200 pt-3 text-center font-mono text-[11px] text-neutral-400 dark:border-white/10 dark:text-neutral-500">
+              品牌跨境，连接全球
+            </p>
+          </div>
+        </div>
+      </TerminalWindow>
     </div>
   )
 }
