@@ -15,8 +15,8 @@ interface TerminalFormPanelProps {
 
 /**
  * 终端命令式登录表单（BLF-965）：
- * `$ beliveboy login --email ▍` 提示行 + 带前缀图标的输入框，
- * `$` 回显提交按钮，错误以 `✗ error[Exxxx]` 行内输出。
+ * 中文标签 + mono 命令注释行 + 带前缀图标的输入框，
+ * 提交按钮中文为主（`登录`），命令以注释形式点缀；错误以 `✗` 行内输出。
  * id 保持 email / password 不变，保证浏览器密码管理器与测试选择器兼容。
  */
 const TerminalFormPanel = ({
@@ -31,73 +31,80 @@ const TerminalFormPanel = ({
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
 
   const inputClass =
-    'w-full rounded-md border border-neutral-300 bg-neutral-50 py-2.5 pl-9 pr-10 font-mono text-sm text-neutral-800 caret-emerald-600 placeholder:font-sans placeholder:text-neutral-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-[#1e1e21] dark:text-neutral-100 dark:caret-emerald-400 dark:placeholder:text-neutral-500 dark:focus:border-emerald-500/60'
+    'w-full rounded-md border border-term-border-strong bg-term-bg py-2.5 pl-9 pr-10 text-sm text-term-text caret-term-pos placeholder:text-term-faint focus:border-term-pos focus:outline-none focus:ring-2 focus:ring-term-pos/25 disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
-    <div className="font-mono text-sm">
-      <p className="mb-2 text-[13px] text-neutral-500 dark:text-neutral-400">
-        <span className="text-emerald-600 dark:text-emerald-400">$</span> believeboy login --email{' '}
-        <span aria-hidden="true" className="animate-cursor-blink ml-0.5 inline-block h-3.5 w-[7px] translate-y-[3px] bg-emerald-600 dark:bg-emerald-400" />
+    <div className="text-sm">
+      <p className="mb-4 text-[13px] text-term-muted">
+        <span className="font-mono text-term-pos" aria-hidden="true">
+          $
+        </span>{' '}
+        登录到彼励扶终端{' '}
+        <span className="font-mono text-[12px] text-term-faint"># believeboy login</span>
       </p>
       <form onSubmit={onSubmit} noValidate={false}>
-        {/* email */}
-        <div className="relative mb-3">
-          <label htmlFor="email" className="sr-only">
+        {/* 邮箱 */}
+        <div className="mb-3">
+          <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-term-text">
             企业邮箱
           </label>
-          <Mail
-            size={15}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500"
-          />
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@company.com"
-            required
-            autoComplete="email"
-            disabled={submitting}
-            className={inputClass}
-          />
+          <div className="relative">
+            <Mail
+              size={15}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-term-faint"
+            />
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              required
+              autoComplete="email"
+              disabled={submitting}
+              className={`${inputClass} font-mono`}
+            />
+          </div>
         </div>
 
-        {/* password */}
-        <div className="relative mb-1">
-          <label htmlFor="password" className="sr-only">
+        {/* 密码 */}
+        <div className="mb-1">
+          <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-term-text">
             登录密码
           </label>
-          <Lock
-            size={15}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500"
-          />
-          <input
-            id="password"
-            type={isPasswordVisible ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            autoComplete="current-password"
-            disabled={submitting}
-            className={inputClass}
-          />
-          <button
-            type="button"
-            onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-            aria-label={isPasswordVisible ? '隐藏密码' : '显示密码'}
-            className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
-          >
-            {isPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
+          <div className="relative">
+            <Lock
+              size={15}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-term-faint"
+            />
+            <input
+              id="password"
+              type={isPasswordVisible ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="请输入登录密码"
+              required
+              autoComplete="current-password"
+              disabled={submitting}
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+              aria-label={isPasswordVisible ? '隐藏密码' : '显示密码'}
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-term-faint hover:text-term-text"
+            >
+              {isPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
         </div>
 
         {/* 错误输出行：保留空间避免布局抖动 */}
         <div aria-live="polite" className="min-h-[1.75rem] py-1">
           {error && (
-            <p className="animate-fade-slide-up text-[13px] text-red-600 dark:text-red-400">
+            <p className="animate-fade-slide-up text-[13px] text-term-neg">
               <span aria-hidden="true">✗ </span>
               {error}
             </p>
@@ -107,18 +114,21 @@ const TerminalFormPanel = ({
         <button
           type="submit"
           disabled={submitting}
-          className="mt-1 flex min-h-touch w-full items-center justify-center gap-2 rounded-md bg-emerald-600 py-2.5 font-mono text-sm font-medium text-white transition-colors hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:focus-visible:ring-offset-[#2d2d30]"
+          className="mt-1 flex min-h-touch w-full items-center justify-center gap-2 rounded-md bg-term-pos py-2.5 text-sm font-medium text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-pos focus-visible:ring-offset-2 focus-visible:ring-offset-term-panel disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
             <>
               <span aria-hidden="true" className="inline-block animate-spin">
                 ⠋
               </span>
-              authenticating…
+              登录中…
             </>
           ) : (
             <>
-              <span aria-hidden="true">$</span> auth --submit
+              登录
+              <span aria-hidden="true" className="font-mono text-xs opacity-70">
+                $ auth
+              </span>
             </>
           )}
         </button>

@@ -117,16 +117,14 @@ const SignInCard = () => {
   return (
     <div className="flex h-full w-full items-center justify-center sm:px-2 md:px-4 lg:px-0">
       <TerminalWindow>
-        <div className="grid bg-white dark:bg-[#2d2d30] md:grid-cols-[1fr_1.2fr]">
+        <div className="grid bg-term-panel md:grid-cols-[1fr_1.2fr]">
           {/* 左：品牌 + boot 输出（窄屏隐藏 boot，保留品牌行） */}
-          <div className="border-b border-neutral-200 p-6 dark:border-white/10 md:border-b-0 md:border-r">
-            <p className="font-mono text-xs tracking-widest text-neutral-400 uppercase dark:text-neutral-500">
-              believeboy // 跨境增长终端
+          <div className="border-b border-term-border p-6 md:border-b-0 md:border-r">
+            <p className="font-mono text-xs tracking-widest text-term-faint uppercase">
+              believeboy · 跨境增长终端
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-neutral-900 dark:text-neutral-50">
-              彼励扶跨境
-            </h1>
-            <p className="mt-1 max-w-xs text-sm text-neutral-500 dark:text-neutral-400">
+            <h1 className="mt-2 text-2xl font-bold text-term-text">彼励扶跨境</h1>
+            <p className="mt-1 max-w-xs text-sm text-term-muted">
               为跨境销售与全球推广团队提供高效、可执行的品牌增长支持
             </p>
             <div className="mt-6 hidden md:block">
@@ -145,8 +143,8 @@ const SignInCard = () => {
               error={error}
               onSubmit={handleSignIn}
             />
-            <p className="mt-5 border-t border-dashed border-neutral-200 pt-3 text-center font-mono text-[11px] text-neutral-400 dark:border-white/10 dark:text-neutral-500">
-              品牌跨境，连接全球
+            <p className="mt-5 border-t border-dashed border-term-border pt-3 text-center font-mono text-[11px] text-term-faint">
+              品牌跨境 · 连接全球
             </p>
           </div>
         </div>
