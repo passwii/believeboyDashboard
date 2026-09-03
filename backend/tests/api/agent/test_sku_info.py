@@ -128,6 +128,16 @@ def _post_status(client, env, sku_record_id, body, *, token=None, idem=None):
         headers=_headers(env, token=token, idem=idem),
     )
 
+def _delete_sku(
+    client, env, sku_record_id, *, token=None, idem=None, project_id=None
+):
+    """DELETE /projects/{project_id}/sku-info/{sku_record_id}（confirm 两步）。"""
+    pid = project_id if project_id is not None else env["project_id"]
+    return client.delete(
+        f"/api/v1/agent/projects/{pid}/sku-info/{sku_record_id}",
+        headers=_headers(env, token=token, idem=idem),
+    )
+
 
 def _seed_sku(
     project_id: int,
@@ -1442,3 +1452,206 @@ class TestW4UploadFnskuLabel:
         assert replay.status_code == 500
         assert replay.json()["error"]["code"] == "INTERNAL_ERROR"
         up.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# W5 删除（confirm 两步；不可逆硬删除）
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteSkuRecord:
+    """W5 删除：confirm 两步 + 硬删除 + 审计归因 + 缓存失效。
+
+    对齐内部删除语义：不存在/跨项目 → agent shell 404（不泄漏存在性）；
+    预览不落库；删除后 R2 详情 404；审计 before 记录删除前快照。
+    """
+
+    def _run(self, client, env, sku_record_id, *, idem=None):
+        idem = idem or f"idem-{uuid.uuid4().hex[:12]}"
+        p = _delete_sku(client, env, sku_record_id, idem=idem)
+        assert p.status_code == 200, p.text
+        r = _delete_sku(
+            client, env, sku_record_id, token=p.json()["confirm_token"], idem=idem
+        )
+        return r
+
+    def test_preview_then_replay_deletes_and_audits(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-DEL",
+            fob_unit_cost=12.5,
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        # 第一次：预览壳（HTTP 200 + ok:false + requires_confirmation，不落库）
+        preview = _delete_sku(client, shipment_env, sku_id, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["ok"] is False
+        assert pbody["requires_confirmation"] is True
+        assert pbody["confirm_token"].startswith("cf_")
+        assert pbody["preview"]["action"] == "sku_info.delete"
+        assert pbody["preview"]["sku_record_id"] == sku_id
+        assert pbody["preview"]["sku"] == "X-DEL"
+        assert pbody["preview"]["country"] == "US"
+        assert "永久删除" in pbody["preview"]["note"]
+
+        # 预览不落库：R2 详情仍在
+        detail = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            headers=shipment_env["headers"],
+        )
+        assert detail.status_code == 200, detail.text
+
+        # 第二次：重放删除
+        replay = _delete_sku(
+            client, shipment_env, sku_id, token=pbody["confirm_token"], idem=idem
+        )
+        assert replay.status_code == 200, replay.text
+        rbody = replay.json()
+        assert rbody["ok"] is True
+        assert rbody["data"] == {"deleted": True, "sku_record_id": sku_id}
+        assert rbody["idempotency_key"] == idem
+
+        # 已删：R2 详情 404、R1 列表不含该记录
+        detail = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            headers=shipment_env["headers"],
+        )
+        assert detail.status_code == 404
+        listing = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info"
+            "?is_active=false&page_size=500",
+            headers=shipment_env["headers"],
+        )
+        assert listing.status_code == 200
+        assert sku_id not in {item["id"] for item in listing.json()["data"]["items"]}
+
+        db = SessionLocal()
+        try:
+            assert db.get(SkuRecord, sku_id) is None, "硬删除：行已不存在"
+        finally:
+            db.close()
+
+        # 审计行：agent 归因 + before 快照
+        rows = query_operation_audit_log(
+            SessionLocal(),
+            target_type="sku_info",
+            target_id=str(sku_id),
+        )
+        assert len(rows) == 1
+        audit = rows[0]
+        assert audit.action == "sku_info.delete"
+        assert audit.agent_id == shipment_env["agent_id"]
+        assert audit.idempotency_key == idem
+        assert audit.operator is None
+        assert audit.before_json["sku"] == "X-DEL"
+        assert audit.before_json["fob_unit_cost"] == 12.5
+        assert audit.after_json is None
+
+    def test_unknown_record_404_no_token_issued(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        resp = _delete_sku(client, shipment_env, 999999)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+        assert get_confirm_store()._rows == {}, "校验先于 confirm：未签发 token"
+
+    def test_cross_project_404(self, client, shipment_env, make_api_key):
+        """另一项目的 SKU 对本项目 404（不泄漏存在性）。"""
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-XP",
+        )
+        resp = _delete_sku(client, shipment_env, sku_id, project_id=99999999)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+        db = SessionLocal()
+        try:
+            assert db.get(SkuRecord, sku_id) is not None, "跨项目 404：未误删"
+        finally:
+            db.close()
+
+    def test_invalid_token_replay(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-INV",
+        )
+        resp = _delete_sku(client, shipment_env, sku_id, token="cf_bogus")
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+
+        db = SessionLocal()
+        try:
+            assert db.get(SkuRecord, sku_id) is not None, "无效 token：未删除"
+        finally:
+            db.close()
+
+    def test_expired_token_replay(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-EXP",
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _delete_sku(client, shipment_env, sku_id, idem=idem)
+        token = preview.json()["confirm_token"]
+
+        # 模拟逻辑过期（TTL 300s）：直接回拨 created_at
+        confirm_memory_store._rows[token]["record"].created_at -= 301
+
+        replay = _delete_sku(client, shipment_env, sku_id, token=token, idem=idem)
+        assert replay.status_code == 409
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_EXPIRED"
+
+        db = SessionLocal()
+        try:
+            assert db.get(SkuRecord, sku_id) is not None, "过期 token：未删除"
+        finally:
+            db.close()
+
+    def test_cache_invalidated_after_delete(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        from app.api.v1.endpoints.agent import sku_info as sku_info_module
+
+        calls: list[int] = []
+
+        def _fake(project_id: int):
+            calls.append(project_id)
+
+        monkeypatch.setattr(sku_info_module, "invalidate_sku_financial_cache", _fake)
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-CDEL",
+        )
+        resp = self._run(client, shipment_env, sku_id)
+        assert resp.status_code == 200
+        assert calls == [shipment_env["project_id"]]
+
+    def test_business_scope_without_sku_info_403(
+        self, client, shipment_env, make_api_key
+    ):
+        key = make_api_key(agent_id="no-del", business_scope="shop_calculations")
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": "no-del",
+        }
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-SCOPEDEL",
+        )
+        resp = client.delete(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            headers={**headers, "Idempotency-Key": f"idem-{uuid.uuid4().hex[:12]}"},
+        )
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
