@@ -58,6 +58,7 @@ function changeColorClassAcoas(changePct: number | null): string {
  * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 报表上传完成度 · 数据新鲜度
  * · 告警事件 · 库存预警 · 数据更新时间 · 更新日志摘要） · 同步引擎状态 · 未读通知 · 在线人数 · 双时区时钟。
  * 各段以 1px 竖分隔线切分；移动端隐藏（<sm）。
+ * 手动 scrub（BLF-966）：ticker 上滚轮上滑反向回看，Shift+滚轮双向 scrub；松手后自动滚动从当前位置继续。
  */
 export function TerminalFooter() {
   const { ticks, status, lastSuccessAt } = useExchangeRateTicker()
@@ -360,6 +361,35 @@ export function TerminalFooter() {
     }
   }, [channels])
 
+  // 手动 scrub（BLF-966）：ticker 视口上的滚轮回看。
+  //  - 普通滚轮：仅反向（上滑，动画 currentTime 回退，看刚滑过的内容）；正向增量直接忽略，交给自动滚动。
+  //  - Shift+滚轮：双向 scrub，可向前预览未播到的内容。
+  // 实现直接搬动 CSS marquee 动画的 currentTime：无额外 transform、循环无缝、松手即从当前位置继续自动播。
+  // reduced-motion / 内容欠宽（静态态）下无运行动画，滚轮不做任何事。
+  React.useEffect(() => {
+    const viewport = viewportRef.current
+    const track = trackRef.current
+    if (!viewport || !track) return
+    const onWheel = (e: WheelEvent) => {
+      if (typeof track.getAnimations !== 'function') return
+      const anim = track.getAnimations()[0]
+      if (!anim || anim.currentTime == null) return
+      const unit = e.deltaMode === 1 ? 16 : 1
+      const raw = (e.deltaY || e.deltaX) * unit
+      if (raw === 0) return
+      const { pxPerDelta, shiftMultiplier } = TERMINAL_TICKER.manualScrub
+      const shiftMs =
+        ((raw * pxPerDelta * (e.shiftKey ? shiftMultiplier : 1)) /
+          TERMINAL_TICKER.scrollSpeedPxPerSecond) *
+        1000
+      // 普通滚轮只允许反向（回看）；正向放行（不 preventDefault），由自动滚动负责
+      if (!e.shiftKey && shiftMs > 0) return
+      e.preventDefault()
+      anim.currentTime = Number(anim.currentTime) + shiftMs
+    }
+    viewport.addEventListener('wheel', onWheel, { passive: false })
+    return () => viewport.removeEventListener('wheel', onWheel)
+  }, [channels])
   return (
     <footer
       style={{ height: TERMINAL_FOOTER_HEIGHT }}
@@ -370,6 +400,8 @@ export function TerminalFooter() {
       <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
         <div
           ref={viewportRef}
+          data-testid="terminal-ticker-viewport"
+          title="滚轮上滑回看 · Shift+滚轮手动滚动"
           className="relative min-w-0 flex-1 overflow-hidden"
           aria-label="多频道信息流"
         >
