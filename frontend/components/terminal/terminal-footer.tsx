@@ -47,6 +47,12 @@ function changeColorClass(changePct: number | null): string {
   return changePct > 0 ? 'text-term-pos' : 'text-term-neg'
 }
 
+/** ACOAS 反向着色：▲红（花得更多=差）/ ▼绿（花得少=好）/ 持平灰 */
+function changeColorClassAcoas(changePct: number | null): string {
+  if (changePct == null || changePct === 0) return 'text-term-faint'
+  return changePct > 0 ? 'text-term-neg' : 'text-term-pos'
+}
+
 /**
  * Global Footer 系统状态栏（固定 36px，BLF-887 高度上档 2026-08-29）：
  * 多频道滚动 Ticker（汇率全币种+环比 · 全局快报 GMV/订单/Pending · 报表上传完成度 · 数据新鲜度
@@ -150,6 +156,19 @@ export function TerminalFooter() {
           {briefReady && value != null ? value : '--'}
         </span>
       )
+      /** ACOAS 环比：百分点差值 + 反向着色（▲红 ▼绿），单位 pp */
+      const renderChangeAcoas = (delta: number | null) => {
+        if (!briefReady) return <span className="font-mono tabular-nums text-term-faint">--</span>
+        if (delta == null || delta === 0) {
+          return <span className={cn('ml-1 font-mono tabular-nums', changeColorClassAcoas(delta))}>—</span>
+        }
+        const arrow = delta > 0 ? '▲' : '▼'
+        return (
+          <span className={cn('ml-1 font-mono tabular-nums', changeColorClassAcoas(delta))}>
+            {arrow}{Math.abs(delta).toFixed(1)}pp
+          </span>
+        )
+      }
       items.push(
         <span key={`brief-${key++}`} className="flex shrink-0 items-center">
           <span className="mr-1 font-semibold uppercase tracking-wider text-term-faint">快报</span>
@@ -171,6 +190,11 @@ export function TerminalFooter() {
           <span className="ml-3 text-term-faint">广告单</span>
           {renderValue(brief.adOrders)}
           {renderChange(brief.adOrdersDelta)}
+          <span className="ml-3 text-term-faint">ACOAS</span>
+          <span className={cn('ml-1 font-mono tabular-nums', !briefReady && 'text-term-faint')}>
+            {briefReady && brief.acoas != null ? `${brief.acoas.toFixed(1)}%` : '--'}
+          </span>
+          {renderChangeAcoas(brief.acoasDelta)}
         </span>
       )
     }

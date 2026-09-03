@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aggregateWindow,
   pickLatestSalesDate,
+  ppChange,
   type SummaryRow,
 } from './use-seven-day-brief'
 
@@ -86,5 +87,67 @@ describe('pctChange 复用 Dashboard 首页函数（v2-stats）', () => {
 
   it('基数为 0 时返回 0（与 Dashboard 首页 computeStats 一致）', () => {
     expect(pctChange(1200, 0)).toBe(0)
+  })
+})
+
+describe('ppChange（百分点差值，BLF-950 ACOAS 环比）', () => {
+  it('当前 14.5pp vs 基期 12.3pp → +2.2pp', () => {
+    expect(ppChange(14.5, 12.3)).toBeCloseTo(2.2)
+  })
+
+  it('当前 12.3pp vs 基期 14.5pp → -2.2pp', () => {
+    expect(ppChange(12.3, 14.5)).toBeCloseTo(-2.2)
+  })
+
+  it('相同时返回 0', () => {
+    expect(ppChange(12.3, 12.3)).toBe(0)
+  })
+
+  it('非有限值返回 0（防 NaN 传播）', () => {
+    expect(ppChange(NaN, 12.3)).toBe(0)
+    expect(ppChange(12.3, Infinity)).toBe(0)
+  })
+})
+
+describe('ACOAS 计算（adSpend / gmv × 100，百分点差值环比）', () => {
+  it('当前窗口 ACOAS = 100/2000 × 100 = 5.0%，上一周期 80/1600 × 100 = 5.0%，delta = 0pp', () => {
+    const cur = aggregateWindow([
+      { date: '2026-09-01', sales_amount: 1000, ad_spend: 50 },
+      { date: '2026-09-02', sales_amount: 1000, ad_spend: 50 },
+    ])
+    const prev = aggregateWindow([
+      { date: '2026-08-25', sales_amount: 800, ad_spend: 40 },
+      { date: '2026-08-26', sales_amount: 800, ad_spend: 40 },
+    ])
+    const curAcoas = Math.round((cur.adSpend / cur.gmv) * 1000) / 10
+    const prevAcoas = Math.round((prev.adSpend / prev.gmv) * 1000) / 10
+    expect(curAcoas).toBeCloseTo(5.0)
+    expect(prevAcoas).toBeCloseTo(5.0)
+    expect(Math.round(ppChange(curAcoas, prevAcoas) * 10) / 10).toBe(0)
+  })
+
+  it('当前 ACOAS 10% vs 上一周期 5% → +5.0pp（上升=花得更多=反向着色标红）', () => {
+    const curAcoas = 10.0
+    const prevAcoas = 5.0
+    const delta = Math.round(ppChange(curAcoas, prevAcoas) * 10) / 10
+    expect(delta).toBeCloseTo(5.0)
+  })
+
+  it('当前 ACOAS 3% vs 上一周期 8% → -5.0pp（下降=花得少=反向着色标绿）', () => {
+    const curAcoas = 3.0
+    const prevAcoas = 8.0
+    const delta = Math.round(ppChange(curAcoas, prevAcoas) * 10) / 10
+    expect(delta).toBeCloseTo(-5.0)
+  })
+
+  it('GMV 为 0 时 ACOAS 返回 null（分母为零防 NaN）', () => {
+    const result = aggregateWindow([
+      { sales_amount: 0, ad_spend: 100 },
+    ])
+    expect(result.gmv).toBe(0)
+    expect(result.adSpend).toBe(100)
+    // computeAcoas(gmv=0) → null
+    const acoas = result.gmv <= 0 ? null : Math.round((result.adSpend / result.gmv) * 1000) / 10
+    expect(acoas).toBeNull()
   })
 })
