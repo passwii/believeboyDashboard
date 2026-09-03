@@ -520,3 +520,73 @@ describe('TerminalFooter BLF-922 Stage 3：告警事件频道 + 在线人数', (
     }
   })
 })
+
+describe('TerminalFooter BLF-966：ticker 手动 scrub', () => {
+  /** jsdom 无 Web Animations：给 ticker track 挂一个可控动画桩 */
+  function stubTickerAnimation(currentTime = 1000) {
+    const anim = { currentTime }
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        return this?.dataset?.testid === 'terminal-ticker-track' ? [anim] : []
+      },
+    })
+    return anim
+  }
+
+  function removeTickerAnimationStub() {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    delete proto['getAnimations']
+  }
+
+  function wheelOnViewport(opts: { deltaY: number; shiftKey?: boolean }) {
+    const viewport = screen.getByTestId('terminal-ticker-viewport')
+    const ev = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: opts.deltaY,
+      shiftKey: opts.shiftKey ?? false,
+    })
+    viewport.dispatchEvent(ev)
+    return ev.defaultPrevented
+  }
+
+  it('普通滚轮上滑（反向）→ currentTime 回退（回看）并 preventDefault', () => {
+    const anim = stubTickerAnimation(1000)
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+      render(<TerminalFooter />)
+      expect(wheelOnViewport({ deltaY: -100 })).toBe(true)
+      expect(anim.currentTime).toBeLessThan(1000)
+    } finally {
+      removeTickerAnimationStub()
+    }
+  })
+
+  it('普通滚轮下滑（正向）→ 被忽略，交给自动滚动（不 preventDefault、不碰 currentTime）', () => {
+    const anim = stubTickerAnimation(1000)
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+      render(<TerminalFooter />)
+      expect(wheelOnViewport({ deltaY: 100 })).toBe(false)
+      expect(anim.currentTime).toBe(1000)
+    } finally {
+      removeTickerAnimationStub()
+    }
+  })
+
+  it('Shift+滚轮双向生效：下滑 currentTime 前进', () => {
+    const anim = stubTickerAnimation(1000)
+    try {
+      mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08', changePct: null }])
+      mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+      render(<TerminalFooter />)
+      expect(wheelOnViewport({ deltaY: 100, shiftKey: true })).toBe(true)
+      expect(anim.currentTime).toBeGreaterThan(1000)
+    } finally {
+      removeTickerAnimationStub()
+    }
+  })
+})
