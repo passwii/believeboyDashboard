@@ -23,7 +23,6 @@ type RecognizedFileType =
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  MonthPicker,
   formatMonthInputValue,
   parseMonthInputValue,
 } from '@/components/ui/date-picker'
@@ -35,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -44,12 +42,19 @@ import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
+import { MonthNavigation } from '@/components/dashboard/console'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
-  CountrySelect,
-  FilterField,
-  MonthNavigation,
-  RefreshButton,
-} from '@/components/dashboard/console'
+  HeaderSlotSelect,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import {
+  useHeaderSlot,
+  useMobileFilterStrip,
+} from '@/components/terminal/terminal-header-slot'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
