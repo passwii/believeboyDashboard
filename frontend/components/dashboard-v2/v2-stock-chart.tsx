@@ -2,7 +2,7 @@
 
 import { Boxes } from 'lucide-react'
 
-import { AreaChartCard, ChartCard, buildChartConfig } from '@/components/charts'
+import { AreaChartCard, buildChartConfig, TermChartCard } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
 
 export interface V2StockRow {
@@ -50,7 +50,7 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
   const hasData = rows.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<Boxes className="size-4" />}
       title="库存水位"
       description="可用库存每日变化（近 7 天）"
@@ -61,8 +61,8 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
       className="col-span-2"
       actions={
         <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-semibold tabular-nums">{fmtNumPrecise(current)}</span>
-          <span className="text-xs text-muted-foreground">件 · 区间末快照</span>
+          <span className="font-mono text-lg font-semibold tabular-nums text-term-text">{fmtNumPrecise(current)}</span>
+          <span className="text-xs text-term-muted">件 · 区间末快照</span>
         </div>
       }
     >
@@ -73,6 +73,6 @@ export function V2StockChart({ currentRows, comparisonRows = [], loading }: V2St
         config={chartConfig}
         gradient
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }

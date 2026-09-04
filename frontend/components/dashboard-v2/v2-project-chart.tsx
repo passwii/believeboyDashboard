@@ -2,7 +2,7 @@
 
 import { Store } from 'lucide-react'
 
-import { BarChartCard, ChartCard, buildChartConfig } from '@/components/charts'
+import { BarChartCard, buildChartConfig, TermChartCard } from '@/components/charts'
 
 import {
   computeTopProjects,
@@ -30,7 +30,7 @@ export function V2ProjectChart({ projectBreakdown, projects, loading }: V2Projec
   const hasData = rows.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<Store className="size-4" />}
       title="项目销售额对比"
       description="近 7 天各项目销售额 Top 5"
@@ -47,6 +47,6 @@ export function V2ProjectChart({ projectBreakdown, projects, loading }: V2Projec
         yTickFormatter={(v) => `$${Number(v) / 1000}k`}
         showLegend={false}
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }
