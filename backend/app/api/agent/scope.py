@@ -48,12 +48,15 @@ KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
         "return_analysis",
         "replenishment_analysis",
         "report_upload_status",
+        "report_upload",
         "account_health",
         "ad_analysis",
         "agent_provisioning",
         "inventory_ledger",
         # 平台巡检写侧域（BLF-944）：R0+W1–W4，写巡检报告/截图。
         "platform_inspection",
+        # 客诉中心写侧域（BLF-981）：W1 批量 upsert + R1 列表读取，写每日巡检客诉数据。
+        "complaint_center",
     }
 )
 

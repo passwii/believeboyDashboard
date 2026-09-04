@@ -80,6 +80,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'report_upload',
+    label: '报表上传',
+    description: 'Agent 报表上传：dry-run 校验 + 正式提交（列匹配度/多站点检测/审计）',
+    status: 'live',
+    routeCount: 2,
+    capabilities: { read: false, write: true },
+  },
+  {
     code: 'replenishment_analysis',
     label: '补货分析',
     description: '补货决策清单/单 SKU 深挖/项目总览/覆盖度/设置（三段式体系，BLF-502）',
@@ -110,6 +118,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     status: 'live',
     routeCount: 5,
     capabilities: { read: false, write: true },
+  },
+  {
+    code: 'complaint_center',
+    label: '客诉中心',
+    description: 'Agent 每日巡检客诉写入 + Dashboard 概览/明细/详情管理（W1 批量 upsert + R1 列表读取，BLF-981）',
+    status: 'live',
+    routeCount: 2,
+    capabilities: { read: true, write: true },
   },
   {
     code: 'sales',

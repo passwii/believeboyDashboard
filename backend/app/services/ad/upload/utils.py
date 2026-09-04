@@ -160,6 +160,27 @@ def _raw_row_dict(record: dict[str, object]) -> dict[str, object]:
 def _date_to_string(value: object) -> str | None:
     if value is None or value == '':
         return None
+    # BLF-975 复测第 3 项：亚马逊广告后台导出的 xlsx 日期列可能是
+    # Excel serial 数字单元格（1900 日期系统，epoch 1899-12-30）。
+    # openpyxl 对带日期格式的单元格已转 datetime，对裸数字保留 int/float
+    # （pandas 读入后是 numpy.int64，isinstance int 为 False，需单独判）。
+    # 20000~80000 覆盖 1954~2119 年，远超报表业务范围，避免误伤普通数值列。
+    value_num: float | None = None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value_num = float(value)
+    elif type(value).__module__ == "numpy" and hasattr(value, "item"):
+        try:
+            value_num = float(value.item())
+        except (TypeError, ValueError):
+            value_num = None
+    if value_num is not None:
+        if 20000 < value_num < 80000:
+            from datetime import timedelta
+
+            return (date(1899, 12, 30) + timedelta(days=int(value_num))).strftime(
+                '%Y-%m-%d'
+            )
+        return None
     parsed = pd.to_datetime(value, errors='coerce')
     if parsed is None or pd.isna(parsed):
         return None

@@ -430,6 +430,69 @@ function buildReportUploadStatusGuide(opts: {
   明细）+ 顶层 project_count / missing_project_count——缺报清单可直接复述。`
 }
 
+/** 报表上传域调用说明（BLF-975）：2 条路由（validate 校验 + commit 提交）。 */
+function buildReportUploadGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \
+    -H "Authorization: Bearer ${key}" \
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 上传前校验（dry-run，不入库）】
+
+  curl -X POST "${apiBase}/api/v1/agent/upload/validate" \
+    -H "Authorization: Bearer ${key}" \
+    -H "X-Agent-Id: ${agentId}" \
+    -F "file=@<报表文件路径>" \
+    -F "report_type=sales_report" \
+    -F "country=US"
+
+  report_type 必填（sales_report / inventory_report / business_report /
+  payment_report / return_report / inventory_ledger_summary /
+  inventory_ledger_detail）；country 默认 US。
+  返回：
+    - status: valid / invalid / warning
+    - column_match_ratio: 列匹配度 (0.0-1.0)
+    - matched_columns / missing_columns: 匹配/缺失的列
+    - detected_countries: 检测到的多站点国家列表
+    - suggested_report_type: 列不匹配时建议的报表类型
+    - row_count_preview: 估算行数
+    - date_input_mode / detected_date / detected_start_date / detected_end_date: 日期信息
+
+【3. 正式提交（入库）】
+
+  校验通过后，使用校验返回的 temp_file_id 提交：
+  curl -X POST "${apiBase}/api/v1/agent/upload/commit" \
+    -H "Authorization: Bearer ${key}" \
+    -H "X-Agent-Id: ${agentId}" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "temp_file_id": "<validate 返回的 temp_file_id>",
+      "report_type": "sales_report",
+      "project_name": "<项目名>",
+      "country": "US"
+    }'
+
+  可选字段：report_date / report_start_date / report_end_date（根据日期模式）
+  返回：
+    - status: saved / persisted / skipped
+    - file_id / file_path: 入库文件信息
+    - persisted_source_id / persisted_table: 入库记录 ID / 表名
+    - rows_ingested: 入库行数（仅按行入库的报表类型）
+
+【4. 多站点文件自动拆分】
+
+  当 sales_report 文件包含多个国家站点数据时：
+    - validate 返回 detected_countries 列表（如 ["DE", "UK"]）
+    - commit 会自动按国家拆分并入库，每条记录对应一个国家
+    - 返回的 country 为主站点，duplicate_warnings 包含拆分详情`
+}
+
 /** 补货分析域调用说明（BLF-502）：6 条路由（R1 清单 / R2 深挖 / R3 总览 /
  * R4 覆盖度 / R5 设置读 / R6 设置写 confirm）。 */
 function buildReplenishmentAnalysisGuide(opts: {
@@ -936,6 +999,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildInventoryLedgerGuide({ key, agentId, apiBase })
   } else if (domain === 'report_upload_status') {
     domainGuide = buildReportUploadStatusGuide({ key, agentId, apiBase })
+  } else if (domain === 'report_upload') {
+    domainGuide = buildReportUploadGuide({ key, agentId, apiBase })
   } else if (domain === 'ad_analysis') {
     domainGuide = buildAdAnalysisGuide({ key, agentId, apiBase })
   } else if (domain === 'replenishment_analysis') {
