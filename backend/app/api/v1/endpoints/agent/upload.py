@@ -11,9 +11,13 @@ BLF-975 复测修复：
   列表同语义），校验通过后以 ``is_admin=True`` 调服务层——服务层内部
   operator 维度的过滤是 dashboard 语义，agent 通道已在路由层收紧。
 * temp 文件缺失包装为 404 资源壳（不再裸 500）。
+* 广告 B 表类型（ad_*）走 C 表原生 ``commit_ad_upload``，不经 A 表
+  ``normalize_report_type`` 兼容折叠（复测第 3 项）。
 """
 
 from __future__ import annotations
+
+import shutil
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
@@ -78,6 +82,79 @@ def _ensure_temp_file_404(exc: Exception) -> None:
         agent_hint="请先调用 /agent/upload/validate 获取 temp_file_id，再提交 commit",
     ) from exc
 
+def _is_ad_b_table_type(report_type: str) -> bool:
+    """广告 B 表类型判定（走 C 表原生 commit，不经 A 表兼容折叠）。"""
+    from app.services.ad.upload.specs import REPORT_SPECS
+
+    return str(report_type) in {spec.report_type for spec in REPORT_SPECS}
+
+
+def _commit_ad_b_table(
+    *,
+    request: Request,
+    payload: AgentUploadCommitRequest,
+    settings: Settings,
+    db: Session,
+) -> AgentUploadCommitResponse:
+    """广告 B 表提交：走 ``commit_ad_upload``（C 表）。
+
+    temp 文件衔接：agent validate 存的是 ``_report_upload_tmp``，B 表
+    commit 读 ``_ad_upload_tmp``——把 A 侧 temp 文件复制到 B 侧 temp
+    目录，agent 拿同一个 temp_file_id 两段式衔接（复测第 3 项闭环）。
+    服务层 ``_resolve_project`` 的 operator 过滤是 dashboard 语义（agent
+    无 operator → 恒 403），权限已在路由层按 project_scope 收紧，这里
+    传 is_admin=True 复用其解析逻辑。
+    """
+    from app.schemas.ad_upload import AdUploadCommitRequest
+    from app.services.ad.upload import commit_ad_upload
+    from app.services.upload_service import (
+        resolve_report_upload_temp_file_path,
+    )
+
+    source = resolve_report_upload_temp_file_path(settings, payload.temp_file_id)
+    ad_tmp = settings.upload_root / "_ad_upload_tmp"
+    ad_tmp.mkdir(parents=True, exist_ok=True)
+    ad_path = ad_tmp / source.name
+    if not ad_path.exists():
+        shutil.copy2(source, ad_path)
+
+    ad_payload = AdUploadCommitRequest(
+        temp_file_id=source.name,
+        report_type=payload.report_type,  # type: ignore[arg-type]
+        original_filename=payload.original_filename,
+        project_name=payload.project_name,
+        country=payload.country,
+        report_date=payload.report_date,
+        report_start_date=payload.report_start_date,
+        report_end_date=payload.report_end_date,
+        dry_run=False,
+    )
+    ad_result = commit_ad_upload(
+        db,
+        settings,
+        payload=ad_payload,
+        operator=None,
+        is_admin=True,
+    )
+    return AgentUploadCommitResponse(
+        report_type=ad_result.report_type,  # type: ignore[arg-type]
+        status="persisted",
+        project_name=ad_result.project_name,
+        country=ad_result.country,
+        report_date=ad_result.report_date,
+        report_start_date=ad_result.report_start_date,
+        report_end_date=ad_result.report_end_date,
+        file_id=ad_result.file_id,
+        file_path=ad_result.file_path,
+        persisted_source_id=ad_result.id,
+        persisted_table="ad_upload_files",
+        message=ad_result.message,
+        duplicate_warnings=[],
+        rows_ingested=None,
+    )
+
+
+
 
 @router.post("/upload/validate", response_model=AgentUploadValidateResponse)
 def validate_report_upload(
@@ -109,6 +186,12 @@ def commit_report_upload_agent(
     项目权限：按 agent key 的 ``project_scope`` 白名单校验 ``project_name``
     （``*`` 全放行）；**不信任 ``X-Is-Admin`` 头**——agent 通道在路由层已
     完成权限收紧，服务层以 is_admin=True 调用只复用其入库逻辑。
+
+    BLF-975 复测第 3 项（B 类不走 A 类兼容模式）：广告 B 表类型（``ad_*``）
+    走广告原生的 ``commit_ad_upload``（C 表：ad_upload_files /
+    ad_upload_promoted_product_rows），**不经** A 表 commit 的
+    ``normalize_report_type``（它会把 ``ad_report`` 旧值折叠成
+    ``ad_product_report`` → 400 Unsupported）。
     """
     project_name = (payload.project_name or "").strip()
     if not project_name:
@@ -125,17 +208,22 @@ def commit_report_upload_agent(
         )
 
     try:
-        result = commit_report_upload(
-            db=db,
-            settings=settings,
-            payload=payload,
-            operator=None,
-            is_admin=True,
-        )
+        if _is_ad_b_table_type(payload.report_type):
+            result = _commit_ad_b_table(
+                request=request,
+                payload=payload,
+                settings=settings,
+                db=db,
+            )
+        else:
+            result = commit_report_upload(
+                db=db,
+                settings=settings,
+                payload=payload,
+                operator=None,
+                is_admin=True,
+            )
     except FileNotFoundError as exc:
         _ensure_temp_file_404(exc)
     return result
-
-
-# FileNotFoundError 之外的服务层 HTTPException 由 register_agent_error_handlers
 # 包装为 agent 壳（403「无权限访问该项目」/400/422 → 对应壳），无需在此翻译。
