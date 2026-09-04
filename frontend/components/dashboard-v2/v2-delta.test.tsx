@@ -13,13 +13,13 @@ describe('v2-delta', () => {
     expect(screen.getByText('3.4%')).toBeInTheDocument()
   })
 
-  it('正值显示 emerald 色', () => {
+  it('正值显示 term-pos 色（BLF-978 Stage 2）', () => {
     const { container } = render(
       <Delta value={12.4}>
         <DeltaValue />
       </Delta>
     )
-    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('emerald')
+    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('term-pos')
   })
 
   it('负值显示 term-neg 色', () => {
@@ -31,13 +31,13 @@ describe('v2-delta', () => {
     expect(container.querySelector('[data-slot="delta"]')?.className).toContain('term-neg')
   })
 
-  it('badge variant 正值用 emerald 背景', () => {
+  it('badge variant 正值用 term-pos/10 背景（BLF-978 Stage 2）', () => {
     const { container } = render(
       <Delta value={5} variant="badge">
         <DeltaValue />
       </Delta>
     )
-    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('bg-emerald-500/10')
+    expect(container.querySelector('[data-slot="delta"]')?.className).toContain('bg-term-pos/10')
   })
 
   it('DeltaValue 在 Delta 外使用抛错', () => {

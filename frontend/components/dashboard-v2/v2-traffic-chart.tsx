@@ -2,7 +2,7 @@
 
 import { Activity } from 'lucide-react'
 
-import { ChartCard, ComposedChartCard, buildChartConfig } from '@/components/charts'
+import { TermChartCard, ComposedChartCard, buildChartConfig } from '@/components/charts'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
 
 export interface V2TrafficRow {
@@ -63,7 +63,7 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
   const hasData = rows.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<Activity className="size-4" />}
       title="流量与转化"
       description="浏览量趋势与转化率（近 7 天）"
@@ -75,25 +75,25 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
         <>
           <span className="text-xs text-muted-foreground">
             总浏览量{' '}
-            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+            <b className="ml-1 tabular-nums text-term-text">
               {fmtNumPrecise(stats.totalPageViews)}
             </b>
           </span>
           <span className="text-xs text-muted-foreground">
             访客数{' '}
-            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+            <b className="ml-1 tabular-nums text-term-text">
               {fmtNumPrecise(stats.totalSessions)}
             </b>
           </span>
           <span className="text-xs text-muted-foreground">
             转化订单{' '}
-            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+            <b className="ml-1 tabular-nums text-term-text">
               {fmtNumPrecise(stats.totalUnitsOrdered)}
             </b>
           </span>
           <span className="text-xs text-muted-foreground">
             平均转化率{' '}
-            <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">
+            <b className="ml-1 tabular-nums text-term-text">
               {stats.conversionRatePct.toFixed(2)}%
             </b>
           </span>
@@ -116,6 +116,6 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
           },
         ]}
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }

@@ -2,7 +2,7 @@
 
 import { TrendingUp } from 'lucide-react'
 
-import { ChartCard, ComposedChartCard, buildChartConfig } from '@/components/charts'
+import { TermChartCard, ComposedChartCard, buildChartConfig } from '@/components/charts'
 import { formatCompactCurrency } from './v2-format'
 
 type RevenueRow = { date: string; sales_amount: number; units_ordered: number }
@@ -41,7 +41,7 @@ export function V2RevenueChart({
   const hasData = chartRows.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<TrendingUp className="size-4" />}
       title="销售额"
       description="每日销售额与销量（近 7 天）"
@@ -62,6 +62,6 @@ export function V2RevenueChart({
           { kind: 'line', dataKey: 'volume', name: '销量', yAxisId: 'right' },
         ]}
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }

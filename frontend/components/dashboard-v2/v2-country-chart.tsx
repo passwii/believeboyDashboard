@@ -2,7 +2,7 @@
 
 import { Globe2 } from 'lucide-react'
 
-import { BarChartCard, ChartCard, buildChartConfig } from '@/components/charts'
+import { BarChartCard, TermChartCard, buildChartConfig } from '@/components/charts'
 import { getCountryLabel } from '@/lib/country'
 
 export interface V2CountryRow {
@@ -58,7 +58,7 @@ export function V2CountryChart({
   const hasData = rows.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<Globe2 className="size-4" />}
       title="跨国家销售额"
       description={
@@ -74,12 +74,12 @@ export function V2CountryChart({
       <BarChartCard
         data={rows}
         xKey="name"
-        series={[{ dataKey: 'sales', barProps: { radius: [0, 2, 2, 0] } }]}
+        series={[{ dataKey: 'sales', barProps: { radius: [0, 0, 0, 0] } }]}
         config={chartConfig}
         layout="horizontal"
         xTickFormatter={(value) => `$${Number(value) / 1000}k`}
         showLegend={false}
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }

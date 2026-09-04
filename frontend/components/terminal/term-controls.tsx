@@ -134,25 +134,31 @@ export function TermKpiTile({
   hint,
   tone,
   loading,
+  after,
 }: {
   label: string
   value: string
   hint?: string
   tone?: TermTone
   loading?: boolean
+  /** 主数值行右侧的附加内容（如 delta 涨跌徽章） */
+  after?: React.ReactNode
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5 rounded-none border border-term-border bg-term-panel px-2 py-1.5 shadow-none">
       <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
         {label}
       </span>
-      <span
-        data-testid="kpi-value"
-        className={`truncate font-mono text-base leading-6 tabular-nums ${TONE_TEXT[tone ?? 'info']}`}
-        title={value}
-      >
-        {loading ? '···' : value}
-      </span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          data-testid="kpi-value"
+          className={`truncate font-mono text-base leading-6 tabular-nums ${TONE_TEXT[tone ?? 'info']}`}
+          title={value}
+        >
+          {loading ? '···' : value}
+        </span>
+        {after}
+      </div>
       {hint ? (
         <span className="truncate font-mono text-[10px] leading-3 text-term-faint">{hint}</span>
       ) : null}

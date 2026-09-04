@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { fmtMoneyPrecise, fmtNumPrecise, renderChangeIndicator } from '@/lib/dashboard-format'
 
-import { ChartCard } from '@/components/charts/chart-card'
+import { TermChartCard } from '@/components/charts/term-chart-card'
 
 /** 与 v1 dashboard-top-projects 的 ProjectBreakdownEntry 对齐 —— 只声明本组件用到的字段 */
 export interface V2TopProjectRow {
@@ -108,12 +108,12 @@ export function V2TopProjects({
   )
 
   return (
-    <ChartCard
+    <TermChartCard
       title="项目排行"
       description="各项目销售额与广告花费对比（近 7 天）"
       className="col-span-2 lg:col-span-4"
       actions={
-        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+        <div className="flex items-center gap-1 rounded-none border border-term-border p-0.5">
           {(
             [
               { key: 'sales' as const, label: '销售额' },
@@ -122,10 +122,10 @@ export function V2TopProjects({
           ).map((tab) => (
             <button
               className={cn(
-                'rounded px-2 py-1 text-xs transition-colors',
+                'h-8 rounded-none border px-2 font-mono text-xs leading-5 transition-colors',
                 sortKey === tab.key
-                  ? 'bg-blue-100 font-medium text-blue-700 dark:bg-[hsl(var(--surface-subtle))] dark:text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'border-term-border bg-term-raised font-semibold text-term-text'
+                  : 'border-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
               )}
               key={tab.key}
               onClick={() => setSortKey(tab.key)}
@@ -174,6 +174,6 @@ export function V2TopProjects({
           </TableBody>
         </Table>
       )}
-    </ChartCard>
+    </TermChartCard>
   )
 }

@@ -1,15 +1,9 @@
 'use client'
 
-import {
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Delta, DeltaIcon, DeltaValue } from '@/components/ui/delta'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TermKpiTile } from '@/components/terminal/term-controls'
 
-import { V2Card } from './v2-card'
-import { Delta, DeltaIcon, DeltaValue } from './v2-delta'
 import { formatCompactCurrency, formatCompactNumber, formatPercent } from './v2-format'
 
 /** 与 app/dashboard/v2/page.tsx 的 DailyAnalysisRow 保持一致的简化类型——只声明本组件用到的字段 */
@@ -80,44 +74,34 @@ export interface V2StatsProps {
 }
 
 export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsProps) {
-  if (loading) {
+  const hasData = currentRows.length > 0
+  const stats = hasData || !loading ? computeStats(currentRows, comparisonRows) : []
+
+  if (loading && stats.length === 0) {
     return (
       <>
         {Array.from({ length: 4 }).map((_, i) => (
-          <V2Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-3 w-16" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-7 w-24" />
-            </CardContent>
-            <CardFooter>
-              <Skeleton className="h-3 w-20" />
-            </CardFooter>
-          </V2Card>
+          <Skeleton key={i} className="h-16 w-full" />
         ))}
       </>
     )
   }
 
-  const stats = computeStats(currentRows, comparisonRows)
-
   return (
     <>
       {stats.map((s) => (
-        <V2Card className="transition-colors hover:bg-surface-subtle" key={s.label}>
-          <CardHeader className="flex flex-row items-center justify-between px-4 pb-0 pt-3 md:px-4">
-            <CardTitle className="text-xs font-normal tracking-wide text-muted-foreground">{s.label}</CardTitle>
-            <Delta value={s.delta}>
+        <TermKpiTile
+          key={s.label}
+          label={s.label}
+          value={s.value}
+          loading={loading}
+          after={
+            <Delta value={s.delta} className="shrink-0">
               <DeltaIcon />
               <DeltaValue />
             </Delta>
-          </CardHeader>
-          <CardContent className="flex flex-row items-center gap-2 px-4 pb-3 md:px-4">
-            {/* 保留 tabular-nums 数据感；去掉 font-mono（视觉更系统，对齐 ChartCard 数字语言） */}
-            <p className="text-xl font-semibold tabular-nums text-foreground">{s.value}</p>
-          </CardContent>
-        </V2Card>
+          }
+        />
       ))}
     </>
   )

@@ -46,7 +46,7 @@ function Delta({
         <Badge
           className={cn(
             'gap-1 border-none tabular-nums [&_svg]:size-4 [&_svg]:shrink-0',
-            value > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-term-neg/10 text-term-neg',
+            value > 0 ? 'bg-term-pos/10 text-term-pos' : 'bg-term-neg/10 text-term-neg',
             className
           )}
           data-slot="delta"
@@ -56,9 +56,9 @@ function Delta({
       ) : (
         <div
           className={cn(
-            'inline-flex items-center gap-1 text-muted-foreground tabular-nums',
+            'inline-flex items-center gap-1 tabular-nums',
             '[&_svg]:size-3 [&_svg]:shrink-0',
-            value > 0 ? 'text-emerald-600 dark:text-emerald-400' : '',
+            value > 0 ? 'text-term-pos' : '',
             value < 0 ? 'text-term-neg' : '',
             className
           )}
