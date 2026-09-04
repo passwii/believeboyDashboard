@@ -48,6 +48,7 @@ from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
 from app.api.v1.endpoints.agent.sku_info import sku_info_router
+from app.api.v1.endpoints.agent.upload import router as upload_router
 
 agent_router = APIRouter(
     prefix="/agent",
@@ -215,6 +216,12 @@ agent_router.include_router(
 agent_router.include_router(
     platform_inspection_router,
     dependencies=[Depends(require_business_scope("platform_inspection"))],
+)
+# 报表上传域（BLF-975）：dry-run 校验 + 正式提交两步契约，挂
+# business_scope("report_upload")。必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    upload_router,
+    dependencies=[Depends(require_business_scope("report_upload"))],
 )
 
 

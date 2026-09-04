@@ -48,6 +48,7 @@ KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
         "return_analysis",
         "replenishment_analysis",
         "report_upload_status",
+        "report_upload",
         "account_health",
         "ad_analysis",
         "agent_provisioning",

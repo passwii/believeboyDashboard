@@ -63,6 +63,8 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     # BLF-845：report_upload_status / account_health 两域此前无映射，读访问
     # 全落「其他」（操作类型中文缺失的另一根因），补齐。
     ("/report-upload-status", "report_upload_status"),
+    # BLF-975：报表上传域（dry-run 校验 + 正式提交）。
+    ("/upload/", "report_upload"),
     ("/account-health", "account_health"),
 )
 

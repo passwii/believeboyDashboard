@@ -128,3 +128,62 @@ class ProjectReportStatusItem(BaseModel):
 class ReportStatusResponse(BaseModel):
     country: str = "US"
     items: list[ProjectReportStatusItem]
+
+
+# ─── Agent Upload (BLF-975) ────────────────────────────────────────────────
+
+
+class AgentUploadValidateResponse(BaseModel):
+    """Dry-run 校验响应：列匹配度、检测国家、行数估算。"""
+
+    report_type: ReportUploadType
+    status: Literal["valid", "invalid", "warning"] = "valid"
+    matched_columns: list[str] = Field(default_factory=list)
+    missing_columns: list[str] = Field(default_factory=list)
+    column_match_ratio: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="列匹配度 (0.0-1.0)"
+    )
+    detected_countries: list[str] = Field(default_factory=list)
+    primary_country: str = "US"
+    row_count_preview: int | None = None
+    date_input_mode: DateInputMode = "single_manual"
+    detected_date: str | None = None
+    detected_start_date: str | None = None
+    detected_end_date: str | None = None
+    suggested_report_type: ReportUploadType | None = Field(
+        default=None, description="列不匹配时建议的报表类型"
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AgentUploadCommitRequest(BaseModel):
+    """正式提交请求：复用现有 ReportCommitRequest 字段。"""
+
+    temp_file_id: str
+    report_type: ReportUploadType
+    original_filename: str | None = None
+    project_name: str | None = None
+    report_date: str | None = None
+    report_start_date: str | None = None
+    report_end_date: str | None = None
+    country: str = "US"
+    use_period_dates: bool = False
+
+
+class AgentUploadCommitResponse(BaseModel):
+    """正式提交响应：对齐 ReportCommitResponse。"""
+
+    report_type: ReportUploadType
+    status: Literal["saved", "persisted", "skipped"]
+    project_name: str | None = None
+    country: str = "US"
+    report_date: str | None = None
+    report_start_date: str | None = None
+    report_end_date: str | None = None
+    file_id: str | None = None
+    file_path: str | None = None
+    persisted_source_id: int | None = None
+    persisted_table: str | None = None
+    message: str = ""
+    duplicate_warnings: list[dict] = Field(default_factory=list)
+    rows_ingested: int | None = None
