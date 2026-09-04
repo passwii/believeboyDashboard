@@ -46,6 +46,8 @@ class ErrorCode(str, Enum):
     # SKU Info 主数据域（BLF-579 S2）
     SKU_INFO_INVALID_SOURCE = "SKU_INFO_INVALID_SOURCE"
     SKU_INFO_DUPLICATE = "SKU_INFO_DUPLICATE"
+    # 客诉中心域（BLF-981）
+    COMPLAINT_STATUS_INVALID = "COMPLAINT_STATUS_INVALID"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -72,6 +74,7 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: 400,
     ErrorCode.SKU_INFO_INVALID_SOURCE: 400,
     ErrorCode.SKU_INFO_DUPLICATE: 409,
+    ErrorCode.COMPLAINT_STATUS_INVALID: 400,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -149,6 +152,10 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.SKU_INFO_DUPLICATE: (
         "SKU 主数据更新后与现有记录重复",
         "唯一键为 (project_id, sku, asin, country)；请核对 sku/asin/country 后重试",
+    ),
+    ErrorCode.COMPLAINT_STATUS_INVALID: (
+        "非法状态流转",
+        "客诉状态机单向（pending → drafted → replied → resolved → closed_no_response），不可回退",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
