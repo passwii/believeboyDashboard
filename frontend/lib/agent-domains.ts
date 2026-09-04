@@ -120,6 +120,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: false, write: true },
   },
   {
+    code: 'complaint_center',
+    label: '客诉中心',
+    description: 'Agent 每日巡检客诉写入 + Dashboard 概览/明细/详情管理（W1 批量 upsert + R1 列表读取，BLF-981）',
+    status: 'live',
+    routeCount: 2,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'sales',
     label: '销售数据',
     description: '销售订单明细/聚合统计：原始行 + ASIN×日/ASIN/日聚合（Sales Data）',

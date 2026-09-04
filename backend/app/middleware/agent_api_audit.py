@@ -66,6 +66,8 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     # BLF-975：报表上传域（dry-run 校验 + 正式提交）。
     ("/upload/", "report_upload"),
     ("/account-health", "account_health"),
+    # BLF-981：客诉中心写侧域（W1 批量 upsert + R1 列表读取）。
+    ("/complaint-center", "complaint_center"),
 )
 
 _PROJECT_ID_RE = re.compile(r"/projects/(\d+)")
