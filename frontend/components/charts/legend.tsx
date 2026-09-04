@@ -88,7 +88,7 @@ export function LegendSwatch({
   if (variant === 'dashed') {
     return (
       <span
-        className={cn('shrink-0 rounded-full', sizeClass, className)}
+        className={cn('shrink-0', sizeClass, className)}
         style={{
           background: color
             ? `repeating-linear-gradient(90deg, ${color} 0, ${color} 6px, transparent 6px, transparent 9px)`
@@ -99,8 +99,8 @@ export function LegendSwatch({
     )
   }
 
-  const shapeClass =
-    variant === 'dot' ? 'rounded-full' : variant === 'bar' ? 'rounded-[3px]' : 'rounded-full'
+  // BLF-976：terminal 直角语言——所有 swatch 零圆角，与 1px 边界体系一致
+  const shapeClass = ''
 
   return (
     <span
@@ -129,9 +129,9 @@ export function LegendItem({
   // When onClick is present, render as a button for accessibility
   const isInteractive = typeof onClick === 'function'
   const shared = cn(
-    'inline-flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs leading-4 transition-colors',
-    'text-muted-foreground',
-    isInteractive && 'cursor-pointer hover:bg-muted/50 hover:text-foreground',
+    'inline-flex items-center gap-1.5 rounded-none px-1 py-0.5 font-mono text-xs leading-4 tabular-nums transition-colors',
+    'text-term-muted',
+    isInteractive && 'cursor-pointer hover:bg-term-hover hover:text-term-text',
     !active && 'opacity-50',
     className
   )

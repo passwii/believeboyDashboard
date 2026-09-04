@@ -95,6 +95,19 @@ function ChartContainer({
   )
 }
 
+/**
+ * BLF-976：与 ui/chart.tsx 的 ChartStyle 同步修复——注入前把裸 HSL 三元组
+ * （`--chart-N` 的存储格式）规范成完整 `hsl()` 色值，否则 SVG fill/stroke
+ * 属性读到非法颜色回退纯黑。
+ */
+function normalizeConfigColor(color: string): string {
+  const trimmed = color.trim()
+  if (/^-?\d+(\.\d+)?\s+[\d.]+%\s+[\d.]+%$/.test(trimmed)) {
+    return `hsl(${trimmed})`
+  }
+  return trimmed
+}
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color)
 
@@ -112,7 +125,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color ? `  --color-${key}: ${normalizeConfigColor(color)};` : null
   })
   .join('\n')}
 }

@@ -77,9 +77,9 @@ export const rightYAxisProps = {
   orientation: 'right',
 } as const
 
-/** Default ChartTooltip cursor — soft dashed line in the muted foreground. */
+/** Default ChartTooltip cursor — BLF-976：term 边界强调色虚线（1px 边界语言）。 */
 export const defaultTooltipCursor = {
-  stroke: 'hsl(var(--muted-foreground))',
+  stroke: 'var(--term-border-strong)',
   strokeDasharray: '4 4',
   strokeWidth: 1,
 } as const
@@ -144,32 +144,33 @@ export const defaultChartContainerClass = CHART_HEIGHTS.default
 // ---------- Color palette --------------------------------------------------
 
 /**
- * Canonical chart color palette — keys map to `--chart-N` CSS vars in
- * globals.css (already 8 entries in both light/dark themes).
+ * Canonical chart color palette — BLF-976 起指向 `--term-chart-N`（明暗两套，
+ * 见 globals.css Terminal 图表数据色板）。完整 hex 色值，可直接被 SVG
+ * fill/stroke 属性消费（BLF-976 前 `--chart-N` 裸三元组曾致全黑图）。
  */
 export const CHART_COLOR_VARS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(var(--chart-6))',
-  'hsl(var(--chart-7))',
-  'hsl(var(--chart-8))',
+  'var(--term-chart-1)',
+  'var(--term-chart-2)',
+  'var(--term-chart-3)',
+  'var(--term-chart-4)',
+  'var(--term-chart-5)',
+  'var(--term-chart-6)',
+  'var(--term-chart-7)',
+  'var(--term-chart-8)',
 ] as const
 
 /** Helper to build a ChartConfig from a `label` map + per-key palette. */
 export function buildChartConfig(
   keys: readonly string[],
   labels: Record<string, string>,
-  /** Optional override — defaults to `var(--chart-N)` */
+  /** Optional override — defaults to `var(--term-chart-N)` */
   colors?: Record<string, string>
 ): UiChartConfig {
   const cfg: UiChartConfig = {}
   keys.forEach((key, idx) => {
     cfg[key] = {
       label: labels[key] ?? key,
-      color: colors?.[key] ?? `var(--chart-${(idx % 8) + 1})`,
+      color: colors?.[key] ?? `var(--term-chart-${(idx % 8) + 1})`,
     }
   })
   return cfg

@@ -208,7 +208,7 @@ export function LineChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <LineChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid stroke="var(--term-border)" vertical={false} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}
@@ -345,7 +345,7 @@ export function BarChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <BarChart accessibilityLayer data={data as unknown as object[]} layout={layout} margin={margin}>
-        <CartesianGrid vertical={!isVertical} horizontal={isVertical} />
+        <CartesianGrid stroke="var(--term-border)" vertical={!isVertical} horizontal={isVertical} />
         {isVertical ? (
           <>
             <XAxis
@@ -495,7 +495,7 @@ export function AreaChartCard({
             ))}
           </defs>
         )}
-        <CartesianGrid vertical={false} />
+        <CartesianGrid stroke="var(--term-border)" vertical={false} />
         <XAxis {...defaultXAxisProps} dataKey={xKey} tickFormatter={defaultXTickFormatter} />
         {!hideYAxis && !isMobile && (
           <YAxis
@@ -612,7 +612,7 @@ export function ComposedChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <ComposedChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid stroke="var(--term-border)" vertical={false} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}

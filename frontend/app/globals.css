@@ -254,7 +254,21 @@
     --term-warn: #d97706;
     --term-neg: #dc2626;
     --term-accent: #2563eb;
-  }
+
+    /* ── Terminal 图表数据色板（BLF-976）────────────────────────────
+     * series 数据色：亮侧降饱和/降明度保证白底可读，暗侧提亮保证黑底可读。
+     * 与 --term-accent（交互语义色）刻意区分：数据色≠交互色。
+     * 消费：charts/primitives.tsx CHART_COLOR_VARS → buildChartConfig →
+     * --color-<key>（ChartStyle 注入，BLF-976 起保证完整色值）。 */
+    --term-chart-1: #2563eb; /* 蓝 · 主数据色 */
+    --term-chart-2: #15803d; /* 绿 · 对照/增长 */
+    --term-chart-3: #ea580c; /* 橙 · 花费/警示数据 */
+    --term-chart-4: #0891b2; /* 青蓝 · 流量 */
+    --term-chart-5: #dc2626; /* 红 · 风险/退货 */
+    --term-chart-6: #0e7490; /* 青 · 库存/转化 */
+    --term-chart-7: #7c3aed; /* 紫 · 排名/分析 */
+    --term-chart-8: #b45309; /* 琥珀 · 广告/ACOS */
+   }
 
   .dark {
     --term-bg: #0c0c0e;
@@ -270,6 +284,16 @@
     --term-warn: #f59e0b;
     --term-neg: #ef4444;
     --term-accent: #5b8def;
+
+    /* Terminal 图表数据色板（BLF-976，暗侧提亮） */
+    --term-chart-1: #5b8def; /* 蓝 · 主数据色 */
+    --term-chart-2: #34d399; /* 绿 · 对照/增长 */
+    --term-chart-3: #fb923c; /* 橙 · 花费/警示数据 */
+    --term-chart-4: #67e8f9; /* 青蓝 · 流量 */
+    --term-chart-5: #f87171; /* 红 · 风险/退货 */
+    --term-chart-6: #22d3ee; /* 青 · 库存/转化 */
+    --term-chart-7: #a78bfa; /* 紫 · 排名/分析 */
+    --term-chart-8: #fbbf24; /* 琥珀 · 广告/ACOS */
   }
 
   * {

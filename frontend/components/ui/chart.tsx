@@ -58,7 +58,7 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none dark:[&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--muted-foreground))] dark:[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[hsl(var(--border)/0.72)] dark:[&_.recharts-reference-line_[stroke='#ccc']]:stroke-[hsl(var(--border)/0.72)]",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-[var(--term-muted)] [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-curve.recharts-tooltip-cursor]:stroke-[var(--term-border-strong)] [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-radial-bar-background-sector]:fill-[var(--term-raised)] [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-[var(--term-hover)] [&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none dark:[&_.recharts-cartesian-axis-tick_text]:fill-[var(--term-muted)] dark:[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--term-border)] dark:[&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--term-border)]",
           className
         )}
         {...props}
@@ -70,6 +70,25 @@ const ChartContainer = React.forwardRef<
   )
 })
 ChartContainer.displayName = 'Chart'
+
+/**
+ * 把 config 里声明的颜色规范成可被 SVG fill/stroke 属性直接消费的色值。
+ *
+ * 背景：`--chart-N` 在 globals.css 里是裸 HSL 三元组（如 `221 83% 53%`），
+ * 设计给 `hsl(var(--chart-N))` 包一层用。但本文件注入的 `--color-<key>` 会被
+ * `cards.tsx` 等直接放进 `fill="var(--color-<key>)"` —— SVG presentation
+ * attribute 遇到裸三元组是非法颜色，浏览器回退纯黑（BLF-976）。
+ * 因此这里统一保证注入值是完整色值：裸三元组包 hsl()，其余原样透传
+ * （完整 hsl()/hex/var(--term-*) 等已是合法 CSS 色值）。
+ */
+function normalizeConfigColor(color: string): string {
+  const trimmed = color.trim()
+  // 裸 HSL 三元组：三个 0-360/0-100%/0-100% 数值段，无色值函数前缀
+  if (/^-?\d+(\.\d+)?\s+[\d.]+%\s+[\d.]+%$/.test(trimmed)) {
+    return `hsl(${trimmed})`
+  }
+  return trimmed
+}
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color)
@@ -88,7 +107,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color ? `  --color-${key}: ${normalizeConfigColor(color)};` : null
   })
   .join('\n')}
 }
@@ -169,7 +188,7 @@ const ChartTooltipContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          'grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 u-floating-glass',
+          'min-w-[8rem] grid items-start gap-1.5 rounded-none border border-term-border bg-term-panel px-2.5 py-1.5 font-mono text-xs leading-5 text-term-text shadow-none',
           className
         )}
       >
