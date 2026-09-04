@@ -1,0 +1,1432 @@
+'use client'
+
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { DateRange } from 'react-day-picker'
+import { Boxes, Download, Loader2, MessageSquare, Package, Sparkles, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type { Worksheet } from 'exceljs'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
+import { EmptyTableState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  ColGroup,
+} from '@/components/ui/table'
+import { TableSkeletonRows } from '@/components/ui/table-skeleton'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import {
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_XL,
+} from '@/components/terminal/header-filter-suite'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+  useMobileFilterStrip,
+} from '@/components/terminal/terminal-header-slot'
+import { useNotifications } from '@/components/notifications'
+import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { getCountryLabel } from '@/lib/country'
+import { cn } from '@/lib/utils'
+import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
+
+const API_BASE = '/api/backend/api/v1'
+
+type CountryOption = 'US' | 'DE' | 'UK'
+type ViewTab =
+  | 'rankings'
+  | 'reason'
+  | 'trend'
+  | 'product-status'
+  | 'inventory-status'
+  | 'feedback'
+  | 'summary'
+const VIEW_TAB_ORDER: ViewTab[] = [
+  'rankings',
+  'reason',
+  'trend',
+  'product-status',
+  'inventory-status',
+  'feedback',
+  'summary',
+]
+
+type ProjectOption = {
+  id: number
+  name: string
+}
+
+// Translation helpers
+const RETURN_REASON_LABELS: Record<string, string> = {
+  APPAREL_TOO_LARGE: '服装过大',
+  APPAREL_TOO_SMALL: '服装过小',
+  QUALITY_UNACCEPTABLE: '质量不合格',
+  DID_NOT_LIKE_FABRIC: '不喜欢面料',
+  NOT_AS_DESCRIBED: '与描述不符',
+  APPAREL_STYLE: '款式问题',
+  DEFECTIVE: '有缺陷',
+  UNDELIVERABLE_UNKNOWN: '无法投递',
+  NEVER_ARRIVED: '未收到',
+  UNWANTED_ITEM: '不需要',
+  CHANGED_MIND: '改变主意',
+  WRONG_ITEM: '错发商品',
+  LATE_ARRIVAL: '到货延迟',
+  OTHER: '其他',
+}
+
+// Reserved for future use - disposition/status translations
+// const DETAILED_DISPOSITION_LABELS: Record<string, string> = { ... }
+// const RETURN_STATUS_LABELS: Record<string, string> = { ... }
+
+function translateReason(value: string): string {
+  return RETURN_REASON_LABELS[value] || value
+}
+
+const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
+  US: 'America/Los_Angeles',
+  DE: 'Europe/Berlin',
+  UK: 'Europe/London',
+}
+
+/** 站点选项：退货分析仅支持 US/DE/UK（无 ALL，保持页面原生选项集） */
+const COUNTRY_OPTIONS = [
+  { value: 'US', label: '美国站 (US)' },
+  { value: 'DE', label: '德国站 (DE)' },
+  { value: 'UK', label: '英国站 (UK)' },
+]
+
+function getTodayInTimezone(country: string): Date {
+  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+  const now = new Date()
+  const [y, m, d] = formatter.format(now).split('-').map(Number)
+  return new Date(y!, m! - 1, d!)
+}
+
+function lastSevenDaysRange(country: string): DateRange {
+  const today = getTodayInTimezone(country)
+  const end = today
+  const start = new Date(today)
+  start.setDate(start.getDate() - 6)
+  return { from: start, to: end }
+}
+
+function formatYMD(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function normalizeDateRange(range?: DateRange) {
+  if (!range?.from || !range?.to) return undefined
+  const from = new Date(range.from)
+  const to = new Date(range.to)
+  from.setHours(0, 0, 0, 0)
+  to.setHours(0, 0, 0, 0)
+  return { from, to }
+}
+
+// API Response Types
+type ReturnRankingItem = {
+  sku: string
+  asin: string | null
+  product_name: string | null
+  total_quantity: number
+  return_count: number
+  sales_quantity: number
+  return_rate: number
+  // 退货周期(天)= 退货日期 - 原单日期,按 (order_id, sku) 精准匹配
+  avg_return_cycle_days: number | null
+  min_return_cycle_days: number | null
+  max_return_cycle_days: number | null
+}
+
+type ReturnReasonItem = {
+  reason: string
+  reason_display: string
+  total_quantity: number
+  return_count: number
+  percentage: number
+}
+
+type ReturnTrendItem = {
+  date: string
+  total_quantity: number
+  return_count: number
+  sales_quantity: number
+  sales_amount: number
+  return_rate: number
+}
+
+type DispositionItem = {
+  detailed_disposition: string
+  disposition_display: string
+  total_quantity: number
+  return_count: number
+  percentage: number
+}
+
+type StatusItem = {
+  status: string
+  status_display: string
+  total_quantity: number
+  return_count: number
+  percentage: number
+}
+
+type CustomerFeedbackItem = {
+  sku: string
+  order_id: string
+  reason: string
+  reason_display: string
+  customer_comment: string
+  return_date: string
+}
+
+type WeekdayItem = {
+  weekday: number
+  weekday_display: string
+  return_count: number
+  percentage: number
+}
+
+type FulfillmentCenterItem = {
+  fulfillment_center_id: string
+  return_count: number
+  quantity: number
+  percentage: number
+}
+
+type ReturnAnalysisSummary = {
+  total_returns: number
+  total_quantity: number
+  unique_skus: number
+  top_return_sku: string | null
+  top_return_reason: string | null
+  total_sales_quantity: number
+  total_sales_amount: number
+  overall_return_rate: number
+}
+
+type ReturnAnalysisResponse = {
+  project_id: number
+  project_name: string
+  country: string
+  start_date: string
+  end_date: string
+  summary: ReturnAnalysisSummary
+  summary_text: string
+  ranking_rows: ReturnRankingItem[]
+  reason_rows: ReturnReasonItem[]
+  trend_rows: ReturnTrendItem[]
+  disposition_rows: DispositionItem[]
+  status_rows: StatusItem[]
+  feedback_rows: CustomerFeedbackItem[]
+  weekday_rows: WeekdayItem[]
+  fulfillment_center_rows: FulfillmentCenterItem[]
+  multi_item_return_count: number
+  multi_item_return_quantity: number
+}
+
+const TAB_LABELS: Record<ViewTab, string> = {
+  rankings: '高退货排行',
+  reason: '退货原因',
+  trend: '退货趋势',
+  'product-status': '商品状态',
+  'inventory-status': '库存状态',
+  feedback: '顾客反馈',
+  summary: 'AI 总结',
+}
+
+// BLF-883 全局统一：每个 tab 前置 icon
+const TAB_ICONS: Record<ViewTab, LucideIcon> = {
+  rankings: Trophy,
+  reason: Tags,
+  trend: TrendingUp,
+  'product-status': Package,
+  'inventory-status': Boxes,
+  feedback: MessageSquare,
+  summary: Sparkles,
+}
+
+const REASON_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+]
+
+/** 统计磁贴：终端规格（1px 边界、mono label、tabular 数值、语义色） */
+function SummaryTile({
+  label,
+  value,
+  sub,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  sub?: string
+  valueClassName?: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'truncate font-mono text-base leading-6 tabular-nums text-term-text',
+          valueClassName
+        )}
+        title={value}
+      >
+        {value}
+      </span>
+      {sub && (
+        <span className="truncate font-mono text-[11px] leading-4 text-term-faint">{sub}</span>
+      )}
+    </div>
+  )
+}
+
+/** 整体退货率语义色：>8% 红 / >3% 黄 / 其余绿（与原控制台口径一致） */
+function returnRateTone(rate: number): string {
+  if (rate > 8) return 'text-term-neg'
+  if (rate > 3) return 'text-term-warn'
+  return 'text-emerald-600 dark:text-emerald-400'
+}
+
+export default function ReturnAnalysisPage() {
+  const { notify } = useNotifications()
+  const { data: session } = useSession()
+
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  // 项目 / 国家 / 当前 Tab 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // dateRange 暂保留本地 state（按 current country 的 timezone 计算默认值，比较重，先不污染 URL）。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
+  const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
+    allowed: ['US', 'DE', 'UK'],
+  })
+  const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
+  const [activeTab, setActiveTab] = useUrlParam<ViewTab>('tab', 'rankings', {
+    allowed: [
+      'rankings',
+      'reason',
+      'trend',
+      'product-status',
+      'inventory-status',
+      'feedback',
+      'summary',
+    ],
+  })
+
+  const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      setProjectsLoading(true)
+      try {
+        const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
+        const validPayload = payload.filter((item) => item.id !== null)
+        setProjects(validPayload)
+        // 1. URL 没指定 projectId（空字符串）→ 选第一个
+        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+        // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
+        if (validPayload.length > 0) {
+          const existsInList = projectId && validPayload.some((p) => String(p.id) === projectId)
+          if (!projectId || !existsInList) {
+            setProjectId(String(validPayload[0].id))
+          }
+        }
+      } catch (fetchError) {
+        notify({
+          type: 'error',
+          title: '项目列表加载失败',
+          message: fetchError instanceof Error ? fetchError.message : '项目列表加载失败',
+        })
+      } finally {
+        setProjectsLoading(false)
+      }
+    }
+    void loadProjects()
+  }, [notify, session])
+
+  useEffect(() => {
+    setDateRange(defaultRange)
+  }, [country, defaultRange])
+
+  // BEL-423：退货分析只读数据进 2min 客户端缓存（重复 mount 0 请求）；刷新按钮 force。
+  const loadData = useCallback(
+    async (force = false) => {
+      const effectiveRange = normalizeDateRange(dateRange)
+      if (!effectiveRange?.from || !effectiveRange?.to) {
+        notify({ type: 'error', title: '请选择开始和结束日期' })
+        return
+      }
+      if (!projectId) {
+        notify({ type: 'error', title: '请先选择项目' })
+        return
+      }
+
+      const startDate = formatYMD(effectiveRange.from)
+      const endDate = formatYMD(effectiveRange.to)
+
+      setLoading(true)
+      try {
+        const search = new URLSearchParams({
+          project_id: projectId,
+          country,
+          start_date: startDate,
+          end_date: endDate,
+        })
+        const payload = await fetchOpsJsonCached<ReturnAnalysisResponse>(
+          `${API_BASE}/return-analysis?${search.toString()}`,
+          { session, force, fallbackError: '退货数据加载失败' }
+        )
+        setData(payload)
+      } catch (fetchError) {
+        notify({
+          type: 'error',
+          title: '退货数据加载失败',
+          message: fetchError instanceof Error ? fetchError.message : '退货数据加载失败',
+        })
+        setData(null)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [projectId, country, dateRange, notify, session]
+  )
+
+  const handleExportExcel = useCallback(async () => {
+    if (!data) return
+    setExporting(true)
+    try {
+      const ExcelJS = await import('exceljs')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'BelieveBoy Dashboard'
+      workbook.created = new Date()
+
+      // Helper: apply header style
+      const styleHeaderRow = (ws: Worksheet, rowIndex: number) => {
+        const row = ws.getRow(rowIndex)
+        row.eachCell((cell) => {
+          cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+          applyHeaderBorder(cell)
+        })
+        return row
+      }
+
+      // ── Sheet 1: 退货排行 ──
+      {
+        const ws = workbook.addWorksheet('退货排行')
+        const headers = [
+          'SKU',
+          'ASIN',
+          '产品名称',
+          '退货数量',
+          '退货单数',
+          '销售数量',
+          '退货率(%)',
+          '平均退货周期(天)',
+          '最快退货周期(天)',
+          '最慢退货周期(天)',
+        ]
+        ws.columns = [
+          { width: 18 },
+          { width: 16 },
+          { width: 30 },
+          { width: 12 },
+          { width: 12 },
+          { width: 12 },
+          { width: 12 },
+          { width: 18 },
+          { width: 18 },
+          { width: 18 },
+        ]
+        const headerRow = ws.addRow(headers)
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        data.ranking_rows.forEach((row) => {
+          const r = ws.addRow([
+            row.sku,
+            row.asin ?? '',
+            row.product_name ?? '',
+            row.total_quantity,
+            row.return_count,
+            row.sales_quantity,
+            row.sales_quantity > 0 ? parseFloat(row.return_rate.toFixed(2)) : null,
+            row.avg_return_cycle_days != null ? row.avg_return_cycle_days : '',
+            row.min_return_cycle_days != null ? row.min_return_cycle_days : '',
+            row.max_return_cycle_days != null ? row.max_return_cycle_days : '',
+          ])
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        // freeze header row
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
+      // ── Sheet 2: 退货原因 ──
+      {
+        const ws = workbook.addWorksheet('退货原因')
+        const headers = ['退货原因', '退货数量', '退货单数', '占比(%)']
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
+        const headerRow = ws.addRow(headers)
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        data.reason_rows.forEach((row) => {
+          const r = ws.addRow([
+            row.reason_display,
+            row.total_quantity,
+            row.return_count,
+            parseFloat(row.percentage.toFixed(2)),
+          ])
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
+      // ── Sheet 3: 商品状态 ──
+      {
+        const ws = workbook.addWorksheet('商品状态')
+        const headers = ['商品状态', '数量', '退货单数', '占比(%)']
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
+        const headerRow = ws.addRow(headers)
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        data.disposition_rows.forEach((row) => {
+          const r = ws.addRow([
+            row.disposition_display,
+            row.total_quantity,
+            row.return_count,
+            parseFloat(row.percentage.toFixed(2)),
+          ])
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
+      // ── Sheet 4: 库存状态 ──
+      {
+        const ws = workbook.addWorksheet('库存状态')
+        const headers = ['库存状态', '数量', '退货单数', '占比(%)']
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
+        const headerRow = ws.addRow(headers)
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        data.status_rows.forEach((row) => {
+          const r = ws.addRow([
+            row.status_display,
+            row.total_quantity,
+            row.return_count,
+            parseFloat(row.percentage.toFixed(2)),
+          ])
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
+      // ── Sheet 5: 顾客反馈 ──
+      {
+        const ws = workbook.addWorksheet('顾客反馈')
+        const headers = ['日期', 'SKU', '订单号', '退货原因', '顾客评论']
+        ws.columns = [{ width: 14 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 60 }]
+        const headerRow = ws.addRow(headers)
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        data.feedback_rows.forEach((row) => {
+          const r = ws.addRow([
+            row.return_date,
+            row.sku,
+            row.order_id,
+            row.reason_display,
+            row.customer_comment,
+          ])
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeDateRange = `${data.start_date}_${data.end_date}`
+      const safeProjectName = (data.project_name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(data.country).replace(/[\\/:*?"<>|]/g, '-')
+      link.href = url
+      link.download = `${safeProjectName}_${safeCountryLabel}-退货分析-${safeDateRange}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      notify({ type: 'success', title: '导出成功', message: '退货分析 Excel 已下载' })
+    } catch (err) {
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: err instanceof Error ? err.message : '导出时发生未知错误',
+      })
+    } finally {
+      setExporting(false)
+    }
+  }, [data, notify])
+
+  useEffect(() => {
+    if (!projectId) return
+    void loadData()
+  }, [projectId, country, loadData])
+
+  // —— Header 化：head 插槽 + 全局刷新 ——
+  // 刷新语义与原控制台 RefreshButton 一致：当前筛选条件下强刷（跳 2min 客户端缓存）。
+  const loadDataRef = useRef(loadData)
+  loadDataRef.current = loadData
+  useHeaderRefresh(() => loadDataRef.current(true), { loading })
+
+  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围）
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((project) => ({
+          value: String(project.id),
+          label: project.name,
+        }))}
+        placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+        disabled={projectsLoading}
+        widthClass={TERM_HEADER_W_MD}
+        title="项目筛选"
+      />
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => setCountry(value as CountryOption)}
+        options={COUNTRY_OPTIONS}
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
+      <HeaderSlotDateRange
+        value={dateRange}
+        onChange={setDateRange}
+        onApply={() => void loadData()}
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_XL}
+      />
+    </>
+  )
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
+  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileCountryLabel = getCountryLabel(country)
+  const mobileDateLabel =
+    dateRange?.from && dateRange?.to
+      ? `${formatYMD(dateRange.from)} ~ ${formatYMD(dateRange.to)}`
+      : '未选日期'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((project) => ({
+              value: String(project.id),
+              label: project.name,
+            }))}
+            placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+            disabled={projectsLoading}
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+          />
+          <HeaderSlotSelect
+            value={country}
+            onChange={(value) => setCountry(value as CountryOption)}
+            options={COUNTRY_OPTIONS}
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+          <MobileFilterWide>
+            <HeaderSlotDateRange
+              value={dateRange}
+              onChange={setDateRange}
+              onApply={() => void loadData()}
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
+              widthClass={TERM_HEADER_W_XL}
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
+
+  const chartConfig = {
+    return_count: { label: '退货量', color: 'hsl(var(--chart-1))' },
+    total_quantity: { label: '退货件数', color: 'hsl(var(--chart-2))' },
+    percentage: { label: '占比', color: 'hsl(var(--chart-3))' },
+    return_rate: { label: '退货率(%)', color: 'hsl(var(--chart-1))' },
+  } satisfies ChartConfig
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
+      {headerSlotPortal}
+      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+      {mobileFilterStrip}
+
+      {/* 统计磁贴条（原控制台 Summary Stats，终端规格） */}
+      {data && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <SummaryTile label="退货单数" value={data.summary.total_returns.toLocaleString()} />
+          <SummaryTile label="退货总量" value={data.summary.total_quantity.toLocaleString()} />
+          <SummaryTile
+            label="销售数量"
+            value={data.summary.total_sales_quantity.toLocaleString()}
+          />
+          <SummaryTile
+            label="整体退货率"
+            value={`${data.summary.overall_return_rate.toFixed(1)}%`}
+            valueClassName={returnRateTone(data.summary.overall_return_rate)}
+          />
+          <SummaryTile label="涉及 SKU" value={data.summary.unique_skus.toLocaleString()} />
+          <SummaryTile
+            label="Top 退货原因"
+            value={
+              data.summary.top_return_reason
+                ? translateReason(data.summary.top_return_reason)
+                : '--'
+            }
+          />
+          <SummaryTile
+            label="多件退货"
+            value={data.multi_item_return_count.toLocaleString()}
+            sub={`共 ${data.multi_item_return_quantity.toLocaleString()} 件`}
+          />
+        </div>
+      )}
+
+      {/* Tab 导航条独立于工作区卡片之外（不再嵌在卡头内，对齐 shipment-management / sku-info
+          的外置 tab 布局）；卡头仅保留 标题 + 导出 */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ViewTab)}
+        className="w-full space-y-4"
+      >
+        <TabsMotionGroup id="return-analysis-tabs">
+          <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
+            {VIEW_TAB_ORDER.map((tab) => {
+              const Icon = TAB_ICONS[tab]
+              return (
+                <SlidingTabsTrigger
+                  key={tab}
+                  value={tab}
+                  activeValue={activeTab}
+                  layoutId="return-analysis-tab-indicator"
+                  variant="term"
+                >
+                  <Icon aria-hidden />
+                  {TAB_LABELS[tab]}
+                </SlidingTabsTrigger>
+              )
+            })}
+          </TabsList>
+        </TabsMotionGroup>
+        <DataTableCard className="relative">
+          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4 sm:px-6">
+            <div className="text-sm font-semibold text-foreground sm:text-base">
+              退货分析工作区
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleExportExcel()}
+              disabled={exporting || loading || !data}
+              className="h-10 w-full px-3 sm:w-auto sm:px-4"
+            >
+              {exporting ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-4 w-4" />
+              )}
+              导出 Excel
+            </Button>
+          </DataTableCardHeader>
+          <DataTableCardBody>
+            <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
+              <TabsContent forceMount value={activeTab} className="m-0">
+                {activeTab === 'rankings' && (
+                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94" tableLayout="fixed">
+                    <ColGroup
+                      columns={[
+                        { width: 112 },
+                        { width: 144 },
+                        { width: 80 },
+                        { width: 96 },
+                        { width: 96 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                      ]}
+                    />
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead rowSpan={2} className="align-middle">
+                          SKU
+                        </TableHead>
+                        <TableHead rowSpan={2} className="align-middle">
+                          品名
+                        </TableHead>
+                        <TableHead rowSpan={2} className="align-middle">
+                          ASIN
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货数量
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货单数
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          销售数量
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货率
+                        </TableHead>
+                        <TableHead colSpan={3} className="text-center">
+                          退货周期(天)
+                        </TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-right">平均</TableHead>
+                        <TableHead className="text-right">最快</TableHead>
+                        <TableHead className="text-right">最慢</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <RefreshProgressBar
+                      refreshing={isRefreshing}
+                      as="tbody"
+                      className="[&_tr:last-child]:border-b-0"
+                    >
+                      {showSkeleton ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                          <TableRow key={i}>
+                            <TableCell>
+                              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell>
+                              <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell>
+                              <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : data?.ranking_rows.length ? (
+                        data.ranking_rows.map((row) => (
+                          <TableRow key={row.sku}>
+                            <TableCell className="font-medium truncate">{row.sku}</TableCell>
+                            <TableCell className="truncate text-muted-foreground">
+                              {row.product_name || '--'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {row.asin || '--'}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {row.total_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.return_count.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.sales_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-semibold ${ row.return_rate > 8 ? 'text-term-neg' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500' }`}
+                            >
+                              {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.avg_return_cycle_days != null
+                                ? row.avg_return_cycle_days.toFixed(1)
+                                : '--'}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}
+                            </TableCell>
+                            <TableCell className="text-right text-term-warn">
+                              {row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={10}
+                            className="py-12 text-center text-muted-foreground"
+                          >
+                            暂无退货排行数据
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </RefreshProgressBar>
+                  </Table>
+                )}
+
+                {activeTab === 'reason' && (
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">退货原因分析</h3>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {/* Table */}
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>退货原因</TableHead>
+                            <TableHead className="text-right">退货数量</TableHead>
+                            <TableHead className="text-right">占比</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
+                          {data?.reason_rows.length ? (
+                            data.reason_rows.map((row) => (
+                              <TableRow key={row.reason}>
+                                <TableCell className="font-medium">{row.reason_display}</TableCell>
+                                <TableCell className="text-right">
+                                  {row.total_quantity.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <EmptyTableState colSpan={3} message="暂无退货原因数据" />
+                          )}
+                        </RefreshProgressBar>
+                      </Table>
+
+                      {/* Pie Chart */}
+                      {data?.reason_rows && data.reason_rows.length > 0 && (
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
+                          <ChartContainer
+                            config={chartConfig}
+                            className="h-[240px] w-full sm:h-[300px]"
+                          >
+                            <PieChart>
+                              <Pie
+                                data={data.reason_rows.slice(0, 5).map((r, i) => ({
+                                  name: r.reason_display,
+                                  value: r.return_count,
+                                  fill: REASON_COLORS[i % REASON_COLORS.length],
+                                }))}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                dataKey="value"
+                              >
+                                {data.reason_rows.slice(0, 5).map((_, i) => (
+                                  <Cell key={i} fill={REASON_COLORS[i % REASON_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                            </PieChart>
+                          </ChartContainer>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'trend' && (
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">销售与退货趋势对比</h3>
+                    {data?.trend_rows && data.trend_rows.length > 0 ? (
+                      <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
+                        <ChartContainer
+                          config={chartConfig}
+                          className="h-[280px] w-full sm:h-[350px]"
+                        >
+                          <ComposedChart
+                            data={data.trend_rows}
+                            margin={{ top: 12, right: 4, left: -12, bottom: 8 }}
+                          >
+                            <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
+                            <XAxis
+                              dataKey="date"
+                              axisLine={false}
+                              tickLine={false}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tickFormatter={(value) => {
+                                const [, month, day] = String(value).split('-')
+                                return `${month}/${day}`
+                              }}
+                            />
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              yAxisId="left"
+                              width={35}
+                            />
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tickMargin={8}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              yAxisId="right"
+                              orientation="right"
+                              tickFormatter={(value) => `${value}%`}
+                              width={35}
+                            />
+                            <ChartTooltip
+                              content={
+                                <ChartTooltipContent
+                                  nameKey="date"
+                                  formatter={(value, name) => {
+                                    const label =
+                                      chartConfig[name as keyof typeof chartConfig]?.label || name
+                                    return [value, label]
+                                  }}
+                                />
+                              }
+                            />
+                            <Bar
+                              dataKey="sales_quantity"
+                              name="sales_quantity"
+                              fill="var(--color-sales_quantity)"
+                              radius={[4, 4, 0, 0]}
+                              barSize={16}
+                              yAxisId="left"
+                            />
+                            <Bar
+                              dataKey="return_count"
+                              name="return_count"
+                              fill="var(--color-return_count)"
+                              radius={[4, 4, 0, 0]}
+                              barSize={10}
+                              yAxisId="left"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="return_rate"
+                              name="return_rate"
+                              stroke="var(--color-return_rate)"
+                              strokeWidth={2}
+                              dot={false}
+                              yAxisId="right"
+                            />
+                          </ComposedChart>
+                        </ChartContainer>
+                        <div className="mt-2 flex flex-wrap gap-4 px-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-4))]" />
+                            销售数量
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-1))]" />
+                            退货单数
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="inline-block h-2.5 w-5 rounded-sm border-b-2 border-[hsl(var(--chart-1))]" />
+                            退货率（%）
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyTableState colSpan={1} message="暂无退货趋势数据" />
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'product-status' && (
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">商品状态分布</h3>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>商品状态</TableHead>
+                            <TableHead className="text-right">数量</TableHead>
+                            <TableHead className="text-right">占比</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
+                          {data?.disposition_rows.length ? (
+                            data.disposition_rows.map((row) => (
+                              <TableRow key={row.detailed_disposition}>
+                                <TableCell className="font-medium">
+                                  <Badge variant="outline" className="mr-2">
+                                    {row.disposition_display}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {row.return_count.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <EmptyTableState colSpan={3} message="暂无商品状态数据" />
+                          )}
+                        </RefreshProgressBar>
+                      </Table>
+
+                      {data?.disposition_rows && data.disposition_rows.length > 0 && (
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                          <div className="text-sm text-muted-foreground text-center py-8">
+                            图表展示区域（可扩展）
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'inventory-status' && (
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">库存状态分布</h3>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>库存状态</TableHead>
+                            <TableHead className="text-right">数量</TableHead>
+                            <TableHead className="text-right">占比</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
+                          {data?.status_rows.length ? (
+                            data.status_rows.map((row) => (
+                              <TableRow key={row.status}>
+                                <TableCell className="font-medium">
+                                  <Badge variant="outline" className="mr-2">
+                                    {row.status_display}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {row.return_count.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <EmptyTableState colSpan={3} message="暂无库存状态数据" />
+                          )}
+                        </RefreshProgressBar>
+                      </Table>
+
+                      {data?.status_rows && data.status_rows.length > 0 && (
+                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                          <div className="text-sm text-muted-foreground text-center py-8">
+                            图表展示区域（可扩展）
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'feedback' && (
+                  <div className="space-y-4 p-4">
+                    <h3 className="text-base font-semibold">顾客反馈</h3>
+                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>日期</TableHead>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>退货原因</TableHead>
+                          <TableHead>顾客评论</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <RefreshProgressBar
+                        refreshing={isRefreshing}
+                        as="tbody"
+                        className="[&_tr:last-child]:border-b-0"
+                      >
+                        {data?.feedback_rows.length ? (
+                          data.feedback_rows.slice(0, 50).map((row, index) => (
+                            <TableRow key={`${row.order_id}-${index}`}>
+                              <TableCell className="text-muted-foreground">
+                                {row.return_date}
+                              </TableCell>
+                              <TableCell className="font-medium">{row.sku}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {row.reason_display}
+                                </Badge>
+                              </TableCell>
+                              <TableCell
+                                className="max-w-[300px] truncate text-muted-foreground"
+                                title={row.customer_comment}
+                              >
+                                {row.customer_comment}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <EmptyTableState colSpan={4} message="暂无顾客反馈数据" />
+                        )}
+                      </RefreshProgressBar>
+                    </Table>
+                  </div>
+                )}
+
+                {activeTab === 'summary' && (
+                  <div className="space-y-4 p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-semibold">退货分析总结</h3>
+                      {data && (
+                        <span className="text-xs text-muted-foreground">
+                          {data.start_date} 至 {data.end_date}
+                        </span>
+                      )}
+                    </div>
+                    {showSkeleton ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <Skeleton key={i} className="h-4 w-full" />
+                        ))}
+                      </div>
+                    ) : (
+                      <RefreshProgressBar refreshing={isRefreshing}>
+                        {data?.summary_text ? (
+                          <div className="space-y-4">
+                            {/* Text Summary */}
+                            <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-5">
+                              <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap text-sm leading-relaxed">
+                                {data.summary_text.split('\n').map((line, i) => {
+                                  if (!line.trim()) {
+                                    return <div key={i} className="h-3" />
+                                  }
+                                  if (
+                                    line.startsWith('📊') ||
+                                    line.startsWith('⚠️') ||
+                                    line.startsWith('🔍') ||
+                                    line.startsWith('📈') ||
+                                    line.startsWith('📦') ||
+                                    line.startsWith('🏭') ||
+                                    line.startsWith('💡') ||
+                                    line.startsWith('🗓️') ||
+                                    line.startsWith('📏') ||
+                                    line.startsWith('🖼️') ||
+                                    line.startsWith('💬') ||
+                                    line.startsWith('📋') ||
+                                    line.startsWith('ℹ️') ||
+                                    line.startsWith('⚡')
+                                  ) {
+                                    return (
+                                      <p
+                                        key={i}
+                                        className="font-semibold text-foreground mt-4 first:mt-0 mb-1"
+                                      >
+                                        {line}
+                                      </p>
+                                    )
+                                  }
+                                  return (
+                                    <p key={i} className="text-muted-foreground my-0.5">
+                                      {line}
+                                    </p>
+                                  )
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Weekday Distribution */}
+                            {data.weekday_rows && data.weekday_rows.length > 0 && (
+                              <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                                <h4 className="text-sm font-semibold mb-3">📅 星期退货分布</h4>
+                                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                                  {data.weekday_rows.map((row) => (
+                                    <div
+                                      key={row.weekday}
+                                      className="flex flex-col items-center rounded-none bg-[hsl(var(--surface-panel))] p-2"
+                                    >
+                                      <div className="text-xs text-muted-foreground">
+                                        {row.weekday_display}
+                                      </div>
+                                      <div className="text-lg font-semibold mt-1">
+                                        {row.return_count}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {row.percentage}%
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Fulfillment Center Distribution */}
+                            {data.fulfillment_center_rows &&
+                              data.fulfillment_center_rows.length > 0 && (
+                                <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                                  <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
+                                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>仓库</TableHead>
+                                        <TableHead className="text-right">退货单数</TableHead>
+                                        <TableHead className="text-right">退货件数</TableHead>
+                                        <TableHead className="text-right">占比</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {data.fulfillment_center_rows.slice(0, 10).map((row) => (
+                                        <TableRow key={row.fulfillment_center_id}>
+                                          <TableCell className="font-medium">
+                                            {row.fulfillment_center_id}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {row.return_count.toLocaleString()}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {row.quantity.toLocaleString()}
+                                          </TableCell>
+                                          <TableCell className="text-right text-muted-foreground">
+                                            {row.percentage}%
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              )}
+                          </div>
+                        ) : (
+                          <EmptyTableState colSpan={1} message="暂无总结数据" />
+                        )}
+                      </RefreshProgressBar>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+            </DirectionalTabTransition>
+          </DataTableCardBody>
+        </DataTableCard>
+      </Tabs>
+    </div>
+  )
+}

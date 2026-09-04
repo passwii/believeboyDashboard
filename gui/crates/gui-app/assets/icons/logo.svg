@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <!--
+    BelieveBoy 应用图标——白色图形层（上升柱状图 + 趋势箭头），几何与
+    gui/scripts/make-icon.py 的 draw_bars 一致（1024 画布、chart 460×340 居中、
+    bar 宽 95、gap 26；坐标保持与 AppIcon.icns 同源）。
+    蓝色渐变圆角方块底由登录视图用 gpui linear_gradient 绘制（BLF-712 修正：
+    gpui 0.2.2 svg() 只能单色渲染，本文件只承载白色图形，运行时经 text_color 白色着色；
+    显式 #FFFFFF 便于离屏渲染契约测试直接校验白色）。透明底、无圆角方块。
+  -->
+  <g fill="#FFFFFF">
+    <rect x="282" y="540" width="95" height="142" rx="31"/>
+    <rect x="403" y="485" width="95" height="197" rx="31"/>
+    <rect x="524" y="431" width="95" height="251" rx="31"/>
+    <rect x="645" y="370" width="95" height="312" rx="31"/>
+  </g>
+  <path d="M403 552 L524 484 L740 416" stroke="#FFFFFF" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polygon points="786,393 740,416 786,462" fill="#FFFFFF"/>
+</svg>

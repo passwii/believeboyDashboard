@@ -1,0 +1,196 @@
+import * as React from 'react'
+
+import { TERM_PANEL_SURFACE } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+
+// 表格密集档位常量（= table-presets 的 densityHead.compact / densityCell.compact，单一配方）。
+// BLF-496 起 DENSE_* 从 '!p-2' / '!px-2' 收敛为 compact 档位（表头 h-10 + 0.66rem，BLF-887 上档，数字格 13px），
+// 存量 100+ 处用法视觉向基线 compact 对齐；新代码请直接用 densityHead.compact / densityCell.compact。
+// BLF-872 起 Table 原语默认密度即 compact 档，DENSE_* 保留为兼容别名（覆写值与基线一致）。
+export const DENSE_HEAD = '!h-10 !px-3 !text-[0.66rem] !tracking-[0.14em]'
+export const DENSE_CELL = '!px-3 !py-2 !text-[13px]'
+
+// ========================
+// DataCard — 普通内容卡片
+// 替代: Card > CardHeader > CardContent 的手动组合
+// 特点: 标题行（含分隔线） + 内容区带默认 padding
+// Terminal 收口（BLF-872）：零圆角 + term 边框/面板 + 零阴影，替代 dashboard-surface
+// ========================
+
+function DataCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn(TERM_PANEL_SURFACE, className)} {...props} />
+}
+
+interface DataCardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  title?: string
+  titleClassName?: string
+  description?: string
+  badge?: React.ReactNode
+  action?: React.ReactNode
+}
+
+function DataCardHeader({
+  title,
+  titleClassName,
+  description,
+  badge,
+  action,
+  className,
+  ...props
+}: DataCardHeaderProps) {
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 items-center justify-between border-b border-term-border bg-term-raised px-4 py-3',
+        className
+      )}
+      {...props}
+    >
+      <div className="flex min-w-0 flex-col gap-1">
+        {badge}
+        {title && (
+          <h2
+            className={cn(
+              'font-mono text-sm font-semibold leading-none tracking-wide text-term-text',
+              titleClassName
+            )}
+          >
+            {title}
+          </h2>
+        )}
+        {description && <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>}
+      </div>
+      {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}
+    </div>
+  )
+}
+
+function DataCardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('px-4 py-4', className)} {...props} />
+}
+
+// ========================
+// DataTableCard — 表格专用卡片
+// 特点: 上半部分灵活布局 + 下半部分表格贴边
+// ========================
+
+function DataTableCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn(TERM_PANEL_SURFACE, className)} {...props} />
+}
+
+// 标题行容器（border-b 分隔）— 支持 title/description/action 或任意子元素
+interface DataTableCardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  title?: string
+  description?: string
+  action?: React.ReactNode
+}
+
+function DataTableCardHeader({
+  title,
+  description,
+  action,
+  className,
+  children,
+  ...props
+}: DataTableCardHeaderProps) {
+  return (
+    <div
+      className={cn('border-b border-term-border bg-term-raised px-4 py-3', className)}
+      {...props}
+    >
+      {children ?? (
+        <div className="flex min-w-0 items-center justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            {title && (
+              <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">
+                {title}
+              </h2>
+            )}
+            {description && (
+              <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>
+            )}
+          </div>
+          {action && <div className="ml-4 flex shrink-0 flex-wrap gap-2">{action}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 指标卡行（内置响应式 grid）— 接收任意子元素
+function DataTableCardMetrics({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('grid grid-cols-2 gap-2 px-4 pb-3 md:grid-cols-4 xl:grid-cols-7', className)}
+      {...props}
+    />
+  )
+}
+
+// 表格区域（零 padding）
+function DataTableCardBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('min-w-0', className)} {...props} />
+}
+
+// ========================
+// DataTableCardStatBar — 扁平统计条
+// 替代 DataTableCardMetrics：无边框/圆角/背景，等分列展示数据
+// 用法: <DataTableCardStatBar items={[{label, value}, ...]} />
+// ========================
+interface DataTableCardStatBarItem {
+  label: string
+  value: string | number | React.ReactNode
+  highlight?: boolean
+}
+
+interface DataTableCardStatBarProps extends React.HTMLAttributes<HTMLDivElement> {
+  items: DataTableCardStatBarItem[]
+}
+
+function DataTableCardStatBar({ items, className, ...props }: DataTableCardStatBarProps) {
+  if (items.length === 0) return null
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-2 gap-2 px-4 sm:flex sm:gap-0 sm:px-0 sm:divide-x sm:divide-term-border',
+        className
+      )}
+      {...props}
+    >
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className={cn(
+            'flex flex-col items-center justify-center rounded-none border border-term-border px-2 py-2.5 sm:flex-1 sm:rounded-none sm:border-0 sm:px-0',
+            i === 0 && 'sm:pl-4',
+            i === items.length - 1 && 'sm:pr-4'
+          )}
+        >
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-term-muted">
+            {item.label}
+          </div>
+          <div
+            className={cn(
+              'mt-0.5 font-mono text-lg font-semibold leading-tight',
+              item.highlight ? 'text-term-accent' : 'text-term-text'
+            )}
+          >
+            {item.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export {
+  DataCard,
+  DataCardHeader,
+  DataCardContent,
+  DataTableCard,
+  DataTableCardHeader,
+  DataTableCardMetrics,
+  DataTableCardBody,
+  DataTableCardStatBar,
+}
+export type { DataCardHeaderProps, DataTableCardStatBarItem }

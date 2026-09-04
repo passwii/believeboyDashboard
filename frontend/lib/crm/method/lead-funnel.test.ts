@@ -1,0 +1,118 @@
+import { describe, it, expect } from 'vitest'
+import { buildLeadFunnelStages, buildLeadStageFunnel, leadConversionRate, leadFunnelStepRates } from './lead-funnel'
+
+describe('buildLeadFunnelStages（累计转化漏斗）', () => {
+  it('各层按累计口径计算：每层 = 该阶段及以上之和', () => {
+    const stages = buildLeadFunnelStages({
+      new: 18,
+      contacting: 14,
+      qualified: 9,
+      converted: 4,
+      discarded: 5,
+    })
+    // 总量=18+14+9+4=45 联系=14+9+4=27 验证=9+4=13 转化=4
+    expect(stages.map((s) => s.value)).toEqual([45, 27, 13, 4])
+  })
+
+  it('漏斗恒单调收窄（后一层 ≤ 前一层）', () => {
+    // 即使原始快照"联系中比新线索多"（旧实现的 bug 场景），累计口径也不会变宽
+    const stages = buildLeadFunnelStages({ new: 3, contacting: 20, qualified: 8, converted: 6 })
+    for (let i = 1; i < stages.length; i++) {
+      expect(stages[i].value).toBeLessThanOrEqual(stages[i - 1].value)
+    }
+  })
+
+  it('discarded 不计入主漏斗', () => {
+    const stages = buildLeadFunnelStages({ discarded: 10 })
+    expect(stages[0].value).toBe(0)
+  })
+
+  it('空输入返回全 0 但保留四档结构', () => {
+    const stages = buildLeadFunnelStages({})
+    expect(stages).toHaveLength(4)
+    expect(stages.every((s) => s.value === 0)).toBe(true)
+  })
+
+  it('四档 label 与渐变配置固定', () => {
+    const stages = buildLeadFunnelStages({ new: 1 })
+    expect(stages.map((s) => s.label)).toEqual(['线索总量', '跟进联系', '验证', '转化'])
+    for (const s of stages) {
+      expect(s.gradient).toHaveLength(2)
+      expect(s.gradient?.[0].offset).toBe(0)
+      expect(s.gradient?.[1].offset).toBe(1)
+    }
+  })
+})
+
+describe('buildLeadStageFunnel（阶段漏斗 raw 口径，BLF-516 决策 4）', () => {
+  it('每层直接取当前状态计数（不累计），顺序固定 新线索→联系中→已验证→已转化', () => {
+    const stages = buildLeadStageFunnel({
+      new: 18,
+      contacting: 14,
+      qualified: 9,
+      converted: 4,
+      discarded: 5,
+    })
+    expect(stages.map((s) => s.value)).toEqual([18, 14, 9, 4])
+    expect(stages.map((s) => s.label)).toEqual(['新线索', '联系中', '已验证', '已转化'])
+  })
+
+  it('每档携带后端 stage key（供点击打开二层面板）', () => {
+    const stages = buildLeadStageFunnel({ new: 1 })
+    expect(stages.map((s) => s.stage)).toEqual(['new', 'contacting', 'qualified', 'converted'])
+  })
+
+  it('discarded 不计入主漏斗', () => {
+    const stages = buildLeadStageFunnel({ discarded: 10 })
+    expect(stages.map((s) => s.value)).toEqual([0, 0, 0, 0])
+  })
+
+  it('空输入返回全 0 但保留四档结构', () => {
+    const stages = buildLeadStageFunnel({})
+    expect(stages).toHaveLength(4)
+    expect(stages.every((s) => s.value === 0)).toBe(true)
+  })
+
+  it('raw 口径下后层可大于前层（宽度即堆量信号，不复现累计单调约束）', () => {
+    const stages = buildLeadStageFunnel({ new: 3, contacting: 20, qualified: 8, converted: 6 })
+    expect(stages[1]?.value).toBe(20)
+    expect(stages[1]?.value).toBeGreaterThan(stages[0]?.value ?? 0)
+  })
+})
+
+describe('leadConversionRate（整体转化率）', () => {
+  it('= 转化 / 线索总量', () => {
+    const rate = leadConversionRate({ new: 18, contacting: 14, qualified: 9, converted: 4 })
+    expect(rate).toBeCloseTo(4 / 45)
+  })
+
+  it('总量为 0 时返回 null', () => {
+    expect(leadConversionRate({})).toBeNull()
+    expect(leadConversionRate({ discarded: 3 })).toBeNull()
+  })
+})
+
+describe('leadFunnelStepRates（逐级转化率）', () => {
+  it('逐项 = 后档 / 前档', () => {
+    const stages = buildLeadFunnelStages({ new: 18, contacting: 14, qualified: 9, converted: 4 })
+    // 累计档：[45, 27, 13, 4] → [27/45, 13/27, 4/13]
+    const rates = leadFunnelStepRates(stages)
+    expect(rates).toHaveLength(3)
+    expect(rates[0]).toBeCloseTo(27 / 45)
+    expect(rates[1]).toBeCloseTo(13 / 27)
+    expect(rates[2]).toBeCloseTo(4 / 13)
+  })
+
+  it('前档为 0 时该项为 null', () => {
+    const rates = leadFunnelStepRates([
+      { label: 'A', value: 0 },
+      { label: 'B', value: 5 },
+    ])
+    expect(rates).toEqual([null])
+  })
+
+  it('单档或空档返回空数组', () => {
+    expect(leadFunnelStepRates([])).toEqual([])
+    expect(leadFunnelStepRates([{ label: 'A', value: 10 }])).toEqual([])
+  })
+})

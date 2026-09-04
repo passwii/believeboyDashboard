@@ -1,0 +1,64 @@
+name: motion-system-ci
+
+# Playwright regression suite for the frontend motion system.
+# Scoped to the motion-system branch + PRs targeting it; does NOT
+# duplicate the project-wide Lighthouse CI in lighthouse-ci.yml.
+
+on:
+  push:
+    branches: [feat/frontend-motion-system]
+  pull_request:
+    branches: [feat/frontend-motion-system, main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: playwright (chromium + mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      NEXTAUTH_URL: http://localhost:3200
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API types (type-check sanity)
+        run: pnpm gen:api-types:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Vitest (unit)
+        run: pnpm test
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Playwright (motion-system + mobile-adaptation specs)
+        # @mobile-blf611：BLF-611 广告域手机端回归（自包含，无需真实后端/登录态）
+        # @mobile-blf614：BLF-614 运营域 B 手机端回归（自包含，同上）
+        run: pnpm exec playwright test --grep "@motion|motion system|reduced-motion|reduced-transparency|motion-budget|@mobile-blf611|@mobile-blf614"

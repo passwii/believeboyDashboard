@@ -1,0 +1,92 @@
+'use client'
+
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import * as React from 'react'
+import { DayPicker } from 'react-day-picker'
+import { zhCN } from 'react-day-picker/locale'
+
+import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
+
+export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  components: userComponents,
+  ...props
+}: CalendarProps) {
+  const defaultClassNames = {
+    months: 'relative flex flex-col sm:flex-row gap-4',
+    month: 'w-full',
+    month_caption: 'relative mx-10 mb-1 flex h-9 items-center justify-center z-20',
+    caption_label: 'font-mono text-sm font-medium text-term-text',
+    nav: 'absolute top-0 flex w-full justify-between z-10',
+    button_previous: cn(
+      buttonVariants({ variant: 'ghost' }),
+      'size-9 text-muted-foreground/80 hover:text-foreground p-0 u-interactive'
+    ),
+    button_next: cn(
+      buttonVariants({ variant: 'ghost' }),
+      'size-9 text-muted-foreground/80 hover:text-foreground p-0 u-interactive'
+    ),
+    weekday: 'size-9 p-0 font-mono text-xs font-medium text-term-muted',
+    day_button:
+      'relative flex size-9 items-center justify-center whitespace-nowrap rounded-none p-0 font-mono text-sm text-term-text outline-offset-2 u-interactive group-[[data-selected]:not(.range-middle)]:[transition-property:color,background-color,border-radius,box-shadow] group-[[data-selected]:not(.range-middle)]:duration-150 focus:outline-none group-data-[disabled]:pointer-events-none focus-visible:z-10 hover:bg-term-hover group-data-[selected]:bg-primary hover:text-term-text group-data-[selected]:text-primary-foreground group-data-[disabled]:text-term-faint group-data-[disabled]:line-through group-data-[outside]:text-term-faint group-data-[outside]:group-data-[selected]:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 group-[.range-start:not(.range-end)]:rounded-e-none group-[.range-end:not(.range-start)]:rounded-s-none group-[.range-middle]:rounded-none group-data-[selected]:group-[.range-middle]:bg-term-hover group-data-[selected]:group-[.range-middle]:text-term-text',
+    day: 'group size-9 px-0 font-mono text-sm',
+    range_start: 'range-start',
+    range_end: 'range-end',
+    range_middle: 'range-middle',
+    today:
+      '*:after:pointer-events-none *:after:absolute *:after:bottom-1 *:after:start-1/2 *:after:z-10 *:after:size-[3px] *:after:-translate-x-1/2 *:after:rounded-full *:after:bg-primary [&[data-selected]:not(.range-middle)>*]:after:bg-background [&[data-disabled]>*]:after:bg-foreground/30 *:after:transition-colors',
+    outside: 'text-term-faint data-selected:bg-term-hover/50 data-selected:text-term-muted',
+    hidden: 'invisible',
+    week_number: 'size-9 p-0 font-mono text-xs font-medium text-term-muted',
+  }
+
+  const mergedClassNames = {
+    ...classNames,
+    ...Object.keys(defaultClassNames).reduce(
+      (acc, key) => ({
+        ...acc,
+        [key]: classNames?.[key as keyof typeof classNames]
+          ? cn(
+              defaultClassNames[key as keyof typeof defaultClassNames],
+              classNames[key as keyof typeof classNames]
+            )
+          : defaultClassNames[key as keyof typeof defaultClassNames],
+      }),
+      {} as Record<string, string>
+    ),
+  }
+
+  const defaultComponents = {
+    Chevron: (props: any) => {
+      if (props.orientation === 'left') {
+        return <ChevronLeft size={16} strokeWidth={2} {...props} aria-hidden="true" />
+      }
+      return <ChevronRight size={16} strokeWidth={2} {...props} aria-hidden="true" />
+    },
+  }
+
+  const mergedComponents = {
+    ...defaultComponents,
+    ...userComponents,
+  }
+
+  return (
+    <DayPicker
+      locale={zhCN}
+      weekStartsOn={1}
+      showOutsideDays={showOutsideDays}
+      className={cn('w-fit', className)}
+      classNames={mergedClassNames}
+      components={mergedComponents}
+      {...props}
+    />
+  )
+}
+Calendar.displayName = 'Calendar'
+
+export { Calendar }

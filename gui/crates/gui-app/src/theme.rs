@@ -1,0 +1,1142 @@
+//! 视觉 token 模块——高密度暗色工具主题（BLF-792，父 issue「暗色主题规格」节）
+//!
+//! 设计基调：专业交易终端（Bloomberg / Fintech）风格跨境电商中台——
+//! 零外边距平铺、极致空间利用率、等宽数字、1px 边界表达层级（不用重投影）。
+//!
+//! 四层设计：
+//! 1. **外观层**：gpui-component `Theme`（`cx.theme()`）承载亮/暗外观开关；
+//!    本应用**默认锁定 Dark**（[`ThemePreference::Dark`] 为默认偏好，UI 不再
+//!    暴露切换入口）。[`ThemePreference`] 枚举与 Light/FollowSystem 代码路径
+//!    **保留但休眠**（不删除，避免破坏既有测试与未来恢复口）。
+//! 2. **语义层**：[`AppTheme`] 承载业务语义色板。暗态对齐四层背景栈
+//!    [`BG_ROOT`] / [`BG_PANEL`] / [`BG_CARD`] / [`BG_HOVER`] + 分隔线
+//!    [`BORDER_SEPARATOR`] + 微语义色 [`SEMANTIC_POSITIVE`] /
+//!    [`SEMANTIC_WARNING`] / [`SEMANTIC_DANGER`]（常量可 grep 审计，回归锁见
+//!    `dark_utility_background_stack_contract`）。视图只消费 `AppTheme`，
+//!    不散落十六进制字面量。
+//! 3. **排版层（紧凑字阶）**：文字一律走显式字号 token（px），禁止裸数字
+//!    字面量字号（源码级回归锁见 widgets/page_header.rs 测试）：
+//!    - **标题级**：[`FONT_TITLE_LG`]（页面大标题 PageHeader / KPI 数值）或
+//!      [`FONT_TITLE`]（卡片小标题）+ `font_semibold` + `text_primary`；
+//!    - **正文/数据级**：[`FONT_BASE`] = 13px（10pt）——表格单元格、表单正文；
+//!    - **辅助级**：[`FONT_XS`]（表头 / 筛选 label / 副标题）/ [`FONT_2XS`]
+//!      （图表轴标签 / 时间戳 / 徽标）/ [`FONT_SM`]（次级说明）。
+//!
+//!    数字列/金额/时间戳另加等宽字体（[`FONT_MONO_FAMILY`]，JetBrains Mono
+//!    内嵌打包）+ tabular-nums，见
+//!    [`crate::widgets::data_table::TabularNumsExt::mono_tabular_nums`]。
+//!
+//!    迁移期兼容：存量视图仍走 gpui rem 系 `text_xs/sm/base/...` 字阶，由各
+//!    视图迁移批次逐个切换到本组 token（父 issue 阶段计划）；共享 chrome
+//!    （PageHeader / DataTable / stat_band KPI）已在 BLF-792 完成切换。
+//! 4. **度量层**：间距最小尺度收敛为 [`SPACE_MIN`]/[`SPACE_SM`]/[`SPACE_MD`]
+//!    （2/4/8px，小间距直接用 gpui 的 `.px_*/.gap_*` 4px 工具类）；控件标准高
+//!    两档 [`HEIGHT_CONTROL_SM`]/[`HEIGHT_CONTROL_MD`]；表头行高
+//!    [`TABLE_HEADER_HEIGHT`]。圆角沿用 gpui-component `Theme::radius`。
+//!
+//!    高密度模式下**取消宽窗内容居中上限**（原 CONTENT_MAX_WIDTH=1440 +
+//!    content_guard 居中已移除）：主工作区全幅平铺，容器外 padding 0、内部
+//!    间距锁 4/8px；`content_guard` 为全宽透传壳，调用点随 Stage11~13 各视图
+//!    迁移批次摘除（BLF-793 外壳重构不触碰业务视图内部）。
+//!
+//! 迁移说明：macOS HIG 舒适字阶（rem 系 xs=12/sm=14/base=16）与跟随系统亮暗
+//! 已被本契约取代；浅色语义色板（`AppTheme::light`）仅服务休眠路径，不再维护。
+
+use std::borrow::Cow;
+
+#[allow(unused_imports)]
+use gpui::FontFallbacks;
+use gpui::{point, px, rgb, App, BoxShadow, Hsla, Window};
+use gpui_component::{ActiveTheme, ThemeMode};
+
+// ---------------------------------------------------------------------------
+// 背景栈与微语义色（grep 审计锚点；2026-08-30 起与 frontend `globals.css`
+// 的 `--term-*` 暗色令牌一一对应——BLF-809 终端令牌为唯一权威，
+// 改色先改前端再同步此处与 `dark_utility_background_stack_contract`）
+// ---------------------------------------------------------------------------
+
+/// 背景栈 L0：应用根底（Root）＝ `--term-bg` #0c0c0e
+pub const BG_ROOT: u32 = 0x0c0c0e;
+/// 背景栈 L1：面板（Panel，侧栏/工具条）＝ `--term-panel` #131316
+pub const BG_PANEL: u32 = 0x131316;
+/// 背景栈 L2：卡片表面（Card）＝ `--term-raised` #1a1a1e
+pub const BG_CARD: u32 = 0x1a1a1e;
+/// 背景栈 L3：hover 与选中底（Hover & Selected）＝ `--term-hover` #232329
+pub const BG_HOVER: u32 = 0x232329;
+/// 背景栈·Master Rail 细分底（对齐前端 rail＝`--term-panel`：同值，
+/// 与 Sub-Nav/Header 的分工仅靠 1px 边界，不再自设中间层）
+pub const BG_RAIL: u32 = 0x131316;
+/// 分隔线 / 边框（1px 表达层级，不用重投影）＝ `--term-border` #242429
+pub const BORDER_SEPARATOR: u32 = 0x242429;
+/// 微语义色：正向 / 有货 / 涨 ＝ `--term-pos`（与 BLF-792 值一致，未漂移）
+pub const SEMANTIC_POSITIVE: u32 = 0x22c55e;
+/// 微语义色：警示 / 待处理 ＝ `--term-warn`（与 BLF-792 值一致，未漂移）
+pub const SEMANTIC_WARNING: u32 = 0xf59e0b;
+/// 微语义色：危险 / 缺货 / 跌 ＝ `--term-neg`（与 BLF-792 值一致，未漂移）
+pub const SEMANTIC_DANGER: u32 = 0xef4444;
+
+// ---------------------------------------------------------------------------
+// 紧凑字阶（px 显式 token；标题 11~13pt bold ≈ 14~17px，正文/数据 10pt = 13px）
+//
+// 本组 token 是后续阶段的排版地基：共享 chrome（PageHeader / DataTable /
+// stat_band KPI）已在 BLF-792 消费 FONT_XS / FONT_BASE / FONT_TITLE_LG，
+// 其余 token 由各视图迁移批次逐个接入——在接入前挂 dead_code 允许
+// （与 widgets 公共 API 面的既有惯例一致）。
+// ---------------------------------------------------------------------------
+
+/// 辅助级：图表轴标签 / 时间戳 / 徽标
+#[allow(dead_code)]
+pub const FONT_2XS: f32 = 10.0;
+/// 次要级：表头 / 筛选 label / 副标题
+pub const FONT_XS: f32 = 11.0;
+/// 次级说明（介于辅助与正文之间）
+#[allow(dead_code)]
+pub const FONT_SM: f32 = 12.0;
+/// Footer 全局状态栏专用字号（BLF-797；辅助级 text_xs 口径 11px——独立 token
+/// 与表头/筛选 label 的 [`FONT_XS`] 解耦，Footer 密度调优不牵连共享 chrome）
+pub const FONT_FOOTER: f32 = 11.0;
+/// 正文 / 数据基准（10pt = 13px）
+pub const FONT_BASE: f32 = 13.0;
+/// 小标题 / 卡片标题（11pt bold 下限）
+#[allow(dead_code)]
+pub const FONT_TITLE: f32 = 14.0;
+/// 页面大标题 / KPI 数值（13pt bold 上限）
+pub const FONT_TITLE_LG: f32 = 17.0;
+
+// ---------------------------------------------------------------------------
+// 控件度量与间距 token（控件高度由模板阶段组件化时消费，间距由各视图迁移批次接入）
+// ---------------------------------------------------------------------------
+
+/// 最小间距（2px）
+#[allow(dead_code)]
+pub const SPACE_MIN: f32 = 2.0;
+/// 标准小间距（4px；与 gpui `.gap_1/.p_1` 一致）
+#[allow(dead_code)]
+pub const SPACE_SM: f32 = 4.0;
+/// 标准中间距（8px；与 gpui `.gap_2/.p_2` 一致）
+#[allow(dead_code)]
+pub const SPACE_MD: f32 = 8.0;
+/// 控件标准高·紧凑档（输入/按钮）
+#[allow(dead_code)]
+pub const HEIGHT_CONTROL_SM: f32 = 24.0;
+/// 控件标准高·标准档（输入/按钮）
+#[allow(dead_code)]
+pub const HEIGHT_CONTROL_MD: f32 = 28.0;
+/// 数据表表头行高
+pub const TABLE_HEADER_HEIGHT: f32 = 28.0;
+
+// ---------------------------------------------------------------------------
+// 大间距（沿用 BLF-689；placeholder 等占位视图仍在用）
+// ---------------------------------------------------------------------------
+
+/// 4px 间距尺度上的常用大间距（间距 token；小间距直接用 gpui 的 `.px_*/.gap_*`
+/// 4px 工具类，语义一致，不重复定义）
+pub const SPACE_10: f32 = 40.0;
+pub const SPACE_12: f32 = 48.0;
+
+// ---------------------------------------------------------------------------
+// 等宽数字字体（JetBrains Mono 内嵌打包，OFL 许可随字体文件分发）
+// ---------------------------------------------------------------------------
+
+/// 数字列 / 金额 / 时间戳的等宽字体家族名（`register_embedded_fonts` 注册后生效）
+pub const FONT_MONO_FAMILY: &str = "JetBrains Mono";
+
+/// 注册内嵌字体（JetBrains Mono Regular/SemiBold；main 启动时调用一次）。
+///
+/// 打包进二进制（include_bytes），.app bundle / Windows exe 均不依赖系统装字体；
+/// 注册失败不致命（回退系统等宽），仅记录日志。
+pub fn register_embedded_fonts(cx: &mut App) {
+    let fonts = vec![
+        Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice()),
+        Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-SemiBold.ttf").as_slice()),
+    ];
+    if let Err(e) = cx.text_system().add_fonts(fonts) {
+        tracing::warn!("内嵌 JetBrains Mono 注册失败（数字将回退系统等宽字体）: {e}");
+    }
+}
+
+/// 主题偏好：深色（默认锁定）/ 浅色（休眠）/ 跟随系统（休眠）
+///
+/// BLF-792 起 UI 不再暴露外观切换入口，应用启动即强制深色
+/// （main.rs `set_theme_pref(ThemePreference::Dark)`）。枚举与浅色/跟随系统
+/// 路径保留为休眠代码（测试与未来「设置页恢复切换」的挂点），不属于活跃契约。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ThemePreference {
+    /// 深色（默认锁定；BLF-792 高密度暗色工具主题的唯一活跃外观）
+    #[default]
+    Dark,
+    /// 浅色（休眠：不在 UI 暴露，仅测试/恢复口使用）
+    #[allow(dead_code)]
+    Light,
+    /// 跟随系统（休眠：不在 UI 暴露，仅测试/恢复口使用）
+    #[allow(dead_code)]
+    FollowSystem,
+}
+
+impl ThemePreference {
+    /// 菜单显示名（休眠：BLF-792 下线外观切换菜单后无活跃消费方，
+    /// 保留供未来「设置页恢复切换」）
+    #[allow(dead_code)]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Dark => "深色",
+            Self::Light => "浅色",
+            Self::FollowSystem => "跟随系统",
+        }
+    }
+
+    /// 是否强制指定外观（非跟随系统）
+    pub fn is_explicit(self) -> bool {
+        !matches!(self, Self::FollowSystem)
+    }
+}
+
+/// 全局主题偏好（`cx.set_global` / `cx.global`）；默认锁定深色
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ThemePref(pub ThemePreference);
+
+impl gpui::Global for ThemePref {}
+
+/// 应用主题偏好到全局外观
+///
+/// - 深色/浅色 → 强制 `ThemeMode`
+/// - 跟随系统（休眠）→ `sync_system_appearance`（取窗口当前外观）
+///
+/// `window` 传 `Some` 时同步触发该窗口重绘（无闪烁：单帧内完成换肤）。
+pub fn set_theme_pref(pref: ThemePreference, window: Option<&mut Window>, cx: &mut App) {
+    cx.set_global(ThemePref(pref));
+    match pref {
+        ThemePreference::Dark => gpui_component::Theme::change(ThemeMode::Dark, window, cx),
+        ThemePreference::Light => gpui_component::Theme::change(ThemeMode::Light, window, cx),
+        ThemePreference::FollowSystem => gpui_component::Theme::sync_system_appearance(window, cx),
+    }
+}
+
+/// 窗口外观变化回调（由 `Window::observe_window_appearance` 注册）。
+///
+/// 仅「跟随系统」偏好下同步外观；显式浅色/深色时忽略系统变化。
+/// 当前默认锁定深色（显式），本回调实际处于静默旁路（保留注册链路）。
+pub fn on_window_appearance_changed(window: &mut Window, cx: &mut App) {
+    let pref = cx
+        .try_global::<ThemePref>()
+        .map(|p| p.0)
+        .unwrap_or_default();
+    if !pref.is_explicit() {
+        gpui_component::Theme::sync_system_appearance(Some(window), cx);
+    }
+}
+
+/// 语义色板（业务语义层）
+///
+/// 暗态（唯一活跃外观）对齐「暗色主题规格」：四层背景栈 + 1px 分隔线 +
+/// 微语义色（Tailwind green-500/amber-500/red-500），层级靠 1px 边界表达、
+/// 无重投影（卡片投影在暗态完全透明，见 [`AppTheme::card_shadow_box`]）。
+/// 浅色板为休眠遗留（macOS HIG 系统色，不再维护）。
+#[derive(Clone, Copy, Debug)]
+pub struct AppTheme {
+    /// 当前是否深色外观
+    pub dark: bool,
+
+    // ---- 度量 token（圆角；由 gpui-component 主题派生，亮暗一致）----
+    /// 通用元素圆角（px）
+    pub radius: f32,
+    /// 大元素圆角（px，Dialog/卡片等）
+    pub radius_lg: f32,
+    // ---- 背景层级 ----
+    /// 内容区画布（Root 层 [`BG_ROOT`]）
+    pub window_bg: Hsla,
+    /// 卡片表面（Card 层 [`BG_CARD`]）
+    pub card_bg: Hsla,
+    /// 中性填充（图表占位区 / 徽标底 / hover 反馈；Hover 层 [`BG_HOVER`]）
+    pub muted_fill: Hsla,
+    /// 分隔线（[`BORDER_SEPARATOR`]，1px 表达层级）
+    pub separator: Hsla,
+    /// 卡片投影色（暗态恒透明——高密度模式不用重投影，靠 1px 边界分层）
+    pub card_shadow: Hsla,
+    /// 面板底（Panel 层 [`BG_PANEL`]：侧栏 / 工具条 / 子导航；Stage2 外壳
+    /// 组件化时消费，侧栏当前经 `sidebar_bg` 同值消费）
+    #[allow(dead_code)]
+    pub panel_bg: Hsla,
+    /// Master Rail 主图标栏底（[`BG_RAIL`]，BLF-793 六区外壳最左列）
+    pub rail_bg: Hsla,
+
+    // ---- 侧栏（Panel 层 + Hover 层选中）----
+    // sidebar_* 文字/投影 token 为 BLF-794 遗留侧栏替换后的休眠字段：
+    // Sub-Nav 迁移到通用文字层级（text_primary/secondary），本组取值仍由
+    // 主题契约测试锁定，供后续视图迁移批次恢复消费。
+    pub sidebar_bg: Hsla,
+    pub sidebar_border: Hsla,
+    #[allow(dead_code)]
+    pub sidebar_text: Hsla,
+    #[allow(dead_code)]
+    pub sidebar_group_text: Hsla,
+    pub sidebar_item_hover: Hsla,
+    pub sidebar_item_active_bg: Hsla,
+    #[allow(dead_code)]
+    pub sidebar_item_active_text: Hsla,
+    /// 选中指示投影（暗色扁平主题恒透明；BLF-794 起无消费方，休眠字段）
+    #[allow(dead_code)]
+    pub sidebar_item_shadow: Hsla,
+    #[allow(dead_code)]
+    pub sidebar_footer_text: Hsla,
+
+    // ---- 文字层级 ----
+    pub text_primary: Hsla,
+    pub text_secondary: Hsla,
+    pub text_muted: Hsla,
+
+    // ---- 表格行态 ----
+    /// 表格行 hover 底（全部数据行通用；非选中行的指针反馈；[`BG_HOVER`]）
+    pub table_row_hover: Hsla,
+    /// 表格斑马纹行底（striped 表格的隔行底色；必须与卡底区分）
+    pub table_row_stripe: Hsla,
+
+    // ---- 强调 / 状态 ----
+    /// 强调色（controlAccent 蓝）
+    pub accent: Hsla,
+    /// 强调色 hover（登录按钮等按压反馈）
+    pub accent_hover: Hsla,
+    /// 强调色上的前景（accent 背景上的文字/图标）
+    pub on_accent: Hsla,
+    /// 强调色浅底（徽标/图标气泡背景）
+    pub accent_soft: Hsla,
+    /// 成功（涨 / 有货；[`SEMANTIC_POSITIVE`]）
+    pub success: Hsla,
+    /// 警告（警示 / 待处理；[`SEMANTIC_WARNING`]）
+    pub warning: Hsla,
+    /// 危险（跌 / 缺货 / 错误；[`SEMANTIC_DANGER`]）
+    pub danger: Hsla,
+    /// 成功浅底（涨 delta 徽章背景，`success` 的低透明度派生）
+    pub success_soft: Hsla,
+    /// 危险浅底（跌 delta 徽章背景，`danger` 的低透明度派生）
+    pub danger_soft: Hsla,
+
+    // ---- 图表序列色（蓝色系；frontend dashboard-v2 chartConfig 对齐）----
+    /// 主序列（销售额）
+    pub chart_primary: Hsla,
+    /// 次序列（销量 / 广告花费）
+    pub chart_secondary: Hsla,
+    /// 第三序列（库存等单序列强调）
+    pub chart_tertiary: Hsla,
+}
+
+impl AppTheme {
+    /// 当前是否深色外观
+    pub fn is_dark(&self) -> bool {
+        self.dark
+    }
+
+    /// 浅色外观语义色板（**休眠遗留**：macOS HIG 系统色，BLF-792 起不再维护，
+    /// 仅服务 ThemePreference::Light 休眠路径与既有测试）
+    pub fn light() -> Self {
+        Self {
+            dark: false,
+
+            // 度量 token
+            radius: 6.0,
+            radius_lg: 8.0,
+
+            // 背景层级（对齐 frontend `--term-*` 明色令牌；休眠但同步收口）
+            window_bg: c(0xf5f5f7),
+            card_bg: c(0xffffff),
+            muted_fill: c(0xececef),
+            separator: c(0xe3e3e8),
+            card_shadow: c(0x000000).alpha(0.06),
+            panel_bg: c(0xffffff),
+            rail_bg: c(0xffffff),
+
+            // 表格行态
+            table_row_hover: c(0xececef).alpha(0.65),
+            table_row_stripe: c(0xececef).alpha(0.5),
+
+            // 侧栏
+            sidebar_bg: c(0xffffff),
+            sidebar_border: c(0xe3e3e8),
+            sidebar_text: c(0x1b1b1f),
+            sidebar_group_text: c(0x71717a),
+            sidebar_item_hover: c(0xececef),
+            sidebar_item_active_bg: c(0xececef),
+            sidebar_item_active_text: c(0x1b1b1f),
+            sidebar_item_shadow: c(0x000000).alpha(0.06),
+            sidebar_footer_text: c(0x71717a),
+
+            // 文字层级（--term-text / --term-muted / --term-faint）
+            text_primary: c(0x1b1b1f),
+            text_secondary: c(0x71717a),
+            text_muted: c(0xa1a1aa),
+
+            // 强调 / 状态（--term-accent / --term-warn / --term-pos / --term-neg）
+            accent: c(0x2563eb),
+            accent_hover: c(0x1d4ed8),
+            on_accent: c(0xffffff),
+            accent_soft: c(0x2563eb).alpha(0.12),
+            success: c(0x16a34a),
+            warning: c(0xd97706),
+            danger: c(0xdc2626),
+            success_soft: c(0x16a34a).alpha(0.12),
+            danger_soft: c(0xdc2626).alpha(0.12),
+
+            // 图表序列色
+            chart_primary: c(0x2563eb),
+            chart_secondary: c(0x60a5fa),
+            chart_tertiary: c(0x1d4ed8),
+        }
+    }
+
+    /// 深色外观语义色板（唯一活跃外观；2026-08-30 起对齐 frontend `--term-*`
+    /// 暗色令牌，见背景栈常量区注释）
+    pub fn dark() -> Self {
+        Self {
+            dark: true,
+
+            // 度量 token
+            radius: 6.0,
+            radius_lg: 8.0,
+
+            // 背景栈：Root #0c0c0e / Card #1a1a1e / Hover #232329 / Panel #131316 /
+            // 分隔线 #242429；投影全透明（1px 边界表达层级，无重投影）
+            window_bg: c(BG_ROOT),
+            card_bg: c(BG_CARD),
+            muted_fill: c(BG_HOVER),
+            separator: c(BORDER_SEPARATOR),
+            card_shadow: c(0x000000).alpha(0.0),
+            panel_bg: c(BG_PANEL),
+            rail_bg: c(BG_RAIL),
+
+            // 表格行态：hover 用 Hover 层实色（强反馈）；斑马纹用白色低透明叠加
+            // （与卡底区分且弱于 hover）
+            table_row_hover: c(BG_HOVER),
+            table_row_stripe: c(0xffffff).alpha(0.04),
+
+            // 侧栏：Panel 层底 + Hover 层选中胶囊，扁平无边框投影
+            sidebar_bg: c(BG_PANEL),
+            sidebar_border: c(BORDER_SEPARATOR),
+            sidebar_text: c(0xededed),
+            sidebar_group_text: c(0x888890),
+            sidebar_item_hover: c(BG_HOVER),
+            sidebar_item_active_bg: c(BG_HOVER),
+            sidebar_item_active_text: c(0xededed),
+            sidebar_item_shadow: c(0x000000).alpha(0.0),
+            sidebar_footer_text: c(0x888890),
+
+            // 文字层级（--term-text / --term-muted / --term-faint 三阶）
+            text_primary: c(0xededed),
+            text_secondary: c(0x888890),
+            text_muted: c(0x5c5c66),
+
+            // 强调色（--term-accent #5b8def）+ hover 提亮一档
+            accent: c(0x5b8def),
+            accent_hover: c(0x7ba3f2),
+            on_accent: c(0xffffff),
+            accent_soft: c(0x0a84ff).alpha(0.16),
+            success: c(SEMANTIC_POSITIVE), // #22c55e 正向 / 有货 / 涨
+            warning: c(SEMANTIC_WARNING),  // #f59e0b 警示 / 待处理
+            danger: c(SEMANTIC_DANGER),    // #ef4444 危险 / 缺货 / 跌
+            success_soft: c(SEMANTIC_POSITIVE).alpha(0.14),
+            danger_soft: c(SEMANTIC_DANGER).alpha(0.14),
+
+            // 图表序列色（蓝色系，深底提亮）
+            chart_primary: c(0x60a5fa),
+            chart_secondary: c(0x93c5fd),
+            chart_tertiary: c(0x3b82f6),
+        }
+    }
+
+    /// 图表分段色板（PieChart / BarChart 多分段着色；亮暗两态成组，蓝色系递进）
+    pub fn chart_palette(&self) -> [Hsla; 6] {
+        if self.dark {
+            [
+                c(0x60a5fa), // blue-400
+                c(0x93c5fd), // blue-300
+                c(0x3b82f6), // blue-500
+                c(0xbfdbfe), // blue-200
+                c(0x1d4ed8), // blue-700
+                c(0x2563eb), // blue-600
+            ]
+        } else {
+            [
+                c(0x2563eb), // blue-600
+                c(0x60a5fa), // blue-400
+                c(0x1d4ed8), // blue-700
+                c(0x93c5fd), // blue-300
+                c(0x3b82f6), // blue-500
+                c(0xbfdbfe), // blue-200
+            ]
+        }
+    }
+
+    /// 卡片轻投影。
+    ///
+    /// 高密度暗色模式（唯一活跃外观）下**恒透明**——层级靠 1px 边界表达，
+    /// 不用重投影（规格条款）。函数保留：休眠的浅色板仍产出 macOS 式柔影，
+    /// 且全部消费方无需改动。
+    pub fn card_shadow_box(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.card_shadow,
+            offset: point(px(0.0), px(1.0)),
+            blur_radius: px(8.0),
+            spread_radius: px(0.0),
+        }
+    }
+
+    /// 当前外观对应的语义色板（视图渲染入口）
+    pub fn current(cx: &App) -> Self {
+        let mut theme = if cx.theme().is_dark() {
+            Self::dark()
+        } else {
+            Self::light()
+        };
+        // 圆角 token 以 gpui-component 主题为唯一来源（亮暗一致）
+        theme.radius = f32::from(cx.theme().radius);
+        theme.radius_lg = f32::from(cx.theme().radius_lg);
+        theme
+    }
+}
+
+/// 把 0xRRGGBB 转成 GPUI 色值（统一 Hsla，避免 Rgba/Hsla 混用）
+fn c(hex: u32) -> Hsla {
+    rgb(hex).into()
+}
+
+/// [`c`] 的 crate 内公开形式（BLF-828 起 root.rs caption buttons 等跨模块
+/// 消费规格色值；仍限本 crate，不对外暴露）
+pub(crate) fn hex_color(hex: u32) -> Hsla {
+    c(hex)
+}
+
+// ---------------------------------------------------------------------------
+// 跨平台字体栈（BLF-829）：正文 / 标题 / 等宽三组字体链
+//
+// 设计基调（父 issue P2 拍板）：macOS 与 Windows 各走本平台字系——
+// - macOS：SF Pro / 苹方系统栈（.AppleSystemUIFont 已含苹方中文级联，
+//   显式声明 PingFang SC 保证优先命中、不依赖系统级联顺序）；
+// - Windows：Segoe UI Variable（Win11 UI 字体；无 Variable 时回退 Segoe UI）
+//   + Microsoft YaHei UI（微软雅黑 UI，Win11 中文界面默认字系）。
+//
+// GPUI 的 FontFallbacks 双平台语义（third-party/gpui 实测源码）：
+// - macOS（platform/mac/open_type.rs）：CoreText cascade list——显式 fallback
+//   排最前，随后追加系统默认级联（CTFontCopyDefaultCascadeListForLanguages）；
+// - Windows（platform/windows/direct_write.rs）：DirectWrite 自定义 fallback
+//   映射——逐家族按 unicode range 建 AddMapping，再 AddMappings(系统 fallback)；
+//   主族未命中时 select_font 回退系统 UI 字体仍携带同组 fallbacks。
+//
+// TextStyleRefinement 为字段级合并（Refineable）：叶子节点只改 font_family
+// （如 data_table 的 mono 列）会继承祖先下发的 font_fallbacks——因此等宽
+// 场景的中文自动落到雅黑/苹方，无需逐点重复下发。
+// ---------------------------------------------------------------------------
+
+/// 正文 / 标题主族：macOS 走 SF Pro 系统栈，Windows 走 Segoe UI Variable。
+pub const FONT_UI_FAMILY: &str = if cfg!(target_os = "windows") {
+    "Segoe UI Variable"
+} else {
+    ".AppleSystemUIFont"
+};
+
+/// 等宽场景的中文回退家族（JetBrains Mono 无 CJK 字形，缺字时落到本族）：
+/// macOS 苹方 / Windows 微软雅黑 UI。
+pub const FONT_CJK_FAMILY: &str = if cfg!(target_os = "windows") {
+    "Microsoft YaHei UI"
+} else {
+    "PingFang SC"
+};
+
+/// 应用 UI 字体链（正文/标题共用主族；fallbacks 见 [`app_font_fallbacks`]）。
+///
+/// 消费点：
+/// - `apply_font_stack` 写入 gpui-component 全局 Theme（组件库 Root/tooltip/
+///   Input 等自 `.SystemUIFont` 默认值切到本链）；
+/// - root/login 窗口根容器经 [`ui_font`] 下发 TextStyle.font_fallbacks，
+///   视图层全部文字继承。
+pub fn app_font_fallbacks() -> gpui::FontFallbacks {
+    // 顺序即命中优先级：CJK 族在前保证中英混排的中文块稳定命中本平台雅黑/苹方；
+    // 系统默认级联由 GPUI 追加在后（macOS）/并入映射尾（Windows），兜底其余文种。
+    gpui::FontFallbacks::from_fonts(vec![
+        FONT_CJK_FAMILY.to_string(),
+        FONT_UI_FAMILY.to_string(),
+    ])
+}
+
+/// 构造应用 UI 字体（正文 / 标题）：主族 + 本平台 fallback 链。
+///
+/// 用 `.font(ui_font())` 替代裸 `.font_family(...)` 下发到**窗口根容器**，
+/// 子树内所有未显式改族的文字继承该链（TextStyleRefinement 字段级合并）。
+#[allow(dead_code)]
+pub fn ui_font() -> gpui::Font {
+    gpui::Font {
+        family: FONT_UI_FAMILY.into(),
+        fallbacks: Some(app_font_fallbacks()),
+        ..gpui::font(FONT_UI_FAMILY)
+    }
+}
+
+/// 构造等宽数字字体（JetBrains Mono 内嵌）+ 中文回退链。
+///
+/// JetBrains Mono 不含 CJK 字形：mono 单元格里出现中文（如状态列文案、
+/// 时间戳旁的备注）时按 fallback 链落[`FONT_CJK_FAMILY`]，避免豆腐块或
+/// 不可控的系统兜底。data_table mono 列 / Inspector 键值区等消费。
+#[allow(dead_code)]
+pub fn mono_font() -> gpui::Font {
+    gpui::Font {
+        family: FONT_MONO_FAMILY.into(),
+        fallbacks: Some(app_font_fallbacks()),
+        ..gpui::font(FONT_MONO_FAMILY)
+    }
+}
+
+/// 把跨平台字体链写入 gpui-component 全局主题（main 启动时调用一次，
+/// 在 `set_theme_pref` 之后——`Theme::change` 会用 ThemeConfig 重置字段，
+/// 后调用才能保住覆盖）。
+///
+/// 覆盖两处默认值：
+/// - `font_family`：`.SystemUIFont` → [`FONT_UI_FAMILY`]（gpui-component 的
+///   Root / tooltip / Input / context_menu 等组件读全局 theme 渲染文字）；
+/// - `mono_font_family`：Consolas/Menlo → JetBrains Mono（与数字等宽 token
+///   同族，组件库内 mono 场景与应用内一致）。
+pub fn apply_font_stack(cx: &mut App) {
+    let theme = gpui_component::Theme::global_mut(cx);
+    theme.font_family = FONT_UI_FAMILY.into();
+    theme.mono_font_family = FONT_MONO_FAMILY.into();
+}
+
+#[cfg(test)]
+mod tests {
+    // 字号/间距 token 的单调性断言（FONT_2XS < FONT_XS < …）在编译期即为常量——
+    // 这正是回归锁的本意：任何人改坏 token 序列，本测试立即失败。
+    #![allow(clippy::assertions_on_constants)]
+    use super::*;
+
+    #[test]
+    fn theme_pref_default_is_dark_locked() {
+        assert_eq!(ThemePreference::default(), ThemePreference::Dark);
+        // 深色为显式外观：窗口外观监听不会把应用带回跟随系统
+        assert!(ThemePreference::Dark.is_explicit());
+        // 休眠路径保留完整枚举能力
+        assert!(ThemePreference::Light.is_explicit());
+        assert!(!ThemePreference::FollowSystem.is_explicit());
+        assert_eq!(ThemePreference::Dark.label(), "深色");
+    }
+
+    #[test]
+    fn app_theme_light_and_dark_differ() {
+        let light = AppTheme::light();
+        let dark = AppTheme::dark();
+        // 亮/暗两态的关键层级必须不同（侧栏、画布、文字、状态色）
+        assert_ne!(light.sidebar_bg, dark.sidebar_bg);
+        assert_ne!(light.window_bg, dark.window_bg);
+        assert_ne!(light.text_primary, dark.text_primary);
+        assert_ne!(light.success, dark.success);
+    }
+
+    /// 回归锁：暗色四层背景栈 + 分隔线 + 微语义色必须与 frontend `--term-*`
+    /// 暗色令牌一字不差（theme.rs 常量为 grep 审计锚点；本测试防止任何一环悄悄漂移）。
+    #[test]
+    fn dark_utility_background_stack_contract() {
+        let dark = AppTheme::dark();
+
+        // 四层背景栈：Root / Panel / Card / Hover&选中（--term-bg/panel/raised/hover）
+        assert_eq!(dark.window_bg, c(BG_ROOT));
+        assert_eq!(
+            c(BG_ROOT),
+            c(0x0c0c0e),
+            "Root 层规格值 #0c0c0e（--term-bg）"
+        );
+        assert_eq!(dark.panel_bg, c(BG_PANEL));
+        assert_eq!(
+            c(BG_PANEL),
+            c(0x131316),
+            "Panel 层规格值 #131316（--term-panel）"
+        );
+        assert_eq!(dark.card_bg, c(BG_CARD));
+        assert_eq!(
+            c(BG_CARD),
+            c(0x1a1a1e),
+            "Card 层规格值 #1a1a1e（--term-raised）"
+        );
+        assert_eq!(
+            dark.sidebar_bg, dark.panel_bg,
+            "侧栏取 Panel 层（Master Rail 细分色见 rail_bg）"
+        );
+        // 对齐前端：Rail 与 Panel 同用 --term-panel，1px 边界分工
+        assert_eq!(dark.rail_bg, c(BG_RAIL));
+        assert_eq!(
+            c(BG_RAIL),
+            c(0x131316),
+            "Rail 层规格值 #131316（--term-panel）"
+        );
+        assert_eq!(dark.muted_fill, c(BG_HOVER));
+        assert_eq!(
+            c(BG_HOVER),
+            c(0x232329),
+            "Hover&选中层规格值 #232329（--term-hover）"
+        );
+        assert_eq!(dark.sidebar_item_hover, c(BG_HOVER));
+        assert_eq!(dark.sidebar_item_active_bg, c(BG_HOVER));
+
+        // 分隔线 + 微语义色
+        assert_eq!(dark.separator, c(BORDER_SEPARATOR));
+        assert_eq!(
+            c(BORDER_SEPARATOR),
+            c(0x242429),
+            "分隔线规格值 #242429（--term-border）"
+        );
+        assert_eq!(dark.sidebar_border, c(BORDER_SEPARATOR));
+        assert_eq!(dark.success, c(SEMANTIC_POSITIVE));
+        assert_eq!(
+            c(SEMANTIC_POSITIVE),
+            c(0x22c55e),
+            "正向规格值 #22c55e（--term-pos）"
+        );
+        assert_eq!(dark.warning, c(SEMANTIC_WARNING));
+        assert_eq!(
+            c(SEMANTIC_WARNING),
+            c(0xf59e0b),
+            "警示规格值 #f59e0b（--term-warn）"
+        );
+        assert_eq!(dark.danger, c(SEMANTIC_DANGER));
+        assert_eq!(
+            c(SEMANTIC_DANGER),
+            c(0xef4444),
+            "危险规格值 #ef4444（--term-neg）"
+        );
+
+        // 文字三阶 + 强调色（--term-text/muted/faint/accent）
+        assert_eq!(
+            dark.text_primary,
+            c(0xededed),
+            "主文字 #ededed（--term-text）"
+        );
+        assert_eq!(
+            dark.text_secondary,
+            c(0x888890),
+            "次文字 #888890（--term-muted）"
+        );
+        assert_eq!(
+            dark.text_muted,
+            c(0x5c5c66),
+            "辅助文字 #5c5c66（--term-faint）"
+        );
+        assert_eq!(dark.accent, c(0x5b8def), "强调色 #5b8def（--term-accent）");
+
+        // 层级单调性：Root < Panel < Card < Hover（亮度递增的可感知层级）
+        for (upper, lower, name) in [
+            (dark.panel_bg, dark.window_bg, "Panel>Root"),
+            (dark.card_bg, dark.panel_bg, "Card>Panel"),
+            (dark.muted_fill, dark.card_bg, "Hover>Card"),
+        ] {
+            let lum = |col: Hsla| luminance(col);
+            assert!(lum(upper) > lum(lower), "背景栈层级必须单调递增（{name}）");
+        }
+    }
+
+    /// Hsla 近似亮度（0..1；仅用于背景栈单调性断言）
+    fn luminance(col: Hsla) -> f64 {
+        let rgba = gpui::Rgba::from(col);
+        let r = f64::from(rgba.r);
+        let g = f64::from(rgba.g);
+        let b = f64::from(rgba.b);
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    /// BLF-792 回归锁：暗态禁重投影——卡片投影与侧栏选中投影必须完全透明
+    /// （层级靠 1px 边界表达）；休眠浅色板保留极轻投影不受此约束。
+    #[test]
+    fn dark_mode_has_no_heavy_shadows() {
+        let dark = AppTheme::dark();
+        assert_eq!(dark.card_shadow.a, 0.0, "暗态卡片投影必须全透明");
+        assert_eq!(dark.sidebar_item_shadow.a, 0.0, "暗态选中投影必须全透明");
+        assert!(
+            dark.card_shadow_box().color.a == 0.0,
+            "card_shadow_box 在暗态必须不可见"
+        );
+        // 休眠浅色路径不受影响（极轻投影）
+        let light = AppTheme::light();
+        assert!(light.card_shadow.a > 0.0 && light.card_shadow.a < 0.1);
+    }
+
+    /// P3-2 回归锁：图表序列色在亮暗两态都必须不透明（可见），
+    /// 且分段色板长度固定、主/次序列两态不同（深色下提亮）。
+    #[test]
+    fn chart_tokens_opaque_and_palette_stable() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            for color in [
+                theme.chart_primary,
+                theme.chart_secondary,
+                theme.chart_tertiary,
+            ] {
+                assert_eq!(color.a, 1.0, "图表序列色必须不透明");
+            }
+            let palette = theme.chart_palette();
+            assert_eq!(palette.len(), 6);
+            for color in palette {
+                assert_eq!(color.a, 1.0, "图表分段色必须不透明");
+            }
+            // 分段色两两不同（PieChart 扇形可区分）
+            for i in 0..palette.len() {
+                for j in (i + 1)..palette.len() {
+                    assert_ne!(palette[i], palette[j], "分段色 {i}/{j} 重复");
+                }
+            }
+        }
+        assert_ne!(
+            AppTheme::light().chart_primary,
+            AppTheme::dark().chart_primary
+        );
+        assert_ne!(
+            AppTheme::light().chart_secondary,
+            AppTheme::dark().chart_secondary
+        );
+    }
+
+    /// 回归锁：语义状态色（accent/success/danger/warning）在亮暗两态都必须
+    /// 完全不透明——防透明黑回归（gpui-component 未定义基色是透明黑）。
+    #[test]
+    fn semantic_status_colors_are_opaque_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            for color in [
+                theme.accent,
+                theme.success,
+                theme.danger,
+                theme.warning,
+                theme.text_primary,
+                theme.text_secondary,
+            ] {
+                assert_eq!(
+                    color.a, 1.0,
+                    "语义色必须不透明（防透明黑回归）：{:?}",
+                    color
+                );
+            }
+        }
+        assert_ne!(AppTheme::light().success, AppTheme::dark().success);
+    }
+
+    /// 回归锁：delta 徽章浅底在亮暗两态都可用（半透明、非透明黑、与主色同相）。
+    #[test]
+    fn delta_soft_tokens_are_usable_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            assert!(theme.success_soft.a > 0.0 && theme.success_soft.a < 1.0);
+            assert!(theme.danger_soft.a > 0.0 && theme.danger_soft.a < 1.0);
+            assert_eq!(theme.success_soft.h, theme.success.h);
+            assert_eq!(theme.danger_soft.h, theme.danger.h);
+            assert_eq!(theme.success.a, 1.0);
+            assert_eq!(theme.danger.a, 1.0);
+        }
+    }
+
+    /// BLF-792 回归锁：表格行 hover / 斑马纹 token 必须与行底（card_bg）可区分
+    /// 且非全透明；hover 反馈强度必须大于斑马纹。
+    #[test]
+    fn table_row_tokens_visible_in_both_modes() {
+        for theme in [AppTheme::light(), AppTheme::dark()] {
+            assert_ne!(theme.table_row_hover, theme.card_bg, "hover 必须与行底区分");
+            assert_ne!(
+                theme.table_row_stripe, theme.card_bg,
+                "斑马纹必须与行底区分"
+            );
+            assert!(theme.table_row_hover.a > 0.0, "hover 色不可全透明");
+            assert!(theme.table_row_stripe.a > 0.0, "斑马纹色不可全透明");
+            assert!(
+                theme.table_row_hover.a > theme.table_row_stripe.a,
+                "hover 反馈应强于斑马纹"
+            );
+        }
+    }
+
+    /// BLF-792 回归锁：紧凑字阶 token 必须落在规格区间——
+    /// 正文/数据 13px（10pt）、标题 11~13pt bold ≈ 14~17px、辅助 ≤ 12px。
+    #[test]
+    fn compact_type_scale_tokens_contract() {
+        assert_eq!(FONT_BASE, 13.0, "正文/数据基準必须 13px（10pt）");
+        for (token, name) in [(FONT_TITLE, "小标题"), (FONT_TITLE_LG, "页面大标题/KPI")] {
+            assert!(
+                (14.0..=17.0).contains(&token),
+                "{name} 必须落在标题区间 11~13pt ≈ 14~17px，实际 {token}"
+            );
+        }
+        assert!(FONT_2XS < FONT_XS);
+        assert!(FONT_XS < FONT_SM);
+        assert!(FONT_SM < FONT_BASE);
+        assert!(FONT_BASE < FONT_TITLE);
+        assert!(FONT_TITLE < FONT_TITLE_LG);
+        // BLF-797：Footer 专用字号落在辅助级区间（≥ 徽标级、≤ 次级说明）
+        assert!(
+            (10.0..=12.0).contains(&FONT_FOOTER),
+            "Footer 字号必须为辅助级 text_xs 口径，实际 {FONT_FOOTER}"
+        );
+    }
+
+    /// BLF-830 契约：三档密度——档位序数/持久化 key 往返、字号与 rem 步进
+    /// 方向一致（紧凑 -1 / 标准 0 / 宽松 +1）、rem 数值落在 15~17px。
+    #[test]
+    fn density_levels_roundtrip_and_step_monotonically() {
+        for level in DensityLevel::ALL {
+            assert_eq!(DensityLevel::from_key(level.key()), Some(level));
+        }
+        // 未知 key 不炸解析（旧文件兼容协议）
+        assert_eq!(DensityLevel::from_key("bogus"), None);
+
+        let (compact, standard, relaxed) = (
+            DensityLevel::Compact,
+            DensityLevel::Standard,
+            DensityLevel::Relaxed,
+        );
+        // 字号步进方向一致且单调（fs_for：显式档位注入，不依赖进程全局态）。
+        // 半步进对齐后相邻档差 0.5px：紧凑 12.5 / 标准 13.0 / 宽松 13.5。
+        assert!(fs_for(standard, 13.0) == fs_for(compact, 13.0) + 0.5);
+        assert!(fs_for(relaxed, 13.0) == fs_for(standard, 13.0) + 0.5);
+        // 半步进对齐：所有档位结果都落在 0.5px 栅格上
+        for level in [compact, standard, relaxed] {
+            for base in [10.0, 11.0, 12.0, 13.0, 14.0, 17.0] {
+                let v = fs_for(level, base);
+                assert_eq!(v * 2.0, (v * 2.0).round(), "字号必须对齐 0.5px 栅格");
+            }
+        }
+        // rem 档位数值：15 / 16 / 17
+        assert_eq!(rem_size_for_level(compact), 15.0);
+        assert_eq!(rem_size_for_level(standard), REM_SIZE_STANDARD);
+        assert_eq!(rem_size_for_level(standard), 16.0);
+        assert_eq!(rem_size_for_level(relaxed), 17.0);
+    }
+
+    /// BLF-792 回归锁：控件度量与最小间距 token——输入/按钮两档 24~28px、
+    /// 表头 28px、最小间距收敛 2/4/8px。
+    #[test]
+    fn control_metrics_and_spacing_tokens_contract() {
+        assert_eq!(HEIGHT_CONTROL_SM, 24.0);
+        assert_eq!(HEIGHT_CONTROL_MD, 28.0);
+        assert!(HEIGHT_CONTROL_SM < HEIGHT_CONTROL_MD);
+        assert_eq!(TABLE_HEADER_HEIGHT, 28.0, "表头行高规格 28px");
+        assert_eq!(SPACE_MIN, 2.0);
+        assert_eq!(SPACE_SM, 4.0);
+        assert_eq!(SPACE_MD, 8.0);
+    }
+
+    /// BLF-792 契约：等宽数字字体家族名（内嵌 JetBrains Mono；回归锁防止
+    /// 改名导致 data_table mono 列与 add_fonts 注册失配）。
+    #[test]
+    fn mono_font_family_token_is_jetbrains_mono() {
+        assert_eq!(FONT_MONO_FAMILY, "JetBrains Mono");
+    }
+
+    /// BLF-829 契约：跨平台 UI 主族按平台取值——Windows Segoe UI Variable，
+    /// 其余平台走系统 UI 字体栈（macOS .AppleSystemUIFont）。
+    #[test]
+    fn ui_font_family_is_platform_appropriate() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(
+                FONT_UI_FAMILY, "Segoe UI Variable",
+                "Windows 主族必须是 Segoe UI Variable"
+            );
+            assert_eq!(
+                FONT_CJK_FAMILY, "Microsoft YaHei UI",
+                "Windows 中文回退必须是微软雅黑 UI"
+            );
+        } else if cfg!(target_os = "macos") {
+            assert_eq!(
+                FONT_UI_FAMILY, ".AppleSystemUIFont",
+                "macOS 主族必须走系统 UI 字体栈"
+            );
+            assert_eq!(FONT_CJK_FAMILY, "PingFang SC", "macOS 中文回退必须是苹方");
+        }
+    }
+
+    /// BLF-829 契约：UI / mono 字体构造器都携带非空 fallback 链，且链内
+    /// 含本平台 CJK 回退族——mono 场景中文不落豆腐块的根保障；
+    /// 主族各自正确（UI 构造器用主族，mono 构造器用 JetBrains Mono）。
+    #[test]
+    fn font_constructors_carry_cjk_fallbacks() {
+        for font in [ui_font(), mono_font()] {
+            let fallbacks = font.fallbacks.as_ref().expect("必须携带 fallback 链");
+            assert!(!fallbacks.fallback_list().is_empty(), "fallback 链不能为空");
+            assert!(
+                fallbacks
+                    .fallback_list()
+                    .iter()
+                    .any(|f| f == FONT_CJK_FAMILY),
+                "fallback 链必须含 CJK 回退族 {FONT_CJK_FAMILY}，实际 {:?}",
+                fallbacks.fallback_list()
+            );
+        }
+        assert_eq!(ui_font().family, FONT_UI_FAMILY);
+        assert_eq!(mono_font().family, FONT_MONO_FAMILY);
+    }
+
+    /// P2-2 核心契约：`AppTheme::current` 跟随全局主题模式（亮/暗），
+    /// 切换模式后取到的语义色板随之切换。
+    #[gpui::test]
+    async fn app_theme_current_follows_global_mode(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            // 初始（测试环境默认浅色）
+            assert!(!AppTheme::current(cx).is_dark());
+            assert_eq!(AppTheme::current(cx).window_bg, AppTheme::light().window_bg);
+
+            // 强制深色 → 语义色板跟随
+            gpui_component::Theme::change(ThemeMode::Dark, None, cx);
+            assert!(AppTheme::current(cx).is_dark());
+            assert_eq!(AppTheme::current(cx).window_bg, AppTheme::dark().window_bg);
+
+            // 强制浅色 → 恢复（休眠路径仍可用）
+            gpui_component::Theme::change(ThemeMode::Light, None, cx);
+            assert!(!AppTheme::current(cx).is_dark());
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 三档密度分档（BLF-830：高分辨率适配专项）
+//
+// 「一套缩放系数驱动全站」的双通道实现：
+// 1. **间距通道（rem）**：gpui 的间距工具类（`.p_2()` / `.gap_1()` 等）由宏生成
+//    为 `rems(n)`（gpui-macros styles.rs），绘制期乘 `window.rem_size()`——
+//    切档时改写窗口 rem_size（[`shell`] 六区尺寸常量保持逻辑锚点不动，
+//    由 RootView 每帧同步），全站间距/组件库控件高度即随档位缩放。
+// 2. **字号通道（显式 px token）**：紧凑字阶是显式 px 常量（不随 rem 缩放），
+//    经 [`fs`] 读进程级档位原子量换算后下发。半步进 [`DENSITY_FONT_QUANTUM`]
+//    = 0.5px：三档字号差在 10~17px 区间可感知且不为奇数像素栅格制造糊字。
+//
+// hairline 边界不受影响：gpui 宏的 `border_r_1()` 族生成固定 `px(1.)`，
+// 与 rem / 密度无关，任何档位下分隔线都保持 1 逻辑像素（见 BLF-830 审计结论）。
+// ---------------------------------------------------------------------------
+
+/// 界面密度三档（BLF-830）
+///
+/// 档位语义（factor 为字号半步进的方向系数；间距走 rem 步进同号）：
+/// - **Compact**：高分屏小窗 / 追求单屏数据量——字号 -0.5px、rem 15px；
+/// - **Standard**：默认档（mac Retina 基准）——字号 ±0、rem 16px；
+/// - **Relaxed**：「字偏小」反馈场景——字号 +0.5px、rem 17px。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DensityLevel {
+    /// 紧凑：信息密度优先
+    Compact,
+    /// 标准：默认档
+    #[default]
+    Standard,
+    /// 宽松：可读性优先
+    Relaxed,
+}
+
+impl DensityLevel {
+    /// 全部档位（设置入口渲染顺序）
+    pub const ALL: [DensityLevel; 3] = [
+        DensityLevel::Compact,
+        DensityLevel::Standard,
+        DensityLevel::Relaxed,
+    ];
+
+    /// 菜单显示名（Footer 密度分段控件用）
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Compact => "紧凑",
+            Self::Standard => "标准",
+            Self::Relaxed => "宽松",
+        }
+    }
+
+    /// 偏好持久化 key（ui-prefs.json 的字符串值；稳定契约，改名破坏旧文件兼容）
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Compact => "compact",
+            Self::Standard => "standard",
+            Self::Relaxed => "relaxed",
+        }
+    }
+
+    /// 从持久化 key 解析（未知值 → None，调用方回退默认档；
+    /// 字符串协议保证旧文件出现未知值时不炸整个 UiPrefs 解析）
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key {
+            "compact" => Some(Self::Compact),
+            "standard" => Some(Self::Standard),
+            "relaxed" => Some(Self::Relaxed),
+            _ => None,
+        }
+    }
+
+    /// 字号步进方向系数：-1 / 0 / +1（[`fs`] 的半步进乘数）
+    pub(crate) fn font_step(self) -> i32 {
+        match self {
+            Self::Compact => -1,
+            Self::Standard => 0,
+            Self::Relaxed => 1,
+        }
+    }
+
+    /// 间距 rem 步进方向系数：-1 / 0 / +1（[`rem_size_for_level`] 的像素步数）
+    pub(crate) fn rem_step(self) -> i32 {
+        self.font_step()
+    }
+}
+
+/// 标准档 rem 基准（GPUI 默认值；父 issue「内部间距锁 4/8px」的锚点）
+pub const REM_SIZE_STANDARD: f32 = 16.0;
+/// 密度每档的 rem 步进（±1px：紧凑 15 / 标准 16 / 宽松 17）
+///
+/// ±1px ≈ ±6%：间距工具类最小粒度 0.125rem（2px@标准）在紧凑档缩到
+/// 1.875px、宽松档放大到 2.125px——体感可辨但不破版（六区外壳常量为
+/// 逻辑锚点不动，缩放发生在容器内距与间隙上）。
+pub const REM_STEP_PER_LEVEL: f32 = 1.0;
+/// 字号半步进（±0.5px；10~17px 区间内三档可感知的最小安全步长）。
+/// 由 [`fs_for`] 内联使用（0.5 栅格对齐公式），常量保留为 grep 审计锚点。
+#[allow(dead_code)]
+pub const DENSITY_FONT_QUANTUM: f32 = 0.5;
+
+/// 当前窗口应使用的 rem_size（按全局密度档位换算；RootView 每帧同步）
+pub fn rem_size_for_level(level: DensityLevel) -> f32 {
+    REM_SIZE_STANDARD + (level.rem_step() as f32) * REM_STEP_PER_LEVEL
+}
+
+/// 进程级密度档位（`AtomicUsize` 存 [`DensityLevel`] 判别值索引）。
+///
+/// 为什么不用 GPUI Global：[`fs`] 在纯函数语境被大量调用（无 `App` 句柄），
+/// 进程原子量让字号 token 的消费点零接线成本；写入仅经
+/// [`set_density_pref`] 单点（组合根纪律），测试并发读写见模块测试注释。
+static DENSITY_LEVEL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+fn level_from_index(index: usize) -> DensityLevel {
+    match index {
+        0 => DensityLevel::Compact,
+        2 => DensityLevel::Relaxed,
+        _ => DensityLevel::Standard,
+    }
+}
+
+/// 当前生效的密度档位（全局偏好缺失时回退标准档）
+pub fn density_level() -> DensityLevel {
+    level_from_index(DENSITY_LEVEL.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// 全局密度偏好（GPUI 侧读取口；与进程原子量由 [`set_density_pref`]
+/// 单点同步写入——字段当前无直接消费方，保留为对称读取 API 面）
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DensityPref(#[allow(dead_code)] pub DensityLevel);
+
+impl gpui::Global for DensityPref {}
+
+/// 写入当前密度档位（全局偏好 + 进程原子量单点同步）。
+///
+/// 调用方（组合根）负责随后 `window.set_rem_size` + `refresh` 触发重排。
+pub fn set_density_pref(level: DensityLevel, cx: &mut App) {
+    let index = match level {
+        DensityLevel::Compact => 0usize,
+        DensityLevel::Standard => 1,
+        DensityLevel::Relaxed => 2,
+    };
+    DENSITY_LEVEL.store(index, std::sync::atomic::Ordering::SeqCst);
+    cx.set_global(DensityPref(level));
+}
+
+/// 字号密度换算（显式档位注入版；[`fs`] 的纯函数内核，单测不碰进程全局态）
+fn fs_for(level: DensityLevel, base: f32) -> f32 {
+    let step = level.font_step();
+    ((base * 2.0) + step as f32).round() / 2.0
+}
+
+/// 字号密度换算：基准 token × 当前档位半步进。
+///
+/// 结果对齐 0.5px 栅格（`(base*2 + step).round()/2`），防浮点尘埃产生
+/// 12.999999 渲染抖动。全部显式 px 字号 token 经本函数下发：
+/// `text_size(px(fs(FONT_BASE)))`。
+pub fn fs(base: f32) -> f32 {
+    fs_for(density_level(), base)
+}

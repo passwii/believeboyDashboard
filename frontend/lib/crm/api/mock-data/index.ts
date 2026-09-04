@@ -1,0 +1,7 @@
+export { CUSTOMERS_FIXTURE } from './customers.fixture'
+export { LEADS_FIXTURE } from './leads.fixture'
+export { FOLLOWS_FIXTURE } from './follows.fixture'
+export { USERS_FIXTURE } from './users.fixture'
+export { TASKS_FIXTURE } from './tasks.fixture'
+export { RULES_FIXTURE } from './rules.fixture'
+export { CATEGORIES_FIXTURE } from './categories.fixture'

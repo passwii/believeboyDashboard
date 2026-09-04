@@ -1,0 +1,204 @@
+# Agent / AI tool directories
+.agent-contexts/
+.agent_context/
+.claude/
+.codegraph/
+.zcode/
+.openclaude/
+.pi/
+.pi-subagents/
+.pytest_cache/
+.rpiv/
+.sisyphus/
+.superpowers/
+
+# Multica local daemon workspace cache (持续写入；落根目录漏 ignore）
+.multica/
+
+# OpenCLI `web read` cached fetched pages (generated in cwd on web search)
+web-articles/
+
+# Git worktrees
+.worktrees/
+.DS_Store
+*.pem
+.idea/
+.vscode/
+.kilo/
+.kilocode/
+.kilo*
+
+# Helmor workspace
+events.jsonl
+views.json
+config.json
+labels/
+sessions/
+skills/
+sources/
+statuses/
+.claude-plugin/
+.pytest_cache/
+.cache/
+.tmp/
+.temp/
+.logs/
+.data/
+.backup/
+.sandbox/
+.staging/
+BusinessDev/
+# productEnvAgent/ 默认全部忽略(本地部署脚本和配置),
+# 但下面用 ! 把需要版本控制的运维脚本显式重新纳入。
+productEnvAgent/*
+productEnvAgent/.[!.]*
+!productEnvAgent/deploy.sh
+!productEnvAgent/deploy_vps.py
+!productEnvAgent/DEPLOYMENT_SKILL.md
+!productEnvAgent/README.md
+!productEnvAgent/config.json
+!productEnvAgent/post-push.sh
+# BLF-524：回滚协议工具（回滚脚本 / 告警助手 / 操作手册）
+!productEnvAgent/rollback.py
+!productEnvAgent/alerting.py
+!productEnvAgent/ROLLBACK.md
+!productEnvAgent/.gitignore
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pg_upgrade_*.log
+autoReportUpload/logs/
+
+# SQL scripts
+update_extensions.sql
+
+# Frontend (Next.js)
+/frontend/node_modules
+/frontend/.pnp
+/frontend/.pnp.js
+/frontend/.yarn/install-state.gz
+/frontend/.next/
+/frontend/.next-temp-build/
+/frontend/out/
+/frontend/build/
+/frontend/coverage/
+/frontend/.vercel/
+/frontend/.env*.local
+# 兜底：避免任何位置出现意外的 .next/ 目录污染 untracked 列表
+# （根目录 .next/ 在 2026-06-27 出现过一次，可能是 build 落点错误）
+/.next/
+
+# vitest 覆盖率/缓存产物（VAT 发票模块新增）
+/frontend/coverage/
+/frontend/.env.local.example
+/frontend/*.tsbuildinfo
+/frontend/next-env.d.ts
+
+# Backend scripts
+/backend/scripts/__pycache__/
+
+# Auto report upload
+autoReportUpload/__pycache__/
+autoReportUpload/**/__pycache__/
+autoReportUpload/.env
+!autoReportUpload/.env.example
+
+# Frontend build artifacts
+/frontend/build.log
+/frontend/build_out.txt
+/frontend/build_output.txt
+/frontend/next_build.log
+
+# Claude Code (local IDE config)
+/frontend/.claude/
+
+# Frontend Playwright tests
+/frontend/tests/snapshots/
+/frontend/tests/.auth/
+/frontend/playwright-report/
+/frontend/test-results/
+
+# Lighthouse CI (BEL-39)
+/frontend/.lighthouseci/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Backend (reserved)
+/backend/node_modules/
+/backend/dist/
+/backend/build/
+/backend/coverage/
+/backend/.venv/
+/backend/.env
+/backend/.env.test
+/backend/scripts/agent_testing/.auth/
+# 本地手动 `redis-cli save` / `BGSAVE` 落盘的 redis dump；不要入库
+/backend/*.rdb
+# 兜底：根目录偶然漏出的 redis dump（2026-08-04 出现过一次）
+/dump.rdb
+# Multica issue creation artifact：issue 创建时临时落盘，创建后可弃
+/description.md
+/backend/**/__pycache__/
+/backend/**/*.pyc
+
+# Local SQLite artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# Backend storage
+/backend/storage/
+/storage/
+
+# Backend logs
+/backend/*.log
+/backend/tmp_upload_check/
+/backend/tmp_backup/
+
+# Backend tests — now tracked
+/backend/.pytest_cache/
+
+# Local scripts and reports
+backend/scripts/test_db_capacity.py
+DB_CAPACITY_REPORT.md
+db_capacity_results.json
+
+# macOS / Xcode (BEL-147)
+/macos/**/*.xcodeproj/
+!/macos/**/*.xcodeproj/project.pbxproj
+/macos/**/*.xcworkspace/
+/macos/**/DerivedData/
+/macos/**/build/
+/macos/**/.build/
+/macos/**/.swiftpm/
+/macos/**/Packages/
+/macos/**/*.xcuserstate
+/macos/**/*.xcuserdatad/
+/macos/**/xcuserdata/
+/macos/**/Package.resolved
+/macos/**/Resources/Info.plist
+*.dSYM
+/macos/dist/
+/macos/.DS_Store
+
+openSourceProjects/
+.worktrees
+
+# 部署/回滚运行产物（deploy_vps / rollback / alerting 运行时写入）
+productEnvAgent/logs/
+
+# pnpm 本地 store（agent 运行时产物，禁止入库）
+.pnpm-store/
+
+# agent / 工具运行时缓存与会话状态（worktree 快照常卷入，禁止入库）
+.pi-glla/
+.playwright-cli/
+.cortexkit/*
+!.cortexkit/aft.jsonc
+
+# 根级 node_modules（此前仅忽略 frontend/backend 子目录，根目录漏网）
+node_modules/

@@ -1,0 +1,1316 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* 隐藏所有 number 类型输入框的原生上下箭头按钮，防止滚动时误触 */
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  :root {
+    --background: 210 28% 97%;
+    --foreground: 214 18% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 214 18% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 18% 16%;
+    --primary: 214 89% 43%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 22% 38%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 210 22% 94%;
+    --muted-foreground: 215 12% 42%;
+    --accent: 210 28% 92%;
+    --accent-foreground: 214 20% 18%;
+    --destructive: 3 46% 43%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 22% 84%;
+    --input: 214 24% 86%;
+    --ring: 214 89% 43%;
+    --chart-1: 221 83% 53%;
+    --chart-2: 142 71% 45%;
+    --chart-3: 25 95% 53%;
+    --chart-4: 217 91% 60%;
+    --chart-5: 0 84% 60%;
+    --chart-6: 187 94% 43%;
+    --chart-7: 262 83% 58%;
+    --chart-8: 45 93% 47%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 18% 18%;
+    --sidebar-primary: 217 82% 57%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 97%;
+    --sidebar-accent-foreground: 220 20% 18%;
+    --sidebar-border: 220 16% 88%;
+    --sidebar-ring: 217 82% 57%;
+    --surface-base: 210 28% 97%;
+    --surface-subtle: 210 22% 95%;
+    --surface-panel: 0 0% 100%;
+    --surface-overlay: 0 0% 100%;
+    --surface-strong: 210 18% 92%;
+    --surface-soft: 210 18% 95%;
+    --surface-low: 210 18% 96%;
+    --surface-high: 210 14% 91%;
+    --surface-outline: 214 16% 74%;
+    --success: 160 74% 31%;
+    --warning: 35 88% 44%;
+    --data-positive: 160 74% 31%;
+    --data-warning: 35 88% 44%;
+    --data-negative: 3 46% 43%;
+    --data-neutral: 214 22% 38%;
+    --stroke-soft: 214 30% 64%;
+    --stroke-strong: 214 18% 52%;
+    --radius-xs: 0.375rem;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.625rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    --radius: var(--radius-lg);
+    --shadow-soft: 0 10px 30px -18px rgba(27, 39, 51, 0.16);
+    --shadow-raised: 0 18px 40px -26px rgba(27, 39, 51, 0.2);
+    --shadow-overlay: 0 24px 60px -28px rgba(20, 31, 44, 0.26);
+
+    /* ── Raycast 层次阴影（Level 0-5，成对 = 外阴影 + inset 配对）──────
+     * 依据 Raycast DESIGN.md §6 Depth & Elevation：阴影永远成对出现，
+     * 层次感靠结构（双环围合 / 顶内高光 / 深底内嵌）而非靠颜色。
+     * light 侧为淡灰外影 + 白色内高光的轻量配对（dark 侧重，见 .dark）。
+     * --shadow-soft/raised/overlay 保留为兼容别名（soft≈L2 下落、
+     * raised≈L2 hover、overlay≈L5 下落），存量消费方不受影响。 */
+    --glass-edge-highlight: 0.08;
+    --focus-glow: hsla(214, 89%, 43%, 0.12);
+    --shadow-level-1: 0 1px 2px rgba(27, 39, 51, 0.08), inset 0 1px 0 hsl(210 30% 100% / 0.55);
+    --shadow-level-2: 0 10px 30px -18px rgba(27, 39, 51, 0.16), inset 0 1px 0 hsl(210 30% 100% / 0.65);
+    --shadow-level-3: inset 0 1px 0 hsl(210 30% 100% / 0.85), 0 0 0 1px hsl(214 22% 84% / 0.55), inset 0 -1px 0 rgba(27, 39, 51, 0.06);
+    --shadow-level-4: 0 1.5px 0.5px 2.5px rgba(27, 39, 51, 0.22), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 -1px 2px rgba(27, 39, 51, 0.12);
+    --shadow-level-5: 0 24px 60px -28px rgba(20, 31, 44, 0.26), 0 0 0 2px rgba(255, 255, 255, 0.75), 0 0 14px hsl(214 30% 100% / 0.45), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 0 0 1px hsl(214 22% 84% / 0.4);
+    /* 卡片 hover 配对阴影（L2 基础 + 更亮玻璃边/内描边，BLF-574） */
+    --shadow-level-2-hover:
+      0 24px 56px -28px rgba(27, 39, 51, 0.22),
+      inset 0 1px 0 hsl(210 30% 100% / 0.75),
+      inset 0 0 0 1px hsl(214 22% 84% / 0.35);
+    /* 按钮按压态（L3 基础，内嵌加深模拟按压，BLF-574） */
+    --shadow-level-3-active:
+      inset 0 1px 0 hsl(210 30% 100% / 0.7),
+      0 0 0 1px hsl(214 22% 84% / 0.5),
+      inset 0 -2px 1px rgba(27, 39, 51, 0.12);
+    --motion-fast: 180ms;
+    --motion-base: 240ms;
+    --motion-slow: 320ms;
+    --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* ── Motion design system tokens ─────────────────────────────────────── */
+    --motion-spring-press: 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    --stagger-step: 70ms;
+
+    /* ── Spotlight (CSS 变量占位，由 useSpotlight 写入) ─────────────────── */
+    --spot-x: 50%;
+    --spot-y: 50%;
+    --spotlight-strength: 1;
+  }
+
+  .dark {
+    /* ── 传统暗黑·中性炭黑材质（去蓝调，BLF-609）─────────────────────
+     * 用户反馈上一版整体色调偏蓝（hue≈225、饱和 8~12% 的面色阶梯 + 深海军蓝
+     * 背景渐变），并非传统意义的暗黑模式。本次回归传统暗黑观感：
+     *   1. 所有中性面降饱和至 ~2~4%（hue≈224 仅保留一丝难以察觉的冷调，
+     *      让品牌蓝 accent 相遇时不显脏），读作真正的炭黑/墨灰；
+     *   2. 画布加深至 L7%，分层明度阶梯保持（画布 L7% → 导航壳 L10% →
+     *      内容窗 L12% → 卡片 L16% → 浮层 L18% → 高亮 L23%）；
+     *   3. 蓝色只出现在 accent 位（primary / ring / focus-glow），数据与
+     *      状态色保持品牌彩色；背景氛围光大幅收敛（不再有 navy 渐变）。
+     * 分割方式沿用 Raycast 式"玻璃边"：顶部 1px 内高光 + 极淡 1px 全周长
+     * 内描边（见 .dark .dashboard-surface 等），浮起面板叠加 backdrop-blur。 */
+    --background: 224 3% 7%;
+    --foreground: 220 22% 96%;
+    --card: 224 3% 16%;
+    --card-foreground: 220 22% 96%;
+    --popover: 224 3% 18%;
+    --popover-foreground: 220 22% 96%;
+    --primary: 222 100% 68%;
+    --primary-foreground: 228 40% 12%;
+    --secondary: 224 4% 80%;
+    --secondary-foreground: 224 18% 10%;
+    --muted: 224 3% 14%;
+    --muted-foreground: 224 5% 72%;
+    --accent: 224 3% 17%;
+    --accent-foreground: 220 22% 96%;
+    --destructive: 3 52% 58%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 224 4% 24%;
+    --input: 224 4% 24%;
+    --ring: 222 100% 68%;
+
+    /* 图表保持品牌彩色，仅按更深的基色微调明度 */
+    --chart-1: 222 100% 68%;
+    --chart-2: 160 70% 50%;
+    --chart-3: 327 88% 66%;
+    --chart-4: 196 88% 64%;
+    --chart-5: 0 72% 60%;
+    --chart-6: 191 90% 66%;
+    --chart-7: 263 88% 72%;
+    --chart-8: 38 92% 62%;
+
+    /* Sidebar：统一为 L10% 的凹陷导航壳（rail 与 panel 同一值，融为一体） */
+    --sidebar-background: 224 3% 10%;
+    --sidebar-foreground: 220 22% 96%;
+    --sidebar-primary: 222 100% 68%;
+    --sidebar-primary-foreground: 228 40% 12%;
+    --sidebar-accent: 224 3% 17%;
+    --sidebar-accent-foreground: 220 22% 97%;
+    --sidebar-border: 224 3% 20%;
+    --sidebar-ring: 222 100% 68%;
+
+    /* Surface 纵深阶梯（中性炭黑） */
+    --surface-base: 224 3% 7%;
+    --surface-subtle: 224 3% 14%;
+    --surface-panel: 224 3% 16%;
+    --surface-overlay: 224 3% 18%;
+    --surface-strong: 224 3% 19%;
+    --surface-soft: 224 3% 16%;
+    --surface-low: 224 3% 12%;
+    --surface-high: 224 3% 23%;
+    --surface-outline: 224 4% 36%;
+
+    --success: 161 60% 46%;
+    --warning: 39 92% 64%;
+    --data-positive: 161 60% 46%;
+    --data-warning: 39 92% 64%;
+    --data-negative: 3 52% 58%;
+    --data-neutral: 224 4% 74%;
+    --stroke-soft: 224 4% 40%;
+    --stroke-strong: 224 5% 60%;
+    --shadow-soft: 0 18px 40px -24px rgba(2, 6, 16, 0.72);
+    --shadow-raised: 0 24px 56px -28px rgba(2, 6, 16, 0.82);
+    --shadow-overlay: 0 32px 84px -34px rgba(1, 4, 12, 0.9);
+
+    /* ── Raycast 层次阴影（dark 侧，成对 = 外阴影 + inset 配对）───────
+     * L2 Ring：顶内高光 + 全周长内描边 + soft 下落 = 双环围合（标准卡片）；
+     * L3 Button：白顶内高光 + 白 1px 外环 + 深底内嵌 = macOS 原生按压；
+     * L4 Key：5 层阴影栈 + inset 按压（键帽 / 命令面板条目）；
+     * L5 Floating：2px 深环 + 白辉光 + overlay 下落 + 玻璃边（浮层）。
+     * --glass-edge-highlight 承载顶内高光强度（.dashboard-surface 玻璃边），
+     * --focus-glow 为输入聚焦蓝辉光（Raycast hsla(202,100%,67%,0.15)）。 */
+    --glass-edge-highlight: 0.1;
+    --focus-glow: hsla(202, 100%, 67%, 0.15);
+    --shadow-level-1: 0 1.25px 2.5px rgba(2, 6, 16, 0.28), inset 0 1px 0 hsl(220 30% 100% / 0.03);
+    --shadow-level-2:
+      inset 0 1px 0 hsl(220 30% 100% / var(--glass-edge-highlight)),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
+      0 18px 40px -24px rgba(2, 6, 16, 0.72);
+    --shadow-level-3:
+      inset 0 1px 0 hsl(220 30% 100% / 0.06),
+      0 0 0 1px hsl(220 30% 100% / 0.1),
+      inset 0 -1px 0 hsl(0 0% 0% / 0.2);
+    --shadow-level-4:
+      0 1.5px 0.5px 2.5px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 hsl(220 30% 100% / 0.1),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
+      0 1px 0 hsl(220 30% 100% / 0.06);
+    --shadow-level-5:
+      0 32px 84px -34px rgba(1, 4, 12, 0.9),
+      0 0 0 2px rgba(2, 6, 16, 0.5),
+      0 0 14px hsl(220 30% 100% / 0.1),
+      inset 0 1px 0 hsl(220 30% 100% / var(--glass-edge-highlight)),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.06);
+    /* 卡片 hover 配对阴影（L2 基础 + 更亮玻璃边/内描边，BLF-574） */
+    --shadow-level-2-hover:
+      0 24px 56px -28px rgba(2, 6, 16, 0.82),
+      inset 0 1px 0 hsl(220 30% 100% / 0.12),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.08);
+    /* 按钮按压态（L3 基础，深底内嵌加深模拟按压，BLF-574） */
+    --shadow-level-3-active:
+      inset 0 1px 0 hsl(220 30% 100% / 0.03),
+      0 0 0 1px hsl(220 30% 100% / 0.08),
+      inset 0 -2px 2px hsl(0 0% 0% / 0.35);
+  }
+
+  /* ── Terminal 高密度交易终端令牌（BLF-809）──────────────────────────
+   * 四层背景栈 + 1px 边界分隔（禁阴影）+ 微语义色。
+   * 明色侧为同构浅色映射，暗色侧严格对齐规范 hex：
+   *   Root #0c0c0e / Panel #131316 / Card-Hover #1a1a1e / Border #242429
+   *   Text #ededed / Muted #888890 / Pos #22c55e / Warn #f59e0b / Neg #ef4444
+   * Tailwind 侧经 tailwind.config.ts 的 colors.term 消费（bg-term-panel 等）。 */
+  :root {
+    --term-bg: #f5f5f7;
+    --term-panel: #ffffff;
+    --term-raised: #fafafa;
+    --term-hover: #ececef;
+    --term-border: #e3e3e8;
+    --term-border-strong: #d0d0d8;
+    --term-text: #1b1b1f;
+    --term-muted: #71717a;
+    --term-faint: #a1a1aa;
+    --term-pos: #16a34a;
+    --term-warn: #d97706;
+    --term-neg: #dc2626;
+    --term-accent: #2563eb;
+  }
+
+  .dark {
+    --term-bg: #0c0c0e;
+    --term-panel: #131316;
+    --term-raised: #1a1a1e;
+    --term-hover: #232329;
+    --term-border: #242429;
+    --term-border-strong: #33333a;
+    --term-text: #ededed;
+    --term-muted: #888890;
+    --term-faint: #5c5c66;
+    --term-pos: #22c55e;
+    --term-warn: #f59e0b;
+    --term-neg: #ef4444;
+    --term-accent: #5b8def;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    font-size: 17px;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    /* BLF-809 字体族规范：中文走系统栈（苹方/微软雅黑），不引中文 webfont */
+    font-family: var(--font-sans), "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+      sans-serif;
+    @apply bg-background text-base text-foreground leading-relaxed;
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--primary) / 0.08), transparent 24%),
+      radial-gradient(circle at 82% 16%, hsl(var(--chart-2) / 0.06), transparent 18%),
+      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(var(--surface-subtle)) 48%, hsl(var(--surface-base)) 100%);
+    background-attachment: fixed;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dark body {
+    /* BLF-609：氛围光大幅收敛——仅保留极淡品牌蓝/数据色气晕，底色为中性炭黑
+     * 纵向微渐变（上亮下暗），不再有 navy 深蓝渐变。 */
+    background-image:
+      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.05), transparent 24%),
+      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.04), transparent 26%),
+      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(224 3% 6%) 54%, hsl(224 3% 5%) 100%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display), var(--font-sans), "PingFang SC", "Microsoft YaHei",
+      "Noto Sans SC", sans-serif;
+    letter-spacing: -0.035em;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.2);
+  }
+
+  @media (max-width: 1440px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  /* iPad 适配 (768px - 1024px) */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    html {
+      font-size: 15px;
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  @media (max-width: 768px) {
+    html {
+      font-size: 16px;
+    }
+
+    body {
+      @apply text-sm;
+    }
+  }
+
+  @media (max-width: 480px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  @media (pointer: coarse) {
+    body {
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.3);
+      border-radius: 9999px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    html {
+      font-size: 16px;
+    }
+
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.25);
+      border-radius: 9999px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.4);
+      background-clip: content-box;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── Overlay motion (dialog / sheet / alert backdrops) ─────────────────── */
+  .ui-overlay-motion {
+    will-change: opacity;
+    transition-property: opacity;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--motion-ease-out);
+  }
+
+  .ui-overlay-motion[data-state='closed'] {
+    opacity: 0;
+    transition-duration: var(--motion-fast);
+  }
+
+  /* ── Panel / popup float (Select · Popover) ───────────────────────────── */
+  .ui-floating-motion {
+    transform-origin: var(--radix-popper-transform-origin, center top);
+    will-change: transform, opacity;
+    transition-property: opacity, transform;
+    transition-duration: 280ms;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .ui-floating-motion[data-state='open'] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  .ui-floating-motion[data-state='closed'] {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.985);
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--motion-ease-standard);
+  }
+
+  .ui-floating-motion[data-side='top'][data-state='closed'] {
+    transform: translate3d(0, 0.5rem, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='bottom'][data-state='closed'] {
+    transform: translate3d(0, -0.5rem, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='left'][data-state='closed'] {
+    transform: translate3d(0.5rem, 0, 0) scale(0.985);
+  }
+
+  .ui-floating-motion[data-side='right'][data-state='closed'] {
+    transform: translate3d(-0.5rem, 0, 0) scale(0.985);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-overlay-motion,
+    .ui-floating-motion,
+    .ui-floating-motion[data-state='open'],
+    .ui-floating-motion[data-state='closed'],
+    .ui-floating-motion[data-side='top'][data-state='closed'],
+    .ui-floating-motion[data-side='bottom'][data-state='closed'],
+    .ui-floating-motion[data-side='left'][data-state='closed'],
+    .ui-floating-motion[data-side='right'][data-state='closed'] {
+      transform: none;
+    }
+  }
+
+  /* ── Sidebar second-level reveal (reference-inspired: simple, silky) ───── */
+  /* Pure CSS keyframe; items ride with the panel (no per-item stagger). */
+  @keyframes sidebar-panel-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .sidebar-panel-reveal {
+    animation: sidebar-panel-enter 0.32s var(--motion-ease-out) both;
+  }
+
+  .dashboard-full-width > * {
+    width: 100%;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .dashboard-full-width > .container {
+    max-width: none !important;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .dashboard-surface {
+    @apply relative overflow-hidden rounded-lg border bg-card text-card-foreground;
+    border-color: hsl(var(--border) / 0.72);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .dark .dashboard-surface {
+    /* 玻璃边：顶部内高光 + 全周长内描边（--shadow-level-2 成对阴影，BLF-573） */
+    border-color: hsl(var(--border) / 0.55);
+    box-shadow: var(--shadow-level-2);
+  }
+
+  /*
+   * 故意不再给 .dashboard-surface 加 backdrop-filter。
+   *
+   * 历史：曾通过 @supports (backdrop-filter: blur(14px)) 在所有卡片上叠
+   * 半透明背景 + 14px 背景模糊。问题：
+   *   1. blur 半径按 CSS 像素计算，不按设备像素。5K/4K/Retina 等高 DPI 屏
+   *      (devicePixelRatio ≥ 2) 上，14px 模糊"吃掉"的细节是普通屏的 2-3 倍，
+   *      表格里的 1px 边框和 text-[11px]/text-[12px] 表头直接糊掉。
+   *   2. backdrop-filter 缓存层在 devicePixelRatio 缩放时会产生边缘"晕染"。
+   *   3. 仓库里 dashboard-surface 被 92 处共用（含 DataTableCard / DataCard /
+   *      Card / StatCard / 侧边栏顶部按钮等所有卡片类组件），影响面太大。
+   *
+   * 真正需要玻璃质感的元素仍可显式使用 .dashboard-glass（见下方）。
+   */
+
+  .dashboard-surface::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 opacity-100;
+    background:
+      linear-gradient(145deg, hsl(var(--primary) / 0.03), transparent 34%),
+      radial-gradient(circle at top right, hsl(var(--chart-2) / 0.035), transparent 34%);
+  }
+
+  .dashboard-panel {
+    @apply rounded-lg border bg-[hsl(var(--surface-soft))] p-3 md:p-4;
+    border-color: hsl(var(--border) / 0.68);
+  }
+
+  .dark .dashboard-panel {
+    border-color: hsl(var(--border) / 0.6);
+    box-shadow: var(--shadow-level-2);
+  }
+
+  .dashboard-subtle-panel {
+    @apply rounded-md bg-[hsl(var(--surface-subtle))] p-4;
+  }
+
+  .dashboard-glass {
+    background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.82), hsl(var(--surface-overlay) / 0.66));
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(14px);
+  }
+
+  .dark .dashboard-glass {
+    /* 真玻璃：更实的不透明度保证可读性 + Level 5 成对阴影（2px 深环 + 白辉光 + 玻璃边） */
+    background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.9), hsl(var(--surface-overlay) / 0.8));
+    box-shadow: var(--shadow-level-5);
+    backdrop-filter: blur(18px);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .dark .sidebar-panel-shell { backdrop-filter: none; }
+  }
+
+  /* ── Motion design system: interactive utilities ─────────────────────── */
+  .u-interactive {
+    transition:
+      transform var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+    will-change: transform;
+  }
+  .u-interactive:hover:not(:disabled):not([data-disabled='true']) {
+    transform: translateY(-1px);
+  }
+
+  .u-press {
+    transition: transform var(--motion-spring-press);
+  }
+  .u-press:active:not(:disabled):not([data-disabled='true']) {
+    transform: scale(0.97);
+  }
+
+  .u-focus:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* Raycast 输入聚焦：边框变亮 + 蓝辉光（--focus-glow，BLF-573/574）
+   * 用法：组件在 focus-visible/focus 时 1px ring + 4px 辉光，替代默认硬环 ring-2。
+   * 仅 .dark 生效——light 保持组件自带 focus-visible:ring-2 视觉零变化
+   * （`.dark .u-focus-glow` 0-3-0 特异性覆盖 ring 工具的 0-2-0）。 */
+  .dark .u-focus-glow:focus-visible,
+  .dark .u-focus-glow:focus {
+    outline: none;
+    box-shadow:
+      0 0 0 1px hsl(var(--ring)),
+      0 0 0 4px var(--focus-glow);
+  }
+
+  /* macOS 原生按压（BLF-574）：暗黑按钮 Level 3——白顶内高光 + 白 1px 外环 + 深底内嵌。
+   * 用法：button.tsx 的 default/destructive/outline/secondary 变体加 u-btn；
+   * ghost/link 保持透明/文字无边框语言。按压时内嵌加深（u-press scale 保留）。 */
+  .dark .u-btn {
+    box-shadow: var(--shadow-level-3);
+  }
+  .dark .u-btn:active:not(:disabled):not([data-disabled='true']) {
+    box-shadow: var(--shadow-level-3-active);
+  }
+
+  /* 浮层玻璃（BLF-574）：暗黑浮层统一 Level 5 Floating——玻璃渐变 + 2px 深环 + 白辉光。
+   * 用法：dialog/sheet/popover/select/dropdown/tooltip 浮层容器加 u-floating-glass；
+   * 仅 .dark 生效（light 走组件自带 shadow-lg/bg-popover，视觉零变化）。
+   * 毛玻璃边界遵守高 DPI 约束：仅浮层可用，卡片不加 blur（globals.css 历史注释）。 */
+  .dark .u-floating-glass {
+    background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.92), hsl(var(--surface-overlay) / 0.84));
+    box-shadow: var(--shadow-level-5);
+    backdrop-filter: blur(18px);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .dark .u-floating-glass {
+      backdrop-filter: none;
+    }
+  }
+
+  .dashboard-kicker {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground;
+  }
+
+  .dashboard-display {
+    font-family: var(--font-display), var(--font-sans), "PingFang SC", "Microsoft YaHei",
+      "Noto Sans SC", sans-serif;
+    font-size: clamp(2.15rem, 3vw, 2.75rem);
+    line-height: 0.96;
+    letter-spacing: -0.05em;
+    font-weight: 700;
+  }
+
+  .dashboard-page-shell {
+    @apply relative space-y-8;
+  }
+
+  .dark .dashboard-page-shell::before {
+    content: '';
+    position: absolute;
+    inset: -1rem -0.5rem auto;
+    height: 18rem;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 8% 10%, hsl(var(--primary) / 0.05), transparent 34%),
+      radial-gradient(circle at 88% 0%, hsl(var(--chart-4) / 0.04), transparent 26%);
+    opacity: 0.95;
+    z-index: 0;
+  }
+
+  .dark .dashboard-page-shell > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* BLF-873：工具栏表面收口至 Terminal 体系——零圆角、term 边框/底、无玻璃阴影。
+     深浅主题由 --term-* 令牌自动翻转，无需 .dark 覆盖。 */
+  .dashboard-toolbar {
+    @apply border border-term-border bg-term-raised px-3 py-3;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .dashboard-chip {
+    @apply inline-flex items-center gap-2 rounded-md border border-transparent bg-[hsl(var(--surface-subtle))] px-3 py-1.5 text-xs font-semibold text-muted-foreground;
+  }
+
+  /* 手机端表格兜底（BLF-610 策略升级，取代 BLF-503 时代的 min-width: 600px）：
+     表格本身已集成横向滑动（Table 原语 wrapper overflow-x-auto / DataTableFrame 滚动体）。
+     旧的固定 600px 下限仍会把 >600px 的宽表压缩到 600px，列宽收缩 → 文字折行，
+     在可横滑的前提下是无意义的显示损失。改为 max-content：表格保持内容固有宽度
+     （= 与桌面端相同的宽度需求），视口不足时由容器横向滚动承接。
+     需要保留换行的长文本列，页面在单元格加 max-w-[Nrem] 即可约束其 max-content 贡献；
+     个别确实想压缩折行的表格，可在 table 上加 [min-width:0!] 退出本兜底。 */
+  @media (max-width: 768px) {
+    .dashboard-surface table,
+    .dashboard-panel table,
+    [class*="bg-term-panel"] table,
+    [class*="overflow-auto"] table,
+    [class*="overflow-x-auto"] table {
+      min-width: max-content;
+    }
+
+    .dashboard-surface > div:has(table),
+    [class*="bg-term-panel"] > div:has(table),
+    [class*="CardContent"] > div:has(table) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .u-spotlight,
+  [data-spotlight] {
+    --spotlight-strength: 0;
+  }
+}
+
+@layer utilities {
+  .animate-enter {
+    animation: enter var(--motion-base) var(--motion-ease-standard) both;
+  }
+
+  .animate-float {
+    animation: float 4.2s var(--motion-ease-standard) infinite;
+  }
+
+  .hover-lift {
+    transition:
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* 暗黑 hover 配对：raised 下落 + 更亮玻璃边/内描边（--shadow-level-2-hover，BLF-574）。
+   * 保持 light 原样（shadow-raised），不换色、不叠 blur。 */
+  .dark .hover-lift:hover {
+    box-shadow: var(--shadow-level-2-hover);
+  }
+
+  .conversation-item {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .conversation-item:hover {
+    transform: translateY(-1px);
+  }
+
+  .conversation-item.active {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  .dark .conversation-item.active {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .send-btn {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .send-btn:not(:disabled):hover {
+    transform: scale(1.05);
+  }
+
+  .send-btn:not(:disabled):active {
+    transform: scale(0.95);
+  }
+
+  .action-btn {
+    transition:
+      color var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .action-btn:not(:disabled):hover {
+    transform: scale(1.1);
+  }
+
+  .action-btn:not(:disabled):active {
+    transform: scale(0.95);
+  }
+
+  .panel-toggle {
+    transition: transform var(--motion-base) var(--motion-ease-out);
+  }
+
+  .panel-toggle.collapsed {
+    transform: rotate(180deg);
+  }
+
+/* ── Digital Employee Card Animations ─────────────────────────────────────── */
+
+  @keyframes de-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes de-shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+  }
+
+  @keyframes de-running-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  .de-animate-shimmer {
+    background-size: 200% 100%;
+    animation: de-shimmer 2s linear infinite;
+  }
+
+  .de-animate-shake {
+    animation: de-shake 0.5s ease-in-out;
+  }
+
+  .de-running-glow {
+    animation: de-running-glow 1.5s ease-in-out infinite;
+  }
+
+/* ── Office Badge Wall Animations ─────────────────────────────────────────── */
+
+  /* 呼吸脉动：在岗状态点柔和呼吸 */
+  @keyframes office-breathe {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.25); }
+  }
+
+  /* 忙碌 shimmer：进度条流光加速 */
+  @keyframes office-busy-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* 失败红闪：gentle 不刺眼 */
+  @keyframes office-fail-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(0 84% 60% / 0); }
+    50% { box-shadow: 0 0 12px 2px hsl(0 84% 60% / 0.15); }
+  }
+
+  .office-breathe {
+    animation: office-breathe 2.4s ease-in-out infinite;
+  }
+
+  .office-busy-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.25) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: office-busy-shimmer 1.2s linear infinite;
+  }
+
+  .office-fail-pulse {
+    animation: office-fail-pulse 2s ease-in-out infinite;
+  }
+
+  /* prefers-reduced-motion：关闭所有工牌墙动效 */
+  @media (prefers-reduced-motion: reduce) {
+    .office-breathe,
+    .office-busy-shimmer,
+    .office-fail-pulse {
+      animation: none !important;
+    }
+  }
+
+  .web-search-toggle {
+    transition:
+      background-color var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out),
+      transform var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .web-search-toggle:not(:disabled):hover {
+    transform: scale(1.08);
+  }
+
+  .prompt-textarea {
+    transition: border-color var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .prompt-textarea:focus {
+    border-color: hsl(var(--primary) / 0.4);
+  }
+
+  .message-content {
+    transition: opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .message-content.streaming {
+    position: relative;
+  }
+
+  .message-content.streaming::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: hsl(var(--primary));
+    animation: cursor-blink 0.8s step-end infinite;
+  }
+
+  /* ── Motion design system: stagger fallback (CSS-only, 给非 framer-motion 场景) ─ */
+  .u-stagger-item {
+    opacity: 0;
+    animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--stagger-step));
+  }
+
+  .stagger-item {
+    opacity: 0;
+    animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  .stagger-item:nth-child(1) { animation-delay: 0ms; }
+  .stagger-item:nth-child(2) { animation-delay: 60ms; }
+  .stagger-item:nth-child(3) { animation-delay: 120ms; }
+  .stagger-item:nth-child(4) { animation-delay: 180ms; }
+  .stagger-item:nth-child(5) { animation-delay: 240ms; }
+
+  .empty-state-icon {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .settings-panel {
+    transition:
+      width var(--motion-base) var(--motion-ease-out),
+      opacity var(--motion-fast) var(--motion-ease-out);
+  }
+
+  .global-loading-track {
+    background: linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.2) 50%, transparent 100%);
+  }
+
+  .global-loading-indicator {
+    width: 28%;
+    background: linear-gradient(90deg, hsl(var(--chart-2) / 0.95) 0%, hsl(var(--primary) / 0.95) 45%, hsl(var(--chart-1) / 0.9) 100%);
+    box-shadow: 0 0 14px hsl(var(--primary) / 0.65);
+    animation: global-loading-slide 1.15s var(--motion-ease-standard) infinite;
+    will-change: transform;
+  }
+
+  /* Terminal 收口（BLF-872）：骨架底色与扫光带改走 term 令牌，深浅主题自动对齐 */
+  .u-skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--term-raised);
+  }
+
+  .u-skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--term-hover), transparent);
+    animation: shimmer 1.5s var(--motion-ease-standard) infinite;
+    will-change: transform;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+@keyframes global-loading-slide {
+  from {
+    transform: translate3d(-120%, 0, 0);
+  }
+
+  to {
+    transform: translate3d(420%, 0, 0);
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes send-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.animate-send-pulse {
+  animation: send-pulse 0.15s ease-out;
+}
+
+@keyframes copy-success {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.2); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.animate-copy-success {
+  animation: copy-success 0.3s ease-out;
+}
+
+@keyframes regenerate-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-regenerate-spin {
+  animation: regenerate-spin 0.6s ease-out;
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+}
+
+@keyframes scroll-btn-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-scroll-btn-enter {
+  animation: scroll-btn-enter 0.2s var(--motion-ease-out) both;
+}
+
+@keyframes scroll-btn-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.95);
+  }
+}
+
+.animate-scroll-btn-exit {
+  animation: scroll-btn-exit 0.15s ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-icon,
+  .stagger-item,
+  .animate-fade-slide-up,
+  .animate-scroll-btn-enter,
+  .animate-scroll-btn-exit,
+  .animate-cursor-blink,
+  .animate-send-pulse,
+  .animate-copy-success,
+  .animate-regenerate-spin,
+  .animate-shimmer {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .message-content.streaming::after {
+    display: none;
+  }
+
+  .conversation-item:hover {
+    transform: none;
+  }
+
+  .send-btn:not(:disabled):hover,
+  .action-btn:not(:disabled):hover,
+  .web-search-toggle:not(:disabled):hover {
+    transform: none;
+  }
+
+  .panel-toggle {
+    transition: none;
+  }
+
+  .u-interactive,
+  .u-interactive:hover,
+  .u-press,
+  .u-press:active,
+  .u-stagger-item {
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ============================================================
+ * Sidebar two-layer utilities
+ * ============================================================ */
+@layer utilities {
+ .sidebar-rail {
+ width: var(--sidebar-rail-width,68px);
+ flex-shrink:0;
+ }
+
+ .sidebar-panel-shell {
+ width: var(--sidebar-panel-width,240px);
+ transform: translateX(var(--sidebar-panel-translate,0));
+  transition:
+  transform 240ms cubic-bezier(0.22,1.18,0.36,1),
+  width 240ms cubic-bezier(0.22,1.18,0.36,1),
+  opacity 240ms ease-out;
+ will-change: transform, width;
+ }
+
+ .sidebar-panel-open {
+ --sidebar-panel-translate:0;
+ }
+}
+
+@media (prefers-reduced-motion: reduce) {
+ .sidebar-panel-shell {
+ transition: none;
+ }
+}
+
+/* ============================================================
+ * Terminal 高密度交易终端 utilities（BLF-809）
+ * ============================================================ */
+@layer utilities {
+  /* Footer 多频道 ticker 无缝滚动：内容渲染两份，位移 -50% 后复位。
+     动画时长由组件按内容宽度 / 常量速度（px/s）内联计算。 */
+  .term-marquee-track {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: term-marquee var(--term-marquee-duration, 60s) linear infinite;
+    will-change: transform;
+  }
+
+  .term-marquee-track:hover {
+    animation-play-state: paused;
+  }
+
+  /* 内容欠宽：静态展示，不滚动（避免双拷贝空档跳动） */
+  .term-marquee-static {
+    animation: none;
+    will-change: auto;
+  }
+
+  /* prefers-reduced-motion（BLF-832）：关闭持续滚动，静态截断展示（信息仍可读） */
+  @media (prefers-reduced-motion: reduce) {
+    .term-marquee-track {
+      animation: none;
+      will-change: auto;
+    }
+  }
+
+  /* 终端画布滚动条：细、贴边、低对比 */
+  .term-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--term-border-strong) transparent;
+  }
+
+  .term-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .term-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .term-scroll::-webkit-scrollbar-thumb {
+    background: var(--term-border-strong);
+    border-radius: 0;
+  }
+
+  /* ----------------------------------------------------------
+   * L2 SubNav 折叠/展开动效（BLF-825）
+   * 壳层用 width 过渡（flex 布局中 Main Canvas 平滑跟随），
+   * 内容层用 opacity/translateX 分层退场；容器 overflow:hidden 防溢出。
+   * ---------------------------------------------------------- */
+  .term-subnav-shell {
+    overflow: hidden;
+    transition: width var(--subnav-duration, 260ms) var(--subnav-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    will-change: width;
+  }
+
+  /* 内容层：收缩时文字先淡出并轻微左移，展开时反向级联入场（延迟由组件内联 stagger） */
+  .term-subnav-content {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    transition:
+      opacity var(--subnav-fade-out, 120ms) ease-out,
+      transform var(--subnav-fade-out, 120ms) ease-out;
+  }
+
+  .term-subnav-collapsed .term-subnav-content {
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none; /* 淡出期间不可点击，避免幽灵点击 */
+  }
+
+  /* 展开时内容层换用更长的入场时长（级联延迟由组件内联 --subnav-delay 控制） */
+  .term-subnav-expanded .term-subnav-content {
+    transition:
+      opacity var(--subnav-fade-in, 180ms) cubic-bezier(0.22, 1, 0.36, 1),
+      transform var(--subnav-fade-in, 180ms) cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--subnav-delay, 0ms);
+  }
+
+  /* 激活指示条：折叠态保留可见性（窄态可辨），过渡期间不闪烁 —— 独立于内容层淡出 */
+  .term-subnav-indicator {
+    transition: none;
+  }
+}
+
+@keyframes term-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 降级为静态截断：不滚动，内容从头部截断展示（信息仍可读） */
+  .term-marquee-track,
+  .term-marquee-static {
+    animation: none !important;
+    will-change: auto;
+  }
+
+  /* BLF-825：reduced-motion 下 SubNav 折叠/展开直接切换，无动画 */
+  .term-subnav-shell {
+    transition: none !important;
+    will-change: auto;
+  }
+
+  .term-subnav-content {
+    transition: none !important;
+    transform: none !important;
+  }
+}

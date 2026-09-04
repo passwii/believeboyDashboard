@@ -1,0 +1,31 @@
+[Unit]
+Description=Believeboy Celery scheduled-report worker (方案 §4.4)
+Documentation=https://github.com/passwii/believeboyDashboard/blob/main/docs/superpowers/plans/2026-07-10-scheduled-report-to-celery.md
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/backend
+EnvironmentFile=/root/believeboyDashboard/backend/.env
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
+          -A app.tasks.celery_app worker \
+          -Q scheduled -c 2 --loglevel=info --max-tasks-per-child=100
+Restart=always
+RestartSec=3
+
+# 内存限制——防止定时报告 Chrome 截图任务耗尽 VPS 全部内存。
+# 1.9 GiB VPS 上，chrome-headless-shell + --single-process 后单任务约
+# 150-300 MB。-c 2 双路并发峰值约 600 MB，768M 上限留有余量，
+# 超出时内核直接 OOM 该 cgroup 而非全局崩溃。
+MemoryMax=768M
+MemoryHigh=640M
+MemorySwapMax=256M
+
+# 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
+# `believeboy-celery.service` 负责。`-c 2` 允许双路并发消化批量补发，
+# chrome-headless-shell + --single-process 已将单任务内存压到可控范围。
+# --max-tasks-per-child=100 防止 fork worker 长期运行后内存膨胀不释放。
+
+[Install]
+WantedBy=multi-user.target

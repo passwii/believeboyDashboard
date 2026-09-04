@@ -1,0 +1,154 @@
+'use client'
+
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+
+export type PricingCalculationRunItem = {
+  id: number
+  product_name: string
+  created_at: string
+}
+
+export type ComparisonRow<T extends PricingCalculationRunItem = PricingCalculationRunItem> = {
+  label: string
+  getDisplayValue: (run: T) => string
+}
+
+export type ComparisonSection<T extends PricingCalculationRunItem = PricingCalculationRunItem> = {
+  title: string
+  rows: ComparisonRow<T>[]
+}
+
+type ComparisonTableProps = {
+  runs: PricingCalculationRunItem[]
+  sections: ComparisonSection[]
+  formatCompactDate: (value: string) => string
+}
+
+export function ComparisonTable({ runs, sections, formatCompactDate }: ComparisonTableProps) {
+  if (runs.length === 0) {
+    return (
+      <div className="rounded-none border border-dashed px-4 py-8 text-center text-sm text-term-muted">
+        暂无可对比的测算结果
+      </div>
+    )
+  }
+
+  const sectionStyles: Record<string, { categoryCell: string; subCell: string }> = {
+    货品数据: {
+      categoryCell:
+        'border-term-accent/30 bg-term-accent/10 text-term-accent',
+      subCell: 'bg-term-accent/5',
+    },
+    'DDP 成本': {
+      categoryCell:
+        'border-term-warn/30 bg-term-warn/10 text-term-warn',
+      subCell: 'bg-term-warn/5',
+    },
+    费用支出: {
+      categoryCell:
+        'border-term-neg/30 bg-term-neg/10 text-term-neg',
+      subCell: 'bg-term-neg/5',
+    },
+    售价与利润: {
+      categoryCell:
+        'border-emerald-200 bg-emerald-100 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100',
+      subCell: 'bg-emerald-50 dark:bg-emerald-950',
+    },
+    核算规则: {
+      categoryCell:
+        'border-term-accent/30 bg-term-accent/10 text-term-accent',
+      subCell: 'bg-term-accent/5',
+    },
+  }
+
+  return (
+    <div className="max-h-[600px] overflow-auto rounded-none border border-term-border">
+      <table className="w-max min-w-full border-collapse text-xs">
+        <thead className="sticky top-0 z-30 bg-term-panel">
+          <tr>
+            <th className="sticky left-0 z-20 min-w-[116px] whitespace-nowrap border-b border-r bg-term-panel px-3 py-2 text-left font-semibold">
+              分类
+            </th>
+            <th className="sticky left-[116px] z-20 min-w-[150px] whitespace-nowrap border-b border-l bg-term-panel px-3 py-2 text-left font-semibold">
+              明细项
+            </th>
+            {runs.map((run) => (
+              <th
+                key={run.id}
+                className="min-w-[210px] whitespace-nowrap border-b border-l bg-term-panel px-3 py-2 align-top"
+              >
+                <div className="space-y-1 py-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="max-w-[150px] truncate font-semibold text-term-text">
+                      {run.product_name}
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">
+                      #{run.id}
+                    </Badge>
+                  </div>
+                  <div className="text-[10px] text-term-muted">
+                    {formatCompactDate(run.created_at)}
+                  </div>
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sections.flatMap((section) =>
+            section.rows.map((row, index) => (
+              <tr
+                key={`${section.title}-${row.label}`}
+                className={cn(
+                  'hover:bg-term-hover',
+                  row.label === '售价' || row.label === '利润率'
+                    ? 'bg-yellow-50 dark:bg-yellow-950/20'
+                    : ''
+                )}
+              >
+                {index === 0 ? (
+                  <td
+                    rowSpan={section.rows.length}
+                    className={cn(
+                      'sticky left-0 z-10 min-w-[116px] border-b border-r bg-term-panel p-2 align-top font-semibold whitespace-nowrap',
+                      sectionStyles[section.title]?.categoryCell ??
+                        'border-term-border bg-term-panel text-term-text dark:bg-term-bg'
+                    )}
+                  >
+                    {section.title}
+                  </td>
+                ) : null}
+                <td
+                  className={cn(
+                    'sticky left-[116px] z-10 min-w-[150px] border-b border-l p-2 font-medium whitespace-nowrap',
+                    row.label === '售价' || row.label === '利润率'
+                      ? 'bg-yellow-50 font-bold text-slate-900 dark:bg-yellow-950/30 dark:text-yellow-100'
+                      : 'text-term-muted',
+                    sectionStyles[section.title]?.subCell ?? 'bg-term-bg'
+                  )}
+                >
+                  {row.label}
+                </td>
+                {runs.map((run) => (
+                  <td
+                    key={`${row.label}-${run.id}`}
+                    className={cn(
+                      'whitespace-nowrap border-b border-l p-2 align-top leading-5',
+                      row.label === '售价' &&
+                        'bg-yellow-50 font-semibold text-term-text dark:bg-yellow-950/30',
+                      row.label === '利润率' &&
+                        'bg-yellow-50 font-semibold text-term-text dark:bg-yellow-950/30'
+                    )}
+                  >
+                    {row.getDisplayValue(run)}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}

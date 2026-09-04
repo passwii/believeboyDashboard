@@ -1,0 +1,80 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gui-app",
+    "crates/gui-api-client",
+    "crates/gui-domain",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+license = "Proprietary"
+authors = ["BelieveBoy Team"]
+publish = false
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+
+# WebSocket（远期实时数据刷新用；MVP 不接入）
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+
+# 序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 错误
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# UI（先锁版本；注意：gpui 0.1.x 已从 crates.io yank，最低可用 0.2.x）
+# runtime-shaders：本机只有 Command Line Tools（无完整 Xcode），metal 编译器不可用，
+# 用运行时编译 shader 替代构建期 xcrun metal（见 BLF-673 验证结论）。
+gpui = { version = "0.2", package = "gpui", features = ["runtime_shaders"] }
+
+# UI 组件库（用户 2026-08-14 指定：能用则尽量全部替换使用，不手写轮子）
+# 0.5.1 依赖 gpui 0.2.2 与 workspace 一致；文档 https://longbridge.github.io/gpui-component/
+gpui-component = { version = "0.5" }
+
+# 时间
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+# Keychain（macOS 存 token）
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# 本地存储（远期离线缓存；MVP 不接入）
+redb = "2.2"
+
+# 配置
+dotenvy = "0.15"
+
+# LSP 友好的工具
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# 内部 crate
+gui-domain = { path = "crates/gui-domain", version = "0.1.0" }
+gui-api-client = { path = "crates/gui-api-client", version = "0.1.0" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# 本地补丁（BLF-786）：gpui 0.2.2 的 Windows 着色器原本要求在 Windows 主机上用
+# fxc.exe 构建期预编译；补丁后改为运行期由 d3dcompiler_47.dll 从内嵌 HLSL 源码
+# 编译（Win8.1+ 系统自带），使 Windows 产物可从 macOS/Linux 交叉构建，CI 亦适用。
+# 补丁仅触碰 windows 后端的 build.rs 与 directx_renderer.rs，macOS 路径零改动。
+[patch.crates-io]
+gpui = { path = "third-party/gpui" }

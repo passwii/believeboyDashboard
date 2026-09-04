@@ -1,0 +1,43 @@
+[Unit]
+Description=Believeboy Celery background worker
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/backend
+EnvironmentFile=/root/believeboyDashboard/backend/.env
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=1 --max-tasks-per-child=100
+Restart=always
+RestartSec=3
+
+# 内存限制——主 worker 处理月报 / 洞察 / AI 摘要等 IO 密集任务，
+# 不含 Chrome 截图（已隔离到 believeboy-celery-scheduled）。
+# -c 1 单路 worker 进程：2026-07-29 由 -c 4 → -c 2 → -c 1。
+# run_job task 在 import 时会拖入 pandas/numpy/openpyxl/fastapi，整套 ~110 MiB
+# 共享在主进程 + 每个子进程里，单 worker 进程驻留 ~180 MiB。
+# 1.9 GiB VPS 内存紧张，-c 1 把 default worker 进程数从 3 减到 2，净释放 ~180 MiB
+# （之前 -c 4 是 5 进程、-c 2 是 3 进程、-c 1 是 2 进程）。
+# 代价：default 队列并发降到 1，长尾 IO 任务会排队。生产路径上
+# 跑得快（短任务为主），可通过 --max-tasks-per-child 调整复现频率缓解。
+# 月报 run_job 任务走 reports 队列，仍由本 worker 消费（自带 -c 1 + 进程内存
+# 已包含 pandas），需要月报扩容时再独立拆 reports worker（见方案 A）。
+# 2026-07-29 -c 4 → -c 2：1.9 GiB VPS swap 已在用 (398Mi/1.0Gi)，双路 worker
+# 子进程 ~150-160 MiB × 5 ≈ 800 MiB 吃紧；降到 2 后 ~500 MiB 留出余量。
+# 2026-07-29 -c 2 → -c 1：实测 baseline idle 已用 1.5Gi/1.9Gi（uvicorn 359M +
+# 6 个 celery 子进程各 150-180M），剩余 477Mi 无法承接任何突发任务（screenshot
+# 峰值 400-500M 直接撞 877M 上限），继续降并发给突发任务让出空间。
+MemoryMax=512M
+MemoryHigh=384M
+MemorySwapMax=128M
+
+# 消费 default,reports,insights,ai_summary 四个队列。
+# scheduled 队列由独立的 believeboy-celery-scheduled.service 消费，
+# 实现 Chrome 截图任务的内存隔离（方案 §4.4）。
+# --max-tasks-per-child=100 防止 fork worker 长期运行后内存膨胀不释放。
+# 缩到 -c 1 后，如遇 default 队列任务堆积（积压 / 长尾 IO），优先调小
+# --max-tasks-per-child 复现 fork、或独立拆出 reports worker 进程（方案 A），
+# 而非直接升 -c——这条 VPS 内存太小是结构性约束。
+
+[Install]
+WantedBy=multi-user.target

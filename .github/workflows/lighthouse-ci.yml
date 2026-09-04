@@ -1,0 +1,68 @@
+name: Lighthouse CI
+
+# BEL-39 / Step A scaffolding.
+# Thresholds in frontend/.lighthouserc.json are PLACEHOLDERS — Step B will
+# replace them with real numbers from `lhci autorun` after BEL-33..BEL-38
+# land. Reviewers: do NOT treat the current numbers as approved.
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/lighthouse-ci.yml"
+      - "frontend/.lighthouserc.json"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/lighthouse-ci.yml"
+      - "frontend/.lighthouserc.json"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: lighthouse-ci (desktop, 4 routes × 3 runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      NEXTAUTH_URL: http://localhost:3200
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Run lhci autorun
+        working-directory: frontend
+        run: |
+          pnpm dlx @lhci/cli@0.14.x autorun \
+            --config=./.lighthouserc.json \
+            --collect.startServerCommand="pnpm start" \
+            --collect.startServerReadyPattern="Ready in" \
+            --collect.startServerReadyTimeout=60000
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
+          LHCI_BUILD_CONTEXT__COMMIT_MESSAGE: ${{ github.event.head_commit.message }}

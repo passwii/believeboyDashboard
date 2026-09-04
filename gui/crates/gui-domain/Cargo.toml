@@ -1,0 +1,18 @@
+[package]
+name = "gui-domain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+description = "BelieveBoy GUI 领域类型层（纯 serde 模型，无 IO 依赖）"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }

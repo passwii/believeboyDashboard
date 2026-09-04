@@ -1,0 +1,338 @@
+'use client'
+
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  CircleHelp,
+  FileText,
+  Globe,
+  Loader2,
+  PackageSearch,
+} from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
+import {
+  DateRangePicker,
+  SingleDatePicker,
+  formatDateInputValue,
+  parseDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { ReportCardConfig, ReportCardState } from '@/components/report-upload/types'
+import { getMultiCountryDisplay } from '@/components/report-upload/types'
+import { cn } from '@/lib/utils'
+
+type Props = {
+  config: ReportCardConfig
+  state: ReportCardState
+  projects: string[]
+  onPickCandidate: (tempFileId: string) => void
+  onProjectChange: (value: string) => void
+  onDateChange: (field: 'reportDate' | 'reportStartDate' | 'reportEndDate', value: string) => void
+  onCommit: () => void
+  canCommit: boolean
+  /** Lock project selector to pre-set value (disable change) */
+  projectLocked?: boolean
+  /** Hide date picker and show static period text instead */
+  datesLocked?: boolean
+  /** Static period label shown when datesLocked=true */
+  periodLabel?: string
+}
+
+function statusBadge(state: ReportCardState) {
+  if (state.commitStatus === 'success') {
+    return (
+      <span
+        className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos"
+        aria-label="已完成"
+        title="已完成"
+      >
+        <CheckCircle2 className="h-4 w-4" />
+      </span>
+    )
+  }
+  if (state.commitStatus === 'saving') {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-warn/40 bg-term-warn/10 px-2 font-mono text-[11px] leading-4 text-term-warn">
+        处理中
+      </span>
+    )
+  }
+  if (state.commitStatus === 'error') {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-neg/40 bg-term-neg/10 px-2 font-mono text-[11px] leading-4 text-term-neg">
+        失败
+      </span>
+    )
+  }
+  if (state.candidates.length > 1 || state.recognition) {
+    return (
+      <span className="inline-flex h-6 items-center rounded-none border border-term-warn/40 bg-term-warn/10 px-2 font-mono text-[11px] leading-4 text-term-warn">
+        待确认
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex h-6 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-[11px] leading-4 text-term-muted">
+      未识别
+    </span>
+  )
+}
+
+function needsProjectAttention(state: ReportCardState) {
+  if (!state.recognition) return false
+  return !state.selectedProject && state.recognition.project_match.status !== 'matched'
+}
+
+function needsDateAttention(state: ReportCardState) {
+  if (!state.recognition) return false
+  if (state.recognition.date_input_mode === 'multi_auto') {
+    return false
+  }
+  // Auto modes don't need attention — dates are pre-filled from file
+  if (state.recognition.date_input_mode === 'range_auto') {
+    return !state.reportStartDate || !state.reportEndDate
+  }
+  if (state.recognition.date_input_mode === 'single_auto') {
+    return !state.reportDate
+  }
+  if (state.recognition.date_input_mode === 'range_manual') {
+    return !state.reportStartDate || !state.reportEndDate
+  }
+  return !state.reportDate
+}
+
+function isMultiCommitWithDerivedDates(state: ReportCardState) {
+  // Exclude modes where dates come from the file (not from per-file derivation)
+  const derivedModes = new Set(['range_manual', 'range_auto'])
+  return state.candidates.length > 1 && !derivedModes.has(state.recognition?.date_input_mode ?? '')
+}
+
+export function ReportStatusCard({
+  config,
+  state,
+  projects,
+  onPickCandidate,
+  onProjectChange,
+  onDateChange,
+  onCommit,
+  canCommit,
+  projectLocked = false,
+  datesLocked = false,
+  periodLabel,
+}: Props) {
+  const recognition = state.recognition
+  const projectWarning = needsProjectAttention(state)
+  const dateWarning = needsDateAttention(state)
+  const useRangePicker =
+    recognition?.date_input_mode === 'range_manual' ||
+    recognition?.date_input_mode === 'range_auto' ||
+    (!recognition && config.type === 'payment_report')
+  const isMultiCountry = Boolean(
+    recognition?.detected_countries && recognition.detected_countries.length > 1
+  )
+
+  return (
+    <Card className="flex h-full flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+      <CardContent className="flex flex-1 flex-col gap-4 px-3 !pt-4 pb-4">
+        <div className="mt-1 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <CardTitle className="text-base leading-6 text-foreground">{config.title}</CardTitle>
+            <div className="group relative mt-0.5 shrink-0">
+              <button
+                type="button"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-none text-term-muted transition-colors hover:text-term-text focus-visible:outline-none focus-visible:border-term-border-strong"
+                aria-label="查看识别字段"
+                title={config.subtitle}
+              >
+                <CircleHelp className="h-4 w-4" />
+              </button>
+              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-[11px] leading-4 text-term-text opacity-0 shadow-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                {config.subtitle}
+              </div>
+            </div>
+          </div>
+          {statusBadge(state)}
+        </div>
+        <div className="space-y-2 rounded-none border border-term-border bg-term-raised px-3 py-3">
+          <div className="flex items-center gap-2 font-mono text-xs leading-5 text-term-text">
+            <FileText className="h-4 w-4 text-term-muted" />
+            当前文件
+          </div>
+          {state.candidates.length === 0 ? (
+            <p className="font-mono text-[11px] leading-4 text-term-muted">等待左侧上传区识别到该报表。</p>
+          ) : (
+            <>
+              {state.candidates.length > 1 ? (
+                <Select value={state.activeTempFileId || ''} onValueChange={onPickCandidate}>
+                  <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
+                    <SelectValue placeholder="选择要使用的文件" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {state.candidates.map((candidate) => (
+                      <SelectItem key={candidate.temp_file_id} value={candidate.temp_file_id}>
+                        {candidate.original_filename}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+              {recognition && state.candidates.length <= 1 ? (
+                <p
+                  className="truncate font-mono text-[11px] leading-4 text-term-muted"
+                  title={recognition.original_filename}
+                >
+                  {recognition.original_filename}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="grid flex-1 gap-3 content-start">
+          <div className="grid gap-3">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
+                <PackageSearch
+                  className={cn(
+                    'h-4 w-4 text-term-muted',
+                    projectWarning && 'text-term-warn'
+                  )}
+                />
+              </div>
+              <Select
+                value={state.selectedProject || undefined}
+                onValueChange={onProjectChange}
+                disabled={projectLocked}
+              >
+                <SelectTrigger
+                  className={cn(
+                    'h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    projectWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
+                  )}
+                >
+                  <SelectValue placeholder="请选择项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project} value={project}>
+                      {project}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
+                <CalendarDays
+                  className={cn(
+                    'h-4 w-4 text-term-muted',
+                    dateWarning && 'text-term-warn'
+                  )}
+                />
+              </div>
+              {datesLocked ? (
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
+                  {periodLabel || '使用核算参数中的日期范围'}
+                </div>
+              ) : useRangePicker ? (
+                <DateRangePicker
+                  value={parseDateRangeInputValue(state.reportStartDate, state.reportEndDate)}
+                  className={cn(
+                    'h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    dateWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
+                  )}
+                  onChange={(range) => {
+                    onDateChange('reportStartDate', formatDateInputValue(range?.from))
+                    onDateChange('reportEndDate', formatDateInputValue(range?.to))
+                  }}
+                />
+              ) : isMultiCommitWithDerivedDates(state) ? (
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
+                  每个文件将自动提取各自的日期
+                </div>
+              ) : recognition?.date_input_mode === 'multi_auto' ? (
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
+                  {recognition.detected_start_date && recognition.detected_end_date
+                    ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
+                    : '将按 purchase-date 自动拆分多个日期'}
+                </div>
+              ) : recognition?.date_input_mode === 'range_auto' ? (
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
+                  {recognition.detected_start_date && recognition.detected_end_date
+                    ? `${recognition.detected_start_date} ~ ${recognition.detected_end_date}`
+                    : '已从文件中自动识别日期范围'}
+                </div>
+              ) : recognition?.date_input_mode === 'single_auto' ? (
+                <div className="rounded-none border border-term-border bg-term-raised px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
+                  {recognition.detected_date || '已从文件中自动识别日期'}
+                </div>
+              ) : (
+                <SingleDatePicker
+                  value={parseDateInputValue(state.reportDate)}
+                  className={cn(
+                    'h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong',
+                    dateWarning && 'border-term-warn/40 bg-term-warn/5 text-term-warn'
+                  )}
+                  onChange={(date) => onDateChange('reportDate', formatDateInputValue(date))}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {isMultiCountry && recognition ? (
+          <div className="rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-2 font-mono text-xs text-term-accent">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 shrink-0" />
+              <span>
+                检测到多站点数据：{getMultiCountryDisplay(recognition.detected_countries)}
+                ，系统将自动按站点拆分
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        {recognition?.warnings?.length ? (
+          <div className="rounded-none border border-term-warn/40 bg-term-warn/10 px-3 py-2 font-mono text-xs text-term-warn">
+            {recognition.warnings.join('；')}
+          </div>
+        ) : null}
+
+        {state.commitMessage && state.commitStatus === 'error' ? (
+          <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              {state.commitMessage}
+            </div>
+          </div>
+        ) : null}
+
+        <Button
+          onClick={onCommit}
+          disabled={!canCommit || state.commitStatus === 'saving'}
+          className="mt-auto w-full"
+        >
+          {state.commitStatus === 'saving' ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              处理中
+            </>
+          ) : (
+            '确认保存'
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
