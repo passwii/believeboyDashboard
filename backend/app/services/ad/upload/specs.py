@@ -71,7 +71,8 @@ REPORT_SPECS: tuple[ReportSpec, ...] = (
     ReportSpec(
         report_type='ad_promoted_product_report',
         report_label='推广的商品',
-        extensions=('.xlsx',),
+        # BLF-975 复测：agent 同事把 xlsx 转 CSV 再校验也被拒 → 放开 .csv。
+        extensions=('.xlsx', '.csv'),
         required_columns=('开始日期', '结束日期', '广告SKU', '广告ASIN', '广告活动名称', '广告组名称'),
         project_match_fields=(('sku', '广告SKU'), ('asin', '广告ASIN')),
     ),

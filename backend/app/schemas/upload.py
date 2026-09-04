@@ -24,6 +24,16 @@ ReportUploadType = Literal[
     "sales_report",
     "payment_report",
     "return_report",
+    # BLF-975 复测：广告 B 表 10 子类型（/agent/upload/validate 复用 ad specs
+    # 识别器；commit 广告域继续由 /ad-upload/commit 承担，此处仅 validate）。
+    "ad_promoted_product_report",
+    "ad_purchased_product_report",
+    "ad_campaign_report",
+    "ad_budget_report",
+    "ad_invalid_traffic_report",
+    "ad_placement_report",
+    "ad_target_report",
+    "ad_time_trend_report",
     "unknown",
 ]
 DateInputMode = Literal[
@@ -128,3 +138,46 @@ class ProjectReportStatusItem(BaseModel):
 class ReportStatusResponse(BaseModel):
     country: str = "US"
     items: list[ProjectReportStatusItem]
+
+
+# ─── Agent Upload (BLF-975) ────────────────────────────────────────────────
+class AgentUploadValidateResponse(BaseModel):
+    """Dry-run 校验响应：列匹配度、检测国家、行数估算。
+
+    BLF-975 复测：``temp_file_id`` 必返回——validate 即临时文件登记步骤，
+    commit 用它两段式衔接（此前缺失导致 agent 流接不上）。
+    """
+
+    temp_file_id: str
+    original_filename: str = ""
+    report_type: ReportUploadType
+    status: Literal["valid", "invalid", "warning"] = "valid"
+    matched_columns: list[str] = Field(default_factory=list)
+    missing_columns: list[str] = Field(default_factory=list)
+    column_match_ratio: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="列匹配度 (0.0-1.0)"
+    )
+    detected_countries: list[str] = Field(default_factory=list)
+    primary_country: str = "US"
+    row_count_preview: int | None = None
+    date_input_mode: DateInputMode = "single_manual"
+    detected_date: str | None = None
+    detected_start_date: str | None = None
+    detected_end_date: str | None = None
+    suggested_report_type: ReportUploadType | None = Field(
+        default=None, description="列不匹配时建议的报表类型"
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AgentUploadCommitRequest(ReportCommitRequest):
+    """agent 通道正式提交请求：同 ``ReportCommitRequest`` 契约。
+
+    继承保证 agent 调用可直接透传给 ``commit_report_upload``（服务层签名
+    只认 ``ReportCommitRequest``）；``dry_run`` 字段一并继承（agent 不用，
+    但服务层契约对齐）。
+    """
+
+
+class AgentUploadCommitResponse(ReportCommitResponse):
+    """agent 通道正式提交响应：同 ``ReportCommitResponse`` 契约。"""

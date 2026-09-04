@@ -85,6 +85,13 @@ const PROGRESS_PAYLOAD = {
 
 const GOALS_PAYLOAD = { goals: [], total: 0 }
 
+/** BLF-595 回归用：本月 (year, month)，取 US 时区当天，与页面 currentYear/currentMonth 口径一致。
+ *  硬编码月份会随日期滚动失效（2026-09 起 8 月不再是当月，页面找不到 currentMonthProgress）。 */
+const currentYearMonth = (() => {
+  const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US)
+  return { year: today.getFullYear(), month: today.getMonth() + 1 }
+})()
+
 /** 含「本月进度」的 progress 载荷：三环指标与 4 统计块都会渲染（月份取 US 时区当天，与页面口径一致） */
 function progressPayloadWithCurrentMonth() {
   const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US)
@@ -194,9 +201,9 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
           ...PROGRESS_PAYLOAD,
           monthly_progress: [
             {
-              year: 2026,
-              month: 8,
-              month_label: '2026年8月',
+              year: currentYearMonth.year,
+              month: currentYearMonth.month,
+              month_label: `${currentYearMonth.year}年${currentYearMonth.month}月`,
               target_amount: 0,
               achieved_amount: 1000,
               completion_rate: 0,
@@ -240,9 +247,9 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
           ...PROGRESS_PAYLOAD,
           monthly_progress: [
             {
-              year: 2026,
-              month: 8,
-              month_label: '2026年8月',
+              year: currentYearMonth.year,
+              month: currentYearMonth.month,
+              month_label: `${currentYearMonth.year}年${currentYearMonth.month}月`,
               target_amount: saved ? 10000 : 0,
               achieved_amount: 1000,
               completion_rate: 0,
@@ -271,8 +278,8 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
                 country: 'US',
                 goal_type: 'monthly',
                 metric_type: 'sales_amount',
-                period_year: 2026,
-                period_month: 8,
+                period_year: currentYearMonth.year,
+                period_month: currentYearMonth.month,
                 target_amount: 10000,
                 currency: 'USD',
                 created_at: '',

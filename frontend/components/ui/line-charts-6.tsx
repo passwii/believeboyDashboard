@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as RechartsPrimitive from 'recharts'
 
 import { cn } from '@/lib/utils'
+import { resolveChartColor } from '@/components/ui/chart'
 
 // THEMES: light mode uses no selector; dark mode targets the `.dark` wrapper.
 // This matches the existing `chart.tsx` convention so the two components can
@@ -70,7 +71,7 @@ function ChartContainer({
           // 基础：垂直水平居中 + 等比 16:9 容器
           'flex aspect-video justify-center text-xs',
           // recharts 内部 SVG 默认样式的统一收口
-          '[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground',
+          "[&_.recharts-cartesian-grid_line]:stroke-[var(--term-border)]",
           "[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
           '[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border',
           "[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
@@ -112,7 +113,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color ? `  --color-${key}: ${resolveChartColor(color)};` : null
   })
   .join('\n')}
 }
@@ -185,9 +186,8 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        // 与现有 chart.tsx 工具提示外观对齐：圆角 + 边框；暗黑走 u-floating-glass（L5 + blur 18px，BLF-575）
-        'grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 u-floating-glass',
-        className
+        // BLF-978 Stage 1：终端规格——直角 + term 面板 + 零阴影/玻璃（对齐 chart.tsx）。
+        'grid min-w-[8rem] items-start gap-1.5 rounded-none border border-term-border bg-term-panel px-2.5 py-1.5 text-xs text-term-text shadow-none',
       )}
     >
       {!nestLabel ? tooltipLabel : null}

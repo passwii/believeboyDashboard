@@ -15,6 +15,15 @@ import { cn } from '@/lib/utils'
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const
 
+// 颜色管线（BLF-978 Stage 1）：--chart-N 是裸 HSL 三元组（供 hsl() 包装消费），
+// 而 series 用 fill/stroke="var(--color-*)" 直接消费注入的 CSS 变量。裸三元组
+// 在 SVG 颜色上下文是非法值 → 浏览器回退纯黑（BLF-976 回顾实测）。
+// 注入前把「仅 var(--chart-N)」包装成 hsl()；--term-chart-N（完整色值）、
+// 已包装 hsl(var(--chart-N))、hex 等原样透传。
+function resolveChartColor(color: string): string {
+  return /^var\(--chart-\d+\)$/.test(color) ? `hsl(${color})` : color
+}
+
 export type ChartConfig = {
   [k in string]: {
     label?: React.ReactNode
@@ -88,7 +97,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color ? `  --color-${key}: ${resolveChartColor(color)};` : null
   })
   .join('\n')}
 }
@@ -169,7 +178,8 @@ const ChartTooltipContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          'grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 u-floating-glass',
+          // BLF-978 Stage 1：终端规格 tooltip——直角 + term 面板 + 零阴影/玻璃。
+          'grid min-w-[8rem] items-start gap-1.5 rounded-none border border-term-border bg-term-panel px-2.5 py-1.5 text-xs text-term-text shadow-none',
           className
         )}
       >
@@ -342,4 +352,5 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  resolveChartColor,
 }

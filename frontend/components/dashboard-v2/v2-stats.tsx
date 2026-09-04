@@ -106,16 +106,15 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
     <>
       {stats.map((s) => (
         <V2Card className="transition-colors hover:bg-surface-subtle" key={s.label}>
-          <CardHeader className="flex flex-row items-center justify-between px-4 pb-0 pt-3 md:px-4">
-            <CardTitle className="text-xs font-normal tracking-wide text-muted-foreground">{s.label}</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between px-2 pb-0 pt-2 md:px-2">
+            <CardTitle className="font-mono text-[11px] uppercase tracking-wider text-term-muted">{s.label}</CardTitle>
             <Delta value={s.delta}>
               <DeltaIcon />
               <DeltaValue />
             </Delta>
           </CardHeader>
-          <CardContent className="flex flex-row items-center gap-2 px-4 pb-3 md:px-4">
-            {/* 保留 tabular-nums 数据感；去掉 font-mono（视觉更系统，对齐 ChartCard 数字语言） */}
-            <p className="text-xl font-semibold tabular-nums text-foreground">{s.value}</p>
+          <CardContent className="flex flex-row items-center gap-2 px-2 pb-2 md:px-2">
+            <p className="font-mono text-xl font-semibold tabular-nums text-term-text">{s.value}</p>
           </CardContent>
         </V2Card>
       ))}

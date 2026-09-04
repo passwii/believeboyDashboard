@@ -283,6 +283,15 @@ const config: Config = {
           warn: 'var(--term-warn)',
           neg: 'var(--term-neg)',
           accent: 'var(--term-accent)',
+          /* BLF-978 Stage 1：图表数据色 8 色（变量见 globals.css --term-chart-N） */
+          'chart-1': 'var(--term-chart-1)',
+          'chart-2': 'var(--term-chart-2)',
+          'chart-3': 'var(--term-chart-3)',
+          'chart-4': 'var(--term-chart-4)',
+          'chart-5': 'var(--term-chart-5)',
+          'chart-6': 'var(--term-chart-6)',
+          'chart-7': 'var(--term-chart-7)',
+          'chart-8': 'var(--term-chart-8)',
         },
       },
       borderRadius: {

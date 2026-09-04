@@ -6,8 +6,8 @@ import { LegendItem, LegendRow, LegendSwatch, type LegendSwatchVariant } from '.
 describe('LegendSwatch', () => {
   it.each([
     ['dot', 'rounded-full'],
-    ['line', 'rounded-full'],
-    ['bar', 'rounded-[3px]'],
+    ['line', 'rounded-none'],
+    ['bar', 'rounded-none'],
   ] as const)('%s 变体应用正确形状类', (variant, shapeClass) => {
     const { container } = render(<LegendSwatch variant={variant} color="hsl(var(--chart-1))" />)
     expect(container.firstElementChild?.className).toContain(shapeClass)
