@@ -1,13 +1,21 @@
 """Agent 报表上传 dry-run 校验服务（BLF-975）。
 
 校验文件列匹配度、检测国家、行数估算，不入库。
+
+BLF-975 复测扩展：
+* 识别器双引擎回退——核心引擎（``app.utils.recognition``）不覆盖广告 B 表
+  的中文表头 xlsx（.xlsx 在核心引擎恒返回 None），未命中时回退广告 specs
+  识别器（``app.services.ad.upload`` 的 superset 中文列匹配）。
+* validate 响应必返回 ``temp_file_id``——validate 即临时文件登记步骤，
+  agent 流「validate → 拿 id → commit」两段式衔接。
+* 未识别（invalid）响应也带 temp_file_id，方便换 report_type 复测同一文件。
 """
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -84,6 +92,42 @@ def _suggest_report_type(result: RecognitionResult) -> ReportUploadType | None:
     return best_type if best_score >= 0.5 else None
 
 
+def _match_ad_spec(
+    path, report_type: str
+) -> tuple[str, list[str], list[str], float] | None:
+    """广告 B 表识别回退（BLF-975 问题 1）。
+
+    核心引擎对 .xlsx 恒返回 None（广告域迁到独立 specs 体系），这里复用
+    ``app.services.ad.upload`` 的中文列 superset 匹配做 dry-run 判定。
+
+    返回 ``(spec_type, matched, missing, ratio)``；未命中 specs 返回 None。
+    识别成功即视为 valid——specs 是**强签名全列匹配**（required 全命中才算
+    命中），不存在"部分命中"。
+    """
+    from app.services.ad.upload.recognition import _detect_report_spec
+    from app.services.ad.upload.utils import _read_dataframe
+
+    try:
+        df = _read_dataframe(path)
+    except HTTPException:
+        return None
+
+    try:
+        spec = _detect_report_spec(df, path.suffix.lower())
+    except HTTPException:
+        return None
+
+    required = [str(c) for c in spec.required_columns]
+    columns_lower = {str(c).strip().lower() for c in df.columns}
+    matched = [c for c in required if c.lower() in columns_lower]
+    missing = [c for c in required if c.lower() not in columns_lower]
+    ratio = len(matched) / len(required) if required else 1.0
+
+    # 声明类型兼容：ad_report 旧值 → ad_product_report 之外的 B 表子类型
+    # 直接按识别出的 spec 类型为准（agent 声明只做提示，不强校验）。
+    return spec.report_type, matched, missing, ratio
+
+
 def validate_upload(
     db: Session,
     settings: Settings,
@@ -93,7 +137,11 @@ def validate_upload(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> AgentUploadValidateResponse:
-    """Dry-run 校验：返回列匹配度、检测国家、行数估算，不入库。"""
+    """Dry-run 校验：返回列匹配度、检测国家、行数估算，不入库。
+
+    validate 同时承担临时文件登记（temp_file_id 必返回），commit 两段式
+    用它衔接。
+    """
     # 保存临时文件（与正式流程共用临时目录）
     saved = save_report_upload_temp_file(file=file, settings=settings)
     temp_file_id = str(saved["temp_file_id"])
@@ -101,30 +149,53 @@ def validate_upload(
     path = resolve_report_upload_temp_file_path(settings, temp_file_id)
     normalized_country = _normalize_country(country)
 
+    def _invalid_response(
+        warnings: list[str],
+        *,
+        missing: list[str] | None = None,
+        detected_countries: list[str] | None = None,
+    ) -> AgentUploadValidateResponse:
+        return AgentUploadValidateResponse(
+            temp_file_id=temp_file_id,
+            original_filename=original_filename,
+            report_type="unknown",
+            status="invalid",
+            missing_columns=missing or REPORT_REQUIRED_COLUMNS.get(report_type, []),
+            column_match_ratio=0.0,
+            detected_countries=detected_countries or [],
+            primary_country=normalized_country,
+            warnings=warnings,
+        )
+
     try:
         result = recognize_file(
             path, country=normalized_country, original_filename=original_filename
         )
     except LedgerRecognitionError as exc:
-        return AgentUploadValidateResponse(
-            report_type="unknown",
-            status="invalid",
-            missing_columns=REPORT_REQUIRED_COLUMNS.get(report_type, []),
-            column_match_ratio=0.0,
-            warnings=[str(exc)],
-            primary_country=normalized_country,
-        )
+        return _invalid_response([str(exc)])
 
+    # BLF-975 问题 1：核心引擎不认识（None）→ 回退广告 specs 识别器。
     if result is None:
-        return AgentUploadValidateResponse(
-            report_type="unknown",
-            status="invalid",
-            missing_columns=REPORT_REQUIRED_COLUMNS.get(report_type, []),
-            column_match_ratio=0.0,
-            warnings=[f"文件类型无法识别（声明类型: {report_type})"],
-            primary_country=normalized_country,
-        )
-
+        ad_match = _match_ad_spec(path, report_type)
+        if ad_match is not None:
+            spec_type, matched, missing, ratio = ad_match
+            # 广告 specs 强签名全列命中才算识别成功；有 missing 即不匹配。
+            spec_status = "valid" if not missing else "invalid"
+            warnings: list[str] = []
+            if missing:
+                warnings.append(f"列不匹配：声明 {report_type} 但缺少 {missing}")
+            return AgentUploadValidateResponse(
+                temp_file_id=temp_file_id,
+                original_filename=original_filename,
+                report_type=spec_type,  # type: ignore[arg-type]
+                status=spec_status,  # type: ignore[arg-type]
+                matched_columns=matched,
+                missing_columns=missing,
+                column_match_ratio=ratio,
+                primary_country=normalized_country,
+                warnings=warnings,
+            )
+        return _invalid_response([f"文件类型无法识别（声明类型: {report_type})"])
     # 列匹配度计算
     matched, missing, ratio = _compute_column_match(result, report_type)
 
@@ -138,28 +209,30 @@ def validate_upload(
             primary_country = detected[0] if len(detected) == 1 else primary_country
 
     # 状态判定
-    status: AgentUploadValidateResponse.status = "valid"
+    status_value = "valid"
     suggested_type: ReportUploadType | None = None
-    warnings: list[str] = list(result.warnings or [])
+    warnings = list(result.warnings or [])
 
     if missing:
         if ratio >= 0.5:
-            status = "warning"
+            status_value = "warning"
         else:
-            status = "invalid"
+            status_value = "invalid"
         suggested_type = _suggest_report_type(result)
         warnings.append(f"列不匹配：声明 {report_type} 但缺少 {missing}")
 
     return AgentUploadValidateResponse(
-        report_type=result.report_type,
-        status=status,
+        temp_file_id=temp_file_id,
+        original_filename=original_filename,
+        report_type=result.report_type,  # type: ignore[arg-type]
+        status=status_value,  # type: ignore[arg-type]
         matched_columns=matched,
         missing_columns=missing,
         column_match_ratio=ratio,
         detected_countries=detected_countries,
         primary_country=primary_country,
         row_count_preview=result.row_count_preview,
-        date_input_mode=result.date_input_mode,
+        date_input_mode=result.date_input_mode,  # type: ignore[arg-type]
         detected_date=result.detected_date,
         detected_start_date=result.detected_start_date,
         detected_end_date=result.detected_end_date,
