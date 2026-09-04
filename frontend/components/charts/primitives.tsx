@@ -59,15 +59,18 @@ export const defaultXAxisProps = {
   tickMargin: 8,
   interval: 0,
   minTickGap: 24,
+  tick: { fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' },
 } as const
 
 /**
  * Default YAxis override. width gives ~3 chars of headroom.
+ * BLF-978 Stage 1: 同 XAxis —— mono + muted。
  */
 export const defaultYAxisProps = {
   axisLine: false,
   tickLine: false,
   width: 52,
+  tick: { fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' },
 } as const
 
 /** Right-side YAxis — narrower (44) since most y labels are shorter. */
@@ -77,9 +80,9 @@ export const rightYAxisProps = {
   orientation: 'right',
 } as const
 
-/** Default ChartTooltip cursor — soft dashed line in the muted foreground. */
+/** Default ChartTooltip cursor — dashed line in the strong term border (BLF-978). */
 export const defaultTooltipCursor = {
-  stroke: 'hsl(var(--muted-foreground))',
+  stroke: 'var(--term-border-strong)',
   strokeDasharray: '4 4',
   strokeWidth: 1,
 } as const
@@ -144,32 +147,32 @@ export const defaultChartContainerClass = CHART_HEIGHTS.default
 // ---------- Color palette --------------------------------------------------
 
 /**
- * Canonical chart color palette — keys map to `--chart-N` CSS vars in
- * globals.css (already 8 entries in both light/dark themes).
+ * Canonical chart color palette — keys map to `--term-chart-N` CSS vars in
+ * globals.css (BLF-978 Stage 1: 8 entries × light/dark, full color values).
  */
 export const CHART_COLOR_VARS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(var(--chart-6))',
-  'hsl(var(--chart-7))',
-  'hsl(var(--chart-8))',
+  'var(--term-chart-1)',
+  'var(--term-chart-2)',
+  'var(--term-chart-3)',
+  'var(--term-chart-4)',
+  'var(--term-chart-5)',
+  'var(--term-chart-6)',
+  'var(--term-chart-7)',
+  'var(--term-chart-8)',
 ] as const
 
 /** Helper to build a ChartConfig from a `label` map + per-key palette. */
 export function buildChartConfig(
   keys: readonly string[],
   labels: Record<string, string>,
-  /** Optional override — defaults to `var(--chart-N)` */
+  /** Optional override — defaults to `var(--term-chart-N)` */
   colors?: Record<string, string>
 ): UiChartConfig {
   const cfg: UiChartConfig = {}
   keys.forEach((key, idx) => {
     cfg[key] = {
       label: labels[key] ?? key,
-      color: colors?.[key] ?? `var(--chart-${(idx % 8) + 1})`,
+      color: colors?.[key] ?? CHART_COLOR_VARS[idx % CHART_COLOR_VARS.length],
     }
   })
   return cfg
