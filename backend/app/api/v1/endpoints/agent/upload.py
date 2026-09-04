@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, Header, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_db_session, get_request_operator
 from app.core.config import Settings, get_settings
 from app.schemas.upload import (
     AgentUploadCommitRequest,
@@ -18,7 +18,11 @@ from app.schemas.upload import (
 from app.services.data.upload import commit_report_upload
 from app.services.data.upload.validate import validate_upload
 
-router = APIRouter(dependencies=[Depends(protected)])
+# BLF-975 修复：agent 命名空间内的路由**不得**挂内部 dashboard 的
+# Depends(protected)（require_api_key 只认主 key / user key，agent key
+# 不在其中 → 必 403「Invalid API key」）。鉴权统一由 agent_router 级的
+# require_agent_credential 承担；业务域门禁挂 business_scope("report_upload")。
+router = APIRouter()
 
 
 @router.post("/upload/validate", response_model=AgentUploadValidateResponse)
