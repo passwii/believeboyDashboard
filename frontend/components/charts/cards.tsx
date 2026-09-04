@@ -50,6 +50,8 @@ import {
   type ChartConfig,
 } from './primitives'
 
+/** BLF-978 Stage 1：默认网格——1px term 边界色，仅横向（terminal 表格同语言）。 */
+export const defaultGridProps = { stroke: 'var(--term-border)', vertical: false } as const
 // Re-export Cell for consumers building pie charts.
 export { Cell }
 
@@ -208,7 +210,7 @@ export function LineChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <LineChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid stroke="var(--term-border)" vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}
@@ -345,7 +347,12 @@ export function BarChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <BarChart accessibilityLayer data={data as unknown as object[]} layout={layout} margin={margin}>
-        <CartesianGrid stroke="var(--term-border)" vertical={!isVertical} horizontal={isVertical} />
+        {/* 横向布局网格走纵向（数据轴），纵向布局网格走横向（数据轴）——始终正交于类目轴 */}
+        <CartesianGrid
+          stroke="var(--term-border)"
+          vertical={!isVertical}
+          horizontal={isVertical}
+        />
         {isVertical ? (
           <>
             <XAxis
@@ -495,7 +502,7 @@ export function AreaChartCard({
             ))}
           </defs>
         )}
-        <CartesianGrid stroke="var(--term-border)" vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis {...defaultXAxisProps} dataKey={xKey} tickFormatter={defaultXTickFormatter} />
         {!hideYAxis && !isMobile && (
           <YAxis
@@ -612,7 +619,7 @@ export function ComposedChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <ComposedChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid stroke="var(--term-border)" vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}

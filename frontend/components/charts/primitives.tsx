@@ -59,15 +59,18 @@ export const defaultXAxisProps = {
   tickMargin: 8,
   interval: 0,
   minTickGap: 24,
+  tick: { fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' },
 } as const
 
 /**
  * Default YAxis override. width gives ~3 chars of headroom.
+ * BLF-978 Stage 1: 同 XAxis —— mono + muted。
  */
 export const defaultYAxisProps = {
   axisLine: false,
   tickLine: false,
   width: 52,
+  tick: { fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' },
 } as const
 
 /** Right-side YAxis — narrower (44) since most y labels are shorter. */
@@ -77,7 +80,7 @@ export const rightYAxisProps = {
   orientation: 'right',
 } as const
 
-/** Default ChartTooltip cursor — BLF-976：term 边界强调色虚线（1px 边界语言）。 */
+/** Default ChartTooltip cursor — dashed line in the strong term border (BLF-978). */
 export const defaultTooltipCursor = {
   stroke: 'var(--term-border-strong)',
   strokeDasharray: '4 4',
@@ -144,9 +147,8 @@ export const defaultChartContainerClass = CHART_HEIGHTS.default
 // ---------- Color palette --------------------------------------------------
 
 /**
- * Canonical chart color palette — BLF-976 起指向 `--term-chart-N`（明暗两套，
- * 见 globals.css Terminal 图表数据色板）。完整 hex 色值，可直接被 SVG
- * fill/stroke 属性消费（BLF-976 前 `--chart-N` 裸三元组曾致全黑图）。
+ * Canonical chart color palette — keys map to `--term-chart-N` CSS vars in
+ * globals.css (BLF-978 Stage 1: 8 entries × light/dark, full color values).
  */
 export const CHART_COLOR_VARS = [
   'var(--term-chart-1)',
@@ -170,7 +172,7 @@ export function buildChartConfig(
   keys.forEach((key, idx) => {
     cfg[key] = {
       label: labels[key] ?? key,
-      color: colors?.[key] ?? `var(--term-chart-${(idx % 8) + 1})`,
+      color: colors?.[key] ?? CHART_COLOR_VARS[idx % CHART_COLOR_VARS.length],
     }
   })
   return cfg

@@ -15,6 +15,15 @@ import { cn } from '@/lib/utils'
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const
 
+// 颜色管线（BLF-978 Stage 1）：--chart-N 是裸 HSL 三元组（供 hsl() 包装消费），
+// 而 series 用 fill/stroke="var(--color-*)" 直接消费注入的 CSS 变量。裸三元组
+// 在 SVG 颜色上下文是非法值 → 浏览器回退纯黑（BLF-976 回顾实测）。
+// 注入前把「仅 var(--chart-N)」包装成 hsl()；--term-chart-N（完整色值）、
+// 已包装 hsl(var(--chart-N))、hex 等原样透传。
+function resolveChartColor(color: string): string {
+  return /^var\(--chart-\d+\)$/.test(color) ? `hsl(${color})` : color
+}
+
 export type ChartConfig = {
   [k in string]: {
     label?: React.ReactNode
@@ -58,7 +67,7 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-[var(--term-muted)] [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-curve.recharts-tooltip-cursor]:stroke-[var(--term-border-strong)] [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-radial-bar-background-sector]:fill-[var(--term-raised)] [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-[var(--term-hover)] [&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--term-border)] [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none dark:[&_.recharts-cartesian-axis-tick_text]:fill-[var(--term-muted)] dark:[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[var(--term-border)] dark:[&_.recharts-reference-line_[stroke='#ccc']]:stroke-[var(--term-border)]",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none dark:[&_.recharts-cartesian-axis-tick_text]:fill-[hsl(var(--muted-foreground))] dark:[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-[hsl(var(--border)/0.72)] dark:[&_.recharts-reference-line_[stroke='#ccc']]:stroke-[hsl(var(--border)/0.72)]",
           className
         )}
         {...props}
@@ -70,25 +79,6 @@ const ChartContainer = React.forwardRef<
   )
 })
 ChartContainer.displayName = 'Chart'
-
-/**
- * 把 config 里声明的颜色规范成可被 SVG fill/stroke 属性直接消费的色值。
- *
- * 背景：`--chart-N` 在 globals.css 里是裸 HSL 三元组（如 `221 83% 53%`），
- * 设计给 `hsl(var(--chart-N))` 包一层用。但本文件注入的 `--color-<key>` 会被
- * `cards.tsx` 等直接放进 `fill="var(--color-<key>)"` —— SVG presentation
- * attribute 遇到裸三元组是非法颜色，浏览器回退纯黑（BLF-976）。
- * 因此这里统一保证注入值是完整色值：裸三元组包 hsl()，其余原样透传
- * （完整 hsl()/hex/var(--term-*) 等已是合法 CSS 色值）。
- */
-function normalizeConfigColor(color: string): string {
-  const trimmed = color.trim()
-  // 裸 HSL 三元组：三个 0-360/0-100%/0-100% 数值段，无色值函数前缀
-  if (/^-?\d+(\.\d+)?\s+[\d.]+%\s+[\d.]+%$/.test(trimmed)) {
-    return `hsl(${trimmed})`
-  }
-  return trimmed
-}
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color)
@@ -107,7 +97,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${normalizeConfigColor(color)};` : null
+    return color ? `  --color-${key}: ${resolveChartColor(color)};` : null
   })
   .join('\n')}
 }
@@ -188,7 +178,8 @@ const ChartTooltipContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          'min-w-[8rem] grid items-start gap-1.5 rounded-none border border-term-border bg-term-panel px-2.5 py-1.5 font-mono text-xs leading-5 text-term-text shadow-none',
+          // BLF-978 Stage 1：终端规格 tooltip——直角 + term 面板 + 零阴影/玻璃。
+          'grid min-w-[8rem] items-start gap-1.5 rounded-none border border-term-border bg-term-panel px-2.5 py-1.5 text-xs text-term-text shadow-none',
           className
         )}
       >
@@ -361,4 +352,5 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  resolveChartColor,
 }

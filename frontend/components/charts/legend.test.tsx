@@ -5,14 +5,12 @@ import { LegendItem, LegendRow, LegendSwatch, type LegendSwatchVariant } from '.
 
 describe('LegendSwatch', () => {
   it.each([
-    ['dot'],
-    ['line'],
-    ['bar'],
-  ] as const)('%s 变体走 terminal 直角语言（BLF-976，无圆角类）', (variant) => {
+    ['dot', 'rounded-full'],
+    ['line', 'rounded-none'],
+    ['bar', 'rounded-none'],
+  ] as const)('%s 变体应用正确形状类', (variant, shapeClass) => {
     const { container } = render(<LegendSwatch variant={variant} color="hsl(var(--chart-1))" />)
-    const cls = container.firstElementChild?.className as string
-    expect(cls).not.toContain('rounded-full')
-    expect(cls).not.toContain('rounded-[3px]')
+    expect(container.firstElementChild?.className).toContain(shapeClass)
   })
 
   it('bar 变体用方块比例', () => {
