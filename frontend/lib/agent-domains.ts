@@ -19,12 +19,15 @@ export type AgentDomain = {
   status: AgentDomainStatus
   /** agent 命名空间路由数（展示用，人工维护） */
   routeCount: number
+  /** Dashboard 前端入口页（无对应页面的域省略，如规划中 finance_profit） */
+  dashboardPath?: string
   capabilities: { read: boolean; write: boolean }
 }
 
 export const AGENT_DOMAINS: AgentDomain[] = [
   {
     code: 'shipments',
+    dashboardPath: '/dashboard/operations/shipment-management',
     label: '货件管理',
     description: 'FBA 货件全生命周期：列表/详情/增删改/状态推进/费用重算',
     status: 'live',
@@ -33,6 +36,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'shop_calculations',
+    dashboardPath: '/dashboard/reports/pricing-calculation/shop-calculation',
     label: '店铺测算',
     description: '店铺测算数据读写与试算：列表/SKU 详情/历史/审计/追加/试算',
     status: 'live',
@@ -41,6 +45,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'return_analysis',
+    dashboardPath: '/dashboard/operations/return-analysis',
     label: '退货分析',
     description: '退货/客诉归因：全量分析/per-SKU 风险清单/raw 事件/覆盖度',
     status: 'live',
@@ -49,6 +54,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'inventory',
+    dashboardPath: '/dashboard/operations/inventory-analysis',
     label: '库存信息',
     description: '当前库存快照：总量/库龄/缺货/单 SKU 数量（独立于补货分析）',
     status: 'live',
@@ -57,6 +63,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'ad_analysis',
+    dashboardPath: '/dashboard/advertising/ad-analysis/overview',
     label: '广告分析',
     description: '10 个广告域聚合（预算/搜索词/竞品份额）',
     status: 'live',
@@ -65,6 +72,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'inventory_ledger',
+    dashboardPath: '/dashboard/operations/inventory-ledger',
     label: '库存台账',
     description: '月度盘点/事件/收货簇/完整性/趋势（Detailed + Summary 视图）',
     status: 'live',
@@ -73,6 +81,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'report_upload_status',
+    dashboardPath: '/dashboard/reports/auto-upload',
     label: '报表状态',
     description: 'RPA 报表上传状态矩阵：15 类活跃报表缺失统计',
     status: 'live',
@@ -81,6 +90,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'report_upload',
+    dashboardPath: '/dashboard/reports/auto-upload',
     label: '报表上传',
     description: 'Agent 报表上传：dry-run 校验 + 正式提交（列匹配度/多站点检测/审计）',
     status: 'live',
@@ -89,6 +99,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'replenishment_analysis',
+    dashboardPath: '/dashboard/operations/inventory-replenishment',
     label: '补货分析',
     description: '补货决策清单/单 SKU 深挖/项目总览/覆盖度/设置（三段式体系，BLF-502）',
     status: 'live',
@@ -97,6 +108,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'new_product_calculations',
+    dashboardPath: '/dashboard/reports/pricing-calculation/new-product',
     label: '新品测算',
     description: '新品测算快照读写与试算：列表/SKU 详情/审计/落库/试算（读3+写1+试算1，BLF-526）',
     status: 'live',
@@ -105,6 +117,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'account_health',
+    dashboardPath: '/dashboard/operations/platform-inspection',
     label: '店铺合规健康',
     description: '店铺合规/账户健康：周巡检周期列表/概览/单店明细/历史趋势（读 5 条，BLF-547）',
     status: 'live',
@@ -113,6 +126,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'platform_inspection',
+    dashboardPath: '/dashboard/operations/platform-inspection',
     label: '平台巡检',
     description: '平台巡检写侧：模板 + 填写/更新/提交报告 + 截图上传/删除（写 5 条，读侧走 account-health，BLF-944）',
     status: 'live',
@@ -121,6 +135,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'complaint_center',
+    dashboardPath: '/dashboard/operations/complaint-center',
     label: '客诉中心',
     description: 'Agent 每日巡检客诉写入 + Dashboard 概览/明细/详情管理（W1 批量 upsert + R1 列表读取，BLF-981）',
     status: 'live',
@@ -129,6 +144,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'sales',
+    dashboardPath: '/dashboard/operations/daily-analysis',
     label: '销售数据',
     description: '销售订单明细/聚合统计：原始行 + ASIN×日/ASIN/日聚合（Sales Data）',
     status: 'live',
@@ -137,6 +153,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'sku_info',
+    dashboardPath: '/dashboard/operations/sku-info',
     label: 'SKU 主数据',
     description: '商品主数据读+写：列表/详情/审计 + 新建/改规格成本/上下架（confirm 流，BLF-579）+ FNSKU 标签上传（BLF-628）',
     status: 'live',
@@ -145,6 +162,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   },
   {
     code: 'agent_provisioning',
+    dashboardPath: '/dashboard/system/agent-management',
     label: '凭据签发',
     description: '签发新 Agent 凭据（敏感，仅管理 Key）',
     status: 'live',

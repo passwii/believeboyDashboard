@@ -11,10 +11,11 @@ describe('SIDEBAR_TOP_GROUPS — Agent 中心分组', () => {
     expect(groupIds.indexOf('crm')).toBe(groupIds.indexOf('agent') + 1)
   })
 
-  it('A 档四项迁入 agent 组（顺序：产出在前，接入管理殿后）', () => {
+  it('数据流总览 + A 档四项归入 agent 组（总览居首）', () => {
     const agent = SIDEBAR_TOP_GROUPS.find((g) => g.id === 'agent')
     expect(agent?.label).toBe('Agent 中心')
     expect(agent?.items.map((i) => i.url)).toEqual([
+      '/dashboard/agent-center/overview',
       '/dashboard/operations/complaint-center',
       '/dashboard/operations/platform-inspection',
       '/dashboard/reports/auto-upload',

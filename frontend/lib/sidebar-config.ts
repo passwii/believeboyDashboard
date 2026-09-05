@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   Bot,
+  Activity,
   Calculator,
   CalendarRange,
   ChartColumnBig,
@@ -116,6 +117,7 @@ const IconMap = {
   ChartColumnBig,
   Bell,
   Bot,
+  Activity,
   CalendarRange,
   Handshake,
   Target,
@@ -276,6 +278,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
+      {
+        title: '数据流总览',
+        url: '/dashboard/agent-center/overview',
+        matchPrefixes: ['/dashboard/agent-center'],
+        icon: IconMap.Activity,
+      },
       {
         title: '客诉中心',
         url: '/dashboard/operations/complaint-center',
