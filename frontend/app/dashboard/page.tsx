@@ -35,7 +35,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
-// 骨架与正式卡（V2Card gap-0 + md:col-span-2）同构：BLF-504 修复加载骨架与正式卡不一致
+// 骨架与正式卡（TermChartCard gap-0 + md:col-span-2）同构：BLF-504 修复加载骨架与正式卡不一致
+// BLF-978 Stage 3：骨架外壳对齐 TermChartCard（直角 + 1px term 边界 + 零阴影）。
 function V2ChartSkeleton({
   titleWidth = 'w-24',
   descWidth = 'w-40',
@@ -46,15 +47,17 @@ function V2ChartSkeleton({
   chartClass?: string
 }) {
   return (
-    <V2Card className="gap-0 col-span-2">
-      <div className="flex flex-col gap-1 p-6">
-        <Skeleton className={`h-5 ${titleWidth}`} />
+    <div
+      className="flex min-w-0 flex-col rounded-none border border-term-border bg-term-panel shadow-none col-span-2"
+    >
+      <div className="flex flex-col gap-1 p-2">
+        <Skeleton className={`h-4 ${titleWidth}`} />
         <Skeleton className={`h-3 ${descWidth}`} />
       </div>
-      <div className="px-6 pb-6 pt-2">
+      <div className="px-2 pb-2 pt-1">
         <Skeleton className={chartClass} />
       </div>
-    </V2Card>
+    </div>
   )
 }
 

@@ -87,6 +87,13 @@ export const defaultTooltipCursor = {
   strokeWidth: 1,
 } as const
 
+/** BLF-978 Stage 3：recharts 系列动效默认值（≤300ms、ease-out、逐 series stagger）。 */
+export const defaultSeriesAnimation = {
+  isAnimationActive: true,
+  animationDuration: 300,
+  animationEasing: 'ease-out',
+} as const
+
 /** Hide the cursor — useful for bar charts where the hover column is implicit. */
 export const hiddenTooltipCursor = false
 
