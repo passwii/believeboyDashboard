@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Agent 中心(侧栏独立分类)+ 数据流总览页端到端**(plan [`2026-09-05-agent-center-sidebar`](docs/superpowers/plans/2026-09-05-agent-center-sidebar/2026-09-05-agent-center-sidebar.md) / [`2026-09-05-agent-dataflow-overview`](docs/superpowers/plans/2026-09-05-agent-dataflow-overview/2026-09-05-agent-dataflow-overview.md))
+  - **侧栏**:新增第 9 顶级分组「Agent 中心」,按「Agent 是页面主角」门规迁入客诉中心 / 平台巡检 / 报表自动化 / Agent 接入管理(URL 不动仅改归属,客诉中心补 matchPrefixes)
+  - **前端**:`/dashboard/agent-center/overview` 域活动矩阵(接入状态 / 能力 / 入口跳转;`AGENT_DOMAINS` 注册表加 `dashboardPath`);`use-agent-domain-summary` 预埋运行时三列(新鲜度灯 / 24h·7d 调用量 / 7d 错误率),端点未就绪时降级占位
+  - **后端**:`GET /api/v1/agent-ops/domain-summary` 按域聚合 `agent_api_audit_log`(24h/7d 调用 / 写侧 / 错误 / 最近活动,单查询 `FILTER`;NULL 域与窗口外排除;`days ≤ 90` 对齐审计保留期);索引结论:走既有 `idx_aaal_created_at`,复合索引与查询形态不匹配,零迁移
+  - **测试**:后端 6 用例(聚合口径 / 排除口径 / days 边界 422 / 401)+ 前端 sidebar 守卫 / hook 纯函数 / 总览页两态
+
 - **数据库备份端到端链路 + R2 异步上传**（plan [`2026-07-17-pg-r2-backup-feature`](docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/2026-07-17-pg-r2-backup-feature.md)）：手动触发 → API 5ms 异步入队 → `backups` 队列 worker（`-c 1`）跑 pgBackRest → 打 tar.gz → 上传 Cloudflare R2（幂等 via `check_file_exists`）→ phase 全程 `pending→pgbackrest_running→compressing→r2_uploading→completed` → 落 `r2_key/r2_url/r2_uploaded_at/compressed_size_bytes` 等字段
   - **详情端点**：`POST /api/v1/backups/trigger`、`GET /api/v1/backups/{id}`、`GET /api/v1/backups/{id}/download-url`（presigned，1h）、`GET /api/v1/backups/{id}/restore-command`（预览不执行）、`DELETE /api/v1/backups/{id}`（软删 + 删 R2）、`POST /api/v1/backups/cleanup`
   - **模型**：新增 `phase / triggered_by / retry_count / r2_key / r2_url / r2_bucket / r2_uploaded_at / r2_deleted_at / compressed_size_bytes / backup_set_name / backup_set_path` + 部分索引

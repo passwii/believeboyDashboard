@@ -23,13 +23,14 @@
 - [x] 新页 `app/dashboard/agent-center/overview/`(page + client + test):域级矩阵(业务域 / 说明 / 能力 / 路由 / 接入状态 / 入口),产出域置顶呼应侧栏叙事,规划中沉底;
 - [x] 侧栏 Agent 中心组首项「数据流总览」+ `dashboard-route-meta` 标题。
 
-## P2b — 运行时聚合(前端已预埋,待后端端点)
+## P2b — 运行时聚合(已全部完成)
 
-- [ ] **端点(后端 Damon)**:`GET /api/v1/agent-ops/domain-summary?days=7`(管理员会话鉴权,不走 agent key),对 `agent_api_audit_log` 按域聚合:
+- [x] **端点(2026-09-05,由前端 agent 直接实现——用户指令:不走 Multica 全部本地交付)**:`GET /api/v1/agent-ops/domain-summary?days=7`(API key 鉴权 `protected`,前端代理附加主 key,不占 agent key 配额),对 `agent_api_audit_log` 按域聚合:
 
 ```json
 {
   "generated_at": "…",
+  "window_days": 7,
   "items": [
     {
       "domain": "complaint_center",
@@ -44,8 +45,8 @@
 }
 ```
 
-- 聚合口径:`calls = count(*)`、`writes = count(*) FILTER method IN (POST/PUT/DELETE)`、`errors = count(*) FILTER status_code >= 400`;无调用的域可不返回(前端以注册表补全);
-- [ ] **索引确认**:`(operation_type, created_at)` 是否覆盖聚合查询;
+- 聚合口径:`calls = count(*)`、`writes = count(*) FILTER method IN (POST/PUT/PATCH/DELETE)`、`errors = count(*) FILTER status_code >= 400`;无调用的域不返回条目(前端以注册表补全);`operation_type IS NULL`(未映射流量)不返回;
+- [x] **索引确认(2026-09-05)**:7 天窗口走既有 `idx_aaal_created_at` range scan;`(operation_type, created_at)` 复合索引与本查询形态(时间范围过滤 + 分组,无 operation_type 等值条件)不匹配,**不新增迁移**;
 - [x] **前端(已预埋,2026-09-05)**:`lib/hooks/use-agent-domain-summary.ts`(挂载拉取,404/出错降级 `data = null`)+ 总览矩阵加三列(最近活动新鲜度灯:绿 <24h / 黄 1-7d / 灰 >7d 或从未,每日巡检域黄灯即需人工介入;24h/7d 调用量 tooltip 含写侧;7d 错误率有错着警色),端点未上线时全部占位「—」,交付后零前端改动自动点亮。
 
 ## P2c — 可选增强(按 P2b 上线后价值决定)
@@ -64,7 +65,7 @@
 - P2a + P2b 前端预埋:lint / vitest(hook 纯函数 + 总览页两态 + sidebar 守卫)/ build 全绿;
 - P2b 后端:Damon 端 pytest 覆盖聚合口径;前端列自动点亮(零改动)。
 
-## 交接(前后端,BLF-555)
+## 交接(2026-09-05 起全部本地交付,不走 Multica)
 
-- 前端(Seth):P2a 已交付并本地验证;P2b 契约如上,待后端端点就绪后接线;
-- 后端(Damon):P2b 两项(聚合端点 + 索引确认),需求以 issue 评论为准。
+- 前端 + 后端均由前端 agent 直接实现并本地验证;pytest 集成测试因本机无 Postgres 未跑,随部署流水线与有 DB 环境补验;
+- P2c 按价值另立 plan。

@@ -37,6 +37,7 @@ from app.api.v1.endpoints.profile import router as profile_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.scheduled_reports import router as scheduled_reports_router
 from app.api.v1.endpoints.complaints import router as complaints_router
+from app.api.v1.endpoints.agent_ops import router as agent_ops_router
 from app.api.v1.endpoints.sku_info import router as sku_info_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
@@ -80,6 +81,10 @@ api_router.include_router(profile_router)
 
 # 客诉中心 Dashboard 端点（BLF-981）：概览/列表/详情/状态流转，session 鉴权。
 api_router.include_router(complaints_router)
+
+# Agent 中心数据流总览聚合端点（P2b）：domain-summary 按域聚合 agent 访问审计，
+# API key 鉴权（前端代理附加主 key）。路径在 /agent-ops，不进 /agent/* 审计范围。
+api_router.include_router(agent_ops_router)
 
 # -- 数字员工/办公/大屏（懒）------------------------------------------------------
 include_lazy_router(api_router, "app.api.v1.router_groups.digital_group")
