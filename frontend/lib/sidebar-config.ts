@@ -142,6 +142,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
       { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
       { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
+      { title: '客诉中心', url: '/dashboard/operations/complaint-center', icon: IconMap.MessagesSquare },
       { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
       // 供应链原分类（商品 / 库存 / 履约）已并入运营
       { title: '按周产品分析', url: '/dashboard/operations/weekly-product-analysis', icon: IconMap.BarChart3 },
