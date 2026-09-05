@@ -1,0 +1,4 @@
+# 生成文件钉 LF:openapi-typescript 的 --check 做字节级比较(含 EOL),
+# autocrlf 检出 CRLF 会让 Windows 上 pnpm build 的 gen:api-types:check 永远误报 drift。
+types/api-generated/api.d.ts text eol=lf
+types/api-generated/openapi.json text eol=lf

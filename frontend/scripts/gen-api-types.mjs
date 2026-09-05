@@ -44,7 +44,11 @@ if (!existsSync(INPUT)) {
 const cliArgs = [INPUT, '--output', OUTPUT]
 if (check) cliArgs.push('--check')
 
-const result = spawnSync(resolve(FRONTEND_ROOT, 'node_modules/.bin/openapi-typescript'), cliArgs, {
+// 直连包入口 + process.execPath:Windows 上 spawnSync 调 .bin 无扩展名 shim 会 ENOENT,
+// 而 .cmd shim 在新版 node 需要 shell(有安全限制),直调 cli.js 两个平台都稳。
+const cliEntry = resolve(FRONTEND_ROOT, 'node_modules/openapi-typescript/bin/cli.js')
+
+const result = spawnSync(process.execPath, [cliEntry, ...cliArgs], {
   stdio: 'inherit',
   cwd: FRONTEND_ROOT,
 })
