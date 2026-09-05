@@ -10,6 +10,7 @@ from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
 from app.api.v1.endpoints.agent.account_health import account_health_router
+from app.api.v1.endpoints.agent.complaint_center import complaint_center_router
 
 # BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
 from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
@@ -48,6 +49,7 @@ from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
 from app.api.v1.endpoints.agent.sku_info import sku_info_router
+from app.api.v1.endpoints.agent.upload import router as upload_router
 
 agent_router = APIRouter(
     prefix="/agent",
@@ -215,6 +217,19 @@ agent_router.include_router(
 agent_router.include_router(
     platform_inspection_router,
     dependencies=[Depends(require_business_scope("platform_inspection"))],
+)
+# 报表上传域（BLF-975）：dry-run 校验 + 正式提交两步契约，挂
+# business_scope("report_upload")。必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    upload_router,
+    dependencies=[Depends(require_business_scope("report_upload"))],
+)
+
+# 客诉中心写侧域（BLF-981）：W1 批量 upsert + R1 列表读取，挂 business_scope("complaint_center")。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    complaint_center_router,
+    dependencies=[Depends(require_business_scope("complaint_center"))],
 )
 
 
