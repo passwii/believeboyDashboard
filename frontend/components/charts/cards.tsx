@@ -39,6 +39,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   defaultChartContainerClass,
+  defaultSeriesAnimation,
   defaultTooltipCursor,
   defaultXAxisProps,
   defaultXTickFormatter,
@@ -260,6 +261,7 @@ export function LineChartCard({
             name={s.name ?? s.dataKey}
             stroke={`var(--color-${s.dataKey})`}
             yAxisId={s.yAxisId}
+            {...defaultSeriesAnimation}
           />
         ))}
       </LineChart>
@@ -408,6 +410,7 @@ export function BarChartCard({
             name={s.name ?? s.dataKey}
             fill={`var(--color-${s.dataKey})`}
             yAxisId={s.yAxisId}
+            {...defaultSeriesAnimation}
           />
         ))}
       </BarChart>
@@ -535,6 +538,7 @@ export function AreaChartCard({
             name={s.name ?? s.dataKey}
             stroke={`var(--color-${s.dataKey})`}
             fill={gradient ? `url(#${gradId(s.dataKey)})` : `var(--color-${s.dataKey})`}
+            {...defaultSeriesAnimation}
           />
         ))}
       </AreaChart>
@@ -667,6 +671,7 @@ export function ComposedChartCard({
                 name={s.name ?? s.dataKey}
                 fill={`var(--color-${s.dataKey})`}
                 yAxisId={s.yAxisId}
+                {...defaultSeriesAnimation}
               />
             )
           }
@@ -682,6 +687,7 @@ export function ComposedChartCard({
               name={s.name ?? s.dataKey}
               stroke={`var(--color-${s.dataKey})`}
               yAxisId={s.yAxisId}
+              {...defaultSeriesAnimation}
             />
           )
         })}
