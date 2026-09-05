@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **前端**:`/dashboard/agent-center/overview` 域活动矩阵(接入状态 / 能力 / 入口跳转;`AGENT_DOMAINS` 注册表加 `dashboardPath`);`use-agent-domain-summary` 预埋运行时三列(新鲜度灯 / 24h·7d 调用量 / 7d 错误率),端点未就绪时降级占位;`use-agent-production` 三源「今日产出」列(客诉待回复 / 巡检已提交 / 报表完成度,走既有业务端点,独立降级)+ 页头刷新
   - **后端**:`GET /api/v1/agent-ops/domain-summary` 按域聚合 `agent_api_audit_log`(24h/7d 调用 / 写侧 / 错误 / 最近活动,单查询 `FILTER`;NULL 域与窗口外排除;`days ≤ 90` 对齐审计保留期);索引结论:走既有 `idx_aaal_created_at`,复合索引与查询形态不匹配,零迁移
   - **测试**:后端 6 用例(聚合口径 / 排除口径 / days 边界 422 / 401)+ 前端 sidebar 守卫 / hook 纯函数 / 总览页两态
+  - **命名清理**:客诉中心页面更名「客户消息」(Customer Message),eyebrow 归位 Agent 中心,URL 不变
+- **Agent 中心 · 员工段(P3)**(plan [`2026-09-05-agent-employee-roster`](docs/superpowers/plans/2026-09-05-agent-employee-roster/2026-09-05-agent-employee-roster.md))
+  - **后端**:`GET /api/v1/agent-ops/employee-summary` 按凭据(api_key_id=员工身份)聚合 `agent_api_audit_log`(口径与 domain-summary 一致;NULL key 不计入任何员工);pytest 6 用例
+  - **前端**:`/dashboard/agent-center/employees` 员工花名册(凭据只读 + 能力域 / 项目范围 / 状态)× `use-agent-employee-summary` 活动列 join(24h/7d 调用 / 错误 / 新鲜度灯,端点未上线降级占位);侧栏 Agent 中心组新增「Agent 员工」
 
 - **数据库备份端到端链路 + R2 异步上传**（plan [`2026-07-17-pg-r2-backup-feature`](docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/2026-07-17-pg-r2-backup-feature.md)）：手动触发 → API 5ms 异步入队 → `backups` 队列 worker（`-c 1`）跑 pgBackRest → 打 tar.gz → 上传 Cloudflare R2（幂等 via `check_file_exists`）→ phase 全程 `pending→pgbackrest_running→compressing→r2_uploading→completed` → 落 `r2_key/r2_url/r2_uploaded_at/compressed_size_bytes` 等字段
   - **详情端点**：`POST /api/v1/backups/trigger`、`GET /api/v1/backups/{id}`、`GET /api/v1/backups/{id}/download-url`（presigned，1h）、`GET /api/v1/backups/{id}/restore-command`（预览不执行）、`DELETE /api/v1/backups/{id}`（软删 + 删 R2）、`POST /api/v1/backups/cleanup`

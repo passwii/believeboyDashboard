@@ -11,11 +11,12 @@ describe('SIDEBAR_TOP_GROUPS — Agent 中心分组', () => {
     expect(groupIds.indexOf('crm')).toBe(groupIds.indexOf('agent') + 1)
   })
 
-  it('数据流总览 + A 档四项归入 agent 组（总览居首）', () => {
+  it('数据流总览 + A 档四项归入 agent 组(总览居首,员工次之)', () => {
     const agent = SIDEBAR_TOP_GROUPS.find((g) => g.id === 'agent')
     expect(agent?.label).toBe('Agent 中心')
     expect(agent?.items.map((i) => i.url)).toEqual([
       '/dashboard/agent-center/overview',
+      '/dashboard/agent-center/employees',
       '/dashboard/operations/complaint-center',
       '/dashboard/operations/platform-inspection',
       '/dashboard/reports/auto-upload',
@@ -37,7 +38,7 @@ describe('SIDEBAR_TOP_GROUPS — Agent 中心分组', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 
-  it('客诉中心 /list 子页命中 agent 分组（matchPrefixes）', () => {
+  it('客户消息 /list 子页命中 agent 分组（matchPrefixes）', () => {
     expect(
       findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/complaint-center/list')
     ).toBe('agent')

@@ -202,7 +202,7 @@ export default function ComplaintListClient() {
   return (
     <div className="w-full space-y-6">
       <PageHeader
-        eyebrow={<><ShieldCheck size={14} /> 运营 · 客诉中心</>}
+        eyebrow={<><ShieldCheck size={14} /> Agent 中心 · 客户消息</>}
         title="客诉明细"
         description="筛选、排序、人工处理与状态流转。点击行查看详情。"
       />

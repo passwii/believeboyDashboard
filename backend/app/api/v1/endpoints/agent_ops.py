@@ -109,3 +109,77 @@ def get_domain_summary(
         ) in rows
     ]
     return DomainSummaryResponse(generated_at=now, window_days=days, items=items)
+
+
+class EmployeeSummaryItem(BaseModel):
+    api_key_id: int
+    calls_24h: int
+    calls_7d: int
+    writes_24h: int
+    writes_7d: int
+    errors_7d: int
+    last_active_at: datetime | None = None
+
+
+class EmployeeSummaryResponse(BaseModel):
+    generated_at: datetime
+    window_days: int
+    items: list[EmployeeSummaryItem]
+
+
+@router.get("/employee-summary", response_model=EmployeeSummaryResponse)
+def get_employee_summary(
+    days: int = Query(default=7, ge=1, le=MAX_WINDOW_DAYS, description="大窗口天数(前端契约恒为 7)"),
+    db: Session = Depends(get_read_db_session),
+) -> EmployeeSummaryResponse:
+    """员工段活动聚合(P3b):按凭据(= 员工身份)分组,口径与 domain-summary 一致。
+
+    ``api_key_id IS NULL``(匿名 / master key / skip 流量)不计入任何员工。
+    前端以 ``listAgentApiKeys`` 花名册按 id join,未活动员工显示占位。
+    """
+    now = datetime.now(timezone.utc)
+    since_window = now - timedelta(days=days)
+    since_24h = now - timedelta(hours=24)
+
+    is_write = AgentApiAuditLog.method.in_(_WRITE_METHODS)
+    rows = db.execute(
+        select(
+            AgentApiAuditLog.api_key_id,
+            func.count().filter(AgentApiAuditLog.created_at >= since_24h).label("calls_24h"),
+            func.count().label("calls_7d"),
+            func.count()
+            .filter(is_write, AgentApiAuditLog.created_at >= since_24h)
+            .label("writes_24h"),
+            func.count().filter(is_write).label("writes_7d"),
+            func.count().filter(AgentApiAuditLog.status_code >= 400).label("errors_7d"),
+            func.max(AgentApiAuditLog.created_at).label("last_active_at"),
+        )
+        .where(
+            AgentApiAuditLog.created_at >= since_window,
+            AgentApiAuditLog.api_key_id.isnot(None),
+        )
+        .group_by(AgentApiAuditLog.api_key_id)
+        .order_by(func.count().desc())
+    ).all()
+
+    items = [
+        EmployeeSummaryItem(
+            api_key_id=int(api_key_id),
+            calls_24h=int(calls_24h),
+            calls_7d=int(calls_7d),
+            writes_24h=int(writes_24h),
+            writes_7d=int(writes_7d),
+            errors_7d=int(errors_7d),
+            last_active_at=last_active_at,
+        )
+        for (
+            api_key_id,
+            calls_24h,
+            calls_7d,
+            writes_24h,
+            writes_7d,
+            errors_7d,
+            last_active_at,
+        ) in rows
+    ]
+    return EmployeeSummaryResponse(generated_at=now, window_days=days, items=items)

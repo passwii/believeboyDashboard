@@ -136,7 +136,7 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   {
     code: 'complaint_center',
     dashboardPath: '/dashboard/operations/complaint-center',
-    label: '客诉中心',
+    label: '客户消息',
     description: 'Agent 每日巡检客诉写入 + Dashboard 概览/明细/详情管理（W1 批量 upsert + R1 列表读取，BLF-981）',
     status: 'live',
     routeCount: 2,

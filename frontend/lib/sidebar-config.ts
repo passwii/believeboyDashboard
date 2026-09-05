@@ -281,11 +281,17 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       {
         title: '数据流总览',
         url: '/dashboard/agent-center/overview',
-        matchPrefixes: ['/dashboard/agent-center'],
+        matchPrefixes: ['/dashboard/agent-center/overview'],
         icon: IconMap.Activity,
       },
       {
-        title: '客诉中心',
+        title: 'Agent 员工',
+        url: '/dashboard/agent-center/employees',
+        matchPrefixes: ['/dashboard/agent-center/employees'],
+        icon: IconMap.Users,
+      },
+      {
+        title: '客户消息',
         url: '/dashboard/operations/complaint-center',
         matchPrefixes: ['/dashboard/operations/complaint-center'],
         icon: IconMap.MessagesSquare,

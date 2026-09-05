@@ -120,9 +120,9 @@ export default function ComplaintCenterClient() {
   return (
     <div className="w-full space-y-6">
       <PageHeader
-        eyebrow={<><ShieldAlert size={14} /> 运营 · 客诉中心</>}
-        title="客诉中心"
-        description="每日巡检买家消息，管理待回复客诉。Agent 写入 → Dashboard 人工处理 → 状态流转。"
+        eyebrow={<><ShieldAlert size={14} /> Agent 中心 · 客户消息</>}
+        title="客户消息"
+        description="每日巡检买家消息,管理待回复客诉。Agent 写入 → Dashboard 人工处理 → 状态流转。"
         actions={
           <Button variant="term" size="sm" asChild>
             <Link href="/dashboard/operations/complaint-center/list">

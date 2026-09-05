@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-import AgentOverviewClient, { formatRelativeTime, productionCell } from './agent-overview-client'
+import AgentOverviewClient from './agent-overview-client'
+import { productionCell } from './agent-overview-client'
+import { formatRelativeTime } from '@/lib/hooks/use-agent-domain-summary'
 import { AGENT_DOMAINS } from '@/lib/agent-domains'
 import type { AgentProduction } from '@/lib/hooks/use-agent-production'
 import type { DomainSummaryMap } from '@/lib/hooks/use-agent-domain-summary'
@@ -55,15 +57,15 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getAllByRole('row')).toHaveLength(AGENT_DOMAINS.length + 1)
   })
 
-  it('产出域置顶:客诉中心是第一行业务域', () => {
+  it('产出域置顶:客户消息是第一行业务域', () => {
     render(<AgentOverviewClient />)
     const rows = screen.getAllByRole('row')
-    expect(rows[1]).toHaveTextContent('客诉中心')
+    expect(rows[1]).toHaveTextContent('客户消息')
   })
 
   it('A 档产出域与 B 档工作台域都给出入口链接', () => {
     render(<AgentOverviewClient />)
-    expect(screen.getByRole('link', { name: '打开客诉中心' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: '打开客户消息' }).getAttribute('href')).toBe(
       '/dashboard/operations/complaint-center'
     )
     expect(screen.getByRole('link', { name: '打开库存台账' }).getAttribute('href')).toBe(

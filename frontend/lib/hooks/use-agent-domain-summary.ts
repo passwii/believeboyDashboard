@@ -65,6 +65,25 @@ export function freshnessFor(
   return 'gray'
 }
 
+/** 纯函数:ISO 时间 → 相对时长文案(刚刚 / N 分钟前 / N 小时前 / N 天前 / M/D);总览页与员工花名册共用 */
+export function formatRelativeTime(
+  iso: string | null | undefined,
+  now: Date = new Date()
+): string {
+  if (!iso) return '从未'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '从未'
+  const minutes = (now.getTime() - t) / 60_000
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${Math.floor(minutes)} 分钟前`
+  const hours = minutes / 60
+  if (hours < 24) return `${Math.floor(hours)} 小时前`
+  const days = hours / 24
+  if (days < 30) return `${Math.floor(days)} 天前`
+  const d = new Date(t)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
 export function useAgentDomainSummary(): {
   data: DomainSummaryMap | null
   status: DomainSummaryStatus
