@@ -49,10 +49,15 @@
 - [x] **索引确认(2026-09-05)**:7 天窗口走既有 `idx_aaal_created_at` range scan;`(operation_type, created_at)` 复合索引与本查询形态(时间范围过滤 + 分组,无 operation_type 等值条件)不匹配,**不新增迁移**;
 - [x] **前端(已预埋,2026-09-05)**:`lib/hooks/use-agent-domain-summary.ts`(挂载拉取,404/出错降级 `data = null`)+ 总览矩阵加三列(最近活动新鲜度灯:绿 <24h / 黄 1-7d / 灰 >7d 或从未,每日巡检域黄灯即需人工介入;24h/7d 调用量 tooltip 含写侧;7d 错误率有错着警色),端点未上线时全部占位「—」,交付后零前端改动自动点亮。
 
-## P2c — 可选增强(按 P2b 上线后价值决定)
+## P2c — 可选增强(产出列已交付,告警联动待端点上线)
 
-- 写侧产出列逐域接业务计数(报表完成度 M/N 现成;客诉 / 巡检有列表端点可 count);
-- 告警联动:每日巡检域 >24h 无写入 → 告警中心 / 侧栏红点(复用 `use-alert-stats` 模式)。
+- [x] **今日产出列(2026-09-05)**:总览矩阵加「今日产出」列,走**既有业务端点**(与 domain-summary 部署无关,上线即亮):
+  - 客诉中心:`GET /complaints/overview?date=美西今天` → `待回复 N`(无巡检 run 占位);
+  - 平台巡检 / 店铺合规(读侧):`GET /inspections/periods/current` + `/periods/{id}/overview` → `已提交/总数 报告`(两跳);
+  - 报表上传 / 状态:`GET /rpa-reports/status?date=美西今天&country=US` → `M/N 报表`(复用 `reduceUploadStatus`);
+  - 载体:`lib/hooks/use-agent-production.ts`(三子源独立降级,fetcher ref 稳定化防重拉)+ `productionCell` 纯函数;页头刷新(`useHeaderRefresh`)一并接入;
+- [ ] **告警联动**:每日巡检域 >24h 无写入 → 告警中心 / 侧栏红点(复用 `use-alert-stats` 模式);依赖 domain-summary 在 VPS 上线后取真实 last_active_at,可再预埋;
+- [ ] **写侧产出扩面**:其余域(SDK / 测算 / SKU)如需产出口径,逐域接业务计数(当前以活动列 + 写侧 tooltip 覆盖)。
 
 ## 明确不做
 

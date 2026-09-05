@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Agent 中心(侧栏独立分类)+ 数据流总览页端到端**(plan [`2026-09-05-agent-center-sidebar`](docs/superpowers/plans/2026-09-05-agent-center-sidebar/2026-09-05-agent-center-sidebar.md) / [`2026-09-05-agent-dataflow-overview`](docs/superpowers/plans/2026-09-05-agent-dataflow-overview/2026-09-05-agent-dataflow-overview.md))
   - **侧栏**:新增第 9 顶级分组「Agent 中心」,按「Agent 是页面主角」门规迁入客诉中心 / 平台巡检 / 报表自动化 / Agent 接入管理(URL 不动仅改归属,客诉中心补 matchPrefixes)
-  - **前端**:`/dashboard/agent-center/overview` 域活动矩阵(接入状态 / 能力 / 入口跳转;`AGENT_DOMAINS` 注册表加 `dashboardPath`);`use-agent-domain-summary` 预埋运行时三列(新鲜度灯 / 24h·7d 调用量 / 7d 错误率),端点未就绪时降级占位
+  - **前端**:`/dashboard/agent-center/overview` 域活动矩阵(接入状态 / 能力 / 入口跳转;`AGENT_DOMAINS` 注册表加 `dashboardPath`);`use-agent-domain-summary` 预埋运行时三列(新鲜度灯 / 24h·7d 调用量 / 7d 错误率),端点未就绪时降级占位;`use-agent-production` 三源「今日产出」列(客诉待回复 / 巡检已提交 / 报表完成度,走既有业务端点,独立降级)+ 页头刷新
   - **后端**:`GET /api/v1/agent-ops/domain-summary` 按域聚合 `agent_api_audit_log`(24h/7d 调用 / 写侧 / 错误 / 最近活动,单查询 `FILTER`;NULL 域与窗口外排除;`days ≤ 90` 对齐审计保留期);索引结论:走既有 `idx_aaal_created_at`,复合索引与查询形态不匹配,零迁移
   - **测试**:后端 6 用例(聚合口径 / 排除口径 / days 边界 422 / 401)+ 前端 sidebar 守卫 / hook 纯函数 / 总览页两态
 

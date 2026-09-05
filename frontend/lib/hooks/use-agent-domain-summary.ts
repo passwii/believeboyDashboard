@@ -65,7 +65,11 @@ export function freshnessFor(
   return 'gray'
 }
 
-export function useAgentDomainSummary(): { data: DomainSummaryMap | null; status: DomainSummaryStatus } {
+export function useAgentDomainSummary(): {
+  data: DomainSummaryMap | null
+  status: DomainSummaryStatus
+  reload: () => void
+} {
   const [data, setData] = useState<DomainSummaryMap | null>(null)
   const [status, setStatus] = useState<DomainSummaryStatus>('loading')
   const requestSeqRef = useRef(0)
@@ -93,5 +97,5 @@ export function useAgentDomainSummary(): { data: DomainSummaryMap | null; status
     void load()
   }, [load])
 
-  return { data, status }
+  return { data, status, reload: load }
 }

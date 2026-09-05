@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
@@ -14,11 +15,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
   freshnessFor,
   type Freshness,
   useAgentDomainSummary,
 } from '@/lib/hooks/use-agent-domain-summary'
+import { useAgentProduction } from '@/lib/hooks/use-agent-production'
 import { AGENT_DOMAINS } from '@/lib/agent-domains'
 
 /**
@@ -55,6 +58,32 @@ const FRESHNESS_STYLE: Record<Freshness, string> = {
   gray: 'text-term-faint',
 }
 
+export type ProductionCell = { text: string; mono: boolean } | null
+
+/** 纯函数:按域 code 计算今日产出单元格(null = 占位「—」,含源失败 / 无数据 / 非产出域) */
+export function productionCell(code: string, production: ReturnType<typeof useAgentProduction> | null): ProductionCell {
+  if (!production) return null
+  switch (code) {
+    case 'complaint_center':
+      // 今日巡检 run 存在才展示待回复数;无 run(未巡检)与源失败同样占位
+      return production.complaints.hasRun && production.complaints.needsReply !== null
+        ? { text: `待回复 ${production.complaints.needsReply}`, mono: false }
+        : null
+    case 'platform_inspection':
+    case 'account_health':
+      return production.inspection.submitted !== null && production.inspection.total !== null
+        ? { text: `${production.inspection.submitted}/${production.inspection.total} 报告`, mono: true }
+        : null
+    case 'report_upload':
+    case 'report_upload_status':
+      return production.reports.uploaded !== null && production.reports.total !== null
+        ? { text: `${production.reports.uploaded}/${production.reports.total} 报表`, mono: true }
+        : null
+    default:
+      return null
+  }
+}
+
 /** 纯函数:ISO 时间 → 相对时长文案(刚刚 / N 分钟前 / N 小时前 / N 天前 / M/D) */
 export function formatRelativeTime(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return '从未'
@@ -78,7 +107,17 @@ function errorRateText(errors7d: number, calls7d: number): string {
 
 export default function AgentOverviewClient() {
   const liveCount = AGENT_DOMAINS.filter((d) => d.status === 'live').length
-  const { data: summary, status: summaryStatus } = useAgentDomainSummary()
+  const { data: summary, status: summaryStatus, reload: reloadSummary } = useAgentDomainSummary()
+  const production = useAgentProduction()
+
+  const reloadAll = useCallback(() => {
+    reloadSummary()
+    production.reload()
+  }, [reloadSummary, production])
+
+  useHeaderRefresh(reloadAll, {
+    loading: summaryStatus === 'loading' || production.loading,
+  })
 
   return (
     <div className="w-full space-y-6">
@@ -89,8 +128,10 @@ export default function AgentOverviewClient() {
       />
 
       <div className="rounded-none border border-dashed border-term-border bg-term-panel px-4 py-3 text-xs leading-6 text-term-muted">
-        运行时聚合列(最近活动 / 24h·7d 调用量 / 7d 错误率)由后端 domain-summary
-        端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b);端点上线前显示占位「—」,上线后自动点亮。
+        「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 /
+        24h·7d 调用量 / 7d 错误率)由 domain-summary
+        端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview
+        §P2b),端点上线前显示占位「—」。
       </div>
 
       <DataTableCard>
@@ -113,6 +154,7 @@ export default function AgentOverviewClient() {
                 <TableHead className="w-[120px]">最近活动</TableHead>
                 <TableHead className="w-[100px]">24h/7d 调用</TableHead>
                 <TableHead className="w-[80px]">7d 错误</TableHead>
+                <TableHead className="w-[110px]">今日产出</TableHead>
                 <TableHead className="w-[100px]">接入状态</TableHead>
                 <TableHead className="w-[120px]">Dashboard 入口</TableHead>
               </TableRow>
@@ -199,6 +241,20 @@ export default function AgentOverviewClient() {
                       ) : (
                         <span className="text-term-faint">—</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const cell = productionCell(domain.code, production)
+                        if (!cell) return <span className="text-term-faint">—</span>
+                        return (
+                          <span
+                            className={`text-xs text-term-muted ${cell.mono ? 'font-mono tabular-nums' : ''}`}
+                            title="今日产出(Agent 写入 / 提交 / 上传)"
+                          >
+                            {cell.text}
+                          </span>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell>
                       {live ? (
