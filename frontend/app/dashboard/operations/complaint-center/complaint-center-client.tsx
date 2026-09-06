@@ -114,7 +114,7 @@ export default function ComplaintCenterClient() {
   }, [date])
 
   const hasPending = (overview?.metrics.total_needs_reply ?? 0) > 0
-  const allFailed = overview?.shops.every((s) => s.check_status !== 'ok') ?? false
+  const allFailed = overview?.projects.every((s) => s.check_status !== 'ok') ?? false
   const isEmpty = !loading && overview && overview.metrics.total_needs_reply === 0
 
   return (
@@ -212,7 +212,7 @@ export default function ComplaintCenterClient() {
                 <EmptyState
                   icon="database"
                   message={
-                    allFailed && overview.shops.length > 0
+                    allFailed && overview.projects.length > 0
                       ? '今日巡检启动失败，请检查 Agent 配置'
                       : isToday
                         ? '今日无待回复消息'
