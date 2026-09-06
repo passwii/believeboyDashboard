@@ -229,15 +229,19 @@ def list_api_keys(db: Session, *, include_deleted: bool = False) -> list[AgentAp
     return list(db.scalars(stmt))
 
 
-def list_agent_keys(db: Session) -> list[AgentApiKey]:
-    """仅绑定了 agent_id 的 key，最新在前。"""
-    return list(
-        db.scalars(
-            select(AgentApiKey)
-            .where(AgentApiKey.agent_id.is_not(None))
-            .order_by(AgentApiKey.created_at.desc())
-        )
+def list_agent_keys(db: Session, *, include_deleted: bool = False) -> list[AgentApiKey]:
+    """仅绑定了 agent_id 的 key，最新靠前。
+
+    ``include_deleted=True`` 时包含已软删除的 Key（审计/回溯）。
+    """
+    stmt = (
+        select(AgentApiKey)
+        .where(AgentApiKey.agent_id.is_not(None))
+        .order_by(AgentApiKey.created_at.desc())
     )
+    if not include_deleted:
+        stmt = stmt.where(AgentApiKey.deleted_at.is_(None))
+    return list(db.scalars(stmt))
 
 
 def get_api_key(db: Session, key_id: int) -> AgentApiKey | None:

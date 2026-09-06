@@ -1,6 +1,6 @@
 """Agent Provisioning 域路由（BLF-843）：Agent 自助签发凭据。
 
-``/api/v1/agent/provisioning/keys`` 一条写路由（POST），由持有
+``/api/v1/agent/provisioning/keys`` 一组 CRUD 路由，由持有
 ``agent_provisioning`` 业务域 scope 的指定 provisioner Agent 调用：
 
 * 鉴权走命名空间统一的 ``require_agent_credential``（Bearer + X-Agent-Id）；
@@ -20,6 +20,10 @@
 * 目标 ``agent_id`` 服务端校验格式（``^[a-z0-9][a-z0-9_-]{2,127}$``）+
   唯一性（同 agent_id 已有未删除 key → 拒绝，防重复签发）。
 * ``expires_at`` 可选（用户拍板：默认永久有效）；传了则必须晚于当前时刻。
+
+BLF-987：扩展编辑能力——``PATCH /api/v1/agent/provisioning/keys/{key_id}`` 与
+``GET /api/v1/agent/provisioning/keys`` 列表，由 provisioner Agent 直接操作
+已有 key 的 ``project_scope`` / ``business_scope``，即刻生效。
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -41,7 +45,10 @@ from app.api.deps import get_primary_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
 from app.models.project import Project
-from app.schemas.agent_api_key import AgentProvisionKeyRequest
+from app.schemas.agent_api_key import (
+    AgentProvisionKeyEditRequest,
+    AgentProvisionKeyRequest,
+)
 from app.services.agent import key_service
 from app.services.audit_log_service import append_operation_audit_log
 
@@ -356,6 +363,251 @@ async def provision_agent_key(
             "item_key": record.item_key,
             "expires_at": record.expires_at.isoformat() if record.expires_at else None,
             "plaintext_key": plaintext,
+        },
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
+
+
+def _parse_edit_request(body: dict) -> AgentProvisionKeyEditRequest:
+    """解析编辑请求体为 schema 实例；失败抛 VALIDATION_FAILED（带字段明细）。"""
+    try:
+        return AgentProvisionKeyEditRequest(**body)
+    except ValidationError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            details=[
+                {"loc": [str(p) for p in err.get("loc", [])], "msg": err.get("msg")}
+                for err in exc.errors()
+            ],
+        ) from None
+
+
+def _validate_edit(body: dict, request: Request) -> None:
+    """编辑业务校验（先于 confirm 签发 token；短路不生成 token）。"""
+    value = request.headers.get("idempotency-key")
+    if value is not None and (len(value) == 0 or len(value) > 64):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="Idempotency-Key 必须为非空字符串且不超过 64 字符",
+        )
+
+    req = _parse_edit_request(body)
+
+    # 安全红线：禁止通配 scope（最小权限）
+    if (req.project_scope or "").strip() == _SCOPE_ALL:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="编辑禁止 '*' 通配 project_scope：必须是显式白名单",
+        )
+    if (req.business_scope or "").strip() == _SCOPE_ALL:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="编辑禁止 '*' 通配 business_scope：必须是显式白名单",
+        )
+
+    # 校验 business_scope 域 code 合法性
+    if req.business_scope is not None:
+        from app.api.agent.scope import KNOWN_BUSINESS_DOMAINS  # 延迟导入防循环
+
+        biz = {p.strip() for p in req.business_scope.split(",") if p.strip()}
+        if not biz:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message="business_scope 不能为空",
+                details=[{"loc": ["business_scope"], "msg": "不能为空"}],
+            )
+        unknown_domains = sorted(biz - KNOWN_BUSINESS_DOMAINS)
+        if unknown_domains:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"business_scope 含未知域 code: {', '.join(unknown_domains)}",
+                details=[
+                    {"loc": ["business_scope"], "msg": f"未知域 code: {c}"}
+                    for c in unknown_domains
+                ],
+            )
+
+    # 校验 project_scope 片段合法性
+    if req.project_scope is not None:
+        raw_parts = [p.strip() for p in req.project_scope.split(",")]
+        non_empty = [p for p in raw_parts if p]
+        if not non_empty:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message="project_scope 不能为空或全空片段",
+                details=[{"loc": ["project_scope"], "msg": "不能为空"}],
+            )
+        invalid_parts: list[str] = []
+        project_ids: list[int] = []
+        for part in non_empty:
+            try:
+                pid = int(part)
+            except ValueError:
+                invalid_parts.append(part)
+                continue
+            if pid <= 0:
+                invalid_parts.append(part)
+                continue
+            project_ids.append(pid)
+        if invalid_parts:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"project_scope 含非法片段: {', '.join(invalid_parts)}",
+                details=[
+                    {"loc": ["project_scope"], "msg": f"非法片段: {p}"}
+                    for p in invalid_parts
+                ],
+            )
+        # project_scope 存在性校验
+        db = SessionLocal()
+        try:
+            if project_ids:
+                existing_rows = db.execute(
+                    select(Project.id, Project.is_active).where(
+                        Project.id.in_(project_ids)
+                    )
+                ).all()
+                active_ids = {r[0] for r in existing_rows if r[1]}
+                invalid_ids = sorted(set(project_ids) - active_ids)
+                if invalid_ids:
+                    available = list(
+                        db.scalars(
+                            select(Project.id)
+                            .where(Project.is_active.is_(True))
+                            .order_by(Project.id)
+                        ).all()
+                    )
+                    raise AgentApiError(
+                        ErrorCode.VALIDATION_FAILED,
+                        human_message=(
+                            f"project_scope 含不存在或已停用的项目 id: "
+                            f"{', '.join(map(str, invalid_ids))}；"
+                            f"可用项目 id: {', '.join(map(str, available)) if available else '无'}"
+                        ),
+                        details=[
+                            {
+                                "loc": ["project_scope"],
+                                "msg": f"不存在或已停用的项目 id: {m}",
+                            }
+                            for m in invalid_ids
+                        ],
+                    )
+        finally:
+            db.close()
+
+
+def _preview_edit(body: dict, request: Request) -> dict:
+    """confirm 预览摘要：编辑后的 scopes + label。"""
+    req = _parse_edit_request(body)
+    preview: dict = {
+        "action": "agent_key.update",
+        "label": req.label,
+        "project_scope": req.project_scope,
+        "business_scope": req.business_scope,
+        "item_key": req.item_key,
+        "note": "将更新目标 key 的权限与业务范围；编辑即刻生效",
+    }
+    return preview
+
+
+@provisioning_router.get("", dependencies=[Depends(require_agent_write_rate_limit)])
+async def list_agent_keys(
+    db: Session = Depends(get_primary_db_session),
+) -> dict:
+    """列出所有绑定了 agent_id 的 Key（最新靠前）。"""
+    keys = key_service.list_agent_keys(db)
+    return agent_ok(
+        [
+            {
+                "id": k.id,
+                "key_prefix": k.key_prefix,
+                "label": k.label,
+                "scope": k.scope,
+                "project_scope": k.project_scope,
+                "business_scope": k.business_scope,
+                "agent_id": k.agent_id,
+                "item_key": k.item_key,
+                "is_revoked": k.is_revoked,
+                "expires_at": k.expires_at.isoformat() if k.expires_at else None,
+                "created_at": k.created_at.isoformat() if k.created_at else None,
+                "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None,
+            }
+            for k in keys
+        ]
+    )
+
+
+@provisioning_router.patch(
+    "/{key_id}",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+@require_confirmation(
+    action="agent_key.update",
+    build_preview=_preview_edit,
+    validate=_validate_edit,
+)
+async def update_agent_key(
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+) -> dict:
+    """编辑现有 agent 凭据的权限与业务范围（BLF-987）。
+
+    PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope / item_key）。
+    编辑即刻生效——鉴权路径（scope.py）每请求实时读列，无需重建凭据。
+    已删除 Key 不可编辑（404）。
+    """
+    key_id = int(request.path_params["key_id"])
+    body = json.loads(await request.body() or b"{}")
+    req = _parse_edit_request(body)
+
+    record = key_service.update_api_key(
+        db,
+        key_id,
+        label=req.label,
+        project_scope=req.project_scope,
+        business_scope=req.business_scope,
+        item_key=req.item_key,
+    )
+    if record is None:
+        raise AgentApiError(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            human_message="API key not found",
+        )
+
+    append_operation_audit_log(
+        db,
+        action="api_key.update",
+        target_type="agent_api_key",
+        target_id=record.id,
+        operator=None,
+        after={
+            "label": record.label,
+            "project_scope": record.project_scope,
+            "business_scope": record.business_scope,
+            "item_key": record.item_key,
+            "via": "agent_provisioning",
+        },
+        agent_id=getattr(request.state, "agent_id", None),
+        agent_name=getattr(request.state, "agent_label", None),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+        request=request,
+    )
+    db.commit()
+    db.refresh(record)
+    return agent_ok(
+        {
+            "id": record.id,
+            "key_prefix": record.key_prefix,
+            "label": record.label,
+            "scope": record.scope,
+            "project_scope": record.project_scope,
+            "business_scope": record.business_scope,
+            "agent_id": record.agent_id,
+            "item_key": record.item_key,
+            "is_revoked": record.is_revoked,
+            "expires_at": record.expires_at.isoformat() if record.expires_at else None,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+            "last_used_at": record.last_used_at.isoformat() if record.last_used_at else None,
         },
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
