@@ -86,7 +86,7 @@ export default function ComplaintCenterClient() {
     setLoading(true)
     try {
       const iso = date.toISOString().slice(0, 10)
-      const data = await fetchComplaintOverview({ date: iso, site: 'US' })
+      const data = await fetchComplaintOverview({ date: iso, country: 'US' })
       setOverview(data)
     } catch (err) {
       notify({ type: 'error', title: '加载失败', message: `加载概览失败: ${(err as Error).message}` })
@@ -233,20 +233,20 @@ export default function ComplaintCenterClient() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {overview.shops.map((s) => (
-                      <TableRow key={s.shop_id}>
-                        <TableCell className="font-medium text-term-text">{s.shop_name}</TableCell>
-                        <TableCell className="text-term-muted">{s.site}</TableCell>
+                    {overview.projects.map((p) => (
+                      <TableRow key={`${p.project_id}-${p.country}`}>
+                        <TableCell className="font-medium text-term-text">{p.project_name}</TableCell>
+                        <TableCell className="text-term-muted">{p.country}</TableCell>
                         <TableCell>
-                          <span className={CHECK_STATUS_STYLE[s.check_status]}>
-                            {CHECK_STATUS_LABEL[s.check_status]}
+                          <span className={CHECK_STATUS_STYLE[p.check_status]}>
+                            {CHECK_STATUS_LABEL[p.check_status]}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{s.needs_reply}</TableCell>
-                        <TableCell className="text-right tabular-nums">{s.resolved}</TableCell>
+                        <TableCell className="text-right tabular-nums">{p.needs_reply}</TableCell>
+                        <TableCell className="text-right tabular-nums">{p.resolved}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {s.sla_due_soon > 0 ? (
-                            <span className="text-term-warn">{s.sla_due_soon}</span>
+                          {p.sla_due_soon > 0 ? (
+                            <span className="text-term-warn">{p.sla_due_soon}</span>
                           ) : (
                             0
                           )}

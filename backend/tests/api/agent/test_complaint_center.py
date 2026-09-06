@@ -1,5 +1,7 @@
 """Agent 客诉中心写侧域路由测试（BLF-981）。
 
+对齐 inventory/shipments 模式：project_id + country。
+
 覆盖：
 1. W1 batch 批量 upsert：首次写入成功、返回 run_id + shop_check + complaint id；
    同一天重复提交幂等（upsert 不产生重复行，返回相同 run_id）；
@@ -74,10 +76,8 @@ def _batch_body(**overrides) -> dict:
         },
         "shop_checks": [
             {
-                "shop_id": "shop_923dbbb08c2044c19825c0e310c675d2",
-                "shop_name": "犀牛",
-                "site": "US",
-                "seller_identity": "xinsleep",
+                "project_id": 1,
+                "country": "US",
                 "check_status": "ok",
                 "error_message": None,
                 "metrics": {
@@ -90,9 +90,8 @@ def _batch_body(**overrides) -> dict:
         ],
         "complaints": [
             {
-                "shop_id": "shop_923dbbb08c2044c19825c0e310c675d2",
-                "shop_name": "犀牛",
-                "site": "US",
+                "project_id": 1,
+                "country": "US",
                 "buyer_name": "Crystal",
                 "message_date": "2026-09-02",
                 "subject": "Product details inquiry from Amazon customer Crystal",
@@ -134,7 +133,8 @@ class TestBatchWrite:
         assert data["run_date"] == "2026-09-04"
         assert len(data["shop_checks"]) == 1
         assert data["shop_checks"][0]["shop_check_id"] > 0
-        assert data["shop_checks"][0]["shop_id"] == "shop_923dbbb08c2044c19825c0e310c675d2"
+        assert data["shop_checks"][0]["project_id"] == 1
+        assert data["shop_checks"][0]["country"] == "US"
         assert len(data["complaints"]) == 1
         assert data["complaints"][0]["complaint_id"] > 0
 
