@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from contextlib import contextmanager
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -23,11 +24,12 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
 from app.api.deps import get_primary_db_session
-from app.models.complaint_center import ComplaintRun
+from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
 from app.schemas.complaint_center import ComplaintRunBatchRequest
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.complaint_center_service import (
     fetch_complaints,
+    get_run_by_date,
     upsert_batch,
 )
 
