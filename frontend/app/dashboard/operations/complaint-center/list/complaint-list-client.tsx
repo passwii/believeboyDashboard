@@ -124,14 +124,14 @@ export default function ComplaintListClient() {
   const searchParams = useSearchParams()
 
   const [date, setDate] = useState<Date>(new Date())
-  const [shopId, setShopId] = useState(searchParams.get('shop_id') ?? '')
+  const [projectId, setProjectId] = useState(searchParams.get('project_id') ?? '')
   const [category, setCategory] = useState<ComplaintCategory | ''>(
     (searchParams.get('category') as ComplaintCategory) ?? ''
   )
   const [status, setStatus] = useState<ComplaintStatus | ''>(
     (searchParams.get('status') as ComplaintStatus) ?? ''
   )
-  const [site, setSite] = useState(searchParams.get('site') ?? '')
+  const [country, setCountry] = useState(searchParams.get('country') ?? '')
   const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '')
   const [sort, setSort] = useState<'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc'>(
     (searchParams.get('sort') as 'sla_asc') ?? 'sla_asc'
@@ -144,16 +144,16 @@ export default function ComplaintListClient() {
   const filters = useMemo(
     () => ({
       date: date.toISOString().slice(0, 10),
-      shop_id: shopId || undefined,
+      project_id: projectId ? Number(projectId) : undefined,
       category: category || undefined,
       status: status || undefined,
-      site: site || undefined,
+      country: country || undefined,
       keyword: keyword || undefined,
       sort,
       page,
       page_size: PAGE_SIZE,
     }),
-    [date, shopId, category, status, site, keyword, sort, page]
+    [date, projectId, category, status, country, keyword, sort, page]
   )
 
   const loadData = useCallback(async () => {
@@ -335,7 +335,7 @@ export default function ComplaintListClient() {
                         onClick={() => handleRowClick(item.id)}
                         className="cursor-pointer hover:bg-term-hover/50"
                       >
-                        <TableCell className="font-medium text-term-text">{item.shop_name}</TableCell>
+                        <TableCell className="font-medium text-term-text">{item.project_name}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="text-term-text">{item.buyer_name}</span>

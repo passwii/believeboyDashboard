@@ -2,7 +2,7 @@
  * 客诉中心（Complaint Center）前端 API 层。
  * 调用走 /api/backend 代理，session 鉴权，与 inspection-api 同模式。
  *
- * 后端契约：BLF-981，设计稿 complaint-center-api-design.md §6。
+ * 后端契约：BLF-981，对齐 inventory/shipments project_id + country 模式。
  * 联调前用 MOCK_DATA 兜底，端点就绪后切换 useMock=false 即可。
  */
 import type { components } from '@/types/api-generated/api'
@@ -36,9 +36,9 @@ export interface ComplaintSLA {
 
 export interface ComplaintSummaryItem {
   id: number
-  shop_id: string
-  shop_name: string
-  site: string
+  project_id: number
+  project_name: string
+  country: string
   buyer_name: string
   message_date: string
   subject: string
@@ -63,10 +63,10 @@ export interface ComplaintOverview {
     sla_overdue: number
   }
   trend: Array<{ date: string; needs_reply: number }>
-  shops: Array<{
-    shop_id: string
-    shop_name: string
-    site: string
+  projects: Array<{
+    project_id: number
+    project_name: string
+    country: string
     check_status: CheckStatus
     needs_reply: number
     resolved: number
@@ -76,9 +76,9 @@ export interface ComplaintOverview {
 
 export interface ComplaintDetail {
   id: number
-  shop_id: string
-  shop_name: string
-  site: string
+  project_id: number
+  project_name: string
+  country: string
   buyer_name: string
   message_date: string
   subject: string
@@ -102,10 +102,10 @@ export interface ComplaintDetail {
 
 export interface ComplaintListParams {
   date?: string
-  shop_id?: string
+  project_id?: number
   category?: ComplaintCategory | ''
   status?: ComplaintStatus | ''
-  site?: string
+  country?: string
   keyword?: string
   sort?: 'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc'
   page?: number
@@ -149,13 +149,13 @@ export const MOCK_OVERVIEW: ComplaintOverview = {
     { date: '2026-08-30', needs_reply: 2 },
     { date: '2026-09-04', needs_reply: 3 },
   ],
-  shops: [
-    { shop_id: 'shop_923dbbb08c2044c19825c0e310c675d2', shop_name: '犀牛', site: 'US', check_status: 'ok', needs_reply: 1, resolved: 0, sla_due_soon: 1 },
-    { shop_id: 'shop_lvuo001', shop_name: '吕沃', site: 'US', check_status: 'ok', needs_reply: 2, resolved: 0, sla_due_soon: 0 },
+  projects: [
+    { project_id: 1, project_name: '犀牛', country: 'US', check_status: 'ok', needs_reply: 1, resolved: 0, sla_due_soon: 1 },
+    { project_id: 2, project_name: '吕沃', country: 'US', check_status: 'ok', needs_reply: 2, resolved: 0, sla_due_soon: 0 },
     ...Array.from({ length: 13 }, (_, i) => ({
-      shop_id: `shop_mock_${i.toString().padStart(2, '0')}`,
-      shop_name: `Shop${i + 3}`,
-      site: 'US' as const,
+      project_id: i + 3,
+      project_name: `Project${i + 3}`,
+      country: 'US' as const,
       check_status: 'ok' as const,
       needs_reply: 0,
       resolved: 0,
@@ -167,9 +167,9 @@ export const MOCK_OVERVIEW: ComplaintOverview = {
 const MOCK_COMPLAINTS: ComplaintDetail[] = [
   {
     id: 789,
-    shop_id: 'shop_923dbbb08c2044c19825c0e310c675d2',
-    shop_name: '犀牛',
-    site: 'US',
+    project_id: 1,
+    project_name: '犀牛',
+    country: 'US',
     buyer_name: 'Crystal',
     message_date: '2026-09-02',
     subject: 'Product details inquiry — Electric Blanket',
@@ -202,9 +202,9 @@ const MOCK_COMPLAINTS: ComplaintDetail[] = [
   },
   {
     id: 790,
-    shop_id: 'shop_lvuo001',
-    shop_name: '吕沃',
-    site: 'US',
+    project_id: 2,
+    project_name: '吕沃',
+    country: 'US',
     buyer_name: 'JohnDoe42',
     message_date: '2026-09-03',
     subject: 'Do you have discounts?',
@@ -228,9 +228,9 @@ const MOCK_COMPLAINTS: ComplaintDetail[] = [
   },
   {
     id: 791,
-    shop_id: 'shop_lvuo001',
-    shop_name: '吕沃',
-    site: 'US',
+    project_id: 2,
+    project_name: '吕沃',
+    country: 'US',
     buyer_name: 'SpamBot',
     message_date: '2026-09-03',
     subject: 'Buy cheap shoes now!!!',
@@ -258,8 +258,8 @@ function mockList(params?: ComplaintListParams): ComplaintListResponse {
   let items = MOCK_COMPLAINTS.map(mockToSummary)
   if (params?.category) items = items.filter((i) => i.category === params.category)
   if (params?.status) items = items.filter((i) => i.status === params.status)
-  if (params?.shop_id) items = items.filter((i) => i.shop_id === params.shop_id)
-  if (params?.site) items = items.filter((i) => i.site === params.site)
+  if (params?.project_id) items = items.filter((i) => i.project_id === params.project_id)
+  if (params?.country) items = items.filter((i) => i.country === params.country)
   if (params?.keyword) {
     const kw = params.keyword.toLowerCase()
     items = items.filter((i) => i.buyer_name.toLowerCase().includes(kw) || i.subject.toLowerCase().includes(kw))
@@ -295,9 +295,9 @@ function mockToSummary(d: ComplaintDetail): ComplaintSummaryItem {
   }
   return {
     id: d.id,
-    shop_id: d.shop_id,
-    shop_name: d.shop_name,
-    site: d.site,
+    project_id: d.project_id,
+    project_name: d.project_name,
+    country: d.country,
     buyer_name: d.buyer_name,
     message_date: d.message_date,
     subject: d.subject,
@@ -347,12 +347,12 @@ export function setUseComplaintMock(value: boolean) {
 
 export async function fetchComplaintOverview(params?: {
   date?: string
-  site?: string
+  country?: string
 }): Promise<ComplaintOverview> {
   if (useMock) return MOCK_OVERVIEW
   const qs = new URLSearchParams()
   if (params?.date) qs.set('date', params.date)
-  if (params?.site) qs.set('site', params.site)
+  if (params?.country) qs.set('country', params.country)
   return request<ComplaintOverview>(`v1/complaints/overview?${qs}`)
 }
 
@@ -360,10 +360,10 @@ export async function fetchComplaintList(params?: ComplaintListParams): Promise<
   if (useMock) return mockList(params)
   const qs = new URLSearchParams()
   if (params?.date) qs.set('date', params.date)
-  if (params?.shop_id) qs.set('shop_id', params.shop_id)
+  if (params?.project_id) qs.set('project_id', String(params.project_id))
   if (params?.category) qs.set('category', params.category)
   if (params?.status) qs.set('status', params.status)
-  if (params?.site) qs.set('site', params.site)
+  if (params?.country) qs.set('country', params.country)
   if (params?.keyword) qs.set('keyword', params.keyword)
   if (params?.sort) qs.set('sort', params.sort)
   if (params?.page) qs.set('page', String(params.page))

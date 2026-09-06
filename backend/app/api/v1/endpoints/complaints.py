@@ -1,5 +1,7 @@
 """客诉中心 Dashboard 端点（BLF-981）。
 
+对齐 inventory/shipments 模式：project_id 路径参数 + country 查询参数。
+
 供前端「客诉中心」页面调用，走 ``/api/backend`` 代理 + session 鉴权（``protected``）。
 
 * ``GET /overview`` —— 概览（指标卡 + 近 30 天趋势 + 店铺健康表）
@@ -50,11 +52,11 @@ def _parse_date_param(value: str | None, field: str) -> _date:
 @router.get("/overview", response_model=OverviewResponse)
 def get_overview(
     date: str | None = Query(default=None, description="巡检日期，默认今天"),
-    site: str | None = Query(default=None, description="站点筛选 US|DE|UK"),
+    country: str | None = Query(default=None, description="站点筛选 US|DE|UK"),
     db: Session = Depends(get_read_db_session),
 ) -> OverviewResponse:
     target = _parse_date_param(date, "date") if date else _date.today()
-    data = fetch_overview(db, target, site=site)
+    data = fetch_overview(db, target, country=country)
     run = data["run"]
     return OverviewResponse(
         date=data["date"],
@@ -63,17 +65,17 @@ def get_overview(
             {"date": p["date"], "needs_reply": p["needs_reply"]}
             for p in data["trend"]
         ],
-        shops=data["shops"],
+        projects=data["projects"],
     )
 
 
 @router.get("/complaints", response_model=dict)
 def list_complaints(
     date: str | None = Query(default=None),
-    shop_id: str | None = None,
+    project_id: int | None = None,
     category: str | None = None,
     status: str | None = Query(None, alias="status", description="pending|drafted|replied|resolved|closed_no_response"),
-    site: str | None = None,
+    country: str | None = None,
     keyword: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -84,10 +86,10 @@ def list_complaints(
     items, total = fetch_complaints(
         db,
         run_date=target_date,
-        shop_id=shop_id,
+        project_id=project_id,
         category=category,
         status_filter=status,
-        site=site,
+        country=country,
         keyword=keyword,
         offset=offset,
         limit=page_size,

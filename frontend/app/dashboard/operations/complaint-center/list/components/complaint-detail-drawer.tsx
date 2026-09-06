@@ -196,7 +196,7 @@ export function ComplaintDetailDrawer({
             )}
           </SheetTitle>
           <SheetDescription>
-            {detail ? `${detail.shop_name} · ${detail.buyer_name}` : '加载中...'}
+            {detail ? `${detail.project_name} (${detail.country}) · ${detail.buyer_name}` : '加载中...'}
           </SheetDescription>
         </SheetHeader>
 
