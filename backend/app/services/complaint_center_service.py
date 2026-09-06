@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import case as sql_case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
@@ -370,7 +370,7 @@ def fetch_complaints(
     # 排序：pending 优先，SLA 最近到期在前
     stmt = stmt.order_by(
         # pending 优先：CASE WHEN status='pending' THEN 0 ELSE 1
-        func.case({ 'pending': 0 }, value=Complaint.status, else_=1),
+        sql_case((Complaint.status == 'pending', 0), else_=1),
         Complaint.message_date.desc(),
     ).offset(offset).limit(limit)
     items = list(db.execute(stmt).scalars().all())
