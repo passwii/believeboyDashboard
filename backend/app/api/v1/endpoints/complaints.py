@@ -52,7 +52,7 @@ def _parse_date_param(value: str | None, field: str) -> _date:
 @router.get("/overview", response_model=OverviewResponse)
 def get_overview(
     date: str | None = Query(default=None, description="巡检日期，默认今天"),
-    country: str | None = Query(default=None, description="站点筛选 US|DE|UK"),
+    country: str | None = Query(default=None, description="站点筛选 US|DE|GB"),
     db: Session = Depends(get_read_db_session),
 ) -> OverviewResponse:
     target = _parse_date_param(date, "date") if date else _date.today()

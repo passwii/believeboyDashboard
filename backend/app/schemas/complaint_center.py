@@ -48,7 +48,7 @@ class SlaInfo(BaseModel):
 
 class ShopCheckIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     check_status: Annotated[str, Field(pattern='^(ok|login_page|launch_fail|identity_mismatch)$')] = 'ok'
     error_message: str | None = None
     metrics: ShopMetrics = Field(default_factory=ShopMetrics)
@@ -56,7 +56,7 @@ class ShopCheckIn(BaseModel):
 
 class ComplaintIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     buyer_name: str = Field(max_length=255)
     message_date: date
     subject: str = Field(max_length=512)
