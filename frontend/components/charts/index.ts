@@ -7,4 +7,5 @@
 export * from './primitives'
 export * from './cards'
 export * from './chart-card'
+export * from './term-chart-card'
 export * from './legend'

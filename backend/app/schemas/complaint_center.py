@@ -47,19 +47,16 @@ class SlaInfo(BaseModel):
 # ── batch 写入请求 ──────────────────────────────────────────────
 
 class ShopCheckIn(BaseModel):
-    shop_id: str = Field(max_length=64)
-    shop_name: str = Field(max_length=128)
-    site: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
-    seller_identity: str | None = Field(default=None, max_length=128)
+    project_id: int
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     check_status: Annotated[str, Field(pattern='^(ok|login_page|launch_fail|identity_mismatch)$')] = 'ok'
     error_message: str | None = None
     metrics: ShopMetrics = Field(default_factory=ShopMetrics)
 
 
 class ComplaintIn(BaseModel):
-    shop_id: str = Field(max_length=64)
-    shop_name: str = Field(max_length=128)
-    site: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
+    project_id: int
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     buyer_name: str = Field(max_length=255)
     message_date: date
     subject: str = Field(max_length=512)
@@ -84,12 +81,14 @@ class ComplaintRunBatchRequest(BaseModel):
 
 class ShopCheckOut(BaseModel):
     shop_check_id: int
-    shop_id: str
+    project_id: int
+    country: str
 
 
 class ComplaintOut(BaseModel):
     complaint_id: int
-    shop_id: str
+    project_id: int
+    country: str
     buyer_name: str
     message_date: date
 
@@ -109,9 +108,8 @@ class ComplaintListItem(BaseModel):
 
     id: int
     run_id: int
-    shop_id: str
-    shop_name: str
-    site: str
+    project_id: int
+    country: str
     buyer_name: str
     message_date: date
     subject: str
@@ -157,10 +155,10 @@ class OverviewTrendPoint(BaseModel):
     needs_reply: int
 
 
-class OverviewShopRow(BaseModel):
-    shop_id: str
-    shop_name: str
-    site: str
+class OverviewProjectRow(BaseModel):
+    project_id: int
+    project_name: str
+    country: str
     check_status: str
     needs_reply: int
     resolved: int
@@ -172,4 +170,4 @@ class OverviewResponse(BaseModel):
     date: date
     metrics: OverviewMetrics
     trend: list[OverviewTrendPoint]
-    shops: list[OverviewShopRow]
+    projects: list[OverviewProjectRow]

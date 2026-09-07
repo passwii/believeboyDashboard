@@ -72,10 +72,10 @@ export interface LegendSwatchProps {
 
 /**
  * A single colored swatch matching the chart series geometry.
- * - dot: filled circle
- * - line: filled pill (horizontal)
- * - dashed: dashed line (via CSS background-image)
- * - bar: rounded rectangle
+ * - dot: filled circle（数据点语义，保持圆形）
+ * - line: 直角短横线（BLF-978 Stage 1 终端化）
+ * - dashed: dashed line (via CSS background-image)，直角
+ * - bar: 直角方块
  */
 export function LegendSwatch({
   variant = 'dot',
@@ -88,7 +88,7 @@ export function LegendSwatch({
   if (variant === 'dashed') {
     return (
       <span
-        className={cn('shrink-0 rounded-full', sizeClass, className)}
+        className={cn('shrink-0 rounded-none', sizeClass, className)}
         style={{
           background: color
             ? `repeating-linear-gradient(90deg, ${color} 0, ${color} 6px, transparent 6px, transparent 9px)`
@@ -99,8 +99,7 @@ export function LegendSwatch({
     )
   }
 
-  const shapeClass =
-    variant === 'dot' ? 'rounded-full' : variant === 'bar' ? 'rounded-[3px]' : 'rounded-full'
+  const shapeClass = variant === 'dot' ? 'rounded-full' : 'rounded-none'
 
   return (
     <span
@@ -130,8 +129,8 @@ export function LegendItem({
   const isInteractive = typeof onClick === 'function'
   const shared = cn(
     'inline-flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs leading-4 transition-colors',
-    'text-muted-foreground',
-    isInteractive && 'cursor-pointer hover:bg-muted/50 hover:text-foreground',
+    'text-term-muted',
+    isInteractive && 'cursor-pointer hover:bg-term-hover hover:text-term-text',
     !active && 'opacity-50',
     className
   )

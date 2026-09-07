@@ -254,6 +254,18 @@
     --term-warn: #d97706;
     --term-neg: #dc2626;
     --term-accent: #2563eb;
+
+    /* BLF-978 Stage 1：图表数据色 8 色（明侧，白底可读、饱和适中）。
+       完整色值（非裸三元组），SVG fill/stroke 可直接消费。
+       语义：主数据色 ≠ 交互色（--term-accent），但 1 号与 accent 同族。 */
+    --term-chart-1: hsl(221 90% 48%); /* 蓝 */
+    --term-chart-2: hsl(152 65% 38%); /* 绿 */
+    --term-chart-3: hsl(27 92% 46%);  /* 橙 */
+    --term-chart-4: hsl(199 88% 42%); /* 天蓝 */
+    --term-chart-5: hsl(0 74% 50%);   /* 红 */
+    --term-chart-6: hsl(187 88% 36%); /* 青 */
+    --term-chart-7: hsl(262 78% 52%); /* 紫 */
+    --term-chart-8: hsl(43 92% 42%);  /* 琥珀 */
   }
 
   .dark {
@@ -270,6 +282,16 @@
     --term-warn: #f59e0b;
     --term-neg: #ef4444;
     --term-accent: #5b8def;
+
+    /* BLF-978 Stage 1：图表数据色 8 色（暗侧，黑底提亮） */
+    --term-chart-1: #5b8def;
+    --term-chart-2: #34d399;
+    --term-chart-3: #fb923c;
+    --term-chart-4: #67e8f9;
+    --term-chart-5: #f87171;
+    --term-chart-6: #22d3ee;
+    --term-chart-7: #a78bfa;
+    --term-chart-8: #fbbf24;
   }
 
   * {

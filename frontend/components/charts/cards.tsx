@@ -39,6 +39,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   defaultChartContainerClass,
+  defaultSeriesAnimation,
   defaultTooltipCursor,
   defaultXAxisProps,
   defaultXTickFormatter,
@@ -50,6 +51,8 @@ import {
   type ChartConfig,
 } from './primitives'
 
+/** BLF-978 Stage 1：默认网格——1px term 边界色，仅横向（terminal 表格同语言）。 */
+export const defaultGridProps = { stroke: 'var(--term-border)', vertical: false } as const
 // Re-export Cell for consumers building pie charts.
 export { Cell }
 
@@ -208,7 +211,7 @@ export function LineChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <LineChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}
@@ -258,6 +261,7 @@ export function LineChartCard({
             name={s.name ?? s.dataKey}
             stroke={`var(--color-${s.dataKey})`}
             yAxisId={s.yAxisId}
+            {...defaultSeriesAnimation}
           />
         ))}
       </LineChart>
@@ -345,7 +349,12 @@ export function BarChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <BarChart accessibilityLayer data={data as unknown as object[]} layout={layout} margin={margin}>
-        <CartesianGrid vertical={!isVertical} horizontal={isVertical} />
+        {/* 横向布局网格走纵向（数据轴），纵向布局网格走横向（数据轴）——始终正交于类目轴 */}
+        <CartesianGrid
+          stroke="var(--term-border)"
+          vertical={!isVertical}
+          horizontal={isVertical}
+        />
         {isVertical ? (
           <>
             <XAxis
@@ -401,6 +410,7 @@ export function BarChartCard({
             name={s.name ?? s.dataKey}
             fill={`var(--color-${s.dataKey})`}
             yAxisId={s.yAxisId}
+            {...defaultSeriesAnimation}
           />
         ))}
       </BarChart>
@@ -495,7 +505,7 @@ export function AreaChartCard({
             ))}
           </defs>
         )}
-        <CartesianGrid vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis {...defaultXAxisProps} dataKey={xKey} tickFormatter={defaultXTickFormatter} />
         {!hideYAxis && !isMobile && (
           <YAxis
@@ -528,6 +538,7 @@ export function AreaChartCard({
             name={s.name ?? s.dataKey}
             stroke={`var(--color-${s.dataKey})`}
             fill={gradient ? `url(#${gradId(s.dataKey)})` : `var(--color-${s.dataKey})`}
+            {...defaultSeriesAnimation}
           />
         ))}
       </AreaChart>
@@ -612,7 +623,7 @@ export function ComposedChartCard({
   return (
     <ChartContainer config={config} className={cn(defaultChartContainerClass, className)}>
       <ComposedChart accessibilityLayer data={data as unknown as object[]} margin={margin}>
-        <CartesianGrid vertical={false} />
+        <CartesianGrid {...defaultGridProps} />
         <XAxis
           {...defaultXAxisProps}
           dataKey={xKey}
@@ -660,6 +671,7 @@ export function ComposedChartCard({
                 name={s.name ?? s.dataKey}
                 fill={`var(--color-${s.dataKey})`}
                 yAxisId={s.yAxisId}
+                {...defaultSeriesAnimation}
               />
             )
           }
@@ -675,6 +687,7 @@ export function ComposedChartCard({
               name={s.name ?? s.dataKey}
               stroke={`var(--color-${s.dataKey})`}
               yAxisId={s.yAxisId}
+              {...defaultSeriesAnimation}
             />
           )
         })}

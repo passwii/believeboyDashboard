@@ -2,7 +2,7 @@
 
 import { BarChart3 } from 'lucide-react'
 
-import { ChartCard, LineChartCard, buildChartConfig } from '@/components/charts'
+import { TermChartCard, LineChartCard, buildChartConfig } from '@/components/charts'
 import { formatCompactCurrency, formatDate } from './v2-format'
 
 type ChannelRow = { date: string; sales_amount: number; ad_spend: number }
@@ -35,7 +35,7 @@ export function V2ChannelChart({
   const hasData = data.length > 0
 
   return (
-    <ChartCard
+    <TermChartCard
       icon={<BarChart3 className="size-4" />}
       title="销售额 vs 广告花费"
       description="每日销售额与广告花费对比（近 7 天，双轴）"
@@ -62,6 +62,6 @@ export function V2ChannelChart({
           },
         ]}
       />
-    </ChartCard>
+    </TermChartCard>
   )
 }

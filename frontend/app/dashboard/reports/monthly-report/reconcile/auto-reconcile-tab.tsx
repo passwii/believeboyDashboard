@@ -22,10 +22,18 @@ import { Button } from '@/components/ui/button'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
-import { ProjectSelect } from '@/components/dashboard/console/project-select'
-import { CountrySelect } from '@/components/dashboard/console/country-select'
+import { DataCard, DataCardContent } from '@/components/ui/data-card'
 import { cn } from '@/lib/utils'
+
+interface AutoReconcileTabProps {
+  projectId: string
+  setProjectId: (v: string) => void
+  country: string
+  setCountry: (v: string) => void
+  loading: boolean
+  setLoading: (v: boolean) => void
+  fetchAvailableReportsRef: React.MutableRefObject<() => void>
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1020,17 +1028,20 @@ function DetailPanel({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function AutoReconcileTab() {
+export default function AutoReconcileTab({
+  projectId,
+  setProjectId,
+  country,
+  setCountry,
+  loading,
+  setLoading,
+  fetchAvailableReportsRef,
+}: AutoReconcileTabProps) {
   const { notify } = useNotifications()
-
-  // Filter state
-  const [projectId, setProjectId] = useState<string>('')
-  const [country, setCountry] = useState<string>('US')
 
   // Data state
   const [availableReports, setAvailableReports] = useState<AvailableReport[]>([])
   const [reconcileResults, setReconcileResults] = useState<Map<number, ReconcileResult>>(new Map())
-  const [loading, setLoading] = useState(false)
   const [reconciling, setReconciling] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<AvailableReport | null>(null)
 
@@ -1089,7 +1100,12 @@ export default function AutoReconcileTab() {
     } finally {
       setLoading(false)
     }
-  }, [projectId, country, notify])
+  }, [projectId, country, notify, setLoading])
+
+  // Register fetch function to ref for header refresh
+  useEffect(() => {
+    fetchAvailableReportsRef.current = fetchAvailableReports
+  }, [fetchAvailableReports, fetchAvailableReportsRef])
 
   // Auto-fetch when filters change
   useEffect(() => {
@@ -1348,38 +1364,6 @@ export default function AutoReconcileTab() {
 
   return (
     <div className="space-y-6">
-      {/* Console / Filter Bar */}
-      <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
-        <DataCardContent className="p-4">
-          {/* 手机端：2 列网格 | 桌面端：横向排列 */}
-          <div className="grid grid-cols-2 gap-3 md:flex md:flex-row md:items-end md:gap-4">
-            <div className="w-full md:w-48">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">项目</label>
-              <ProjectSelect
-                value={projectId}
-                onChange={setProjectId}
-                placeholder="选择项目"
-                triggerClassName="w-full"
-              />
-            </div>
-            <div className="w-full md:w-36">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">站点</label>
-              <CountrySelect value={country} onChange={setCountry} triggerClassName="w-full" />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchAvailableReports}
-              disabled={loading}
-              className="h-9 md:self-end"
-            >
-              <RefreshCw className={cn('mr-1 h-4 w-4', loading && 'animate-spin')} />
-              刷新
-            </Button>
-          </div>
-        </DataCardContent>
-      </DataCard>
-
       {/* Reports List */}
       {projectId && (
         <>

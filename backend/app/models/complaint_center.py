@@ -1,7 +1,9 @@
 """客诉中心模型（BLF-981）：complaint_runs / shop_checks / complaints。
 
-Agent 每天巡检 15 家 Amazon 店铺买家消息，提取「待回复客诉」明细写入。
-一次巡检 = 一个 run；每个店铺一条 shop_check；每个待回复消息一条 complaint。
+Agent 每天巡检项目的 Amazon 店铺买家消息，提取「待回复客诉」明细写入。
+一次巡检 = 一个 run；每个项目每条 shop_check；每个待回复消息一条 complaint。
+
+对齐 inventory/shipments 模式：用 project_id + country 标识店铺。
 """
 
 from __future__ import annotations
@@ -64,13 +66,14 @@ class ComplaintRun(Base):
 
 
 class ShopCheck(Base):
-    """单店检查结果。"""
+    """单店检查结果（按 project_id + country 标识）。"""
 
     __tablename__ = 'shop_checks'
     __table_args__ = (
-        UniqueConstraint('run_id', 'shop_id', name='uq_shop_checks_run_shop'),
+        UniqueConstraint('run_id', 'project_id', 'country', name='uq_shop_checks_run_project_country'),
         Index('idx_shop_checks_run_id', 'run_id'),
-        Index('idx_shop_checks_shop_id', 'shop_id'),
+        Index('idx_shop_checks_project', 'project_id'),
+        Index('idx_shop_checks_project_country', 'project_id', 'country'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -83,10 +86,12 @@ class ShopCheck(Base):
         ForeignKey('complaint_runs.id', ondelete='CASCADE'),
         nullable=False,
     )
-    shop_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    shop_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    site: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
-    seller_identity: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), 'sqlite'),
+        ForeignKey('projects.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
     check_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='ok')
     error_message: Mapped[str | None] = mapped_column(Text(), nullable=True)
     metrics: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default='{}')
@@ -104,14 +109,15 @@ class Complaint(Base):
     """客诉明细。
 
     自然键幂等（has_order 区分）：
-    - 有订单：(shop_id, buyer_name, message_date)
-    - 无订单：(shop_id, buyer_name, message_date, subject)
+    - 有订单：(project_id, country, buyer_name, message_date)
+    - 无订单：(project_id, country, buyer_name, message_date, subject)
     """
 
     __tablename__ = 'complaints'
     __table_args__ = (
         Index('idx_complaints_run_id', 'run_id'),
-        Index('idx_complaints_shop_id', 'shop_id'),
+        Index('idx_complaints_project', 'project_id'),
+        Index('idx_complaints_project_country', 'project_id', 'country'),
         Index('idx_complaints_status', 'status'),
         Index('idx_complaints_category', 'category'),
         Index('idx_complaints_message_date', 'message_date'),
@@ -127,9 +133,12 @@ class Complaint(Base):
         ForeignKey('complaint_runs.id', ondelete='CASCADE'),
         nullable=False,
     )
-    shop_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    shop_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    site: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), 'sqlite'),
+        ForeignKey('projects.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
     buyer_name: Mapped[str] = mapped_column(String(255), nullable=False)
     message_date: Mapped[date] = mapped_column(Date(), nullable=False)
     subject: Mapped[str] = mapped_column(String(512), nullable=False)

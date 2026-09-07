@@ -1,14 +1,15 @@
-"""客诉中心服务层（BLF-981）：批量 upsert + 查询。"""
+"""客诉中心服务层（BLF-981）：批量 upsert + 查询。对齐 inventory/shipments project_id + country 模式。"""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select, case as sql_case
+from sqlalchemy import case as sql_case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
+from app.models.project import Project
 from app.schemas.complaint_center import (
     ComplaintIn,
     ComplaintPatchRequest,
@@ -51,16 +52,21 @@ def get_run_by_date(db: Session, run_date: date) -> ComplaintRun | None:
     ).scalar_one_or_none()
 
 
-def _find_shop_check(db: Session, run_id: int, shop_id: str) -> ShopCheck | None:
+def _find_shop_check(db: Session, run_id: int, project_id: int, country: str) -> ShopCheck | None:
     return db.execute(
-        select(ShopCheck).where(ShopCheck.run_id == run_id, ShopCheck.shop_id == shop_id)
+        select(ShopCheck).where(
+            ShopCheck.run_id == run_id,
+            ShopCheck.project_id == project_id,
+            ShopCheck.country == country,
+        )
     ).scalar_one_or_none()
 
 
-def _find_complaint_natural(db: Session, shop_id: str, buyer_name: str, message_date: date, subject: str) -> Complaint | None:
+def _find_complaint_natural(db: Session, project_id: int, country: str, buyer_name: str, message_date: date, subject: str) -> Complaint | None:
     return db.execute(
         select(Complaint).where(
-            Complaint.shop_id == shop_id,
+            Complaint.project_id == project_id,
+            Complaint.country == country,
             Complaint.buyer_name == buyer_name,
             Complaint.message_date == message_date,
             Complaint.subject == subject,
@@ -78,9 +84,8 @@ def _build_complaint_in(c: ComplaintIn, run_id: int) -> dict:
         sla_dump = c.sla.model_dump(exclude_none=True, mode='json')
     return {
         'run_id': run_id,
-        'shop_id': c.shop_id,
-        'shop_name': c.shop_name,
-        'site': c.site,
+        'project_id': c.project_id,
+        'country': c.country,
         'buyer_name': c.buyer_name,
         'message_date': c.message_date,
         'subject': c.subject,
@@ -100,8 +105,8 @@ def _build_complaint_in(c: ComplaintIn, run_id: int) -> dict:
 def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | None) -> ComplaintRun:
     """批量 upsert：run + shop_checks + complaints，一个事务。
 
-    幂等：同一天 run_date 重复提交 → 更新原 run；shop_check 按 (run_id, shop_id) upsert；
-    complaint 按自然键 (shop_id, buyer_name, message_date, subject) upsert。
+    幂等：同一天 run_date 重复提交 → 更新原 run；shop_check 按 (run_id, project_id, country) upsert；
+    complaint 按自然键 (project_id, country, buyer_name, message_date, subject) upsert。
     """
     run = get_run_by_date(db, body.run_date)
     if run is None:
@@ -119,13 +124,10 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
 
     # shop_checks
     for sc in body.shop_checks:
-        existing = _find_shop_check(db, run.id, sc.shop_id)
+        existing = _find_shop_check(db, run.id, sc.project_id, sc.country)
         if existing is None:
-            existing = ShopCheck(run_id=run.id, shop_id=sc.shop_id)
+            existing = ShopCheck(run_id=run.id, project_id=sc.project_id, country=sc.country)
             db.add(existing)
-        existing.shop_name = sc.shop_name
-        existing.site = sc.site
-        existing.seller_identity = sc.seller_identity
         existing.check_status = sc.check_status
         existing.error_message = sc.error_message
         existing.metrics = sc.metrics.model_dump(mode='json')
@@ -133,7 +135,7 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
 
     # complaints
     for c in body.complaints:
-        existing = _find_complaint_natural(db, c.shop_id, c.buyer_name, c.message_date, c.subject)
+        existing = _find_complaint_natural(db, c.project_id, c.country, c.buyer_name, c.message_date, c.subject)
         if existing is None:
             db.add(Complaint(**_build_complaint_in(c, run.id)))
         else:
@@ -147,8 +149,7 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
             if c.sla is not None:
                 existing.sla = c.sla.model_dump(exclude_none=True, mode='json')
             existing.run_id = run.id
-            existing.shop_name = c.shop_name
-            existing.site = c.site
+            existing.country = c.country
     db.flush()
     return run
 
@@ -220,7 +221,7 @@ def _sla_level(status: str, sla: dict | None) -> str:
     return 'ok'
 
 
-def fetch_overview(db: Session, target_date: date, site: str | None = None) -> dict:
+def fetch_overview(db: Session, target_date: date, country: str | None = None) -> dict:
     run = get_run_by_date(db, target_date)
     if run is None:
         return {
@@ -234,23 +235,23 @@ def fetch_overview(db: Session, target_date: date, site: str | None = None) -> d
                 'sla_overdue': 0,
             },
             'trend': [],
-            'shops': [],
+            'projects': [],
         }
 
     # 当日店铺行
     shop_rows = db.execute(
-        select(ShopCheck).where(ShopCheck.run_id == run.id).order_by(ShopCheck.shop_name)
+        select(ShopCheck).where(ShopCheck.run_id == run.id).order_by(ShopCheck.project_id)
     ).scalars().all()
 
-    # 当日 complaint（按店铺聚合 SLA）
+    # 当日 complaint（按 project_id 聚合）
     complaints = db.execute(
         select(Complaint).where(Complaint.run_id == run.id)
     ).scalars().all()
 
     from collections import defaultdict
-    shop_complaints: dict[str, list[Complaint]] = defaultdict(list)
+    project_complaints: dict[tuple[int, str], list[Complaint]] = defaultdict(list)
     for c in complaints:
-        shop_complaints[c.shop_id].append(c)
+        project_complaints[(c.project_id, c.country)].append(c)
 
     total_needs_reply = 0
     total_reported_unresolved = 0
@@ -258,16 +259,17 @@ def fetch_overview(db: Session, target_date: date, site: str | None = None) -> d
     sla_due_soon = 0
     sla_overdue = 0
 
-    shops_payload = []
+    projects_payload = []
     for sc in shop_rows:
-        if site and sc.site != site:
+        if country and sc.country != country:
             continue
-        sc_list = shop_complaints.get(sc.shop_id, [])
+        key = (sc.project_id, sc.country)
+        pc_list = project_complaints.get(key, [])
         needs = 0
         resolved = 0
         soon = 0
         overdue = 0
-        for c in sc_list:
+        for c in pc_list:
             lvl = _sla_level(c.status, c.sla)
             if c.status in ('replied', 'resolved', 'closed_no_response'):
                 resolved += 1
@@ -284,10 +286,13 @@ def fetch_overview(db: Session, target_date: date, site: str | None = None) -> d
         # metrics from shop_check 优先，兜底用聚合
         metrics = sc.metrics or {}
         total_reported_unresolved += metrics.get('reported_unresolved', 0)
-        shops_payload.append({
-            'shop_id': sc.shop_id,
-            'shop_name': sc.shop_name,
-            'site': sc.site,
+        # 获取 project name
+        project = db.get(Project, sc.project_id)
+        project_name = project.project_name if project else f'#{sc.project_id}'
+        projects_payload.append({
+            'project_id': sc.project_id,
+            'project_name': project_name,
+            'country': sc.country,
             'check_status': sc.check_status,
             'needs_reply': needs,
             'resolved': resolved,
@@ -317,7 +322,7 @@ def fetch_overview(db: Session, target_date: date, site: str | None = None) -> d
             'sla_overdue': sla_overdue,
         },
         'trend': trend,
-        'shops': shops_payload,
+        'projects': projects_payload,
     }
 
 
@@ -327,10 +332,10 @@ def fetch_complaints(
     db: Session,
     *,
     run_date: date | None = None,
-    shop_id: str | None = None,
+    project_id: int | None = None,
     category: str | None = None,
     status_filter: str | None = None,
-    site: str | None = None,
+    country: str | None = None,
     keyword: str | None = None,
     offset: int = 0,
     limit: int = 50,
@@ -343,14 +348,14 @@ def fetch_complaints(
         if run is None:
             return [], 0
         filters.append(Complaint.run_id == run.id)
-    if shop_id is not None:
-        filters.append(Complaint.shop_id == shop_id)
+    if project_id is not None:
+        filters.append(Complaint.project_id == project_id)
+    if country is not None:
+        filters.append(Complaint.country == country)
     if category is not None:
         filters.append(Complaint.category == category)
     if status_filter is not None:
         filters.append(Complaint.status == status_filter)
-    if site is not None:
-        filters.append(Complaint.site == site)
     if keyword:
         kw = f'%{keyword}%'
         filters.append(

@@ -4,6 +4,8 @@ import {
   Banknote,
   BarChart3,
   Bell,
+  Bot,
+  Activity,
   Calculator,
   CalendarRange,
   ChartColumnBig,
@@ -46,7 +48,7 @@ import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 /**
  * Sidebar 两层结构的唯一数据权威。
  *
- * 外层分组由 SIDEBAR_TOP_GROUPS 定义（8 个顶级分类）。
+ * 外层分组由 SIDEBAR_TOP_GROUPS 定义（9 个顶级分类）。
  * 二级菜单项硬编码在每组的 items 中。
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  *
@@ -114,6 +116,8 @@ const IconMap = {
   Sparkles,
   ChartColumnBig,
   Bell,
+  Bot,
+  Activity,
   CalendarRange,
   Handshake,
   Target,
@@ -127,7 +131,7 @@ const NEUTRAL_ACCENT = 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-
 const NEUTRAL_ACTIVE = 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]'
 
 export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
-  // 1. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 平台巡检 / 供应链（商品 / 库存 / 履约）
+  // 1. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 供应链（商品 / 库存 / 履约）
   {
     id: 'operations',
     label: '运营',
@@ -141,7 +145,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '退货分析', url: '/dashboard/operations/return-analysis', icon: IconMap.RotateCcw },
       { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
       { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
-      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
       { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
       // 供应链原分类（商品 / 库存 / 履约）已并入运营
       { title: '按周产品分析', url: '/dashboard/operations/weekly-product-analysis', icon: IconMap.BarChart3 },
@@ -192,7 +195,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/reports/scheduled-reports'],
         icon: IconMap.Zap,
       },
-      { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
       { title: '订单信息', url: '/dashboard/reports/order-info', icon: IconMap.ShoppingBag },
     ],
   },
@@ -263,7 +265,44 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 6. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
+  // 6. Agent 中心 —— Agent 员工产品线：产出（A 档）+ 接入管理
+  // 归类门规（2026-09-05 决策）：Agent 是页面数据的主要生产者（巡检 / 上传写侧），或页面本身是
+  // Agent 体系运维工具 → 归入本组；B 档（agent 也可读写的域工作台，如 SKU 信息 / 发货管理 /
+  // 库存分类账 / 销售数据 / 补货分析 / 各测算）留在业务分组，待数据流总览页上线后按实际使用
+  // 再评估。禁止按「有无 agent 端点」划线迁移（AGENT_DOMAINS 已 16 域，划不住）。
+  // 方案：docs/superpowers/plans/2026-09-05-agent-center-sidebar/
+  {
+    id: 'agent',
+    label: 'Agent 中心',
+    icon: IconMap.Bot,
+    accent: NEUTRAL_ACCENT,
+    activeAccent: NEUTRAL_ACTIVE,
+    items: [
+      {
+        title: '数据流总览',
+        url: '/dashboard/agent-center/overview',
+        matchPrefixes: ['/dashboard/agent-center/overview'],
+        icon: IconMap.Activity,
+      },
+      {
+        title: 'Agent 员工',
+        url: '/dashboard/agent-center/employees',
+        matchPrefixes: ['/dashboard/agent-center/employees'],
+        icon: IconMap.Users,
+      },
+      {
+        title: '客户消息',
+        url: '/dashboard/operations/complaint-center',
+        matchPrefixes: ['/dashboard/operations/complaint-center'],
+        icon: IconMap.MessagesSquare,
+      },
+      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
+      { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
+      { title: 'Agent 接入管理', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
+    ],
+  },
+
+  // 7. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
   {
     id: 'crm',
     label: 'CRM 客户与合作伙伴',
@@ -312,7 +351,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 7. 工具箱（所有角色）
+  // 8. 工具箱（所有角色）
   {
     id: 'tools',
     label: '工具箱',
@@ -325,7 +364,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 8. 系统管理（所有角色可见；细粒度权限由单页权限接管）
+  // 9. 系统管理（所有角色可见；细粒度权限由单页权限接管）
   {
     id: 'system',
     label: '系统管理',
@@ -340,7 +379,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '运营管理', url: '/dashboard/system/operator-management', icon: IconMap.ShieldUser },
       { title: '告警中心', url: '/dashboard/system/alerts', icon: IconMap.Bell },
       { title: '日志查看', url: '/dashboard/system/logs', icon: IconMap.History },
-      { title: 'Agent 接入管理', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
     ],
   },
 ]

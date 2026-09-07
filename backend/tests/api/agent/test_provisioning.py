@@ -434,3 +434,301 @@ class TestProvisionedKeyUsable:
                 db.close()
         finally:
             _cleanup_key_by_agent_id(body["agent_id"])
+
+
+# ──────────────── BLF-987：编辑现有 key 的权限与业务范围 ────────────────
+
+
+def _patch(client, headers, key_id, body, *, token=None, idem=None):
+    h = dict(headers)
+    h["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+    if token:
+        h["X-Confirm-Token"] = token
+    return client.patch(
+        f"/api/v1/agent/provisioning/keys/{key_id}", json=body, headers=h
+    )
+
+
+def _get(client, headers):
+    return client.get("/api/v1/agent/provisioning/keys", headers=headers)
+
+
+class TestListAgentKeys:
+    def test_list_returns_agent_keys(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        env = _provision_env(make_api_key)
+        base = _get(client, env["headers"])
+        assert base.status_code == 200, base.text
+        assert base.json()["ok"] is True
+
+        target = f"list-test-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory,sales")
+        try:
+            resp = _get(client, env["headers"])
+            assert resp.status_code == 200, resp.text
+            items = resp.json()["data"]
+            assert any(k["agent_id"] == target for k in items)
+            first = items[0]
+            assert "id" in first
+            assert "key_prefix" in first
+            assert "agent_id" in first
+            assert "project_scope" in first
+            assert "business_scope" in first
+        finally:
+            _cleanup_key_by_agent_id(target)
+
+
+class TestUpdateAgentKey:
+    def test_update_project_and_business_scope_happy_path(
+        self, client, make_api_key, confirm_memory_store, provision_projects
+    ):
+        env = _provision_env(make_api_key)
+        target = f"update-test-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(
+            agent_id=target,
+            business_scope="inventory,sales",
+            project_scope=str(provision_projects["active"]),
+        )
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        patch_body = {
+            "label": "编辑后的助理",
+            "business_scope": "inventory,sales,ad_analysis",
+        }
+        preview = _patch(client, env["headers"], row, patch_body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        prev = preview.json()
+        assert prev["ok"] is False
+        assert prev["requires_confirmation"] is True
+        assert prev["confirm_token"].startswith("cf_")
+        assert prev["preview"]["action"] == "agent_key.update"
+        assert prev["preview"]["business_scope"] == "inventory,sales,ad_analysis"
+
+        # 预览不落库
+        db = SessionLocal()
+        try:
+            bs = db.execute(
+                text("select business_scope from agent_api_keys where id = :id"),
+                {"id": row},
+            ).scalar_one()
+            assert bs == "inventory,sales"
+        finally:
+            db.close()
+
+        replay = _patch(
+            client,
+            env["headers"],
+            row,
+            patch_body,
+            token=prev["confirm_token"],
+            idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["business_scope"] == "inventory,sales,ad_analysis"
+        assert data["label"] == "编辑后的助理"
+        assert data["agent_id"] == target
+
+        # 落库校验 + 审计
+        db = SessionLocal()
+        try:
+            stored = db.execute(
+                text(
+                    "select business_scope, label from agent_api_keys where id = :id"
+                ),
+                {"id": row},
+            ).mappings().first()
+            assert stored["business_scope"] == "inventory,sales,ad_analysis"
+            assert stored["label"] == "编辑后的助理"
+            audit = db.execute(
+                text(
+                    "select agent_id, after_json from operation_audit_logs "
+                    "where action='api_key.update' and target_type='agent_api_key' "
+                    "order by id desc limit 1"
+                )
+            ).mappings().first()
+            assert audit is not None
+            assert audit["agent_id"].startswith("agent-provisioner-")
+            assert audit["after_json"]["via"] == "agent_provisioning"
+        finally:
+            db.close()
+        _cleanup_key_by_agent_id(target)
+
+    def test_update_only_label(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """PATCH 语义：只传 label，其余字段不变。"""
+        env = _provision_env(make_api_key)
+        target = f"label-only-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory")
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        patch_body = {"label": "新名字"}
+        preview = _patch(client, env["headers"], row, patch_body, idem=idem)
+        token = preview.json()["confirm_token"]
+        replay = _patch(
+            client,
+            env["headers"],
+            row,
+            patch_body,
+            token=token,
+            idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["label"] == "新名字"
+        assert data["business_scope"] == "inventory"  # 未变
+        _cleanup_key_by_agent_id(target)
+
+    def test_update_rejects_wildcard_scope(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """编辑禁止 '*' 通配 scope。"""
+        env = _provision_env(make_api_key)
+        target = f"star-edit-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory")
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        resp = _patch(
+            client,
+            env["headers"],
+            row,
+            {"project_scope": "*"},
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        assert "project_scope" in resp.json()["error"]["human_message"]
+        _cleanup_key_by_agent_id(target)
+
+    def test_update_rejects_unknown_domain(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """编辑禁止未知域 code。"""
+        env = _provision_env(make_api_key)
+        target = f"unknown-dom-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory")
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        resp = _patch(
+            client,
+            env["headers"],
+            row,
+            {"business_scope": "inventory,not_a_real_domain"},
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        assert "未知域" in resp.json()["error"]["human_message"]
+        _cleanup_key_by_agent_id(target)
+
+    def test_update_rejects_invalid_project_id(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """编辑校验 project_scope 存在性。"""
+        env = _provision_env(make_api_key)
+        target = f"bad-proj-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory")
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        resp = _patch(
+            client,
+            env["headers"],
+            row,
+            {"project_scope": "99999"},
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        _cleanup_key_by_agent_id(target)
+
+    def test_update_nonexistent_key_404(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """编辑不存在的 key：confirm 预览正常返回，但确认时返回 404。"""
+        env = _provision_env(make_api_key)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        resp = _patch(
+            client,
+            env["headers"],
+            999999,
+            {"label": "ghost"},
+            idem=idem,
+        )
+        # 预览阶段正常返回（confirm 流不检查存在性）
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["requires_confirmation"] is True
+        token = resp.json()["confirm_token"]
+        # 确认阶段：key 不存在 → 404
+        replay = _patch(
+            client,
+            env["headers"],
+            999999,
+            {"label": "ghost"},
+            token=token,
+            idem=idem,
+        )
+        assert replay.status_code == 404, replay.text
+        assert replay.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+    def test_update_requires_confirmation(
+        self, client, make_api_key, confirm_memory_store
+    ):
+        """编辑走两步确认——无 confirm token 只返回预览。"""
+        env = _provision_env(make_api_key)
+        target = f"confirm-{uuid.uuid4().hex[:10]}"
+        key = make_api_key(agent_id=target, business_scope="inventory")
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text("select id from agent_api_keys where agent_id = :aid"),
+                {"aid": target},
+            ).scalar_one()
+        finally:
+            db.close()
+
+        resp = _patch(
+            client,
+            env["headers"],
+            row,
+            {"business_scope": "inventory,sales"},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["ok"] is False
+        assert resp.json()["requires_confirmation"] is True
+        _cleanup_key_by_agent_id(target)

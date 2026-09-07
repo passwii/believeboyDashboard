@@ -1,6 +1,6 @@
 """Agent 客诉中心（写侧）域路由（BLF-981）。
 
-在 ``/api/v1/agent/complaint-center/*`` 开放：
+对齐 inventory/shipments 模式：project_id 路径参数 + country 查询参数。
 
 * W1 ``POST /batch`` —— 一次事务收全家（run + shop_checks + complaints），
   幂等：同一天 run_date 重复提交走 upsert，不产生重复行；
@@ -89,21 +89,22 @@ def _serialize_run_batch_response(run: ComplaintRun, body: ComplaintRunBatchRequ
         "run_date": run.run_date.isoformat(),
         "idempotency_key": None,
         "shop_checks": [
-            {"shop_check_id": sc.id, "shop_id": sc.shop_id}
+            {"shop_check_id": sc.id, "project_id": sc.project_id, "country": sc.country}
             for sc in run.shop_checks
-            if sc.shop_id in {s.shop_id for s in body.shop_checks}
+            if (sc.project_id, sc.country) in {(s.project_id, s.country) for s in body.shop_checks}
         ],
         "complaints": [
             {
                 "complaint_id": c.id,
-                "shop_id": c.shop_id,
+                "project_id": c.project_id,
+                "country": c.country,
                 "buyer_name": c.buyer_name,
                 "message_date": c.message_date.isoformat(),
             }
             for c in run.complaints
-            if (c.shop_id, c.buyer_name, c.message_date.isoformat(), c.subject)
+            if (c.project_id, c.country, c.buyer_name, c.message_date.isoformat(), c.subject)
             in {
-                (c2.shop_id, c2.buyer_name, c2.message_date.isoformat(), c2.subject)
+                (c2.project_id, c2.country, c2.buyer_name, c2.message_date.isoformat(), c2.subject)
                 for c2 in body.complaints
             }
         ],
@@ -155,10 +156,10 @@ async def batch_upsert(request: Request, db: Session = Depends(get_primary_db_se
 def list_complaints(
     request: Request,
     run_date: str | None = None,
-    shop_id: str | None = None,
+    project_id: int | None = None,
     status_filter: str | None = None,
     category: str | None = None,
-    site: str | None = None,
+    country: str | None = None,
     keyword: str | None = None,
     limit: int = 50,
     offset: int = 0,
@@ -178,10 +179,10 @@ def list_complaints(
         items, total = fetch_complaints(
             db,
             run_date=parsed_date,
-            shop_id=shop_id,
+            project_id=project_id,
             status_filter=status_filter,
             category=category,
-            site=site,
+            country=country,
             keyword=keyword,
             limit=min(limit, 200),
             offset=offset,
@@ -191,8 +192,8 @@ def list_complaints(
             "items": [
                 {
                     "id": c.id,
-                    "shop_id": c.shop_id,
-                    "shop_name": c.shop_name,
+                    "project_id": c.project_id,
+                    "country": c.country,
                     "buyer_name": c.buyer_name,
                     "message_date": c.message_date.isoformat(),
                     "subject": c.subject,
