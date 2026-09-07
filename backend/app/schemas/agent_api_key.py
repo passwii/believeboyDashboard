@@ -115,6 +115,37 @@ class ApiKeyActivateResponse(BaseModel):
     is_revoked: bool
 
 
+class AgentProvisionKeyEditRequest(BaseModel):
+    """Agent 编辑现有凭据请求（BLF-987，``PATCH /api/v1/agent/provisioning/keys/{key_id}``）。
+
+    与 ``ApiKeyUpdateRequest`` 差异：
+    - 所有字段可选（PATCH 语义）
+    - project_scope / business_scope 必须显式白名单（禁 "*"）
+    - 编辑后即刻生效（鉴权路径每请求实时读列）
+    """
+
+    model_config = {"extra": "forbid"}
+
+    label: str | None = Field(
+        default=None, min_length=1, max_length=128, description="目标 Agent 中文名"
+    )
+    project_scope: str | None = Field(
+        default=None,
+        max_length=255,
+        description=",分隔的 project_id 白名单；禁止 '*'",
+    )
+    business_scope: str | None = Field(
+        default=None,
+        max_length=255,
+        description=",分隔的域 code 白名单；禁止 '*'",
+    )
+    item_key: str | None = Field(
+        default=None,
+        max_length=128,
+        description="外部 agent 平台身份引用（空串清除标注）",
+    )
+
+
 class AgentProvisionKeyRequest(BaseModel):
     """Agent 自助签发请求（BLF-843，``/api/v1/agent/provisioning/keys``）。
 
