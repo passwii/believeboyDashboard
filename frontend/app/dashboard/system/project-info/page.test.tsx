@@ -170,4 +170,32 @@ describe('StoreInfoPage 站点列/下拉', () => {
       })
     )
   })
- })
+
+  it('编辑 DE 项目保存时保留 DE country', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/2/shops') {
+        return new Response(JSON.stringify([]), { status: 200 })
+      }
+      if (url === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH') {
+        return new Response('{}', { status: 200 })
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺乙/ }))[0])
+    expect(screen.getByText('德国站 (DE)')).toBeInTheDocument()
+    await screen.findByLabelText('德国站 Shop ID')
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+    const patchCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input) === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH'
+    )
+    expect(patchCall?.[1]).toEqual(
+      expect.objectContaining({
+        body: expect.stringContaining('"country":"DE"'),
+      })
+    )
+  })
+})

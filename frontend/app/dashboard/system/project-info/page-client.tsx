@@ -486,6 +486,7 @@ export default function StoreInfoPage() {
     setEditCommissionRate(points?.toString() ?? '')
     setEditIsActive(item.is_active)
     setEditProjectTier(item.project_tier ?? '')
+    setEditCountry(item.country ?? 'US')
     setEditShopIds(emptyShopIds())
     setEditOriginalShopIds(emptyShopIds())
     setShopLoadError(null)
