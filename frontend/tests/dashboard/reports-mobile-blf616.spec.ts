@@ -473,6 +473,31 @@ test.describe('@mobile-blf616 新品定价测算 手机端（BLF-616）', () => 
     await expectNoPageHorizontalOverflow(page)
   })
 })
+test.describe('@mobile-blf616 店铺测算站点选择器（BLF-994）', () => {
+  test('站点按钮命中区域不应超出选择器高度', async ({ page }) => {
+    await page.route('**/api/backend/api/v1/projects/manage**', (route) =>
+      route.fulfill({ json: PROJECTS })
+    )
+    await page.goto('/dashboard/reports/pricing-calculation/shop-calculation')
+
+    const selector = page.getByRole('group', { name: '选择站点' })
+    await expect(selector).toBeVisible({ timeout: 30000 })
+
+    const bounds = await selector.evaluate((element) => {
+      const container = element.getBoundingClientRect()
+      const buttons = Array.from(element.querySelectorAll('button')).map((button) => {
+        const rect = button.getBoundingClientRect()
+        return { top: rect.top, bottom: rect.bottom }
+      })
+      return { container: { top: container.top, bottom: container.bottom }, buttons }
+    })
+
+    for (const button of bounds.buttons) {
+      expect(button.top, '站点按钮顶部不应超出选择器').toBeGreaterThanOrEqual(bounds.container.top)
+      expect(button.bottom, '站点按钮底部不应超出选择器').toBeLessThanOrEqual(bounds.container.bottom)
+    }
+  })
+})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 360×800 小屏 + 桌面零回归

@@ -717,7 +717,7 @@ export default function ShopCalculationPage() {
                       key={opt.value}
                       onClick={() => setSelectedCountry(opt.value)}
                       className={cn(
-                        'flex h-full min-h-[calc(44px-2px)] min-w-0 flex-1 items-center justify-center rounded-none px-3 text-center font-mono text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none',
+                        'flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-none px-3 text-center font-mono text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-0 u-interactive',
                         selectedCountry === opt.value
                           ? 'bg-term-raised text-term-text'
                           : 'text-term-muted hover:bg-term-hover hover:text-term-text'
