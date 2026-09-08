@@ -483,18 +483,26 @@ test.describe('@mobile-blf616 店铺测算站点选择器（BLF-994）', () => {
     const selector = page.getByRole('group', { name: '选择站点' })
     await expect(selector).toBeVisible({ timeout: 30000 })
 
-    const bounds = await selector.evaluate((element) => {
-      const container = element.getBoundingClientRect()
-      const buttons = Array.from(element.querySelectorAll('button')).map((button) => {
-        const rect = button.getBoundingClientRect()
-        return { top: rect.top, bottom: rect.bottom }
-      })
-      return { container: { top: container.top, bottom: container.bottom }, buttons }
-    })
+    const buttons = selector.locator('button')
+    const count = await buttons.count()
+    expect(count).toBe(3)
 
-    for (const button of bounds.buttons) {
-      expect(button.top, '站点按钮顶部不应超出选择器').toBeGreaterThanOrEqual(bounds.container.top)
-      expect(button.bottom, '站点按钮底部不应超出选择器').toBeLessThanOrEqual(bounds.container.bottom)
+    for (let index = 0; index < count; index++) {
+      const button = buttons.nth(index)
+      await button.hover()
+
+      const bounds = await selector.evaluate((element) => {
+        const container = element.getBoundingClientRect()
+        const activeButton = document.querySelector('[aria-label="选择站点"] button:hover')
+        if (!(activeButton instanceof HTMLElement)) {
+          throw new Error('站点按钮 hover 状态未生效')
+        }
+        const rect = activeButton.getBoundingClientRect()
+        return { container: { top: container.top, bottom: container.bottom }, button: { top: rect.top, bottom: rect.bottom } }
+      })
+
+      expect(bounds.button.top, 'hover 后站点按钮顶部不应超出选择器').toBeGreaterThanOrEqual(bounds.container.top)
+      expect(bounds.button.bottom, 'hover 后站点按钮底部不应超出选择器').toBeLessThanOrEqual(bounds.container.bottom)
     }
   })
 })
