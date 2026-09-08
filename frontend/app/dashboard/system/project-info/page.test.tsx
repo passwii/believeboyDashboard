@@ -2,20 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const { SESSION_DATA, NOTIFY, SUSPEND_SEARCH_PARAMS } = vi.hoisted(() => ({
+const { SESSION_DATA, NOTIFY } = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
   NOTIFY: { notify: vi.fn() },
-  SUSPEND_SEARCH_PARAMS: { value: false },
 }))
 
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => {
-    if (SUSPEND_SEARCH_PARAMS.value) {
-      const { promise } = Promise.withResolvers<never>()
-      throw promise
-    }
-    return { get: () => null }
-  },
+  useSearchParams: () => ({ get: () => null }),
 }))
 
 vi.mock('next-auth/react', () => ({
@@ -55,14 +48,7 @@ vi.mock('@/components/dashboard/project-context/project-context-drawer', () => (
 import ProjectInfoPage from './page'
 
 afterEach(() => {
-  SUSPEND_SEARCH_PARAMS.value = false
   vi.restoreAllMocks()
-})
-
-it('search params 尚未准备好时仍显示页面加载占位', () => {
-  SUSPEND_SEARCH_PARAMS.value = true
-  render(<ProjectInfoPage />)
-  expect(screen.getByText('正在加载项目信息...')).toBeInTheDocument()
 })
 
 describe('StoreInfoPage 站点列/下拉', () => {
@@ -115,5 +101,87 @@ describe('StoreInfoPage 站点列/下拉', () => {
     await userEvent.click(editBtns[0])
     // 弹窗中站点应回显 US（美国站 (US)）
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+  })
+
+  it('编辑弹窗加载并显示当前站点的 Shop ID', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/projects/1/shops')) {
+        return new Response(JSON.stringify([{ id: 101, country: 'US', shop_id: 'shop-us-current' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    expect(await screen.findByLabelText('美国站 Shop ID')).toHaveValue('shop-us-current')
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/api/v1/projects/1/shops')
+  })
+
+  it('保存编辑项目时写入当前站点的 Shop ID', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/1/shops') {
+        return new Response(JSON.stringify([{ id: 101, country: 'US', shop_id: 'shop-us-current' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url === '/api/backend/api/v1/projects/1/shops/US' && init?.method === 'PUT') {
+        return new Response(JSON.stringify({ id: 101, country: 'US', shop_id: 'shop-us-updated' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (init?.method === 'PATCH') return new Response('{}', { status: 200 })
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    const shopInput = await screen.findByLabelText('美国站 Shop ID')
+    await userEvent.clear(shopInput)
+    await userEvent.type(shopInput, 'shop-us-updated')
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/api/v1/projects/1/shops/US',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ shop_id: 'shop-us-updated' }),
+      })
+    )
+  })
+
+  it('编辑 DE 项目保存时保留 DE country', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/2/shops') {
+        return new Response(JSON.stringify([]), { status: 200 })
+      }
+      if (url === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH') {
+        return new Response('{}', { status: 200 })
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺乙/ }))[0])
+    expect(screen.getByText('德国站 (DE)')).toBeInTheDocument()
+    await screen.findByLabelText('德国站 Shop ID')
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+    const patchCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input) === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH'
+    )
+    expect(patchCall?.[1]).toEqual(
+      expect.objectContaining({
+        body: expect.stringContaining('"country":"DE"'),
+      })
+    )
   })
 })
