@@ -78,6 +78,10 @@ class Project(Base):
         onupdate=func.now(),
     )
 
+    shops: Mapped[list["ProjectShop"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan", passive_deletes=True
+    )
+
     sku_records: Mapped[list["SkuRecord"]] = relationship(back_populates="project")
     platform_revenues: Mapped[list["PlatformRevenue"]] = relationship(
         back_populates="project"

@@ -34,3 +34,22 @@ class TestProjectExists:
     def test_missing_project(self, db_session):
         db_session.get.return_value = None
         assert projects_query.project_exists(db_session, 999) is False
+
+
+class TestListProjectShops:
+    def test_empty_project_ids_returns_empty_without_query(self, db_session):
+        assert projects_query.list_project_shops(db_session, []) == {}
+        db_session.execute.assert_not_called()
+
+    def test_groups_rows_by_project(self, db_session):
+        first = MagicMock(project_id=2, country="DE")
+        second = MagicMock(project_id=1, country="US")
+        db_session.execute.return_value.scalars.return_value.all.return_value = [
+            first,
+            second,
+        ]
+
+        assert projects_query.list_project_shops(db_session, [1, 2]) == {
+            2: [first],
+            1: [second],
+        }
