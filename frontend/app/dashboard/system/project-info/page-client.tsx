@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   ChevronDown,
@@ -82,6 +82,7 @@ type ProjectItem = {
   country_name: string | null
 }
 
+
 type CommissionBasisOption = {
   label: string
   value: string
@@ -113,6 +114,18 @@ const PROJECT_COUNTRY_OPTIONS = ['US', 'DE', 'UK'].map((code) => ({
   value: code,
   label: `${getCountryLabel(code)} (${code})`,
 }))
+
+type ProjectShop = {
+  id: number
+  country: string
+  shop_id: string
+}
+
+const SHOP_COUNTRY_OPTIONS = PROJECT_COUNTRY_OPTIONS
+
+function emptyShopIds(): Record<string, string> {
+  return Object.fromEntries(SHOP_COUNTRY_OPTIONS.map(({ value }) => [value, '']))
+}
 
 const TIER_BADGE_CLASS: Record<string, string> = {
   T1: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
@@ -267,6 +280,7 @@ function toCommissionPoints(rate: number | null): number | null {
 }
 
 export default function StoreInfoPage() {
+  const shopLoadRequestRef = useRef(0)
   const { notify } = useNotifications()
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
@@ -299,6 +313,10 @@ export default function StoreInfoPage() {
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
   const [editProjectTier, setEditProjectTier] = useState('')
+  const [editShopIds, setEditShopIds] = useState<Record<string, string>>(emptyShopIds)
+  const [shopLoadError, setShopLoadError] = useState<string | null>(null)
+  const [loadingShopIds, setLoadingShopIds] = useState(false)
+  const [editOriginalShopIds, setEditOriginalShopIds] = useState<Record<string, string>>(emptyShopIds)
   const [editCountry, setEditCountry] = useState('US')
 
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false)
@@ -468,9 +486,60 @@ export default function StoreInfoPage() {
     setEditCommissionRate(points?.toString() ?? '')
     setEditIsActive(item.is_active)
     setEditProjectTier(item.project_tier ?? '')
-    setEditCountry(item.country ?? 'US')
+    setEditShopIds(emptyShopIds())
+    setEditOriginalShopIds(emptyShopIds())
+    setShopLoadError(null)
     setEditDialogOpen(true)
+    const requestId = ++shopLoadRequestRef.current
+    setLoadingShopIds(true)
+    void fetch(`${API_BASE}/api/v1/projects/${item.id}/shops`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await parseError(response))
+        return (await response.json()) as ProjectShop[]
+      })
+      .then((shops) => {
+        if (requestId !== shopLoadRequestRef.current) return
+        const values = emptyShopIds()
+        for (const shop of shops) values[shop.country] = shop.shop_id
+        setEditShopIds(values)
+        setEditOriginalShopIds(values)
+      })
+      .catch((error) => {
+        if (requestId !== shopLoadRequestRef.current) return
+        const message = error instanceof Error ? error.message : '加载失败'
+        setShopLoadError(message)
+        notify({ type: 'error', title: '加载 Shop ID 失败', message })
+      })
+      .finally(() => {
+        if (requestId === shopLoadRequestRef.current) setLoadingShopIds(false)
+      })
   }
+
+  const saveShopIds = async (
+    projectId: number,
+    shopIds: Record<string, string>,
+    originalShopIds: Record<string, string>
+  ) => {
+    for (const { value: country } of SHOP_COUNTRY_OPTIONS) {
+      const shopId = shopIds[country].trim()
+      const originalShopId = originalShopIds[country].trim()
+      if (shopId === originalShopId) continue
+      const url = `${API_BASE}/api/v1/projects/${projectId}/shops/${country}`
+      if (!shopId && originalShopId) {
+        const response = await fetch(url, { method: 'DELETE', headers: authHeaders() })
+        if (!response.ok) throw new Error(await parseError(response))
+        continue
+      }
+      if (!shopId) continue
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop_id: shopId }),
+      })
+      if (!response.ok) throw new Error(await parseError(response))
+    }
+  }
+
 
   const onEditSingle = async () => {
     if (!editingItem) {
@@ -482,11 +551,18 @@ export default function StoreInfoPage() {
       notify({ type: 'error', title: '项目名称不能为空' })
       return
     }
+    if (shopLoadError) {
+      notify({ type: 'error', title: '无法保存项目', message: 'Shop ID 加载失败，请重试后再保存' })
+      return
+    }
 
+    const projectId = editingItem.id
+    const shopIds = { ...editShopIds }
+    const originalShopIds = { ...editOriginalShopIds }
     setSubmitting(true)
     startGlobalLoading('blocking')
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects/${editingItem.id}`, {
+      const response = await fetch(`${API_BASE}/api/v1/projects/${projectId}`, {
         method: 'PATCH',
         headers: {
           ...authHeaders(),
@@ -509,11 +585,11 @@ export default function StoreInfoPage() {
           country: editCountry,
         }),
       })
-      if (!response.ok) {
-        throw new Error(await parseError(response))
-      }
+      if (!response.ok) throw new Error(await parseError(response))
+      await saveShopIds(projectId, shopIds, originalShopIds)
       setEditDialogOpen(false)
       setEditingItem(null)
+      setEditName('')
       setEditBrandName('')
       setEditStoreAddress('')
       setEditProjectOperators([])
@@ -521,6 +597,8 @@ export default function StoreInfoPage() {
       setEditCommissionMode('')
       setEditCommissionRate('')
       setEditProjectTier('')
+      setEditShopIds(emptyShopIds())
+      setEditOriginalShopIds(emptyShopIds())
       setEditCountry('US')
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已更新', message: normalizedName })
@@ -1164,6 +1242,34 @@ export default function StoreInfoPage() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="mt-2 grid gap-2 border-t border-term-border pt-3">
+              <div className="text-sm font-medium text-foreground">店铺映射</div>
+              <p className="text-xs text-muted-foreground">
+                每个站点对应一个 Shop ID；清空已有值将删除该站点映射。
+              </p>
+              {SHOP_COUNTRY_OPTIONS.map((option) => (
+                <div key={`shop-id-edit-${option.value}`} className="grid gap-1">
+                  <label
+                    htmlFor={`project-edit-shop-id-${option.value}`}
+                    className="text-sm font-medium text-foreground"
+                  >
+                    {getCountryLabel(option.value)} Shop ID
+                  </label>
+                  <Input
+                    id={`project-edit-shop-id-${option.value}`}
+                    value={editShopIds[option.value] ?? ''}
+                    onChange={(event) =>
+                      setEditShopIds((current) => ({ ...current, [option.value]: event.target.value }))
+                    }
+                    placeholder={`输入 ${option.value} 站 Shop ID`}
+                    disabled={submitting || loadingShopIds}
+                    maxLength={64}
+                  />
+                </div>
+              ))}
+              {loadingShopIds ? <p className="text-xs text-muted-foreground">正在加载店铺映射...</p> : null}
+              {shopLoadError ? <p className="text-xs text-term-neg">{shopLoadError}</p> : null}
+            </div>
             <div className="flex items-center gap-3 pt-2">
               <Switch
                 id="project-edit-is-active"

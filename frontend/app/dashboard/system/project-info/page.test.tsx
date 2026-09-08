@@ -116,4 +116,58 @@ describe('StoreInfoPage 站点列/下拉', () => {
     // 弹窗中站点应回显 US（美国站 (US)）
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
   })
-})
+
+  it('编辑弹窗加载并显示当前站点的 Shop ID', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/projects/1/shops')) {
+        return new Response(JSON.stringify([{ id: 101, country: 'US', shop_id: 'shop-us-current' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    expect(await screen.findByLabelText('美国站 Shop ID')).toHaveValue('shop-us-current')
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/api/v1/projects/1/shops')
+  })
+
+  it('保存编辑项目时写入当前站点的 Shop ID', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/1/shops') {
+        return new Response(JSON.stringify([{ id: 101, country: 'US', shop_id: 'shop-us-current' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url === '/api/backend/api/v1/projects/1/shops/US' && init?.method === 'PUT') {
+        return new Response(JSON.stringify({ id: 101, country: 'US', shop_id: 'shop-us-updated' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (init?.method === 'PATCH') return new Response('{}', { status: 200 })
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    const shopInput = await screen.findByLabelText('美国站 Shop ID')
+    await userEvent.clear(shopInput)
+    await userEvent.type(shopInput, 'shop-us-updated')
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/api/v1/projects/1/shops/US',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ shop_id: 'shop-us-updated' }),
+      })
+    )
+  })
+ })
