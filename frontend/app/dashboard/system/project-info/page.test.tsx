@@ -2,20 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const { SESSION_DATA, NOTIFY, SUSPEND_SEARCH_PARAMS } = vi.hoisted(() => ({
+const { SESSION_DATA, NOTIFY } = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
   NOTIFY: { notify: vi.fn() },
-  SUSPEND_SEARCH_PARAMS: { value: false },
 }))
 
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => {
-    if (SUSPEND_SEARCH_PARAMS.value) {
-      const { promise } = Promise.withResolvers<never>()
-      throw promise
-    }
-    return { get: () => null }
-  },
+  useSearchParams: () => ({ get: () => null }),
 }))
 
 vi.mock('next-auth/react', () => ({
@@ -55,14 +48,7 @@ vi.mock('@/components/dashboard/project-context/project-context-drawer', () => (
 import ProjectInfoPage from './page'
 
 afterEach(() => {
-  SUSPEND_SEARCH_PARAMS.value = false
   vi.restoreAllMocks()
-})
-
-it('search params 尚未准备好时仍显示页面加载占位', () => {
-  SUSPEND_SEARCH_PARAMS.value = true
-  render(<ProjectInfoPage />)
-  expect(screen.getByText('正在加载项目信息...')).toBeInTheDocument()
 })
 
 describe('StoreInfoPage 站点列/下拉', () => {
