@@ -88,6 +88,24 @@ class ProjectUpdate(BaseModel):
         return _validate_country(v)
 
 
+class ProjectShopItem(BaseModel):
+    id: int
+    country: str
+    shop_id: str
+
+
+class ProjectShopUpsert(BaseModel):
+    shop_id: str = Field(min_length=1, max_length=64)
+
+    @field_validator("shop_id")
+    @classmethod
+    def _validate_shop_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("shop_id must not be blank")
+        return normalized
+
+
 class ProjectContextResponse(BaseModel):
     """API response for project context endpoints."""
 

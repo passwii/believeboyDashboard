@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models import SkuRecord, Project
+from app.models import ProjectShop, SkuRecord, Project
 from app.services.infra import (
     cache_delete,
     cache_delete_pattern,
@@ -381,6 +381,53 @@ def list_project_items(
 
     cache_set(cache_key, [_serialize_project_for_cache(r) for r in result])
     return result
+
+
+def list_project_shops(db: Session, project_id: int) -> list[ProjectShop]:
+    """List one mapping per country for a project."""
+    return list(
+        db.execute(
+            select(ProjectShop)
+            .where(ProjectShop.project_id == project_id)
+            .order_by(ProjectShop.country.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def upsert_project_shop(
+    db: Session, project_id: int, country: str, shop_id: str
+) -> ProjectShop:
+    """Create or replace a project's mapping for one canonical country."""
+    row = db.execute(
+        select(ProjectShop).where(
+            ProjectShop.project_id == project_id,
+            ProjectShop.country == country,
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        row = ProjectShop(project_id=project_id, country=country, shop_id=shop_id)
+        db.add(row)
+    else:
+        row.shop_id = shop_id
+    db.flush()
+    return row
+
+
+def delete_project_shop(db: Session, project_id: int, country: str) -> bool:
+    """Delete a project's mapping for one country; missing is idempotent."""
+    row = db.execute(
+        select(ProjectShop).where(
+            ProjectShop.project_id == project_id,
+            ProjectShop.country == country,
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return False
+    db.delete(row)
+    db.flush()
+    return True
 
 
 def list_accessible_project_ids(
