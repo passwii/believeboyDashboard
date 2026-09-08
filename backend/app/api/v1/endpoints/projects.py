@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -14,6 +15,8 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectItem,
     ProjectOption,
+    ProjectShopItem,
+    ProjectShopUpsert,
     ProjectUpdate,
     ParseContextRequest,
     ParseContextResponse,
@@ -221,6 +224,114 @@ def update_project(
     )
     db.commit()
     return ProjectItem(**after)
+
+
+def _project_shop_payload(row) -> dict[str, object]:
+    return {"id": row.id, "country": row.country, "shop_id": row.shop_id}
+
+
+@router.get("/projects/{project_id}/shops", response_model=list[ProjectShopItem])
+def list_project_shops_endpoint(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> list[ProjectShopItem]:
+    project_service.ensure_project_access(
+        db, project_id, operator=operator, is_admin=bool(is_admin)
+    )
+    rows = project_service.list_project_shops(db, project_id)
+    append_operation_view_log(
+        db,
+        action="projects.shops.list",
+        target_type="project_shop",
+        target_id=project_id,
+        operator=operator,
+        after={"count": len(rows)},
+        request=request,
+    )
+    db.commit()
+    return [ProjectShopItem(**_project_shop_payload(row)) for row in rows]
+
+
+@router.put(
+    "/projects/{project_id}/shops/{country}", response_model=ProjectShopItem
+)
+def upsert_project_shop_endpoint(
+    project_id: int,
+    country: str,
+    payload: ProjectShopUpsert,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> ProjectShopItem:
+    project_service.ensure_project_access(
+        db, project_id, operator=operator, is_admin=bool(is_admin)
+    )
+    canonical_country = project_service._normalize_country(country)
+    before = next(
+        (
+            _project_shop_payload(row)
+            for row in project_service.list_project_shops(db, project_id)
+            if row.country == canonical_country
+        ),
+        None,
+    )
+    try:
+        row = project_service.upsert_project_shop(
+            db, project_id, canonical_country, payload.shop_id
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409, detail="shop_id is already mapped to another project"
+        ) from None
+    after = _project_shop_payload(row)
+    append_operation_audit_log(
+        db,
+        action="projects.shops.upsert",
+        target_type="project_shop",
+        target_id=row.id,
+        operator=operator,
+        before=before,
+        after=after,
+        request=request,
+    )
+    db.commit()
+    return ProjectShopItem(**after)
+
+
+@router.delete("/projects/{project_id}/shops/{country}")
+def delete_project_shop_endpoint(
+    project_id: int,
+    country: str,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> dict[str, object]:
+    project_service.ensure_project_access(
+        db, project_id, operator=operator, is_admin=bool(is_admin)
+    )
+    canonical_country = project_service._normalize_country(country)
+    deleted = project_service.delete_project_shop(db, project_id, canonical_country)
+    append_operation_audit_log(
+        db,
+        action="projects.shops.delete",
+        target_type="project_shop",
+        target_id=project_id,
+        operator=operator,
+        after={"deleted": deleted, "project_id": project_id, "country": canonical_country},
+        request=request,
+    )
+    db.commit()
+    return {
+        "deleted": deleted,
+        "project_id": project_id,
+        "country": canonical_country,
+    }
 
 
 @router.post("/projects/{project_id}/move-{direction}", response_model=ProjectItem)

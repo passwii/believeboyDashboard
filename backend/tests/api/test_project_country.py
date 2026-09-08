@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-
+from sqlalchemy import delete
 from app.main import app
+from app.models.operation_audit_log import OperationAuditLog
 from app.models.project import Project
 from app.utils.country import get_country_label_cn
 
@@ -229,3 +230,119 @@ def test_project_country_roundtrip(client, db_session, admin_headers):
     assert len(match2) == 1
     assert match2[0]["country"] == "UK"
     assert match2[0]["country_name"] == "英国站"
+
+
+def test_project_shop_management_roundtrip(client, db_session, admin_headers):
+    """Manage project shop mapping through list/upsert/delete routes."""
+    project_id = _seed_project(
+        db_session, name=f"ShopMap-{__import__('uuid').uuid4().hex[:6]}"
+    )
+    try:
+        listed = client.get(
+            f"/api/v1/projects/{project_id}/shops", headers=admin_headers
+        )
+        assert listed.status_code == 200, listed.text
+        assert listed.json() == []
+
+        created = client.put(
+            f"/api/v1/projects/{project_id}/shops/US",
+            headers=admin_headers,
+            json={"shop_id": "shop-management-us"},
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["country"] == "US"
+        assert created.json()["shop_id"] == "shop-management-us"
+
+        updated = client.put(
+            f"/api/v1/projects/{project_id}/shops/GB",
+            headers=admin_headers,
+            json={"shop_id": "shop-management-uk"},
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["country"] == "UK"
+
+        listed = client.get(
+            f"/api/v1/projects/{project_id}/shops", headers=admin_headers
+        )
+        assert listed.json() == [
+            {"id": listed.json()[0]["id"], "country": "UK", "shop_id": "shop-management-uk"},
+            {"id": listed.json()[1]["id"], "country": "US", "shop_id": "shop-management-us"},
+        ]
+
+        deleted = client.delete(
+            f"/api/v1/projects/{project_id}/shops/UK", headers=admin_headers
+        )
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json() == {
+            "deleted": True,
+            "project_id": project_id,
+            "country": "UK",
+        }
+
+        deleted_again = client.delete(
+            f"/api/v1/projects/{project_id}/shops/UK", headers=admin_headers
+        )
+        assert deleted_again.status_code == 200, deleted_again.text
+        assert deleted_again.json()["deleted"] is False
+    finally:
+        db_session.execute(delete(Project).where(Project.id == project_id))
+        db_session.commit()
+
+
+def test_project_shop_management_validates_country_and_shop_id(
+    client, db_session, admin_headers
+):
+    project_id = _seed_project(
+        db_session, name=f"ShopMapValidation-{__import__('uuid').uuid4().hex[:6]}"
+    )
+    try:
+        invalid_country = client.put(
+            f"/api/v1/projects/{project_id}/shops/FR",
+            headers=admin_headers,
+            json={"shop_id": "shop-invalid-country"},
+        )
+        assert invalid_country.status_code == 422, invalid_country.text
+
+        blank_shop_id = client.put(
+            f"/api/v1/projects/{project_id}/shops/US",
+            headers=admin_headers,
+            json={"shop_id": "   "},
+        )
+        assert blank_shop_id.status_code == 422, blank_shop_id.text
+    finally:
+        db_session.execute(delete(Project).where(Project.id == project_id))
+        db_session.commit()
+
+
+def test_project_shop_management_rejects_duplicate_shop_id(
+    client, db_session, admin_headers
+):
+    first_id = _seed_project(
+        db_session, name=f"ShopMapConflictA-{__import__('uuid').uuid4().hex[:6]}"
+    )
+    second_id = _seed_project(
+        db_session, name=f"ShopMapConflictB-{__import__('uuid').uuid4().hex[:6]}"
+    )
+    try:
+        first = client.put(
+            f"/api/v1/projects/{first_id}/shops/US",
+            headers=admin_headers,
+            json={"shop_id": "shop-global-unique"},
+        )
+        assert first.status_code == 200, first.text
+
+        duplicate = client.put(
+            f"/api/v1/projects/{second_id}/shops/US",
+            headers=admin_headers,
+            json={"shop_id": "shop-global-unique"},
+        )
+        assert duplicate.status_code == 409, duplicate.text
+
+        actions = db_session.query(OperationAuditLog.action).filter(
+            OperationAuditLog.target_type == "project_shop",
+            OperationAuditLog.action == "projects.shops.upsert",
+        ).all()
+        assert actions
+    finally:
+        db_session.execute(delete(Project).where(Project.id.in_([first_id, second_id])))
+        db_session.commit()
