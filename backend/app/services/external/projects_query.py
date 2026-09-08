@@ -12,7 +12,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Project
+from app.models import Project, ProjectShop
 
 
 def list_projects(db: Session, *, status: str = 'active') -> list[Project]:
@@ -38,6 +38,28 @@ def list_projects(db: Session, *, status: str = 'active') -> list[Project]:
     # status == 'all' → no extra filter
 
     return list(db.execute(stmt).scalars().all())
+
+
+def list_project_shops(
+    db: Session, project_ids: list[int]
+) -> dict[int, list[ProjectShop]]:
+    """Return persisted shop mappings grouped by project ID.
+
+    The empty-input fast path avoids issuing a broad query when the caller's
+    project list is empty. Rows are ordered for deterministic API output.
+    """
+    if not project_ids:
+        return {}
+
+    stmt = (
+        select(ProjectShop)
+        .where(ProjectShop.project_id.in_(project_ids))
+        .order_by(ProjectShop.project_id.asc(), ProjectShop.country.asc())
+    )
+    grouped: dict[int, list[ProjectShop]] = {}
+    for shop in db.execute(stmt).scalars().all():
+        grouped.setdefault(shop.project_id, []).append(shop)
+    return grouped
 
 
 def project_exists(db: Session, project_id: int) -> bool:

@@ -76,6 +76,7 @@ from app.models.pricing_calculation_snapshot import (
     PricingCalculationSnapshotItem,
 )
 from app.models.shop_calculation import ShopCalculation
+from app.models.project_shop import ProjectShop
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.models.shipment_batch_dropdown_hidden import ShipmentBatchDropdownHidden
@@ -166,6 +167,7 @@ __all__ = [
     "PricingCalculationSnapshot",
     "PricingCalculationSnapshotItem",
     "ShopCalculation",
+    "ProjectShop",
     "ShipmentSchedule",
     "ShipmentScheduleItem",
     "ShipmentSkuSummary",

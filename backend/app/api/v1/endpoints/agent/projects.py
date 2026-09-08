@@ -34,7 +34,7 @@ from app.api.agent.scope import SCOPE_ALL, _parse_scope
 from app.api.deps import get_read_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
-from app.schemas.external.projects import ProjectItem
+from app.schemas.external.projects import AgentShopItem, ProjectItem
 from app.utils.country import get_country_label_cn
 from app.services.external import projects_query
 
@@ -103,6 +103,8 @@ def get_agent_projects(
             allowed = _parse_scope(scope)
             projects = [p for p in projects if p.id in allowed]
 
+    shops_by_project = projects_query.list_project_shops(db, [p.id for p in projects])
+
     return agent_ok(
         [
             _to_json(
@@ -111,6 +113,15 @@ def get_agent_projects(
                     project_name=p.project_name,
                     country=p.country,
                     country_name=get_country_label_cn(p.country),
+                    is_active=bool(p.is_active),
+                    shops=[
+                        AgentShopItem(
+                            shop_id=shop.shop_id,
+                            country=shop.country,
+                            site=get_country_label_cn(shop.country),
+                        )
+                        for shop in shops_by_project.get(p.id, [])
+                    ],
                 )
             )
             for p in projects

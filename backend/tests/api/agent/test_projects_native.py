@@ -1,13 +1,6 @@
-"""Agent 项目列表原生路由测试（BLF-582 原生化：非 ad 域之一）。
+"""Agent 项目列表原生路由测试（BLF-990 / BLF-582）。
 
-覆盖（对齐 BLF-580 test_ad_campaigns.py 模板）：
-1. parity：agent 通道 data == ``projects_query.list_projects`` 直调
-   （``ProjectItem{project_id, project_name, country, country_name}`` 形状，``?status=`` 过滤）。
-2. 鉴权/壳：401 未鉴权；``?name=`` 精确过滤（BLF-461 语义）；
-   project_scope 白名单过滤。
-3. 路由面/镜像排除：/agent/projects 原生路由注册；external_mirror 无
-   projects 镜像路径；_EXCLUDED_EXTERNAL_PATHS 含 /external/projects；
-   external/projects.py 端点模块已删除。
+覆盖项目级 is_active、nested shop 映射、name/scope/auth 和路由排除。
 """
 
 from __future__ import annotations
@@ -16,17 +9,30 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from app.db.session import SessionLocal
 from app.main import app
-from app.models import Project
+from app.models import Project, ProjectShop
 
 
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
 
+
+def test_project_shop_model_exposes_project_country_and_shop_id():
+    shop = ProjectShop(project_id=1, country="US", shop_id="shop_test")
+    assert shop.project_id == 1
+    assert shop.country == "US"
+    assert shop.shop_id == "shop_test"
+
+
+def test_project_shop_model_has_unique_mapping_constraints():
+    constraints = {constraint.name for constraint in ProjectShop.__table__.constraints}
+    assert "uq_project_shops_project_country" in constraints
+    assert "uq_project_shops_shop_id" in constraints
+    assert "ck_project_shops_country" in constraints
+    assert "ck_project_shops_shop_id_nonempty" in constraints
 
 def _headers(key: dict, agent_id: str | None = None) -> dict:
     return {
@@ -77,14 +83,48 @@ def projects_env(make_api_key):
         db.close()
 
 
+def test_projects_list_returns_shop_ids_and_project_active_state(client, projects_env):
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                ProjectShop(
+                    project_id=projects_env["project_id"],
+                    country="DE",
+                    shop_id="shop-de-test",
+                ),
+                ProjectShop(
+                    project_id=projects_env["project_id"],
+                    country="US",
+                    shop_id="shop-us-test",
+                ),
+            ]
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get(
+        f"/api/v1/agent/projects?name={projects_env['project_name']}",
+        headers=projects_env["headers"],
+    )
+    assert resp.status_code == 200, resp.text
+    item = resp.json()["data"][0]
+    assert item["is_active"] is True
+    assert item["shops"] == [
+        {"shop_id": "shop-de-test", "country": "DE", "site": "德国站"},
+        {"shop_id": "shop-us-test", "country": "US", "site": "美国站"},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 1. parity —— agent 通道 == service 直调
 # ---------------------------------------------------------------------------
 
 
 def test_projects_list_parity(client, projects_env):
-    """agent 通道 data == projects_query.list_projects 直调的 ProjectItem 列表。"""
-    from app.schemas.external.projects import ProjectItem
+    """agent 通道 data == service 项目列表及其店铺映射。"""
+    from app.schemas.external.projects import AgentShopItem, ProjectItem
     from app.services.external import projects_query
     from app.utils.country import get_country_label_cn
 
@@ -97,27 +137,36 @@ def test_projects_list_parity(client, projects_env):
     db = SessionLocal()
     try:
         rows = projects_query.list_projects(db, status="active")
+        shops_by_project = projects_query.list_project_shops(
+            db, [project.id for project in rows]
+        )
         expected = [
             ProjectItem(
-                project_id=p.id,
-                project_name=p.project_name,
-                country=p.country,
-                country_name=get_country_label_cn(p.country),
+                project_id=project.id,
+                project_name=project.project_name,
+                country=project.country,
+                country_name=get_country_label_cn(project.country),
+                is_active=bool(project.is_active),
+                shops=[
+                    AgentShopItem(
+                        shop_id=shop.shop_id,
+                        country=shop.country,
+                        site=get_country_label_cn(shop.country),
+                    )
+                    for shop in shops_by_project.get(project.id, [])
+                ],
             ).model_dump(mode="json")
-            for p in rows
+            for project in rows
         ]
     finally:
         db.close()
 
     assert agent_data == expected, "agent 通道与 service 直调结果不一致"
-    assert any(p["project_id"] == projects_env["project_id"] for p in agent_data), (
-        "agent 通道应包含本次 fixture 创建的项目"
-    )
     fixture_item = next(
-        p for p in agent_data if p["project_id"] == projects_env["project_id"]
+        item for item in agent_data if item["project_id"] == projects_env["project_id"]
     )
-    assert fixture_item["country"] == "US"
-    assert fixture_item["country_name"] == "美国站"
+    assert fixture_item["is_active"] is True
+    assert fixture_item["shops"] == []
 
 
 def test_projects_list_name_filter(client, projects_env):
