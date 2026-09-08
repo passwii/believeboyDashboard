@@ -505,6 +505,21 @@ test.describe('@mobile-blf616 店铺测算站点选择器（BLF-994）', () => {
       expect(bounds.button.bottom, 'hover 后站点按钮底部不应超出选择器').toBeLessThanOrEqual(bounds.container.bottom)
     }
   })
+
+  test('工具栏去除重复标签但保留控件名称', async ({ page }) => {
+    await page.route('**/api/backend/api/v1/projects/manage**', (route) =>
+      route.fulfill({ json: PROJECTS })
+    )
+    await page.goto('/dashboard/reports/pricing-calculation/shop-calculation')
+
+    await expect(page.getByRole('combobox', { name: '选择项目' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '搜索 SKU' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '导出 Excel' })).toBeVisible()
+    const selector = page.getByRole('group', { name: '选择站点' })
+    await expect(selector).toBeVisible()
+
+    await expect(selector.locator('xpath=../..').locator('span.hidden.sm\\:block')).toHaveCount(0)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

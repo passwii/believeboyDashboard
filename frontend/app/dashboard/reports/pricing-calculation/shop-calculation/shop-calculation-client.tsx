@@ -644,14 +644,11 @@ export default function ShopCalculationPage() {
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                 {/* Module 1: 项目 */}
                 <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                    项目
-                  </span>
                   {projectsLoading ? (
                     <Skeleton className="h-8 w-full" />
                   ) : (
                     <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger aria-label="选择项目" className="h-8 text-xs">
                         <SelectValue placeholder="选择项目" />
                       </SelectTrigger>
                       <SelectContent>
@@ -667,12 +664,10 @@ export default function ShopCalculationPage() {
 
                 {/* Module 2: 搜索 SKU */}
                 <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                    搜索 SKU
-                  </span>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
+                      aria-label="搜索 SKU"
                       value={skuKeyword}
                       onChange={(e) => setSkuKeyword(e.target.value)}
                       placeholder="SKU / ASIN"
@@ -683,9 +678,6 @@ export default function ShopCalculationPage() {
 
                 {/* Module 3: 导出 Excel */}
                 <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                    导出 Excel
-                  </span>
                   <Button
                     variant="outline"
                     onClick={handleExport}
@@ -704,9 +696,6 @@ export default function ShopCalculationPage() {
 
               {/* Right: 站点 */}
               <div className="flex min-w-0 flex-col gap-2 sm:flex-shrink-0">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                  站点
-                </span>
                 <div
                   className="flex h-8 w-full items-stretch gap-0 rounded-none border border-term-border bg-term-panel p-0 sm:w-48"
                   role="group"
