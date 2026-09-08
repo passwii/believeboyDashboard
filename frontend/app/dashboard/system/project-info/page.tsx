@@ -283,6 +283,7 @@ export default function ProjectInfoPage() {
   const shopLoadRequestRef = useRef(0)
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
+  const { notify } = useNotifications()
   const searchParams = useSearchParams()
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
