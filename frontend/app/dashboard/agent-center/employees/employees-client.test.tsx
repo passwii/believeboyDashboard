@@ -55,6 +55,13 @@ beforeEach(() => {
 })
 
 describe('AgentEmployeesClient 员工花名册(P3)', () => {
+  it('页面标题由 TerminalHeader 承载,不渲染重复 PageHeader', () => {
+    render(<AgentEmployeesClient />)
+
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent 中心 · 员工')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '员工花名册' })).toBeInTheDocument()
+  })
   it('渲染员工行:label / agent_id / 能力域 / 状态', async () => {
     render(<AgentEmployeesClient />)
     expect(await screen.findByText('客服 1 号')).toBeInTheDocument()
