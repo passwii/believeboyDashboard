@@ -90,8 +90,8 @@ def _build_complaint_in(c: ComplaintIn, run_id: int) -> dict:
         'sla': sla_dump,
         'status': 'pending',
         'status_history': [],
-        'first_message_date': c.message_date,
-        'message_count': 1,
+        'first_message_date': c.first_message_date,
+        'message_count': c.message_count,
         'messages': [c.model_dump(mode='json')],
     }
 
