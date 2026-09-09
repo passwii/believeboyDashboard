@@ -80,6 +80,15 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
+import {
+  HeaderSlotInput,
+  HeaderSlotBadge,
+  TERM_HEADER_W_LG,
+  TERM_HEADER_W_MD,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 12
@@ -1707,6 +1716,48 @@ export default function PricingCalculationPage() {
   const deferredProductKeyword = useDeferredValue(productKeyword)
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [runPickerOpen, setRunPickerOpen] = useState(false)
+
+  // BLF-997 · 头部插槽：产品搜索 + 结果选择指示器
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls
+      isMobileView={false}
+      controls={
+        <>
+          <HeaderSlotInput
+            widthClass={TERM_HEADER_W_LG}
+            value={productKeyword}
+            onChange={(e) => setProductKeyword(e.target.value)}
+            placeholder="搜索产品"
+            title="产品搜索"
+          />
+          <HeaderSlotBadge title="已选测算结果">
+            {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
+          </HeaderSlotBadge>
+        </>
+      }
+    />
+  )
+
+  const mobileFilterSummary = `${productKeyword ? `搜索: ${productKeyword}` : '产品搜索'} · ${selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '未选择'}`
+  const mobileFilterStripPortal = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotInput
+            widthClass={TERM_HEADER_W_LG}
+            value={productKeyword}
+            onChange={(e) => setProductKeyword(e.target.value)}
+            placeholder="搜索产品"
+            title="产品搜索"
+          />
+          <HeaderSlotBadge title="已选测算结果">
+            {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
+          </HeaderSlotBadge>
+        </>
+      }
+    />
+  )
   const [loading, setLoading] = useState(false)
   const [runsLoading, setRunsLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -2352,6 +2403,8 @@ export default function PricingCalculationPage() {
   return (
     <div className="space-y-4">
       <>
+        {headerSlotPortal}
+        {mobileFilterStripPortal}
         <div className="grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]">
           <Card className="rounded-none border-term-border bg-term-panel shadow-none">
             <CardHeader className="pb-3">
@@ -2679,17 +2732,6 @@ export default function PricingCalculationPage() {
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex md:flex-row md:items-end md:gap-3">
                   <Field label="国家站点" className="md:min-w-[140px]">
                     <div className="flex h-9 items-center text-sm">美国站 (US)</div>
-                  </Field>
-                  <Field label="产品搜索" className="sm:col-span-2 md:min-w-0 md:flex-1">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={productKeyword}
-                        onChange={(event) => setProductKeyword(event.target.value)}
-                        placeholder="按产品名、创建人搜索"
-                        className="pl-9"
-                      />
-                    </div>
                   </Field>
                   <Field label="测算结果" className="md:min-w-0 md:flex-1">
                     <Popover open={runPickerOpen} onOpenChange={setRunPickerOpen}>

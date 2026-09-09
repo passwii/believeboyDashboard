@@ -1,18 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Coins, Loader2, PlusCircle, Save, TrendingUp, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { RefreshButton } from '@/components/dashboard/console'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { HeaderSlotSelect, TERM_HEADER_W_MD } from '@/components/terminal/header-filter-suite'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  MonthPicker,
-  formatMonthInputValue,
-  parseMonthInputValue,
-} from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import {
@@ -497,6 +495,60 @@ export default function OperatorManagementPage() {
     }
   }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo, notify, visitedTabs])
 
+  // —— BLF-997: head 插槽 + 全局刷新 ——
+  const refreshRef = useRef(refreshAll)
+  refreshRef.current = refreshAll
+  const isLoading = roleLoading || performanceLoading || commissionLoading
+  useHeaderRefresh(() => refreshRef.current(), { loading: isLoading })
+
+  const monthOptions = useMemo(() => {
+    const options: Array<{ value: string; label: string }> = []
+    const now = new Date()
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      options.push({ value: `${y}-${m}`, label: `${y}-${m}` })
+    }
+    return options
+  }, [])
+
+  const filterControls = (
+    <>
+      <HeaderSlotSelect
+        value={month}
+        onChange={(value) => setMonth(value)}
+        options={monthOptions}
+        widthClass={TERM_HEADER_W_MD}
+        placeholder="核算月份"
+      />
+    </>
+  )
+
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  const mobileFilterSummary = month
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <MobileFilterWide>
+            <HeaderSlotSelect
+              value={month}
+              onChange={(value) => setMonth(value)}
+              options={monthOptions}
+              widthClass={TERM_HEADER_W_MD}
+              placeholder="核算月份"
+            />
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
+
   // 首次 mount / 月份变化：只拉基础选项 + 当前激活的 role-info；
   // performance / commission 推迟到各自 tab 首次激活（见下方门控 effect）。
   useEffect(() => {
@@ -738,6 +790,9 @@ export default function OperatorManagementPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-4 md:h-[calc(100dvh-8rem)] md:overflow-y-auto lg:h-[calc(100dvh-9rem)]">
+      {/* BLF-997: head 插槽 + 移动端筛选条 */}
+      {headerSlotPortal}
+      {mobileFilterStrip}
       <div className="flex flex-col gap-4">
         <DataCard>
           <DataCardHeader
@@ -750,27 +805,6 @@ export default function OperatorManagementPage() {
               </Badge>
             }
             description="统一维护项目岗位、周度绩效和运营佣金分配。岗位按月份生效，佣金与绩效都围绕当前月份核算。"
-            action={
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="operator_management_month"
-                    className="text-xs text-muted-foreground"
-                  >
-                    核算月份
-                  </label>
-                  <MonthPicker
-                    value={parseMonthInputValue(month)}
-                    onChange={(date) => setMonth(formatMonthInputValue(date))}
-                    className="w-[190px]"
-                  />
-                </div>
-                <RefreshButton
-                  onClick={() => void refreshAll()}
-                  loading={roleLoading || performanceLoading || commissionLoading}
-                />
-              </div>
-            }
           />
         </DataCard>
 

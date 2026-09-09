@@ -30,6 +30,11 @@ vi.mock('@/lib/project-client-cache', () => ({
     fetchProjectOperatorOptionsCached(...args),
   clearProjectClientCaches: vi.fn(),
 }))
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: vi.fn(),
+  useHeaderSlot: () => null,
+  useMobileFilterStrip: () => null,
+}))
 
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {

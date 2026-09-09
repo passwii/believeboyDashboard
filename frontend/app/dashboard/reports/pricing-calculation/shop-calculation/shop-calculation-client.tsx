@@ -36,9 +36,19 @@ import type {
 } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 import { getCountryLabel } from '@/lib/country'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
-import { useNotifications } from '@/components/notifications'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
+import {
+  HeaderSlotSelect,
+  HeaderSlotInput,
+  TERM_HEADER_W_LG,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_MD,
+} from '@/components/terminal/header-filter-suite'
+import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 
 type StoreCountry = 'US' | 'DE' | 'UK'
 
@@ -251,7 +261,79 @@ export default function ShopCalculationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectName, selectedProjectId, selectedCountry, selectedSnapshotId])
 
+  // BLF-997 · 头部插槽：项目 / SKU 搜索 / 站点
+  const countryOptions = COUNTRY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls
+      isMobileView={false}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={selectedProjectName}
+            onChange={setSelectedProjectName}
+            options={projects.map((p) => ({ value: p.name, label: p.name }))}
+            placeholder="选择项目"
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+            disabled={projectsLoading}
+          />
+          <HeaderSlotInput
+            widthClass={TERM_HEADER_W_LG}
+            value={skuKeyword}
+            onChange={(e) => setSkuKeyword(e.target.value)}
+            placeholder="SKU / ASIN"
+            title="SKU 搜索"
+          />
+          <HeaderSlotSelect
+            value={selectedCountry}
+            onChange={(v) => setSelectedCountry(v as StoreCountry)}
+            options={countryOptions}
+            placeholder="选择站点"
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+        </>
+      }
+    />
+  )
+
+  const mobileFilterSummary = `${selectedProjectName || '选择项目'} · ${selectedCountry}${skuKeyword ? ` · SKU: ${skuKeyword}` : ''}`
+  const mobileFilterStripPortal = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      controls={
+        <>
+          <HeaderSlotSelect
+            value={selectedProjectName}
+            onChange={setSelectedProjectName}
+            options={projects.map((p) => ({ value: p.name, label: p.name }))}
+            placeholder="选择项目"
+            widthClass={TERM_HEADER_W_MD}
+            title="项目筛选"
+            disabled={projectsLoading}
+          />
+          <HeaderSlotInput
+            widthClass={TERM_HEADER_W_LG}
+            value={skuKeyword}
+            onChange={(e) => setSkuKeyword(e.target.value)}
+            placeholder="SKU / ASIN"
+            title="SKU 搜索"
+          />
+          <HeaderSlotSelect
+            value={selectedCountry}
+            onChange={(v) => setSelectedCountry(v as StoreCountry)}
+            options={countryOptions}
+            placeholder="选择站点"
+            widthClass={TERM_HEADER_W_SM}
+            title="站点筛选"
+          />
+        </>
+      }
+    />
+  )
+
   const isUS = selectedCountry === 'US'
+
   const hasCalculatedRows = isUS
     ? Object.values(usStoreRows).some((r) => r.result != null)
     : hasEuCalculatedRows
@@ -603,6 +685,8 @@ export default function ShopCalculationPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      {headerSlotPortal}
+      {mobileFilterStripPortal}
       {/* Card 1: 控制台 */}
       <div className="border border-term-border bg-term-panel p-3">
             {/* Top Row: Icon + Title + Snapshot Selector */}
@@ -642,44 +726,7 @@ export default function ShopCalculationPage() {
               {/* Left: 项目 + 搜索 SKU + 导出 Excel */}
               {/* 手机: 2列网格；平板+: 3列网格 */}
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-                {/* Module 1: 项目 */}
-                <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                    项目
-                  </span>
-                  {projectsLoading ? (
-                    <Skeleton className="h-8 w-full" />
-                  ) : (
-                    <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="选择项目" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.name} className="text-xs">
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
 
-                {/* Module 2: 搜索 SKU */}
-                <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                    搜索 SKU
-                  </span>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={skuKeyword}
-                      onChange={(e) => setSkuKeyword(e.target.value)}
-                      placeholder="SKU / ASIN"
-                      className="h-8 pl-8 text-xs"
-                    />
-                  </div>
-                </div>
 
                 {/* Module 3: 导出 Excel */}
                 <div className="flex min-w-0 flex-col gap-2">
@@ -702,33 +749,6 @@ export default function ShopCalculationPage() {
                 </div>
               </div>
 
-              {/* Right: 站点 */}
-              <div className="flex min-w-0 flex-col gap-2 sm:flex-shrink-0">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
-                  站点
-                </span>
-                <div
-                  className="flex h-8 w-full items-stretch gap-0 rounded-none border border-term-border bg-term-panel p-0 sm:w-48"
-                  role="group"
-                  aria-label="选择站点"
-                >
-                  {COUNTRY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSelectedCountry(opt.value)}
-                      className={cn(
-                        'flex h-full min-h-0 min-w-0 flex-1 items-center justify-center rounded-none px-3 text-center font-mono text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-0',
-                        selectedCountry === opt.value
-                          ? 'bg-term-raised text-term-text'
-                          : 'text-term-muted hover:bg-term-hover hover:text-term-text'
-                      )}
-                      aria-pressed={selectedCountry === opt.value}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
       </div>
 

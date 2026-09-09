@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   HeaderCountrySelect,
   HeaderProjectSelect,
+  HeaderSlotInput,
+  HeaderSlotButton,
+  HeaderSlotBadge,
   TERM_HEADER_TRIGGER,
   TERM_HEADER_W_MD,
   TERM_HEADER_W_SM,
@@ -150,5 +153,50 @@ describe('header-filter-suite', () => {
     expect(screen.queryByText('项目')).not.toBeInTheDocument()
     expect(screen.queryByText('站点')).not.toBeInTheDocument()
     expect(screen.queryByText('日期')).not.toBeInTheDocument()
+  })
+
+  it('HeaderSlotInput：渲染 <input> 并包含 h-10 与 widthClass，透传 placeholder、disabled、type', () => {
+    render(
+      <HeaderSlotInput
+        widthClass={TERM_HEADER_W_MD}
+        placeholder="搜索"
+        disabled
+        type="text"
+      />
+    )
+    const input = screen.getByRole('textbox')
+    expect(input).toHaveClass('h-10')
+    expect(input).toHaveClass(TERM_HEADER_W_MD)
+    expect(input).toHaveAttribute('placeholder', '搜索')
+    expect(input).toBeDisabled()
+    expect(input).toHaveAttribute('type', 'text')
+  })
+
+  it('HeaderSlotButton：primary 与 muted 变体均包含 h-10 和 rounded-none；disabled 状态透传', () => {
+    const { rerender } = render(<HeaderSlotButton variant="primary">确认</HeaderSlotButton>)
+    const btn = screen.getByRole('button', { name: '确认' })
+    expect(btn).toHaveClass('h-10')
+    expect(btn).toHaveClass('rounded-none')
+
+    rerender(<HeaderSlotButton variant="muted">取消</HeaderSlotButton>)
+    const btn2 = screen.getByRole('button', { name: '取消' })
+    expect(btn2).toHaveClass('h-10')
+    expect(btn2).toHaveClass('rounded-none')
+
+    rerender(<HeaderSlotButton disabled>禁用</HeaderSlotButton>)
+    expect(screen.getByRole('button', { name: '禁用' })).toBeDisabled()
+  })
+
+  it('HeaderSlotBadge：渲染为 h-10 边界容器，包含 term 文本类，支持 children 与 title', () => {
+    render(
+      <HeaderSlotBadge title="计数">
+        <span>42</span>
+      </HeaderSlotBadge>
+    )
+    const badge = screen.getByText('42').parentElement
+    expect(badge).toHaveClass('h-10')
+    expect(badge).toHaveClass('rounded-none')
+    expect(badge).toHaveClass('font-mono')
+    expect(badge).toHaveAttribute('title', '计数')
   })
 })

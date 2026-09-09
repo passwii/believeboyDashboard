@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { HeaderSlotButton, TERM_HEADER_W_SM } from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
@@ -466,20 +467,26 @@ export default function CommissionManagementPage() {
     }
   }
 
+  const resetFilters = () => {
+    setMonth(lastMonthString())
+    setSummaryYear(getCurrentYear())
+    setCountryFilter('all')
+  }
+
   const filterControls = (
     <>
       {activeTab === 'detail' ? (
         <MonthPicker
           value={parseMonthInputValue(month)}
           onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
-          className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[150px]"
+          className={cn('h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none', TERM_HEADER_W_SM)}
         />
       ) : (
         <Select
           value={summaryYear}
           onValueChange={(value) => setSummaryYear(value)}
         >
-          <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+          <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
             <SelectValue placeholder="年份" />
           </SelectTrigger>
           <SelectContent>
@@ -496,7 +503,7 @@ export default function CommissionManagementPage() {
         value={countryFilter}
         onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
           <SelectValue placeholder="站点" />
         </SelectTrigger>
         <SelectContent>
@@ -510,21 +517,17 @@ export default function CommissionManagementPage() {
       </Select>
 
       {activeTab === 'detail' ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => void handleRecompute()}
-          disabled={recomputing || loading}
-          className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-        >
-          {recomputing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
-          )}
-          核算
-        </Button>
+        <>
+          <HeaderSlotButton variant="muted" onClick={resetFilters}>重置</HeaderSlotButton>
+          <HeaderSlotButton variant="primary" onClick={() => void handleRecompute()} disabled={recomputing || loading}>
+            {recomputing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
+            )}
+            核算
+          </HeaderSlotButton>
+        </>
       ) : null}
 
       {/* 本月/年度统计：head 内 mono 元信息（不占页面纵向空间） */}

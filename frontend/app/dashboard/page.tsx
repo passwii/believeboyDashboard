@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { HeaderSlotSelect, HeaderSlotBadge, TERM_HEADER_W_MD } from '@/components/terminal/header-filter-suite'
 import {
   MobileFilterStrip,
   MobileFilterWide,
@@ -25,13 +26,6 @@ import { V2OrderFlowPanel } from '@/components/dashboard-v2/v2-order-flow-panel'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
@@ -384,37 +378,26 @@ export default function DashboardV2Page() {
 
   // 项目选择（桌面 / 移动端共用同一受控状态，联动一致）
   const projectSelect = (
-    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 md:w-[180px] [&>span]:truncate">
-        <SelectValue placeholder="选择项目" />
-      </SelectTrigger>
-      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-        <SelectItem value={ALL_PROJECTS} className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
-          全部项目
-        </SelectItem>
-        {projects.map((p) => (
-          <SelectItem
-            key={p.id}
-            value={String(p.id)}
-            className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-          >
-            {p.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <HeaderSlotSelect
+      value={selectedProjectId}
+      options={[
+        { value: ALL_PROJECTS, label: '全部项目' },
+        ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+      ]}
+      onChange={setSelectedProjectId}
+      widthClass={TERM_HEADER_W_MD}
+      placeholder="选择项目"
+    />
   )
 
   // 数据区间徽标：固定 7 天窗口，标注口径，非筛选控件
   const dateRangeBadge = (className = '') => (
-    <div
-      className={`flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2 ${className}`}
-    >
+    <HeaderSlotBadge className={className} title="数据区间">
       <span className="font-mono text-xs uppercase tracking-wider text-term-faint">数据区间</span>
       <span className="truncate font-mono text-xs tabular-nums text-term-text">
         {formatYMD(dateRange.from)} → {formatYMD(dateRange.to)}
       </span>
-    </div>
+    </HeaderSlotBadge>
   )
 
   // 筛选控件 + 数据区间徽标 portal 进 Top Header 中段插槽（桌面端）；

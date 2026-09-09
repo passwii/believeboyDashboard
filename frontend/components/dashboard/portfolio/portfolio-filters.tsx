@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, ChevronsUpDown, Loader2, Search } from 'lucide-react'
+import { Check, ChevronsUpDown, Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -17,10 +17,8 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CountrySelect } from '@/components/dashboard/console'
-import { RefreshButton } from '@/components/dashboard/console'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import type { DateRange } from 'react-day-picker'
-import { useRouter } from 'next/navigation'
 
 interface PortfolioFiltersProps {
   projectIds: number[]
@@ -31,7 +29,6 @@ interface PortfolioFiltersProps {
   onStartDateChange: (date: string) => void
   endDate: string
   onEndDateChange: (date: string) => void
-  onRefresh: () => void
   loading: boolean
 }
 
@@ -46,7 +43,6 @@ export function PortfolioFilters({
   onStartDateChange,
   endDate,
   onEndDateChange,
-  onRefresh,
   loading,
 }: PortfolioFiltersProps) {
   const { data: session } = useSession()
@@ -180,11 +176,6 @@ export function PortfolioFilters({
         placeholder="日期范围"
       />
 
-      <RefreshButton
-        onClick={onRefresh}
-        loading={loading}
-        className="col-span-1 w-full md:col-span-1 md:w-auto"
-      />
     </div>
   )
 }

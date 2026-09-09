@@ -37,6 +37,7 @@ import {
   TermTable,
 } from '@/components/terminal/term-table'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { HeaderSlotButton, TERM_HEADER_W_SM, TERM_HEADER_W_MD } from '@/components/terminal/header-filter-suite'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
@@ -827,7 +828,7 @@ export default function PlatformRevenuePage() {
           handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[160px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_MD)}>
           <SelectValue placeholder="全部项目" />
         </SelectTrigger>
         <SelectContent>
@@ -846,7 +847,7 @@ export default function PlatformRevenuePage() {
           handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[110px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
           <SelectValue placeholder="全部年份" />
         </SelectTrigger>
         <SelectContent>
@@ -865,7 +866,7 @@ export default function PlatformRevenuePage() {
           handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[100px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_MD)}>
           <SelectValue placeholder="全部月份" />
         </SelectTrigger>
         <SelectContent>
@@ -884,7 +885,7 @@ export default function PlatformRevenuePage() {
           handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
           <SelectValue placeholder="全部币种" />
         </SelectTrigger>
         <SelectContent>
@@ -903,7 +904,7 @@ export default function PlatformRevenuePage() {
           handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
         }
       >
-        <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none md:w-[120px]">
+        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
           <SelectValue placeholder="全部类型" />
         </SelectTrigger>
         <SelectContent>
@@ -912,15 +913,7 @@ export default function PlatformRevenuePage() {
           <SelectItem value="B2B回款">B2B回款</SelectItem>
         </SelectContent>
       </Select>
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={resetFilters}
-        className="h-7 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-      >
-        重置
-      </Button>
+      <HeaderSlotButton variant="muted" onClick={resetFilters}>重置</HeaderSlotButton>
     </>
   )
 

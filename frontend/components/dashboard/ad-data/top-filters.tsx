@@ -12,18 +12,18 @@ import {
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  HeaderSlotDateRange,
+  HeaderSlotSelect,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_SM,
+} from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useIsMobile } from '@/hooks/use-mobile'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -39,25 +39,22 @@ const COUNTRY_OPTIONS = [
 ] as const
 
 function buildHref(pathname: string, searchParams: URLSearchParams) {
-  const query = searchParams.toString()
-  return query ? `${pathname}?${query}` : pathname
+  const qs = searchParams.toString()
+  return qs ? `${pathname}?${qs}` : pathname
 }
 
 /**
- * BLF-826 阶段 C：广告数据页全局筛选。
+ * BLF-887：广告数据页筛选上移 Top Header 中段插槽。
  *
- * 原「广告数据筛选区」Card（页面级标题胶囊 + Badge 摘要 + h-10 控件）已按 BLF-824/826
- * 范式上移 Top Header 中段插槽 —— 标题由 TerminalHeader 面包屑承载，Badge 摘要删除
- * （与控件信息重复），控件统一 h-8 终端规格。URL param 契约不变：
- * projectId / country / dateFrom / dateTo，下游 AdDataExplorer 零改动消费。
- * BLF-887：控件上档 h-10（与 TERM_HEADER_TRIGGER 同高）。
+ * Desktop: `HeaderFilterControls isMobileView={false}` + `useHeaderSlot`.
+ * Mobile:  `useMobileFilterStrip` + `MobileFilterStrip`.
+ * 全局刷新为唯一入口，页面不额外放置 RefreshButton。
  */
 export function AdDataTopFilters() {
   const { data: session } = useSession()
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -122,43 +119,36 @@ export function AdDataTopFilters() {
   // 全局刷新语义：重放当前 URL 筛选下的拉取（router.replace 同 href 触发 explorer 重取）。
   useHeaderRefresh(() => router.refresh())
 
-  const controls = (
+  // Desktop controls using shared HeaderSlot atoms
+  const desktopControls = (
     <>
       {projectsLoading ? (
         <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
       ) : (
-        <Select value={projectId} onValueChange={(value) => updateSearchParam('projectId', value)}>
-          <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[150px]">
-            <SelectValue placeholder="请选择项目" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((item) => (
-              <SelectItem key={item.id} value={String(item.id)}>
-                {item.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <HeaderSlotSelect
+          value={projectId}
+          onChange={(value) => updateSearchParam('projectId', value)}
+          options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
+          placeholder="选择项目"
+          widthClass={TERM_HEADER_W_MD}
+          title="项目筛选"
+        />
       )}
 
-      <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
-        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[130px]">
-          <SelectValue placeholder="请选择国家站点" />
-        </SelectTrigger>
-        <SelectContent>
-          {COUNTRY_OPTIONS.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <HeaderSlotSelect
+        value={country}
+        onChange={(value) => updateSearchParam('country', value)}
+        options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+        placeholder="选择国家站点"
+        widthClass={TERM_HEADER_W_SM}
+        title="站点筛选"
+      />
 
-      <DateRangePicker
+      <HeaderSlotDateRange
         value={parseDateRangeInputValue(dateFrom, dateTo)}
         onChange={updateDateRange}
-        className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none md:w-[220px]"
         timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_SM}
       />
 
       {projectsError ? (
@@ -169,21 +159,55 @@ export function AdDataTopFilters() {
     </>
   )
 
-  return (
+  const desktopSlot = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={desktopControls} />
+  )
+
+  // Mobile filter strip
+  const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
+  const mobileControls = (
     <>
-      {/* BLF-826：筛选控件上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
-      <HeaderFilterControlsWrapper>{controls}</HeaderFilterControlsWrapper>
-      {/* explorer 经 useSearchParams 消费同一份 URL 参数；路由 replace 已触发其重取 */}
-      <HiddenRefreshBridge />
+      <HeaderSlotDateRange
+        value={parseDateRangeInputValue(dateFrom, dateTo)}
+        onChange={updateDateRange}
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_SM}
+      />
+      <MobileFilterWide>
+        {projectsLoading ? (
+          <Skeleton className="h-10 w-full rounded-none" />
+        ) : (
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={(value) => updateSearchParam('projectId', value)}
+            options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
+            placeholder="选择项目"
+            widthClass="w-full"
+          />
+        )}
+      </MobileFilterWide>
+      <MobileFilterWide>
+        <HeaderSlotSelect
+          value={country}
+          onChange={(value) => updateSearchParam('country', value)}
+          options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+          placeholder="站点"
+          widthClass="w-full"
+        />
+      </MobileFilterWide>
     </>
   )
-}
+  const mobileStrip = useMobileFilterStrip(
+    <MobileFilterStrip summary={mobileSummary} controls={mobileControls} />
+  )
 
-/** portal 渲染宿主（useHeaderSlot 必须在组件体内调用） */
-function HeaderFilterControlsWrapper({ children }: { children: React.ReactNode }) {
-  const isMobile = useIsMobile()
-  const portal = useHeaderSlot(<HeaderFilterControls isMobileView={isMobile} controls={children} />)
-  return <>{portal}</>
+  return (
+    <>
+      {desktopSlot}
+      {mobileStrip}
+      {/* explorer 经 useSearchParams 消费同一份 URL 参数；路由 replace 已触发其重取 */}
+    </>
+  )
 }
 
 /** 占位桥：保留组件树形状，未来刷新逻辑扩展点 */
