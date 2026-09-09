@@ -41,3 +41,25 @@ describe('BEL-417: report-upload/commit timeout tier', () => {
     expect(getProxyTimeoutMs('api/v1/report-upload/status', 'application/json')).toBe(5_000)
   })
 })
+
+/**
+ * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
+ * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳
+ * fallback 再也补不回来）。路由进 `stats` 档（15s），与页面 15s 客户端
+ * 超时对齐。此测试 guard 正则，防止 tier 表改动悄悄把它打回 5s 默认。
+ */
+describe('BLF-1019: order-info/filter-options timeout tier', () => {
+  it('matches the `stats` tier (15_000ms)', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', 'application/json')).toBe(15_000)
+  })
+
+  it('matches the `stats` tier when the path is prefixed with `/`', () => {
+    expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
+  })
+
+  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
+    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
+    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  })
+})

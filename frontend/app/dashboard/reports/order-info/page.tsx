@@ -254,6 +254,8 @@ function OrderInfoPageInner() {
   // 缓存的 fetchManagedProjectsCached，不再被 filter-options 阻塞。
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(false)
+  // BLF-1019：加载失败可重试（null + error 标记），不再用空壳永久锁死下拉。
+  const [filterOptionsError, setFilterOptionsError] = useState(false)
   const filterOptionsRequested = useRef(false)
   // 店铺自动选中是否已落定（manage 项目列表 resolve 后置 true，驱动首屏 fetch）
   const [projectAutoselectDone, setProjectAutoselectDone] = useState(false)
@@ -394,16 +396,23 @@ function OrderInfoPageInner() {
     return undefined
   }, [session])
 
-  // ====== 筛选项按需加载（首次打开筛选下拉触发，一次性） ======
-  // 8s 客户端超时护栏：collect_filter_options 在大表上 3 个 distinct 全表扫会拖到 3–6s，
-  // 这里给一个上限避免下拉无限转圈；同时超时/失败走 fallback 让下拉可用。
+  // ====== 筛选项按需加载（首次打开筛选下拉触发，失败可重试） ======
+  // BLF-1019：collect_filter_options 在大表上 3 个 distinct 全表扫会拖到 3–6s，
+  // 曾因 proxy 默认 5s 超时 + 一次性空壳 fallback 导致下拉永久空白。
+  // 现语义：成功才锁存；失败保持 null + error 标记，下次打开重试；
+  // session 未落定时不发注定 401 的请求，等下次打开。
+  // 客户端超时与 proxy stats 档（15s，见 backend-proxy-timeout-policy）对齐。
   const ensureFilterOptions = useCallback(() => {
-    if (filterOptionsRequested.current) return
+    if (filterOptionsRequested.current || filterOptions) return
+    // session 落定前不发请求：此时 X-Operator 缺失，后端必 401，
+    // 发了也只会烧掉一次机会（现可重试，但省一次无用请求）。
+    if (sessionStatus === 'loading') return
     filterOptionsRequested.current = true
     const ctrl = new AbortController()
-    const timeoutId = setTimeout(() => ctrl.abort(), 8000)
+    const timeoutId = setTimeout(() => ctrl.abort(), 15000)
     async function load() {
       setFilterOptionsLoading(true)
+      setFilterOptionsError(false)
       try {
         const res = await fetch('/api/backend/api/v1/order-info/filter-options', {
           cache: 'no-store',
@@ -414,22 +423,16 @@ function OrderInfoPageInner() {
         const data = (await res.json()) as FilterOptions
         setFilterOptions(data)
       } catch {
-        // 超时 / 失败不弹红色错误，用空壳让下拉至少可开；数据表格不受影响。
-        setFilterOptions({
-          projects: [],
-          order_statuses: [],
-          fulfillment_channels: [],
-          countries: [],
-          currencies: [],
-        })
+        // 超时 / 失败不弹红色错误（数据表格不受影响），但释放锁存让下次打开重试。
+        filterOptionsRequested.current = false
+        setFilterOptionsError(true)
       } finally {
         clearTimeout(timeoutId)
         setFilterOptionsLoading(false)
       }
     }
     void load()
-  }, [session])
-
+  }, [session, sessionStatus, filterOptions])
   // ====== 首次加载：店铺自动选中改走带缓存的 manage 项目列表 ======
   // 不再等 filter-options 返回才选中第一个店铺：manage 列表带 2 分钟客户端缓存，
   // SPA 内跨页导航时通常零请求，且不会阻塞首屏 /overview。
@@ -753,13 +756,15 @@ function OrderInfoPageInner() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total])
 
-  // 当前账号没有可见店铺：filterOptions 已加载完成且返回了 0 个项目。
+  // 当前账号没有可见店铺：filterOptions 成功加载完成且返回了 0 个项目。
   // 后端 _ensure_project_access_for_orders 在非 admin + operator 不在任一项目
   // 的 project_operator / assistant_operator token 里时，会返回空列表——
   // 这里把这条"权限投影层 = 0"的失败模式单独提示，避免用户误以为是「真没数据」。
+  // BLF-1019：加载失败（filterOptionsError / null）时不误报，避免把"请求超时"
+  // 说成"未关联店铺"误导用户找管理员。
   const hasNoAccessibleProjects = useMemo(
-    () => !!filterOptions && filterOptions.projects.length === 0,
-    [filterOptions]
+    () => !!filterOptions && !filterOptionsError && filterOptions.projects.length === 0,
+    [filterOptions, filterOptionsError]
   )
 
   // —— BLF-940 · Stage 2：head/页面 slot 去重 ——
@@ -779,7 +784,7 @@ function OrderInfoPageInner() {
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
         onOpen={ensureFilterOptions}
-        placeholder={filterOptionsLoading ? '类型 · 加载中…' : '类型 · FBA/FBM'}
+        placeholder={filterOptionsLoading ? '类型 · 加载中…' : filterOptionsError ? '类型 · 加载失败，点开重试' : '类型 · FBA/FBM'}
       />
       <MultiSelect
         className={cn(TERM_TRIGGER, 'w-[130px]')}
@@ -787,7 +792,7 @@ function OrderInfoPageInner() {
         selected={orderStatuses}
         onChange={setOrderStatuses}
         onOpen={ensureFilterOptions}
-        placeholder={filterOptionsLoading ? '状态 · 加载中…' : '状态 · 全部'}
+        placeholder={filterOptionsLoading ? '状态 · 加载中…' : filterOptionsError ? '状态 · 加载失败，点开重试' : '状态 · 全部'}
       />
       <MultiSelect
         className={cn(TERM_TRIGGER, 'w-[110px]')}
@@ -795,7 +800,7 @@ function OrderInfoPageInner() {
         selected={currencies}
         onChange={setCurrencies}
         onOpen={ensureFilterOptions}
-        placeholder={filterOptionsLoading ? '币种 · 加载中…' : '币种 · 全部'}
+        placeholder={filterOptionsLoading ? '币种 · 加载中…' : filterOptionsError ? '币种 · 加载失败，点开重试' : '币种 · 全部'}
       />
       <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
       <div className="relative">
