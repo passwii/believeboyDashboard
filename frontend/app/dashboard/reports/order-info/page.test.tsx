@@ -469,4 +469,115 @@ describe('订单信息页终端化（BLF-817）', () => {
     // 无 project_id 参数 → autoselect 生效，首请求带 project_ids=1
     expect(String(fetchMock.mock.calls[0]![0])).toContain('project_ids=1')
   })
+
+  // ====== BLF-1019：筛选下拉按需加载（失败可重试，不再永久空白） ======
+
+  const FILTER_OPTIONS_OK = {
+    projects: [{ value: '1', label: '店铺A' }],
+    order_statuses: [{ value: 'Pending', label: '处理中-UT' }],
+    fulfillment_channels: [{ value: 'Amazon', label: 'FBA-UT' }],
+    countries: [{ value: 'US', label: 'US' }],
+    currencies: [{ value: 'USD', label: 'USD' }],
+  }
+
+  const OVERVIEW_OK = {
+    items: MOCK_ITEMS,
+    total: 3,
+    page: 1,
+    page_size: 50,
+    stats: {
+      total_orders: 3,
+      total_quantity: 6,
+      total_amount: 43,
+      currency: 'USD',
+      fba_count: 2,
+      fbm_count: 1,
+    },
+  }
+
+  function errResponse(): Response {
+    return {
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({}),
+      text: () => Promise.resolve('timeout'),
+    } as unknown as Response
+  }
+
+  /** 按 URL 分流 fetch：filter-options 走 filterImpl，其余走 overview 常量 */
+  function routeFetch(filterImpl: (url: string) => Response) {
+    const orig = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('filter-options')) return filterImpl(url)
+      return jsonResponse(OVERVIEW_OK)
+    })
+    return () => {
+      fetchMock.mockImplementation(orig!)
+    }
+  }
+
+  function filterOptionsCalls() {
+    return fetchMock.mock.calls.filter((c) => String(c[0]).includes('filter-options'))
+  }
+
+  function resetGfAndParams() {
+    setGf({ ready: true, projectId: '', country: 'US', dateFrom: '2026-08-19', dateTo: '2026-08-25' })
+    mockSearchParams.get = vi.fn(() => null)
+    mockSearchParams.getAll = vi.fn(() => [])
+  }
+
+  it('BLF-1019 首屏不预拉 filter-options，打开类型下拉后加载并渲染选项', async () => {
+    const restore = routeFetch(() => jsonResponse(FILTER_OPTIONS_OK))
+    try {
+      resetGfAndParams()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      // BEL-422 懒加载：首屏只有 overview 请求
+      expect(filterOptionsCalls()).toHaveLength(0)
+
+      const user = userEvent.setup()
+      await user.click(screen.getAllByRole('combobox')[0])
+
+      await screen.findByText('FBA-UT')
+      expect(filterOptionsCalls()).toHaveLength(1)
+    } finally {
+      restore()
+    }
+  })
+
+  it('BLF-1019 filter-options 首次失败不锁死：提示重试、不误报未关联店铺，再次打开重试成功', async () => {
+    let n = 0
+    const restore = routeFetch(() => (++n === 1 ? errResponse() : jsonResponse(FILTER_OPTIONS_OK)))
+    try {
+      resetGfAndParams()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+
+      const user = userEvent.setup()
+      await user.click(screen.getAllByRole('combobox')[0])
+
+      // 失败态：触发器提示重试，而不是静默空白
+      await screen.findByText('类型 · 加载失败，点开重试')
+      // 旧空壳 fallback 会误触"未关联任何店铺"警告；失败时必须保持 null 不误报
+      expect(screen.queryByText(/未关联任何店铺/)).not.toBeInTheDocument()
+      expect(filterOptionsCalls()).toHaveLength(1)
+
+      // 关闭再打开 → 释放锁存，重试成功并渲染选项
+      await user.keyboard('{Escape}')
+      await user.click(screen.getAllByRole('combobox')[0])
+      await screen.findByText('FBA-UT')
+      expect(filterOptionsCalls()).toHaveLength(2)
+    } finally {
+      restore()
+    }
+  })
 })
