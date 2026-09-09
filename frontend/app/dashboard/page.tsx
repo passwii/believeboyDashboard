@@ -520,6 +520,8 @@ export default function DashboardV2Page() {
           dateTo={formatYMD(dateRange.to)}
         />
       </div>
+      {/* BLF-999：移动端订单流底栏为 fixed 贴底，正文让出一栏高度防遮挡（lg+ 无底栏不占位） */}
+      <div className="h-11 lg:hidden" aria-hidden="true" />
     </div>
   )
 }
