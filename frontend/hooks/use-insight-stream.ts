@@ -10,6 +10,8 @@ import {
 import {
   getInsightOutputs,
   getInsightSnapshot,
+  isInsightErrorPayload,
+  isInsightEventType,
   type InsightContentDeltaEvent,
   type InsightErrorPayload,
   type InsightEvent,
@@ -20,7 +22,6 @@ import {
   type InsightSnapshot,
 } from '@/lib/insight/protocol'
 import { InsightClient } from '@/lib/insight/client'
-
 export type InsightStreamClientStatus = Extract<
   InsightRunStatus,
   'queued' | 'connecting' | 'live' | 'reconnecting' | 'completed' | 'failed' | 'cancelled'
@@ -78,8 +79,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   const [isDetached, setIsDetached] = useState(false)
 
   const generationRef = useRef(0)
+  const disposedRef = useRef(false)
   const runIdRef = useRef<string | null>(null)
-  const attemptRef = useRef<number | null>(null)
   const requestRef = useRef<InsightRunRequest | null>(null)
   const lastEventIdRef = useRef<string | null>(null)
   const seenEventIdsRef = useRef(new Set<string>())
@@ -87,6 +88,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const terminalRef = useRef(false)
+  const detachedRef = useRef(false)
   const draftsRef = useRef<InsightOutputs>({})
   const snapshotRef = useRef<InsightSnapshot | null>(null)
 
@@ -145,7 +147,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     (event: InsightEvent) => {
       onEventRef.current?.(event)
 
-      if (event.type === 'status' && 'status' in event && typeof event.status === 'string') {
+      if (isInsightEventType(event, 'status')) {
         if (event.status === 'failed') {
           terminalRef.current = true
           setStatus('failed')
@@ -163,7 +165,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         return
       }
 
-      if (event.type === 'snapshot') {
+      if (isInsightEventType(event, 'snapshot')) {
         const eventSnapshot = getInsightSnapshot(event)
         if (eventSnapshot) mergeSnapshot(eventSnapshot)
         else {
@@ -173,33 +175,26 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         return
       }
 
-      if (event.type === 'content.delta' && 'slot' in event && 'delta' in event) {
-        const slot = event.slot
-        const delta = event.delta
-        if (typeof slot === 'string' && typeof delta === 'string') {
-          appendDelta({ ...event, slot, delta })
-        }
+      if (isInsightEventType(event, 'content.delta')) {
+        appendDelta(event)
         return
       }
 
-      if (event.type === 'content.snapshot') {
+      if (isInsightEventType(event, 'content.snapshot')) {
         const eventSnapshot = getInsightSnapshot(event)
-        if (eventSnapshot) mergeSnapshot(eventSnapshot)
-        else {
+        if (eventSnapshot) {
+          mergeSnapshot(eventSnapshot)
+        } else {
           const outputs = getInsightOutputs(event)
           if (outputs) mergeOutputs(outputs)
-          if ('slot' in event && 'content' in event) {
-            const slot = event.slot
-            const content = event.content
-            if (typeof slot === 'string' && typeof content === 'string') {
-              mergeOutputs({ [slot]: content })
-            }
+          if (typeof event.slot === 'string' && typeof event.content === 'string') {
+            mergeOutputs({ [event.slot]: event.content })
           }
         }
         return
       }
 
-      if (event.type === 'done') {
+      if (isInsightEventType(event, 'done')) {
         const eventSnapshot = getInsightSnapshot(event)
         if (eventSnapshot) mergeSnapshot(eventSnapshot)
         const outputs = getInsightOutputs(event)
@@ -210,13 +205,10 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         return
       }
 
-      if (event.type === 'error' && 'error' in event) {
-        const candidate = event.error
-        if (isInsightErrorPayload(candidate)) {
-          terminalRef.current = true
-          setError(candidate)
-          setStatus('failed')
-        }
+      if (isInsightEventType(event, 'error') && isInsightErrorPayload(event.error)) {
+        terminalRef.current = true
+        setError(event.error)
+        setStatus('failed')
       }
     },
     [appendDelta, mergeOutputs, mergeSnapshot, setStatus]
@@ -231,11 +223,16 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     },
     [setStatus]
   )
-
   const connect = useCallback(
     async (expectedGeneration: number, reconnecting: boolean): Promise<void> => {
       const currentRunId = runIdRef.current
-      if (!currentRunId || expectedGeneration !== generationRef.current || isDetached || terminalRef.current) {
+      if (
+        !currentRunId ||
+        expectedGeneration !== generationRef.current ||
+        detachedRef.current ||
+        disposedRef.current ||
+        terminalRef.current
+      ) {
         return
       }
 
@@ -293,7 +290,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         if (abortRef.current === controller) abortRef.current = null
       }
     },
-    [abortLocalStream, applyEvent, fail, isDetached, resetReconnectTimer, setStatus]
+    [abortLocalStream, applyEvent, fail, resetReconnectTimer, setStatus]
   )
 
   const beginRun = useCallback(
@@ -308,6 +305,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       setLastEventId(null)
       setError(null)
       setBackgroundMessage(null)
+      detachedRef.current = false
       setIsDetached(false)
       if (mode === 'start') resetContent()
       setStatus('queued')
@@ -315,9 +313,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
 
       try {
         const response = await clientRef.current.start(request)
-        if (expectedGeneration !== generationRef.current) return response
+        if (expectedGeneration !== generationRef.current || disposedRef.current) return response
         runIdRef.current = response.run_id
-        attemptRef.current = response.attempt
         setRunId(response.run_id)
         setAttempt(response.attempt)
         if (response.snapshot) mergeSnapshot(response.snapshot)
@@ -376,15 +373,15 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     setLastEventId(null)
     setError(null)
     setBackgroundMessage(null)
+    detachedRef.current = false
     setIsDetached(false)
     resetContent()
     setStatus('queued')
 
     try {
       const response = await clientRef.current.retry(currentRunId)
-      if (expectedGeneration !== generationRef.current) return response
+      if (expectedGeneration !== generationRef.current || disposedRef.current) return response
       runIdRef.current = response.run_id
-      attemptRef.current = response.attempt
       setRunId(response.run_id)
       setAttempt(response.attempt)
       if (response.snapshot) mergeSnapshot(response.snapshot)
@@ -395,11 +392,11 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       throw candidate
     }
   }, [abortLocalStream, beginRun, connect, fail, mergeSnapshot, resetContent, resetReconnectTimer, setStatus])
-
   const detach = useCallback(() => {
     resetReconnectTimer()
     ++generationRef.current
     abortLocalStream()
+    detachedRef.current = true
     setIsDetached(true)
     setBackgroundMessage(BACKGROUND_CONTINUATION_MESSAGE)
   }, [abortLocalStream, resetReconnectTimer])
@@ -407,7 +404,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   useEffect(() => {
     return () => {
       resetReconnectTimer()
-      ++generationRef.current
+      disposedRef.current = true
       abortLocalStream()
     }
   }, [abortLocalStream, resetReconnectTimer])
@@ -428,7 +425,6 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     retry,
     detach,
   }
-  return typeof code === 'string' && typeof message === 'string'
 }
 
 function toInsightError(value: unknown, fallbackCode: string): InsightErrorPayload {

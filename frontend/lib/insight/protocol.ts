@@ -131,12 +131,10 @@ export type InsightRunDetail = InsightRunStartResponse & {
   completed_at?: string | null
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function isInsightEvent(value: unknown): value is InsightEvent {
-  return isRecord(value) && typeof value.type === 'string'
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  if (!('type' in value)) return false
+  return typeof value.type === 'string'
 }
 
 export function isInsightEventType<T extends InsightKnownEvent['type']>(
@@ -147,12 +145,14 @@ export function isInsightEventType<T extends InsightKnownEvent['type']>(
 }
 
 export function isInsightErrorPayload(value: unknown): value is InsightErrorPayload {
-  if (!isRecord(value)) return false
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  if (!('code' in value) || !('message' in value)) return false
   return typeof value.code === 'string' && typeof value.message === 'string'
 }
 
 export function isInsightRunStartResponse(value: unknown): value is InsightRunStartResponse {
-  if (!isRecord(value)) return false
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  if (!('run_id' in value) || !('status' in value) || !('attempt' in value)) return false
   return (
     typeof value.run_id === 'string' &&
     typeof value.status === 'string' &&
@@ -165,21 +165,27 @@ export function isInsightRunDetail(value: unknown): value is InsightRunDetail {
 }
 
 export function getInsightOutputs(value: unknown): InsightOutputs | null {
-  if (!isRecord(value) || !isRecord(value.outputs)) return null
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  if (!('outputs' in value)) return null
+  const outputs = value.outputs
+  if (typeof outputs !== 'object' || outputs === null || Array.isArray(outputs)) return null
 
   const normalized: InsightOutputs = {}
-  for (const [slot, output] of Object.entries(value.outputs)) {
+  for (const [slot, output] of Object.entries(outputs)) {
     if (typeof output === 'string') normalized[slot] = output
   }
   return normalized
 }
 
 export function getInsightSnapshot(value: unknown): InsightSnapshot | null {
-  if (!isRecord(value) || !isRecord(value.snapshot)) return null
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  if (!('snapshot' in value)) return null
+  const snapshot = value.snapshot
+  if (typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) return null
 
-  const outputs = getInsightOutputs(value.snapshot) ?? {}
+  const outputs = getInsightOutputs(snapshot) ?? {}
   const normalized: InsightSnapshot = { outputs }
-  for (const [key, candidate] of Object.entries(value.snapshot)) {
+  for (const [key, candidate] of Object.entries(snapshot)) {
     if (key !== 'outputs') normalized[key] = candidate
   }
   return normalized

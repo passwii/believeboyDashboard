@@ -70,6 +70,7 @@ export async function toProxyResponse(response: Response) {
     // SSE / NDJSON streaming path: manually read chunks from the backend
     // and immediately flush them to the client. This avoids Node.js undici's
     // internal buffering which can batch SSE events and break real-time updates.
+    const backendBody = response.body
     if (!backendBody) {
       return new Response(null, { status: response.status, headers })
     }

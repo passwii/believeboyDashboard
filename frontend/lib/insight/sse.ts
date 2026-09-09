@@ -250,28 +250,34 @@ async function toInsightHttpError(response: Response): Promise<InsightHttpError>
   return new InsightHttpError(response.status, message, { code, retryable, retryAfter, details })
 }
 
+function getField(value: unknown, field: string): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  for (const [key, candidate] of Object.entries(value)) {
+    if (key === field) return candidate
+  }
+  return undefined
+}
+
 function getStringField(value: unknown, field: string): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !(field in value)) return undefined
-  const candidate = value[field]
+  const candidate = getField(value, field)
   return typeof candidate === 'string' && candidate ? candidate : undefined
 }
 
 function getBooleanField(value: unknown, field: string): boolean | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !(field in value)) return undefined
-  const candidate = value[field]
+  const candidate = getField(value, field)
   return typeof candidate === 'boolean' ? candidate : undefined
 }
 
 function getNumberField(value: unknown, field: string): number | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !(field in value)) return undefined
-  const candidate = value[field]
+  const candidate = getField(value, field)
   return typeof candidate === 'number' ? candidate : undefined
 }
 
 function getRecordField(value: unknown, field: string): Record<string, unknown> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || !(field in value)) return undefined
-  const candidate = value[field]
-  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
+  const candidate = getField(value, field)
+  if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) {
+    return undefined
+  }
 
   const record: Record<string, unknown> = {}
   for (const [key, entry] of Object.entries(candidate)) record[key] = entry
