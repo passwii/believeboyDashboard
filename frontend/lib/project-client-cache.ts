@@ -100,9 +100,12 @@ export async function fetchManagedProjectsCached<T>(
   showInactive?: boolean,
   options?: { force?: boolean }
 ): Promise<T> {
-  const url = showInactive
+  const baseUrl = showInactive
     ? '/api/backend/api/v1/projects/manage?show_inactive=true'
     : '/api/backend/api/v1/projects/manage'
+  const url = options?.force
+    ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_cache_bust=${Date.now()}`
+    : baseUrl
   return fetchCachedJson<T>(managedProjectsCacheKey(session, showInactive), url, {
     session,
     fallbackError: '项目列表加载失败',

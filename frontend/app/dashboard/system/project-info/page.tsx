@@ -372,13 +372,13 @@ export default function ProjectInfoPage() {
     }
   }
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (options?: { force?: boolean }) => {
     if (status === 'loading') {
       return
     }
     setLoading(true)
     try {
-      const payload = await fetchManagedProjectsCached<ProjectItem[]>(session, true)
+      const payload = await fetchManagedProjectsCached<ProjectItem[]>(session, true, options)
       setItems(payload)
     } catch (loadError) {
       notify({
@@ -603,7 +603,7 @@ export default function ProjectInfoPage() {
       setEditCountry('US')
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已更新', message: normalizedName })
-      await loadProjects()
+      await loadProjects({ force: true })
     } catch (submitError) {
       notify({
         type: 'error',

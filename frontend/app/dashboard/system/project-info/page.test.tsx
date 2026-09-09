@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const { SESSION_DATA, NOTIFY } = vi.hoisted(() => ({
+const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED } = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
   NOTIFY: { notify: vi.fn() },
+  FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
+    { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: false, project_tier: null, store_address: null },
+    { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: false, source_file: null, has_context: false, project_tier: null, store_address: null },
+  ]),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -28,10 +32,7 @@ vi.mock('@/hooks/use-smooth-refresh', () => ({
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
-  fetchManagedProjectsCached: vi.fn().mockResolvedValue([
-    { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: false, project_tier: null, store_address: null },
-    { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: true, source_file: null, has_context: false, project_tier: null, store_address: null },
-  ]),
+  fetchManagedProjectsCached: FETCH_MANAGED_PROJECTS_CACHED,
   fetchProjectOperatorOptionsCached: vi.fn().mockResolvedValue([]),
   clearProjectClientCaches: vi.fn(),
 }))
@@ -182,6 +183,40 @@ describe('StoreInfoPage 站点列/下拉', () => {
       expect.objectContaining({
         body: expect.stringContaining('"country":"DE"'),
       })
+    )
+  })
+  it('保存项目启用状态后强制刷新项目列表，避免读到缓存中的停用状态', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/2/shops') {
+        return new Response(JSON.stringify([]), { status: 200 })
+      }
+      if (url === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH') {
+        return new Response(JSON.stringify({ id: 2, is_active: true }), { status: 200 })
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+
+    render(<ProjectInfoPage />)
+    const basicTab = await screen.findByRole('tab', { name: '基础信息' })
+    await userEvent.click(basicTab)
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺乙/ }))[0])
+    await screen.findByLabelText('德国站 Shop ID')
+    const switchControl = screen.getByRole('switch', { name: '启用项目' })
+    expect(switchControl).toHaveAttribute('data-state', 'unchecked')
+    await userEvent.click(switchControl)
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    expect(FETCH_MANAGED_PROJECTS_CACHED).toHaveBeenLastCalledWith(
+      expect.anything(),
+      true,
+      { force: true }
+    )
+    const patchCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input) === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH'
+    )
+    expect(patchCall?.[1]).toEqual(
+      expect.objectContaining({ body: expect.stringContaining('"is_active":true') })
     )
   })
 })
