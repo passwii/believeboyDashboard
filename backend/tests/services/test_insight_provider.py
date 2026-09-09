@@ -214,3 +214,20 @@ def test_non_retryable_upstream_client_error_is_classified_without_details():
     assert error.code is InsightProviderErrorCode.UPSTREAM_ERROR
     assert error.retryable is False
     assert "server-secret-key" not in str(error)
+
+
+def test_configured_endpoint_default_builds_model_without_secret_leak():
+    settings = FakeSettings()
+    settings.insight_endpoint_ids = "default,regional"
+    settings.insight_default_endpoint_id = "regional"
+    resolver = InsightModelResolver(settings)
+
+    resolved = resolver.resolve_model()
+
+    assert resolved.endpoint_id == "regional"
+    assert isinstance(resolved.model, OpenAIChatModel)
+    assert resolved.public_metadata() == {
+        "endpoint_id": "regional",
+        "model": "insight-default",
+    }
+    assert "server-secret-key" not in repr(resolved)

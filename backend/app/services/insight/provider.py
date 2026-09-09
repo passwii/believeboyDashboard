@@ -235,6 +235,7 @@ class InsightModelResolver:
             if endpoint_ids is not None
             else configured_endpoint_ids or {configured_default_endpoint}
         )
+        self._model_factory = model_factory or self._build_openai_model
 
     def resolve_model(
         self,
@@ -361,7 +362,7 @@ class InsightModelResolver:
         return {model for model in configured if model not in blocked}
 
     def _build_openai_model(self, model_id: str, endpoint_id: str) -> OpenAIChatModel:
-        if endpoint_id != DEFAULT_ENDPOINT_ID:
+        if endpoint_id not in self._endpoint_ids:
             raise InsightProviderError(
                 InsightProviderErrorCode.ENDPOINT_NOT_ALLOWED,
                 "Insight endpoint is not allowed",
