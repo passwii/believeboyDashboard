@@ -101,6 +101,7 @@ interface ComplaintDetailDrawerProps {
   open: boolean
   onClose: () => void
   onStatusChanged: () => void
+  projectNameById?: ReadonlyMap<number, string>
 }
 
 export function ComplaintDetailDrawer({
@@ -108,6 +109,7 @@ export function ComplaintDetailDrawer({
   open,
   onClose,
   onStatusChanged,
+  projectNameById,
 }: ComplaintDetailDrawerProps) {
   const { notify } = useNotifications()
   const [detail, setDetail] = useState<ComplaintDetail | null>(null)
@@ -120,7 +122,7 @@ export function ComplaintDetailDrawer({
     if (complaintId == null) return
     setLoading(true)
     try {
-      const result = await fetchComplaintDetail(complaintId)
+      const result = await fetchComplaintDetail(complaintId, projectNameById)
       setDetail(result)
       setHandlerNote(result?.handler_note ?? '')
     } catch (err) {
@@ -128,7 +130,7 @@ export function ComplaintDetailDrawer({
     } finally {
       setLoading(false)
     }
-  }, [complaintId, notify])
+  }, [complaintId, projectNameById, notify])
 
   useEffect(() => {
     if (open && complaintId != null) {
@@ -160,7 +162,7 @@ export function ComplaintDetailDrawer({
           status,
           handler_note: handlerNote || undefined,
         }
-        await changeComplaintStatus(detail.id, payload)
+        await changeComplaintStatus(detail.id, payload, projectNameById)
         notify({ type: 'success', title: '状态已更新', message: `状态已更新为「${STATUS_LABEL[status]}」` })
         onStatusChanged()
         onClose()
@@ -171,7 +173,7 @@ export function ComplaintDetailDrawer({
         setPendingStatus(null)
       }
     },
-    [detail, handlerNote, notify, onStatusChanged, onClose]
+    [detail, handlerNote, projectNameById, notify, onStatusChanged, onClose]
   )
 
   const handleClose = useCallback(() => {
