@@ -154,7 +154,17 @@ describe('fetchManagedProjectsCached', () => {
     expect(second).toHaveLength(2)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
-})
+
+  it('force 请求附带缓存破坏参数，避免服务端项目列表缓存覆盖刚保存的状态', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(jsonResponse([{ id: 1 }]))
+
+    await fetchManagedProjectsCached<Array<{ id: number }>>(SESSION, true, { force: true })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toMatch(
+      /^\/api\/backend\/api\/v1\/projects\/manage\?show_inactive=true&_cache_bust=\d+$/
+    )
+  })
+ })
 
 describe('fetchProjectOptionsCached / fetchProjectOperatorOptionsCached', () => {
   beforeEach(() => {
