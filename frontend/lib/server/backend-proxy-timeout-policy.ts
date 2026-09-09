@@ -40,6 +40,7 @@ export type TimeoutTier = {
 const STREAM_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/ai-insights\/.+\/stream$/,
   /\/ai-insights\/generate\/stream$/,
+  /\/insight\/runs\/[^/]+\/stream$/,
 ]
 
 const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = ['text/event-stream', 'application/x-ndjson']
