@@ -77,6 +77,8 @@ import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { ComplaintDetailDrawer } from './components/complaint-detail-drawer'
 
 const PAGE_SIZE = 20
+/** Radix Select 禁止空字符串 value,"全部"用哨兵值,状态/分类语义上仍表示 ''。 */
+const ALL_FILTER = 'all'
 
 const STATUS_LABEL: Record<ComplaintStatus, string> = {
   pending: '待回复',
@@ -243,13 +245,13 @@ export default function ComplaintListClient() {
         className="h-10 w-[130px]"
       />
       <HeaderSlotSelect
-        value={status}
+        value={status || ALL_FILTER}
         onChange={(v) => {
           setPage(1)
-          setStatus(v as ComplaintStatus | '')
+          setStatus(v === ALL_FILTER ? '' : (v as ComplaintStatus))
         }}
         options={[
-          { value: '', label: '全部状态' },
+          { value: ALL_FILTER, label: '全部状态' },
           { value: 'pending', label: '待回复' },
           { value: 'drafted', label: '已起草' },
           { value: 'replied', label: '已回复' },
@@ -260,13 +262,13 @@ export default function ComplaintListClient() {
         placeholder="状态"
       />
       <HeaderSlotSelect
-        value={category}
+        value={category || ALL_FILTER}
         onChange={(v) => {
           setPage(1)
-          setCategory(v as ComplaintCategory | '')
+          setCategory(v === ALL_FILTER ? '' : (v as ComplaintCategory))
         }}
         options={[
-          { value: '', label: '全部分类' },
+          { value: ALL_FILTER, label: '全部分类' },
           { value: 'with_order', label: '有订单' },
           { value: 'no_order_info', label: '无订单' },
           { value: 'spam', label: '垃圾' },
@@ -303,13 +305,13 @@ export default function ComplaintListClient() {
         className="h-10 w-full"
       />
       <HeaderSlotSelect
-        value={status}
+        value={status || ALL_FILTER}
         onChange={(v) => {
           setPage(1)
-          setStatus(v as ComplaintStatus | '')
+          setStatus(v === ALL_FILTER ? '' : (v as ComplaintStatus))
         }}
         options={[
-          { value: '', label: '全部状态' },
+          { value: ALL_FILTER, label: '全部状态' },
           { value: 'pending', label: '待回复' },
           { value: 'drafted', label: '已起草' },
           { value: 'replied', label: '已回复' },

@@ -217,14 +217,12 @@ export function LineChartCard({
           dataKey={xKey}
           tickFormatter={xTickFormatter ?? defaultXTickFormatter}
         />
-        {!hideYAxis && !isMobile && (
-          <YAxis
-            {...defaultYAxisProps}
-            {...(hasExplicitYAxisId && { yAxisId: 'left' })}
-            tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
-          />
-        )}
-
+        <YAxis
+          {...defaultYAxisProps}
+          {...(hasExplicitYAxisId && { yAxisId: 'left' })}
+          hide={hideYAxis || isMobile}
+          tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
+        />
         {dualAxis && (
           <YAxis
             {...rightYAxisProps}
@@ -362,12 +360,11 @@ export function BarChartCard({
               dataKey={xKey}
               tickFormatter={xTickFormatter ?? defaultXTickFormatter}
             />
-            {!hideYAxis && !isMobile && (
-              <YAxis
-                {...defaultYAxisProps}
-                tickFormatter={(v) => (yTickFormatter ? yTickFormatter(v) : String(v))}
-              />
-            )}
+            <YAxis
+              {...defaultYAxisProps}
+              hide={hideYAxis || isMobile}
+              tickFormatter={(v) => (yTickFormatter ? yTickFormatter(v) : String(v))}
+            />
           </>
         ) : (
           <>
@@ -507,12 +504,11 @@ export function AreaChartCard({
         )}
         <CartesianGrid {...defaultGridProps} />
         <XAxis {...defaultXAxisProps} dataKey={xKey} tickFormatter={defaultXTickFormatter} />
-        {!hideYAxis && !isMobile && (
-          <YAxis
-            {...defaultYAxisProps}
-            tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
-          />
-        )}
+        <YAxis
+          {...defaultYAxisProps}
+          hide={hideYAxis || isMobile}
+          tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -629,13 +625,12 @@ export function ComposedChartCard({
           dataKey={xKey}
           tickFormatter={xTickFormatter ?? defaultXTickFormatter}
         />
-        {!hideYAxis && !isMobile && (
-          <YAxis
-            {...defaultYAxisProps}
-            {...(hasExplicitYAxisId && { yAxisId: 'left' })}
-            tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
-          />
-        )}
+        <YAxis
+          {...defaultYAxisProps}
+          {...(hasExplicitYAxisId && { yAxisId: 'left' })}
+          hide={hideYAxis || isMobile}
+          tickFormatter={(v) => (yTickFormatter ? yTickFormatter(Number(v)) : String(v))}
+        />
         {dualAxis && (
           <YAxis
             {...rightYAxisProps}

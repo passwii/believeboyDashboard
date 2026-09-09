@@ -103,10 +103,8 @@ export default function AgentEmployeesClient() {
     })
   }, [keys, summary.data])
 
-  const activeCount = (keys ?? []).filter((k) => employeeStatus(k) === 'active').length
-
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full">
       <DataTableCard>
         <DataTableCardHeader
           title="员工花名册"

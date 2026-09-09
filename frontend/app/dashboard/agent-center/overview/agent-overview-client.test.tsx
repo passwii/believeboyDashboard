@@ -52,6 +52,18 @@ afterEach(() => {
 })
 
 describe('AgentOverviewClient 数据流总览', () => {
+  it('页面标题由 TerminalHeader 承载,不渲染重复 PageHeader', () => {
+    render(<AgentOverviewClient />)
+
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent 中心 · 数据流')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '17 个业务域、16 个已接入 —— Agent 员工在各业务域活动的归集点,点击入口前往对应工作台。 「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 / 24h·7d 调用量 / 7d 错误率)由 domain-summary 端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b),端点上线前显示占位「—」。'
+      )
+    ).toBeInTheDocument()
+  })
   it('每个注册表域渲染一行(16 域 + 表头)', () => {
     render(<AgentOverviewClient />)
     expect(screen.getAllByRole('row')).toHaveLength(AGENT_DOMAINS.length + 1)

@@ -1,11 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { Search } from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
-import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
-import { TermKbd } from '@/components/terminal/term-kbd'
 import {
   TERMINAL_SUBNAV_COLLAPSED_WIDTH,
   TERMINAL_SUBNAV_MOTION,
@@ -28,7 +25,7 @@ interface TerminalSubnavProps {
  *
  * 折叠 ↔ 展开为常驻挂载的宽度过渡（260ms ease-out-expo 类曲线）：
  * - 壳层 width 动画，Main Canvas 平滑跟随；
- * - 内容层（组头文字 / 搜索框 / 列表项）收缩时先淡出 + 轻微 translateX，
+ * - 内容层（组头文字 / 列表项）收缩时先淡出 + 轻微 translateX，
  *   展开时按 stagger 级联入场；激活指示条独立于内容层，过渡期不闪烁。
  *
  * 折叠入口（BLF-907）已统一到 Top Header 的 `<PanelLeft>` 按钮：L2 组头不再
@@ -38,7 +35,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: T
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? groups[0]
   const items = activeGroup?.items ?? []
 
-  // 入场级联延迟：组头 0 → 搜索框 step → 列表项 step*2 起，封顶 maxStaggerDelayMs
+  // 入场级联延迟：组头 0 → 列表项 step 起，封顶 maxStaggerDelayMs
   const delayOf = React.useCallback(
     (slot: number) =>
       Math.min(slot * TERMINAL_SUBNAV_MOTION.staggerStepMs, TERMINAL_SUBNAV_MOTION.maxStaggerDelayMs),
@@ -72,21 +69,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: T
           </span>
         </div>
 
-        {/* ⌘K 搜索入口 */}
-        <div className="term-subnav-content shrink-0 p-2" style={{ ...contentStyle(1), minWidth: TERMINAL_SUBNAV_WIDTH }}>
-          <button
-            type="button"
-            tabIndex={collapsed ? -1 : undefined}
-            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}
-            className="flex w-full h-10 items-center gap-2 rounded-none border border-term-border bg-term-raised px-2.5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
-          >
-            <Search className="h-5 w-5" strokeWidth={1.75} />
-            <span className="flex-1 text-left text-sm">搜索…</span>
-            <TermKbd>⌘K</TermKbd>
-          </button>
-        </div>
-
-        {/* 子模块列表 */}
+        {/* 子模块列表；全局搜索统一由 Top Header 提供 */}
         <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 term-scroll">
           {items.map((item, index) => {
             const ItemIcon = item.icon ?? activeGroup.icon
@@ -102,7 +85,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: T
                     ? 'bg-term-raised text-term-text'
                     : 'text-term-muted hover:bg-term-hover hover:text-term-text'
                 )}
-                style={{ ...contentStyle(index + 2), minWidth: TERMINAL_SUBNAV_WIDTH }}
+                style={{ ...contentStyle(index + 1), minWidth: TERMINAL_SUBNAV_WIDTH }}
               >
                 {isActive && (
                   <span className="term-subnav-indicator absolute left-0 top-0 h-full w-0.5 bg-term-accent" />

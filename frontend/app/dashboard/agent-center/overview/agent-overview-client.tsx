@@ -102,24 +102,12 @@ export default function AgentOverviewClient() {
   useHeaderRefresh(reloadAll, {
     loading: summaryStatus === 'loading' || production.loading,
   })
-
   return (
-    <div className="w-full space-y-6">
-      <div className="rounded-none border border-dashed border-term-border bg-term-panel px-4 py-3 text-xs leading-6 text-term-muted">
-        「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 /
-        24h·7d 调用量 / 7d 错误率)由 domain-summary
-        端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview
-        §P2b),端点上线前显示占位「—」。
-      </div>
-
+    <div className="w-full">
       <DataTableCard>
         <DataTableCardHeader
           title="业务域活动矩阵"
-          description={
-            summaryStatus === 'ok'
-              ? '每行一个 Agent 业务域:能力、路由、运行时活动与前端入口;产出域(客诉 / 巡检 / 报表)置顶'
-              : '每行一个 Agent 业务域:能力、路由与前端入口;运行时列待 domain-summary 端点(P2b)上线'
-          }
+          description={`${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入 —— Agent 员工在各业务域活动的归集点,点击入口前往对应工作台。 「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 / 24h·7d 调用量 / 7d 错误率)由 domain-summary 端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b),端点上线前显示占位「—」。`}
         />
         <DataTableCardBody>
           <Table>
