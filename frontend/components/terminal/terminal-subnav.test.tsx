@@ -1,7 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
 import {
   TERMINAL_SUBNAV_COLLAPSED_WIDTH,
   TERMINAL_SUBNAV_MOTION,
@@ -76,17 +75,9 @@ describe('TerminalSubnav', () => {
     expect(inactive.className).not.toContain('bg-term-raised')
   })
 
-  it('搜索按钮派发全局 ⌘K 打开事件', () => {
-    const handler = vi.fn()
-    window.addEventListener(OPEN_SEARCH_EVENT, handler)
+  it('不再渲染重复的 L2 搜索入口', () => {
     renderSubnav()
-
-    const searchBtn = screen.getByRole('button', { name: /搜索/ })
-    act(() => {
-      searchBtn.click()
-    })
-    expect(handler).toHaveBeenCalledTimes(1)
-    window.removeEventListener(OPEN_SEARCH_EVENT, handler)
+    expect(screen.queryByRole('button', { name: /搜索/ })).not.toBeInTheDocument()
   })
 
   it('activeGroupId 未命中时回退到第一组', () => {
@@ -138,10 +129,10 @@ describe('TerminalSubnav', () => {
     const step = TERMINAL_SUBNAV_MOTION.staggerStepMs
     const cap = TERMINAL_SUBNAV_MOTION.maxStaggerDelayMs
 
-    // 列表项从 slot=2 起（组头 0 / 搜索框 1）
-    const delays = links.map((_, i) => Math.min((i + 2) * step, cap))
-    expect(delays[0]).toBe(2 * step)
-    expect(delays[delays.length - 1]).toBe(Math.min((links.length + 1) * step, cap))
+    // 列表项从 slot=1 起（组头 0）
+    const delays = links.map((_, i) => Math.min((i + 1) * step, cap))
+    expect(delays[0]).toBe(step)
+    expect(delays[delays.length - 1]).toBe(Math.min(links.length * step, cap))
 
     // 每个内容层都带 --subnav-delay 内联变量
     for (const link of links) {
