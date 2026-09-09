@@ -48,7 +48,7 @@ class SlaInfo(BaseModel):
 
 class ShopCheckIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|GB|UK)$')] = 'US'
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     check_status: Annotated[str, Field(pattern='^(ok|login_page|launch_fail|identity_mismatch)$')] = 'ok'
     error_message: str | None = None
     metrics: ShopMetrics = Field(default_factory=ShopMetrics)
@@ -56,16 +56,14 @@ class ShopCheckIn(BaseModel):
 
 class ComplaintIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|GB|UK)$')] = 'US'
-    first_message_date: date
-    message_date: date
+    country: Annotated[str, Field(pattern='^(US|DE|GB)$')] = 'US'
     buyer_name: str = Field(max_length=255)
+    message_date: date
     subject: str = Field(max_length=512)
     message_body: str
     triage: Triage
     order: OrderInfo | None = None
     sla: SlaInfo | None = None
-    message_count: int = Field(default=1, ge=1)
 
 
 class ComplaintRunBatchRequest(BaseModel):
@@ -92,7 +90,6 @@ class ComplaintOut(BaseModel):
     project_id: int
     country: str
     buyer_name: str
-    first_message_date: date
     message_date: date
 
 
@@ -114,7 +111,6 @@ class ComplaintListItem(BaseModel):
     project_id: int
     country: str
     buyer_name: str
-    first_message_date: date
     message_date: date
     subject: str
     category: str
@@ -123,7 +119,6 @@ class ComplaintListItem(BaseModel):
     draft_path: str | None = None
     reply_sent_at: datetime | None = None
     handler_note: str | None = None
-    message_count: int
     created_at: datetime
     updated_at: datetime
 
@@ -134,24 +129,15 @@ class ComplaintDetail(ComplaintListItem):
     order_info: dict | None = None
     sla: dict | None = None
     status_history: list = Field(default_factory=list)
-    messages: list = Field(default_factory=list)
 
 
-# ── PATCH 请求（状态流转 / 消息更新）──────────────────────────
+# ── PATCH 请求 ──────────────────────────────────────────────────
 
 class ComplaintPatchRequest(BaseModel):
     status: Annotated[str, Field(pattern='^(pending|drafted|replied|resolved|closed_no_response)$')] | None = None
     draft_path: str | None = None
     reply_sent_at: datetime | None = None
     handler_note: str | None = None
-
-
-class ComplaintMessageUpdate(BaseModel):
-    message_date: date
-    message_body: str
-    triage: Triage | None = None
-    order: OrderInfo | None = None
-    sla: SlaInfo | None = None
 
 
 # ── 概览响应 ────────────────────────────────────────────────────

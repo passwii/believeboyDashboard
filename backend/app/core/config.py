@@ -85,6 +85,8 @@ class Settings(BaseSettings):
     # 设计稿 §7.1：可不改代码调整。
     agent_api_read_rate_limit: str = Field(default="300/minute", max_length=32)
     # 写桶 120/min（BLF-782）：原 30/min 在 agent 批量录入场景易触顶；写操作
+    # 全量落 operation_audit_logs 可追溯，按 agent_id 独立计数，放宽风险可控。
+    agent_api_write_rate_limit: str = Field(default="120/minute", max_length=32)
     # Canonical Insight provider selection remains server-side.  Clients may
     # submit only ids from this registry; credentials and URLs never leave the
     # backend process.

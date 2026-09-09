@@ -57,7 +57,6 @@ import {
   type ComplaintListResponse,
   fetchComplaintList,
 } from '@/lib/complaint-api'
-import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { ComplaintDetailDrawer } from './components/complaint-detail-drawer'
 
 const STATUS_LABEL: Record<ComplaintStatus, string> = {
@@ -113,26 +112,17 @@ const SLA_ICON: Record<ComplaintSummaryItem['sla_level'], typeof Clock> = {
 }
 
 const PAGE_SIZE = 20
-/** Radix Select 禁止空字符串 value,"全部"用哨兵值,状态/分类语义上仍表示 ''。 */
-const ALL_FILTER = 'all'
+
 function getDayStart(d: Date | undefined): Date {
   const r = new Date(d ?? new Date())
   r.setHours(0, 0, 0, 0)
   return r
 }
 
-/** 本地时区安全 YYYY-MM-DD（toISOString 是 UTC，19 点后会在 UTC-8 提前一天）。 */
-function toYmdLocal(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
 export default function ComplaintListClient() {
   const { notify } = useNotifications()
   const searchParams = useSearchParams()
-  const { projects } = useManagedProjects()
+
   const [date, setDate] = useState<Date>(new Date())
   const [projectId, setProjectId] = useState(searchParams.get('project_id') ?? '')
   const [category, setCategory] = useState<ComplaintCategory | ''>(
@@ -153,7 +143,7 @@ export default function ComplaintListClient() {
 
   const filters = useMemo(
     () => ({
-      date: toYmdLocal(date),
+      date: date.toISOString().slice(0, 10),
       project_id: projectId ? Number(projectId) : undefined,
       category: category || undefined,
       status: status || undefined,
@@ -166,23 +156,17 @@ export default function ComplaintListClient() {
     [date, projectId, category, status, country, keyword, sort, page]
   )
 
-  const projectNameById = useMemo(() => {
-    const m = new Map<number, string>()
-    for (const p of projects) m.set(p.id, p.name)
-    return m
-  }, [projects])
-
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await fetchComplaintList(filters, projectNameById)
+      const result = await fetchComplaintList(filters)
       setData(result)
     } catch (err) {
       notify({ type: 'error', title: '加载失败', message: `加载明细失败: ${(err as Error).message}` })
     } finally {
       setLoading(false)
     }
-  }, [filters, projectNameById, notify])
+  }, [filters, notify])
 
   useEffect(() => {
     void loadData()
@@ -240,17 +224,17 @@ export default function ComplaintListClient() {
           className="w-[130px]"
         />
         <Select
-          value={status || ALL_FILTER}
+          value={status}
           onValueChange={(v) => {
             setPage(1)
-            setStatus(v === ALL_FILTER ? '' : (v as ComplaintStatus))
+            setStatus(v as ComplaintStatus | '')
           }}
         >
           <SelectTrigger className="w-[110px]">
             <SelectValue placeholder="状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_FILTER}>全部状态</SelectItem>
+            <SelectItem value="">全部状态</SelectItem>
             <SelectItem value="pending">待回复</SelectItem>
             <SelectItem value="drafted">已起草</SelectItem>
             <SelectItem value="replied">已回复</SelectItem>
@@ -259,17 +243,17 @@ export default function ComplaintListClient() {
           </SelectContent>
         </Select>
         <Select
-          value={category || ALL_FILTER}
+          value={category}
           onValueChange={(v) => {
             setPage(1)
-            setCategory(v === ALL_FILTER ? '' : (v as ComplaintCategory))
+            setCategory(v as ComplaintCategory | '')
           }}
         >
           <SelectTrigger className="w-[100px]">
             <SelectValue placeholder="分类" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_FILTER}>全部分类</SelectItem>
+            <SelectItem value="">全部分类</SelectItem>
             <SelectItem value="with_order">有订单</SelectItem>
             <SelectItem value="no_order_info">无订单</SelectItem>
             <SelectItem value="spam">垃圾</SelectItem>
@@ -464,7 +448,6 @@ export default function ComplaintListClient() {
           open={selectedId !== null}
           onClose={() => setSelectedId(null)}
           onStatusChanged={handleStatusChanged}
-          projectNameById={projectNameById}
         />
       )}
     </div>
