@@ -255,15 +255,17 @@ export function V2OrderFlowPanel({
         )}
       </div>
 
-      {/* ========== 移动端（<lg）：底部折叠条 + Sheet 抽屉 ========== */}
-      <div className="lg:hidden">
+      {/* ========== 移动端（<lg）：底部固定条 + Sheet 抽屉 ==========
+       * BLF-999：脱离桌面 flex 行——之前作为 flex 子项挤占一半横向空间（内容被压到左半屏），
+       * 且 sticky 挂在矮包含块上无法贴底。改为 fixed 全宽贴视口底，内容区让出底栏高度。 */}
+      <div className="fixed inset-x-0 bottom-0 z-20 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="展开订单流面板（移动端）"
           className={cn(
-            'sticky bottom-0 z-20 flex h-10 w-full items-center gap-2 border-t border-term-border bg-term-panel px-3',
-            'transition-colors hover:bg-term-hover'
+            'flex h-11 w-full items-center gap-2 border-t border-term-border bg-term-panel px-3',
+            'transition-colors hover:bg-term-hover active:bg-term-hover'
           )}
         >
           <span className="text-xs font-semibold uppercase tracking-widest text-term-muted">
@@ -278,16 +280,16 @@ export function V2OrderFlowPanel({
           <span className="text-xs text-term-faint">待处理订单</span>
           <ChevronUp className="h-4 w-4 text-term-faint" strokeWidth={1.75} />
         </button>
-
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent
-            side="right"
-            className="flex w-[min(340px,92vw)] flex-col rounded-none border-term-border bg-term-panel p-0 text-term-text"
-          >
-            <OrderFlowPanelBody {...bodyProps} onToggle={() => setMobileOpen(false)} />
-          </SheetContent>
-        </Sheet>
       </div>
+
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="right"
+          className="flex w-[min(340px,92vw)] flex-col rounded-none border-term-border bg-term-panel p-0 text-term-text"
+        >
+          <OrderFlowPanelBody {...bodyProps} onToggle={() => setMobileOpen(false)} />
+        </SheetContent>
+      </Sheet>
     </>
   )
 }
@@ -501,23 +503,30 @@ function OrderFlowPanelBody({
                                   onClick={() => goToOrderInfo(group.projectId)}
                                   aria-label={`待处理订单 ${item.amazon_order_id} · ${item.sku ?? '—'} · ${getOrderStatusLabel(item.order_status)}`}
                                 >
-                                  <TermCell className="max-w-0 px-2 py-1">
-                                    <div className="flex flex-col gap-0.5 leading-tight">
-                                      {/* 第一行：OrderID */}
+                                  <TermCell className="max-w-0 px-2.5 py-2">
+                                    {/* BLF-999：手机端可读性重排——三行结构 + 档内最小字号 10px 起步，
+                                     之前两行塞 7 字段（9px 字号）在 340px 抽屉里近乎不可读 */}
+                                    <div className="flex flex-col gap-1 leading-tight">
+                                      {/* 第一行：OrderID（主标识，mono 11px） */}
                                       <span
-                                        className="truncate font-mono text-[10px] text-term-text"
+                                        className="truncate font-mono text-[11px] text-term-text"
                                         title={item.amazon_order_id}
                                       >
                                         {item.amazon_order_id}
                                       </span>
-                                      {/* 第二行：SKU · 数量 · 金额 · 状态 · 国家 · 时间 */}
-                                      <span className="truncate text-[9px] text-term-faint">
-                                        {item.sku ?? '—'}{' · '}
-                                        ×{item.quantity}{' · '}
-                                        {fmtPanelAmount(item.item_price + item.shipping_price)}{' '}
-                                        {item.currency ?? ''}{' · '}
+                                      {/* 第二行：SKU · 数量 · 金额 · 状态 */}
+                                      <span className="flex min-w-0 items-center gap-1.5 truncate text-[10px]">
+                                        <span className="truncate text-term-muted" title={item.sku ?? undefined}>
+                                          {item.sku ?? '—'}
+                                        </span>
+                                        <span className="shrink-0 font-mono text-term-faint">×{item.quantity}</span>
+                                        <span className="shrink-0 font-mono tabular-nums text-term-text">
+                                          {fmtPanelAmount(item.item_price + item.shipping_price)}{' '}
+                                          {item.currency ?? ''}
+                                        </span>
                                         <span
                                           className={cn(
+                                            'shrink-0 border px-1 leading-4',
                                             ORDER_STATUS_TONE_PILL_CLASS[
                                               getOrderStatusTone(item.order_status)
                                             ]
@@ -525,9 +534,13 @@ function OrderFlowPanelBody({
                                         >
                                           {getOrderStatusLabel(item.order_status)}
                                         </span>
-                                        {' · '}
-                                        {item.country}{' · '}
-                                        {formatPanelPtDate(item.purchase_at_pt)}
+                                      </span>
+                                      {/* 第三行：国家 · 时间 */}
+                                      <span className="flex items-center gap-1.5 text-[10px] text-term-faint">
+                                        <span className="shrink-0">{item.country}</span>
+                                        <span className="shrink-0 font-mono tabular-nums">
+                                          {formatPanelPtDate(item.purchase_at_pt)}
+                                        </span>
                                       </span>
                                     </div>
                                   </TermCell>
@@ -567,15 +580,15 @@ function OrderFlowPanelBody({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
             今日出单
           </h3>
+          {/* BLF-999：空态收口——之前 3 块 h-8 骨架 + 两行文案，手机端占位近 100px 且长期停留 */}
           {liveStreamItems.length === 0 ? (
             <div aria-busy="true" data-testid="order-stream-empty">
-              <p className="text-sm text-term-faint">暂无今日出单事件</p>
-              <p className="pb-1 text-xs text-term-faint/70">同步中…</p>
-              <div className="mt-1 space-y-1.5" role="status" aria-label="同步中">
-                {[0, 1, 2].map((i) => (
+              <p className="text-xs text-term-faint">暂无今日出单事件</p>
+              <div className="mt-1.5 space-y-1" role="status" aria-label="同步中">
+                {[0, 1].map((i) => (
                   <div
                     key={i}
-                    className="h-8 w-full animate-pulse bg-term-hover"
+                    className="h-4 w-full animate-pulse bg-term-hover"
                     style={{ opacity: 1 - i * 0.25 }}
                   />
                 ))}

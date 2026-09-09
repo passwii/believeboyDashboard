@@ -444,7 +444,7 @@ describe('V2OrderFlowPanel', () => {
       expect(screen.getByText(/15\.00 USD/)).toBeInTheDocument()
       expect(screen.getByText(/×2/)).toBeInTheDocument()
       expect(screen.getByText(/处理中/)).toBeInTheDocument()
-      expect(screen.getByText(/US/)).toBeInTheDocument()
+      expect(screen.getByText('US', { exact: true })).toBeInTheDocument()
       expect(screen.getByText(/08-29 19:30/)).toBeInTheDocument()
     })
 
