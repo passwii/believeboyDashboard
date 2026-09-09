@@ -153,6 +153,9 @@ class Complaint(Base):
     reply_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     handler_note: Mapped[str | None] = mapped_column(Text(), nullable=True)
     status_history: Mapped[list] = mapped_column(JSON(), nullable=False, server_default='[]')
+    first_message_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    message_count: Mapped[int] = mapped_column(Integer(), nullable=False, server_default='1')
+    messages: Mapped[list] = mapped_column(JSON(), nullable=False, server_default='[]')
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )

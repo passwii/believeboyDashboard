@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -106,20 +106,40 @@ class ComplaintRunBatchResponse(BaseModel):
 
 # ── 列表 / 详情响应 ─────────────────────────────────────────────
 
+ComplaintStatus = Literal['pending', 'drafted', 'replied', 'resolved', 'closed_no_response']
+ComplaintCategory = Literal['with_order', 'no_order_info', 'spam']
+
+
+class ComplaintStatusHistoryEntry(BaseModel):
+    from_status: ComplaintStatus | None = Field(default=None, alias='from')
+    to: ComplaintStatus
+    at: datetime
+    by: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ComplaintListItem(BaseModel):
+    """列表 DTO，包含前端映射层需要的原始快照字段。"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     run_id: int
     project_id: int
+    project_name: str
     country: str
     buyer_name: str
     first_message_date: date
     message_date: date
     subject: str
-    category: str
+    category: ComplaintCategory
     has_order: bool
-    status: str
+    status: ComplaintStatus
+    triage: Triage
+    order_info: OrderInfo | None = None
+    sla: SlaInfo | None = None
+    status_history: list[ComplaintStatusHistoryEntry] = Field(default_factory=list)
     draft_path: str | None = None
     reply_sent_at: datetime | None = None
     handler_note: str | None = None
@@ -130,17 +150,13 @@ class ComplaintListItem(BaseModel):
 
 class ComplaintDetail(ComplaintListItem):
     message_body: str
-    triage: dict
-    order_info: dict | None = None
-    sla: dict | None = None
-    status_history: list = Field(default_factory=list)
     messages: list = Field(default_factory=list)
 
 
 # ── PATCH 请求（状态流转 / 消息更新）──────────────────────────
 
 class ComplaintPatchRequest(BaseModel):
-    status: Annotated[str, Field(pattern='^(pending|drafted|replied|resolved|closed_no_response)$')] | None = None
+    status: ComplaintStatus | None = None
     draft_path: str | None = None
     reply_sent_at: datetime | None = None
     handler_note: str | None = None

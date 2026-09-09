@@ -53,6 +53,37 @@ def _cleanup_complaint_tables():
         db.close()
 
 
+@pytest.fixture
+def cc_project():
+    """Isolated project for batch bodies (BLF_test has no project id 1)."""
+    from app.models.project import Project
+
+    db = SessionLocal()
+    try:
+        project = Project(
+            project_name=f"cc-{uuid.uuid4().hex[:8]}",
+            project_operator="pytest",
+            assistant_operator=None,
+            sort_order=0,
+            is_active=True,
+            country="US",
+        )
+        db.add(project)
+        db.commit()
+        pid = project.id
+    finally:
+        db.close()
+    yield pid
+    db = SessionLocal()
+    try:
+        db.execute(delete(Complaint).where(Complaint.project_id == pid))
+        db.execute(delete(ShopCheck).where(ShopCheck.project_id == pid))
+        db.execute(delete(Project).where(Project.id == pid))
+        db.commit()
+    finally:
+        db.close()
+
+
 def _make_headers(make_api_key, agent_id: str, *, business_scope: str = "complaint_center") -> dict:
     key = make_api_key(agent_id=agent_id, business_scope=business_scope)
     return {
@@ -61,7 +92,7 @@ def _make_headers(make_api_key, agent_id: str, *, business_scope: str = "complai
     }
 
 
-def _batch_body(**overrides) -> dict:
+def _batch_body(project_id: int = 1, **overrides) -> dict:
     """最小合法 batch 请求体（1 shop + 1 complaint with order）。"""
     return {
         "run_date": "2026-09-04",
@@ -76,7 +107,7 @@ def _batch_body(**overrides) -> dict:
         },
         "shop_checks": [
             {
-                "project_id": 1,
+                "project_id": project_id,
                 "country": "US",
                 "check_status": "ok",
                 "error_message": None,
@@ -90,9 +121,10 @@ def _batch_body(**overrides) -> dict:
         ],
         "complaints": [
             {
-                "project_id": 1,
+                "project_id": project_id,
                 "country": "US",
                 "buyer_name": "Crystal",
+                "first_message_date": "2026-09-02",
                 "message_date": "2026-09-02",
                 "subject": "Product details inquiry from Amazon customer Crystal",
                 "message_body": "Need another blanket the one I bought last year doesn't work",
@@ -123,37 +155,37 @@ def _batch_body(**overrides) -> dict:
 class TestBatchWrite:
     """W1 POST /batch 批量写入。"""
 
-    def test_first_write_returns_ids(self, client: TestClient, make_api_key) -> None:
+    def test_first_write_returns_ids(self, client: TestClient, make_api_key, cc_project: int) -> None:
         agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
         headers = _make_headers(make_api_key, agent_id)
-        resp = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
+        resp = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
         assert resp.status_code == 200, resp.text
         data = resp.json()["data"]
         assert data["run_id"] > 0
         assert data["run_date"] == "2026-09-04"
         assert len(data["shop_checks"]) == 1
         assert data["shop_checks"][0]["shop_check_id"] > 0
-        assert data["shop_checks"][0]["project_id"] == 1
+        assert data["shop_checks"][0]["project_id"] == cc_project
         assert data["shop_checks"][0]["country"] == "US"
         assert len(data["complaints"]) == 1
         assert data["complaints"][0]["complaint_id"] > 0
 
-    def test_idempotent_same_day_resubmit(self, client: TestClient, make_api_key) -> None:
+    def test_idempotent_same_day_resubmit(self, client: TestClient, make_api_key, cc_project: int) -> None:
         """同一天重复提交 → 更新原 run，不产生重复行。"""
         agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
         headers = _make_headers(make_api_key, agent_id)
-        resp1 = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
-        resp2 = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
+        resp1 = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
+        resp2 = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
         assert resp1.status_code == 200, resp1.text
         assert resp2.status_code == 200, resp2.text
         assert resp1.json()["data"]["run_id"] == resp2.json()["data"]["run_id"]
 
-    def test_complaint_natural_key_upsert(self, client: TestClient, make_api_key) -> None:
+    def test_complaint_natural_key_upsert(self, client: TestClient, make_api_key, cc_project: int) -> None:
         """相同自然键重复写入 → upsert 不产生重复 complaint。"""
         agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
         headers = _make_headers(make_api_key, agent_id)
-        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
-        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
+        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
+        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
         resp = client.get(
             "/api/v1/agent/complaint-center/complaints?run_date=2026-09-04",
             headers=headers,
@@ -173,10 +205,10 @@ class TestBatchWrite:
 class TestReadEndpoints:
     """R1 GET /complaints。"""
 
-    def test_list_complaints(self, client: TestClient, make_api_key) -> None:
+    def test_list_complaints(self, client: TestClient, make_api_key, cc_project: int) -> None:
         agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
         headers = _make_headers(make_api_key, agent_id)
-        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
+        client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(cc_project), headers=headers)
         resp = client.get(
             "/api/v1/agent/complaint-center/complaints?run_date=2026-09-04",
             headers=headers,
