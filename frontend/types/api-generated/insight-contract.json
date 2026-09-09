@@ -1,0 +1,3099 @@
+{
+  "cursor": {
+    "example": "00000000-0000-4000-8000-000000000000:1:1",
+    "format": "{run_id}:{attempt}:{seq}",
+    "resume_header": "Last-Event-ID"
+  },
+  "errors": [
+    {
+      "code": "CANCELLED",
+      "http_status": 409,
+      "retryable": false
+    },
+    {
+      "code": "CONTENT_FILTERED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "COUNTRY_MISMATCH",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_CONFLICT",
+      "http_status": 409,
+      "retryable": false
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REQUIRED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "INVALID_REQUEST",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "INVALID_STATE_TRANSITION",
+      "http_status": 409,
+      "retryable": false
+    },
+    {
+      "code": "MISSING_REQUIRED_SLOT",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "MODEL_NOT_ALLOWED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "PROJECT_NOT_FOUND",
+      "http_status": 404,
+      "retryable": false
+    },
+    {
+      "code": "PROJECT_OUT_OF_SCOPE",
+      "http_status": 403,
+      "retryable": false
+    },
+    {
+      "code": "PROVIDER_UNAVAILABLE",
+      "http_status": 503,
+      "retryable": true
+    },
+    {
+      "code": "RATE_LIMITED",
+      "http_status": 429,
+      "retryable": true
+    },
+    {
+      "code": "REQUEST_TOO_LARGE",
+      "http_status": 413,
+      "retryable": false
+    },
+    {
+      "code": "RESUME_CURSOR_INVALID",
+      "http_status": 400,
+      "retryable": false
+    },
+    {
+      "code": "ROLE_NOT_AVAILABLE",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "ROLE_VERSION_UNSUPPORTED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "RUN_NOT_FOUND",
+      "http_status": 404,
+      "retryable": false
+    },
+    {
+      "code": "RUN_TERMINAL",
+      "http_status": 409,
+      "retryable": false
+    },
+    {
+      "code": "SCOPE_MISMATCH",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "SLOT_TOO_LARGE",
+      "http_status": 413,
+      "retryable": false
+    },
+    {
+      "code": "SLOT_VALIDATION_FAILED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "SYSTEM_PROMPT_NOT_ALLOWED",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "UNKNOWN_ROLE",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "UNKNOWN_SLOT",
+      "http_status": 422,
+      "retryable": false
+    },
+    {
+      "code": "UPSTREAM_TIMEOUT",
+      "http_status": 504,
+      "retryable": true
+    }
+  ],
+  "limits": {
+    "array_max_items": 500,
+    "json_max_depth": 8,
+    "object_key_max_chars": 64,
+    "object_max_keys": 100,
+    "request_body_max_bytes": 1048576,
+    "slot_canonical_max_bytes": 262144,
+    "slots_total_max_bytes": 786432,
+    "status_detail_max_chars": 512,
+    "string_max_chars": 16384
+  },
+  "roles": [
+    {
+      "availability": "reserved",
+      "canonical_key": "ad_analysis.v1",
+      "default_model_policy": "ad_analysis.default",
+      "optional_slots": [],
+      "output_format": "markdown",
+      "output_slot": "main",
+      "required_slots": [],
+      "role_id": "ad_analysis",
+      "role_version": 1
+    },
+    {
+      "availability": "reserved",
+      "canonical_key": "inventory_health.v1",
+      "default_model_policy": "inventory_health.default",
+      "optional_slots": [],
+      "output_format": "markdown",
+      "output_slot": "main",
+      "required_slots": [],
+      "role_id": "inventory_health",
+      "role_version": 1
+    },
+    {
+      "availability": "active",
+      "canonical_key": "schedule_report_summary.v1",
+      "default_model_policy": "schedule_report_summary.default",
+      "optional_slots": [
+        "project.context",
+        "sku.context"
+      ],
+      "output_format": "markdown",
+      "output_slot": "main",
+      "required_slots": [
+        "report.context",
+        "report.data"
+      ],
+      "role_id": "schedule_report_summary",
+      "role_version": 1
+    }
+  ],
+  "schema_version": 1,
+  "schemas": {
+    "ContentDeltaEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "block_id": {
+          "minLength": 1,
+          "title": "Block Id",
+          "type": "string"
+        },
+        "delta": {
+          "minLength": 1,
+          "title": "Delta",
+          "type": "string"
+        },
+        "format": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Format",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "slot": {
+          "minLength": 1,
+          "title": "Slot",
+          "type": "string"
+        },
+        "type": {
+          "const": "content.delta",
+          "default": "content.delta",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "slot",
+        "block_id",
+        "delta"
+      ],
+      "title": "ContentDeltaEvent",
+      "type": "object"
+    },
+    "ContentSnapshotEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "checkpoint_seq": {
+          "exclusiveMinimum": 0,
+          "title": "Checkpoint Seq",
+          "type": "integer"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "format": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Format",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "slot": {
+          "minLength": 1,
+          "title": "Slot",
+          "type": "string"
+        },
+        "type": {
+          "const": "content.snapshot",
+          "default": "content.snapshot",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "slot",
+        "content",
+        "content_sha256",
+        "checkpoint_seq"
+      ],
+      "title": "ContentSnapshotEvent",
+      "type": "object"
+    },
+    "DoneEvent": {
+      "$defs": {
+        "InsightOutput": {
+          "additionalProperties": false,
+          "description": "输出 slot：Markdown artifact + 小写 SHA-256 digest。",
+          "properties": {
+            "content": {
+              "minLength": 1,
+              "title": "Content",
+              "type": "string"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          "required": [
+            "content",
+            "content_sha256"
+          ],
+          "title": "InsightOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Id"
+        },
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/InsightOutput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "const": "completed",
+          "default": "completed",
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "type": {
+          "const": "done",
+          "default": "done",
+          "title": "Type",
+          "type": "string"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Usage"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "outputs",
+        "content_sha256"
+      ],
+      "title": "DoneEvent",
+      "type": "object"
+    },
+    "ErrorEvent": {
+      "$defs": {
+        "InsightError": {
+          "additionalProperties": false,
+          "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/InsightErrorCode"
+            },
+            "details": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Details"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Field"
+            },
+            "message": {
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            },
+            "partial_available": {
+              "default": false,
+              "title": "Partial Available",
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            },
+            "retryable": {
+              "default": false,
+              "title": "Retryable",
+              "type": "boolean"
+            },
+            "slot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Slot"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "InsightError",
+          "type": "object"
+        },
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "error": {
+          "$ref": "#/$defs/InsightError"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "const": "error",
+          "default": "error",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "status",
+        "error"
+      ],
+      "title": "ErrorEvent",
+      "type": "object"
+    },
+    "InsightError": {
+      "$defs": {
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/InsightErrorCode"
+        },
+        "details": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Details"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "partial_available": {
+          "default": false,
+          "title": "Partial Available",
+          "type": "boolean"
+        },
+        "retry_after_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry After Seconds"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "slot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slot"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "InsightError",
+      "type": "object"
+    },
+    "InsightErrorResponse": {
+      "$defs": {
+        "InsightError": {
+          "additionalProperties": false,
+          "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/InsightErrorCode"
+            },
+            "details": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Details"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Field"
+            },
+            "message": {
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            },
+            "partial_available": {
+              "default": false,
+              "title": "Partial Available",
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            },
+            "retryable": {
+              "default": false,
+              "title": "Retryable",
+              "type": "boolean"
+            },
+            "slot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Slot"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "InsightError",
+          "type": "object"
+        },
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/InsightError"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "error"
+      ],
+      "title": "InsightErrorResponse",
+      "type": "object"
+    },
+    "InsightEvent": {
+      "$defs": {
+        "ContentDeltaEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "block_id": {
+              "minLength": 1,
+              "title": "Block Id",
+              "type": "string"
+            },
+            "delta": {
+              "minLength": 1,
+              "title": "Delta",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "slot": {
+              "minLength": 1,
+              "title": "Slot",
+              "type": "string"
+            },
+            "type": {
+              "const": "content.delta",
+              "default": "content.delta",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "slot",
+            "block_id",
+            "delta"
+          ],
+          "title": "ContentDeltaEvent",
+          "type": "object"
+        },
+        "ContentSnapshotEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "checkpoint_seq": {
+              "exclusiveMinimum": 0,
+              "title": "Checkpoint Seq",
+              "type": "integer"
+            },
+            "content": {
+              "minLength": 1,
+              "title": "Content",
+              "type": "string"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "slot": {
+              "minLength": 1,
+              "title": "Slot",
+              "type": "string"
+            },
+            "type": {
+              "const": "content.snapshot",
+              "default": "content.snapshot",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "slot",
+            "content",
+            "content_sha256",
+            "checkpoint_seq"
+          ],
+          "title": "ContentSnapshotEvent",
+          "type": "object"
+        },
+        "DoneEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "artifact_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Artifact Id"
+            },
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "outputs": {
+              "additionalProperties": {
+                "$ref": "#/$defs/InsightOutput"
+              },
+              "title": "Outputs",
+              "type": "object"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "status": {
+              "const": "completed",
+              "default": "completed",
+              "title": "Status",
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            },
+            "type": {
+              "const": "done",
+              "default": "done",
+              "title": "Type",
+              "type": "string"
+            },
+            "usage": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Usage"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "outputs",
+            "content_sha256"
+          ],
+          "title": "DoneEvent",
+          "type": "object"
+        },
+        "ErrorEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "error": {
+              "$ref": "#/$defs/InsightError"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "status": {
+              "enum": [
+                "failed",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "type": {
+              "const": "error",
+              "default": "error",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "status",
+            "error"
+          ],
+          "title": "ErrorEvent",
+          "type": "object"
+        },
+        "InsightError": {
+          "additionalProperties": false,
+          "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/InsightErrorCode"
+            },
+            "details": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Details"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Field"
+            },
+            "message": {
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            },
+            "partial_available": {
+              "default": false,
+              "title": "Partial Available",
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            },
+            "retryable": {
+              "default": false,
+              "title": "Retryable",
+              "type": "boolean"
+            },
+            "slot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Slot"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "InsightError",
+          "type": "object"
+        },
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "InsightOutput": {
+          "additionalProperties": false,
+          "description": "输出 slot：Markdown artifact + 小写 SHA-256 digest。",
+          "properties": {
+            "content": {
+              "minLength": 1,
+              "title": "Content",
+              "type": "string"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          "required": [
+            "content",
+            "content_sha256"
+          ],
+          "title": "InsightOutput",
+          "type": "object"
+        },
+        "InsightStage": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing"
+          ],
+          "title": "InsightStage",
+          "type": "string"
+        },
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "PingEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "type": {
+              "const": "ping",
+              "default": "ping",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq"
+          ],
+          "title": "PingEvent",
+          "type": "object"
+        },
+        "SnapshotEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "error": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InsightError"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "is_terminal": {
+              "default": false,
+              "title": "Is Terminal",
+              "type": "boolean"
+            },
+            "outputs": {
+              "additionalProperties": {
+                "$ref": "#/$defs/InsightOutput"
+              },
+              "title": "Outputs",
+              "type": "object"
+            },
+            "progress_percent": {
+              "maximum": 100,
+              "minimum": 0,
+              "title": "Progress Percent",
+              "type": "integer"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "stage": {
+              "$ref": "#/$defs/InsightStage"
+            },
+            "status": {
+              "$ref": "#/$defs/InsightStatus"
+            },
+            "type": {
+              "const": "snapshot",
+              "default": "snapshot",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "status",
+            "stage",
+            "progress_percent"
+          ],
+          "title": "SnapshotEvent",
+          "type": "object"
+        },
+        "StatusEvent": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Attempt",
+              "type": "integer"
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Detail"
+            },
+            "progress_percent": {
+              "maximum": 100,
+              "minimum": 0,
+              "title": "Progress Percent",
+              "type": "integer"
+            },
+            "run_id": {
+              "format": "uuid4",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1,
+              "title": "Schema Version",
+              "type": "integer"
+            },
+            "seq": {
+              "exclusiveMinimum": 0,
+              "title": "Seq",
+              "type": "integer"
+            },
+            "stage": {
+              "$ref": "#/$defs/InsightStage"
+            },
+            "status": {
+              "$ref": "#/$defs/InsightStatus"
+            },
+            "type": {
+              "const": "status",
+              "default": "status",
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt",
+            "seq",
+            "status",
+            "stage",
+            "progress_percent"
+          ],
+          "title": "StatusEvent",
+          "type": "object"
+        }
+      },
+      "discriminator": {
+        "mapping": {
+          "content.delta": "#/$defs/ContentDeltaEvent",
+          "content.snapshot": "#/$defs/ContentSnapshotEvent",
+          "done": "#/$defs/DoneEvent",
+          "error": "#/$defs/ErrorEvent",
+          "ping": "#/$defs/PingEvent",
+          "snapshot": "#/$defs/SnapshotEvent",
+          "status": "#/$defs/StatusEvent"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SnapshotEvent"
+        },
+        {
+          "$ref": "#/$defs/StatusEvent"
+        },
+        {
+          "$ref": "#/$defs/ContentDeltaEvent"
+        },
+        {
+          "$ref": "#/$defs/ContentSnapshotEvent"
+        },
+        {
+          "$ref": "#/$defs/DoneEvent"
+        },
+        {
+          "$ref": "#/$defs/ErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/PingEvent"
+        }
+      ]
+    },
+    "InsightRunActionResponse": {
+      "$defs": {
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "cancel / retry 动作响应。",
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "detail_url": {
+          "title": "Detail Url",
+          "type": "string"
+        },
+        "replayed": {
+          "default": false,
+          "title": "Replayed",
+          "type": "boolean"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/InsightStatus"
+        },
+        "stream_url": {
+          "title": "Stream Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "status",
+        "detail_url",
+        "stream_url"
+      ],
+      "title": "InsightRunActionResponse",
+      "type": "object"
+    },
+    "InsightRunDetail": {
+      "$defs": {
+        "InsightError": {
+          "additionalProperties": false,
+          "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/InsightErrorCode"
+            },
+            "details": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Details"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Field"
+            },
+            "message": {
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            },
+            "partial_available": {
+              "default": false,
+              "title": "Partial Available",
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            },
+            "retryable": {
+              "default": false,
+              "title": "Retryable",
+              "type": "boolean"
+            },
+            "slot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Slot"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "InsightError",
+          "type": "object"
+        },
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "InsightOutput": {
+          "additionalProperties": false,
+          "description": "输出 slot：Markdown artifact + 小写 SHA-256 digest。",
+          "properties": {
+            "content": {
+              "minLength": 1,
+              "title": "Content",
+              "type": "string"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          "required": [
+            "content",
+            "content_sha256"
+          ],
+          "title": "InsightOutput",
+          "type": "object"
+        },
+        "InsightResumeInfo": {
+          "additionalProperties": false,
+          "description": "canonical cursor 可恢复性描述；不暴露 Redis entry / DB key / provider 信息。",
+          "properties": {
+            "current_attempt": {
+              "exclusiveMinimum": 0,
+              "title": "Current Attempt",
+              "type": "integer"
+            },
+            "history_available": {
+              "title": "History Available",
+              "type": "boolean"
+            },
+            "latest_event_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Latest Event Id"
+            }
+          },
+          "required": [
+            "current_attempt",
+            "history_available"
+          ],
+          "title": "InsightResumeInfo",
+          "type": "object"
+        },
+        "InsightStage": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing"
+          ],
+          "title": "InsightStage",
+          "type": "string"
+        },
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        },
+        "InsightUsage": {
+          "additionalProperties": false,
+          "properties": {
+            "input_tokens": {
+              "minimum": 0,
+              "title": "Input Tokens",
+              "type": "integer"
+            },
+            "output_tokens": {
+              "minimum": 0,
+              "title": "Output Tokens",
+              "type": "integer"
+            },
+            "total_tokens": {
+              "minimum": 0,
+              "title": "Total Tokens",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "input_tokens",
+            "output_tokens",
+            "total_tokens"
+          ],
+          "title": "InsightUsage",
+          "type": "object"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "权威 detail：页面重开、SSE 过期、后台完成后均可读取。",
+      "properties": {
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Id"
+        },
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InsightError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output_format": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/InsightOutput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "progress_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Progress Percent",
+          "type": "integer"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "resume": {
+          "$ref": "#/$defs/InsightResumeInfo"
+        },
+        "role_id": {
+          "title": "Role Id",
+          "type": "string"
+        },
+        "role_version": {
+          "exclusiveMinimum": 0,
+          "title": "Role Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/InsightStage"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "$ref": "#/$defs/InsightStatus"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InsightUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "role_id",
+        "role_version",
+        "project_id",
+        "country",
+        "status",
+        "stage",
+        "progress_percent",
+        "resume",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "InsightRunDetail",
+      "type": "object"
+    },
+    "InsightRunRequest": {
+      "$defs": {
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "创建 run 请求。`output_format` 由服务端固定，客户端不可覆盖。",
+      "properties": {
+        "client_request_id": {
+          "anyOf": [
+            {
+              "format": "uuid4",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Request Id"
+        },
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "idempotency_key": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]{1,64}$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "role_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Role Id",
+          "type": "string"
+        },
+        "role_version": {
+          "exclusiveMinimum": 0,
+          "title": "Role Version",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Slots",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "role_id",
+        "role_version",
+        "project_id",
+        "country",
+        "slots",
+        "idempotency_key"
+      ],
+      "title": "InsightRunRequest",
+      "type": "object"
+    },
+    "InsightRunResponse": {
+      "$defs": {
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "创建 run 响应。不回显 key / URL / prompt，只给相对本产品 URL。",
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "cancel_url": {
+          "title": "Cancel Url",
+          "type": "string"
+        },
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "detail_url": {
+          "title": "Detail Url",
+          "type": "string"
+        },
+        "output_format": {
+          "const": "markdown",
+          "default": "markdown",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "project_id": {
+          "exclusiveMinimum": 0,
+          "title": "Project Id",
+          "type": "integer"
+        },
+        "replayed": {
+          "default": false,
+          "title": "Replayed",
+          "type": "boolean"
+        },
+        "retry_url": {
+          "title": "Retry Url",
+          "type": "string"
+        },
+        "role_id": {
+          "title": "Role Id",
+          "type": "string"
+        },
+        "role_version": {
+          "exclusiveMinimum": 0,
+          "title": "Role Version",
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/InsightStatus"
+        },
+        "stream_url": {
+          "title": "Stream Url",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "role_id",
+        "role_version",
+        "project_id",
+        "country",
+        "status",
+        "detail_url",
+        "stream_url",
+        "cancel_url",
+        "retry_url",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "InsightRunResponse",
+      "type": "object"
+    },
+    "PingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "type": {
+          "const": "ping",
+          "default": "ping",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq"
+      ],
+      "title": "PingEvent",
+      "type": "object"
+    },
+    "ProjectContextSlot": {
+      "$defs": {
+        "ProjectSummary": {
+          "additionalProperties": false,
+          "properties": {
+            "country": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "US",
+                    "DE",
+                    "UK"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Country"
+            },
+            "name": {
+              "maxLength": 256,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            },
+            "project_id": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "project_id",
+            "name"
+          ],
+          "title": "ProjectSummary",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "`project.context`：项目摘要列表，最多 50 项。",
+      "properties": {
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectSummary"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Projects",
+          "type": "array"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "projects"
+      ],
+      "title": "ProjectContextSlot",
+      "type": "object"
+    },
+    "ReportContextSlot": {
+      "additionalProperties": false,
+      "description": "`report.context`：报表范围与口径；须与请求 scope 一致（由 validator 校验）。",
+      "properties": {
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "date_range_end": {
+          "format": "date",
+          "title": "Date Range End",
+          "type": "string"
+        },
+        "date_range_start": {
+          "format": "date",
+          "title": "Date Range Start",
+          "type": "string"
+        },
+        "frequency": {
+          "enum": [
+            "daily",
+            "weekly",
+            "monthly"
+          ],
+          "title": "Frequency",
+          "type": "string"
+        },
+        "project_ids": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Project Ids",
+          "type": "array"
+        },
+        "project_name": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Name"
+        },
+        "report_date": {
+          "format": "date",
+          "title": "Report Date",
+          "type": "string"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "frequency",
+        "report_date",
+        "date_range_start",
+        "date_range_end",
+        "project_ids",
+        "country"
+      ],
+      "title": "ReportContextSlot",
+      "type": "object"
+    },
+    "ReportDataSlot": {
+      "additionalProperties": false,
+      "description": "`report.data`：版本化 JSON envelope；payload 只接受真实对象，不接受 repr/二进制/字符串化 JSON。",
+      "properties": {
+        "encoding": {
+          "const": "json",
+          "default": "json",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "payload"
+      ],
+      "title": "ReportDataSlot",
+      "type": "object"
+    },
+    "SkuContextSlot": {
+      "$defs": {
+        "SkuSummary": {
+          "additionalProperties": false,
+          "properties": {
+            "asin": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Asin"
+            },
+            "factory_info": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Factory Info"
+            },
+            "project_id": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Project Id"
+            },
+            "sku": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Sku",
+              "type": "string"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Title"
+            }
+          },
+          "required": [
+            "sku"
+          ],
+          "title": "SkuSummary",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "`sku.context`：SKU 摘要列表，最多 200 项。",
+      "properties": {
+        "skus": {
+          "items": {
+            "$ref": "#/$defs/SkuSummary"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Skus",
+          "type": "array"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "skus"
+      ],
+      "title": "SkuContextSlot",
+      "type": "object"
+    },
+    "SnapshotEvent": {
+      "$defs": {
+        "InsightError": {
+          "additionalProperties": false,
+          "description": "Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/InsightErrorCode"
+            },
+            "details": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/JsonValue"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Details"
+            },
+            "field": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Field"
+            },
+            "message": {
+              "minLength": 1,
+              "title": "Message",
+              "type": "string"
+            },
+            "partial_available": {
+              "default": false,
+              "title": "Partial Available",
+              "type": "boolean"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            },
+            "retryable": {
+              "default": false,
+              "title": "Retryable",
+              "type": "boolean"
+            },
+            "slot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Slot"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "InsightError",
+          "type": "object"
+        },
+        "InsightErrorCode": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNKNOWN_ROLE",
+            "ROLE_VERSION_UNSUPPORTED",
+            "ROLE_NOT_AVAILABLE",
+            "UNKNOWN_SLOT",
+            "MISSING_REQUIRED_SLOT",
+            "SLOT_VALIDATION_FAILED",
+            "SCOPE_MISMATCH",
+            "PROJECT_NOT_FOUND",
+            "PROJECT_OUT_OF_SCOPE",
+            "COUNTRY_MISMATCH",
+            "REQUEST_TOO_LARGE",
+            "SLOT_TOO_LARGE",
+            "SYSTEM_PROMPT_NOT_ALLOWED",
+            "IDEMPOTENCY_KEY_REQUIRED",
+            "IDEMPOTENCY_KEY_CONFLICT",
+            "RUN_NOT_FOUND",
+            "RUN_TERMINAL",
+            "INVALID_STATE_TRANSITION",
+            "RESUME_CURSOR_INVALID",
+            "MODEL_NOT_ALLOWED",
+            "RATE_LIMITED",
+            "PROVIDER_UNAVAILABLE",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED",
+            "CANCELLED"
+          ],
+          "title": "InsightErrorCode",
+          "type": "string"
+        },
+        "InsightOutput": {
+          "additionalProperties": false,
+          "description": "输出 slot：Markdown artifact + 小写 SHA-256 digest。",
+          "properties": {
+            "content": {
+              "minLength": 1,
+              "title": "Content",
+              "type": "string"
+            },
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Sha256",
+              "type": "string"
+            },
+            "format": {
+              "const": "markdown",
+              "default": "markdown",
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          "required": [
+            "content",
+            "content_sha256"
+          ],
+          "title": "InsightOutput",
+          "type": "object"
+        },
+        "InsightStage": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing"
+          ],
+          "title": "InsightStage",
+          "type": "string"
+        },
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        },
+        "JsonValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InsightError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_terminal": {
+          "default": false,
+          "title": "Is Terminal",
+          "type": "boolean"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/InsightOutput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "progress_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Progress Percent",
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/InsightStage"
+        },
+        "status": {
+          "$ref": "#/$defs/InsightStatus"
+        },
+        "type": {
+          "const": "snapshot",
+          "default": "snapshot",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "status",
+        "stage",
+        "progress_percent"
+      ],
+      "title": "SnapshotEvent",
+      "type": "object"
+    },
+    "StatusEvent": {
+      "$defs": {
+        "InsightStage": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing"
+          ],
+          "title": "InsightStage",
+          "type": "string"
+        },
+        "InsightStatus": {
+          "enum": [
+            "queued",
+            "aggregating",
+            "generating",
+            "finalizing",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "InsightStatus",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "exclusiveMinimum": 0,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "progress_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Progress Percent",
+          "type": "integer"
+        },
+        "run_id": {
+          "format": "uuid4",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/InsightStage"
+        },
+        "status": {
+          "$ref": "#/$defs/InsightStatus"
+        },
+        "type": {
+          "const": "status",
+          "default": "status",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt",
+        "seq",
+        "status",
+        "stage",
+        "progress_percent"
+      ],
+      "title": "StatusEvent",
+      "type": "object"
+    }
+  }
+}
