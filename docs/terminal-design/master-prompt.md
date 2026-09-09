@@ -225,7 +225,7 @@
 ## 任务 3：外壳增强项（部分已完成，余项继续穿插）
 
 - ✅ Footer 多频道 ticker（BLF-816 已完成，#390）：汇率 / 全局快报 / 同步时刻 / 更新日志四频道，频道开关集中在 `TERMINAL_TICKER.channels`，新增/下线频道只改常量不动组件。
-- 🔶 Top Header 全局筛选四件套接入更多页面（BLF-819 试点完成；BLF-826 正在集中规划 HeaderSlot 集成方案，推进前先看该 issue 结论）。
+- 🔷 Top Header 页面插槽：BLF-826/889 已落地 22 条路由，**元素分类 / 排序 / 尺寸规格以 `docs/terminal-design/header-slot-spec.md`（BLF-997）为唯一规范来源**——新页面迁移、存量偏差修复（宽度/高度双源、双刷新入口、移动端缺口）一律照该规范执行。
 
 ### 3a. ⌘K 命令面板「最近访问」（⭐ 优先：数据侧已就绪，纯前端小改）
 
@@ -270,6 +270,9 @@ frontend/
 │   ├── term-panel.tsx / term-table.tsx      # 通用面板与高密度表格
 │   ├── header-filter-suite.tsx              # ★ Header 全局筛选组件族（Project/Country/DateRange/KPI 磁贴）
 │   ├── global-filter-context.tsx            # ★ 全局筛选态 Context（页面消费入口）
+│   ├── terminal-header-slot.tsx             # ★ Top Header 插槽机制（useHeaderSlot/useHeaderRefresh/useMobileFilterStrip，BLF-826）
+│   ├── header-filter-controls.tsx           # ★ 插槽内容统一容器（平铺/折叠两形态，BLF-826 收口）
+│   ├── mobile-filter-strip.tsx              # ★ 移动端可折叠筛选条（BLF-933）
 │   ├── terminal-constants.ts                # ★ 全部结构尺寸/Ticker/动效常量（唯一尺寸来源）
 │   ├── term-controls.tsx                     # ★ 批次 F 上收的页面级控件基类（TERM_BUTTON/INPUT 等 + TermKpiTile/TermTabBar，BLF-838）
 │   ├── term-kbd.tsx                          # kbd 快捷键共享组件（§任务 1b-5 新增）
