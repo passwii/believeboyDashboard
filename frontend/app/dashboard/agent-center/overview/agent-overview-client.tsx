@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { PageHeader } from '@/components/ui/page-header'
 import {
   Table,
   TableBody,
@@ -106,12 +105,6 @@ export default function AgentOverviewClient() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeader
-        eyebrow="Agent 中心 · 数据流"
-        title="数据流总览"
-        description={`${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入 —— Agent 员工在各业务域活动的归集点,点击入口前往对应工作台。`}
-      />
-
       <div className="rounded-none border border-dashed border-term-border bg-term-panel px-4 py-3 text-xs leading-6 text-term-muted">
         「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 /
         24h·7d 调用量 / 7d 错误率)由 domain-summary

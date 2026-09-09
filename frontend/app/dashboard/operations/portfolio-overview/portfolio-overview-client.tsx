@@ -214,7 +214,6 @@ export default function PortfolioOverviewClient() {
       onStartDateChange={setStartDate}
       endDate={endDate}
       onEndDateChange={setEndDate}
-      onRefresh={refresh}
       loading={loading}
     />
   )
@@ -237,7 +236,6 @@ export default function PortfolioOverviewClient() {
         onStartDateChange={setStartDate}
         endDate={endDate}
         onEndDateChange={setEndDate}
-        onRefresh={refresh}
         loading={loading}
       />}
     />

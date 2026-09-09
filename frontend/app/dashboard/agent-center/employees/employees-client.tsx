@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 import { Badge } from '@/components/ui/badge'
-import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -108,12 +107,6 @@ export default function AgentEmployeesClient() {
 
   return (
     <div className="w-full space-y-6">
-      <PageHeader
-        eyebrow="Agent 中心 · 员工"
-        title="Agent 员工"
-        description={`凭据即身份 —— 共 ${keys?.length ?? 0} 位员工、${activeCount} 位在职。能力域、项目范围与最近活动一览;创建 / 停用凭据请前往 Agent 接入管理。`}
-      />
-
       <DataTableCard>
         <DataTableCardHeader
           title="员工花名册"

@@ -39,4 +39,11 @@ describe('HeaderFilterControls', () => {
     expect(await screen.findByText('项目筛选')).toBeInTheDocument()
     expect(screen.getByText('站点筛选')).toBeInTheDocument()
   })
+
+  it('移动形态：触发器为 h-10 且无 rounded-md（BLF-997 上档）', () => {
+    render(<HeaderFilterControls isMobileView controls={controls} />)
+    const trigger = screen.getByRole('button', { name: '页面筛选' })
+    expect(trigger).toHaveClass('h-10')
+    expect(trigger).not.toHaveClass('rounded-md')
+  })
 })

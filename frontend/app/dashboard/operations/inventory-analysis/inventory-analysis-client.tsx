@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react'
 
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -16,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TermPanel } from '@/components/terminal/term-panel'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   TermBody,
   TermCell,
@@ -26,7 +26,7 @@ import {
 } from '@/components/terminal/term-table'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { HeaderSlotBadge, HeaderSlotSelect, HeaderSlotButton, TERM_HEADER_W_SM, TERM_HEADER_W_MD, TERM_HEADER_W_LG } from '@/components/terminal/header-filter-suite'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -40,7 +40,6 @@ import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
-import { CountrySelect } from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -517,22 +516,23 @@ export default function InventoryAnalysisPage() {
 
   const filterControls = (
     <>
-      <Select value={projectId} onValueChange={setProjectId}>
-        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[140px]">
-          <SelectValue placeholder="请选择项目" />
-        </SelectTrigger>
-        <SelectContent>
-          {projects.map((project) => (
-            <SelectItem key={project.id} value={String(project.id)}>
-              {project.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <CountrySelect
+      <HeaderSlotSelect
+        value={projectId}
+        onChange={setProjectId}
+        options={projects.map((project) => ({ value: String(project.id), label: project.name }))}
+        widthClass={TERM_HEADER_W_MD}
+        placeholder="请选择项目"
+      />
+      <HeaderSlotSelect
         value={country}
         onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-        triggerClassName="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[160px]"
+        options={[
+          { value: 'ALL', label: '全部站点' },
+          { value: 'US', label: '美国站 (US)' },
+          { value: 'DE', label: '德国站 (DE)' },
+          { value: 'UK', label: '英国站 (UK)' },
+        ]}
+        widthClass={TERM_HEADER_W_SM}
       />
       <Select
         value={selectedSnapshotDate}
@@ -540,7 +540,7 @@ export default function InventoryAnalysisPage() {
         open={snapshotSelectOpen}
         onOpenChange={setSnapshotSelectOpen}
       >
-        <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none md:w-[180px]">
+        <SelectTrigger className={cn('h-10 w-full border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_LG)}>
           <SelectValue placeholder="选择业务日期" />
         </SelectTrigger>
         <SelectContent>
@@ -553,13 +553,12 @@ export default function InventoryAnalysisPage() {
           ))}
         </SelectContent>
       </Select>
-      {/* 业务日期徽标：数据快照口径提示，非筛选控件 */}
-      <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
+      <HeaderSlotBadge title="业务日期">
         <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
         <span className="truncate font-mono text-xs tabular-nums text-term-text">
           {reportDate ? formatBusinessDate(reportDate) : '--'}
         </span>
-      </div>
+      </HeaderSlotBadge>
     </>
   )
 
@@ -582,22 +581,23 @@ export default function InventoryAnalysisPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="请选择项目" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={String(project.id)}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <CountrySelect
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={setProjectId}
+            options={projects.map((project) => ({ value: String(project.id), label: project.name }))}
+            widthClass="w-full"
+            placeholder="请选择项目"
+          />
+          <HeaderSlotSelect
             value={country}
             onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-            triggerClassName="h-10 w-full border-term-border bg-term-panel text-xs shadow-none"
+            options={[
+              { value: 'ALL', label: '全部站点' },
+              { value: 'US', label: '美国站 (US)' },
+              { value: 'DE', label: '德国站 (DE)' },
+              { value: 'UK', label: '英国站 (UK)' },
+            ]}
+            widthClass="w-full"
           />
           <MobileFilterWide>
             <Select
@@ -654,21 +654,14 @@ export default function InventoryAnalysisPage() {
         title="库存明细"
         bodyClassName="min-h-0 overflow-hidden"
         actions={
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none"
-            onClick={exportToExcel}
-            disabled={exporting || loading || rows.length === 0}
-          >
+          <HeaderSlotButton variant="muted" onClick={exportToExcel} disabled={exporting || loading || rows.length === 0}>
             {exporting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
             ) : (
               <FileDown className="h-3.5 w-3.5" strokeWidth={1.75} />
             )}
             {exporting ? '导出中...' : '导出 Excel'}
-          </Button>
+          </HeaderSlotButton>
         }
       >
         {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}

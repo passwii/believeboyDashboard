@@ -20,6 +20,9 @@ import { COUNTRY_LABELS } from '@/lib/country'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { cva, type VariantProps } from 'class-variance-authority'
 
 /**
  * BLF-819 · Top Header 全局筛选四件套（BLF-887 高度上档：h-10 终端规格）。
@@ -253,4 +256,97 @@ export function HeaderSlotDateRange({
 // 保留空壳仅作历史测试兼容（head 三区已无固定区 KPI 元素）。
 export function HeaderKpiTile() {
   return null
+}
+// ======================== BLF-997 共享插槽原子 ========================
+
+/** HeaderSlotButton 变体 */
+const headerSlotButtonVariants = cva(
+  'h-10 rounded-none px-3 font-mono text-xs leading-5 border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        primary:
+          'border-primary bg-primary text-primary-foreground hover:bg-primary/90',
+        muted:
+          'border-term-border bg-term-panel text-term-text hover:border-term-border-strong hover:bg-term-hover hover:text-term-text',
+      },
+    },
+    defaultVariants: {
+      variant: 'muted',
+    },
+  }
+)
+
+export interface HeaderSlotButtonProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'variant'> {
+  variant?: 'primary' | 'muted'
+}
+
+/**
+ * 头部插槽按钮：h-10、rounded-none、px-3，支持 primary/muted 变体。
+ * variant 映射到 Button 的底层变体（primary→default, muted→outline），
+ * 自定义样式由 headerSlotButtonVariants 叠加；不拥有业务状态。
+ */
+export function HeaderSlotButton({
+  variant = 'muted',
+  className,
+  ...props
+}: HeaderSlotButtonProps) {
+  const buttonVariant: 'default' | 'outline' = variant === 'primary' ? 'default' : 'outline'
+  return (
+    <Button variant={buttonVariant} className={cn(headerSlotButtonVariants({ variant, className }))} {...props} />
+  )
+}
+
+export { headerSlotButtonVariants }
+
+/** HeaderSlotInput 宽度类映射（复用现有 W_ 常量） */
+export interface HeaderSlotInputProps
+  extends Omit<React.ComponentProps<'input'>, 'size'> {
+  widthClass?: string
+}
+
+/**
+ * 头部插槽输入框：封装 Input size="lg"，拥有 TERM_HEADER_TRIGGER 兼容的
+ * 边界/高度与 widthClass；不拥有业务状态。
+ */
+export function HeaderSlotInput({
+  widthClass,
+  className,
+  ...props
+}: HeaderSlotInputProps) {
+  return (
+    <Input
+      size="lg"
+      className={cn(TERM_HEADER_TRIGGER, widthClass, className)}
+      {...props}
+    />
+  )
+}
+
+
+/**
+ * 头部插槽徽章：只读 h-10 边界容器，用于紧凑上下文元数据。
+ * 使用 term 文本类；不拥有业务状态。
+ */
+export function HeaderSlotBadge({
+  className,
+  children,
+  title,
+}: {
+  className?: string
+  children: React.ReactNode
+  title?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'h-10 shrink-0 rounded-none border border-term-border bg-term-panel px-2 font-mono text-sm text-term-text',
+        className,
+      )}
+      title={title}
+    >
+      {children}
+    </div>
+  )
 }

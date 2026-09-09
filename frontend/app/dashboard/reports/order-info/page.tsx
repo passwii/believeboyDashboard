@@ -45,6 +45,14 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import {
+  HeaderSlotButton,
+  HeaderSlotInput,
+  TERM_HEADER_TRIGGER,
+  TERM_HEADER_W_SM,
+  TERM_HEADER_W_MD,
+  TERM_HEADER_W_LG,
+} from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
@@ -131,14 +139,8 @@ const DEFAULT_PROJECT_VALUE = '__all__'
 /** 表格列数（含行选择列）——骨架屏 / 空态 colSpan 用 */
 const COLUMN_COUNT = 13
 
-/**
- * BLF-817 终端化控件基类（Stage 3；BLF-887 高度上档：与全局 term-controls h-9 终端档对齐）。
- */
-const TERM_TRIGGER =
-  'h-9 rounded-none border border-term-border bg-term-bg text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong data-[state=open]:border-term-border-strong'
-const TERM_INPUT =
-  'h-9 rounded-none border border-term-border bg-term-bg font-mono text-sm leading-5 text-term-text shadow-none placeholder:font-sans placeholder:text-term-faint focus-visible:outline-none focus-visible:border-term-border-strong focus-visible:ring-0 focus-visible:ring-offset-0'
-const TERM_BUTTON =
+/** 页面内正文工具行基类；HeaderSlot 控件统一使用 header-filter-suite 原子。 */
+const TERM_BODY_BUTTON =
   'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
 // ======================== 工具函数 ========================
@@ -774,7 +776,7 @@ function OrderInfoPageInner() {
   const headerSlotControls = (
     <>
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-[120px]')}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
         options={filterOptions?.fulfillment_channels ?? []}
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
@@ -782,7 +784,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '类型 · 加载中…' : '类型 · FBA/FBM'}
       />
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-[130px]')}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
         options={filterOptions?.order_statuses ?? []}
         selected={orderStatuses}
         onChange={setOrderStatuses}
@@ -790,7 +792,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '状态 · 加载中…' : '状态 · 全部'}
       />
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-[110px]')}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
         options={filterOptions?.currencies ?? []}
         selected={currencies}
         onChange={setCurrencies}
@@ -798,55 +800,58 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '币种 · 加载中…' : '币种 · 全部'}
       />
       <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
-      <div className="relative">
+      <div className="relative shrink-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
         />
-        <Input
+        <HeaderSlotInput
           value={orderIdKeyword}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setOrderIdKeyword(e.target.value)}
+          onChange={(e) => setOrderIdKeyword(e.target.value)}
           placeholder="订单号 111-…"
           title="按订单号搜索"
-          className={cn(TERM_INPUT, 'w-[150px] pl-7')}
+          widthClass={TERM_HEADER_W_MD}
+          className="pl-7"
         />
       </div>
-      <div className="relative">
+      <div className="relative shrink-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
         />
-        <Input
+        <HeaderSlotInput
           value={skuKeyword}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setSkuKeyword(e.target.value)}
+          onChange={(e) => setSkuKeyword(e.target.value)}
           placeholder="SKU"
           title="按 SKU 搜索"
-          className={cn(TERM_INPUT, 'w-[130px] pl-7')}
+          widthClass={TERM_HEADER_W_SM}
+          className="pl-7"
         />
       </div>
-      <div className="relative">
+      <div className="relative shrink-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
         />
-        <Input
+        <HeaderSlotInput
           value={asinKeyword}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setAsinKeyword(e.target.value)}
+          onChange={(e) => setAsinKeyword(e.target.value)}
           placeholder="ASIN"
           title="按 ASIN 搜索"
-          className={cn(TERM_INPUT, 'w-[120px] pl-7')}
+          widthClass={TERM_HEADER_W_SM}
+          className="pl-7"
         />
       </div>
-      <button
-        type="button"
+      <HeaderSlotButton
+        variant="muted"
         onClick={handleResetFilters}
         disabled={loading}
-        className={cn(TERM_BUTTON, 'ml-auto')}
+        className="ml-auto"
         title="清空全部筛选条件"
       >
         <X className="h-3 w-3" aria-hidden />
         清空筛选
-      </button>
+      </HeaderSlotButton>
     </>
   )
 
@@ -930,7 +935,7 @@ function OrderInfoPageInner() {
             type="button"
             onClick={() => void handleExport()}
             disabled={exporting || loading}
-            className={cn(TERM_BUTTON, 'ml-auto')}
+            className={cn(TERM_BODY_BUTTON, 'ml-auto')}
             title="按当前筛选条件导出 CSV"
           >
             {exporting ? (

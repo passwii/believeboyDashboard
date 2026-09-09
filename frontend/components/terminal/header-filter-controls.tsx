@@ -30,7 +30,7 @@ export function HeaderFilterControls({
     return (
       <Popover>
         <PopoverTrigger
-          className="flex h-9 items-center gap-1 rounded-md border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+          className="flex h-10 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
           aria-label="页面筛选"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden />

@@ -18,13 +18,14 @@ import {
   TERM_HEADER_W_SM,
   TERM_HEADER_W_XL,
 } from '@/components/terminal/header-filter-suite'
-import { Skeleton } from '@/components/ui/skeleton'
 import { TermPill } from '@/components/terminal/term-controls'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   useHeaderRefresh,
   useHeaderSlot,
+  useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
@@ -49,31 +50,22 @@ const DRILL_PARAM_LABELS = {
 } as const
 
 function buildHref(pathname: string, searchParams: URLSearchParams) {
-  const query = searchParams.toString()
-  return query ? `${pathname}?${query}` : pathname
+  const qs = searchParams.toString()
+  return qs ? `${pathname}?${qs}` : pathname
 }
 
 /**
  * BLF-889 · 广告分析页筛选上移 Top Header 中段插槽。
  *
- * 原页面级「广告分析筛选区」TermPanel（视图/项目/站点/日期只读胶囊 + 筛选控件
- * + 说明文案）与头部控件信息完全重复，按 BLF-824/826 范式收敛：
- * - 项目 / 站点 / 日期控件 portal 进 TerminalHeader（HeaderFilterControls 统一形态，
- *   移动端自动折叠为「筛选」Popover）；
- * - 下钻 token（活动/SKU/搜索词等）只在存在下钻参数时以 accent pill + 清空按钮
- *   出现在插槽尾部，无下钻时零占位；
- * - 页面内不再渲染任何筛选区块。
- *
- * URL param 契约不变：projectId / country / dateFrom / dateTo + 下钻参数，
- * 下游 10 个子页 client 零改动消费。刷新语义：清 2min 客户端缓存后强刷
- * 当前路由（子页 effect 按 URL 参数重取）。
+ * Desktop: `HeaderFilterControls isMobileView={false}` + `useHeaderSlot`.
+ * Mobile:  `useMobileFilterStrip` + `MobileFilterStrip` 渲染等价摘要与控件。
+ * 全局刷新为唯一入口，页面不额外放置 RefreshButton。
  */
 export function AdAnalysisTopFilters() {
   const { data: session } = useSession()
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const isMobile = useIsMobile()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -153,7 +145,8 @@ export function AdAnalysisTopFilters() {
   // 等价于「当前筛选条件下的强刷」。
   useHeaderRefresh(() => router.refresh())
 
-  const controls = (
+  // Desktop controls (fixed: isMobileView={false})
+  const desktopControls = (
     <>
       {projectsLoading ? (
         <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
@@ -209,17 +202,52 @@ export function AdAnalysisTopFilters() {
     </>
   )
 
-  return <AdAnalysisHeaderFilters controls={controls} isMobile={isMobile} />
-}
+  const desktopSlot = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={desktopControls} />
+  )
 
-/** portal 渲染宿主（useHeaderSlot 必须在组件体内调用） */
-function AdAnalysisHeaderFilters({
-  controls,
-  isMobile,
-}: {
-  controls: React.ReactNode
-  isMobile: boolean
-}) {
-  const portal = useHeaderSlot(<HeaderFilterControls isMobileView={isMobile} controls={controls} />)
-  return <>{portal}</>
+  // Mobile filter strip
+  const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
+  const mobileControls = (
+    <>
+      <HeaderSlotDateRange
+        value={parseDateRangeInputValue(dateFrom, dateTo)}
+        onChange={updateDateRange}
+        timezone={COUNTRY_TIMEZONE_MAP[country]}
+        widthClass={TERM_HEADER_W_SM}
+      />
+      <MobileFilterWide>
+        {projectsLoading ? (
+          <Skeleton className="h-10 w-full rounded-none" />
+        ) : (
+          <HeaderSlotSelect
+            value={projectId}
+            onChange={(value) => updateSearchParam('projectId', value)}
+            options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
+            placeholder="选择项目"
+            widthClass="w-full"
+          />
+        )}
+      </MobileFilterWide>
+      <MobileFilterWide>
+        <HeaderSlotSelect
+          value={country}
+          onChange={(value) => updateSearchParam('country', value)}
+          options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+          placeholder="站点"
+          widthClass="w-full"
+        />
+      </MobileFilterWide>
+    </>
+  )
+  const mobileStrip = useMobileFilterStrip(
+    <MobileFilterStrip summary={mobileSummary} controls={mobileControls} />
+  )
+
+  return (
+    <>
+      {desktopSlot}
+      {mobileStrip}
+    </>
+  )
 }
