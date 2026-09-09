@@ -7,6 +7,7 @@ const RESPONSE_HEADER_ALLOWLIST = [
   'content-type',
   'content-disposition',
   'cache-control',
+  'last-event-id',
   'x-request-id',
   'x-accel-buffering',
   'connection',
@@ -17,7 +18,7 @@ const RESPONSE_HEADER_ALLOWLIST = [
 ]
 const NULL_BODY_STATUS_CODES = new Set([204, 205, 304])
 
-function isStreamingContentType(value: string | null) {
+export function isStreamingContentType(value: string | null): boolean {
   const normalized = (value || '').toLowerCase()
   return normalized.includes('text/event-stream') || normalized.includes('application/x-ndjson')
 }
@@ -36,14 +37,15 @@ export function buildBackendProxyHeaders(
 ): Headers {
   // Delegate the actual session + API-key header construction to
   // `buildBackendAuthHeaders` in `lib/backend-auth.ts` so there is exactly one
-  // source of truth for "what headers do we send to the backend". The
-  // `requestHeaders` passthrough only needs to lift `Content-Type` and
-  // `Accept` (the only request headers the backend is sensitive to).
-  return buildBackendAuthHeaders(session, {
+  // source of truth for "what headers do we send to the backend".
+  const headers = buildBackendAuthHeaders(session, {
     apiKey: getBackendApiKey(),
     contentType: requestHeaders?.get('content-type') ?? undefined,
     accept: requestHeaders?.get('accept') ?? undefined,
   })
+  const lastEventId = requestHeaders?.get('last-event-id')
+  if (lastEventId) headers.set('Last-Event-ID', lastEventId)
+  return headers
 }
 
 export async function getProxyRequestBody(request: Request) {
@@ -68,9 +70,7 @@ export async function toProxyResponse(response: Response) {
     // SSE / NDJSON streaming path: manually read chunks from the backend
     // and immediately flush them to the client. This avoids Node.js undici's
     // internal buffering which can batch SSE events and break real-time updates.
-    const backendBody = response.body
     if (!backendBody) {
-      console.error('[proxy] SSE stream has no body, returning empty response')
       return new Response(null, { status: response.status, headers })
     }
 
@@ -112,8 +112,6 @@ export async function toProxyResponse(response: Response) {
     headers.set('Cache-Control', 'no-cache, no-transform')
     headers.set('X-Accel-Buffering', 'no')
     headers.set('Connection', 'keep-alive')
-
-    console.log('[proxy] Streaming SSE response, status:', response.status)
     return new Response(streamingBody, {
       status: response.status,
       headers,

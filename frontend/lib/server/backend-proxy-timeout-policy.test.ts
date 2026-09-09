@@ -63,3 +63,13 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
   })
 })
+describe('Insight canonical stream timeout tier', () => {
+  it('does not apply the ordinary 5s timeout to Insight streams', () => {
+    expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', 'application/json')).toBe(0)
+    expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', null)).toBe(0)
+  })
+
+  it('recognizes the explicit SSE Accept header for any Insight path', () => {
+    expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', 'text/event-stream')).toBe(0)
+  })
+})
