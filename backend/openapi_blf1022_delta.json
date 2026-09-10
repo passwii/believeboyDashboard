@@ -1,0 +1,1027 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "FastAPI",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/v1/agent/projects": {
+   "get": {
+    "tags": [
+     "agent-projects"
+    ],
+    "summary": "Get Agent Projects",
+    "description": "``/agent/projects`` 列表：项目名 + id + 站点国家/地区。\n\nBLF-1022：每个 shop 返回 ``shop_name``（KJVS 首选启动参数）与\n``seller_identity``（Seller Central 账户切换器 alias 对照）；\n``shop_id`` 保持稳定主键（关闭参数/日志关联/fallback）。",
+    "operationId": "get_agent_projects_api_v1_agent_projects_get",
+    "parameters": [
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "active",
+       "title": "Status"
+      }
+     },
+     {
+      "name": "name",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Name"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Get Agent Projects Api V1 Agent Projects Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/agent/complaint-center/batch": {
+   "post": {
+    "tags": [
+     "agent-complaint-center"
+    ],
+    "summary": "Batch Upsert",
+    "description": "W1 批量 upsert：一次事务收全家（run + shop_checks + complaints）。\n\n幂等：同一天 run_date 重复提交 → 更新原 run，不产生重复行。\n\nBLF-1022 身份门禁与事务一致性（整批拒绝，不落库）：\n* ``shop_checks`` 的 ``(project_id, country)`` 每批次最多一条；\n* ``check_status=ok`` 必须 ``identity_check.verified=true``，\n  否则 422 ``IDENTITY_CHECK_REQUIRED``；\n* ``identity_mismatch`` 配 ``verified=true`` → 422\n  ``IDENTITY_CHECK_CONTRADICTION``；\n* ``verified=true`` 但 alias/country 重算不匹配 → 422\n  ``IDENTITY_CHECK_INVALID``；\n* ``required=true`` 的店铺缺 ``expected_alias`` → 422\n  ``IDENTITY_EXPECTED_ALIAS_MISSING``；\n* complaints 只接受同一批次中 ``ok && verified=true`` 的\n  ``(project_id, country)``，否则整批 422（``IDENTITY_CHECK_REQUIRED``）；\n  ``identity_mismatch``/``login_page``/``launch_fail`` 的店铺不得产生\n  complaints；complaint 明细只用 ``project_id + country``。",
+    "operationId": "batch_upsert_api_v1_agent_complaint_center_batch_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Batch Upsert Api V1 Agent Complaint Center Batch Post"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/agent/complaint-center/complaints": {
+   "get": {
+    "tags": [
+     "agent-complaint-center"
+    ],
+    "summary": "List Complaints",
+    "description": "R1 Agent 起草前读取最新状态（避免重复处理）。",
+    "operationId": "list_complaints_api_v1_agent_complaint_center_complaints_get",
+    "parameters": [
+     {
+      "name": "run_date",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Run Date"
+      }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "status_filter",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status Filter"
+      }
+     },
+     {
+      "name": "category",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Category"
+      }
+     },
+     {
+      "name": "country",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Country"
+      }
+     },
+     {
+      "name": "keyword",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Keyword"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response List Complaints Api V1 Agent Complaint Center Complaints Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ },
+ "x-blf1022-models": {
+  "SellerIdentity": {
+   "description": "Seller Central 页面身份对照（BLF-1022）。\n\n``expected_alias`` 必须是页面账户切换器可见的店铺 alias；\n``required=true`` 时缺少 ``expected_alias`` 不允许 Agent 将该店铺作为可写店铺。",
+   "properties": {
+    "expected_alias": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expected Alias"
+    },
+    "aliases": {
+     "items": {
+      "type": "string"
+     },
+     "title": "Aliases",
+     "type": "array"
+    },
+    "source": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Source"
+    },
+    "required": {
+     "default": true,
+     "title": "Required",
+     "type": "boolean"
+    }
+   },
+   "title": "SellerIdentity",
+   "type": "object"
+  },
+  "AgentShopItem": {
+   "$defs": {
+    "SellerIdentity": {
+     "description": "Seller Central 页面身份对照（BLF-1022）。\n\n``expected_alias`` 必须是页面账户切换器可见的店铺 alias；\n``required=true`` 时缺少 ``expected_alias`` 不允许 Agent 将该店铺作为可写店铺。",
+     "properties": {
+      "expected_alias": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Expected Alias"
+      },
+      "aliases": {
+       "items": {
+        "type": "string"
+       },
+       "title": "Aliases",
+       "type": "array"
+      },
+      "source": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Source"
+      },
+      "required": {
+       "default": true,
+       "title": "Required",
+       "type": "boolean"
+      }
+     },
+     "title": "SellerIdentity",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "shop_id": {
+     "title": "Shop Id",
+     "type": "string"
+    },
+    "shop_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Shop Name"
+    },
+    "country": {
+     "title": "Country",
+     "type": "string"
+    },
+    "site": {
+     "title": "Site",
+     "type": "string"
+    },
+    "seller_identity": {
+     "$ref": "#/$defs/SellerIdentity"
+    }
+   },
+   "required": [
+    "shop_id",
+    "country",
+    "site"
+   ],
+   "title": "AgentShopItem",
+   "type": "object"
+  },
+  "IdentityCheckIn": {
+   "description": "单店身份核验声明。\n\n``verified=true`` 仅当 observed_alias 精确命中 expected_alias/aliases\n且 observed_country 包含目标 country；服务端会重算并拒绝不一致声明。",
+   "properties": {
+    "expected_alias": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expected Alias"
+    },
+    "observed_alias": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Observed Alias"
+    },
+    "observed_country": {
+     "items": {
+      "type": "string"
+     },
+     "title": "Observed Country",
+     "type": "array"
+    },
+    "verified": {
+     "default": false,
+     "title": "Verified",
+     "type": "boolean"
+    },
+    "source": {
+     "default": "amazon_seller_central_account_switcher",
+     "title": "Source",
+     "type": "string"
+    }
+   },
+   "title": "IdentityCheckIn",
+   "type": "object"
+  },
+  "ShopCheckIn": {
+   "$defs": {
+    "IdentityCheckIn": {
+     "description": "单店身份核验声明。\n\n``verified=true`` 仅当 observed_alias 精确命中 expected_alias/aliases\n且 observed_country 包含目标 country；服务端会重算并拒绝不一致声明。",
+     "properties": {
+      "expected_alias": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Expected Alias"
+      },
+      "observed_alias": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Observed Alias"
+      },
+      "observed_country": {
+       "items": {
+        "type": "string"
+       },
+       "title": "Observed Country",
+       "type": "array"
+      },
+      "verified": {
+       "default": false,
+       "title": "Verified",
+       "type": "boolean"
+      },
+      "source": {
+       "default": "amazon_seller_central_account_switcher",
+       "title": "Source",
+       "type": "string"
+      }
+     },
+     "title": "IdentityCheckIn",
+     "type": "object"
+    },
+    "ShopMetrics": {
+     "properties": {
+      "needs_reply": {
+       "default": 0,
+       "title": "Needs Reply",
+       "type": "integer"
+      },
+      "reported_unresolved": {
+       "default": 0,
+       "title": "Reported Unresolved",
+       "type": "integer"
+      },
+      "resolved_total": {
+       "default": 0,
+       "title": "Resolved Total",
+       "type": "integer"
+      },
+      "resolved_today": {
+       "default": 0,
+       "title": "Resolved Today",
+       "type": "integer"
+      }
+     },
+     "title": "ShopMetrics",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "project_id": {
+     "title": "Project Id",
+     "type": "integer"
+    },
+    "country": {
+     "default": "US",
+     "pattern": "^(US|DE|UK)$",
+     "title": "Country",
+     "type": "string"
+    },
+    "check_status": {
+     "default": "ok",
+     "pattern": "^(ok|login_page|launch_fail|identity_mismatch)$",
+     "title": "Check Status",
+     "type": "string"
+    },
+    "error_message": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Error Message"
+    },
+    "identity_check": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/IdentityCheckIn"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "metrics": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ShopMetrics"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "project_id"
+   ],
+   "title": "ShopCheckIn",
+   "type": "object"
+  },
+  "ComplaintRunBatchRequest": {
+   "$defs": {
+    "ComplaintIn": {
+     "properties": {
+      "project_id": {
+       "title": "Project Id",
+       "type": "integer"
+      },
+      "country": {
+       "default": "US",
+       "pattern": "^(US|DE|UK)$",
+       "title": "Country",
+       "type": "string"
+      },
+      "first_message_date": {
+       "format": "date",
+       "title": "First Message Date",
+       "type": "string"
+      },
+      "message_date": {
+       "format": "date",
+       "title": "Message Date",
+       "type": "string"
+      },
+      "buyer_name": {
+       "maxLength": 255,
+       "title": "Buyer Name",
+       "type": "string"
+      },
+      "subject": {
+       "maxLength": 512,
+       "title": "Subject",
+       "type": "string"
+      },
+      "message_body": {
+       "title": "Message Body",
+       "type": "string"
+      },
+      "triage": {
+       "$ref": "#/$defs/Triage"
+      },
+      "order": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/OrderInfo"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "sla": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SlaInfo"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "message_count": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Message Count",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "project_id",
+      "first_message_date",
+      "message_date",
+      "buyer_name",
+      "subject",
+      "message_body",
+      "triage"
+     ],
+     "title": "ComplaintIn",
+     "type": "object"
+    },
+    "IdentityCheckIn": {
+     "description": "单店身份核验声明。\n\n``verified=true`` 仅当 observed_alias 精确命中 expected_alias/aliases\n且 observed_country 包含目标 country；服务端会重算并拒绝不一致声明。",
+     "properties": {
+      "expected_alias": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Expected Alias"
+      },
+      "observed_alias": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Observed Alias"
+      },
+      "observed_country": {
+       "items": {
+        "type": "string"
+       },
+       "title": "Observed Country",
+       "type": "array"
+      },
+      "verified": {
+       "default": false,
+       "title": "Verified",
+       "type": "boolean"
+      },
+      "source": {
+       "default": "amazon_seller_central_account_switcher",
+       "title": "Source",
+       "type": "string"
+      }
+     },
+     "title": "IdentityCheckIn",
+     "type": "object"
+    },
+    "OrderInfo": {
+     "properties": {
+      "order_id": {
+       "title": "Order Id",
+       "type": "string"
+      },
+      "asin": {
+       "title": "Asin",
+       "type": "string"
+      },
+      "product_title": {
+       "title": "Product Title",
+       "type": "string"
+      },
+      "qty": {
+       "default": 1,
+       "title": "Qty",
+       "type": "integer"
+      },
+      "purchased_at": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Purchased At"
+      },
+      "shipped_at": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Shipped At"
+      },
+      "delivered_at": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Delivered At"
+      }
+     },
+     "required": [
+      "order_id",
+      "asin",
+      "product_title"
+     ],
+     "title": "OrderInfo",
+     "type": "object"
+    },
+    "RunSummary": {
+     "properties": {
+      "total_needs_reply": {
+       "default": 0,
+       "title": "Total Needs Reply",
+       "type": "integer"
+      },
+      "total_reported_unresolved": {
+       "default": 0,
+       "title": "Total Reported Unresolved",
+       "type": "integer"
+      },
+      "shops_with_pending": {
+       "default": 0,
+       "title": "Shops With Pending",
+       "type": "integer"
+      }
+     },
+     "title": "RunSummary",
+     "type": "object"
+    },
+    "ShopCheckIn": {
+     "properties": {
+      "project_id": {
+       "title": "Project Id",
+       "type": "integer"
+      },
+      "country": {
+       "default": "US",
+       "pattern": "^(US|DE|UK)$",
+       "title": "Country",
+       "type": "string"
+      },
+      "check_status": {
+       "default": "ok",
+       "pattern": "^(ok|login_page|launch_fail|identity_mismatch)$",
+       "title": "Check Status",
+       "type": "string"
+      },
+      "error_message": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Error Message"
+      },
+      "identity_check": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/IdentityCheckIn"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "metrics": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/ShopMetrics"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "project_id"
+     ],
+     "title": "ShopCheckIn",
+     "type": "object"
+    },
+    "ShopMetrics": {
+     "properties": {
+      "needs_reply": {
+       "default": 0,
+       "title": "Needs Reply",
+       "type": "integer"
+      },
+      "reported_unresolved": {
+       "default": 0,
+       "title": "Reported Unresolved",
+       "type": "integer"
+      },
+      "resolved_total": {
+       "default": 0,
+       "title": "Resolved Total",
+       "type": "integer"
+      },
+      "resolved_today": {
+       "default": 0,
+       "title": "Resolved Today",
+       "type": "integer"
+      }
+     },
+     "title": "ShopMetrics",
+     "type": "object"
+    },
+    "SlaInfo": {
+     "properties": {
+      "reply_deadline": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Reply Deadline"
+      },
+      "expires_soon": {
+       "default": false,
+       "title": "Expires Soon",
+       "type": "boolean"
+      }
+     },
+     "title": "SlaInfo",
+     "type": "object"
+    },
+    "Triage": {
+     "properties": {
+      "category": {
+       "pattern": "^(with_order|no_order_info|spam)$",
+       "title": "Category",
+       "type": "string"
+      },
+      "has_order": {
+       "title": "Has Order",
+       "type": "boolean"
+      },
+      "summary_zh": {
+       "default": "",
+       "title": "Summary Zh",
+       "type": "string"
+      }
+     },
+     "required": [
+      "category",
+      "has_order"
+     ],
+     "title": "Triage",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "run_date": {
+     "format": "date",
+     "title": "Run Date",
+     "type": "string"
+    },
+    "trigger": {
+     "default": "autopilot",
+     "pattern": "^(autopilot|manual)$",
+     "title": "Trigger",
+     "type": "string"
+    },
+    "shops_total": {
+     "minimum": 0,
+     "title": "Shops Total",
+     "type": "integer"
+    },
+    "shops_checked": {
+     "minimum": 0,
+     "title": "Shops Checked",
+     "type": "integer"
+    },
+    "shops_failed": {
+     "items": {
+      "type": "string"
+     },
+     "title": "Shops Failed",
+     "type": "array"
+    },
+    "summary": {
+     "$ref": "#/$defs/RunSummary"
+    },
+    "shop_checks": {
+     "items": {
+      "$ref": "#/$defs/ShopCheckIn"
+     },
+     "title": "Shop Checks",
+     "type": "array"
+    },
+    "complaints": {
+     "items": {
+      "$ref": "#/$defs/ComplaintIn"
+     },
+     "title": "Complaints",
+     "type": "array"
+    }
+   },
+   "required": [
+    "run_date",
+    "shops_total",
+    "shops_checked"
+   ],
+   "title": "ComplaintRunBatchRequest",
+   "type": "object"
+  }
+ },
+ "x-blf1022-errors": {
+  "IDENTITY_CHECK_REQUIRED": 422,
+  "IDENTITY_CHECK_CONTRADICTION": 422,
+  "IDENTITY_CHECK_INVALID": 422,
+  "IDENTITY_EXPECTED_ALIAS_MISSING": 422
+ },
+ "x-blf1022-note": "全量 make openapi-export 在基线即失败（某旧路由 payload 模型与 fastapi 兼容层冲突，与本变更无关）；本文件为本次触及路由的独立导出 + 新模型 JSON Schema。"
+}
