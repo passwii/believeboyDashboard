@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.schemas.insight import InsightErrorCode
 from app.services.insight import limits as L
 from app.services.insight.validator import (

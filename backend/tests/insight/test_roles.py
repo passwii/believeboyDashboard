@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.schemas.insight import InsightErrorCode
 from app.services.insight.roles import (
     RoleAvailability,

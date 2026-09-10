@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.schemas.insight import InsightErrorCode, InsightStatus
 from app.services.insight.lifecycle import (
     LifecycleError,

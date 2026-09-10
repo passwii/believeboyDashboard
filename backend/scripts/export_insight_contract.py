@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]  # backend/
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from pydantic import TypeAdapter
+
 from app.schemas.insight import (
     ERROR_HTTP_STATUS,
     RETRYABLE_ERROR_CODES,
@@ -52,7 +54,6 @@ from app.services.insight.slot_types import (
     ReportDataSlot,
     SkuContextSlot,
 )
-from pydantic import TypeAdapter
 
 SCHEMA_VERSION = 1
 

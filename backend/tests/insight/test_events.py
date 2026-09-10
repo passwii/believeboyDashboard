@@ -7,6 +7,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
+
 from app.services.insight import contracts
 from app.services.insight.cursor import (
     CursorError,
@@ -18,7 +20,6 @@ from app.services.insight.cursor import (
     validate_attempt_sequence,
 )
 from app.services.insight.events import InsightEventAdapter
-from pydantic import ValidationError
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "insight"
 
