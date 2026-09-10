@@ -201,6 +201,11 @@ class Settings(BaseSettings):
     ai_chat_stream_prefix: str = Field(default="ai:chat", max_length=50)
     ai_chat_stream_ttl_seconds: int = Field(default=86400, ge=60, le=604800)  # 24h
     ai_chat_stream_maxlen: int = Field(default=10000, ge=100, le=100000)
+    # Insight Stream(Redis Stream + cancel registry,BLF-1012)
+    # 独立 db(4)避免与业务缓存/Celery broker/Celery result/AI Chat 相互污染。
+    insight_stream_redis_db: int = Field(default=4, ge=0, le=15)
+    insight_stream_ttl_seconds: int = Field(default=86400, ge=60, le=604800)  # 24h
+    insight_stream_maxlen: int = Field(default=10000, ge=100, le=100000)
 
     # Celery (auto-derived from REDIS_* when blank)
     celery_broker_url: str = Field(default="", max_length=500)
@@ -304,10 +309,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_redis_db_no_collision(self) -> "Settings":
-        """确保业务缓存 / Celery broker / Celery result / AI Chat 四个 Redis DB 互不碰撞。
+        """确保业务缓存 / Celery broker / Celery result / AI Chat / Insight 五个 Redis DB 互不碰撞。
 
         Celery broker = redis_db+1, result = redis_db+2（自动派生）。
-        ai_chat_redis_db 是独立配置。四者必须互不相同。
+        ai_chat_redis_db / insight_stream_redis_db 是独立配置。五者必须互不相同。
         """
         celery_broker_db = self.redis_db + 1
         celery_result_db = self.redis_db + 2
@@ -316,13 +321,14 @@ class Settings(BaseSettings):
             "celery_broker (redis_db+1)": celery_broker_db,
             "celery_result (redis_db+2)": celery_result_db,
             "ai_chat_redis_db": self.ai_chat_redis_db,
+            "insight_stream_redis_db": self.insight_stream_redis_db,
         }
         seen: dict[int, str] = {}
         for label, db in used.items():
             if db in seen:
                 raise ValueError(
                     f"Redis DB 碰撞: {label}={db} 与 {seen[db]}={db} 相同。"
-                    f"请调整 REDIS_DB 或 AI_CHAT_REDIS_DB 避免冲突。"
+                    f"请调整 REDIS_DB / AI_CHAT_REDIS_DB / INSIGHT_STREAM_REDIS_DB 避免冲突。"
                 )
             seen[db] = label
         return self
