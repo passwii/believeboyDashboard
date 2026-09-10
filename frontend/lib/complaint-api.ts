@@ -104,6 +104,7 @@ export interface ComplaintDetail {
 
 export interface ComplaintListParams {
   date?: string
+  first_message_date?: string
   project_id?: number
   category?: ComplaintCategory | ''
   status?: ComplaintStatus | ''
@@ -313,6 +314,7 @@ export async function fetchComplaintList(
 ): Promise<ComplaintListResponse> {
   const qs = new URLSearchParams()
   if (params?.date) qs.set('date', params.date)
+  if (params?.first_message_date) qs.set('first_message_date', params.first_message_date)
   if (params?.project_id) qs.set('project_id', String(params.project_id))
   if (params?.category) qs.set('category', params.category)
   if (params?.status) qs.set('status', params.status)

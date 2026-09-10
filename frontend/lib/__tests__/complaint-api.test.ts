@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterEach, type Mock } from 'vitest'
 import {
   deriveSla,
+  fetchComplaintList,
   mapComplaintDetail,
   mapComplaintItem,
   type ComplaintBackendItem,
@@ -138,5 +139,41 @@ describe('mapComplaintDetail', () => {
     expect(detail.triage).toEqual({ category: 'no_order_info', has_order: false, summary_zh: '' })
     expect(detail.sla).toEqual({ reply_deadline: null, expires_soon: false })
     expect(detail.status_history).toEqual([])
+  })
+})
+
+describe('fetchComplaintList', () => {
+  function stubListFetch(): Mock {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ items: [], total: 0, page: 1, page_size: 20, spam_count: 0 }),
+      }))
+    )
+    return fetch as unknown as Mock
+  }
+
+  it('设值时透传 first_message_date 查询参数', async () => {
+    const spy = stubListFetch()
+    try {
+      await fetchComplaintList({ date: '2026-09-04', first_message_date: '2026-09-02' })
+      const url = String(spy.mock.calls[0][0])
+      expect(url).toContain('first_message_date=2026-09-02')
+      expect(url).toContain('date=2026-09-04')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('未设时不发送该参数（空值不进查询串）', async () => {
+    const spy = stubListFetch()
+    try {
+      await fetchComplaintList({ date: '2026-09-04' })
+      const url = String(spy.mock.calls[0][0])
+      expect(url).not.toContain('first_message_date')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

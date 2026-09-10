@@ -19,6 +19,7 @@ from app.schemas.complaint_center import (
     ComplaintRunBatchRequest,
     ShopCheckIn,
 )
+from app.utils.country import normalize_country
 
 
 COMPLAINT_STATUS_ORDER = (
@@ -57,25 +58,59 @@ def _find_shop_check(db: Session, run_id: int, project_id: int, country: str) ->
         select(ShopCheck).where(
             ShopCheck.run_id == run_id,
             ShopCheck.project_id == project_id,
-            ShopCheck.country == country,
+            ShopCheck.country == _normalize_country(country),
         )
     ).scalar_one_or_none()
 
-def _find_complaint_natural(
+def _normalize_country(value: str) -> str:
+    """Use the warehouse canonical country (notably GB → UK)."""
+    return normalize_country(value)
+
+
+def _normalize_country_filter(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return _normalize_country(value)
+
+
+def _message_identity(message: dict) -> tuple[str, str, str]:
+    """Identify one buyer-authored message inside a conversation history."""
+    message_date = message.get('message_date')
+    if isinstance(message_date, (date, datetime)):
+        message_date_text = message_date.isoformat()
+    else:
+        message_date_text = str(message_date)
+    return (message_date_text, str(message.get('subject')), str(message.get('message_body')))
+
+
+def _upsert_conversation_message(existing: Complaint, incoming: dict) -> None:
+    """Merge one message snapshot without counting an exact replay twice."""
+    messages = list(existing.messages or [])
+    identity = _message_identity(incoming)
+    for index, stored in enumerate(messages):
+        if isinstance(stored, dict) and _message_identity(stored) == identity:
+            messages[index] = incoming
+            break
+    else:
+        messages.append(incoming)
+    existing.messages = messages
+    existing.message_count = len(messages)
+
+
+def _find_complaint_conversation(
     db: Session,
     project_id: int,
     country: str,
     buyer_name: str,
-    message_date: date,
-    subject: str,
+    first_message_date: date,
 ) -> Complaint | None:
+    """按对话级别自然键查找：(project_id, country, buyer_name, first_message_date)。"""
     return db.execute(
         select(Complaint).where(
             Complaint.project_id == project_id,
-            Complaint.country == country,
+            Complaint.country == _normalize_country(country),
             Complaint.buyer_name == buyer_name,
-            Complaint.message_date == message_date,
-            Complaint.subject == subject,
+            Complaint.first_message_date == first_message_date,
         )
     ).scalar_one_or_none()
 
@@ -289,6 +324,9 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
     """批量 upsert：run + shop_checks + complaints，一个事务。
 
     BLF-1022 事务一致性：先跑身份门禁（整批拒绝，不落库），再写 run。
+    幂等：同一天 run_date 重复提交 → 更新原 run；shop_check 按 (run_id, project_id, country) upsert；
+    complaint 按对话自然键 (project_id, country, buyer_name, first_message_date) upsert。
+    同一对话的完全重复消息只保留一份；不同消息追加到 messages 并重算总数。
     """
     _validate_identity_gate(db, body)
     run = get_run_by_date(db, body.run_date)
@@ -305,9 +343,10 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
     db.flush()
 
     for sc in body.shop_checks:
-        existing = _find_shop_check(db, run.id, sc.project_id, sc.country)
+        country = _normalize_country(sc.country)
+        existing = _find_shop_check(db, run.id, sc.project_id, country)
         if existing is None:
-            existing = ShopCheck(run_id=run.id, project_id=sc.project_id, country=sc.country)
+            existing = ShopCheck(run_id=run.id, project_id=sc.project_id, country=country)
             db.add(existing)
         existing.check_status = sc.check_status
         existing.error_message = sc.error_message
@@ -316,11 +355,27 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
             setattr(existing, key, value)
     db.flush()
 
+    seen_conversations: dict[tuple[int, str, str, date], Complaint] = {}
     for c in body.complaints:
-        existing = _find_complaint_natural(db, c.project_id, c.country, c.buyer_name, c.message_date, c.subject)
+        country = _normalize_country(c.country)
+        key = (c.project_id, country, c.buyer_name, c.first_message_date)
+        existing = seen_conversations.get(key)
         if existing is None:
-            db.add(Complaint(**_build_complaint_in(c, run.id)))
-        else:
+            existing = _find_complaint_conversation(
+                db, c.project_id, country, c.buyer_name, c.first_message_date
+            )
+            if existing is None:
+                existing = Complaint(**_build_complaint_in(c, run.id))
+                existing.country = country
+                db.add(existing)
+                seen_conversations[key] = existing
+                continue
+            seen_conversations[key] = existing
+        incoming = c.model_dump(mode='json')
+        is_latest = c.message_date >= existing.message_date
+        existing.message_date = max(existing.message_date, c.message_date)
+        if is_latest:
+            existing.subject = c.subject
             existing.message_body = c.message_body
             existing.triage = c.triage.model_dump(mode='json')
             existing.category = c.triage.category
@@ -329,10 +384,14 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
                 existing.order_info = c.order.model_dump(exclude_none=False, mode='json')
             if c.sla is not None:
                 existing.sla = c.sla.model_dump(exclude_none=True, mode='json')
-            existing.run_id = run.id
-            existing.country = c.country
-            existing.messages = (existing.messages or []) + [c.model_dump(mode='json')]
-            existing.message_count = (existing.message_count or 1) + 1
+        elif not existing.has_order and c.triage.has_order and c.order is not None:
+            existing.has_order = True
+            existing.order_info = c.order.model_dump(exclude_none=False, mode='json')
+        if existing.sla is None and c.sla is not None:
+            existing.sla = c.sla.model_dump(exclude_none=True, mode='json')
+        existing.run_id = run.id
+        existing.country = country
+        _upsert_conversation_message(existing, incoming)
     db.flush()
     return run
 
@@ -400,6 +459,7 @@ def _sla_level(status: str, sla: dict | None) -> str:
 
 
 def fetch_overview(db: Session, target_date: date, country: str | None = None) -> dict:
+    country = _normalize_country_filter(country)
     run = get_run_by_date(db, target_date)
     if run is None:
         return {
@@ -516,7 +576,7 @@ def _complaint_query(
     if project_id is not None:
         filters.append(Complaint.project_id == project_id)
     if country is not None:
-        filters.append(Complaint.country == country)
+        filters.append(Complaint.country == _normalize_country(country))
     if category is not None:
         filters.append(Complaint.category == category)
     if status_filter is not None:
@@ -605,7 +665,7 @@ def count_spam_complaints(
     if project_id is not None:
         filters.append(Complaint.project_id == project_id)
     if country is not None:
-        filters.append(Complaint.country == country)
+        filters.append(Complaint.country == _normalize_country(country))
     return db.execute(select(func.count(Complaint.id)).where(*filters)).scalar_one()
 
 

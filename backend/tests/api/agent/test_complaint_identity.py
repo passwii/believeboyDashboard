@@ -86,8 +86,10 @@ def _headers(make_api_key, agent_id: str) -> dict:
     return {"Authorization": f"Bearer {key['plaintext']}", "X-Agent-Id": agent_id}
 
 
-def seed_identity(project_id: int, expected: str | None = "BLF2026", **overrides) -> None:
-    """Seed one US ProjectShop identity row (committed, visible to handlers)."""
+def seed_identity(
+    project_id: int, expected: str | None = "BLF2026", country: str = "US", **overrides
+) -> None:
+    """Seed one identity ProjectShop row (committed, visible to handlers)."""
     from app.services import project_service
 
     params = {
@@ -101,7 +103,7 @@ def seed_identity(project_id: int, expected: str | None = "BLF2026", **overrides
     params.update(overrides)
     db = SessionLocal()
     try:
-        project_service.upsert_project_shop(db, project_id, "US", **params)
+        project_service.upsert_project_shop(db, project_id, country, **params)
         db.commit()
     finally:
         db.close()
@@ -248,6 +250,26 @@ class TestIdentityGate:
         agent_id = f"id-w1-{uuid.uuid4().hex[:8]}"
         body = _batch_body(pid)
         body["shop_checks"][0]["identity_check"] = _identity(observed="OTHER", verified=False)
+        resp = client.post(
+            "/api/v1/agent/complaint-center/batch",
+            json=body,
+            headers=_headers(make_api_key, agent_id),
+        )
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["error"]["code"] == "IDENTITY_CHECK_REQUIRED"
+        assert _run_count() == 0
+
+    def test_gb_input_still_hits_identity_gate(
+        self, client: TestClient, make_api_key, id_project
+    ) -> None:
+        """GB 入参必须先归一为 canonical UK 再进门禁，否则查不到配置而放行。"""
+        pid, _ = id_project
+        seed_identity(pid, country="UK")
+        agent_id = f"id-w1-{uuid.uuid4().hex[:8]}"
+        body = _batch_body(pid)
+        body["shop_checks"][0]["country"] = "GB"
+        body["shop_checks"][0]["identity_check"] = None
+        body["complaints"][0]["country"] = "GB"
         resp = client.post(
             "/api/v1/agent/complaint-center/batch",
             json=body,
