@@ -110,6 +110,11 @@ const TIER_OPTIONS = [
 
 const TIER_LABEL: Record<string, string> = { T1: 'T1', T2: 'T2', T3: 'T3', T4: 'T4' }
 
+// Radix Select 的 item 不接受空字符串，用哨兵值表达「未分级」，提交时映射回 null（清空）。
+const TIER_NONE_VALUE = '__none__'
+
+const TIER_SELECT_OPTIONS = [{ label: '未分级', value: TIER_NONE_VALUE }, ...TIER_OPTIONS]
+
 const PROJECT_COUNTRY_OPTIONS = ['US', 'DE', 'UK'].map((code) => ({
   value: code,
   label: `${getCountryLabel(code)} (${code})`,
@@ -299,7 +304,7 @@ export default function ProjectInfoPage() {
   const [addAssistantOperators, setAddAssistantOperators] = useState<string[]>([])
   const [addCommissionMode, setAddCommissionMode] = useState('')
   const [addCommissionRate, setAddCommissionRate] = useState('')
-  const [addProjectTier, setAddProjectTier] = useState('')
+  const [addProjectTier, setAddProjectTier] = useState(TIER_NONE_VALUE)
   const [addCountry, setAddCountry] = useState('US')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -312,7 +317,7 @@ export default function ProjectInfoPage() {
   const [editCommissionMode, setEditCommissionMode] = useState('')
   const [editCommissionRate, setEditCommissionRate] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
-  const [editProjectTier, setEditProjectTier] = useState('')
+  const [editProjectTier, setEditProjectTier] = useState(TIER_NONE_VALUE)
   const [editShopIds, setEditShopIds] = useState<Record<string, string>>(emptyShopIds)
   const [shopLoadError, setShopLoadError] = useState<string | null>(null)
   const [loadingShopIds, setLoadingShopIds] = useState(false)
@@ -442,7 +447,7 @@ export default function ProjectInfoPage() {
             : addCommissionRate
               ? parseFloat(addCommissionRate)
               : null,
-          project_tier: addProjectTier || null,
+          project_tier: addProjectTier === TIER_NONE_VALUE ? null : addProjectTier,
           country: addCountry,
         }),
       })
@@ -456,7 +461,7 @@ export default function ProjectInfoPage() {
       setAddAssistantOperators([])
       setAddCommissionMode('')
       setAddCommissionRate('')
-      setAddProjectTier('')
+      setAddProjectTier(TIER_NONE_VALUE)
       setAddCountry('US')
       setAddDialogOpen(false)
       clearProjectClientCaches()
@@ -485,7 +490,7 @@ export default function ProjectInfoPage() {
     const points = toCommissionPoints(item.commission_rate)
     setEditCommissionRate(points?.toString() ?? '')
     setEditIsActive(item.is_active)
-    setEditProjectTier(item.project_tier ?? '')
+    setEditProjectTier(item.project_tier ?? TIER_NONE_VALUE)
     setEditCountry(item.country ?? 'US')
     setEditShopIds(emptyShopIds())
     setEditOriginalShopIds(emptyShopIds())
@@ -582,7 +587,7 @@ export default function ProjectInfoPage() {
               ? parseFloat(editCommissionRate)
               : null,
           is_active: editIsActive,
-          project_tier: editProjectTier || null,
+          project_tier: editProjectTier === TIER_NONE_VALUE ? null : editProjectTier,
           country: editCountry,
         }),
       })
@@ -597,7 +602,7 @@ export default function ProjectInfoPage() {
       setEditAssistantOperators([])
       setEditCommissionMode('')
       setEditCommissionRate('')
-      setEditProjectTier('')
+      setEditProjectTier(TIER_NONE_VALUE)
       setEditShopIds(emptyShopIds())
       setEditOriginalShopIds(emptyShopIds())
       setEditCountry('US')
@@ -842,10 +847,10 @@ export default function ProjectInfoPage() {
                         disabled={submitting}
                       >
                         <SelectTrigger id="project-add-tier">
-                          <SelectValue placeholder="选择项目等级（可选）" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {TIER_OPTIONS.map((option) => (
+                          {TIER_SELECT_OPTIONS.map((option) => (
                             <SelectItem key={`tier-add-${option.value}`} value={option.value}>
                               {option.label}
                             </SelectItem>
@@ -1218,16 +1223,21 @@ export default function ProjectInfoPage() {
               disabled={submitting}
             >
               <SelectTrigger id="project-edit-tier">
-                <SelectValue placeholder="选择项目等级（可选）" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIER_OPTIONS.map((option) => (
+                {TIER_SELECT_OPTIONS.map((option) => (
                   <SelectItem key={`tier-edit-${option.value}`} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {!editIsActive ? (
+              <p className="text-xs text-muted-foreground">
+                项目已停用：如需去掉列表中的 T1-T4 标签，请选择「未分级」。
+              </p>
+            ) : null}
             <label htmlFor="project-edit-country" className="text-sm font-medium text-foreground">
               站点
             </label>
