@@ -1023,5 +1023,5 @@
   "IDENTITY_CHECK_INVALID": 422,
   "IDENTITY_EXPECTED_ALIAS_MISSING": 422
  },
- "x-blf1022-note": "全量 make openapi-export 在基线即失败（某旧路由 payload 模型与 fastapi 兼容层冲突，与本变更无关）；本文件为本次触及路由的独立导出 + 新模型 JSON Schema。"
+ "x-blf1022-note": "全量 make openapi-export 在基线即失败（某旧路由 payload 模型与 fastapi 兼容层冲突，与本变更无关）。规则 8 偏差：shops_failed 类型错误按全域壳返回 400 VALIDATION_FAILED（见 backend/docs/agent-api.md §3），身份语义错误走 422 身份码。"
 }

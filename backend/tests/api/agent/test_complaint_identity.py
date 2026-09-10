@@ -437,8 +437,9 @@ class TestIdentityGate:
     def test_legacy_ok_without_identity_config_still_writes(
         self, client: TestClient, make_api_key, id_project
     ) -> None:
-        """无身份配置的店铺保持旧语义（向后兼容 BLF-981 调用方）。"""
+        """存在映射但 required=false 且无 expected_alias 的店铺保持旧语义（向后兼容 BLF-981 调用方）。"""
         pid, _ = id_project
+        seed_identity(pid, expected=None, seller_identity_required=False)
         agent_id = f"id-w1-{uuid.uuid4().hex[:8]}"
         body = _batch_body(pid)
         del body["shop_checks"][0]["identity_check"]
