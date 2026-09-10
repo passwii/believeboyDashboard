@@ -278,23 +278,69 @@ async def test_empty_stream_with_terminal_row_synthesizes_terminal(fake_redis) -
     assert types == ["snapshot", "done"]  # snapshot first, terminal exactly once
     assert frames[0][0].status == InsightStatus.COMPLETED
     assert frames[-1][0].outputs["main"].content == "## 完成"
+    # B4: ids must differ — the client dedupes by SSE id, a shared id would
+    # swallow the terminal frame and the completed run would render failed.
+    ids = [sse_id for _, sse_id in frames]
+    assert len(set(ids)) == len(ids)
+    seqs = [event.seq for event, _ in frames]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
 
 
 @pytest.mark.asyncio
-async def test_empty_stream_terminal_row_with_cursor_yields_only_terminal(fake_redis) -> None:
+async def test_partial_frames_then_terminal_row_yields_single_terminal_frame(
+    fake_redis,
+) -> None:
+    """B4 / probe P8: worker died after publishing frames but before the
+    terminal — the idle DB refresh synthesizes the terminal ALONE (no
+    duplicate snapshot), with an id distinct from every prior frame."""
     rid = str(uuid4())
-    failed = _detail(
-        rid,
-        status=InsightStatus.FAILED,
-        error=make_error(InsightErrorCode.PROVIDER_UNAVAILABLE, "upstream down"),
+    for payload in _happy_events(rid)[:3]:  # snapshot, status, delta — no terminal
+        await fake_redis.xadd(stream_key(rid), {EVENT_FIELD: json.dumps(payload)})
+    cancelled = _detail(
+        rid, status=InsightStatus.CANCELLED,
+        error=make_error(InsightErrorCode.CANCELLED, "已取消"),
     )
     subscriber = InsightStreamSubscriber(fake_redis)
     frames = await _collect(
-        subscriber, run_id=rid, last_event_id=f"{rid}:1:2", detail=failed
+        subscriber, run_id=rid, last_event_id=None, detail=cancelled
     )
-    # Cursor present → snapshot already applied client-side; terminal only.
-    assert [event.type for event, _ in frames] == ["error"]
-    assert frames[0][0].error.code == InsightErrorCode.PROVIDER_UNAVAILABLE
+    types = [event.type for event, _ in frames]
+    # Real frames replay; terminal synthesized once — no snapshot before it.
+    assert types == ["snapshot", "status", "content.delta", "error"]
+    ids = [sse_id for _, sse_id in frames]
+    assert len(set(ids)) == len(ids)  # B4: no id ever repeats
+    seqs = [event.seq for event, _ in frames]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
+    assert frames[-1][0].error.code == InsightErrorCode.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_trimmed_resume_db_fallback_snapshot_sits_below_retained_frames(
+    fake_redis,
+) -> None:
+    """B5: checkpoint lost + trimmed window → the DB-fallback snapshot's seq
+    is cursor.seq + 1: unseen before (trimmed gap), below the next retained
+    frame — so a disconnect after it still lets real frames resume."""
+    rid = str(uuid4())
+    for payload in _happy_events(rid)[3:]:  # seq 4, 5 survive
+        await fake_redis.xadd(stream_key(rid), {EVENT_FIELD: json.dumps(payload)})
+    # no snapshot_key entry
+    subscriber = InsightStreamSubscriber(fake_redis)
+    frames = await _collect(
+        subscriber,
+        run_id=rid,
+        last_event_id=f"{rid}:1:2",
+        detail=_detail(rid),
+    )
+    seqs = [event.seq for event, _ in frames]
+    types = [event.type for event, _ in frames]
+    assert types == ["snapshot", "status", "done"]
+    # fallback snapshot at cursor.seq+1 (=3), then retained 4, 5
+    assert seqs == [3, 4, 5]
+    ids = [sse_id for _, sse_id in frames]
+    assert len(set(ids)) == len(ids)
+    seqs = [event.seq for event, _ in frames]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
 
 
 @pytest.mark.asyncio

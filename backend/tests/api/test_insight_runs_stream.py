@@ -357,6 +357,62 @@ def test_retry_clears_stale_attempt_terminal_frames(
     assert [e["data"]["type"] for e in events] == ["snapshot", "status", "done"]
 
 
+def _seq_of(sse_id: str) -> int:
+    return int(sse_id.rsplit(":", 1)[1])
+
+
+def test_terminal_row_without_cursor_emits_distinct_ids(client: TestClient) -> None:
+    """B4 / probe P7 (e2e): empty window + completed row → snapshot + done,
+    both frames' SSE ids unique and seq-strictly-increasing (a shared id
+    would be deduped by the client and the completed run render failed)."""
+    project_id = _project_id()
+    created = _create_run(client, project_id, _unique_key("blf-1012-b4-p7"))
+    rid = created["run_id"]
+    # No stream frames at all; drive the row to completed via cancel+… no —
+    # retry needs a terminal first. Simplest terminal-row drive: cancel.
+    client.post(f"/api/v1/insight/runs/{rid}/cancel")
+
+    with client.stream("GET", f"/api/v1/insight/runs/{rid}/stream") as resp:
+        assert resp.status_code == 200
+        body = b"".join(resp.iter_bytes()).decode()
+    events = _parse_sse(body)
+    types = [e["data"]["type"] for e in events]
+    assert types == ["snapshot", "error"]
+    ids = [e["id"] for e in events]
+    assert all(i is not None for i in ids)
+    assert len(set(ids)) == len(ids)
+    seqs = [_seq_of(i) for i in ids]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
+    assert events[-1]["data"]["error"]["code"] == "CANCELLED"
+
+
+def test_partial_frames_terminal_row_single_terminal_frame(client: TestClient) -> None:
+    """B4 / probe P8 (e2e): frames published, worker died before the
+    terminal, row cancelled via the API → replay + ONE synthesized terminal
+    frame (no duplicate snapshot), every SSE id unique."""
+    project_id = _project_id()
+    created = _create_run(client, project_id, _unique_key("blf-1012-b4-p8"))
+    rid = created["run_id"]
+    _publish_event(rid, _event(rid, 1, type="snapshot", status="queued", stage="queued",
+                               progress_percent=5, outputs={}, is_terminal=False, error=None))
+    _publish_event(rid, _event(rid, 2, type="content.delta", slot="main", block_id="b1",
+                               format="markdown", delta="## 摘要\n"))
+    client.post(f"/api/v1/insight/runs/{rid}/cancel")
+
+    with client.stream("GET", f"/api/v1/insight/runs/{rid}/stream") as resp:
+        assert resp.status_code == 200
+        body = b"".join(resp.iter_bytes()).decode()
+    events = _parse_sse(body)
+    types = [e["data"]["type"] for e in events]
+    # real frames, then exactly one synthesized terminal — no extra snapshot
+    assert types == ["snapshot", "content.delta", "error"]
+    ids = [e["id"] for e in events]
+    assert all(i is not None for i in ids)
+    assert len(set(ids)) == len(ids)
+    seqs = [_seq_of(i) for i in ids]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
+
+
 def test_stream_future_attempt_cursor_rejected(client: TestClient) -> None:
     """Cursor pointing at a future attempt → RESUME_CURSOR_INVALID 400
     (contract semantics; previously silently accepted and replayed)."""

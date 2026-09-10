@@ -189,6 +189,9 @@ class InsightStreamSubscriber:
                             continue
                         if cursor is not None and not _after_cursor(event, cursor):
                             continue
+                        # Delivered a real frame: the client holds state, a
+                        # later synthesized terminal must arrive ALONE.
+                        saw_any = True
                         # B2: the first retained frame after a cursor whose
                         # seq is not cursor.seq + 1 means a trimmed gap —
                         # re-sync the client with the snapshot checkpoint.
@@ -197,7 +200,9 @@ class InsightStreamSubscriber:
                         if cursor is not None and not cursor_gap_snapshot_sent:
                             cursor_gap_snapshot_sent = True
                             if (event.attempt, event.seq) != (cursor[0], cursor[1] + 1):
-                                snapshot = await self._resume_snapshot(run_id, detail)
+                                snapshot = await self._resume_snapshot(
+                                    run_id, detail, cursor
+                                )
                                 if snapshot is not None:
                                     yield snapshot
                         yield event
@@ -224,18 +229,27 @@ class InsightStreamSubscriber:
             await asyncio.sleep(_DB_POLL_SECONDS)
 
     async def _resume_snapshot(
-        self, run_id: str, detail: InsightRunDetail
+        self,
+        run_id: str,
+        detail: InsightRunDetail,
+        cursor: tuple[int, int],
     ) -> InsightEvent | None:
         """Snapshot frame for a trimmed resume: saved checkpoint, else the row.
 
         The saved checkpoint is the last full-state frame the worker
         published; when Redis lost it too, the authoritative DB row still
-        yields a complete (though possibly newer) snapshot.
+        yields a complete (though possibly newer) snapshot. The fallback's
+        seq is ``cursor.seq + 1``: the trimming gap guarantees the client
+        never saw it, and it sits below the next retained frame — so a
+        disconnect after this frame leaves the client's cursor in a
+        position where real frames still resume.
         """
         checkpoint = await self.load_checkpoint(run_id)
         if checkpoint is not None and checkpoint.attempt >= detail.attempt:
             return checkpoint
-        return _synthesize_snapshot(detail)
+        from app.services.insight.sink import _to_snapshot_event
+
+        return _to_snapshot_event(detail, attempt=cursor[0], seq=cursor[1] + 1)
 
     async def _refresh_detail(
         self, detail: InsightRunDetail
@@ -264,13 +278,16 @@ class InsightStreamSubscriber:
         self._detail_loader = loader
 
 
-def _synthetic_seq(detail: InsightRunDetail) -> int:
+def _synthetic_seq(detail: InsightRunDetail, *, offset: int = 1) -> int:
     """Seq for synthesized frames: far above any real one, deterministic.
 
-    The client dedupes by event id and treats this as the terminal marker;
-    a deterministic value keeps repeated reconnects idempotent.
+    Snapshot and terminal frames must never share a seq — the client
+    dedupes by SSE id, and a shared id would swallow the terminal frame.
+    ``offset`` separates the two (+1 snapshot / +2 terminal); both stay
+    below the sink's Redis-outage fallback (+999_999). Deterministic
+    values keep repeated reconnects idempotent.
     """
-    return detail.attempt * 1_000_000 + 1
+    return detail.attempt * 1_000_000 + offset
 
 
 def _synthesize_terminal(detail: InsightRunDetail) -> InsightEvent:
@@ -281,7 +298,7 @@ def _synthesize_terminal(detail: InsightRunDetail) -> InsightEvent:
 
     if detail.status.value == "completed":
         return _to_done_event(
-            detail, attempt=detail.attempt, seq=_synthetic_seq(detail)
+            detail, attempt=detail.attempt, seq=_synthetic_seq(detail, offset=2)
         )
     cancelled = detail.status.value == "cancelled"
     code = (
@@ -292,7 +309,7 @@ def _synthesize_terminal(detail: InsightRunDetail) -> InsightEvent:
         schema_version=1,
         run_id=detail.run_id,
         attempt=detail.attempt,
-        seq=_synthetic_seq(detail),
+        seq=_synthetic_seq(detail, offset=2),
         status="cancelled" if cancelled else "failed",
         error=detail.error or make_error(code, message),
     )
@@ -302,4 +319,6 @@ def _synthesize_snapshot(detail: InsightRunDetail) -> InsightEvent:
     """Snapshot event from the authoritative row (stream empty/trimmed)."""
     from app.services.insight.sink import _to_snapshot_event
 
-    return _to_snapshot_event(detail, attempt=detail.attempt, seq=_synthetic_seq(detail))
+    return _to_snapshot_event(
+        detail, attempt=detail.attempt, seq=_synthetic_seq(detail, offset=1)
+    )
