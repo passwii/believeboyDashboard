@@ -280,7 +280,10 @@ def _normalize_country(value: str | None) -> str:
         )
 
 
-PROJECTS_CACHE_KEY_PREFIX = "projects:manage"
+# BLF-1024：排序语义变更（停用项目整段沉底 + 上下移只在同组内换位）后升
+# v2 —— 部署就能生效，不必清 Redis、不必改部署脚本；存量 v1 key 靠 1h TTL
+# 自然排空（同 `cache:return-analysis:v2` 的既有做法）。
+PROJECTS_CACHE_KEY_PREFIX = "projects:manage:v2"
 
 
 def _projects_cache_key(
@@ -366,7 +369,11 @@ def list_project_items(
     stmt = select(Project)
     if not include_inactive:
         stmt = stmt.where(Project.is_active == True)  # noqa: E712
-    stmt = stmt.order_by(Project.sort_order.asc(), Project.id.asc())
+    # BLF-1024：停用项目整段排在启用项目之后，组内仍按 sort_order 升序、id 兜底。
+    # include_inactive=False 时结果集内 is_active 恒为真 → 首键是常量，逐行顺序不变。
+    stmt = stmt.order_by(
+        Project.is_active.desc(), Project.sort_order.asc(), Project.id.asc()
+    )
     rows = db.execute(stmt).scalars().all()
 
     if is_admin:
@@ -737,13 +744,17 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
     current_order = row.sort_order
+    # BLF-1024：上/下移只与**同一启用状态分组**内的邻居换位。否则给启用项目点
+    # 「上移」时若全局邻居是停用项目，交换 sort_order 后它在启用区内的相对位置
+    # 不变 → 按钮看起来失灵；移动停用项目同理会扰动启用区顺序。
+    same_group = Project.is_active.is_(row.is_active)
 
     if direction == "up":
-        # Find the project with the next lower sort_order
+        # Find the next lower sort_order within the same active/inactive group
         neighbor = (
             db.execute(
                 select(Project)
-                .where(Project.sort_order < current_order)
+                .where(same_group, Project.sort_order < current_order)
                 .order_by(Project.sort_order.desc())
                 .limit(1)
             )
@@ -755,11 +766,11 @@ def reorder_project(db: Session, project_id: int, direction: str) -> Project:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="已在最顶部"
             )
     elif direction == "down":
-        # Find the project with the next higher sort_order
+        # Find the next higher sort_order within the same active/inactive group
         neighbor = (
             db.execute(
                 select(Project)
-                .where(Project.sort_order > current_order)
+                .where(same_group, Project.sort_order > current_order)
                 .order_by(Project.sort_order.asc())
                 .limit(1)
             )
