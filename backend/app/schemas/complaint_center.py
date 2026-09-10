@@ -23,6 +23,24 @@ class ShopMetrics(BaseModel):
     resolved_today: int = 0
 
 
+# 身份核验观测（BLF-1022）：Seller Central 账户切换器实际值对照。
+# 固定 source：amazon_seller_central_account_switcher。
+IDENTITY_SOURCE = 'amazon_seller_central_account_switcher'
+
+
+class IdentityCheckIn(BaseModel):
+    """单店身份核验声明。
+
+    ``verified=true`` 仅当 observed_alias 精确命中 expected_alias/aliases
+    且 observed_country 包含目标 country；服务端会重算并拒绝不一致声明。
+    """
+
+    expected_alias: str | None = None
+    observed_alias: str | None = None
+    observed_country: list[str] = Field(default_factory=list)
+    verified: bool = False
+    source: str = IDENTITY_SOURCE
+
 class Triage(BaseModel):
     category: Annotated[str, Field(pattern='^(with_order|no_order_info|spam)$')]
     has_order: bool
@@ -48,15 +66,16 @@ class SlaInfo(BaseModel):
 
 class ShopCheckIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|GB|UK)$')] = 'US'
+    country: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
     check_status: Annotated[str, Field(pattern='^(ok|login_page|launch_fail|identity_mismatch)$')] = 'ok'
     error_message: str | None = None
-    metrics: ShopMetrics = Field(default_factory=ShopMetrics)
+    identity_check: IdentityCheckIn | None = None
+    metrics: ShopMetrics | None = Field(default_factory=ShopMetrics)
 
 
 class ComplaintIn(BaseModel):
     project_id: int
-    country: Annotated[str, Field(pattern='^(US|DE|GB|UK)$')] = 'US'
+    country: Annotated[str, Field(pattern='^(US|DE|UK)$')] = 'US'
     first_message_date: date
     message_date: date
     buyer_name: str = Field(max_length=255)

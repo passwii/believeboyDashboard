@@ -92,10 +92,20 @@ class ProjectShopItem(BaseModel):
     id: int
     country: str
     shop_id: str
+    shop_name: str | None = None
+    seller_identity_expected_alias: str | None = None
+    seller_identity_aliases: list[str] = Field(default_factory=list)
+    seller_identity_source: str | None = None
+    seller_identity_required: bool = True
 
 
 class ProjectShopUpsert(BaseModel):
     shop_id: str = Field(min_length=1, max_length=64)
+    shop_name: str | None = Field(default=None, max_length=128)
+    seller_identity_expected_alias: str | None = Field(default=None, max_length=128)
+    seller_identity_aliases: list[str] = Field(default_factory=list)
+    seller_identity_source: str | None = Field(default=None, max_length=128)
+    seller_identity_required: bool = True
 
     @field_validator("shop_id")
     @classmethod
@@ -104,6 +114,14 @@ class ProjectShopUpsert(BaseModel):
         if not normalized:
             raise ValueError("shop_id must not be blank")
         return normalized
+
+    @field_validator("shop_name", "seller_identity_expected_alias", mode="before")
+    @classmethod
+    def _strip_optional(cls, value):
+        if value is None:
+            return None
+        stripped = str(value).strip()
+        return stripped or None
 
 
 class ProjectContextResponse(BaseModel):

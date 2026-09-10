@@ -265,8 +265,26 @@ def test_project_shop_management_roundtrip(client, db_session, admin_headers):
             f"/api/v1/projects/{project_id}/shops", headers=admin_headers
         )
         assert listed.json() == [
-            {"id": listed.json()[0]["id"], "country": "UK", "shop_id": "shop-management-uk"},
-            {"id": listed.json()[1]["id"], "country": "US", "shop_id": "shop-management-us"},
+            {
+                "id": listed.json()[0]["id"],
+                "country": "UK",
+                "shop_id": "shop-management-uk",
+                "shop_name": None,
+                "seller_identity_expected_alias": None,
+                "seller_identity_aliases": [],
+                "seller_identity_source": None,
+                "seller_identity_required": True,
+            },
+            {
+                "id": listed.json()[1]["id"],
+                "country": "US",
+                "shop_id": "shop-management-us",
+                "shop_name": None,
+                "seller_identity_expected_alias": None,
+                "seller_identity_aliases": [],
+                "seller_identity_source": None,
+                "seller_identity_required": True,
+            },
         ]
 
         deleted = client.delete(

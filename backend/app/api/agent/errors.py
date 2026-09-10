@@ -48,6 +48,11 @@ class ErrorCode(str, Enum):
     SKU_INFO_DUPLICATE = "SKU_INFO_DUPLICATE"
     # 客诉中心域（BLF-981）
     COMPLAINT_STATUS_INVALID = "COMPLAINT_STATUS_INVALID"
+    # 店铺身份核验（BLF-1022）
+    IDENTITY_CHECK_REQUIRED = "IDENTITY_CHECK_REQUIRED"
+    IDENTITY_CHECK_CONTRADICTION = "IDENTITY_CHECK_CONTRADICTION"
+    IDENTITY_CHECK_INVALID = "IDENTITY_CHECK_INVALID"
+    IDENTITY_EXPECTED_ALIAS_MISSING = "IDENTITY_EXPECTED_ALIAS_MISSING"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -73,8 +78,11 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SOURCE: 400,
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: 400,
     ErrorCode.SKU_INFO_INVALID_SOURCE: 400,
-    ErrorCode.SKU_INFO_DUPLICATE: 409,
     ErrorCode.COMPLAINT_STATUS_INVALID: 400,
+    ErrorCode.IDENTITY_CHECK_REQUIRED: 422,
+    ErrorCode.IDENTITY_CHECK_CONTRADICTION: 422,
+    ErrorCode.IDENTITY_CHECK_INVALID: 422,
+    ErrorCode.IDENTITY_EXPECTED_ALIAS_MISSING: 422,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -156,6 +164,22 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.COMPLAINT_STATUS_INVALID: (
         "非法状态流转",
         "客诉状态机单向（pending → drafted → replied → resolved → closed_no_response），不可回退",
+    ),
+    ErrorCode.IDENTITY_CHECK_REQUIRED: (
+        "身份核验未通过，禁止写入客诉",
+        "check observed_alias and observed_country before retry",
+    ),
+    ErrorCode.IDENTITY_CHECK_CONTRADICTION: (
+        "身份核验状态自相矛盾",
+        "identity_mismatch must pair with verified=false; re-probe the account switcher before retry",
+    ),
+    ErrorCode.IDENTITY_CHECK_INVALID: (
+        "身份核验声明与页面观测不一致",
+        "verified=true requires observed_alias to exactly match expected_alias/aliases and observed_country to contain the target country",
+    ),
+    ErrorCode.IDENTITY_EXPECTED_ALIAS_MISSING: (
+        "店铺缺少期望身份别名",
+        "seller_identity.required=true but expected_alias is empty; maintain the alias before writing complaints",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
