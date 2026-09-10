@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.schemas.insight import InsightErrorCode, InsightRunRequest, InsightStatus
 from app.services.insight.executor import (
-    LLMResult,
     ListEventSink,
+    LLMResult,
     RetryableFailure,
     execute_run,
     is_retryable,

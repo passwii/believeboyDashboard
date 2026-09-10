@@ -28,7 +28,7 @@ class InsightRun(Base):
             "idempotency_key",
             name="uq_insight_runs_scope_idempotency",
         ),
-        Index("ix_insight_runs_run_id", "run_id"),
+        Index("ix_insight_runs_run_id", "run_id", unique=True),
         Index("ix_insight_runs_scope", "project_id", "country"),
         Index("ix_insight_runs_status", "status"),
     )
@@ -37,13 +37,16 @@ class InsightRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     #: Stable public identifier (UUID4 hex string); Celery task argument.
-    run_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    #: 唯一性由 ix_insight_runs_run_id（unique index）承担，与迁移 267 一致。
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     #: Attempt counter; explicit retry bumps it, Celery redelivery does not.
-    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
 
     #: Unified AI capability name (always ``insight``); business extension point.
     capability: Mapped[str] = mapped_column(
-        String(64), nullable=False, default="insight"
+        String(64), nullable=False, default="insight", server_default="insight"
     )
     #: Role canonical key, e.g. ``schedule_report_summary.v1``.
     use_case: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -58,19 +61,29 @@ class InsightRun(Base):
     model_id: Mapped[str] = mapped_column(String(128), nullable=False)
 
     #: InsightStatus value; transitions enforced by lifecycle.require_transition.
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="queued", server_default="queued"
+    )
     #: InsightStage value; terminal runs keep their last active stage.
-    stage: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
-    progress_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stage: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="queued", server_default="queued"
+    )
+    progress_percent: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
     #: SHA-256 over the canonical request (see validator.fingerprint_of).
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
 
     #: Canonical JSON of the validated slots (retry reuses it, no LLM recall).
-    slots_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    slots_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}", server_default="{}"
+    )
     #: JSON list of ``{status, attempt, at}`` entries, append-only.
-    status_timeline_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    status_timeline_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]", server_default="[]"
+    )
 
     #: JSON InsightUsage; written once at terminal state.
     usage_json: Mapped[str | None] = mapped_column(Text, nullable=True)

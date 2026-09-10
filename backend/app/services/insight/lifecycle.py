@@ -58,6 +58,15 @@ def is_terminal(status: InsightStatus) -> bool:
     return status in TERMINAL_STATUSES
 
 
+def sources_of(to: InsightStatus) -> frozenset[InsightStatus]:
+    """非终态中允许到达 ``to`` 的源状态集合（即 ``_TRANSITIONS`` 的逆向）。
+
+    状态写入把这张表当作写条件的一部分：UPDATE 只在行仍处于合法源状态时
+    生效，因此旧 attempt 或过期快照的回退写不会落到库里。
+    """
+    return frozenset(frm for frm, targets in _TRANSITIONS.items() if to in targets)
+
+
 def can_transition(frm: InsightStatus, to: InsightStatus) -> bool:
     return to in _TRANSITIONS[frm]
 

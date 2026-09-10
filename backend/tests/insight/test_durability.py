@@ -14,20 +14,29 @@ independent sessions on one shared database:
 * provider retryability — non-retryable causes must fail, never
   redeliver (finding 4a);
 * retry exhaustion — the task must park the typed error instead of
-  raising out of the worker (finding 4b).
+  raising out of the worker (finding 4b);
+* atomic state writes — every write must be decided by the write itself
+  (compare-and-swap), not by a refresh that a competing writer can
+  overtake before the UPDATE is sent (re-review finding 1).
+
+The concurrency tests interleave the competing commit *inside* the
+writer's window (just before its UPDATE is sent), so the race is
+deterministic instead of timing-dependent.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.schemas.insight import (
     InsightErrorCode,
     InsightRunRequest,
+    InsightStage,
     InsightStatus,
     make_error,
 )
@@ -46,10 +55,13 @@ from app.services.insight.provider import (
 )
 from app.services.insight.roles import InsightRoleDefinition
 from app.services.insight.runs import (
+    StaleRunWrite,
     cancel_run,
     create_run,
     get_run,
     retry_run,
+    to_detail,
+    transition,
 )
 from app.services.insight.validator import fingerprint_of
 from tests.insight.conftest import allow_all, make_request
@@ -413,3 +425,257 @@ def test_stale_attempt_park_leaves_newer_attempt_alone(
     assert out["attempt"] == 2
     assert out["status"] == InsightStatus.QUEUED.value
     assert _fresh(engine, run_id).status == InsightStatus.QUEUED.value
+
+
+def _commit_before_update(engine, action, *, when=None):
+    """Run ``action`` on its own session inside a writer's write window.
+
+    The listener fires just before an ``UPDATE insight_runs`` is sent, i.e.
+    after the writer read its snapshot and before the row is written — the
+    only window a row lock cannot close on every backend. ``when`` selects
+    the triggering UPDATE from its compiled parameters (default: the first).
+    Returns the listener remover.
+    """
+
+    stopped = {"fired": False}
+
+    def _hook(conn, cursor, statement, parameters, context, executemany):
+        if stopped["fired"]:
+            return
+        if not statement.lstrip().upper().startswith("UPDATE"):
+            return
+        if "insight_runs" not in statement:
+            return
+        compiled = (context.compiled_parameters or [{}])[0]
+        if when is not None and not when(compiled):
+            return
+        stopped["fired"] = True  # the interleave's own writes must not re-enter
+        action()
+
+    event.listen(engine, "before_cursor_execute", _hook)
+    return lambda: event.remove(engine, "before_cursor_execute", _hook)
+
+
+def test_transition_write_is_atomic_against_concurrent_cancel(engine) -> None:
+    worker = _session(engine)
+    user = _session(engine)
+    run = _create(worker, idempotency_key="blf-1011-durable-2c")
+    worker.commit()
+    run_id = run.run_id
+    stale = get_run(worker, run_id)  # snapshot taken, cancel not yet committed
+
+    def _cancel() -> None:
+        cancel_run(user, run_id)
+        user.commit()
+
+    remove = _commit_before_update(engine, _cancel)
+    try:
+        with pytest.raises(StaleRunWrite):
+            transition(
+                worker,
+                stale,
+                InsightStatus.AGGREGATING,
+                stage=InsightStage.AGGREGATING,
+                progress=10,
+            )
+    finally:
+        remove()
+    worker.close()
+    user.close()
+
+    stored = _fresh(engine, run_id)
+    assert stored.status == InsightStatus.CANCELLED.value
+    assert stored.stage == InsightStage.QUEUED.value
+    assert stored.progress_percent == 0
+    assert [entry["status"] for entry in json.loads(stored.status_timeline_json)] == [
+        InsightStatus.QUEUED.value,
+        InsightStatus.CANCELLED.value,
+    ]
+
+
+def test_checkpoint_write_is_atomic_against_concurrent_cancel(engine) -> None:
+    worker = _session(engine)
+    user = _session(engine)
+    run = _create(worker, idempotency_key="blf-1011-durable-2d")
+    worker.commit()
+    run_id = run.run_id
+    get_run(worker, run_id)
+
+    def _cancel() -> None:
+        cancel_run(user, run_id)
+        user.commit()
+
+    calls: list[str] = []
+    remove = _commit_before_update(engine, _cancel)
+    try:
+        out = execute_run(
+            db=worker, run_id=run_id, attempt=1, resolve=_resolve,
+            generate=_ok_generate(calls),
+        )
+        returned = out.status  # read before the session closes
+    finally:
+        remove()
+    worker.commit()
+    worker.close()
+    user.close()
+
+    assert returned == InsightStatus.CANCELLED.value
+    assert calls == []  # the cancel won the checkpoint: no LLM call
+    stored = _fresh(engine, run_id)
+    assert stored.status == InsightStatus.CANCELLED.value
+    assert stored.content_markdown is None
+    assert json.loads(stored.status_timeline_json)[-1]["status"] == (
+        InsightStatus.CANCELLED.value
+    )
+
+
+def test_completion_write_is_atomic_against_concurrent_cancel(engine) -> None:
+    worker = _session(engine)
+    user = _session(engine)
+    run = _create(worker, idempotency_key="blf-1011-durable-2e")
+    worker.commit()
+    run_id = run.run_id
+    get_run(worker, run_id)
+
+    def _cancel() -> None:
+        cancel_run(user, run_id)
+        user.commit()
+
+    calls: list[str] = []
+    remove = _commit_before_update(
+        engine,
+        _cancel,
+        when=lambda params: params.get("status") == InsightStatus.COMPLETED.value,
+    )
+    try:
+        out = execute_run(
+            db=worker, run_id=run_id, attempt=1, resolve=_resolve,
+            generate=_ok_generate(calls),
+        )
+        returned = out.status  # read before the session closes
+    finally:
+        remove()
+    worker.commit()
+    worker.close()
+    user.close()
+
+    assert len(calls) == 1  # the LLM ran; the terminal write must still lose
+    assert returned == InsightStatus.CANCELLED.value
+    stored = _fresh(engine, run_id)
+    assert stored.status == InsightStatus.CANCELLED.value
+    assert stored.content_markdown is None
+    assert stored.usage_json is None  # the cancel's terminal write stands alone
+
+
+def test_failure_write_is_atomic_against_concurrent_cancel(engine) -> None:
+    worker = _session(engine)
+    user = _session(engine)
+    run = _create(worker, idempotency_key="blf-1011-durable-2f")
+    worker.commit()
+    run_id = run.run_id
+    get_run(worker, run_id)
+
+    def _resolve_denied(endpoint_id: str, model_id: str, role, settings):
+        raise InsightProviderError(
+            InsightProviderErrorCode.ENDPOINT_NOT_ALLOWED, "nope", retryable=False
+        )
+
+    def _cancel() -> None:
+        cancel_run(user, run_id)
+        user.commit()
+
+    remove = _commit_before_update(engine, _cancel)
+    try:
+        failed = execute_run(
+            db=worker, run_id=run_id, attempt=1, resolve=_resolve_denied,
+            generate=_ok_generate([]),
+        )
+        returned = failed.status  # read before the session closes
+    finally:
+        remove()
+    worker.commit()
+    worker.close()
+    user.close()
+
+    assert returned == InsightStatus.CANCELLED.value
+    stored = _fresh(engine, run_id)
+    assert stored.status == InsightStatus.CANCELLED.value
+    error = to_detail(stored).error
+    assert error is not None
+    # the cancel's own error stands; the resolver failure never overwrote it
+    assert error.code == InsightErrorCode.CANCELLED
+
+
+def test_park_failed_cannot_overwrite_concurrent_cancel(
+    engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.celery_tasks.insights.run as task_mod
+
+    _patch_task_db(monkeypatch, engine)
+    seed = _session(engine)
+    run = _create(seed, idempotency_key="blf-1011-durable-2g")
+    seed.commit()
+    run_id = run.run_id
+    seed.close()
+
+    user = _session(engine)
+
+    def _cancel() -> None:
+        cancel_run(user, run_id)
+        user.commit()
+
+    remove = _commit_before_update(engine, _cancel)
+    try:
+        out = task_mod._park_failed(
+            run_id, 1, make_error(InsightErrorCode.RATE_LIMITED, "limited")
+        )
+    finally:
+        remove()
+    user.close()
+
+    assert out["status"] == InsightStatus.CANCELLED.value
+    stored = _fresh(engine, run_id)
+    assert stored.status == InsightStatus.CANCELLED.value
+    error = to_detail(stored).error
+    assert error is not None
+    # the cancel's own error stands; the parked failure never overwrote it
+    assert error.code == InsightErrorCode.CANCELLED
+
+
+def test_cancel_losing_to_retry_still_cancels_the_live_attempt(engine) -> None:
+    """A cancel overtaken by cancel+retry must cancel the newer attempt.
+
+    The worker's snapshot is attempt 1; by the time its UPDATE is sent the
+    row is attempt 2 (queued), so the write must re-target the live attempt
+    instead of resurrecting attempt 1 or silently reporting success.
+    """
+
+    worker = _session(engine)
+    user = _session(engine)
+    run = _create(worker, idempotency_key="blf-1011-durable-2h")
+    worker.commit()
+    run_id = run.run_id
+    get_run(worker, run_id)
+
+    def _cancel_then_retry() -> None:
+        cancel_run(user, run_id)
+        retry_run(user, run_id)  # attempt 2, queued
+        user.commit()
+
+    remove = _commit_before_update(engine, _cancel_then_retry)
+    try:
+        cancelled, replayed = cancel_run(worker, run_id)
+    finally:
+        remove()
+    cancelled_attempt = cancelled.attempt
+    cancelled_status = cancelled.status  # read before the session closes
+    worker.commit()
+    worker.close()
+    user.close()
+
+    assert replayed is False
+    assert cancelled_attempt == 2
+    assert cancelled_status == InsightStatus.CANCELLED.value
+    stored = _fresh(engine, run_id)
+    assert stored.attempt == 2
+    assert stored.status == InsightStatus.CANCELLED.value

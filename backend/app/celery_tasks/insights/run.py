@@ -41,8 +41,7 @@ from app.services.insight.executor import (
     RetryableFailure,
     execute_run,
 )
-from app.services.insight.lifecycle import is_terminal
-from app.services.insight.runs import RunNotFound, get_run, transition
+from app.services.insight.runs import RunNotFound, get_run, try_transition
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +57,11 @@ def _backoff_seconds(retries: int) -> int:
 def _park_failed(run_id: str, attempt: int, error: InsightError) -> dict[str, Any]:
     """Mark a run terminal after retry exhaustion, on a fresh session.
 
-    A stale task (explicit retry already bumped ``attempt``) or an already
-    terminal run is left untouched, so an old worker can never overwrite a
-    newer attempt or a user-driven terminal state.
+    A stale task (explicit retry already bumped ``attempt``) is left
+    untouched, and the failure is written by the same compare-and-swap the
+    executor's checkpoints use: a cancel (or retry) that commits while this
+    session is deciding wins, and this call reports the winner's state
+    instead of overwriting it.
     """
 
     from app.db.session import SessionLocal
@@ -80,8 +81,16 @@ def _park_failed(run_id: str, attempt: int, error: InsightError) -> dict[str, An
                 run.attempt,
             )
             return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
-        if not is_terminal(InsightStatus(run.status)):
-            transition(db, run, InsightStatus.FAILED, error=error)
+        if not try_transition(
+            db, run, InsightStatus.FAILED, expected_attempt=attempt, error=error
+        ):
+            logger.warning(
+                "execute_insight_run: park lost the row run_id=%s attempt=%s "
+                "current=%s",
+                run_id,
+                attempt,
+                run.status,
+            )
         db.commit()
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except Exception:

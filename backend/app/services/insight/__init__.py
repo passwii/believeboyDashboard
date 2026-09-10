@@ -11,6 +11,21 @@ from app.services.insight.contracts import (
     sha256_hex,
     to_canonical_json,
 )
+from app.services.insight.executor import (
+    EnqueueFunc,
+    GenerateFunc,
+    InsightEventSink,
+    ListEventSink,
+    LLMResult,
+    ModelResolverFunc,
+    NullEventSink,
+    PromptBuilder,
+    RetryableFailure,
+    execute_run,
+    is_retryable,
+    map_provider_error,
+    start_run,
+)
 from app.services.insight.model_resolver import (
     create_insight_agent,
     resolve_insight_model,
@@ -23,24 +38,10 @@ from app.services.insight.provider import (
     InsightProviderErrorCode,
     classify_provider_error,
 )
-from app.services.insight.executor import (
-    EnqueueFunc,
-    GenerateFunc,
-    InsightEventSink,
-    LLMResult,
-    ListEventSink,
-    ModelResolverFunc,
-    NullEventSink,
-    PromptBuilder,
-    RetryableFailure,
-    execute_run,
-    is_retryable,
-    map_provider_error,
-    start_run,
-)
 from app.services.insight.runs import (
     IdempotencyConflict,
     RunNotFound,
+    StaleRunWrite,
     cancel_run,
     create_run,
     get_run,
@@ -48,6 +49,7 @@ from app.services.insight.runs import (
     retry_run,
     to_detail,
     transition,
+    try_transition,
 )
 
 __all__ = [
@@ -67,6 +69,7 @@ __all__ = [
     "PromptBuilder",
     "RetryableFailure",
     "RunNotFound",
+    "StaleRunWrite",
     "cancel_run",
     "classify_provider_error",
     "create_insight_agent",
@@ -84,4 +87,5 @@ __all__ = [
     "to_canonical_json",
     "to_detail",
     "transition",
+    "try_transition",
 ]

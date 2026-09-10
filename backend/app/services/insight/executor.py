@@ -14,6 +14,17 @@ Attempt boundaries
   untouched without calling the LLM again.
 * Only an explicit :func:`runs.retry_run` bumps ``attempt``; a task carrying
   a stale attempt returns immediately.
+
+Atomic state writes
+-------------------
+Every write this module makes is a compare-and-swap through
+:func:`runs.try_transition`, keyed on ``(run id, attempt held by this task,
+status being a legal predecessor of the target)``. Re-reading the row first
+is a cheap precheck, not the guarantee: a cancel or retry that commits
+between the read and the write makes the write match no row, so the stale
+worker stops instead of overwriting the winner. That keeps the guarantee on
+every backend — Postgres row locks are not needed for correctness, and the
+SQLite tests exercise the same code path production runs.
 """
 
 from __future__ import annotations
@@ -60,10 +71,11 @@ from app.services.insight.roles import (
 from app.services.insight.runs import (
     IdempotencyConflict,  # noqa: F401  (re-exported for HTTP-layer mapping)
     RunNotFound,  # noqa: F401  (re-exported for HTTP-layer mapping)
+    StaleRunWrite,  # noqa: F401  (re-exported for HTTP-layer mapping)
     create_run,
     get_run,
     to_detail,
-    transition,
+    try_transition,
 )
 from app.services.insight.validator import (
     ScopeAuthorizer,
@@ -287,24 +299,36 @@ def _advance(
 ) -> bool:
     """Step forward unless already there or beyond (redelivery resume).
 
-    Refreshes first so a cancel/retry committed by another session is
-    observed: stale attempts and terminal runs return ``False`` and the
-    caller must stop without writing. Every applied checkpoint is
-    committed immediately, so a worker kill after this returns never
-    loses the phase progress. Strict rollback rejection stays in
-    :func:`runs.transition`; this helper only skips work a previous
-    delivery already made durable.
+    The phase write is a compare-and-swap on ``(id, attempt, status ∈
+    predecessors of target)``: it is applied only if the row is still this
+    attempt's to move, so a cancel/retry that commits between the read and
+    the write makes the write a no-op instead of resurrecting the snapshot.
+    Stale attempts and terminal runs return ``False`` and the caller stops.
+
+    "Already there or beyond" stays an in-memory decision from the refreshed
+    row, because that case means a *previous delivery* of this same attempt
+    made the phase durable — it is a resume, not a race. Every applied
+    checkpoint is committed immediately, so a worker kill never loses phase
+    progress.
     """
 
     run = _reload(db, run)
     if run.attempt != attempt or is_terminal(InsightStatus(run.status)):
         return False
     current = InsightStatus(run.status)
-    if current == target:
+    if current == target or _PHASE_ORDER.index(current) > _PHASE_ORDER.index(target):
         return True
-    if _PHASE_ORDER.index(current) > _PHASE_ORDER.index(target):
-        return True
-    transition(db, run, target, stage=stage, progress=progress)
+    if not try_transition(
+        db,
+        run,
+        target,
+        expected_attempt=attempt,
+        stage=stage,
+        progress=progress,
+    ):
+        # Lost the claim mid-flight (cancel, retry, or a sibling delivery
+        # advanced the row): the winner owns the run from here on.
+        return False
     db.commit()
     try:
         sink.on_status(run, stage, progress, detail)
@@ -318,8 +342,22 @@ def _fail(
     run: InsightRun,
     sink: InsightEventSink,
     error: InsightError,
+    *,
+    attempt: int,
 ) -> InsightRun:
-    transition(db, run, InsightStatus.FAILED, error=error)
+    """Park a run as failed, unless it stopped being ours to fail.
+
+    Same atomic write as the phase checkpoints, keyed on the attempt this
+    task holds: on a lost claim (another session cancelled or re-attempted
+    the run) nothing is written and no terminal event is emitted — the
+    winner's state is the truth, and a cancelled run must not be reported as
+    failed.
+    """
+
+    if not try_transition(
+        db, run, InsightStatus.FAILED, expected_attempt=attempt, error=error
+    ):
+        return run
     db.commit()
     try:
         sink.on_terminal(to_detail(run))
@@ -334,10 +372,12 @@ def _fail_or_retry(
     sink: InsightEventSink,
     error: InsightError,
     retry_after: int | None = None,
+    *,
+    attempt: int,
 ) -> InsightRun:
     if is_retryable(error):
         raise RetryableFailure(error, retry_after=retry_after)
-    return _fail(db, run, sink, error)
+    return _fail(db, run, sink, error, attempt=attempt)
 
 
 def _reload(db: Session, run: InsightRun) -> InsightRun:
@@ -364,8 +404,10 @@ def execute_run(
     Never calls the LLM for stale attempts, terminal runs, or cancelled runs.
     Every phase checkpoint is committed before returning, so a worker kill
     loses no progress; the Celery task's own commit only covers the final
-    write. Guards re-read the row before each write, so a cancel/retry
-    committed by another session stops this task without overwriting it.
+    write. Each write is a compare-and-swap on the attempt this task holds,
+    so a cancel/retry committed by another session makes the stale worker
+    stop instead of overwriting it — the database, not the refreshed
+    snapshot, decides the winner.
     """
 
     active_sink: InsightEventSink = sink or NullEventSink()
@@ -383,6 +425,7 @@ def execute_run(
             run,
             active_sink,
             make_error(exc.code, "Insight role is not available"),
+            attempt=attempt,
         )
 
     try:
@@ -396,6 +439,7 @@ def execute_run(
                 InsightErrorCode.SLOT_VALIDATION_FAILED,
                 "Stored insight slots are unreadable",
             ),
+            attempt=attempt,
         )
     if not isinstance(slots, dict):
         return _fail(
@@ -406,6 +450,7 @@ def execute_run(
                 InsightErrorCode.SLOT_VALIDATION_FAILED,
                 "Stored insight slots are unreadable",
             ),
+            attempt=attempt,
         )
 
     if settings is None:
@@ -418,7 +463,12 @@ def execute_run(
     except InsightProviderError as exc:
         mapped = map_provider_error(exc)
         return _fail_or_retry(
-            db, run, active_sink, mapped, retry_after=mapped.retry_after_seconds
+            db,
+            run,
+            active_sink,
+            mapped,
+            retry_after=mapped.retry_after_seconds,
+            attempt=attempt,
         )
 
     if not _guard(db, run, attempt):
@@ -459,7 +509,12 @@ def execute_run(
     except Exception as exc:  # noqa: BLE001 — classify, then retry or fail
         mapped = map_provider_error(exc)
         return _fail_or_retry(
-            db, run, active_sink, mapped, retry_after=mapped.retry_after_seconds
+            db,
+            run,
+            active_sink,
+            mapped,
+            retry_after=mapped.retry_after_seconds,
+            attempt=attempt,
         )
 
     if not _guard(db, run, attempt):
@@ -475,6 +530,7 @@ def execute_run(
                 InsightErrorCode.PROVIDER_UNAVAILABLE,
                 "Insight provider returned empty content",
             ),
+            attempt=attempt,
         )
 
     digest = sha256_hex(markdown.encode("utf-8"))
@@ -507,15 +563,20 @@ def execute_run(
         return run
     if not _guard(db, run, attempt):
         return run
-    transition(
+    if not try_transition(
         db,
         run,
         InsightStatus.COMPLETED,
+        expected_attempt=attempt,
         progress=100,
         usage=usage,
         outputs=outputs,
         content=markdown,
-    )
+    ):
+        # A cancel (or retry) committed while the model was answering: the
+        # terminal state is the winner's, and this attempt must not stamp
+        # COMPLETED over it.
+        return run
     db.commit()
     # COMPLETED has no InsightStage member; the run keeps FINALIZING, which is
     # what the detail snapshot and the status timeline report.
