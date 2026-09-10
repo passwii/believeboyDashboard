@@ -5,11 +5,13 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     UniqueConstraint,
     func,
@@ -25,7 +27,13 @@ if TYPE_CHECKING:
 
 
 class ProjectShop(Base):
-    """Persistent mapping between a project/country and a real shop id."""
+    """Persistent mapping between a project/country and a real shop id.
+
+    BLF-1022: ``shop_name`` is the KJVS preferred launch parameter (unique
+    name resolution value); ``shop_id`` stays the stable primary key.
+    ``seller_identity_*`` keeps the Seller Central account-switcher alias
+   对照 so agents can verify page identity before reading/writing complaints.
+    """
 
     __tablename__ = "project_shops"
     __table_args__ = (
@@ -39,6 +47,7 @@ class ProjectShop(Base):
             "project_id", "country", name="uq_project_shops_project_country"
         ),
         UniqueConstraint("shop_id", name="uq_project_shops_shop_id"),
+        UniqueConstraint("shop_name", name="uq_project_shops_shop_name"),
         Index("idx_project_shops_project_country", "project_id", "country"),
     )
 
@@ -50,6 +59,19 @@ class ProjectShop(Base):
     )
     country: Mapped[str] = mapped_column(String(2), nullable=False)
     shop_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    shop_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    seller_identity_expected_alias: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    seller_identity_aliases: Mapped[list] = mapped_column(
+        JSON, nullable=False, server_default="[]", default=list
+    )
+    seller_identity_source: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    seller_identity_required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="1", default=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

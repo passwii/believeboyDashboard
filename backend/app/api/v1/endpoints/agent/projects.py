@@ -34,7 +34,7 @@ from app.api.agent.scope import SCOPE_ALL, _parse_scope
 from app.api.deps import get_read_db_session
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
-from app.schemas.external.projects import AgentShopItem, ProjectItem
+from app.schemas.external.projects import AgentShopItem, ProjectItem, SellerIdentity
 from app.utils.country import get_country_label_cn
 from app.services.external import projects_query
 
@@ -81,9 +81,9 @@ def get_agent_projects(
 ) -> dict:
     """``/agent/projects`` 列表：项目名 + id + 站点国家/地区。
 
-    复用 ``projects_query.list_projects``（与删除前的 external handler 同一
-    服务函数）；``?name=`` 精确过滤；受 scope 限制的 key 按 project_scope
-    白名单过滤 items。
+    BLF-1022：每个 shop 返回 ``shop_name``（KJVS 首选启动参数）与
+    ``seller_identity``（Seller Central 账户切换器 alias 对照）；
+    ``shop_id`` 保持稳定主键（关闭参数/日志关联/fallback）。
     """
     with _service_errors():
         projects = projects_query.list_projects(db, status=status)
@@ -117,8 +117,15 @@ def get_agent_projects(
                     shops=[
                         AgentShopItem(
                             shop_id=shop.shop_id,
+                            shop_name=shop.shop_name,
                             country=shop.country,
                             site=get_country_label_cn(shop.country),
+                            seller_identity=SellerIdentity(
+                                expected_alias=shop.seller_identity_expected_alias,
+                                aliases=list(shop.seller_identity_aliases or []),
+                                source=shop.seller_identity_source,
+                                required=bool(shop.seller_identity_required),
+                            ),
                         )
                         for shop in shops_by_project.get(p.id, [])
                     ],

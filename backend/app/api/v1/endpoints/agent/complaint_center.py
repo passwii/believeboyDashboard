@@ -28,6 +28,7 @@ from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
 from app.schemas.complaint_center import ComplaintRunBatchRequest
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.complaint_center_service import (
+    IdentityGateError,
     fetch_complaints,
     get_run_by_date,
     upsert_batch,
@@ -43,11 +44,21 @@ complaint_center_router = APIRouter(
 
 @contextmanager
 def _service_errors():
-    """把 service 层业务异常翻译成 agent 响应壳。"""
+    """把 service 层业务异常翻译成 agent 响应壳。
+
+    BLF-1022：IdentityGateError 的 code 即 ErrorCode 名（422 身份码），
+    整体 batch 整批拒绝、不落库。
+    """
     try:
         yield
     except AgentApiError:
         raise
+    except IdentityGateError as exc:
+        raise AgentApiError(
+            ErrorCode(exc.code),
+            human_message=exc.human_message,
+            agent_hint=exc.agent_hint,
+        ) from None
     except HTTPException as exc:
         detail = str(exc.detail) if exc.detail else None
         if exc.status_code == 404:
@@ -81,6 +92,23 @@ def _check_idempotency_header(request: Request) -> None:
                 ErrorCode.VALIDATION_FAILED,
                 human_message="Idempotency-Key 长度不能超过 64 字符",
             )
+
+
+def _check_shops_failed_types(body: dict) -> None:
+    """BLF-1022 规则 8：shops_failed 必须是 list[str]，对象直接拒绝。
+
+    注：按现有 agent 响应壳契约，请求体类型错误统一走 400
+    VALIDATION_FAILED（身份语义错误才走 422 身份码）。
+    """
+    shops_failed = body.get("shops_failed", [])
+    if not isinstance(shops_failed, list) or any(
+        not isinstance(item, str) for item in shops_failed
+    ):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="shops_failed 必须是 list[str]",
+            agent_hint="remove non-string entries from shops_failed before retry",
+        )
 
 
 def _serialize_run_batch_response(run: ComplaintRun, body: ComplaintRunBatchRequest) -> dict:
@@ -122,6 +150,21 @@ async def batch_upsert(request: Request, db: Session = Depends(get_primary_db_se
     """W1 批量 upsert：一次事务收全家（run + shop_checks + complaints）。
 
     幂等：同一天 run_date 重复提交 → 更新原 run，不产生重复行。
+
+    BLF-1022 身份门禁与事务一致性（整批拒绝，不落库）：
+    * ``shop_checks`` 的 ``(project_id, country)`` 每批次最多一条；
+    * ``check_status=ok`` 必须 ``identity_check.verified=true``，
+      否则 422 ``IDENTITY_CHECK_REQUIRED``；
+    * ``identity_mismatch`` 配 ``verified=true`` → 422
+      ``IDENTITY_CHECK_CONTRADICTION``；
+    * ``verified=true`` 但 alias/country 重算不匹配 → 422
+      ``IDENTITY_CHECK_INVALID``；
+    * ``required=true`` 的店铺缺 ``expected_alias`` → 422
+      ``IDENTITY_EXPECTED_ALIAS_MISSING``；
+    * complaints 只接受同一批次中 ``ok && verified=true`` 的
+      ``(project_id, country)``，否则整批 422（``IDENTITY_CHECK_REQUIRED``）；
+      ``identity_mismatch``/``login_page``/``launch_fail`` 的店铺不得产生
+      complaints；complaint 明细只用 ``project_id + country``。
     """
     _check_idempotency_header(request)
     raw = await request.body()
@@ -130,6 +173,7 @@ async def batch_upsert(request: Request, db: Session = Depends(get_primary_db_se
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED, human_message="请求体必须是 JSON 对象"
         )
+    _check_shops_failed_types(body)
     parsed = ComplaintRunBatchRequest.model_validate(body)
     with _service_errors():
         run = upsert_batch(db, parsed, agent_id=getattr(request.state, "agent_id", None))

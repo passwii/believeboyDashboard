@@ -227,8 +227,16 @@ def update_project(
 
 
 def _project_shop_payload(row) -> dict[str, object]:
-    return {"id": row.id, "country": row.country, "shop_id": row.shop_id}
-
+    return {
+        "id": row.id,
+        "country": row.country,
+        "shop_id": row.shop_id,
+        "shop_name": row.shop_name,
+        "seller_identity_expected_alias": row.seller_identity_expected_alias,
+        "seller_identity_aliases": list(row.seller_identity_aliases or []),
+        "seller_identity_source": row.seller_identity_source,
+        "seller_identity_required": bool(row.seller_identity_required),
+    }
 
 @router.get("/projects/{project_id}/shops", response_model=list[ProjectShopItem])
 def list_project_shops_endpoint(
@@ -271,24 +279,62 @@ def upsert_project_shop_endpoint(
         db, project_id, operator=operator, is_admin=bool(is_admin)
     )
     canonical_country = project_service._normalize_country(country)
-    before = next(
+    existing = next(
         (
-            _project_shop_payload(row)
+            row
             for row in project_service.list_project_shops(db, project_id)
             if row.country == canonical_country
         ),
         None,
     )
+    before = _project_shop_payload(existing) if existing is not None else None
+    # 合并语义：未显式提供的身份字段保持现值（避免只传 shop_id 时清空对照）。
+    provided = payload.model_dump(exclude_unset=True)
+    current = before or {}
+
+    def _keep(field: str, default=None):
+        return provided.get(field, current.get(field, default))
+
     try:
         row = project_service.upsert_project_shop(
-            db, project_id, canonical_country, payload.shop_id
+            db,
+            project_id,
+            canonical_country,
+            payload.shop_id,
+            shop_name=_keep("shop_name"),
+            seller_identity_expected_alias=_keep("seller_identity_expected_alias"),
+            seller_identity_aliases=_keep("seller_identity_aliases", []),
+            seller_identity_source=_keep("seller_identity_source"),
+            seller_identity_required=_keep("seller_identity_required", True),
         )
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status_code=409, detail="shop_id is already mapped to another project"
+            status_code=409, detail="shop_id/shop_name is already mapped to another project"
         ) from None
     after = _project_shop_payload(row)
+    # alias 变更审计：BLF-1022 要求身份对照不得静默覆盖。
+    if before is not None and (
+        before.get("seller_identity_expected_alias")
+        != after.get("seller_identity_expected_alias")
+        or before.get("seller_identity_aliases") != after.get("seller_identity_aliases")
+    ):
+        append_operation_audit_log(
+            db,
+            action="projects.shops.identity_change",
+            target_type="project_shop",
+            target_id=row.id,
+            operator=operator,
+            before={
+                "expected_alias": before.get("seller_identity_expected_alias"),
+                "aliases": before.get("seller_identity_aliases"),
+            },
+            after={
+                "expected_alias": after.get("seller_identity_expected_alias"),
+                "aliases": after.get("seller_identity_aliases"),
+            },
+            request=request,
+        )
     append_operation_audit_log(
         db,
         action="projects.shops.upsert",

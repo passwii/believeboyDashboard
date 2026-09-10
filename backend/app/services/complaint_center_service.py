@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
 from app.models.project import Project
-from app.schemas.complaint_center import ComplaintIn, ComplaintPatchRequest, ComplaintRunBatchRequest
+from app.models.project_shop import ProjectShop
+from app.schemas.complaint_center import (
+    IDENTITY_SOURCE,
+    ComplaintIn,
+    ComplaintPatchRequest,
+    ComplaintRunBatchRequest,
+    ShopCheckIn,
+)
 
 
 COMPLAINT_STATUS_ORDER = (
@@ -96,10 +103,194 @@ def _build_complaint_in(c: ComplaintIn, run_id: int) -> dict:
     }
 
 
+# ── 身份核验门禁（BLF-1022）──────────────────────────────────────
+#
+# 事务一致性选择：整批拒绝。任一 shop_check 身份校验失败，或任一 complaint
+# 归属的 (project_id, country) 在本批次没有 ok && verified=true 的 shop_check，
+# 整个 batch 返回 422 且不落库（调用方修正后整批重试，幂等语义不受影响）。
+#
+# 分层：service 只抛 IdentityGateError（code 即 agent ErrorCode 名），
+# endpoint 的 _service_errors 负责翻译成 AgentApiError（services 不依赖 api 层）。
+
+class IdentityGateError(Exception):
+    """W1 身份门禁拒绝：整批 batch 不落库。"""
+
+    def __init__(self, code: str, human_message: str, agent_hint: str) -> None:
+        super().__init__(code)
+        self.code = code
+        self.human_message = human_message
+        self.agent_hint = agent_hint
+
+
+def _deny(code: str, human_message: str, agent_hint: str) -> IdentityGateError:
+    return IdentityGateError(code, human_message, agent_hint)
+
+
+def _identity_config(db: Session, project_id: int, country: str) -> ProjectShop | None:
+    return db.execute(
+        select(ProjectShop).where(
+            ProjectShop.project_id == project_id,
+            ProjectShop.country == country,
+        )
+    ).scalar_one_or_none()
+
+
+def _recomputed_verified(
+    *, expected_alias: str, extra_aliases: list, observed_alias: str | None,
+    observed_country: list, target_country: str,
+) -> bool:
+    """服务端重算 verified：alias 精确命中且 observed_country 包含目标 country。"""
+    allowed = {expected_alias} | {a for a in (extra_aliases or []) if isinstance(a, str)}
+    alias_ok = observed_alias is not None and observed_alias in allowed
+    country_ok = target_country in (observed_country or [])
+    return bool(alias_ok and country_ok)
+
+
+def _validate_identity_gate(db: Session, body: ComplaintRunBatchRequest) -> dict[tuple[int, str], bool]:
+    """校验 W1 身份门禁，返回本批次可写集合 {(project_id, country)}。
+
+    可写 ⇔ check_status=ok 且（无身份配置的 legacy 店铺，或 identity verified=true）。
+    失败抛 IdentityGateError（code 即 agent ErrorCode 名），调用方整批拒绝。
+    """
+    seen: set[tuple[int, str]] = set()
+    for sc in body.shop_checks:
+        key = (sc.project_id, sc.country)
+        if key in seen:
+            raise _deny(
+                'VALIDATION_FAILED',
+                human_message=f"shop_checks 重复：project_id={sc.project_id} country={sc.country} 每批次最多一条",
+                agent_hint="deduplicate shop_checks by (project_id, country) before retry",
+            )
+        seen.add(key)
+
+    writable: dict[tuple[int, str], bool] = {}
+    for sc in body.shop_checks:
+        writable[(sc.project_id, sc.country)] = _validate_single_identity(db, sc)
+
+    for c in body.complaints:
+        if not writable.get((c.project_id, c.country), False):
+            raise _deny(
+                'IDENTITY_CHECK_REQUIRED',
+                human_message=(
+                    f"project_id={c.project_id} country={c.country} 没有 ok 且身份已核验的 shop_check，禁止写入客诉"
+                ),
+                agent_hint="only complaints whose (project_id, country) has check_status=ok and identity_check.verified=true in the same batch are accepted; fix identity_check or drop these complaints and retry the whole batch",
+            )
+    return writable
+
+
+def _validate_single_identity(db: Session, sc: ShopCheckIn) -> bool:
+    """校验单个 shop_check，返回其 (project_id, country) 是否可写。"""
+    cfg = _identity_config(db, sc.project_id, sc.country)
+    required = bool(cfg.seller_identity_required) if cfg is not None else False
+    cfg_expected = (cfg.seller_identity_expected_alias or '').strip() if cfg is not None else ''
+    cfg_aliases = list(cfg.seller_identity_aliases or []) if cfg is not None else []
+
+    if required and not cfg_expected:
+        raise _deny(
+            'IDENTITY_EXPECTED_ALIAS_MISSING',
+            human_message=(
+                f"project_id={sc.project_id} country={sc.country} 要求身份核验但后端缺少 expected_alias"
+            ),
+            agent_hint="maintain seller_identity.expected_alias for this shop before writing complaints",
+        )
+
+    ic = sc.identity_check
+    if ic is None:
+        if sc.check_status == 'ok' and required:
+            raise _deny(
+                'IDENTITY_CHECK_REQUIRED',
+                human_message=(
+                    f"project_id={sc.project_id} country={sc.country} 缺少 identity_check，禁止写入客诉"
+                ),
+                agent_hint="probe amazon_seller_central_account_switcher and submit identity_check with verified=true before retry",
+            )
+        # legacy：无身份配置的 ok 店铺保持旧语义可写；非 ok 一律不可写。
+        return sc.check_status == 'ok'
+
+    expected = (ic.expected_alias or '').strip()
+    if not expected:
+        raise _deny(
+            'IDENTITY_EXPECTED_ALIAS_MISSING',
+            human_message="identity_check.expected_alias 不能为空",
+            agent_hint="read expected_alias from R0 seller_identity and resubmit",
+        )
+    if cfg_expected and expected != cfg_expected:
+        raise _deny(
+            'IDENTITY_CHECK_INVALID',
+            human_message=(
+                f"project_id={sc.project_id} country={sc.country} 的 expected_alias 与后端期望不一致（可能用了过期 R0）"
+            ),
+            agent_hint="re-read R0 seller_identity.expected_alias and resubmit with the fresh value",
+        )
+    if ic.source != IDENTITY_SOURCE:
+        raise _deny(
+            'IDENTITY_CHECK_INVALID',
+            human_message=f"identity_check.source 非法：{ic.source!r}",
+            agent_hint=f"identity_check.source must be exactly {IDENTITY_SOURCE!r}",
+        )
+
+    recomputed = _recomputed_verified(
+        expected_alias=expected,
+        extra_aliases=cfg_aliases,
+        observed_alias=ic.observed_alias,
+        observed_country=ic.observed_country,
+        target_country=sc.country,
+    )
+    if ic.verified and not recomputed:
+        raise _deny(
+            'IDENTITY_CHECK_INVALID',
+            human_message=(
+                f"project_id={sc.project_id} country={sc.country} 声明 verified=true 但页面观测不匹配"
+            ),
+            agent_hint="verified=true requires observed_alias to exactly match expected_alias/aliases and observed_country to contain the target country",
+        )
+    if sc.check_status == 'ok' and not ic.verified:
+        raise _deny(
+            'IDENTITY_CHECK_REQUIRED',
+            human_message=(
+                f"project_id={sc.project_id} country={sc.country} 身份核验未通过，禁止写入客诉"
+            ),
+            agent_hint="check observed_alias and observed_country before retry",
+        )
+    if sc.check_status == 'identity_mismatch' and ic.verified:
+        raise _deny(
+            'IDENTITY_CHECK_CONTRADICTION',
+            human_message=(
+                f"project_id={sc.project_id} country={sc.country} 自称 identity_mismatch 却声明 verified=true"
+            ),
+            agent_hint="identity_mismatch must pair with verified=false; re-probe the account switcher before retry",
+        )
+    return sc.check_status == 'ok' and ic.verified
+
+
+def _identity_dump(sc: ShopCheckIn) -> dict:
+    ic = sc.identity_check
+    if ic is None:
+        return {
+            'identity_expected_alias': None,
+            'identity_observed_alias': None,
+            'identity_observed_country': [],
+            'identity_verified': None,
+            'identity_source': None,
+        }
+    return {
+        'identity_expected_alias': (ic.expected_alias or '').strip() or None,
+        'identity_observed_alias': ic.observed_alias,
+        'identity_observed_country': list(ic.observed_country or []),
+        'identity_verified': bool(ic.verified),
+        'identity_source': ic.source,
+    }
+
+
 # ── 批量写入（一个事务收全家）──────────────────────────────────
 
 def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | None) -> ComplaintRun:
-    """批量 upsert：run + shop_checks + complaints，一个事务。"""
+    """批量 upsert：run + shop_checks + complaints，一个事务。
+
+    BLF-1022 事务一致性：先跑身份门禁（整批拒绝，不落库），再写 run。
+    """
+    _validate_identity_gate(db, body)
     run = get_run_by_date(db, body.run_date)
     if run is None:
         run = ComplaintRun(run_date=body.run_date)
@@ -120,7 +311,9 @@ def upsert_batch(db: Session, body: ComplaintRunBatchRequest, agent_id: str | No
             db.add(existing)
         existing.check_status = sc.check_status
         existing.error_message = sc.error_message
-        existing.metrics = sc.metrics.model_dump(mode='json')
+        existing.metrics = sc.metrics.model_dump(mode='json') if sc.metrics is not None else {}
+        for key, value in _identity_dump(sc).items():
+            setattr(existing, key, value)
     db.flush()
 
     for c in body.complaints:

@@ -397,9 +397,22 @@ def list_project_shops(db: Session, project_id: int) -> list[ProjectShop]:
 
 
 def upsert_project_shop(
-    db: Session, project_id: int, country: str, shop_id: str
+    db: Session,
+    project_id: int,
+    country: str,
+    shop_id: str,
+    *,
+    shop_name: str | None = None,
+    seller_identity_expected_alias: str | None = None,
+    seller_identity_aliases: list[str] | None = None,
+    seller_identity_source: str | None = None,
+    seller_identity_required: bool = True,
 ) -> ProjectShop:
-    """Create or replace a project's mapping for one canonical country."""
+    """Create or replace a project's mapping for one canonical country.
+
+    BLF-1022: ``shop_name``/``seller_identity_*`` 随行维护；alias 变更审计
+    由调用方（endpoint/seed 脚本）经 operation_audit_logs 落盘，此处只写行。
+    """
     row = db.execute(
         select(ProjectShop).where(
             ProjectShop.project_id == project_id,
@@ -407,10 +420,24 @@ def upsert_project_shop(
         )
     ).scalar_one_or_none()
     if row is None:
-        row = ProjectShop(project_id=project_id, country=country, shop_id=shop_id)
+        row = ProjectShop(
+            project_id=project_id,
+            country=country,
+            shop_id=shop_id,
+            shop_name=shop_name,
+            seller_identity_expected_alias=seller_identity_expected_alias,
+            seller_identity_aliases=list(seller_identity_aliases or []),
+            seller_identity_source=seller_identity_source,
+            seller_identity_required=seller_identity_required,
+        )
         db.add(row)
     else:
         row.shop_id = shop_id
+        row.shop_name = shop_name
+        row.seller_identity_expected_alias = seller_identity_expected_alias
+        row.seller_identity_aliases = list(seller_identity_aliases or [])
+        row.seller_identity_source = seller_identity_source
+        row.seller_identity_required = seller_identity_required
     db.flush()
     return row
 

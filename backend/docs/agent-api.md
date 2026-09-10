@@ -112,6 +112,14 @@ Query 参数：
 `SHIPMENT_DUPLICATE_NO`(409) / `SHIPMENT_ITEMS_INVALID_SKU`(400) /
 `SHIPMENT_STATUS_INVALID`(400) / `INTERNAL_ERROR`(500)。
 
+客诉中心身份核验（BLF-1022，均为 422，整批拒绝不落库）：
+`IDENTITY_CHECK_REQUIRED`（ok 缺 verified / 非 ok 店铺带 complaints）、
+`IDENTITY_CHECK_CONTRADICTION`（identity_mismatch 配 verified=true）、
+`IDENTITY_CHECK_INVALID`（verified=true 但服务端重算不匹配 / 期望过期 / source 非法）、
+`IDENTITY_EXPECTED_ALIAS_MISSING`（required 店铺缺 expected_alias）。
+偏差说明：契约规则 8（`shops_failed` 非 `list[str]`）按全域请求体类型错误壳统一返回
+400 `VALIDATION_FAILED`，身份语义错误才走 422 身份码。
+
 ## 4. curl 示例
 
     curl -i http://<host>/api/v1/agent/health \

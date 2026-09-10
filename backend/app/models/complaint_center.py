@@ -66,7 +66,12 @@ class ComplaintRun(Base):
 
 
 class ShopCheck(Base):
-    """单店检查结果（按 project_id + country 标识）。"""
+    """单店检查结果（按 project_id + country 标识）。
+
+    BLF-1022: ``identity_*`` 随行留存 Seller Central 账户切换器观测值，
+    便于追溯串店（verified 仅当 observed alias 精确命中期望/别名且
+    observed_country 包含目标 country）。
+    """
 
     __tablename__ = 'shop_checks'
     __table_args__ = (
@@ -92,9 +97,14 @@ class ShopCheck(Base):
         nullable=False,
     )
     country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
-    check_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default='ok')
+    check_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default='ok')
     error_message: Mapped[str | None] = mapped_column(Text(), nullable=True)
     metrics: Mapped[dict] = mapped_column(JSON(), nullable=False, server_default='{}')
+    identity_expected_alias: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    identity_observed_alias: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    identity_observed_country: Mapped[list] = mapped_column(JSON(), nullable=False, server_default='[]', default=list)
+    identity_verified: Mapped[bool | None] = mapped_column(Boolean(), nullable=True)
+    identity_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
     )

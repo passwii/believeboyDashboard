@@ -112,8 +112,30 @@ def test_projects_list_returns_shop_ids_and_project_active_state(client, project
     item = resp.json()["data"][0]
     assert item["is_active"] is True
     assert item["shops"] == [
-        {"shop_id": "shop-de-test", "country": "DE", "site": "德国站"},
-        {"shop_id": "shop-us-test", "country": "US", "site": "美国站"},
+        {
+            "shop_id": "shop-de-test",
+            "shop_name": None,
+            "country": "DE",
+            "site": "德国站",
+            "seller_identity": {
+                "expected_alias": None,
+                "aliases": [],
+                "source": None,
+                "required": True,
+            },
+        },
+        {
+            "shop_id": "shop-us-test",
+            "shop_name": None,
+            "country": "US",
+            "site": "美国站",
+            "seller_identity": {
+                "expected_alias": None,
+                "aliases": [],
+                "source": None,
+                "required": True,
+            },
+        },
     ]
 
 
