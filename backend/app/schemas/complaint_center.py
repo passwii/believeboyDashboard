@@ -1,11 +1,19 @@
 """客诉中心 Pydantic schema（BLF-981）。"""
-
 from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.utils.country import normalize_country
+
+
+def _normalize_country(value: str | None) -> str | None:
+    """Map supported aliases (notably GB) to warehouse canonical codes."""
+    if value is None:
+        return None
+    return normalize_country(value)
 
 
 # ── 共用子结构 ──────────────────────────────────────────────────
@@ -72,6 +80,11 @@ class ShopCheckIn(BaseModel):
     identity_check: IdentityCheckIn | None = None
     metrics: ShopMetrics | None = Field(default_factory=ShopMetrics)
 
+    @field_validator('country', mode='before')
+    @classmethod
+    def _normalize_country_field(cls, value: str | None) -> str | None:
+        return _normalize_country(value)
+
 
 class ComplaintIn(BaseModel):
     project_id: int
@@ -85,6 +98,11 @@ class ComplaintIn(BaseModel):
     order: OrderInfo | None = None
     sla: SlaInfo | None = None
     message_count: int = Field(default=1, ge=1)
+
+    @field_validator('country', mode='before')
+    @classmethod
+    def _normalize_country_field(cls, value: str | None) -> str | None:
+        return _normalize_country(value)
 
 
 class ComplaintRunBatchRequest(BaseModel):

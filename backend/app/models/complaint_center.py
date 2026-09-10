@@ -116,15 +116,19 @@ class ShopCheck(Base):
 
 
 class Complaint(Base):
-    """客诉明细。
+    """客诉明细（对话级别唯一）。
 
-    自然键幂等（has_order 区分）：
-    - 有订单：(project_id, country, buyer_name, message_date)
-    - 无订单：(project_id, country, buyer_name, message_date, subject)
+    自然键：(project_id, country, buyer_name, first_message_date)。
+    first_message_date 是首次咨询日期；message_date 是最近消息日期。
+    message_count 是对话消息总数；messages 保存完整对话记录。
     """
 
     __tablename__ = 'complaints'
     __table_args__ = (
+        UniqueConstraint(
+            'project_id', 'country', 'buyer_name', 'first_message_date',
+            name='uq_complaints_project_country_buyer_date',
+        ),
         Index('idx_complaints_run_id', 'run_id'),
         Index('idx_complaints_project', 'project_id'),
         Index('idx_complaints_project_country', 'project_id', 'country'),

@@ -246,6 +246,25 @@ def test_dashboard_list_returns_frontend_fields_filters_pagination_and_spam_coun
     assert len(second_page.json()["items"]) == 1
 
 
+def test_dashboard_first_message_date_filter_preserves_list_contract(
+    client: TestClient, dashboard_env, operator_headers
+) -> None:
+    response = client.get(
+        "/api/v1/complaints?date=2026-09-09&first_message_date=2026-09-04",
+        headers=operator_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["id"] == dashboard_env["second"].id
+    assert body["spam_count"] == 1
+
+    invalid = client.get(
+        "/api/v1/complaints?date=2026-09-09&first_message_date=not-a-date",
+        headers=operator_headers,
+    )
+    assert invalid.status_code == 400
+
 def test_dashboard_sort_options_are_applied_stably(client: TestClient, dashboard_env, operator_headers) -> None:
     def ids(sort: str) -> list[int]:
         response = client.get(

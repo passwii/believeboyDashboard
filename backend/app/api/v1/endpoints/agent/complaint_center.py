@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.agent.errors import AgentApiError, ErrorCode
@@ -112,6 +113,10 @@ def _check_shops_failed_types(body: dict) -> None:
 
 
 def _serialize_run_batch_response(run: ComplaintRun, body: ComplaintRunBatchRequest) -> dict:
+    submitted = {
+        (c2.project_id, c2.country, c2.buyer_name, c2.first_message_date)
+        for c2 in body.complaints
+    }
     return {
         "run_id": run.id,
         "run_date": run.run_date.isoformat(),
@@ -127,14 +132,11 @@ def _serialize_run_batch_response(run: ComplaintRun, body: ComplaintRunBatchRequ
                 "project_id": c.project_id,
                 "country": c.country,
                 "buyer_name": c.buyer_name,
+                "first_message_date": c.first_message_date.isoformat(),
                 "message_date": c.message_date.isoformat(),
             }
             for c in run.complaints
-            if (c.project_id, c.country, c.buyer_name, c.message_date.isoformat(), c.subject)
-            in {
-                (c2.project_id, c2.country, c2.buyer_name, c2.message_date.isoformat(), c2.subject)
-                for c2 in body.complaints
-            }
+            if (c.project_id, c.country, c.buyer_name, c.first_message_date) in submitted
         ],
     }
 
@@ -174,7 +176,13 @@ async def batch_upsert(request: Request, db: Session = Depends(get_primary_db_se
             ErrorCode.VALIDATION_FAILED, human_message="请求体必须是 JSON 对象"
         )
     _check_shops_failed_types(body)
-    parsed = ComplaintRunBatchRequest.model_validate(body)
+    try:
+        parsed = ComplaintRunBatchRequest.model_validate(body)
+    except ValidationError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=f"请求参数校验失败：{exc}",
+        ) from exc
     with _service_errors():
         run = upsert_batch(db, parsed, agent_id=getattr(request.state, "agent_id", None))
         append_operation_audit_log(

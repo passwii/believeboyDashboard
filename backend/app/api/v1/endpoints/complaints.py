@@ -52,7 +52,7 @@ def _parse_date_param(value: str | None, field: str) -> _date:
 @router.get("/overview", response_model=OverviewResponse)
 def get_overview(
     date: str | None = Query(default=None, description="巡检日期，默认今天"),
-    country: str | None = Query(default=None, description="站点筛选 US|DE|GB"),
+    country: str | None = Query(default=None, description="站点筛选 US|DE|UK"),
     db: Session = Depends(get_read_db_session),
 ) -> OverviewResponse:
     target = _parse_date_param(date, "date") if date else _date.today()
@@ -70,6 +70,7 @@ def list_complaints(
     ),
     country: str | None = Query(default=None),
     keyword: str | None = Query(default=None),
+    first_message_date: str | None = Query(default=None, description="首次咨询日期 YYYY-MM-DD"),
     sort: ComplaintSort = Query(
         default="sla_asc",
         description="sla_asc|sla_desc|date_asc|date_desc",
@@ -79,6 +80,7 @@ def list_complaints(
     db: Session = Depends(get_read_db_session),
 ) -> dict:
     target_date = _parse_date_param(date, "date") if date else None
+    first_date = _parse_date_param(first_message_date, "first_message_date") if first_message_date else None
     offset = (page - 1) * page_size
     items, total = fetch_complaints(
         db,
@@ -88,6 +90,7 @@ def list_complaints(
         status_filter=status,
         country=country,
         keyword=keyword,
+        first_message_date=first_date,
         sort=sort,
         offset=offset,
         limit=page_size,
