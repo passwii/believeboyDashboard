@@ -1,7 +1,7 @@
 """新增独立 Insight durable run 表 insight_runs（BLF-1011）
 
-Revision ID: 268
-Revises: 266
+Revision ID: 269
+Revises: 268
 Create Date: 2026-09-10 00:00:00.000000
 
 新 Insight 基础设施的 durable run 记录：幂等 key、attempt、状态时间线、
@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '268'
-down_revision: Union[str, None] = '267'
+revision: str = '269'
+down_revision: Union[str, None] = '268'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
