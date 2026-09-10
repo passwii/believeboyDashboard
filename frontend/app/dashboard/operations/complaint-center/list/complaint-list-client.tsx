@@ -23,7 +23,7 @@ import { useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { SingleDatePicker } from '@/components/ui/date-picker'
+import { SingleDatePicker, parseDateInputValue } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import {
   Pagination,
@@ -152,6 +152,10 @@ export default function ComplaintListClient() {
   const searchParams = useSearchParams()
   const { projects } = useManagedProjects()
   const [date, setDate] = useState<Date>(new Date())
+  const [firstMessageDate, setFirstMessageDate] = useState<Date | null>(() => {
+    const v = searchParams.get('first_message_date')
+    return parseDateInputValue(v) ?? null
+  })
   const [projectId, setProjectId] = useState(searchParams.get('project_id') ?? '')
   const [category, setCategory] = useState<ComplaintCategory | ''>(
     (searchParams.get('category') as ComplaintCategory) ?? ''
@@ -168,10 +172,10 @@ export default function ComplaintListClient() {
   const [data, setData] = useState<ComplaintListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-
   const filters = useMemo(
     () => ({
       date: toYmdLocal(date),
+      first_message_date: firstMessageDate ? toYmdLocal(firstMessageDate) : undefined,
       project_id: projectId ? Number(projectId) : undefined,
       category: category || undefined,
       status: status || undefined,
@@ -181,7 +185,7 @@ export default function ComplaintListClient() {
       page,
       page_size: PAGE_SIZE,
     }),
-    [date, projectId, category, status, country, keyword, sort, page]
+    [date, firstMessageDate, projectId, category, status, country, keyword, sort, page]
   )
 
   const projectNameById = useMemo(() => {
@@ -244,6 +248,15 @@ export default function ComplaintListClient() {
         }}
         className="h-10 w-[130px]"
       />
+      <SingleDatePicker
+        value={firstMessageDate ?? undefined}
+        onChange={(d) => {
+          setPage(1)
+          setFirstMessageDate(d ? getDayStart(d) : null)
+        }}
+        placeholder="首次咨询日期"
+        className="h-10 w-[130px]"
+      />
       <HeaderSlotSelect
         value={status || ALL_FILTER}
         onChange={(v) => {
@@ -302,6 +315,15 @@ export default function ComplaintListClient() {
           setPage(1)
           if (d) setDate(getDayStart(d))
         }}
+        className="h-10 w-full"
+      />
+      <SingleDatePicker
+        value={firstMessageDate ?? undefined}
+        onChange={(d) => {
+          setPage(1)
+          setFirstMessageDate(d ? getDayStart(d) : null)
+        }}
+        placeholder="首次咨询日期"
         className="h-10 w-full"
       />
       <HeaderSlotSelect
