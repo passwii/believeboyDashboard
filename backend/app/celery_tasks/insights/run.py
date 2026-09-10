@@ -37,11 +37,12 @@ from app.schemas.insight import (
     make_error,
 )
 from app.services.insight.executor import (
-    NullEventSink,
     RetryableFailure,
     execute_run,
 )
-from app.services.insight.runs import RunNotFound, get_run, try_transition
+from app.services.insight.runs import RunNotFound, get_run, to_detail, try_transition
+from app.services.insight.sink import StreamEventSink
+from app.services.insight.stream_bus import InsightStreamWriter
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +55,21 @@ def _backoff_seconds(retries: int) -> int:
     return min(30 * (2**max(0, retries)), 600)
 
 
-def _park_failed(run_id: str, attempt: int, error: InsightError) -> dict[str, Any]:
+def _park_failed(
+    run_id: str,
+    attempt: int,
+    error: InsightError,
+    sink: StreamEventSink | None = None,
+) -> dict[str, Any]:
     """Mark a run terminal after retry exhaustion, on a fresh session.
 
     A stale task (explicit retry already bumped ``attempt``) is left
     untouched, and the failure is written by the same compare-and-swap the
     executor's checkpoints use: a cancel (or retry) that commits while this
     session is deciding wins, and this call reports the winner's state
-    instead of overwriting it.
+    instead of overwriting it. When the row is ours to park, the terminal
+    event also reaches the sink (BLF-1012): the executor never saw this
+    failure, so nothing else would publish it.
     """
 
     from app.db.session import SessionLocal
@@ -92,6 +100,14 @@ def _park_failed(run_id: str, attempt: int, error: InsightError) -> dict[str, An
                 run.status,
             )
         db.commit()
+        if sink is not None and run.status == InsightStatus.FAILED.value:
+            # Row is ours and terminal: publish the failure frame. A lost
+            # CAS (cancel/retry won) publishes nothing — the winner's
+            # terminal frame is the truth.
+            try:
+                sink.on_terminal(to_detail(run))
+            except Exception:  # noqa: BLE001 — sink stays best-effort
+                logger.warning("Insight sink terminal degraded run_id=%s", run_id)
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except Exception:
         db.rollback()
@@ -117,10 +133,21 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
 
     db = SessionLocal()
     try:
+        # Transport wiring (BLF-1012): the sink mirrors the executor's
+        # progress into the Redis Stream; best-effort only — an outage
+        # degrades to dropped frames, never a failed run. The opening
+        # snapshot re-publishes the current row, so a redelivery opening
+        # the same attempt observes whatever progress already happened.
+        writer = InsightStreamWriter()
+        sink = StreamEventSink(writer=writer, run_id=run_id, attempt=attempt)
         try:
-            run = execute_run(
-                db=db, run_id=run_id, attempt=attempt, sink=NullEventSink()
-            )
+            sink.open(to_detail(get_run(db, run_id)))
+        except RunNotFound:
+            raise
+        except Exception:  # noqa: BLE001 — opening frame is best-effort
+            logger.warning("Insight sink open degraded run_id=%s", run_id)
+        try:
+            run = execute_run(db=db, run_id=run_id, attempt=attempt, sink=sink)
         except RetryableFailure as exc:
             if self.request.retries >= (self.max_retries or 0):
                 logger.warning(
@@ -131,7 +158,7 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
                 )
                 db.rollback()
                 db.close()
-                return _park_failed(run_id, attempt, exc.error)
+                return _park_failed(run_id, attempt, exc.error, sink=sink)
             try:
                 db.commit()
             except Exception:  # noqa: BLE001
@@ -169,6 +196,7 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
                     InsightErrorCode.UPSTREAM_TIMEOUT,
                     "Insight run timed out repeatedly",
                 ),
+                sink=sink,
             )
         raise self.retry(exc=exc, countdown=_backoff_seconds(self.request.retries))
     except Exception:

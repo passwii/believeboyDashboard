@@ -24,6 +24,7 @@ def test_default_broker_uses_redis_db_plus_one(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("REDIS_PORT", "6380")
     monkeypatch.setenv("REDIS_DB", "3")
     monkeypatch.setenv("AI_CHAT_REDIS_DB", "6")  # 避免与 redis_db=3 碰撞
+    monkeypatch.setenv("INSIGHT_STREAM_REDIS_DB", "7")  # 避免与 broker(db=4) 碰撞
     monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     monkeypatch.delenv("CELERY_RESULT_URL", raising=False)
     s = _settings()
