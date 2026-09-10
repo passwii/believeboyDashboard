@@ -244,6 +244,15 @@ class TestBatchWrite:
         finally:
             db.close()
 
+    def test_idempotency_key_rejected_if_empty(self, client: TestClient, make_api_key) -> None:
+        """Idempotency-Key 可缺失，但空白值必须在解析 body 之前 400。"""
+        agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
+        headers = _make_headers(make_api_key, agent_id)
+        headers["Idempotency-Key"] = "   "
+        resp = client.post("/api/v1/agent/complaint-center/batch", json=_batch_body(), headers=headers)
+        assert resp.status_code == 400
+        assert resp.json()["ok"] is False
+
     def test_invalid_batch_returns_400(self, client: TestClient, make_api_key, cc_project: int) -> None:
         agent_id = f"cc-agent-{uuid.uuid4().hex[:8]}"
         headers = _make_headers(make_api_key, agent_id)
