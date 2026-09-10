@@ -43,6 +43,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.ping",
             "app.celery_tasks.run_job",
             "app.celery_tasks.insights.generate",
+            "app.celery_tasks.insights.run",
             "app.celery_tasks.scheduled_report",
             "app.celery_tasks.ai_summary",
             "app.celery_tasks.office_tick",
@@ -81,6 +82,7 @@ def _build_celery_app() -> Celery:
         task_routes={
             "app.celery_tasks.run_job.run_job": {"queue": "reports"},
             "generate_insight": {"queue": "insights"},
+            "execute_insight_run": {"queue": "insights"},
             # BEL-NEW: 定时报告迁移至 Celery
             # - `dispatch_one` 在 `scheduled` 队列（独立 worker 单元），计划 §4.4
             # - `generate_delivery_summary` 在 `ai_summary` 队列，独立信号量 §4.6
