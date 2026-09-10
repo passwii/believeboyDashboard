@@ -51,7 +51,6 @@ def test_keys_carry_global_prefix_and_namespace() -> None:
 def test_open_run_registers_cancel_and_seeds_seq(writer: InsightStreamWriter) -> None:
     rid = uuid4()
     writer.open_run(rid, 1)
-    assert writer.is_cancel_requested(rid) is False  # registry present → live
     # redelivery re-opening the same attempt keeps the allocated chain (NX)
     writer.next_seq(rid, 1)
     writer.next_seq(rid, 1)
@@ -69,13 +68,14 @@ def test_next_seq_strictly_increments_per_attempt(writer: InsightStreamWriter) -
 
 def test_cancel_registry_getdel_returns_live_attempt(
     writer: InsightStreamWriter,
+    fake_redis: fakeredis.FakeRedis,
 ) -> None:
     rid = uuid4()
     assert writer.request_cancel(rid) is None  # nothing registered
     writer.open_run(rid, 3)
     assert writer.request_cancel(rid) == 3
     assert writer.request_cancel(rid) is None  # consumed exactly once
-    assert writer.is_cancel_requested(rid) is True
+    assert fake_redis.exists(cancel_key(rid)) == 0  # registry consumed
 
 
 def test_terminal_marker_is_set_once(writer: InsightStreamWriter) -> None:
@@ -111,6 +111,32 @@ def test_close_run_ttls_stream_and_drops_cancel(
     assert fake_redis.exists(cancel_key(rid)) == 0
 
 
+def test_reset_run_drops_previous_attempt_transport_state(
+    writer: InsightStreamWriter, fake_redis: fakeredis.FakeRedis
+) -> None:
+    """B1: retry must clear the per-run stream so old attempt frames
+    (including its terminal event) never reach a post-retry subscriber."""
+    rid = uuid4()
+    writer.open_run(rid, 1)
+    writer.append_event(rid, _ping(rid, 1))
+    writer.save_checkpoint(rid, _ping(rid, 1))
+    writer.try_mark_terminal(rid, 1)
+    writer.reset_run(rid)
+    assert fake_redis.exists(stream_key(rid)) == 0
+    assert fake_redis.exists(snapshot_key(rid)) == 0
+    assert fake_redis.exists(cancel_key(rid)) == 0
+    # outage → swallowed, retry proceeds
+    class BrokenRedis:
+        def __getattr__(self, name):
+            def explode(*args, **kwargs):
+                raise stream_bus.redis.RedisError("down")
+
+            return explode
+
+    broken = InsightStreamWriter(client=BrokenRedis())  # type: ignore[arg-type]
+    broken.reset_run(rid)
+
+
 def test_all_writer_methods_swallow_redis_outage() -> None:
     class BrokenRedis:
         def __getattr__(self, name):  # every call explodes
@@ -128,5 +154,5 @@ def test_all_writer_methods_swallow_redis_outage() -> None:
     writer.save_checkpoint(rid, _ping(rid, 1))
     assert writer.try_mark_terminal(rid, 1) is True  # emit anyway (lesser evil)
     writer.close_run(rid, 1)
-    assert writer.is_cancel_requested(rid) is False  # outage → assume live
+    writer.reset_run(rid)
     assert writer.request_cancel(rid) is None

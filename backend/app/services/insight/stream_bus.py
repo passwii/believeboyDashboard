@@ -261,18 +261,26 @@ class InsightStreamWriter:
         except redis.RedisError:
             logger.warning("Insight stream close_run degraded (run=%s)", run_id)
 
-    # ── cancel registry ────────────────────────────────────────────────
+    def reset_run(self, run_id: UUID | str) -> None:
+        """Explicit retry: drop the previous attempt's transport state.
 
-    def is_cancel_requested(self, run_id: UUID | str) -> bool:
-        """True when the cancel registry key is gone (consumed or expired).
-
-        The worker polls this between checkpoints; the API cancel endpoint
-        consumes the key with :meth:`request_cancel` instead.
+        The stream key is per-run, not per-attempt; without this reset a
+        fresh subscribe after retry replays the *previous* attempt's frames
+        — including its terminal event, which would close the stream before
+        the new attempt's first frame arrives. Called by the retry endpoint
+        before re-enqueue; best-effort (an outage here only leaves the old
+        window, which the subscriber's attempt filter also guards against).
         """
         try:
-            return self._redis().exists(cancel_key(run_id)) == 0
+            self._redis().delete(
+                stream_key(run_id),
+                snapshot_key(run_id),
+                cancel_key(run_id),
+            )
         except redis.RedisError:
-            return False
+            logger.warning("Insight stream reset_run degraded (run=%s)", run_id)
+
+    # ── cancel registry ────────────────────────────────────────────────
 
     def request_cancel(self, run_id: UUID | str) -> int | None:
         """Consume the cancel key (``GETDEL``); returns the live attempt or ``None``."""

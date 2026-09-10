@@ -32,7 +32,7 @@ from app.schemas.insight import (
     InsightStatus,
     make_error,
 )
-from app.services.insight.stream_bus import EVENT_FIELD, stream_key
+from app.services.insight.stream_bus import EVENT_FIELD, snapshot_key, stream_key
 from app.services.insight.subscriber import (
     InsightStreamSubscriber,
     TransportUnavailableError,
@@ -158,25 +158,105 @@ async def test_last_event_id_resumes_strictly_after_cursor(fake_redis) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cursor_from_trimmed_window_replays_what_remains(fake_redis) -> None:
+async def test_trimmed_cursor_emits_snapshot_checkpoint_before_retained_frames(
+    fake_redis,
+) -> None:
+    """B2: gap between cursor and first retained frame → snapshot first.
+
+    The window only kept seq 4-5; the client's cursor is seq 2. The first
+    retained frame (seq 4) reveals the gap, so the saved snapshot checkpoint
+    re-syncs full state *before* incremental frames resume.
+    """
     rid = str(uuid4())
-    # Window trimmed: only seq 4 and 5 survive (seq 1-3 evicted by MAXLEN).
-    for payload in _happy_events(rid)[3:]:
+    events = _happy_events(rid)
+    for payload in events[3:]:  # seq 4, 5 survive
         await fake_redis.xadd(stream_key(rid), {EVENT_FIELD: json.dumps(payload)})
+    # worker checkpoint at seq 3 (content complete up to there)
+    checkpoint = _base(rid, 3, type="snapshot", status="generating",
+                       stage="generating", progress_percent=60,
+                       outputs={"main": {"format": "markdown", "content": "## 摘要",
+                                         "content_sha256": "c" * 64}},
+                       is_terminal=False, error=None)
+    await fake_redis.set(snapshot_key(rid), json.dumps(checkpoint))
 
     subscriber = InsightStreamSubscriber(fake_redis)
     frames = await _collect(
         subscriber,
         run_id=rid,
-        last_event_id=f"{rid}:1:2",  # cursor inside the evicted region
+        last_event_id=f"{rid}:1:2",
         detail=_detail(rid),
     )
+    types = [event.type for event, _ in frames]
     seqs = [event.seq for event, _ in frames]
-    assert seqs == [4, 5]
-    # The endpoint pairs this with the saved snapshot checkpoint (acceptance
-    # §2's snapshot-on-trim path is driven by the API layer combining
-    # load_checkpoint + subscribe; here the frames after the cursor are
-    # delivered without duplication).
+    # snapshot checkpoint first, then the retained frames strictly after cursor
+    assert types == ["snapshot", "status", "done"]
+    assert seqs == [3, 4, 5]
+
+
+@pytest.mark.asyncio
+async def test_trimmed_cursor_without_checkpoint_falls_back_to_db_snapshot(
+    fake_redis,
+) -> None:
+    """B2: checkpoint key lost too → synthesize the snapshot from the row."""
+    rid = str(uuid4())
+    for payload in _happy_events(rid)[3:]:
+        await fake_redis.xadd(stream_key(rid), {EVENT_FIELD: json.dumps(payload)})
+    # no snapshot_key entry at all
+
+    subscriber = InsightStreamSubscriber(fake_redis)
+    frames = await _collect(
+        subscriber,
+        run_id=rid,
+        last_event_id=f"{rid}:1:1",
+        detail=_detail(rid),
+    )
+    types = [event.type for event, _ in frames]
+    # DB snapshot (synthetic) precedes the retained frames
+    assert types[0] == "snapshot"
+    assert types == ["snapshot", "status", "done"]
+
+
+@pytest.mark.asyncio
+async def test_stale_attempt_frames_are_dropped_after_retry(fake_redis) -> None:
+    """B1: frames from an attempt older than the DB row's never reach the
+    client — a retry whose transport reset was missed must not replay the
+    previous attempt's terminal event and close the stream early."""
+    rid = str(uuid4())
+    # attempt 1 window still present (reset missed); attempt 2 is live.
+    stale = [
+        _base(rid, 1, type="snapshot", status="queued", stage="queued",
+              progress_percent=5, outputs={}, is_terminal=False, error=None),
+        _base(rid, 2, type="status", status="generating", stage="generating",
+              progress_percent=40, detail=None),
+    ]
+    fresh = [
+        {"schema_version": 1, "run_id": rid, "attempt": 2, "seq": 1,
+         "type": "snapshot", "status": "queued", "stage": "queued",
+         "progress_percent": 5, "outputs": {}, "is_terminal": False, "error": None},
+        {"schema_version": 1, "run_id": rid, "attempt": 2, "seq": 2,
+         "type": "status", "status": "generating", "stage": "generating",
+         "progress_percent": 40, "detail": None},
+        {"schema_version": 1, "run_id": rid, "attempt": 2, "seq": 3,
+         "type": "done", "status": "completed", "content_sha256": "e" * 64,
+         "outputs": {"main": {"format": "markdown", "content": "## 新结果",
+                              "content_sha256": "e" * 64}},
+         "title": "新标题", "artifact_id": None},
+    ]
+    for payload in stale + fresh:
+        await fake_redis.xadd(stream_key(rid), {EVENT_FIELD: json.dumps(payload)})
+
+    subscriber = InsightStreamSubscriber(fake_redis)
+    # DB row is at attempt 2 (retry bumped it).
+    detail = _detail(rid).model_copy(update={"attempt": 2})
+    frames = await _collect(
+        subscriber, run_id=rid, last_event_id=None, detail=detail
+    )
+    attempts = [event.attempt for event, _ in frames]
+    seqs = [event.seq for event, _ in frames]
+    # only attempt 2 frames, seq chain from 1, terminal inclusive
+    assert attempts == [2, 2, 2]
+    assert seqs == [1, 2, 3]
+    assert frames[-1][0].type == "done"
 
 
 @pytest.mark.asyncio
@@ -241,6 +321,7 @@ async def test_idle_live_stream_keeps_following_until_events_arrive(fake_redis) 
     frames = await asyncio.wait_for(first_frames(), timeout=10)
     await producer
     # The idle loop kept xreading; the frame published mid-wait was delivered.
+    assert frames is not None
     assert [event.type for event, _ in frames] == ["snapshot"]
 
 

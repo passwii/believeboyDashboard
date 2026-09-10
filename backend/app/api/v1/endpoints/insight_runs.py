@@ -49,7 +49,7 @@ from app.schemas.insight import (
 )
 from app.services import project_service
 from app.services.insight import stream_bus
-from app.services.insight.cursor import CursorError, parse_event_id
+from app.services.insight.cursor import CursorError, check_future_cursor, parse_event_id
 from app.services.insight.events import InsightEvent
 from app.services.insight.executor import (
     IdempotencyConflict,
@@ -259,47 +259,62 @@ async def stream_insight_run(
 
     A client disconnect does NOT cancel the run — the durable executor keeps
     running; only the explicit cancel endpoint does (acceptance §3).
+
+    Redis outage surfaces as a typed retryable 503 *before* the stream
+    starts (review B3): the client's existing HTTP-error backoff path then
+    retries, and the run itself is unaffected — the detail endpoint stays
+    the authority. No in-stream ``failed`` frame is ever emitted for a
+    transport problem.
     """
     run = _load_run_or_404(db, run_id)
     _ensure_run_access(db, run, operator, is_admin)
     detail = to_detail(run)
 
-    # Validate the cursor up front: malformed → typed 400, not mid-stream death.
+    # Validate the cursor up front: malformed or pointing at a future
+    # attempt → typed 400, never a mid-stream death or silent full replay.
     if last_event_id is not None:
         try:
-            parse_event_id(last_event_id)
-        except CursorError:
+            parsed = parse_event_id(last_event_id)
+            check_future_cursor(parsed, detail.attempt)
+        except CursorError as exc:
             raise _typed_error(
                 make_error(
                     InsightErrorCode.RESUME_CURSOR_INVALID,
-                    f"Last-Event-ID '{last_event_id}' is not a valid cursor",
+                    f"Last-Event-ID '{last_event_id}' is not a valid cursor ({exc})",
                 )
             ) from None
 
-    async def event_source():
+    # Transport probe (with ping) before committing to the 200 stream: an
+    # outage here is an ordinary typed 503 the client can retry.
+    try:
+        redis = await stream_bus.make_async_stream_client()
+    except Exception as exc:  # noqa: BLE001 — redis-py raises assorted
+        logger.warning("Insight stream transport unavailable: %s", exc)
+        raise _typed_error(
+            make_error(
+                InsightErrorCode.PROVIDER_UNAVAILABLE,
+                "Insight stream transport is unavailable; retry shortly",
+            )
+        ) from None
+
+    subscriber = InsightStreamSubscriber(redis)
+
+    # DB refresh on idle ticks: the sync SQLAlchemy session runs in a
+    # worker thread so the event loop never blocks on I/O.
+    loop = asyncio.get_running_loop()
+
+    def _sync_loader(rid: UUID) -> InsightRunDetail | None:
         try:
-            redis = await stream_bus.make_async_stream_client()
-        except Exception as exc:  # noqa: BLE001 — outage → typed frame, not 500
-            logger.warning("Insight stream transport unavailable: %s", exc)
-            yield _sse_frame(_transport_error_event(run_id, detail.attempt))
-            return
-        subscriber = InsightStreamSubscriber(redis)
+            return to_detail(get_run(db, rid))
+        except Exception:  # noqa: BLE001 — loader is best-effort
+            return None
 
-        # DB refresh on idle ticks: the sync SQLAlchemy session runs in a
-        # worker thread so the event loop never blocks on I/O.
-        loop = asyncio.get_running_loop()
+    async def _loader(rid: UUID) -> InsightRunDetail | None:
+        return await loop.run_in_executor(None, _sync_loader, rid)
 
-        def _sync_loader(rid: UUID) -> InsightRunDetail | None:
-            try:
-                return to_detail(get_run(db, rid))
-            except Exception:  # noqa: BLE001 — loader is best-effort
-                return None
+    subscriber.bind_detail_loader(_loader)
 
-        async def _loader(rid: UUID) -> InsightRunDetail | None:
-            return await loop.run_in_executor(None, _sync_loader, rid)
-
-        subscriber.bind_detail_loader(_loader)
-
+    async def event_source():
         try:
             async for event, sse_id in subscriber.subscribe(
                 run_id=run_id,
@@ -310,11 +325,14 @@ async def stream_insight_run(
                     return
                 yield _sse_frame(event, sse_id)
         except TransportUnavailableError as exc:
+            # Mid-stream outage: the connection drops (no terminal frame —
+            # the run is NOT failed); the client's reconnect-with-cursor
+            # path takes over and the detail endpoint stays authoritative.
             logger.warning("Insight stream transport dropped: %s", exc)
-            yield _sse_frame(_transport_error_event(run_id, detail.attempt))
-        except Exception:
+            return
+        except Exception:  # stream death must be visible; client reconnects
             logger.exception("Insight stream %s crashed", run_id)
-            yield _sse_frame(_transport_error_event(run_id, detail.attempt))
+            return
 
     return StreamingResponse(
         event_source(),
@@ -392,6 +410,14 @@ def retry_insight_run(
             )
         ) from None
 
+    # B1: the stream key is per-run; drop the previous attempt's frames
+    # so a fresh subscribe after retry sees only the new attempt. Best-effort
+    # — the subscriber's attempt filter is the second guard.
+    try:
+        InsightStreamWriter().reset_run(run.run_id)
+    except Exception:  # noqa: BLE001 — transport reset must not fail retry
+        logger.warning("Insight stream reset degraded run=%s", run_id)
+
     from app.celery_tasks.insights.run import enqueue_insight_run
 
     enqueue_insight_run(run.run_id, run.attempt)
@@ -411,23 +437,6 @@ def _sse_frame(event: InsightEvent, sse_id: str | None = None) -> bytes:
     if sse_id:
         return f"id: {sse_id}\ndata: {payload}\n\n".encode()
     return f"data: {payload}\n\n".encode()
-
-
-def _transport_error_event(run_id: UUID, attempt: int) -> InsightEvent:
-    """Typed frame when Redis is unavailable: retryable, not a run failure."""
-    from app.services.insight.events import ErrorEvent
-
-    return ErrorEvent(
-        schema_version=1,
-        run_id=run_id,
-        attempt=attempt,
-        seq=attempt * 1_000_000 + 1,
-        status="failed",
-        error=make_error(
-            InsightErrorCode.PROVIDER_UNAVAILABLE,
-            "Insight stream transport unavailable; use the run detail endpoint",
-        ),
-    )
 
 
 __all__ = ["router"]

@@ -140,16 +140,26 @@ class InsightStreamSubscriber:
     ) -> AsyncGenerator[InsightEvent, None]:
         """Replay window content after the cursor, then follow the live tail.
 
+        Invariants (BLF-1012 review B1/B2):
+        - Frames from attempts older than ``detail.attempt`` are dropped: a
+          retry resets the transport, but a Redis outage between reset and
+          re-enqueue could still leave the old window behind — the DB row's
+          attempt is the authority on which frames are current.
+        - On a cursor resume, when the first retained frame's canonical seq
+          reveals a gap (frames between the cursor and it were trimmed),
+          the saved snapshot checkpoint is emitted first so the client
+          re-syncs full state before incremental frames resume.
+
         DB check cadence: an idle *non-terminal* stream re-reads the run row
         every ``_DB_POLL_SECONDS`` so a run whose worker died mid-attempt
         (stream stalled, row terminal via park-failed) still reaches the
-        client. A stalled live stream with a non-terminal row keeps waiting
-        until the retention/heartbeat budget ends.
+        client.
         """
         from app.services.insight.lifecycle import is_terminal
 
         last_entry = "0-0"
         saw_any = False
+        cursor_gap_snapshot_sent = False
 
         while True:
             try:
@@ -173,9 +183,23 @@ class InsightStreamSubscriber:
                         event = _parse_event(raw)
                         if event is None:
                             continue
-                        saw_any = True
+                        # B1: stale attempt frames (pre-retry window) never
+                        # reach the client, even if the reset was missed.
+                        if event.attempt < detail.attempt:
+                            continue
                         if cursor is not None and not _after_cursor(event, cursor):
                             continue
+                        # B2: the first retained frame after a cursor whose
+                        # seq is not cursor.seq + 1 means a trimmed gap —
+                        # re-sync the client with the snapshot checkpoint.
+                        # Decided exactly once, on the first frame past the
+                        # cursor (no-gap resumes never snapshot).
+                        if cursor is not None and not cursor_gap_snapshot_sent:
+                            cursor_gap_snapshot_sent = True
+                            if (event.attempt, event.seq) != (cursor[0], cursor[1] + 1):
+                                snapshot = await self._resume_snapshot(run_id, detail)
+                                if snapshot is not None:
+                                    yield snapshot
                         yield event
                 continue
 
@@ -198,6 +222,20 @@ class InsightStreamSubscriber:
                 yield _synthesize_terminal(detail)
                 return
             await asyncio.sleep(_DB_POLL_SECONDS)
+
+    async def _resume_snapshot(
+        self, run_id: str, detail: InsightRunDetail
+    ) -> InsightEvent | None:
+        """Snapshot frame for a trimmed resume: saved checkpoint, else the row.
+
+        The saved checkpoint is the last full-state frame the worker
+        published; when Redis lost it too, the authoritative DB row still
+        yields a complete (though possibly newer) snapshot.
+        """
+        checkpoint = await self.load_checkpoint(run_id)
+        if checkpoint is not None and checkpoint.attempt >= detail.attempt:
+            return checkpoint
+        return _synthesize_snapshot(detail)
 
     async def _refresh_detail(
         self, detail: InsightRunDetail

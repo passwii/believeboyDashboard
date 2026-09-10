@@ -152,8 +152,8 @@ def _publish_event(rid: str, event: dict) -> None:
     )
 
 
-def _event(rid: str, seq: int, **extra: Any) -> dict:
-    return {"schema_version": 1, "run_id": rid, "attempt": 1, "seq": seq, **extra}
+def _event(rid: str, seq: int, attempt: int = 1, **extra: Any) -> dict:
+    return {"schema_version": 1, "run_id": rid, "attempt": attempt, "seq": seq, **extra}
 
 
 def test_create_returns_envelope_with_urls(client: TestClient) -> None:
@@ -313,6 +313,104 @@ def test_retry_bumps_attempt_and_requeues(client: TestClient) -> None:
     body = resp.json()
     assert body["attempt"] == 2
     assert body["status"] == "queued"
+
+
+def test_retry_clears_stale_attempt_terminal_frames(
+    client: TestClient,
+) -> None:
+    """B1 e2e: after cancel + retry, a fresh subscribe sees only the new
+    attempt's frames — never the previous attempt's terminal event."""
+    project_id = _project_id()
+    created = _create_run(client, project_id, _unique_key("blf-1012-retry-stream"))
+    rid = created["run_id"]
+
+    # attempt 1: snapshot + status + cancelled terminal (worker-emitted)
+    _publish_event(rid, _event(rid, 1, type="snapshot", status="queued", stage="queued",
+                               progress_percent=5, outputs={}, is_terminal=False, error=None))
+    _publish_event(rid, _event(rid, 2, type="status", status="generating", stage="generating",
+                               progress_percent=40, detail=None))
+    _publish_event(rid, _event(rid, 3, type="error", status="cancelled",
+                               error={"code": "CANCELLED", "message": "已取消",
+                                      "retryable": False, "partial_available": False}))
+    client.post(f"/api/v1/insight/runs/{rid}/cancel")  # row → cancelled
+    client.post(f"/api/v1/insight/runs/{rid}/retry")    # reset + attempt 2
+
+    # attempt 2 frames arrive after the retry
+    _publish_event(rid, _event(rid, 1, type="snapshot", status="queued", stage="queued",
+                               progress_percent=5, outputs={}, is_terminal=False, error=None,
+                               attempt=2))
+    _publish_event(rid, _event(rid, 2, type="status", status="generating", stage="generating",
+                               progress_percent=40, detail=None, attempt=2))
+    _publish_event(rid, _event(rid, 3, type="done", status="completed",
+                               content_sha256="f" * 64,
+                               outputs={"main": {"format": "markdown", "content": "## 新",
+                                                 "content_sha256": "f" * 64}},
+                               title="新", artifact_id=None, attempt=2))
+
+    with client.stream("GET", f"/api/v1/insight/runs/{rid}/stream") as resp:
+        assert resp.status_code == 200
+        body = b"".join(resp.iter_bytes()).decode()
+    events = _parse_sse(body)
+    attempts = [e["data"]["attempt"] for e in events]
+    # Only attempt 2: the old terminal never closes the new stream
+    assert attempts == [2, 2, 2]
+    assert [e["data"]["type"] for e in events] == ["snapshot", "status", "done"]
+
+
+def test_stream_future_attempt_cursor_rejected(client: TestClient) -> None:
+    """Cursor pointing at a future attempt → RESUME_CURSOR_INVALID 400
+    (contract semantics; previously silently accepted and replayed)."""
+    project_id = _project_id()
+    created = _create_run(client, project_id, _unique_key("blf-1012-future-cursor"))
+    rid = created["run_id"]
+    resp = client.get(
+        f"/api/v1/insight/runs/{rid}/stream",
+        headers={"Last-Event-ID": f"{rid}:2:1"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "RESUME_CURSOR_INVALID"
+
+
+def test_stream_redis_outage_returns_typed_503_not_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B3: transport outage before the stream → typed retryable 503 with
+    no SSE body; the client's HTTP-error backoff path retries it."""
+    from app.api.deps import protected
+    from app.api.v1.endpoints.insight_runs import router as insight_router
+    from app.core.config import get_settings
+    from app.services.insight import stream_bus
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_chat_provider_base_url", "http://localhost:9/v1", raising=False)
+    monkeypatch.setattr(settings, "ai_chat_provider_api_key", "test-key", raising=False)
+    monkeypatch.setattr(settings, "insight_default_model", "test-insight-model", raising=False)
+    monkeypatch.setattr(settings, "ai_chat_default_model", "test-insight-model", raising=False)
+
+    async def broken_async():
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(stream_bus, "make_async_stream_client", broken_async)
+
+    import app.celery_tasks.insights.run as run_task_mod
+
+    monkeypatch.setattr(run_task_mod, "enqueue_insight_run", lambda rid, att: None)
+
+    app = FastAPI()
+    app.dependency_overrides[protected] = lambda: None
+    app.include_router(insight_router, prefix="/api/v1")
+    outage_client = TestClient(app)
+    outage_client.headers.update({"X-Is-Admin": "true"})
+
+    project_id = _project_id()
+    created = _create_run(outage_client, project_id, _unique_key("blf-1012-outage"))
+    rid = created["run_id"]
+    resp = outage_client.get(f"/api/v1/insight/runs/{rid}/stream")
+    # Typed, retryable, JSON — not a 200 SSE with an in-stream failed frame.
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["code"] == "PROVIDER_UNAVAILABLE"
+    assert resp.json()["detail"]["retryable"] is True
+    assert "text/event-stream" not in resp.headers.get("content-type", "")
 
 
 def test_retry_active_run_rejected(client: TestClient) -> None:

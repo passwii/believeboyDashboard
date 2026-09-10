@@ -165,10 +165,17 @@ class StreamEventSink:
         marker is already held (redelivery raced us), this is a no-op —
         the client already received the terminal frame, and the stream's
         authoritative terminal content is the one already published.
+
+        Seq allocation honors the "seq from 1, strictly increasing" contract
+        even when Redis hiccups between claim and allocation: the counter is
+        retried, and only if it stays unreachable does the terminal frame
+        fall back to the deterministic synthetic seq (never ``0``).
         """
         if not self._writer.try_mark_terminal(self._run_id, self._attempt):
             return
-        seq = self._writer.next_seq(self._run_id, self._attempt) or 0
+        seq = self._writer.next_seq(self._run_id, self._attempt)
+        if seq is None:
+            seq = self._synthetic_terminal_seq()
         terminal: InsightEvent | None = None
         if detail.status == InsightStatus.COMPLETED:
             terminal = _to_done_event(detail, attempt=self._attempt, seq=seq)
@@ -199,6 +206,10 @@ class StreamEventSink:
             )
             self._writer.append_event(self._run_id, terminal)
         self._writer.close_run(self._run_id, self._attempt)
+
+    def _synthetic_terminal_seq(self) -> int:
+        """Deterministic seq far above any allocated one (counter unreachable)."""
+        return self._attempt * 1_000_000 + 999_999
 
     # ── internal ───────────────────────────────────────────────────────
 
