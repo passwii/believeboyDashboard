@@ -9,7 +9,9 @@ first_message_date / message_count / messages，本迁移只做唯一键切换�
 
 1. 把 GB 统一为仓库 canonical UK（complaints + shop_checks）；
 2. 按对话自然键合并重复行，保留最新更新的那条，消息与状态历史取并集；
-3. 删除旧的消息级 partial unique，新增对话级唯一约束。
+3. shop_checks 先对同一 (run_id, project_id) 的 GB/UK 成对行去重（保留最新一整行），
+   再归一化，否则撞 UNIQUE (run_id, project_id, country)；
+4. 删除旧的消息级 partial unique，新增对话级唯一约束。
 
 数据修复不可逆：downgrade 只恢复约束，不恢复被合并删除的行，
 也不把 UK 改回 GB。
@@ -213,13 +215,71 @@ def _rows_for_group(connection: sa.Connection, key: tuple) -> list[dict]:
     )
     return [dict(row) for row in result.mappings().all()]
 
+def _shop_checks_table() -> sa.Table:
+    return sa.table(
+        'shop_checks',
+        sa.column('id', sa.BigInteger()),
+        sa.column('run_id', sa.BigInteger()),
+        sa.column('project_id', sa.BigInteger()),
+        sa.column('country', sa.String(2)),
+        sa.column('updated_at', sa.DateTime(timezone=True)),
+    )
+
+
+def _duplicate_shop_check_keys(connection: sa.Connection) -> list[tuple]:
+    """同一 (run_id, project_id) 下同时存在 GB 与 UK 行的键。
+
+    旧写侧用原始 country 做 upsert（未归一），同一 run 的同一店铺可能各写过
+    一次 GB 和 UK；归一化为 UK 后会撞 UNIQUE (run_id, project_id, country)。
+    """
+    result = connection.execute(
+        sa.text(
+            """
+            SELECT run_id, project_id
+            FROM shop_checks
+            WHERE country IN ('GB', 'UK')
+            GROUP BY run_id, project_id
+            HAVING COUNT(*) > 1
+            """
+        )
+    )
+    return [tuple(row) for row in result.all()]
+
+
+def _dedupe_shop_checks(connection: sa.Connection) -> None:
+    """shop_checks GB/UK 成对行去重：保留 updated_at 最新的一整行。
+
+    shop_checks 是单次 run 的快照（非累积），整行保留最新即等价于“最后一次
+    写入为准”，与 upsert_batch 的 last-write-wins 口径一致。
+    """
+    shop_checks = _shop_checks_table()
+    for key in _duplicate_shop_check_keys(connection):
+        result = connection.execute(
+            sa.select(shop_checks)
+            .where(
+                shop_checks.c.run_id == key[0],
+                shop_checks.c.project_id == key[1],
+                shop_checks.c.country.in_(['GB', 'UK']),
+            )
+            .order_by(shop_checks.c.id)
+        )
+        rows = [dict(row) for row in result.mappings().all()]
+        if len(rows) < 2:
+            continue
+        survivor = max(rows, key=lambda item: (str(item['updated_at'] or ''), item['id']))
+        delete_ids = [row['id'] for row in rows if row['id'] != survivor['id']]
+        connection.execute(shop_checks.delete().where(shop_checks.c.id.in_(delete_ids)))
+
 
 def upgrade() -> None:
     # 先删旧的消息级 partial unique：GB → UK 会让同一对话的两行在旧键上相撞，
     # 必须先解除旧约束，再归一化、合并，最后加新约束。
+    # shop_checks 同理：先对 GB/UK 成对行去重（保留最新一行），再归一化，
+    # 否则 UPDATE 会撞 UNIQUE (run_id, project_id, country)。
     op.drop_index('uq_complaints_with_order', table_name='complaints')
     op.drop_index('uq_complaints_no_order', table_name='complaints')
     op.execute(sa.text("UPDATE complaints SET country = 'UK' WHERE country = 'GB'"))
+    _dedupe_shop_checks(op.get_bind())
     op.execute(sa.text("UPDATE shop_checks SET country = 'UK' WHERE country = 'GB'"))
     op.execute(
         sa.text(
