@@ -2,8 +2,18 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { InsightClient } from '@/lib/insight/client'
-import type { InsightEvent, InsightRunStartResponse } from '@/lib/insight/protocol'
+import type { InsightEvent, InsightRunRequest, InsightRunStartResponse } from '@/lib/insight/protocol'
 import { useInsightStream } from './use-insight-stream'
+
+const CANONICAL_REQUEST: InsightRunRequest = {
+  schema_version: 1,
+  role_id: 'schedule_report_summary',
+  role_version: 1,
+  project_id: 42,
+  country: 'US',
+  slots: { 'report.context': { slot_version: 1, frequency: 'weekly' } },
+  idempotency_key: 'ledger-1:77',
+}
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -114,7 +124,7 @@ describe('useInsightStream', () => {
 
     let completion: Promise<unknown> | undefined
     await act(async () => {
-      completion = result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      completion = result.current.start(CANONICAL_REQUEST)
       await completion
     })
 
@@ -148,7 +158,7 @@ describe('useInsightStream', () => {
     const { result } = renderHook(() => useInsightStream({ client }))
 
     await act(async () => {
-      await result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      await result.current.start(CANONICAL_REQUEST)
     })
 
     expect(result.current.snapshot).toEqual({ outputs: { summary: 'recovered draft' } })
@@ -175,7 +185,7 @@ describe('useInsightStream', () => {
     const { result } = renderHook(() => useInsightStream({ client, reconnectDelayMs: 0 }))
 
     act(() => {
-      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      void result.current.start(CANONICAL_REQUEST)
     })
     await waitFor(() => expect(result.current.status).toBe('live'))
 
@@ -197,7 +207,7 @@ describe('useInsightStream', () => {
     const { result } = renderHook(() => useInsightStream({ client }))
 
     act(() => {
-      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      void result.current.start(CANONICAL_REQUEST)
     })
     await waitFor(() => expect(result.current.status).toBe('reconnecting'))
 
@@ -226,7 +236,7 @@ describe('useInsightStream', () => {
     const { result } = renderHook(() => useInsightStream({ client }))
 
     await act(async () => {
-      await result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      await result.current.start(CANONICAL_REQUEST)
     })
 
     expect(result.current.status).toBe('failed')
@@ -248,7 +258,7 @@ describe('useInsightStream', () => {
     })
 
     act(() => {
-      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      void result.current.start(CANONICAL_REQUEST)
     })
     await waitFor(() => expect(result.current.status).toBe('live'))
 
@@ -278,7 +288,7 @@ describe('useInsightStream', () => {
     const { result } = renderHook(() => useInsightStream({ client, batchWindowMs: 5_000 }))
 
     act(() => {
-      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+      void result.current.start(CANONICAL_REQUEST)
     })
     await waitFor(() => expect(result.current.status).toBe('live'))
 
@@ -297,5 +307,96 @@ describe('useInsightStream', () => {
 
     // 批处理窗口设成 5s：此刻能拿到终稿说明权威内容绕过了窗口，没有被 delta 覆盖。
     expect(result.current.partialDrafts).toEqual({ summary: 'authoritative text' })
+  })
+
+  it('attaches to a live run by cursor instead of replaying the whole stream', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          schema_version: 1,
+          run_id: 'run-8',
+          attempt: 1,
+          status: 'generating',
+          stage: 'generating',
+          progress_percent: 60,
+          outputs: { main: { content: '已生成的一段' } },
+          resume: { latest_event_id: 'run-8:1:2', current_attempt: 1, history_available: true },
+        })
+      )
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client }))
+
+    await act(async () => {
+      await result.current.attach('run-8')
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    // detail 的 outputs 已收敛成 Markdown 文本
+    expect(result.current.drafts).toEqual({ main: '已生成的一段' })
+    expect(result.current.runStatus).toBe('generating')
+    expect(result.current.progress).toBe(60)
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Last-Event-ID': 'run-8:1:2' }),
+      })
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('attaches to a finished run without opening a stream', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        schema_version: 1,
+        run_id: 'run-9',
+        attempt: 1,
+        status: 'completed',
+        stage: 'finalizing',
+        progress_percent: 100,
+        outputs: { main: { content: '## 摘要\n\n- 结论' } },
+        resume: { latest_event_id: 'run-9:1:7', current_attempt: 1, history_available: true },
+      })
+    )
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client }))
+
+    await act(async () => {
+      await result.current.attach('run-9')
+    })
+
+    expect(result.current.status).toBe('completed')
+    expect(result.current.runStatus).toBe('completed')
+    expect(result.current.drafts).toEqual({ main: '## 摘要\n\n- 结论' })
+    // 终态不再订阅，避免重复文本
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a cancelled terminal error as cancelled, not failed', async () => {
+    const cancelledEvent: InsightEvent = {
+      schema_version: 1,
+      run_id: 'run-10',
+      attempt: 1,
+      seq: 3,
+      type: 'error',
+      status: 'cancelled',
+      error: { code: 'CANCELLED', message: '已取消本次运行', retryable: false },
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-10', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(
+        sseResponse(`id: run-10:1:3\ndata: ${JSON.stringify(cancelledEvent)}\n\n`)
+      )
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client }))
+
+    await act(async () => {
+      await result.current.start(CANONICAL_REQUEST)
+    })
+
+    expect(result.current.status).toBe('cancelled')
+    expect(result.current.runStatus).toBe('cancelled')
   })
 })

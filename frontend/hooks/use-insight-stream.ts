@@ -16,16 +16,15 @@ import {
   type InsightErrorPayload,
   type InsightEvent,
   type InsightOutputs,
+  type InsightRunDetail,
   type InsightRunRequest,
   type InsightRunStartResponse,
   type InsightRunStatus,
   type InsightSnapshot,
+  type InsightStreamStatus,
 } from '@/lib/insight/protocol'
 import { InsightClient } from '@/lib/insight/client'
-export type InsightStreamClientStatus = Extract<
-  InsightRunStatus,
-  'queued' | 'connecting' | 'live' | 'reconnecting' | 'completed' | 'failed' | 'cancelled'
->
+export type InsightStreamClientStatus = InsightStreamStatus
 
 export type UseInsightStreamOptions = {
   client?: InsightClient
@@ -39,6 +38,10 @@ export type UseInsightStreamOptions = {
 
 export type UseInsightStreamResult = {
   status: InsightStreamClientStatus
+  /** canonical run 阶段（后端权威），非传输层状态 */
+  runStatus: InsightRunStatus | null
+  stage: string | null
+  progress: number | null
   runId: string | null
   attempt: number | null
   lastEventId: string | null
@@ -49,6 +52,8 @@ export type UseInsightStreamResult = {
   backgroundMessage: string | null
   isDetached: boolean
   start: (request: InsightRunRequest) => Promise<InsightRunStartResponse>
+  /** 接管已存在的 run（不带 run_id 的落库绑定），终态直接回读 detail，非终态按游标续流 */
+  attach: (runId: string) => Promise<InsightRunDetail>
   cancel: () => Promise<void>
   retry: () => Promise<InsightRunStartResponse>
   detach: () => void
@@ -72,6 +77,9 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   onStatusChangeRef.current = options.onStatusChange
 
   const [status, setStatusState] = useState<InsightStreamClientStatus>('queued')
+  const [runStatus, setRunStatus] = useState<InsightRunStatus | null>(null)
+  const [stage, setStage] = useState<string | null>(null)
+  const [progress, setProgress] = useState<number | null>(null)
   const [runId, setRunId] = useState<string | null>(null)
   const [attempt, setAttempt] = useState<number | null>(null)
   const [lastEventId, setLastEventId] = useState<string | null>(null)
@@ -184,6 +192,10 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       onEventRef.current?.(event)
 
       if (isInsightEventType(event, 'status')) {
+        const canonical = toRunStatus(event.status)
+        if (canonical) setRunStatus(canonical)
+        setStage(typeof event.stage === 'string' ? event.stage : null)
+        setProgress(typeof event.progress_percent === 'number' ? event.progress_percent : null)
         if (event.status === 'failed') {
           terminalRef.current = true
           setStatus('failed')
@@ -202,6 +214,10 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       }
 
       if (isInsightEventType(event, 'snapshot')) {
+        const canonical = toRunStatus(event.status)
+        if (canonical) setRunStatus(canonical)
+        if (typeof event.stage === 'string') setStage(event.stage)
+        if (typeof event.progress_percent === 'number') setProgress(event.progress_percent)
         const eventSnapshot = getInsightSnapshot(event)
         if (eventSnapshot) mergeSnapshot(eventSnapshot)
         else {
@@ -236,6 +252,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         const outputs = getInsightOutputs(event)
         if (outputs) mergeOutputs(outputs)
         terminalRef.current = true
+        setRunStatus('completed')
+        setProgress(100)
         setError(null)
         setStatus('completed')
         return
@@ -243,8 +261,10 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
 
       if (isInsightEventType(event, 'error') && isInsightErrorPayload(event.error)) {
         terminalRef.current = true
+        const cancelled = event.status === 'cancelled' || event.error.code === 'CANCELLED'
+        setRunStatus(cancelled ? 'cancelled' : 'failed')
         setError(event.error)
-        setStatus('failed')
+        setStatus(cancelled ? 'cancelled' : 'failed')
       }
     },
     [appendDelta, mergeOutputs, mergeSnapshot, setStatus]
@@ -353,7 +373,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         runIdRef.current = response.run_id
         setRunId(response.run_id)
         setAttempt(response.attempt)
-        if (response.snapshot) mergeSnapshot(response.snapshot)
+        const started = getInsightOutputs(response)
+        if (started) mergeOutputs(started)
         void connect(expectedGeneration, false)
         return response
       } catch (candidate) {
@@ -361,12 +382,87 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         throw candidate
       }
     },
-    [abortLocalStream, connect, fail, mergeSnapshot, resetContent, resetReconnectTimer, setStatus]
+    [
+      abortLocalStream,
+      connect,
+      fail,
+      mergeOutputs,
+      resetContent,
+      resetReconnectTimer,
+      setStatus,
+    ]
   )
 
   const start = useCallback(
     (request: InsightRunRequest) => beginRun(request, 'start'),
     [beginRun]
+  )
+
+  /**
+   * 接管一个已存在的 run。台账详情只拿到 run_id（绑定关系由后端落库），
+   * 因此不能走 `start`。终态直接以 detail 的权威内容收尾、不再开流；
+   * 非终态用 `resume.latest_event_id` 当游标续流，避免重放已渲染的 delta。
+   */
+  const attach = useCallback(
+    async (nextRunId: string): Promise<InsightRunDetail> => {
+      resetReconnectTimer()
+      abortLocalStream()
+      const expectedGeneration = ++generationRef.current
+      terminalRef.current = false
+      reconnectAttemptRef.current = 0
+      seenEventIdsRef.current = new Set<string>()
+      lastEventIdRef.current = null
+      setLastEventId(null)
+      setError(null)
+      setBackgroundMessage(null)
+      detachedRef.current = false
+      setIsDetached(false)
+      resetContent()
+      setStatus('queued')
+      runIdRef.current = nextRunId
+      setRunId(nextRunId)
+
+      let detail: InsightRunDetail
+      try {
+        detail = await clientRef.current.detail(nextRunId)
+      } catch (candidate) {
+        if (expectedGeneration === generationRef.current) fail(candidate, 'DETAIL_FAILED')
+        throw candidate
+      }
+      if (expectedGeneration !== generationRef.current || disposedRef.current) return detail
+
+      setAttempt(detail.attempt)
+      const canonical = toRunStatus(detail.status)
+      if (canonical) setRunStatus(canonical)
+      setStage(typeof detail.stage === 'string' ? detail.stage : null)
+      setProgress(typeof detail.progress_percent === 'number' ? detail.progress_percent : null)
+      const outputs = getInsightOutputs(detail)
+      if (outputs) mergeOutputs(outputs)
+      if (isInsightErrorPayload(detail.error)) setError(detail.error)
+
+      if (canonical === 'completed' || canonical === 'cancelled' || canonical === 'failed') {
+        terminalRef.current = true
+        setStatus(
+          canonical === 'completed' ? 'completed' : canonical === 'cancelled' ? 'cancelled' : 'failed'
+        )
+        return detail
+      }
+
+      const cursor = detail.resume?.latest_event_id ?? null
+      lastEventIdRef.current = cursor
+      setLastEventId(cursor)
+      void connect(expectedGeneration, false)
+      return detail
+    },
+    [
+      abortLocalStream,
+      connect,
+      fail,
+      mergeOutputs,
+      resetContent,
+      resetReconnectTimer,
+      setStatus,
+    ]
   )
 
   const cancel = useCallback(async () => {
@@ -375,6 +471,9 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     ++generationRef.current
     terminalRef.current = true
     abortLocalStream()
+    // 本地取消对本消费端即权威：run 已进入终态，规范状态与传输状态一起落地，
+    // 否则按规范状态取标签的调用方会一直显示「生成中」。
+    setRunStatus('cancelled')
     if (!currentRunId) {
       setStatus('cancelled')
       return
@@ -420,14 +519,24 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       runIdRef.current = response.run_id
       setRunId(response.run_id)
       setAttempt(response.attempt)
-      if (response.snapshot) mergeSnapshot(response.snapshot)
+      const restarted = getInsightOutputs(response)
+      if (restarted) mergeOutputs(restarted)
       void connect(expectedGeneration, false)
       return response
     } catch (candidate) {
       if (expectedGeneration === generationRef.current) fail(candidate, 'RETRY_FAILED')
       throw candidate
     }
-  }, [abortLocalStream, beginRun, connect, fail, mergeSnapshot, resetContent, resetReconnectTimer, setStatus])
+  }, [
+    abortLocalStream,
+    beginRun,
+    connect,
+    fail,
+    mergeOutputs,
+    resetContent,
+    resetReconnectTimer,
+    setStatus,
+  ])
   const detach = useCallback(() => {
     resetReconnectTimer()
     ++generationRef.current
@@ -447,6 +556,9 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
 
   return {
     status,
+    runStatus,
+    stage,
+    progress,
     runId,
     attempt,
     lastEventId,
@@ -457,10 +569,27 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     backgroundMessage,
     isDetached,
     start,
+    attach,
     cancel,
     retry,
     detach,
   }
+}
+
+/** canonical run 状态白名单：只认后端下发的这 7 个，未知值返回 null。 */
+const RUN_STATUS: Record<InsightRunStatus, true> = {
+  queued: true,
+  aggregating: true,
+  generating: true,
+  finalizing: true,
+  completed: true,
+  failed: true,
+  cancelled: true,
+}
+
+function toRunStatus(value: unknown): InsightRunStatus | null {
+  if (typeof value !== 'string') return null
+  return Object.prototype.hasOwnProperty.call(RUN_STATUS, value) ? (value as InsightRunStatus) : null
 }
 
 function toInsightError(value: unknown, fallbackCode: string): InsightErrorPayload {
@@ -470,7 +599,7 @@ function toInsightError(value: unknown, fallbackCode: string): InsightErrorPaylo
       code: value.code,
       message: value.message,
       retryable: value.retryable,
-      retry_after: value.retryAfter,
+      retry_after_seconds: value.retryAfter,
       details: value.details,
     }
   }

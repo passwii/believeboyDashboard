@@ -161,7 +161,7 @@ export function InsightStatus({
         <p className="font-mono text-[0.6875rem] text-term-muted" data-insight-error-code>
           {error.code}
           {error.retryable === false ? ' · 不可重试' : error.retryable ? ' · 可重试' : ''}
-          {typeof error.retry_after === 'number' ? ` · ${error.retry_after}s 后重试` : ''}
+          {typeof error.retry_after_seconds === 'number' ? ` · ${error.retry_after_seconds}s 后重试` : ''}
         </p>
       ) : null}
 

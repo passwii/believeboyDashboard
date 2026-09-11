@@ -3,6 +3,7 @@
 import * as React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import { Check, Copy, Download } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,9 @@ import { cn } from '@/lib/utils'
  *   fence/表格/列表留在纯文本 tail，绝不把后续块误解析成代码块；闭合的
  *   code block 才交给 `renderChartBlock`，因此图表只在围栏闭合后挂载。
  * - `state="final"`：服务端规范化的终稿（配 digest），整篇直接渲染。
+ *
+ * 单换行按硬换行渲染（`remark-breaks`）：角色产出与历史摘要都以单换行作行分隔，
+ * 且列表项内的续行不会落在 `<p>` 上（`whitespace-pre-wrap` 管不到），故由插件层保证。
  *
  * 复制/导出始终使用原始 Markdown（含尚未渲染的 tail），不是渲染后的 DOM 文本。
  */
@@ -247,7 +251,7 @@ export function InsightMarkdown({
           '[&_ul>li]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5'
         )}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
           {stable}
         </ReactMarkdown>
         {tail ? (
