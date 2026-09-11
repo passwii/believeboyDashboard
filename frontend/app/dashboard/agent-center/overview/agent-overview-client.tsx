@@ -6,6 +6,7 @@ import { ArrowUpRight } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
+  ColGroup,
   Table,
   TableBody,
   TableCell,
@@ -13,6 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  numericCell,
+  numericHead,
+  StatusPill,
+} from '@/components/ui/table-presets'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
@@ -107,22 +113,39 @@ export default function AgentOverviewClient() {
       <DataTableCard>
         <DataTableCardHeader
           title="业务域活动矩阵"
-          description={`${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入 —— Agent 员工在各业务域活动的归集点,点击入口前往对应工作台。 「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 / 24h·7d 调用量 / 7d 错误率)由 domain-summary 端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b),端点上线前显示占位「—」。`}
+          description={`共 ${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供,缺位显示占位「—」。`}
         />
         <DataTableCardBody>
-          <Table>
+          {/* 11 列定宽 + 「说明」吸收余量：窄屏由 Table 原语容器承接横滑（table-spec §1.7） */}
+          <Table tableLayout="fixed" className="min-w-[1040px]">
+            <ColGroup
+              columns={[
+                { width: 140 }, // 业务域
+                { width: 'auto' }, // 说明（弹性列，吸收剩余宽度）
+                { width: 88 }, // 能力
+                { width: 56 }, // 路由
+                { width: 96 }, // 最近活动
+                { width: 80 }, // 调用 24h
+                { width: 80 }, // 调用 7d
+                { width: 80 }, // 7d 错误
+                { width: 100 }, // 今日产出
+                { width: 80 }, // 状态
+                { width: 56 }, // 入口
+              ]}
+            />
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[170px]">业务域</TableHead>
+                <TableHead className="whitespace-nowrap">业务域</TableHead>
                 <TableHead>说明</TableHead>
-                <TableHead className="w-[100px]">能力</TableHead>
-                <TableHead className="w-[70px]">路由</TableHead>
-                <TableHead className="w-[120px]">最近活动</TableHead>
-                <TableHead className="w-[100px]">24h/7d 调用</TableHead>
-                <TableHead className="w-[80px]">7d 错误</TableHead>
-                <TableHead className="w-[110px]">今日产出</TableHead>
-                <TableHead className="w-[100px]">接入状态</TableHead>
-                <TableHead className="w-[120px]">Dashboard 入口</TableHead>
+                <TableHead className="whitespace-nowrap">能力</TableHead>
+                <TableHead className={numericHead}>路由</TableHead>
+                <TableHead className="whitespace-nowrap">最近活动</TableHead>
+                <TableHead className={numericHead}>调用 24h</TableHead>
+                <TableHead className={numericHead}>调用 7d</TableHead>
+                <TableHead className={numericHead}>7d 错误</TableHead>
+                <TableHead className="whitespace-nowrap">今日产出</TableHead>
+                <TableHead className="whitespace-nowrap">状态</TableHead>
+                <TableHead className="!text-center">入口</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -131,74 +154,63 @@ export default function AgentOverviewClient() {
                 const row = summary?.[domain.code]
                 return (
                   <TableRow key={domain.code} className={live ? undefined : 'text-term-faint'}>
-                    <TableCell className={live ? 'font-medium' : 'font-medium text-term-faint'}>
-                      {domain.label}
-                      {!live && (
-                        <span className="ml-2 font-mono text-[11px] text-term-faint">
-                          #{domain.code}
-                        </span>
-                      )}
+                    <TableCell className="font-medium">
+                      <span className="block truncate">{domain.label}</span>
                     </TableCell>
-                    <TableCell className="max-w-[300px] text-xs text-term-muted line-clamp-2">
+                    <TableCell
+                      className="text-xs text-term-muted line-clamp-2"
+                      title={domain.description}
+                    >
                       {domain.description}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-nowrap items-center gap-1">
                         {domain.capabilities.read && (
-                          <Badge
-                            variant="outline"
-                            className="rounded-none font-mono text-[11px] text-term-muted"
-                          >
+                          <Badge variant="outline" className="px-1.5 font-normal text-term-muted">
                             读
                           </Badge>
                         )}
                         {domain.capabilities.write && (
-                          <Badge
-                            variant="outline"
-                            className="rounded-none font-mono text-[11px] text-term-muted"
-                          >
+                          <Badge variant="outline" className="px-1.5 font-normal text-term-muted">
                             写
                           </Badge>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs tabular-nums text-term-muted">
-                      {live ? domain.routeCount : '—'}
+                    <TableCell className={`${numericCell} text-term-muted`}>
+                      {live ? domain.routeCount : <span className="text-term-faint">—</span>}
                     </TableCell>
                     <TableCell>
                       {row ? (
-                        <span
-                          className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-xs tabular-nums text-term-muted"
-                          title={`最近活动:${formatRelativeTime(row.last_active_at)}`}
-                        >
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-xs">
                           <span
                             aria-hidden
-                            className={FRESHNESS_STYLE[freshnessFor(row.last_active_at)]}
-                          >
-                            ●
+                            className={`h-1.5 w-1.5 rounded-full bg-current ${FRESHNESS_STYLE[freshnessFor(row.last_active_at)]}`}
+                          />
+                          <span className="text-term-muted">
+                            {formatRelativeTime(row.last_active_at)}
                           </span>
-                          {formatRelativeTime(row.last_active_at)}
                         </span>
                       ) : (
                         <span className="text-term-faint">—</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      {row ? (
-                        <span
-                          className="font-mono text-xs tabular-nums text-term-muted"
-                          title={`写 24h:${row.writes_24h} · 写 7d:${row.writes_7d}`}
-                        >
-                          {row.calls_24h} / {row.calls_7d}
-                        </span>
-                      ) : (
-                        <span className="text-term-faint">—</span>
-                      )}
+                    <TableCell
+                      className={`${numericCell} text-term-muted`}
+                      title={row ? `写 24h:${row.writes_24h}` : undefined}
+                    >
+                      {row ? row.calls_24h : <span className="text-term-faint">—</span>}
                     </TableCell>
-                    <TableCell>
+                    <TableCell
+                      className={`${numericCell} text-term-muted`}
+                      title={row ? `写 7d:${row.writes_7d}` : undefined}
+                    >
+                      {row ? row.calls_7d : <span className="text-term-faint">—</span>}
+                    </TableCell>
+                    <TableCell className={numericCell}>
                       {row ? (
                         <span
-                          className={`font-mono text-xs tabular-nums ${
+                          className={`font-mono tabular-nums ${
                             row.errors_7d > 0 ? 'text-term-neg' : 'text-term-muted'
                           }`}
                         >
@@ -214,7 +226,7 @@ export default function AgentOverviewClient() {
                         if (!cell) return <span className="text-term-faint">—</span>
                         return (
                           <span
-                            className={`text-xs text-term-muted ${cell.mono ? 'font-mono tabular-nums' : ''}`}
+                            className={`whitespace-nowrap text-xs text-term-muted ${cell.mono ? 'font-mono tabular-nums' : ''}`}
                             title="今日产出(Agent 写入 / 提交 / 上传)"
                           >
                             {cell.text}
@@ -224,30 +236,20 @@ export default function AgentOverviewClient() {
                     </TableCell>
                     <TableCell>
                       {live ? (
-                        <Badge
-                          variant="outline"
-                          className="rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos"
-                        >
-                          已接入
-                        </Badge>
+                        <StatusPill status="success" dot={false} label="已接入" />
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="rounded-none font-mono text-[11px] text-term-faint"
-                        >
-                          规划中
-                        </Badge>
+                        <StatusPill status="neutral" dot={false} label="规划中" />
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {domain.dashboardPath ? (
                         <Link
                           href={domain.dashboardPath}
                           aria-label={`打开${domain.label}`}
-                          className="inline-flex items-center gap-1 font-mono text-xs text-term-text underline-offset-4 hover:text-term-accent hover:underline"
+                          title={`前往${domain.label}工作台`}
+                          className="u-focus inline-flex h-8 w-8 items-center justify-center rounded-none text-term-muted transition-colors hover:bg-term-hover hover:text-term-accent"
                         >
-                          进入
-                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                          <ArrowUpRight className="h-4 w-4" aria-hidden />
                         </Link>
                       ) : (
                         <span className="text-term-faint">—</span>
