@@ -35,6 +35,54 @@ function event(type: string, fields: Record<string, unknown> = {}): string {
   })}\n\n`
 }
 
+type PushableSse = {
+  response: Response
+  push: (payload: string) => void
+  close: () => void
+}
+
+function pushableSseResponse(): PushableSse {
+  const encoder = new TextEncoder()
+  const queue: Uint8Array[] = []
+  let notify: (() => void) | null = null
+  let finished = false
+
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const next = queue.shift()
+      if (next) {
+        controller.enqueue(next)
+        return
+      }
+      if (finished) {
+        controller.close()
+        return
+      }
+      return new Promise<void>((resolve) => {
+        notify = resolve
+      })
+    },
+  })
+
+  return {
+    response: new Response(stream, {
+      headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+    }),
+    push(payload: string) {
+      queue.push(encoder.encode(payload))
+      const pending = notify
+      notify = null
+      pending?.()
+    },
+    close() {
+      finished = true
+      const pending = notify
+      notify = null
+      pending?.()
+    },
+  }
+}
+
 describe('useInsightStream', () => {
   it('owns one stream, resumes with Last-Event-ID, deduplicates ids, and preserves slot drafts', async () => {
     const fetchMock = vi
@@ -183,5 +231,71 @@ describe('useInsightStream', () => {
 
     expect(result.current.status).toBe('failed')
     expect(result.current.error).toEqual(errorEvent.error)
+  })
+
+  it('coalesces a burst of deltas into one published draft update', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-6', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const published: string[] = []
+    const { result } = renderHook(() => {
+      const state = useInsightStream({ client, batchWindowMs: 150 })
+      published.push(state.partialDrafts.summary ?? '')
+      return state
+    })
+
+    act(() => {
+      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    act(() => {
+      for (let index = 0; index < 30; index += 1) {
+        stream.push(
+          event('content.delta', { id: `delta-${index}`, seq: index + 1, slot: 'summary', delta: 'a' })
+        )
+      }
+    })
+    await act(async () => {})
+
+    // 30 条 delta 落在同一个批处理窗口内：窗口未到期前不发布，避免每个 token 一次渲染。
+    expect(result.current.partialDrafts.summary).toBeUndefined()
+
+    await waitFor(() => expect(result.current.partialDrafts.summary).toBe('a'.repeat(30)))
+    expect(published.filter((value) => value.length > 0)).toEqual(['a'.repeat(30)])
+  })
+
+  it('publishes an authoritative content snapshot without waiting for the batch window', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-7', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client, batchWindowMs: 5_000 }))
+
+    act(() => {
+      void result.current.start({ capability: 'reporting', role: 'schedule_report_summary.v1' })
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    await act(async () => {
+      stream.push(event('content.delta', { id: 'delta-1', seq: 1, slot: 'summary', delta: 'partial ' }))
+      stream.push(
+        event('content.snapshot', {
+          id: 'snap-1',
+          seq: 2,
+          slot: 'summary',
+          content: 'authoritative text',
+          outputs: { summary: 'authoritative text' },
+        })
+      )
+    })
+
+    // 批处理窗口设成 5s：此刻能拿到终稿说明权威内容绕过了窗口，没有被 delta 覆盖。
+    expect(result.current.partialDrafts).toEqual({ summary: 'authoritative text' })
   })
 })

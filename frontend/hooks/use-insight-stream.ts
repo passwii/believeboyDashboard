@@ -31,6 +31,8 @@ export type UseInsightStreamOptions = {
   client?: InsightClient
   reconnectDelayMs?: number
   maxReconnectAttempts?: number
+  /** 客户端 delta 批处理窗口（毫秒），默认 64ms */
+  batchWindowMs?: number
   onEvent?: (event: InsightEvent) => void
   onStatusChange?: (status: InsightStreamClientStatus) => void
 }
@@ -54,6 +56,7 @@ export type UseInsightStreamResult = {
 
 const DEFAULT_RECONNECT_DELAY_MS = 1_000
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 5
+const DEFAULT_BATCH_WINDOW_MS = 64
 const BACKGROUND_CONTINUATION_MESSAGE = '已转入后台继续生成'
 
 export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsightStreamResult {
@@ -62,6 +65,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   const maxReconnectAttemptsRef = useRef(
     options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS
   )
+  const batchWindowRef = useRef(options.batchWindowMs ?? DEFAULT_BATCH_WINDOW_MS)
   const onEventRef = useRef(options.onEvent)
   const onStatusChangeRef = useRef(options.onStatusChange)
   onEventRef.current = options.onEvent
@@ -91,6 +95,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   const detachedRef = useRef(false)
   const draftsRef = useRef<InsightOutputs>({})
   const snapshotRef = useRef<InsightSnapshot | null>(null)
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasPendingDraftsRef = useRef(false)
 
   const setStatus = useCallback((next: InsightStreamClientStatus) => {
     setStatusState(next)
@@ -110,6 +116,11 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   }, [])
 
   const resetContent = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    hasPendingDraftsRef.current = false
     draftsRef.current = {}
     snapshotRef.current = null
     setDrafts({})
@@ -117,12 +128,31 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     setSnapshot(null)
   }, [])
 
-  const mergeOutputs = useCallback((next: InsightOutputs) => {
-    if (Object.keys(next).length === 0) return
-    draftsRef.current = { ...draftsRef.current, ...next }
+  /**
+   * 把累积的 delta 一次性发布给 React。真实 delta 仍逐条落到 ref，只在批处理
+   * 窗口（默认 64ms）结束时 setState，避免每个 token 触发一次渲染。
+   */
+  const flushDrafts = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    if (!hasPendingDraftsRef.current) return
+    hasPendingDraftsRef.current = false
     setDrafts(draftsRef.current)
     setPartialDrafts(draftsRef.current)
   }, [])
+
+  const mergeOutputs = useCallback(
+    (next: InsightOutputs) => {
+      if (Object.keys(next).length === 0) return
+      draftsRef.current = { ...draftsRef.current, ...next }
+      hasPendingDraftsRef.current = true
+      // 权威内容（snapshot / done / content.snapshot）必须立刻可见，不等窗口。
+      flushDrafts()
+    },
+    [flushDrafts]
+  )
 
   const mergeSnapshot = useCallback(
     (next: InsightSnapshot) => {
@@ -134,14 +164,20 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     [mergeOutputs]
   )
 
-  const appendDelta = useCallback((event: InsightContentDeltaEvent) => {
-    if (!event.slot || !event.delta) return
-    const current = draftsRef.current[event.slot] ?? ''
-    const next = { ...draftsRef.current, [event.slot]: current + event.delta }
-    draftsRef.current = next
-    setDrafts(next)
-    setPartialDrafts(next)
-  }, [])
+  const appendDelta = useCallback(
+    (event: InsightContentDeltaEvent) => {
+      if (!event.slot || !event.delta) return
+      const current = draftsRef.current[event.slot] ?? ''
+      draftsRef.current = { ...draftsRef.current, [event.slot]: current + event.delta }
+      hasPendingDraftsRef.current = true
+      if (flushTimerRef.current) return
+      flushTimerRef.current = setTimeout(() => {
+        flushTimerRef.current = null
+        flushDrafts()
+      }, batchWindowRef.current)
+    },
+    [flushDrafts]
+  )
 
   const applyEvent = useCallback(
     (event: InsightEvent) => {
