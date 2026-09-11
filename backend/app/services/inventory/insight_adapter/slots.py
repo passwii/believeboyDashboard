@@ -7,9 +7,15 @@
   summary 覆盖**全量** SKU（服务侧在分页前统计），行只取最紧急的
   ``ROW_MAX_ITEMS`` 条（按 ``sellable_days`` 升序），并把 ``total`` 与
   ``truncated`` 写进 payload——模型据此知道列表是部分数据。
-- **新鲜度**：``latest_inventory_snapshot_date`` 显式区分「无快照」与
-  「快照就是今天」；阈值与 ``state_action.compute_signals`` 的置信度口径
-  对齐（> 1 天 medium、> 3 天 low）。
+- **新鲜度**：快照锚点显式区分「无快照」（missing）与「快照就是今天」
+  （fresh）；阈值与 ``state_action.compute_signals`` 的置信度口径对齐
+  （> 1 天 medium、> 3 天 low）。实时路径（``report_date=None``）取
+  ``current_inventory_snapshot_report_date``（与数据加载器同一查询），
+  历史路径取 ``latest_inventory_snapshot_date``；锚点晚于参照日报
+  ``unknown`` 而非 `fresh`（复审[7]）。
+- **口径日**：参照日在 ``build_inventory_slots`` 内只读一次挂钟，
+  ``report_date or reference_today`` 同时是 slot 声明的口径日、service
+  的 DMS 窗口基准与新鲜度基准。
 - **缺数**：``missing_data.missing_dimensions`` 列出受控维度 ID。
 
 scope 一致性（``validator._check_scope_consistency``）：run 的
@@ -71,7 +77,13 @@ def normalize_inventory_country(country: str) -> str:
 def assess_freshness(
     snapshot_report_date: date | None, *, today: date
 ) -> dict[str, Any]:
-    """快照日期 → ``data_freshness`` slot（缺失与新鲜必须可区分）。"""
+    """快照日期 → ``data_freshness`` slot（缺失与新鲜必须可区分）。
+
+    锚点晚于参照日（实时路径拿到日期在未来/时钟偏移的快照文件）既不能说
+    「新鲜」也不能说「陈旧」：报 ``unknown`` + ``age_days=0``，但 ``as_of``
+    照实输出，审计要能看到锚点究竟是什么。裸 ``max(0, ...)`` 会把异常伪装成
+    「今天的数据」（复审[7]）。
+    """
     if snapshot_report_date is None:
         return {
             "status": "missing",
@@ -79,7 +91,14 @@ def assess_freshness(
             "age_days": None,
             "source": "inventory_report",
         }
-    age_days = max(0, (today - snapshot_report_date).days)
+    if snapshot_report_date > today:
+        return {
+            "status": "unknown",
+            "as_of": snapshot_report_date.isoformat(),
+            "age_days": 0,
+            "source": "inventory_report",
+        }
+    age_days = (today - snapshot_report_date).days
     status = "stale" if age_days > INVENTORY_FRESH_MAX_AGE_DAYS else "fresh"
     return {
         "status": status,
@@ -174,9 +193,23 @@ def build_inventory_slots(
 
     slots 必须在**请求侧**组装完成后才提交 run：worker 只消费 run 落库的
     ``slots_json``，不再回查业务表（与 schedule/adapter 同口径）。
+
+    口径日契约（复审[7]）——参照日只在**这里**读一次挂钟：
+
+    - ``report_date`` 有值：口径日 = ``report_date``；查询按 ``<= report_date``
+      过滤，数据锚点 = 该过滤选中的快照日。
+    - ``report_date is None``（实时路径）：口径日 = ``today``（缺省才回落到
+      ``date.today()``）。查询**不带日期上界**以保留实时在途 ETA 时间线
+      （BLF-630），因此数据锚点就是「最新一份快照文件」的日期——它由
+      ``current_inventory_snapshot_report_date`` 用**与数据加载器同一个**
+      查询给出，不是另起一条有上界的查询，故
+      ``payload.report_date``（= ``context.report_date``）声明口径日、
+      ``payload.snapshot_report_date``（= ``data_freshness.as_of``）声明
+      数据实际来源，四者不会再漂移。
     """
     from app.models.project import Project
     from app.services.inventory.replenishment import (
+        current_inventory_snapshot_report_date,
         latest_inventory_snapshot_date,
         list_inventory_replenishment_analysis,
     )
@@ -186,8 +219,10 @@ def build_inventory_slots(
         return None
 
     normalized_country = normalize_inventory_country(country)
-    anchor_date = report_date or date.today()
+    # 参照日只读一次：口径日与新鲜度基准必须是同一个「今天」，否则跨午夜
+    # 时 slot 会自称某天、却按另一天算 age（复审[7]）。
     reference_today = today or date.today()
+    anchor_date = report_date or reference_today
     project_name = project.project_name or ""
 
     rows, summary, total, _has_next = list_inventory_replenishment_analysis(
@@ -205,10 +240,19 @@ def build_inventory_slots(
         # （``sellable_days``，None 恒排后）；``trim_rows`` 只作确定性兜底。
         order_by="sellable_days",
         order_dir="asc",
+        # service 不得自己再读挂钟：DMS 窗口与快照年龄锚在同一个参照日。
+        today=reference_today,
     )
-    snapshot_report_date = latest_inventory_snapshot_date(
-        db, project_id, normalized_country, anchor_date
-    )
+    if report_date is None:
+        # 实时路径：锚点 = 数据加载器实际选中的那份快照文件的日期。
+        snapshot_report_date = current_inventory_snapshot_report_date(
+            db, project_id, normalized_country
+        )
+    else:
+        # 历史路径：锚点 = 该口径日下 ``_get_inventory_source`` 会选中的快照日。
+        snapshot_report_date = latest_inventory_snapshot_date(
+            db, project_id, normalized_country, anchor_date
+        )
     trimmed_rows, rows_truncated = trim_rows(rows)
     summary_payload = trim_summary(summary)
     payload: dict[str, Any] = {

@@ -1123,13 +1123,30 @@ def list_inventory_replenishment_analysis(
     replenishment_action: str | None = None,
     order_by: str | None = None,
     order_dir: str = "asc",
+    today: date | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, int], int, bool]:
     project = _get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
-    today = report_date if report_date is not None else date.today()
-    # BLF-502 S4：真实快照新鲜度——库存快照实际使用的 report_date（≤ today 最近一份）
-    snapshot_age_days = _compute_snapshot_age_days(
-        db, project.id, normalized_country, today
+    # BLF-1016 复审[7]：实时路径（``report_date=None``）的「今天」由调用方
+    # 注入，避免 service 自己再读一次挂钟——slot 声明的口径日、DMS 窗口、
+    # 快照年龄都锚在**同一个**参照日上（跨午夜不再分裂）。
+    today = report_date if report_date is not None else (today or date.today())
+    # BLF-502 S4 / BLF-1016 复审[7]：快照年龄必须量自**数据加载器实际使用**
+    # 的那份快照文件——历史路径 = ``<= report_date`` 最近一份，实时路径 =
+    # 「最新一份」（无上界，与 ``_load_inventory_map`` 同一谓词），否则存在
+    # 晚于参照日的快照文件时，signals 的新鲜度与 rows 的来源各说一套。
+    if report_date is None:
+        source_snapshot_date = current_inventory_snapshot_report_date(
+            db, project.id, normalized_country
+        )
+    else:
+        source_snapshot_date = latest_inventory_snapshot_date(
+            db, project.id, normalized_country, today
+        )
+    snapshot_age_days = (
+        0
+        if source_snapshot_date is None
+        else max(0, (today - source_snapshot_date).days)
     )
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
@@ -1529,11 +1546,11 @@ def list_inventory_replenishment_analysis(
 def latest_inventory_snapshot_date(
     db: Session, project_id: int, country: str, today: date
 ) -> date | None:
-    """BLF-1016：最近一份库存快照的 report_date（无快照返回 None）。
+    """历史路径（指定 ``report_date``）下最近一份库存快照的 report_date。
 
-    ``_compute_snapshot_age_days`` 把「无快照」和「快照就是今天」都折成 0，
-    canonical 库存 role 需要区分二者（缺数不能当成新鲜），故把查询本身
-    暴露成公开函数，两边共用同一条谓词。
+    即 ``_get_inventory_source(report_date=<某日>)`` 会选中的那份文件的上界
+    版本；无快照返回 None。「无快照」与「快照就是今天」都折成 0 天会让缺数
+    看起来像新鲜，故把查询本身暴露成公开函数供 slot 与 signals 共用。
     """
     row = db.execute(
         select(func.max(AnalysisSourceFile.report_date)).where(
@@ -1547,20 +1564,23 @@ def latest_inventory_snapshot_date(
     return row[0] if row else None
 
 
-def _compute_snapshot_age_days(
-    db: Session, project_id: int, country: str, today: date
-) -> int:
-    """BLF-502 S4：库存快照实际使用日期的年龄（天）。
+def current_inventory_snapshot_report_date(
+    db: Session, project_id: int, country: str
+) -> date | None:
+    """实时路径（``report_date=None``）**实际使用**的快照文件的 report_date。
 
-    取 ``report_type='inventory_report'`` 且 report_date ≤ today 的最近一份；
-    无快照时返回 0（与缺失一致）。
+    ``_load_inventory_map(report_date=None)`` 经 ``_get_inventory_source`` 的
+    「最新一份」分支取数，该分支**没有** ``<= today`` 上界。若 slot 另起一条
+    有上界的查询来声明数据口径日，二者在「存在晚于参照日的快照文件」时就会
+    给出两个不同日期：audit slot 声称的数据口径与 rows 的真实来源漂移
+    （BLF-1016 复审[7]）。这里直接复用数据加载器同一个函数，谓词不可能分叉。
     """
-    snapshot_report_date = latest_inventory_snapshot_date(
-        db, project_id, country, today
+    from app.services.inventory_analysis_service import _get_inventory_source
+
+    source = _get_inventory_source(
+        db, project_id=project_id, country=country, report_date=None
     )
-    if snapshot_report_date is None:
-        return 0
-    return max(0, (today - snapshot_report_date).days)
+    return source.report_date if source is not None else None
 
 
 def _sort_rows(rows: list[dict[str, object]], order_by: str, order_dir: str) -> None:

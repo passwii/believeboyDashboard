@@ -7,9 +7,9 @@
 
 - ``slots.py``：把确定性补货分析（``list_inventory_replenishment_analysis``）
   的产物裁成 ``inventory.context`` / ``inventory.data`` typed slot，
-  快照新鲜度与缺数维度显式入 slot（``_compute_snapshot_age_days`` 把
-  「无快照」折成 0 天，本模块用 ``latest_inventory_snapshot_date`` 区分
-  缺失与新鲜）。
+  快照新鲜度与缺数维度显式入 slot（``latest_inventory_snapshot_date`` /
+  ``current_inventory_snapshot_report_date`` 区分「缺失」与「新鲜」，并使
+  声明的口径日与数据实际来源同源）。
 - ``submit.py``：服务端解析 scope 并以 ``inventory:{project}:{country}:{report_date}``
   幂等键提交 run。
 - ``prompt.py``：服务端持有的单轮 prompt / 指令 / 清洗。

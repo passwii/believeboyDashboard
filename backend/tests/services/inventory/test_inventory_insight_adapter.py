@@ -12,6 +12,8 @@
    不一致（country / project_ids）走 canonical ``SCOPE_MISMATCH``。
 4. **提交**：``start_run`` 复用；幂等 replay 不重复入队、死 run 开新 attempt、
    项目不存在 → ``PROJECT_NOT_FOUND``。
+5. **口径日**：``report_date=None``（实时路径）下声明的口径日、payload 口径日、
+   分析服务参照日、快照锚点同源；存在未来快照文件时锚点 = rows 的真实来源日。
 
 不查真实业务表、不打网络：补货分析服务与快照日期都是替身。
 """
@@ -21,7 +23,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -30,6 +32,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.session import Base
 from app.models.insight_run import InsightRun
+from app.models.product_analysis_source import AnalysisSourceFile
 from app.models.project import Project
 from app.schemas.insight import (
     IDEMPOTENCY_KEY_PATTERN,
@@ -61,6 +64,7 @@ from app.services.inventory.insight_adapter.submit import (
     idempotency_key_for,
     submit_run_for_inventory_health,
 )
+from app.services.inventory.replenishment import latest_inventory_snapshot_date
 
 PROJECT_ID = 77
 TODAY = date(2026, 9, 11)
@@ -171,8 +175,14 @@ def _stub_inventory(
     summary: dict[str, Any] | None = None,
     total: int | None = None,
     snapshot_date: date | None = TODAY,
+    patch_live_source: bool = True,
+    live_calls: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """把补货分析服务与快照日期换成替身；返回调用记录。"""
+    """把补货分析服务与快照日期换成替身；返回调用记录。
+
+    ``patch_live_source=False`` 时保留 ``current_inventory_snapshot_report_date``
+    的真实实现（实时路径锚点必须由数据加载器那条查询给出，替身会掩盖口径分叉）。
+    """
     calls: list[dict[str, Any]] = []
     body = rows if rows is not None else [_row("SKU-1", 3.0), _row("SKU-2", 40.0)]
     counts = summary if summary is not None else _summary()
@@ -184,6 +194,11 @@ def _stub_inventory(
     def _snapshot(db: Any, project_id: int, country: str, anchor: date) -> date | None:
         return snapshot_date
 
+    def _live_snapshot(db: Any, project_id: int, country: str) -> date | None:
+        if live_calls is not None:
+            live_calls.append({"project_id": project_id, "country": country})
+        return snapshot_date
+
     monkeypatch.setattr(
         "app.services.inventory.replenishment.list_inventory_replenishment_analysis",
         _list,
@@ -192,7 +207,34 @@ def _stub_inventory(
         "app.services.inventory.replenishment.latest_inventory_snapshot_date",
         _snapshot,
     )
+    if patch_live_source:
+        monkeypatch.setattr(
+            "app.services.inventory.replenishment.current_inventory_snapshot_report_date",
+            _live_snapshot,
+        )
     return calls
+
+
+def _seed_snapshot_file(db: Session, report_date: date) -> None:
+    """落一份 ``inventory_report`` 源文件（口径日 = ``report_date``）。"""
+    db.add(
+        AnalysisSourceFile(
+            project_id=PROJECT_ID,
+            report_type="inventory_report",
+            country="US",
+            report_date=report_date,
+            snapshot_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            version=1,
+            is_current=True,
+            upload_file_id=f"seed-{report_date.isoformat()}",
+            upload_file_path=f"/tmp/seed-{report_date.isoformat()}",
+            stored_filename="seed.xlsx",
+            logical_filename="seed.xlsx",
+            storage_key=f"analysis/seed/inventory_report/{report_date.isoformat()}",
+            ingestion_status="success",
+        )
+    )
+    db.commit()
 
 
 # --------------------------------------------------------------------------
@@ -224,8 +266,13 @@ class TestFreshness:
         assert posture["status"] == "stale"
         assert posture["age_days"] == INVENTORY_FRESH_MAX_AGE_DAYS + 1
 
-    def test_future_snapshot_does_not_yield_negative_age(self):
-        assert assess_freshness(TODAY + timedelta(days=2), today=TODAY)["age_days"] == 0
+    def test_future_snapshot_is_unknown_not_fresh(self):
+        """锚点晚于参照日既不能说新鲜也不能说陈旧；as_of 照实输出（复审[7]）。"""
+        future = TODAY + timedelta(days=2)
+        posture = assess_freshness(future, today=TODAY)
+        assert posture["status"] == "unknown"
+        assert posture["as_of"] == future.isoformat()
+        assert posture["age_days"] == 0  # 不能出现负数（age_days ge=0）
 
 
 # --------------------------------------------------------------------------
@@ -325,6 +372,10 @@ class TestSlotContract:
         assert context["report_date"] == TODAY.isoformat()
         assert context["data_freshness"]["status"] == "fresh"
         assert context["missing_data"]["is_complete"] is True
+        # 口径日不因「实时路径」而与 payload 分叉（复审[7]）。
+        payload = json.loads(json.dumps(request.slots["inventory.data"]))["payload"]
+        assert payload["report_date"] == context["report_date"]
+        assert payload["snapshot_report_date"] == context["data_freshness"]["as_of"]
 
     def test_payload_is_json_native_end_to_end(self, db, project, monkeypatch):
         """行里带 date 对象（sellout_date…）→ slot 内必须已转 ISO 字符串。"""
@@ -388,6 +439,91 @@ class TestSlotContract:
             )
         assert exc.value.error.code == InsightErrorCode.SCOPE_MISMATCH
         assert exc.value.error.slot == "inventory.context"
+
+
+# --------------------------------------------------------------------------
+# 3b. 口径日 / 数据锚点一致性（复审[7]）
+# --------------------------------------------------------------------------
+
+
+class TestReportDateContract:
+    """``report_date=None``（实时路径）下四个日期必须同源。
+
+    四者：``inventory.context.report_date``（声明的口径日）、
+    ``inventory.data.payload.report_date``、补货分析的查询/过滤基准
+    （service 收到的 ``today``）、``data_freshness.as_of``（数据锚点）。
+    规则：口径日 = 参照日（``today`` 优先，缺省才读挂钟）；
+    数据锚点 = **数据加载器实际使用**的那份快照文件的 report_date。
+    """
+
+    def test_live_path_shares_one_reference_day_with_the_service(
+        self, db, project, monkeypatch
+    ):
+        """跨日：注入的参照日同时是口径日与 service 基准，不读挂钟。"""
+        live_calls: list[dict[str, Any]] = []
+        calls = _stub_inventory(monkeypatch, live_calls=live_calls)
+        slots = build_inventory_slots(
+            db, project_id=PROJECT_ID, country="us", today=TODAY
+        )
+        assert slots is not None
+        context = slots["inventory.context"]
+        payload = slots["inventory.data"]["payload"]
+
+        assert context["report_date"] == TODAY.isoformat()
+        assert payload["report_date"] == TODAY.isoformat()
+        assert calls[0]["today"] == TODAY  # service 不得自己再读一次挂钟
+        assert calls[0]["report_date"] is None  # 实时路径：保留实时在途 ETA 时间线
+        assert context["data_freshness"]["age_days"] == 0
+        assert context["data_freshness"]["as_of"] == payload["snapshot_report_date"]
+        # 锚点查询与数据加载器同口径（归一站点）。
+        assert live_calls == [{"project_id": PROJECT_ID, "country": "US"}]
+
+    def test_live_path_anchor_is_the_file_the_rows_came_from(
+        self, db, project, monkeypatch
+    ):
+        """存在晚于参照日的快照文件时，锚点必须是 rows 的真实来源日。
+
+        数据加载器走「最新一份」（无上界），若 slot 另用一条有上界的查询
+        声明锚点，就会挑到更旧的文件——审计口径与 rows 来源漂移。
+        """
+        _stub_inventory(monkeypatch, patch_live_source=False)
+        _seed_snapshot_file(db, TODAY - timedelta(days=3))
+        future = TODAY + timedelta(days=2)
+        _seed_snapshot_file(db, future)
+
+        slots = build_inventory_slots(db, project_id=PROJECT_ID, country="US", today=TODAY)
+        assert slots is not None
+        context = slots["inventory.context"]
+        payload = slots["inventory.data"]["payload"]
+
+        assert payload["snapshot_report_date"] == future.isoformat()
+        assert context["data_freshness"]["as_of"] == future.isoformat()
+        assert context["data_freshness"]["status"] == "unknown"
+        # 口径日仍是参照日，不跟着快照漂到未来。
+        assert context["report_date"] == payload["report_date"] == TODAY.isoformat()
+        # 有上界的那条查询会给出另一个（更旧的）日期——正是被消掉的分叉。
+        assert (
+            latest_inventory_snapshot_date(db, PROJECT_ID, "US", TODAY)
+            == TODAY - timedelta(days=3)
+        )
+
+    def test_live_path_without_todays_snapshot_degrades_freshness(
+        self, db, project, monkeypatch
+    ):
+        """无当天快照：口径日照旧，新鲜度如实降级（不假装今天有数据）。"""
+        stale = TODAY - timedelta(days=INVENTORY_FRESH_MAX_AGE_DAYS + 1)
+        _stub_inventory(monkeypatch, snapshot_date=stale)
+        slots = build_inventory_slots(db, project_id=PROJECT_ID, country="US", today=TODAY)
+        assert slots is not None
+        context = slots["inventory.context"]
+        payload = slots["inventory.data"]["payload"]
+
+        assert context["report_date"] == payload["report_date"] == TODAY.isoformat()
+        assert payload["snapshot_report_date"] == stale.isoformat()
+        assert context["data_freshness"]["status"] == "stale"
+        assert context["data_freshness"]["age_days"] == INVENTORY_FRESH_MAX_AGE_DAYS + 1
+        # 有快照但过期 ≠ 缺数：missing_data 不能把 snapshot 报成缺失。
+        assert "snapshot" not in context["missing_data"]["missing_dimensions"]
 
 
 # --------------------------------------------------------------------------
@@ -522,3 +658,15 @@ class TestSubmit:
 
         assert second.run_id != first.run_id
         assert len(enqueued) == 2
+
+    def test_submit_stamps_idempotency_key_with_the_declared_report_date(
+        self, db, project, monkeypatch
+    ):
+        """幂等键时间戳与 slot 口径日同源（跨午夜不再一个记 D、一个说 D+1）。"""
+        _stub_inventory(monkeypatch)
+        enqueued: list[tuple[str, int]] = []
+        run, _ = self._submit(db, enqueued, report_date=None)
+
+        slots = json.loads(run.slots_json)
+        assert slots["inventory.context"]["report_date"] == TODAY.isoformat()
+        assert run.idempotency_key == f"inventory:{PROJECT_ID}:US:{TODAY.isoformat()}"

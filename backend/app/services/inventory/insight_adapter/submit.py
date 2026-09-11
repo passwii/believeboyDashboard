@@ -68,6 +68,9 @@ def submit_run_for_inventory_health(
     错误语义，也不把 typed error 压成字符串。
     """
     normalized_country = normalize_inventory_country(country)
+    # 参照日只读一次挂钟：幂等键的时间戳与 slot 声明的口径日必须同源，
+    # 否则跨午夜时 key 记 D 天而 slot 自称 D+1 天（复审[7]）。
+    reference_today = today or date.today()
     # 授权必须在读业务表之前：``build_inventory_slots`` 会跑补货分析查询，
     # 未授权 operator 否则能借提交端点读走不属于自己的数据（复审[1]）。
     # 这里用**归一后**的站点：slot 与 run 都用它，authorizer 的
@@ -79,7 +82,7 @@ def submit_run_for_inventory_health(
         project_id=project_id,
         country=normalized_country,
         report_date=report_date,
-        today=today,
+        today=reference_today,
     )
     if slots is None:
         raise ScopeError(InsightErrorCode.PROJECT_NOT_FOUND, "Project not found")
@@ -98,7 +101,7 @@ def submit_run_for_inventory_health(
         "country": normalized_country,
         "slots": slots,
         "idempotency_key": idempotency_key_for(
-            project_id, normalized_country, report_date
+            project_id, normalized_country, report_date or reference_today
         ),
     }
     if model_id:
