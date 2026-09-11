@@ -5,6 +5,7 @@ export {
   InsightStreamEndedError,
   SseParser,
 } from './sse'
+export { splitStreamingMarkdown, type InsightStreamBlocks } from './stream-blocks'
 export {
   INSIGHT_SCHEMA_VERSION,
   getInsightOutputs,
