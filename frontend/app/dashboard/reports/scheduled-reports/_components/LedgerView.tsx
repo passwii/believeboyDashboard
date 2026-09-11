@@ -287,6 +287,19 @@ export default function LedgerView() {
       return
     }
 
+    // BLF-1015：后端返回 run 绑定时，详情弹窗直接接管该 run 的共享 Insight
+    // 流，这里不再重复轮询——否则同一 delivery 会被两个来源写入。
+    if (result.runId) {
+      mergeLedgerItem({ ...item, insight_run_id: result.runId, ai_summary_status: 'generating' })
+      setRegeneratingSummaryKeys((prev) => {
+        const next = new Set(prev)
+        next.delete(item.ledger_key)
+        return next
+      })
+      notify({ type: 'success', title: 'AI 摘要生成已启动' })
+      return
+    }
+
     pollLedgerAiSummaryStatus(
       item.ledger_key,
       () => fetchLedgerItemByKey(item),

@@ -1,6 +1,7 @@
 // ── 定时报告共享 API 调用和辅助函数 ──
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { readInsightRunId } from './ledger-insight'
 import type { AIModelConfig, Frequency, LedgerItem, LedgerSummary, Subscription } from './types'
 
 const API_BASE = '/api/backend'
@@ -241,10 +242,22 @@ export async function fetchLedger(
     })
     if (!res.ok) throw new Error(await res.text())
     const data = (await res.json()) as { items: LedgerItem[]; summary: LedgerSummary; total?: number }
-    onData(data.items || [], data.summary || null, data.total ?? (data.items?.length ?? 0))
+    const items: LedgerItem[] = Array.isArray(data.items)
+      ? data.items.map(withInsightRunBinding)
+      : []
+    onData(items, data.summary || null, data.total ?? items.length)
   } catch (e) {
     onError(normalizeErrorMessage(e, '加载台账失败'))
   }
+}
+
+/**
+ * 把后端回填的 insight run 绑定收敛到 `insight_run_id` 一个字段上（BLF-1015），
+ * 后端用哪个字段名回填都能认。其余字段保持原样。
+ */
+function withInsightRunBinding(item: LedgerItem): LedgerItem {
+  const runId = readInsightRunId(item)
+  return runId ? { ...item, insight_run_id: runId } : item
 }
 
 export async function fetchLedgerItemByKey(sourceItem: LedgerItem): Promise<LedgerItem | null> {
@@ -296,7 +309,7 @@ export async function resendLedgerEntry(
 export async function regenerateLedgerAiSummary(
   ledgerKey: string,
   overrideAiModel?: string | null
-): Promise<{ ok: boolean; deliveryLogId?: number; status?: string; error?: string }> {
+): Promise<{ ok: boolean; deliveryLogId?: number; status?: string; runId?: string; error?: string }> {
   const params = new URLSearchParams()
   if (overrideAiModel?.trim()) params.set('ai_model', overrideAiModel.trim())
   const qs = params.toString()
@@ -314,7 +327,12 @@ export async function regenerateLedgerAiSummary(
     })
     if (!res.ok) throw new Error(await res.text())
     const data = await res.json()
-    return { ok: true, deliveryLogId: data.delivery_log_id, status: data.status }
+    return {
+      ok: true,
+      deliveryLogId: data.delivery_log_id,
+      status: data.status,
+      runId: readInsightRunId(data) ?? undefined,
+    }
   } catch (e) {
     return { ok: false, error: normalizeErrorMessage(e) }
   }

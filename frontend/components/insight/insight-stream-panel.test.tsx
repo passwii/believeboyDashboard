@@ -1,10 +1,21 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { InsightStreamPanel } from './insight-stream-panel'
 import { useInsightStream, type InsightStreamClientStatus } from '@/hooks/use-insight-stream'
 import { InsightClient } from '@/lib/insight/client'
-import type { InsightEvent } from '@/lib/insight/protocol'
+import { isInsightEventType, type InsightEvent, type InsightRunRequest } from '@/lib/insight/protocol'
+
+const CANONICAL_REQUEST: InsightRunRequest = {
+  schema_version: 1,
+  role_id: 'schedule_report_summary',
+  role_version: 1,
+  project_id: 42,
+  country: 'US',
+  slots: { 'report.context': { slot_version: 1, frequency: 'weekly' } },
+  idempotency_key: 'ledger-1:77',
+}
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -48,35 +59,61 @@ function event(type: string, fields: Record<string, unknown> = {}): string {
   })}\n\n`
 }
 
-const ADAPTER_LABELS: Partial<Record<InsightStreamClientStatus, string>> = {
+const RUN_LABELS: Record<string, string> = {
+  queued: '排队中',
+  aggregating: '正在聚合数据',
+  generating: '正在生成结论',
+  finalizing: '正在收尾',
+  completed: '已完成',
+  failed: '生成失败',
+  cancelled: '已取消',
+}
+
+const TRANSPORT_LABELS: Partial<Record<InsightStreamClientStatus, string>> = {
   queued: '排队中',
   connecting: '正在连接',
-  live: '正在聚合数据',
+  live: '正在生成',
   reconnecting: '连接中断，正在重连',
   completed: '已完成',
   failed: '生成失败',
   cancelled: '已取消',
 }
 
+const CONTENT_SHA256 = 'c362e6be96ca4a23089bf5366d393f6e167875244c055db525ecdeb938ec2607'
+
 function Harness({ client }: { client: InsightClient }) {
-  const stream = useInsightStream({ client, reconnectDelayMs: 0, maxReconnectAttempts: 1 })
+  const [digest, setDigest] = useState<string | null>(null)
+  const stream = useInsightStream({
+    client,
+    reconnectDelayMs: 0,
+    maxReconnectAttempts: 1,
+    onEvent: (event) => {
+      if (isInsightEventType(event, 'done') && typeof event.content_sha256 === 'string') {
+        setDigest(event.content_sha256)
+      }
+    },
+  })
+  const statusLabel =
+    (stream.runStatus ? RUN_LABELS[stream.runStatus] : undefined) ??
+    TRANSPORT_LABELS[stream.status] ??
+    stream.status
   return (
     <>
-      <button type="button" onClick={() => void stream.start({ capability: 'reporting', role: 'x' })}>
+      <button type="button" onClick={() => void stream.start(CANONICAL_REQUEST)}>
         启动
       </button>
       <button type="button" onClick={() => void stream.retry()}>
         重试 run
       </button>
       <InsightStreamPanel
-        status={stream.status}
-        statusLabel={ADAPTER_LABELS[stream.status] ?? stream.status}
+        status={stream.runStatus ?? stream.status}
+        statusLabel={statusLabel}
         error={stream.error}
         backgroundMessage={stream.backgroundMessage}
-        content={stream.partialDrafts.summary ?? ''}
-        contentState={stream.status === 'completed' ? 'final' : 'draft'}
+        content={stream.partialDrafts.main ?? ''}
+        contentState={stream.runStatus === 'completed' ? 'final' : 'draft'}
         isStreaming={stream.status === 'live' || stream.status === 'connecting'}
-        digest={stream.snapshot?.digest as string | undefined}
+        digest={digest ?? undefined}
         onRetry={() => void stream.retry()}
         onCancel={() => void stream.cancel()}
         onClose={() => stream.detach()}
@@ -97,14 +134,19 @@ describe('InsightStreamPanel', () => {
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'queued', attempt: 1 }))
       .mockResolvedValueOnce(
         sseResponse(
-          event('status', { id: 'e1', status: 'live', sub_status: 'aggregating' }) +
-            event('content.delta', { id: 'e2', seq: 2, slot: 'summary', delta: '## 结论\n' }) +
-            event('content.delta', { id: 'e3', seq: 3, slot: 'summary', delta: '增长稳健\n' }) +
+          event('status', {
+            id: 'e1',
+            status: 'aggregating',
+            stage: 'aggregating',
+            progress_percent: 30,
+          }) +
+            event('content.delta', { id: 'e2', seq: 2, slot: 'main', delta: '## 结论\n' }) +
+            event('content.delta', { id: 'e3', seq: 3, slot: 'main', delta: '增长稳健\n' }) +
             event('done', {
               id: 'e4',
               seq: 4,
-              outputs: { summary: '## 结论\n增长稳健\n' },
-              snapshot: { outputs: { summary: '## 结论\n增长稳健\n' }, digest: 'sha256:abc' },
+              outputs: { main: { content: '## 结论\n增长稳健\n' } },
+              content_sha256: CONTENT_SHA256,
             })
         )
       )
@@ -116,7 +158,7 @@ describe('InsightStreamPanel', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('已完成'))
     const region = document.querySelector('[role="document"]')
     expect(region).toHaveAttribute('data-state', 'final')
-    expect(region).toHaveAttribute('data-content-digest', 'sha256:abc')
+    expect(region).toHaveAttribute('data-content-digest', CONTENT_SHA256)
     expect(screen.getByRole('heading', { name: '结论' })).toBeInTheDocument()
   })
 
@@ -126,8 +168,15 @@ describe('InsightStreamPanel', () => {
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'queued', attempt: 1 }))
       .mockResolvedValueOnce(
         openSseResponse(
-          event('status', { id: 'e1', status: 'live' }) +
-            event('content.snapshot', { id: 'e2', seq: 2, slot: 'summary', content: '草稿内容' })
+          event('status', { id: 'e1', status: 'aggregating', stage: 'aggregating' }) +
+            event('content.snapshot', {
+              id: 'e2',
+              seq: 2,
+              slot: 'main',
+              content: '草稿内容',
+              format: 'markdown',
+              checkpoint_seq: 1,
+            })
         )
       )
     const client = new InsightClient({ fetch: fetchMock })
@@ -149,6 +198,7 @@ describe('InsightStreamPanel', () => {
       attempt: 1,
       seq: 1,
       type: 'error',
+      status: 'failed',
       error: { code: 'MODEL_UNAVAILABLE', message: '模型暂不可用', retryable: true },
     }
     const fetchMock = vi
@@ -158,8 +208,8 @@ describe('InsightStreamPanel', () => {
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'queued', attempt: 2 }))
       .mockResolvedValueOnce(
         sseResponse(
-          event('status', { id: 'e2', status: 'live' }) +
-            event('done', { id: 'e3', seq: 2, outputs: { summary: '重试成功\n' } })
+          event('status', { id: 'e2', status: 'generating', stage: 'generating' }) +
+            event('done', { id: 'e3', seq: 2, outputs: { main: { content: '重试成功\n' } } })
         )
       )
     const client = new InsightClient({ fetch: fetchMock })
@@ -181,14 +231,14 @@ describe('InsightStreamPanel', () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'queued', attempt: 1 }))
       .mockResolvedValueOnce(
-        sseResponse(event('status', { id: 'e1', status: 'live' }))
+        sseResponse(event('status', { id: 'e1', status: 'generating', stage: 'generating' }))
       )
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'cancelled' }))
     const client = new InsightClient({ fetch: fetchMock })
     render(<Harness client={client} />)
 
     fireEvent.click(screen.getByRole('button', { name: '启动' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在聚合数据'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在生成结论'))
 
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
 
@@ -202,8 +252,8 @@ describe('InsightStreamPanel', () => {
       .mockResolvedValueOnce(jsonResponse({ run_id: 'run-1', status: 'queued', attempt: 1 }))
       .mockResolvedValueOnce(
         sseResponse(
-          event('status', { id: 'e1', status: 'live' }) +
-            event('content.delta', { id: 'e2', seq: 2, slot: 'summary', delta: '已生成的部分内容' })
+          event('status', { id: 'e1', status: 'generating', stage: 'generating' }) +
+            event('content.delta', { id: 'e2', seq: 2, slot: 'main', delta: '已生成的部分内容' })
         )
       )
     const client = new InsightClient({ fetch: fetchMock })
