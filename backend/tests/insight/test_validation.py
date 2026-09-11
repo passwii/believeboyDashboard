@@ -72,9 +72,12 @@ def test_role_errors():
     with pytest.raises(InsightValidationError) as exc:
         validate_run_request(make_request(role_version=99), allow_all)
     assert _code(exc) == InsightErrorCode.ROLE_VERSION_UNSUPPORTED
+    # BLF-1016：ad_analysis 已可运行；用它的 role 提交 report.* slot 必须报
+    # UNKNOWN_SLOT（slot 名归 role 所有，不给跨 role 复用留口子）。
     with pytest.raises(InsightValidationError) as exc:
         validate_run_request(make_request(role_id="ad_analysis"), allow_all)
-    assert _code(exc) == InsightErrorCode.ROLE_NOT_AVAILABLE
+    assert _code(exc) == InsightErrorCode.UNKNOWN_SLOT
+    assert exc.value.error.slot == "report.context"
 
 
 def test_slot_name_requiredness_and_extra():

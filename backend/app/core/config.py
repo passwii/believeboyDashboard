@@ -94,6 +94,10 @@ class Settings(BaseSettings):
     insight_endpoint_ids: str = Field(default="default", max_length=500)
     insight_default_model: str = Field(default="", max_length=200)
     insight_role_default_models: str = Field(default="", max_length=2000)
+    # BLF-1016 可逆开关：逗号分隔的域 role 白名单（ad_analysis,
+    # inventory_health）。为空 = 旧链路唯一写端；列入的域改为 canonical
+    # Insight 写入，并冻结旧 AIInsight 写端点（不双写）。回滚只需清空。
+    insight_canonical_domains: str = Field(default="", max_length=200)
     ai_chat_provider_base_url: str = Field(default="", max_length=500)
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)

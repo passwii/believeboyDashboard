@@ -12,6 +12,7 @@ from app.db.session import SessionLocal
 from app.services.infra.cache_decorator import mark_committed
 from app.models import AIInsight, InsightSchedule, InsightStatus, InsightType, Project
 from app.services.ai_insight_runtime_service import run_insight_generation
+from app.services.insight.domain_switch import legacy_write_frozen
 from app.services.insight_concurrency import acquire_remote_semaphore
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,22 @@ def generate_insight(
         if insight_id is None:
             if schedule is None:
                 raise ValueError("schedule is required when insight_id is omitted")
+
+            # 已切 canonical 的域不再自动建旧 AIInsight 行（BLF-1016）。此处是
+            # 调度链的最后一个旧写点；显式 insight_id 的在途行不拦。
+            frozen_role = legacy_write_frozen(settings, schedule.insight_type)
+            if frozen_role:
+                logger.info(
+                    "generate_insight: domain '%s' migrated to canonical Insight; "
+                    "skipping legacy row creation for schedule %s",
+                    frozen_role,
+                    schedule.id,
+                )
+                return {
+                    "status": "domain_migrated",
+                    "domain": frozen_role,
+                    "schedule_id": schedule_id,
+                }
 
             project = db.get(Project, schedule.project_id)
             if project is None:

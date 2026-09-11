@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import InsightSchedule, Project, AIInsight, InsightStatus, InsightType
 from app.celery_tasks.insights.generate import generate_insight
+from app.services.insight.domain_switch import domain_switch_error, legacy_write_frozen
 from app.services.insight_concurrency import acquire_remote_semaphore
 
 if TYPE_CHECKING:
@@ -386,6 +388,12 @@ def run_schedule_now(
     schedule = db.get(InsightSchedule, schedule_id)
     if not schedule:
         return {"error": "Schedule not found", "id": schedule_id}
+
+    # 已切 canonical 的域不再新建旧 AIInsight 行（否则与 canonical run 双写）。
+    # 抛 typed 409 而非 dict error：与 POST /ai-insights/generate 同一冻结语义。
+    frozen_role = legacy_write_frozen(get_settings(), schedule.insight_type)
+    if frozen_role:
+        raise domain_switch_error(frozen_role, enabled=True)
 
     project = db.get(Project, schedule.project_id)
     if not project:

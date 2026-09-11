@@ -149,24 +149,30 @@
   },
   "roles": [
     {
-      "availability": "reserved",
+      "availability": "active",
       "canonical_key": "ad_analysis.v1",
       "default_model_policy": "ad_analysis.default",
       "optional_slots": [],
       "output_format": "markdown",
       "output_slot": "main",
-      "required_slots": [],
+      "required_slots": [
+        "ad.context",
+        "ad.data"
+      ],
       "role_id": "ad_analysis",
       "role_version": 1
     },
     {
-      "availability": "reserved",
+      "availability": "active",
       "canonical_key": "inventory_health.v1",
       "default_model_policy": "inventory_health.default",
       "optional_slots": [],
       "output_format": "markdown",
       "output_slot": "main",
-      "required_slots": [],
+      "required_slots": [
+        "inventory.context",
+        "inventory.data"
+      ],
       "role_id": "inventory_health",
       "role_version": 1
     },
@@ -190,6 +196,195 @@
   ],
   "schema_version": 1,
   "schemas": {
+    "AdContextSlot": {
+      "$defs": {
+        "DataFreshness": {
+          "additionalProperties": false,
+          "description": "数据新鲜度：域层量化的可审计输入（不在 slot 层做业务判断）。\n\n``age_days`` 是数据锚点距当日的天数；``as_of`` 是数据锚点日期。\n``missing`` 表示域层确认该域无可用数据；``unknown`` 表示无法判定。",
+          "properties": {
+            "age_days": {
+              "anyOf": [
+                {
+                  "maximum": 3650,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Age Days"
+            },
+            "as_of": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "As Of"
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source"
+            },
+            "status": {
+              "enum": [
+                "fresh",
+                "stale",
+                "missing",
+                "unknown"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "title": "DataFreshness",
+          "type": "object"
+        },
+        "MissingData": {
+          "additionalProperties": false,
+          "description": "缺数状态：是否完整 + 缺失维度（受控短 ID 列表，上限 20）。",
+          "properties": {
+            "is_complete": {
+              "title": "Is Complete",
+              "type": "boolean"
+            },
+            "missing_dimensions": {
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                "type": "string"
+              },
+              "maxItems": 20,
+              "title": "Missing Dimensions",
+              "type": "array"
+            }
+          },
+          "required": [
+            "is_complete"
+          ],
+          "title": "MissingData",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "`ad.context`：广告分析范围与口径（须与请求 scope 一致，由 validator 校验）。\n\n数据新鲜度与缺数是域层量化的可审计输入：分析窗口的锚点日期、\n聚合覆盖率判定出的缺失维度。客户端不提交数据本体。",
+      "properties": {
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "data_freshness": {
+          "$ref": "#/$defs/DataFreshness"
+        },
+        "date_range_end": {
+          "format": "date",
+          "title": "Date Range End",
+          "type": "string"
+        },
+        "date_range_start": {
+          "format": "date",
+          "title": "Date Range Start",
+          "type": "string"
+        },
+        "missing_data": {
+          "$ref": "#/$defs/MissingData"
+        },
+        "project_ids": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Project Ids",
+          "type": "array"
+        },
+        "project_name": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Name"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "date_range_start",
+        "date_range_end",
+        "project_ids",
+        "country",
+        "data_freshness",
+        "missing_data"
+      ],
+      "title": "AdContextSlot",
+      "type": "object"
+    },
+    "AdDataSlot": {
+      "additionalProperties": false,
+      "description": "`ad.data`：广告分析聚合产物（销售/广告日序列、活动、10 类广告报表）。",
+      "properties": {
+        "encoding": {
+          "const": "json",
+          "default": "json",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "payload"
+      ],
+      "title": "AdDataSlot",
+      "type": "object"
+    },
     "ContentDeltaEvent": {
       "additionalProperties": false,
       "properties": {
@@ -2416,6 +2611,189 @@
       "title": "InsightRunResponse",
       "type": "object"
     },
+    "InventoryContextSlot": {
+      "$defs": {
+        "DataFreshness": {
+          "additionalProperties": false,
+          "description": "数据新鲜度：域层量化的可审计输入（不在 slot 层做业务判断）。\n\n``age_days`` 是数据锚点距当日的天数；``as_of`` 是数据锚点日期。\n``missing`` 表示域层确认该域无可用数据；``unknown`` 表示无法判定。",
+          "properties": {
+            "age_days": {
+              "anyOf": [
+                {
+                  "maximum": 3650,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Age Days"
+            },
+            "as_of": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "As Of"
+            },
+            "source": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source"
+            },
+            "status": {
+              "enum": [
+                "fresh",
+                "stale",
+                "missing",
+                "unknown"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "title": "DataFreshness",
+          "type": "object"
+        },
+        "MissingData": {
+          "additionalProperties": false,
+          "description": "缺数状态：是否完整 + 缺失维度（受控短 ID 列表，上限 20）。",
+          "properties": {
+            "is_complete": {
+              "title": "Is Complete",
+              "type": "boolean"
+            },
+            "missing_dimensions": {
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                "type": "string"
+              },
+              "maxItems": 20,
+              "title": "Missing Dimensions",
+              "type": "array"
+            }
+          },
+          "required": [
+            "is_complete"
+          ],
+          "title": "MissingData",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "`inventory.context`：库存健康分析范围与口径（须与请求 scope 一致）。\n\n``report_date`` 是分析锚定日；``data_freshness`` 反映库存快照实际\n使用日期的年龄；``missing_data`` 记录快照/SKU 目录缺失维度。",
+      "properties": {
+        "country": {
+          "enum": [
+            "US",
+            "DE",
+            "UK"
+          ],
+          "title": "Country",
+          "type": "string"
+        },
+        "data_freshness": {
+          "$ref": "#/$defs/DataFreshness"
+        },
+        "missing_data": {
+          "$ref": "#/$defs/MissingData"
+        },
+        "project_ids": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Project Ids",
+          "type": "array"
+        },
+        "project_name": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Name"
+        },
+        "report_date": {
+          "format": "date",
+          "title": "Report Date",
+          "type": "string"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "report_date",
+        "project_ids",
+        "country",
+        "data_freshness",
+        "missing_data"
+      ],
+      "title": "InventoryContextSlot",
+      "type": "object"
+    },
+    "InventoryDataSlot": {
+      "additionalProperties": false,
+      "description": "`inventory.data`：补货分析行 + 汇总（含截断标记与筛选口径）。",
+      "properties": {
+        "encoding": {
+          "const": "json",
+          "default": "json",
+          "title": "Encoding",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "slot_version": {
+          "const": 1,
+          "title": "Slot Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_version",
+        "payload"
+      ],
+      "title": "InventoryDataSlot",
+      "type": "object"
+    },
     "PingEvent": {
       "additionalProperties": false,
       "properties": {
@@ -2603,7 +2981,7 @@
     },
     "ReportDataSlot": {
       "additionalProperties": false,
-      "description": "`report.data`：版本化 JSON envelope；payload 只接受真实对象，不接受 repr/二进制/字符串化 JSON。",
+      "description": "`report.data`：数据构建产物原样入 slot（真实 JSON 对象，非字符串化）。",
       "properties": {
         "encoding": {
           "const": "json",

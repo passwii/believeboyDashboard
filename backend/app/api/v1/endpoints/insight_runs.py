@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -38,9 +37,15 @@ from app.api.deps import (
     get_request_operator,
     protected,
 )
+from app.api.v1.endpoints.insight_common import (
+    json_object_body,
+    run_urls,
+    scope_authorizer_for,
+    submission_error,
+    to_run_response,
+    typed_error,
+)
 from app.schemas.insight import (
-    ERROR_HTTP_STATUS,
-    InsightError,
     InsightErrorCode,
     InsightRunActionResponse,
     InsightRunDetail,
@@ -56,7 +61,6 @@ from app.services.insight.executor import (
     RoleLookupError,
     RunNotFound,
     StaleRunWrite,
-    map_provider_error,
     start_run,
 )
 from app.services.insight.lifecycle import LifecycleError
@@ -74,46 +78,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/insight/runs", tags=["insight"], dependencies=[Depends(protected)]
 )
-
-
-def _run_urls(run_id: UUID | str) -> dict[str, str]:
-    """Relative product URLs only — no host, no scheme, no key material."""
-    rid = str(run_id)
-    return {
-        "detail_url": f"/api/v1/insight/runs/{rid}",
-        "stream_url": f"/api/v1/insight/runs/{rid}/stream",
-        "cancel_url": f"/api/v1/insight/runs/{rid}/cancel",
-        "retry_url": f"/api/v1/insight/runs/{rid}/retry",
-    }
-
-
-def _as_utc(value: datetime | None) -> datetime:
-    """DB naive UTC → aware UTC (same convention as ``runs.to_detail``)."""
-    if value is None:
-        return datetime.now(timezone.utc)
-    if value.tzinfo is not None:
-        return value.astimezone(timezone.utc)
-    return value.replace(tzinfo=timezone.utc)
-
-
-def _to_run_response(run: Any, *, replayed: bool = False) -> InsightRunResponse:
-    from app.schemas.insight import InsightStatus
-
-    return InsightRunResponse(
-        schema_version=1,
-        run_id=UUID(run.run_id),
-        attempt=run.attempt,
-        role_id=run.role_id,
-        role_version=run.role_version,
-        project_id=run.project_id,
-        country=run.country,  # type: ignore[arg-type]
-        status=InsightStatus(run.status),  # type: ignore[arg-type]
-        output_format="markdown",
-        **_run_urls(run.run_id),
-        replayed=replayed,
-        created_at=_as_utc(run.created_at),
-        updated_at=_as_utc(run.updated_at),
-    )
 
 
 def _ensure_run_access(db: Session, run: Any, operator: str | None, is_admin: bool) -> None:
@@ -134,64 +98,8 @@ def _load_run_or_404(db: Session, run_id: UUID) -> Any:
 
 
 async def _json_body(request: Request) -> dict[str, Any]:
-    """Parse the request body once; JSON errors map to INVALID_REQUEST."""
-    try:
-        raw = await request.json()
-    except Exception:  # noqa: BLE001 — json() raises assorted parser errors
-        raise _typed_error(
-            make_error(InsightErrorCode.INVALID_REQUEST, "Request body must be JSON")
-        ) from None
-    if not isinstance(raw, dict):
-        raise _typed_error(
-            make_error(
-                InsightErrorCode.INVALID_REQUEST,
-                "Request body must be a JSON object",
-            )
-        )
-    return raw
-
-
-def _typed_error(error: InsightError) -> HTTPException:
-    """Typed Insight error → HTTPException with the contract's fixed status."""
-    return HTTPException(
-        status_code=ERROR_HTTP_STATUS.get(
-            error.code, status.HTTP_500_INTERNAL_SERVER_ERROR
-        ),
-        detail={
-            "code": error.code.value,
-            "message": error.message,
-            "retryable": bool(error.retryable),
-        },
-    )
-
-
-def _scope_authorizer(db: Session, *, operator: str | None, is_admin: bool) -> Any:
-    """Wrap ``project_service`` into the validator's ScopeAuthorizer callable.
-
-    Project missing → PROJECT_NOT_FOUND; no access → PROJECT_OUT_OF_SCOPE;
-    country mismatch → COUNTRY_MISMATCH. ``ensure_project_access`` raising
-    HTTPException is translated into the ScopeError the validator expects.
-    """
-    def authorizer(project_id: int, country: str) -> None:
-        try:
-            row = project_service.ensure_project_access(
-                db, project_id, operator=operator, is_admin=is_admin
-            )
-        except HTTPException as exc:
-            if exc.status_code == 404:
-                raise ScopeError(
-                    InsightErrorCode.PROJECT_NOT_FOUND, "Project not found"
-                ) from None
-            raise ScopeError(
-                InsightErrorCode.PROJECT_OUT_OF_SCOPE, "Project out of scope"
-            ) from None
-        if row.country != country:
-            raise ScopeError(
-                InsightErrorCode.COUNTRY_MISMATCH,
-                f"Project country is {row.country}, requested {country}",
-            )
-
-    return authorizer
+    """Request body as a JSON object (shared helper: one error shape)."""
+    return await json_object_body(request)
 
 
 @router.post("", response_model=InsightRunResponse, status_code=status.HTTP_201_CREATED)
@@ -204,7 +112,7 @@ async def create_insight_run(
     """Create (or replay) a durable Insight run and enqueue the Celery task."""
 
     raw = await _json_body(request)
-    authorizer = _scope_authorizer(db, operator=operator, is_admin=is_admin)
+    authorizer = scope_authorizer_for(db, operator=operator, is_admin=is_admin)
     try:
         from app.celery_tasks.insights.run import enqueue_insight_run
 
@@ -214,23 +122,17 @@ async def create_insight_run(
             scope_authorizer=authorizer,
             enqueue=enqueue_insight_run,
         )
-    except InsightValidationError as exc:
-        raise _typed_error(exc.error) from None
-    except RoleLookupError as exc:
-        raise _typed_error(make_error(exc.code, str(exc))) from None
-    except ScopeError as exc:
-        raise _typed_error(make_error(exc.code, "Request scope rejected")) from None
-    except InsightProviderError as exc:
-        raise _typed_error(map_provider_error(exc)) from None
-    except IdempotencyConflict:
-        raise _typed_error(
-            make_error(
-                InsightErrorCode.IDEMPOTENCY_KEY_CONFLICT,
-                "Idempotency key already used with a different payload",
-            )
-        ) from None
+    except (
+        InsightValidationError,
+        RoleLookupError,
+        ScopeError,
+        InsightProviderError,
+        IdempotencyConflict,
+    ) as exc:
+        # 分类逻辑收口在 insight_common.submission_error —— 域端点共用同一码表
+        raise submission_error(exc) from None
 
-    return _to_run_response(run, replayed=replayed)
+    return to_run_response(run, replayed=replayed)
 
 
 @router.get("/{run_id}", response_model=InsightRunDetail)
@@ -277,7 +179,7 @@ async def stream_insight_run(
             parsed = parse_event_id(last_event_id)
             check_future_cursor(parsed, detail.attempt)
         except CursorError as exc:
-            raise _typed_error(
+            raise typed_error(
                 make_error(
                     InsightErrorCode.RESUME_CURSOR_INVALID,
                     f"Last-Event-ID '{last_event_id}' is not a valid cursor ({exc})",
@@ -290,7 +192,7 @@ async def stream_insight_run(
         redis = await stream_bus.make_async_stream_client()
     except Exception as exc:  # noqa: BLE001 — redis-py raises assorted
         logger.warning("Insight stream transport unavailable: %s", exc)
-        raise _typed_error(
+        raise typed_error(
             make_error(
                 InsightErrorCode.PROVIDER_UNAVAILABLE,
                 "Insight stream transport is unavailable; retry shortly",
@@ -360,7 +262,7 @@ def cancel_insight_run(
         db.commit()
     except StaleRunWrite:
         db.rollback()
-        raise _typed_error(
+        raise typed_error(
             make_error(
                 InsightErrorCode.INVALID_STATE_TRANSITION,
                 "Run moved concurrently; retry the cancel",
@@ -379,8 +281,8 @@ def cancel_insight_run(
         run_id=UUID(run.run_id),
         attempt=run.attempt,
         status=run.status,  # type: ignore[arg-type]
-        detail_url=_run_urls(run.run_id)["detail_url"],
-        stream_url=_run_urls(run.run_id)["stream_url"],
+        detail_url=run_urls(run.run_id)["detail_url"],
+        stream_url=run_urls(run.run_id)["stream_url"],
         replayed=already_terminal,
     )
 
@@ -400,10 +302,10 @@ def retry_insight_run(
         db.commit()
     except LifecycleError as exc:
         db.rollback()
-        raise _typed_error(make_error(exc.code, str(exc))) from None
+        raise typed_error(make_error(exc.code, str(exc))) from None
     except StaleRunWrite:
         db.rollback()
-        raise _typed_error(
+        raise typed_error(
             make_error(
                 InsightErrorCode.INVALID_STATE_TRANSITION,
                 "Run moved concurrently; retry later",
@@ -426,8 +328,8 @@ def retry_insight_run(
         run_id=UUID(run.run_id),
         attempt=run.attempt,
         status=run.status,  # type: ignore[arg-type]
-        detail_url=_run_urls(run.run_id)["detail_url"],
-        stream_url=_run_urls(run.run_id)["stream_url"],
+        detail_url=run_urls(run.run_id)["detail_url"],
+        stream_url=run_urls(run.run_id)["stream_url"],
     )
 
 

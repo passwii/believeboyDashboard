@@ -280,20 +280,26 @@ def validate_run_request(
 
 
 def _check_scope_consistency(request: InsightRunRequest) -> None:
-    """slot 内 report.context 须与请求 project/country 一致，否则 SCOPE_MISMATCH。"""
-    context = request.slots.get("report.context")
-    if not isinstance(context, dict):
-        return
-    if context.get("country") is not None and context.get("country") != request.country:
-        raise _fail(
-            InsightErrorCode.SCOPE_MISMATCH,
-            "report.context.country does not match request country",
-            slot="report.context",
-        )
-    project_ids = context.get("project_ids")
-    if isinstance(project_ids, list) and request.project_id not in project_ids:
-        raise _fail(
-            InsightErrorCode.SCOPE_MISMATCH,
-            "report.context.project_ids does not contain request project_id",
-            slot="report.context",
-        )
+    """任一 ``*.context`` slot 的 country/project_ids 须与请求 scope 一致。
+
+    BLF-1016 泛化：Stage 1 只检查 ``report.context``，现按命名空间后缀
+    覆盖 ``ad.context`` / ``inventory.context``——同一 role 的 scope 声明
+    与 run 的 (project_id, country) 不允许出现两个事实来源。没有
+    country/project_ids 的 context（如 ``project.context``）自然跳过。
+    """
+    for name, context in sorted(request.slots.items()):
+        if not name.endswith(".context") or not isinstance(context, dict):
+            continue
+        if context.get("country") is not None and context.get("country") != request.country:
+            raise _fail(
+                InsightErrorCode.SCOPE_MISMATCH,
+                f"{name}.country does not match request country",
+                slot=name,
+            )
+        project_ids = context.get("project_ids")
+        if isinstance(project_ids, list) and request.project_id not in project_ids:
+            raise _fail(
+                InsightErrorCode.SCOPE_MISMATCH,
+                f"{name}.project_ids does not contain request project_id",
+                slot=name,
+            )

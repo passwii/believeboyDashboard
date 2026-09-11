@@ -1523,13 +1523,14 @@ def list_inventory_replenishment_analysis(
     return paged[:page_size], summary, total, has_next
 
 
-def _compute_snapshot_age_days(
+def latest_inventory_snapshot_date(
     db: Session, project_id: int, country: str, today: date
-) -> int:
-    """BLF-502 S4：库存快照实际使用日期的年龄（天）。
+) -> date | None:
+    """BLF-1016：最近一份库存快照的 report_date（无快照返回 None）。
 
-    取 ``report_type='inventory_report'`` 且 report_date ≤ today 的最近一份；
-    无快照时返回 0（与缺失一致）。
+    ``_compute_snapshot_age_days`` 把「无快照」和「快照就是今天」都折成 0，
+    canonical 库存 role 需要区分二者（缺数不能当成新鲜），故把查询本身
+    暴露成公开函数，两边共用同一条谓词。
     """
     row = db.execute(
         select(func.max(AnalysisSourceFile.report_date)).where(
@@ -1540,7 +1541,20 @@ def _compute_snapshot_age_days(
             AnalysisSourceFile.report_date <= today,
         )
     ).first()
-    snapshot_report_date = row[0] if row else None
+    return row[0] if row else None
+
+
+def _compute_snapshot_age_days(
+    db: Session, project_id: int, country: str, today: date
+) -> int:
+    """BLF-502 S4：库存快照实际使用日期的年龄（天）。
+
+    取 ``report_type='inventory_report'`` 且 report_date ≤ today 的最近一份；
+    无快照时返回 0（与缺失一致）。
+    """
+    snapshot_report_date = latest_inventory_snapshot_date(
+        db, project_id, country, today
+    )
     if snapshot_report_date is None:
         return 0
     return max(0, (today - snapshot_report_date).days)

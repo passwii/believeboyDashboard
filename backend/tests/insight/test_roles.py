@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from app.schemas.insight import InsightErrorCode
@@ -40,13 +42,33 @@ def test_unknown_role_version():
     assert exc.value.code == InsightErrorCode.ROLE_VERSION_UNSUPPORTED
 
 
-def test_reserved_roles_not_runnable_but_distinct_code():
-    for role_id in ("ad_analysis", "inventory_health"):
+def test_migrated_domain_roles_are_runnable():
+    """BLF-1016：两个域 role 已从 reserved 提升为可运行。"""
+    expected_slots = {
+        "ad_analysis": ("ad.context", "ad.data"),
+        "inventory_health": ("inventory.context", "inventory.data"),
+    }
+    for role_id, required_slots in expected_slots.items():
         role = lookup_role(role_id, 1)
-        assert role.availability == RoleAvailability.RESERVED
-        with pytest.raises(RoleLookupError) as exc:
-            require_active(role)
-        assert exc.value.code == InsightErrorCode.ROLE_NOT_AVAILABLE
+        assert role.availability == RoleAvailability.ACTIVE
+        assert require_active(role) is role
+        assert role.canonical_key == f"{role_id}.v1"
+        assert role.required_slots == required_slots
+
+
+def test_reserved_role_keeps_distinct_error_code():
+    """预留 role 与未知 role 报不同码（registry 无 reserved 项时仍须成立）。"""
+    reserved = replace(
+        lookup_role("schedule_report_summary", 1),
+        role_id="future_role",
+        availability=RoleAvailability.RESERVED,
+    )
+    with pytest.raises(RoleLookupError) as exc:
+        require_active(reserved)
+    assert exc.value.code == InsightErrorCode.ROLE_NOT_AVAILABLE
+    with pytest.raises(RoleLookupError) as exc:
+        lookup_role("future_role", 1)
+    assert exc.value.code == InsightErrorCode.UNKNOWN_ROLE
 
 
 def test_unknown_slot():

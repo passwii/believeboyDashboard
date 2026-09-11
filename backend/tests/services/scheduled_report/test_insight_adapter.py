@@ -467,6 +467,8 @@ class TestRoleRuntimeDispatch:
 
     def test_unknown_role_gets_stage2_defaults(self):
         """未注册角色保持确定性行为（canonical prompt、无指令、strip）。"""
+        from dataclasses import replace
+
         from app.services.insight.executor import (
             _identity_cleaner,
             _no_instructions,
@@ -475,7 +477,8 @@ class TestRoleRuntimeDispatch:
         )
         from app.services.insight.roles import lookup_role
 
-        role = lookup_role("ad_analysis", 1)
+        # BLF-1016 后 ad_analysis 已是真实 role；用仍未注册的 role_id 验证兜底。
+        role = replace(lookup_role("ad_analysis", 1), role_id="future_domain")
         builder, instructions, cleaner = role_runtime_for(role)
         assert builder is default_prompt_builder
         assert instructions is _no_instructions
