@@ -125,86 +125,53 @@ def test_unknown_frequency_defaults_to_30_when_no_env(
 
 
 # ---------------------------------------------------------------------------
-# _generate_summary — timeout / fallback integration
+# BLF-1014：旧 `_generate_summary`（builder 内联 LLM + 线程超时）已摘除，
+# 超时兜底语义现在落在两处：
+# 1. Insight run 的 Celery 层（execute_insight_run 的 soft/hard limit）；
+# 2. dispatch 期 AI 禁用/超时的纯文本 fallback（_generate_fallback_summary）。
+# 以下用例锁定 builder 不再有 LLM 路径，及 fallback 文本函数仍可用。
 # ---------------------------------------------------------------------------
 
 
-def test_generate_summary_returns_fallback_when_timeout_is_zero(
+def test_report_builder_daily_has_no_llm_summary_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If env says timeout=0, _generate_summary should short-circuit to fallback text
-    without invoking the AI module at all. This is the BEL-58 'disable AI' opt-in.
-    """
+    """builder 模块不再有 _generate_summary，数据构建期无 LLM 调用。"""
     from app.services.scheduled_report import report_builder_daily
 
-    # Force the helper to return 0.
-    monkeypatch.setattr(report_builder_daily, "get_ai_timeout_sec", lambda freq: 0.0)
+    assert not hasattr(report_builder_daily, "_generate_summary")
+    assert not hasattr(report_builder_daily, "get_ai_timeout_sec")
 
-    # If AI is invoked, the import inside _call_ai will explode. Patch it to
-    # prove it is NOT called.
-    def _explode(*args, **kwargs):
-        raise AssertionError("AI module should not be invoked when timeout=0")
+    def _explode(*args, **kwargs):  # pragma: no cover - 断言守卫
+        raise AssertionError("AI module must not be invoked during data build")
 
     monkeypatch.setattr(
         "app.services.scheduled_report.ai_enhancer_daily.generate_ai_summary",
         _explode,
     )
-
-    fallback = report_builder_daily._generate_fallback_summary(
+    # build_report_email_data 的签名保留 generate_ai_summary 兼容参数，
+    # 置 True 不再触发 LLM——仅推进阶段标记（stage_callback 传入 None）。
+    summary = report_builder_daily._generate_fallback_summary(
         "daily", {"sales": {}, "week_sales": {}, "inventory": {}}
     )
-    with patch.object(report_builder_daily, "_generate_fallback_summary", return_value=fallback) as mock_fb:
-        result = report_builder_daily._generate_summary("daily", {})
-    assert result == fallback
-    assert mock_fb.call_count == 1
+    assert "销量" in summary
 
 
-def test_generate_summary_catches_futures_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When the AI future times out, _generate_summary should catch
-    FuturesTimeout and return the fallback text (not raise).
-    """
-    from app.services.scheduled_report import report_builder_daily
-
-    # Force a small positive timeout so we enter the executor path.
-    monkeypatch.setattr(report_builder_daily, "get_ai_timeout_sec", lambda freq: 0.05)
-
-    def _slow_ai(*args, **kwargs):
-        import time
-
-        time.sleep(2.0)  # Far longer than the 0.05s timeout.
-        return "should not reach here"
-
-    monkeypatch.setattr(
-        "app.services.scheduled_report.ai_enhancer_daily.generate_ai_summary",
-        _slow_ai,
+def test_fallback_summary_text_shape_matches_legacy() -> None:
+    """纯文本 fallback 的口径不变：销量/近7天累计/库存。"""
+    from app.services.scheduled_report.report_builder_daily import (
+        _generate_fallback_summary,
     )
 
-    fallback = report_builder_daily._generate_fallback_summary(
-        "daily", {"sales": {}, "week_sales": {}, "inventory": {}}
+    summary = _generate_fallback_summary(
+        "daily",
+        {
+            "sales": {"yesterday_qty": 8, "yesterday_amount": 208.11},
+            "week_sales": {"week_qty": 39, "week_amount": 1005.34},
+            "inventory": {"total_available": 693, "in_transit": 0},
+            "country": "DE",
+        },
     )
-    with patch.object(report_builder_daily, "_generate_fallback_summary", return_value=fallback) as mock_fb:
-        result = report_builder_daily._generate_summary("daily", {})
-    assert result == fallback
-    assert mock_fb.call_count == 1
-
-
-def test_generate_summary_returns_ai_text_on_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Happy path: AI returns within timeout → its text is used, fallback is not."""
-    from app.services.scheduled_report import report_builder_daily
-
-    monkeypatch.setattr(report_builder_daily, "get_ai_timeout_sec", lambda freq: 5.0)
-
-    def _fast_ai(frequency, overview, model=None):
-        return "AI 摘要：昨日销量表现良好。"
-
-    monkeypatch.setattr(
-        "app.services.scheduled_report.ai_enhancer_daily.generate_ai_summary",
-        _fast_ai,
-    )
-
-    result = report_builder_daily._generate_summary("daily", {})
-    assert result == "AI 摘要：昨日销量表现良好。"
+    assert "销量8单/€208.11" in summary
+    assert "近7天累计39单/€1,005.34" in summary
+    assert "库存693件" in summary

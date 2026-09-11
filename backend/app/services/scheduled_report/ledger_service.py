@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
-import threading
+from typing import Any
 
 from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session
@@ -206,6 +206,7 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
     ai_summary_status = AiSummaryStatus.PENDING.value
     ai_summary_error = None
     ai_summary_model = None
+    ai_summary_run_id = None
     ai_summary_updated_at = None
     effective_status = entry.status
     if entry.latest_delivery_log_id:
@@ -217,6 +218,7 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
             ai_summary_status = log.ai_summary_status
             ai_summary_error = log.ai_summary_error
             ai_summary_model = log.ai_summary_model
+            ai_summary_run_id = log.ai_summary_run_id
             ai_summary_updated_at = log.ai_summary_updated_at
             # 自愈逻辑：当 delivery_log 状态与 ledger entry 状态不一致时，
             # 以 delivery_log 为准（delivery_log 是实际执行结果的权威来源）
@@ -251,6 +253,7 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
         ai_summary_status=ai_summary_status,
         ai_summary_error=ai_summary_error,
         ai_summary_model=ai_summary_model,
+        ai_summary_run_id=ai_summary_run_id,
         ai_summary_updated_at=ai_summary_updated_at,
     )
 
@@ -300,107 +303,60 @@ def _summary_for(db: Session, query: Select[tuple[ScheduledReportLedgerEntry]]) 
     )
 
 
-def _build_ai_summary_payload(
-    subscription: ScheduledReportSubscription,
-    *,
-    expected_date: str,
-    frequency: str,
-    ai_model: str | None,
-) -> dict:
-    from app.services.scheduled_report.dispatcher import _build_multi_country_report, _build_report_with_throttle
-
-    ref_date = _summary_reference_date(expected_date, frequency)
-    project_ids = subscription.project_id_list or None
-    countries = subscription.country_list
-    if len(countries) > 1:
-        return _build_multi_country_report(
-            project_ids,
-            countries,
-            frequency,
-            ai_model=ai_model,
-            reference_date=ref_date,
-            use_cache=False,
-            generate_ai_summary=True,
-        )
-
-    country = countries[0] if countries else "US"
-    return _build_report_with_throttle(
-        project_ids,
-        country,
-        frequency,
-        ai_model=ai_model,
-        reference_date=ref_date,
-        use_cache=False,
-        generate_ai_summary=True,
-    )
-
-
 def generate_ai_summary_for_delivery_log(
     *,
     log_id: int,
     ledger_key: str | None = None,
     override_ai_model: str | None = None,
-) -> None:
-    """Generate AI summary in the background and write it back to delivery_log."""
+) -> dict[str, Any]:
+    """为 delivery_log 提交 schedule summary Insight run（BLF-1014）。
+
+    旧实现在本函数里同步调 LLM；现在它是 Insight adapter 的薄包装：
+    worker 侧由 Celery ``generate_delivery_summary`` 调用，提交 run 后
+    立即返回，LLM 在 Insight 执行器里进行。幂等键 ``delivery:{log_id}``
+    保证同一 delivery 只扣一次费。
+    """
     from app.db.session import SessionLocal
-    from app.services.scheduled_report.subscription_service import (
-        update_delivery_log_ai_summary,
-        update_delivery_log_ai_summary_status,
+    from app.services.scheduled_report.insight_adapter.submit import (
+        submit_run_for_delivery,
     )
 
     db = SessionLocal()
     try:
-        log = db.get(ScheduledReportDeliveryLog, log_id)
-        if log is None:
-            return
-        subscription = db.get(ScheduledReportSubscription, log.subscription_id)
-        if subscription is None:
-            update_delivery_log_ai_summary_status(
-                db,
-                log_id,
-                AiSummaryStatus.FAILED.value,
-                error_message="订阅不存在或已删除",
-            )
-            return
-
-        entry = None
-        if ledger_key:
-            entry = db.execute(
-                select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
-            ).scalars().first()
-
-        expected_date = entry.expected_date if entry else log.report_date
-        frequency = entry.frequency if entry else log.frequency
-        effective_ai_model = _resolve_effective_ai_model(subscription, override_ai_model)
-
-        update_delivery_log_ai_summary_status(
+        submitted, run_id, message = submit_run_for_delivery(
             db,
-            log_id,
-            AiSummaryStatus.GENERATING.value,
-            ai_model=effective_ai_model,
+            log_id=log_id,
+            ledger_key=ledger_key,
+            override_ai_model=override_ai_model,
+            scope_authorizer=_admin_scope_authorizer(db),
         )
-
-        report_data = _build_ai_summary_payload(
-            subscription,
-            expected_date=expected_date,
-            frequency=frequency,
-            ai_model=effective_ai_model,
-        )
-        ai_summary = (report_data.get("ai_summary") or "").strip()
-        if not ai_summary:
-            raise RuntimeError("AI 摘要为空")
-
-        update_delivery_log_ai_summary(db, log_id, ai_summary, ai_model=effective_ai_model)
-    except Exception as exc:
-        update_delivery_log_ai_summary_status(
-            db,
-            log_id,
-            AiSummaryStatus.FAILED.value,
-            error_message=str(exc),
-            ai_model=override_ai_model.strip() if override_ai_model else None,
-        )
+        return {
+            "status": "submitted" if submitted else "submit_failed",
+            "log_id": log_id,
+            "run_id": run_id,
+            "message": message,
+        }
     finally:
         db.close()
+
+
+def _admin_scope_authorizer(db: Session):
+    """Celery 侧 scope 校验：管理员视角（调度任务代表系统运行）。"""
+
+    def authorizer(project_id: int, country: str) -> None:
+        from app.services.project_service import ensure_project_access
+
+        row = ensure_project_access(db, project_id, operator=None, is_admin=True)
+        if row.country != country:
+            from app.services.insight.validator import ScopeError
+            from app.schemas.insight import InsightErrorCode
+
+            raise ScopeError(
+                InsightErrorCode.COUNTRY_MISMATCH,
+                f"Project country is {row.country}, requested {country}",
+            )
+
+    return authorizer
 
 
 def enqueue_ai_summary_generation(
@@ -410,13 +366,24 @@ def enqueue_ai_summary_generation(
     ledger_key: str | None = None,
     override_ai_model: str | None = None,
 ) -> None:
-    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary_status
+    """把 AI 摘要生成派发到 Celery（原 threading.Thread 路径，BLF-1014 收口）。
+
+    状态先重置为 pending（打断卡死的 generating），再派发
+    ``generate_delivery_summary``；真正提交 Insight run 的是 worker。
+    """
+    from app.services.scheduled_report.subscription_service import (
+        update_delivery_log_ai_summary_status,
+    )
 
     log = db.get(ScheduledReportDeliveryLog, log_id)
     if log is None:
         return
     subscription = db.get(ScheduledReportSubscription, log.subscription_id)
-    effective_ai_model = _resolve_effective_ai_model(subscription, override_ai_model) if subscription else None
+    effective_ai_model = (
+        _resolve_effective_ai_model(subscription, override_ai_model)
+        if subscription
+        else None
+    )
     update_delivery_log_ai_summary_status(
         db,
         log_id,
@@ -424,16 +391,14 @@ def enqueue_ai_summary_generation(
         error_message=None,
         ai_model=effective_ai_model,
     )
-    thread = threading.Thread(
-        target=generate_ai_summary_for_delivery_log,
-        kwargs={
-            "log_id": log_id,
-            "ledger_key": ledger_key,
-            "override_ai_model": override_ai_model,
-        },
-        daemon=True,
+
+    from app.celery_tasks.ai_summary import generate_delivery_summary
+
+    generate_delivery_summary.delay(
+        log_id=log_id,
+        ledger_key=ledger_key,
+        override_ai_model=override_ai_model,
     )
-    thread.start()
 
 
 def regenerate_ledger_ai_summary_async(

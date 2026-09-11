@@ -43,53 +43,36 @@ def _country_data() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# dispatcher._fallback_multi_country_summary — 多国家兜底（折行格式）
+# BLF-1014：dispatcher 不再有 LLM 摘要路径。多国家数据构建不带 AI 副作用，
+# 兜底格式断言改锚 _fallback_multi_country_summary（纯格式化，无 LLM）。
 # ---------------------------------------------------------------------------
 
 
-def test_multi_country_timeout_zero_returns_fallback(
+def test_multi_country_report_build_has_no_llm_summary_side_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AI_SUMMARY_TIMEOUT_SEC_DAILY=0 时多国家路径直接返回 fallback（不调 AI）。
+    """多国家数据构建（generate_ai_summary=True）不再触发任何 LLM 调用。
 
-    用户需求：日报频次默认取消 AI 介入、直接使用 fallback 格式。
+    BLF-1014 后 AI 摘要由 Insight run 生成；数据构建期 LLM 摘要路径
+    （旧 _generate_multi_country_summary）已摘除——builder 无论
+    generate_ai_summary 置真置假都只产数据。
     """
-    from app.services.scheduled_report.dispatcher import _generate_multi_country_summary
-    from app.services.scheduled_report import ai_timeout
+    from app.services.scheduled_report import ai_enhancer_daily
+    from app.services.scheduled_report.dispatcher import _build_multi_country_report
 
-    monkeypatch.setenv("AI_SUMMARY_TIMEOUT_SEC_DAILY", "0")
-    assert ai_timeout.get_ai_timeout_sec("daily") == 0.0
-
-    result = _generate_multi_country_summary("daily", _country_data())
-    lines = result.split("\n")
-    assert lines[0] == "◉ 德国站"
-    assert lines[1] == "销量8单/€208.11，近7天累计39单/€1,005.34，库存693件"
-    for forbidden in ("较前一日", "（近7天", "（库存"):
-        assert forbidden not in result
-
-
-def test_multi_country_timeout_positive_attempts_ai(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """timeout > 0 时仍会尝试调用 AI（不直接 fallback）——锁住开关语义。"""
-    from app.services.scheduled_report.dispatcher import _generate_multi_country_summary
-
-    monkeypatch.setenv("AI_SUMMARY_TIMEOUT_SEC_DAILY", "30")
-
-    # 快速 AI mock：证明 timeout>0 时真的会调用 AI（而不像 0 那样短路到 fallback）
-    calls: list[bool] = []
-
-    def _fast_ai(*args, **kwargs):
-        calls.append(True)
-        return "AI 生成的结果"
+    def _must_not_call(*args, **kwargs):  # pragma: no cover - 断言守卫
+        raise AssertionError("LLM summary must not be called during data build")
 
     monkeypatch.setattr(
-        "app.services.scheduled_report.ai_enhancer_daily.generate_ai_summary",
-        _fast_ai,
+        ai_enhancer_daily, "generate_ai_summary", _must_not_call, raising=True
     )
-    result = _generate_multi_country_summary("daily", _country_data())
-    assert result == "AI 生成的结果"
-    assert calls == [True]
+
+    result = _build_multi_country_report(
+        [1], ["US", "DE"], "daily", generate_ai_summary=True
+    )
+    assert result["ai_summary"] == ""
+    assert set(result["countries"]) == {"US", "DE"}
+    assert result["is_multi_country"] is True
 
 
 def test_fallback_multi_country_summary_line_break_format() -> None:

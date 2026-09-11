@@ -39,7 +39,6 @@ from .ai_enhancer_monthly import (
     detect_monthly_anomalies,
     generate_monthly_action_items,
     generate_monthly_alert_insights,
-    generate_monthly_ai_summary,
     generate_monthly_attribution_analysis,
 )
 
@@ -957,7 +956,10 @@ def build_monthly_report_data(
         "sku_factory_info_text": sku_factory_info_text,
     }
 
-    ai_summary = generate_monthly_ai_summary(report_data_for_ai, timeout=ai_timeout) if generate_ai_summary else ""
+    # BLF-1014：AI 摘要不再由 builder 内联生成（generate_monthly_ai_summary
+    # 及其 LLM 调用已摘除）。report_data_for_ai 即 AI 输入载荷，由 Insight
+    # run 的 schedule_report_summary.v1 role 消费。
+    ai_summary = ""
 
     attribution_summary = generate_monthly_attribution_analysis({
         "attribution": attribution,
@@ -1028,6 +1030,8 @@ def build_monthly_report_data(
 
         # AI 生成内容
         "ai_summary": ai_summary,
+        # BLF-1014：AI 输入载荷原样随行（Insight adapter 消费；非 LLM 输出）
+        "ai_payload": report_data_for_ai,
 
         # 仪表板链接
         "dash_url": "https://dash.believeboy.com/dashboard",
