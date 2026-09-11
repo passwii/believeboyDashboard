@@ -37,7 +37,12 @@ from app.schemas.insight import (
 )
 from app.services.ad.insight_adapter.slots import (
     AD_FRESHNESS_MAX_AGE_DAYS,
+    BREAKDOWN_TOP_MAX_ITEMS,
+    CAMPAIGN_MAX_ITEMS,
+    OUT_OF_STOCK_MAX_ITEMS,
     SERIES_MAX_ITEMS,
+    SKU_CONTEXT_MAX_ITEMS,
+    SKU_MAX_ITEMS,
     ad_context_slot,
     ad_data_slot,
     assess_freshness,
@@ -382,6 +387,69 @@ class TestFreshnessAndCoverage:
         assert context["data_freshness"]["status"] == "fresh"
         assert context["missing_data"]["is_complete"] is True
 
+    def test_future_anchor_is_unknown_with_non_negative_age(self):
+        """未来锚点（报告侧时钟异常）既不能报 fresh，也不能给出负 age_days。
+
+        ``DataFreshness.age_days`` 契约是 ``ge=0``：直接透传负数会让整个
+        ``ad.context`` slot 校验失败（提交端点 500），而 ``max(0, ...)``
+        又会把未来数据伪装成「今天的数据」。
+        """
+        future = TODAY + timedelta(days=1)
+        data = _ad_data(sales_by_date=_series(30, end=future), ad_by_date=[])
+        posture = assess_freshness(data, today=TODAY)
+        assert posture["status"] == "unknown"
+        assert posture["age_days"] == 0
+        assert posture["as_of"] == future.isoformat()
+
+        # 真实落地：未来锚点必须仍然过 canonical 契约，而不是提交失败。
+        slots = _slots(data)
+        assert slots["ad.context"]["data_freshness"]["status"] == "unknown"
+        validate_run_request(_raw_request(slots=slots), _AllowAll())
+
+
+class TestTruncationMarkers:
+    """``truncated_sections`` 必须覆盖每一个被截断的 section（复审[6]）。"""
+
+    def test_every_truncated_section_is_recorded(self):
+        data = _ad_data(
+            sales_by_date=_series(SERIES_MAX_ITEMS + 1),
+            ad_by_date=[],
+            ad_campaigns=[{"campaign_id": f"c{i}"} for i in range(CAMPAIGN_MAX_ITEMS + 1)],
+            top_skus=[{"sku": f"S{i}"} for i in range(SKU_MAX_ITEMS + 1)],
+            ad_breakdown_by_type={
+                "sponsored_products": {
+                    "top": [{"key": f"k{i}"} for i in range(BREAKDOWN_TOP_MAX_ITEMS + 1)],
+                    "has_data": True,
+                }
+            },
+            inventory_summary={
+                "total_available": 1,
+                "out_of_stock_skus": [
+                    {"sku": f"O{i}"} for i in range(OUT_OF_STOCK_MAX_ITEMS + 1)
+                ],
+            },
+            sku_context={
+                "skus": [{"sku": f"C{i}"} for i in range(SKU_CONTEXT_MAX_ITEMS + 1)]
+            },
+        )
+        payload, truncated = trim_ad_payload(data)
+
+        # 嵌套 section 也要具名——只记「ad_breakdown_by_type」说不出是哪张报表。
+        assert set(truncated) == {
+            "sales_by_date",
+            "ad_campaigns",
+            "top_skus",
+            "ad_breakdown_by_type.sponsored_products.top",
+            "inventory_summary.out_of_stock_skus",
+            "sku_context.skus",
+        }
+        assert payload["truncated_sections"] == truncated
+
+    def test_untruncated_payload_has_no_marker(self):
+        payload, truncated = trim_ad_payload(_ad_data())
+        assert truncated == []
+        assert "truncated_sections" not in payload
+
 
 # --------------------------------------------------------------------------
 # 3. 提交 / 幂等 / fallback
@@ -465,6 +533,39 @@ class TestSubmit:
             self._submit(db, [])
         assert exc.value.code == InsightErrorCode.PROJECT_NOT_FOUND
         assert db.query(InsightRun).count() == 0  # 无数据不建半截 run
+
+    def test_unauthorized_scope_is_rejected_before_aggregation(
+        self, db, aggregate, monkeypatch
+    ):
+        """越权必须在读业务数据**之前**被拒（复审[1]）。
+
+        授权原先只在 ``start_run`` → ``validate_run_request`` 里发生，聚合
+        查询已经跑完了——未授权 operator 能借此读走不属于自己的数据。
+        """
+
+        def deny(project_id: int, country: str) -> None:
+            raise ScopeError(InsightErrorCode.PROJECT_OUT_OF_SCOPE, "no access")
+
+        with pytest.raises(ScopeError) as exc:
+            self._submit(db, [], scope_authorizer=deny)
+        assert exc.value.code == InsightErrorCode.PROJECT_OUT_OF_SCOPE
+        assert aggregate == []  # 聚合根本没被调用
+        assert db.query(InsightRun).count() == 0
+
+    def test_authorizer_receives_the_same_country_as_the_slot(self, db, aggregate):
+        """authorizer 的站点与 slot/run 必须同一口径，否则凭空 409。"""
+        seen: list[tuple[int, str]] = []
+
+        def record(project_id: int, country: str) -> None:
+            seen.append((project_id, country))
+
+        run, _ = self._submit(db, [], scope_authorizer=record)
+        # 两次：提交前一次（拒绝要在读数据之前），canonical validator 一次
+        # （defense in depth，防绕过 adapter 的调用方）。两次必须同口径。
+        assert seen == [(PROJECT_ID, "US"), (PROJECT_ID, "US")]
+        slots = json.loads(run.slots_json)
+        assert slots["ad.context"]["country"] == "US"
+        assert run.country == "US"
 
     def test_model_outside_allowlist_reports_model_not_allowed(self, db, aggregate):
         with pytest.raises(InsightProviderError) as exc:

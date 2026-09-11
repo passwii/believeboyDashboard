@@ -130,6 +130,13 @@ def _row(sku: str, sellable_days: Any, **extra: Any) -> dict[str, Any]:
         "replenishment_action": "REPLENISH_NOW",
         "sellout_date": TODAY + timedelta(days=12),
         "risk_anchor_date": TODAY,
+        "signals": {
+            "sellable_days": sellable_days,
+            "dms_30": 1.5,
+            "aging_share": {"0_90": 1.0},
+            "data_freshness_days": 1,
+            "confidence": "high",
+        },
     }
     data.update(extra)
     return data
@@ -341,6 +348,19 @@ class TestSlotContract:
         _stub_inventory(monkeypatch)
         assert build_inventory_slots(db, project_id=PROJECT_ID + 1, country="US") is None
 
+    def test_asks_service_for_globally_most_urgent_rows(self, db, project, monkeypatch):
+        """裁剪前必须拿全量最紧急的行（复审[2]）。
+
+        ``ROW_MAX_ITEMS`` 只截服务端返回的切片，所以排序必须由服务端做
+        （``list_...`` 是先全量算行 → 排序 → 再切片）；否则「最紧急」退化
+        成「自然序里的第一页」，模型读到的头部并不危险。
+        """
+        calls = _stub_inventory(monkeypatch)
+        build_inventory_slots(db, project_id=PROJECT_ID, country="US", today=TODAY)
+        assert calls[0]["order_by"] == "sellable_days"
+        assert calls[0]["order_dir"] == "asc"
+        assert calls[0]["page_size"] == ROW_MAX_ITEMS
+
     def test_missing_snapshot_does_not_block_slot_build(self, db, project, monkeypatch):
         """无快照 = 缺数（进 slot 让模型说明数据不足），不是提交失败。"""
         _stub_inventory(monkeypatch, snapshot_date=None)
@@ -439,6 +459,36 @@ class TestSubmit:
             self._submit(db, [])
         assert exc.value.code == InsightErrorCode.PROJECT_NOT_FOUND
         assert db.query(InsightRun).count() == 0  # 无数据不建半截 run
+
+    def test_unauthorized_scope_is_rejected_before_analysis(
+        self, db, project, monkeypatch
+    ):
+        """越权必须在跑补货分析**之前**被拒（复审[1]）。
+
+        授权原先只在 ``start_run`` → ``validate_run_request`` 里发生，业务
+        查询已经跑完——未授权 operator 能借提交端点读走不属于自己的数据。
+        """
+        calls = _stub_inventory(monkeypatch)
+
+        def deny(project_id: int, country: str) -> None:
+            raise ScopeError(InsightErrorCode.PROJECT_OUT_OF_SCOPE, "no access")
+
+        with pytest.raises(ScopeError) as exc:
+            self._submit(db, [], scope_authorizer=deny)
+        assert exc.value.code == InsightErrorCode.PROJECT_OUT_OF_SCOPE
+        assert calls == []  # 分析根本没被调用
+        assert db.query(InsightRun).count() == 0
+
+    def test_authorizer_receives_normalized_country(self, db, project, monkeypatch):
+        """authorizer 收到归一站点，与 slot/run 同口径（否则凭空 COUNTRY_MISMATCH）。"""
+        _stub_inventory(monkeypatch)
+        seen: list[tuple[int, str]] = []
+
+        run, _ = self._submit(db, [], scope_authorizer=lambda p, c: seen.append((p, c)))
+        # 两次：提交前一次（拒绝要在读数据之前），canonical validator 一次
+        # （defense in depth，防绕过 adapter 的调用方）。两次必须同口径。
+        assert seen == [(PROJECT_ID, "US"), (PROJECT_ID, "US")]
+        assert json.loads(run.slots_json)["inventory.context"]["country"] == "US"
 
     def test_model_outside_allowlist_reports_model_not_allowed(
         self, db, project, monkeypatch

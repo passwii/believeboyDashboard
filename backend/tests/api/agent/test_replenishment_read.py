@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 
 import pytest
 from app.db.session import SessionLocal
 from app.main import app
 from app.models import OperationAuditLog
+from app.services.inventory.replenishment import (
+    list_inventory_replenishment_analysis,
+)
 from conftest import (
     seed_inventory_snapshot,
     seed_replenishment_sku,
@@ -72,6 +76,38 @@ def _seed_three_skus(env) -> None:
 
 
 class TestR1List:
+    def test_service_rows_are_json_native(self, shipment_env):
+        """service 行必须自洽可 JSON 序列化（复审[3]）。
+
+        insight adapter 会把补货行原样塞进 canonical slot，而 ``json_safe``
+        遇非 JSON 原生类型即抛（既定 tripwire）。``signals`` 若是 pydantic
+        模型，库存健康 run 会在提交期直接 TypeError——这正是复审抓到的
+        ``TypeError: value of type InventorySignals is not JSON-native``。
+        HTTP 层的 ``_to_json_safe_rows`` 会掩盖它，所以这里直接问 service。
+        """
+        _seed_three_skus(shipment_env)
+        db = SessionLocal()
+        try:
+            rows, _summary, _total, _has_next = list_inventory_replenishment_analysis(
+                db,
+                project_id=shipment_env["project_id"],
+                country="US",
+                keyword=None,
+                risk_status=None,
+                in_transit_only=False,
+                order_by="sellable_days",
+                order_dir="asc",
+                page=1,
+                page_size=200,
+            )
+        finally:
+            db.close()
+
+        assert rows, "种子数据应产出补货行"
+        x001 = next(r for r in rows if r["sku"] == "X-001")
+        assert isinstance(x001["signals"], dict)
+        json.dumps(rows, ensure_ascii=False)  # 非 JSON 原生 → TypeError
+
     def test_full_list_with_detail_full(self, client, shipment_env):
         _seed_three_skus(shipment_env)
         resp = client.get(

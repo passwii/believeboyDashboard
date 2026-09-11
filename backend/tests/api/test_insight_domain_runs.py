@@ -195,6 +195,31 @@ def test_non_object_body_is_typed(client, enabled):
     assert resp.json()["detail"]["code"] == "INVALID_REQUEST"
 
 
+def test_ad_range_boundary_is_inclusive():
+    """跨度按闭区间计：正好 366 天放行，第 367 天拒绝（复审[5]）。
+
+    原实现用 ``(end - start).days > 366``，把 367 天的请求当合法放行——
+    但 slot 只保留 366 条序列，多出那一天的数据必然被静默裁掉。
+    """
+    from pydantic import ValidationError
+
+    from app.schemas.insight_domains import AdAnalysisRunRequest
+
+    def _request(start: str, end: str) -> AdAnalysisRunRequest:
+        return AdAnalysisRunRequest(
+            project_id=1, country="US", start_date=start, end_date=end
+        )
+
+    full_year = _request("2026-01-01", "2027-01-01")  # 含首尾共 366 天
+    assert (full_year.end_date - full_year.start_date).days + 1 == 366
+
+    one_day_short = _request("2026-01-01", "2026-12-31")  # 365 天
+    assert (one_day_short.end_date - one_day_short.start_date).days + 1 == 365
+
+    with pytest.raises(ValidationError):
+        _request("2026-01-01", "2027-01-02")  # 367 天
+
+
 # --------------------------------------------------------------------------
 # 3. 提交：slots 来自域 adapter，失败走 canonical 码表
 # --------------------------------------------------------------------------

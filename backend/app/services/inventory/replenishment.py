@@ -1439,7 +1439,10 @@ def list_inventory_replenishment_analysis(
                 # v1.2: 三段式（spec §3.2）
                 "inventory_state": inventory_state,
                 "replenishment_action": replenishment_action,
-                "signals": signals_obj,
+                # BLF-1016：行是数据载体，必须 JSON 原生——canonical slot 的
+                # ``json_safe`` 遇非 JSON 类型即抛（宁可提交失败也不写坏行，
+                # 这是它的既定契约）。前端/agent 两条消费路径都只读字段值。
+                "signals": signals_obj.model_dump(mode="json"),
                 # BLF-502 S3: 决策路径解释（G1）——rule 码供 Agent 解释"为什么这么判"
                 "decision_path": {
                     "state_rule": state_rule,
@@ -1571,7 +1574,10 @@ def _sort_rows(rows: list[dict[str, object]], order_by: str, order_dir: str) -> 
 
     def key_fn(row: dict[str, object]) -> tuple[int, object]:
         value = row.get(order_by)
-        return (1 if value is None else 0, value or "")
+        # 不能写成 ``value or ""``：数值 0 会退化成空串，与同列的非零数值
+        # 比较直接 TypeError（sellable_days / available_inventory 为 0 是
+        # 常态——零库存 SKU）。这里只把 None 折进「排后」组。
+        return (1 if value is None else 0, value if value is not None else "")
 
     rows.sort(key=key_fn, reverse=reverse)
 

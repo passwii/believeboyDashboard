@@ -7,6 +7,9 @@
 范围上限与 ``slots.trim_ad_payload`` 的序列裁剪一致（366 天）：不设上限
 时一次请求可以拖入任意跨度的聚合查询，而 slot 只保留一年——口径必须与
 实际进入 prompt 的数据一致。
+
+日期是**闭区间**，故跨度按 ``(end - start).days + 1`` 计：``2026-01-01``
+到 ``2027-01-01`` 是 366 天（正好铺满 slot），再多一天才是越界。
 """
 
 from __future__ import annotations
@@ -41,7 +44,8 @@ class AdAnalysisRunRequest(BaseModel):
             return end_date  # start_date 自身非法：由它自己的错误报告
         if end_date < start_date:
             raise ValueError("end_date must not be earlier than start_date")
-        if (end_date - start_date).days > AD_ANALYSIS_MAX_RANGE_DAYS:
+        # 闭区间：两端都算一天，否则 367 天的请求会被放行（超出 slot 裁剪）。
+        if (end_date - start_date).days + 1 > AD_ANALYSIS_MAX_RANGE_DAYS:
             raise ValueError(
                 f"date range must not exceed {AD_ANALYSIS_MAX_RANGE_DAYS} days"
             )

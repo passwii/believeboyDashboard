@@ -75,10 +75,16 @@ def submit_run_for_ad_analysis(
     ``IdempotencyConflict``），由 HTTP 层用同一码表映射——本模块不定义
     第二套错误语义，也不把 typed error 压成字符串。
     """
+    # 授权必须在读业务表之前：``build_ad_slots`` 会触发聚合查询，未授权
+    # operator 否则能借提交端点读走不属于自己的数据（复审[1]）。归一站点
+    # 与 slot/run 用同一个值，避免 authorizer 的 COUNTRY_MISMATCH 与后续
+    # 聚合口径不一致。canonical validator 的二次校验保留（defense in depth）。
+    normalized_country = country.strip().upper()
+    scope_authorizer(project_id, normalized_country)
     slots = build_ad_slots(
         db,
         project_id=project_id,
-        country=country,
+        country=normalized_country,
         start_date=start_date,
         end_date=end_date,
         today=today,
@@ -98,10 +104,10 @@ def submit_run_for_ad_analysis(
         "role_id": ROLE_ID,
         "role_version": ROLE_VERSION,
         "project_id": project_id,
-        "country": country,
+        "country": normalized_country,
         "slots": slots,
         "idempotency_key": idempotency_key_for(
-            project_id, country, start_date, end_date
+            project_id, normalized_country, start_date, end_date
         ),
     }
     if model_id:

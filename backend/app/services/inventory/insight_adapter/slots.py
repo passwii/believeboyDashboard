@@ -200,6 +200,11 @@ def build_inventory_slots(
         page=1,
         page_size=ROW_MAX_ITEMS,
         report_date=report_date,
+        # 排序必须由**服务端在全量行上**完成：只取前 N 条再本地排序，会把
+        # 最紧急的 SKU 留在后面几页（复审[2]）。白名单与 R1 列表同一套
+        # （``sellable_days``，None 恒排后）；``trim_rows`` 只作确定性兜底。
+        order_by="sellable_days",
+        order_dir="asc",
     )
     snapshot_report_date = latest_inventory_snapshot_date(
         db, project_id, normalized_country, anchor_date

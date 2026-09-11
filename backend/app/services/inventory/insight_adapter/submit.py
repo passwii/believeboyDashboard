@@ -68,6 +68,12 @@ def submit_run_for_inventory_health(
     错误语义，也不把 typed error 压成字符串。
     """
     normalized_country = normalize_inventory_country(country)
+    # 授权必须在读业务表之前：``build_inventory_slots`` 会跑补货分析查询，
+    # 未授权 operator 否则能借提交端点读走不属于自己的数据（复审[1]）。
+    # 这里用**归一后**的站点：slot 与 run 都用它，authorizer 的
+    # ``row.country == country`` 判定必须与之一致，否则会凭空 409。
+    # canonical validator 的二次校验保留（defense in depth）。
+    scope_authorizer(project_id, normalized_country)
     slots = build_inventory_slots(
         db,
         project_id=project_id,

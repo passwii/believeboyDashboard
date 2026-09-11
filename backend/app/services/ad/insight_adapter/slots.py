@@ -40,34 +40,57 @@ def _cap(rows: Any, limit: int) -> tuple[list[Any], bool]:
     return rows[:limit], len(rows) > limit
 
 
-def _cap_inventory_summary(summary: Any) -> dict[str, Any]:
+def _cap_inventory_summary(summary: Any) -> tuple[dict[str, Any], bool]:
+    """库存汇总：只截 ``out_of_stock_skus``；返回 ``(capped, truncated)``。"""
     if not isinstance(summary, dict):
-        return {}
+        return {}, False
     capped = dict(summary)
-    skus, _ = _cap(capped.get("out_of_stock_skus"), OUT_OF_STOCK_MAX_ITEMS)
-    if "out_of_stock_skus" in capped:
-        capped["out_of_stock_skus"] = skus
-    return capped
+    if "out_of_stock_skus" not in capped:
+        return capped, False
+    skus, cut = _cap(capped.get("out_of_stock_skus"), OUT_OF_STOCK_MAX_ITEMS)
+    capped["out_of_stock_skus"] = skus
+    return capped, cut
 
 
-def _trim_breakdown(breakdown: Any) -> dict[str, dict[str, Any]]:
-    """10 类广告报表：逐类截断 ``top`` 列表，保留 ``has_data``/``summary``。"""
+def _trim_breakdown(breakdown: Any) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """10 类广告报表：逐类截断 ``top`` 列表，保留 ``has_data``/``summary``。
+
+    返回 ``(trimmed, truncated_paths)``：**每一类**被截断的 ``top`` 单独记名
+    （``ad_breakdown_by_type.<type>.top``）——只记一个笼统的
+    ``ad_breakdown_by_type`` 无法说明是哪张报表只剩了头部，模型会把部分
+    数据当全量读。
+    """
     if not isinstance(breakdown, dict):
-        return {}
+        return {}, []
     trimmed: dict[str, dict[str, Any]] = {}
+    truncated: list[str] = []
     for report_type, block in breakdown.items():
         if not isinstance(block, dict):
             continue
         entry = {k: v for k, v in block.items() if k != "top"}
-        top, _ = _cap(block.get("top"), BREAKDOWN_TOP_MAX_ITEMS)
+        top, cut = _cap(block.get("top"), BREAKDOWN_TOP_MAX_ITEMS)
         entry["top"] = top
         trimmed[str(report_type)] = entry
-    return trimmed
+        if cut:
+            truncated.append(f"ad_breakdown_by_type.{report_type}.top")
+    return trimmed, truncated
 
 
 def trim_ad_payload(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """聚合产物 → slot 载荷（带截断标记）；返回 ``(payload, truncated)``。"""
+    """聚合产物 → slot 载荷（带截断标记）；返回 ``(payload, truncated)``。
+
+    ``truncated_sections`` 必须覆盖**每一个**被截断的 section——包括嵌套的
+    ``ad_breakdown_by_type.<type>.top`` / ``inventory_summary.out_of_stock_skus``
+    / ``sku_context.skus``。漏记等于让模型把部分数据当全量读。
+    """
     truncated: list[str] = []
+    inventory_summary, inventory_cut = _cap_inventory_summary(
+        data.get("inventory_summary")
+    )
+    if inventory_cut:
+        truncated.append("inventory_summary.out_of_stock_skus")
+    breakdown, breakdown_cut = _trim_breakdown(data.get("ad_breakdown_by_type"))
+    truncated.extend(breakdown_cut)
     payload: dict[str, Any] = {
         "project_name": data.get("project_name") or "",
         "country": data.get("country") or "",
@@ -75,8 +98,8 @@ def trim_ad_payload(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         "date_range_end": data.get("date_range_end"),
         "comparison_period": data.get("comparison_period") or {},
         "data_coverage": data.get("data_coverage") or {},
-        "inventory_summary": _cap_inventory_summary(data.get("inventory_summary")),
-        "ad_breakdown_by_type": _trim_breakdown(data.get("ad_breakdown_by_type")),
+        "inventory_summary": inventory_summary,
+        "ad_breakdown_by_type": breakdown,
     }
     for key, limit in (
         ("sales_by_date", SERIES_MAX_ITEMS),
@@ -95,9 +118,11 @@ def trim_ad_payload(data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     sku_context = data.get("sku_context")
     if isinstance(sku_context, dict) and sku_context:
         capped_context = dict(sku_context)
-        skus, _ = _cap(capped_context.get("skus"), SKU_CONTEXT_MAX_ITEMS)
         if "skus" in capped_context:
+            skus, skus_cut = _cap(capped_context.get("skus"), SKU_CONTEXT_MAX_ITEMS)
             capped_context["skus"] = skus
+            if skus_cut:
+                truncated.append("sku_context.skus")
         payload["sku_context"] = capped_context
 
     if truncated:
@@ -131,6 +156,10 @@ def assess_freshness(data: dict[str, Any], *, today: date) -> dict[str, Any]:
     覆盖率口径与 ``aggregate_project_data`` 的 ``data_coverage`` 一致：
     ``<total_requested_days`` 视为 stale（报告缺日）；完全没有数据视为
     missing；覆盖率不可判定时 unknown。
+
+    锚点晚于当日（报告侧时钟/数据异常）同样按 unknown 处理：此时既不能说
+    数据新鲜，也不能说它陈旧；且 ``DataFreshness.age_days`` 契约是
+    ``>= 0``，负数会把整个 slot 打成校验失败。
     """
     coverage = data.get("data_coverage")
     if not isinstance(coverage, dict):
@@ -142,7 +171,10 @@ def assess_freshness(data: dict[str, Any], *, today: date) -> dict[str, Any]:
     )
     as_of = _latest_series_date(data)
     age_days = (today - as_of).days if as_of is not None else None
-    if not total:
+    anchor_in_future = age_days is not None and age_days < 0
+    if anchor_in_future:
+        age_days = 0
+    if not total or anchor_in_future:
         status = "unknown"
     elif covered == 0:
         status = "missing"

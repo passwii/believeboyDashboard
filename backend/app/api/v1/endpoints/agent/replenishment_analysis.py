@@ -191,7 +191,11 @@ def _validate_query_params(
 
 
 def _to_json_safe_rows(rows: list[dict]) -> list[dict]:
-    """把 service 行转 JSON-safe（signals 是 pydantic model → dict）。"""
+    """把 service 行转 JSON-safe。
+
+    BLF-1016 起 ``signals`` 由 service 侧 ``model_dump(mode="json")`` 输出为
+    dict，这里只做兜底（仍是 pydantic 值时归一化），不承担转换职责。
+    """
     out = []
     for row in rows:
         item = dict(row)
