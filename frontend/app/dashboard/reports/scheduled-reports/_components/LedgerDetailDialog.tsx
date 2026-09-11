@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import {
   AlertTriangle,
@@ -14,10 +14,9 @@ import {
   Square,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import ReactMarkdown from 'react-markdown'
-import remarkBreaks from 'remark-breaks'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { InsightStreamPanel } from '@/components/insight/insight-stream-panel'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
@@ -34,6 +33,8 @@ import { getCountryLabel } from '@/lib/country'
 import { LedgerResendCell } from './LedgerResendCell'
 import { FREQUENCY_LABELS } from './ledger-constants'
 import { fetchLedgerItemByKey } from './api'
+import { ledgerCopyText } from './ledger-insight'
+import { useLedgerInsight } from './use-ledger-insight'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
 
 // BLF-836 终端化：状态区去渐变，改扁平 term 语义色（pos/neg/warn）
@@ -91,25 +92,7 @@ export function LedgerDetailDialog({
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [summaryModelOpen, setSummaryModelOpen] = useState(false)
   const [summaryModel, setSummaryModel] = useState('')
-  const [pollingState, setPollingState] = useState<
-    'polling' | 'timed_out' | 'network_error' | 'idle'
-  >('idle')
   const [manualRefreshing, setManualRefreshing] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const startedAtRef = useRef<number>(0)
-  const failStreakRef = useRef<number>(0)
-  const itemRef = useRef<LedgerItem | null>(item)
-  const onItemRefreshedRef = useRef<typeof onItemRefreshed>(onItemRefreshed)
-  useEffect(() => {
-    itemRef.current = item
-  }, [item])
-  useEffect(() => {
-    onItemRefreshedRef.current = onItemRefreshed
-  }, [onItemRefreshed])
-
-  const POLL_INTERVAL_MS = 2500
-  const POLL_TIMEOUT_MS = 60_000
-  const POLL_MAX_FAILS = 2
 
   const sub = item ? subscriptions.find((s) => s.id === item.subscription_id) : undefined
   const fallbackModel = item ? sub?.ai_model || modelConfig?.defaultModel || '' : ''
@@ -121,13 +104,23 @@ export function LedgerDetailDialog({
   // 被 kill 或后端重启），保留「打断并重新生成」作为卡死救援入口。
   const summaryGenerating =
     !regeneratingAiSummary && !!item && item.ai_summary_status === 'generating'
+  // BLF-1015：`generating` 且有既存摘要时，详情已能看到后台进度，入口只负责
+  // 「另起一轮」；没有既存摘要才需要「打断并重新生成」这样的卡死救援语义。
+  const summaryInterrupt = !item?.ai_summary && summaryGenerating
   const summaryActionLabel = regeneratingAiSummary
     ? '生成中…'
-    : summaryGenerating
+    : summaryInterrupt
       ? '打断并重新生成'
       : item?.ai_summary
         ? '重新生成摘要'
         : '生成 AI 摘要'
+
+  const { panel, runBound } = useLedgerInsight({
+    open,
+    item,
+    regenerating: regeneratingAiSummary,
+    onItemRefreshed,
+  })
 
   useEffect(() => {
     if (summaryModelOpen) setSummaryModel(fallbackModel)
@@ -138,75 +131,13 @@ export function LedgerDetailDialog({
     setManualRefreshing(true)
     try {
       const fresh = await fetchLedgerItemByKey(item)
-      if (fresh) {
-        onItemRefreshed?.(fresh)
-        setPollingState('idle')
-      }
+      if (fresh) onItemRefreshed?.(fresh)
     } catch {
       // 静默；用户可在 header 再次点击重试
     } finally {
       setManualRefreshing(false)
     }
   }
-
-  useEffect(() => {
-    // BLF-822：仅 `generating` 需要轮询——`pending` 表示尚未生成、不会自行
-    // 变化，轮询只会白等 60s 后误报「生成较慢」。
-    const shouldPoll =
-      open && !!item && !regeneratingAiSummary && item.ai_summary_status === 'generating'
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-
-    if (!shouldPoll) {
-      setPollingState('idle')
-      return
-    }
-
-    startedAtRef.current = Date.now()
-    failStreakRef.current = 0
-    setPollingState('polling')
-
-    const tick = async () => {
-      if (Date.now() - startedAtRef.current > POLL_TIMEOUT_MS) {
-        if (intervalRef.current) clearInterval(intervalRef.current)
-        intervalRef.current = null
-        setPollingState('timed_out')
-        return
-      }
-      const current = itemRef.current
-      if (!current) return
-      try {
-        const fresh = await fetchLedgerItemByKey(current)
-        failStreakRef.current = 0
-        if (fresh) {
-          onItemRefreshedRef.current?.(fresh)
-          if (fresh.ai_summary_status === 'done' || fresh.ai_summary_status === 'failed') {
-            if (intervalRef.current) clearInterval(intervalRef.current)
-            intervalRef.current = null
-            setPollingState('idle')
-          }
-        }
-      } catch {
-        failStreakRef.current += 1
-        if (failStreakRef.current >= POLL_MAX_FAILS) {
-          if (intervalRef.current) clearInterval(intervalRef.current)
-          intervalRef.current = null
-          setPollingState('network_error')
-        }
-      }
-    }
-
-    intervalRef.current = setInterval(tick, POLL_INTERVAL_MS)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-    // 依赖项只用原始字段（避免父组件 selectedItem 引用变化导致 effect 反复重启）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, item?.ledger_key, item?.ai_summary_status, regeneratingAiSummary])
 
   const projectNames = !item
     ? []
@@ -255,7 +186,7 @@ export function LedgerDetailDialog({
                       size="icon"
                       variant="ghost"
                       onClick={handleManualRefresh}
-                      disabled={manualRefreshing || item.ai_summary_status === 'generating'}
+                      disabled={manualRefreshing}
                       className="h-7 w-7 rounded-none text-term-muted hover:text-term-text"
                       aria-label="刷新 AI 摘要"
                       title="刷新 AI 摘要"
@@ -368,7 +299,7 @@ export function LedgerDetailDialog({
                               >
                                 {regeneratingAiSummary ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : summaryGenerating ? (
+                                ) : summaryInterrupt ? (
                                   <Square className="h-3 w-3" />
                                 ) : (
                                   <Sparkles className="h-3 w-3" />
@@ -380,7 +311,7 @@ export function LedgerDetailDialog({
                               <div className="space-y-2">
                                 <div className="text-sm font-medium">{summaryActionLabel}</div>
                                 <p className="text-xs text-muted-foreground">
-                                  {summaryGenerating
+                                  {summaryInterrupt
                                     ? '后台生成似乎已卡住，会终止上一轮并启动新一轮 AI 摘要。不会重新截图或发送邮件。'
                                     : '只生成 AI 摘要，不会重新截图或发送邮件。'}
                                 </p>
@@ -456,7 +387,7 @@ export function LedgerDetailDialog({
                                       onRegenerateAiSummary(item, summaryModel)
                                     }}
                                   >
-                                    {summaryGenerating ? '打断并重新生成' : '确认生成'}
+                                    {summaryInterrupt ? '打断并重新生成' : '确认生成'}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -474,7 +405,7 @@ export function LedgerDetailDialog({
                         {item.ai_summary && (
                           <button
                             type="button"
-                            onClick={() => onCopy(item.ai_summary!.replace(/^[-•·●]\s*/gm, '◉ '))}
+                            onClick={() => onCopy(ledgerCopyText(item.ai_summary!))}
                             className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
                             aria-label="复制 AI 文案"
                           >
@@ -484,97 +415,106 @@ export function LedgerDetailDialog({
                         )}
                       </div>
                     </div>
-                    {item.ai_summary ? (
-                      <div className="max-h-[60vh] overflow-y-auto rounded-none border border-term-border bg-term-raised p-3 term-scroll">
-                        <div className="text-xs leading-relaxed prose prose-xs prose-neutral dark:prose-invert max-w-none [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold">
-                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-                            {item.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    ) : item.ai_summary_status === 'generating' || regeneratingAiSummary ? (
-                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-12 font-mono text-xs text-term-accent">
-                        <div className="flex items-center gap-2">
-                          {pollingState === 'timed_out' || pollingState === 'network_error' ? (
-                            <AlertTriangle className="h-4 w-4" />
-                          ) : (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          )}
-                          <span>
-                            {pollingState === 'timed_out' && 'AI 摘要生成较慢'}
-                            {pollingState === 'network_error' && '网络异常，请重试'}
-                            {(pollingState === 'polling' || pollingState === 'idle') &&
-                              'AI 摘要生成中'}
-                          </span>
-                        </div>
-                        {(pollingState === 'timed_out' || pollingState === 'network_error') &&
-                          canTriggerResend && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                // 轮询超时 / 网络异常 → 一律走「打断并重新生成」，
-                                // 单纯刷新数据已经无法救出卡死的后台线程。
-                                setPollingState('idle')
-                                onRegenerateAiSummary(item, fallbackModel || null)
-                              }}
-                              disabled={regeneratingAiSummary}
-                              className="font-mono text-xs text-term-accent hover:bg-term-hover"
-                            >
-                              <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
-                              打断并重新生成
-                            </Button>
-                          )}
-                      </div>
-                    ) : item.ai_summary_status === 'pending' ? (
-                      // BLF-822：pending = 报告已发送但摘要尚未生成（后端不再
-                      // 自动生成），主行动是手动触发一次生成。
-                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
-                        <Sparkles className="h-4 w-4 text-term-accent" aria-hidden />
-                        <span>AI 摘要尚未生成</span>
-                        {canRegenerateSummary && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid="generate-summary-cta"
-                            disabled={isLoadingModelConfig}
-                            onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                            className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
-                          >
-                            <Sparkles className="mr-1 h-3 w-3" aria-hidden />
-                            生成 AI 摘要
-                          </Button>
-                        )}
-                      </div>
-                    ) : item.ai_summary_status === 'failed' ? (
-                      <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-12 font-mono text-xs text-term-neg">
-                        <AlertTriangle className="h-4 w-4" aria-hidden />
-                        <span>AI 摘要生成失败</span>
-                        {item.ai_summary_error && (
-                          <span className="text-[11px] text-term-muted">
-                            {item.ai_summary_error}
-                          </span>
-                        )}
-                        {canRegenerateSummary && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid="regenerate-summary-retry"
-                            disabled={isLoadingModelConfig}
-                            onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                            className="mt-1 font-mono text-xs text-term-neg hover:bg-term-hover"
-                          >
-                            <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
-                            重新生成
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
-                        <FileText className="h-4 w-4" aria-hidden />
-                        暂无 AI 文案
-                      </div>
-                    )}
+                    <InsightStreamPanel
+                      status={panel.state.status}
+                      statusLabel={panel.state.label}
+                      progress={panel.state.progress}
+                      error={panel.error}
+                      backgroundMessage={panel.backgroundMessage}
+                      content={panel.content}
+                      contentState={panel.contentState}
+                      isStreaming={panel.state.isStreaming}
+                      digest={panel.digest}
+                      onRetry={canRegenerateSummary ? panel.onRetry : undefined}
+                      onCancel={canTriggerResend ? panel.onCancel : undefined}
+                      exportFileName={`AI摘要-${item.expected_date}.md`}
+                      className="rounded-none border border-term-border"
+                      contentClassName="min-h-[200px] bg-term-raised p-3 term-scroll"
+                      emptyState={
+                        panel.state.status === 'failed' ? (
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-12 font-mono text-xs text-term-neg">
+                            <AlertTriangle className="h-4 w-4" aria-hidden />
+                            <span>
+                              {runBound
+                                ? '本轮生成中断，可重新开始'
+                                : item.ai_summary_error || '本轮生成失败，可重新开始'}
+                            </span>
+                            {canRegenerateSummary && !panel.onRetry && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                data-testid="regenerate-summary-retry"
+                                disabled={isLoadingModelConfig}
+                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
+                                className="mt-1 font-mono text-xs text-term-neg hover:bg-term-hover"
+                              >
+                                <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
+                                重新生成
+                              </Button>
+                            )}
+                          </div>
+                        ) : panel.state.busy ? (
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-12 font-mono text-xs text-term-accent">
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                            <span>正在为你生成摘要，稍候内容会出现在这里</span>
+                            {canRegenerateSummary && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={regeneratingAiSummary}
+                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
+                                className="font-mono text-xs text-term-accent hover:bg-term-hover"
+                              >
+                                <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
+                                打断并重新生成
+                              </Button>
+                            )}
+                          </div>
+                        ) : panel.state.status === 'cancelled' ? (
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                            <Square className="h-4 w-4" aria-hidden />
+                            <span>本轮生成已取消</span>
+                            {canRegenerateSummary && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isLoadingModelConfig}
+                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
+                                className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
+                              >
+                                <Sparkles className="mr-1 h-3 w-3" aria-hidden />
+                                重新开始
+                              </Button>
+                            )}
+                          </div>
+                        ) : panel.state.status === 'queued' || panel.state.status === 'idle' ? (
+                          // BLF-822：报告已发送但摘要尚未生成（后端不再自动生成），
+                          // 主行动是手动触发一次生成。
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                            <Sparkles className="h-4 w-4 text-term-accent" aria-hidden />
+                            <span>报告已发送，尚未生成 AI 摘要</span>
+                            {canRegenerateSummary && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                data-testid="generate-summary-cta"
+                                disabled={isLoadingModelConfig}
+                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
+                                className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
+                              >
+                                <Sparkles className="mr-1 h-3 w-3" aria-hidden />
+                                生成 AI 摘要
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                            <FileText className="h-4 w-4" aria-hidden />
+                            暂无 AI 文案
+                          </div>
+                        )
+                      }
+                    />
                   </div>
                 </div>
               </div>

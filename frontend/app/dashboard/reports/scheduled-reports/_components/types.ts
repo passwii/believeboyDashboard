@@ -57,6 +57,11 @@ export interface LedgerItem {
   ai_summary_error: string | null
   ai_summary_model: string | null
   ai_summary_updated_at: string | null
+  /**
+   * 后端 Insight run 绑定（BLF-1014）。后端回填前为 null，此时详情面板
+   * 退回展示已落库的 `ai_summary`，不自行构造 run。
+   */
+  insight_run_id?: string | null
 }
 
 export interface LedgerSummary {

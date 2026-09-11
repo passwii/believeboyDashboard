@@ -231,7 +231,12 @@ async function readWithAbort(
   }
 }
 
-async function toInsightHttpError(response: Response): Promise<InsightHttpError> {
+/**
+ * 把非 2xx 响应映射成带类型的 HTTP 错误。
+ * canonical 错误体是 FastAPI 的 `{"detail": {code, message, retryable, retry_after_seconds}}`；
+ * 旧形态是扁平 `{code, message}` 或纯字符串 detail。三种都读。
+ */
+export async function toInsightHttpError(response: Response): Promise<InsightHttpError> {
   const raw = await response.text().catch(() => '')
   let payload: unknown
   try {
@@ -240,13 +245,26 @@ async function toInsightHttpError(response: Response): Promise<InsightHttpError>
     payload = null
   }
 
-  const detail = getStringField(payload, 'detail')
-  const messageField = getStringField(payload, 'message')
-  const message = detail ?? messageField ?? (raw.trim() || `Request failed (${response.status})`)
-  const code = getStringField(payload, 'code') ?? 'HTTP_ERROR'
-  const retryable = getBooleanField(payload, 'retryable') ?? response.status >= 500
-  const retryAfter = getNumberField(payload, 'retry_after')
-  const details = getRecordField(payload, 'details')
+  const detailField = getField(payload, 'detail')
+  const nested = typeof detailField === 'object' && detailField !== null ? detailField : null
+  const detailText =
+    typeof detailField === 'string' && detailField ? detailField : getStringField(payload, 'detail')
+  const message =
+    getStringField(nested, 'message') ??
+    detailText ??
+    getStringField(payload, 'message') ??
+    (raw.trim() || `Request failed (${response.status})`)
+  const code =
+    getStringField(nested, 'code') ?? getStringField(payload, 'code') ?? 'HTTP_ERROR'
+  const retryable =
+    getBooleanField(nested, 'retryable') ??
+    getBooleanField(payload, 'retryable') ??
+    response.status >= 500
+  const retryAfter =
+    getNumberField(nested, 'retry_after_seconds') ??
+    getNumberField(payload, 'retry_after_seconds') ??
+    getNumberField(payload, 'retry_after')
+  const details = getRecordField(nested, 'details') ?? getRecordField(payload, 'details')
   return new InsightHttpError(response.status, message, { code, retryable, retryAfter, details })
 }
 
