@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import AgentOverviewClient from './agent-overview-client'
 import { productionCell } from './agent-overview-client'
@@ -60,7 +60,7 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        '17 个业务域、16 个已接入 —— Agent 员工在各业务域活动的归集点,点击入口前往对应工作台。 「今日产出」为实时业务数据(客诉概览 / 巡检周期 / 报表完成度);运行时活动列(最近活动 / 24h·7d 调用量 / 7d 错误率)由 domain-summary 端点驱动(契约见 docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b),端点上线前显示占位「—」。'
+        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供,缺位显示占位「—」。'
       )
     ).toBeInTheDocument()
   })
@@ -99,9 +99,11 @@ describe('AgentOverviewClient 数据流总览', () => {
 
   it('聚合数据缺位时运行时三列降级为占位(P2b 端点未上线)', () => {
     render(<AgentOverviewClient />)
-    // 无任何 "N / N" 调用量与百分比特征
-    expect(screen.queryByText(/^\d+ \/ \d+$/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/^\d+%$/)).not.toBeInTheDocument()
+    const row = screen.getByRole('row', { name: /客户消息/ })
+    // 无调用量 / 错误率特征,运行时列(24h / 7d / 错误)显示占位
+    expect(within(row).queryByText(/^\d+ \/ \d+$/)).not.toBeInTheDocument()
+    expect(within(row).queryByText(/^\d+%$/)).not.toBeInTheDocument()
+    expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(3)
   })
 
   it('聚合数据就位时点亮:调用量 / 错误率着色 / 新鲜度相对时间', () => {
@@ -130,8 +132,13 @@ describe('AgentOverviewClient 数据流总览', () => {
       'ok'
     )
     render(<AgentOverviewClient />)
-    expect(screen.getByText('12 / 89')).toBeInTheDocument()
-    expect(screen.getByText('3 / 23')).toBeInTheDocument()
+    // 调用量拆为 24h / 7d 两个数字列（右对齐）
+    const complaintRow = screen.getByRole('row', { name: /客户消息/ })
+    expect(within(complaintRow).getByText('12')).toBeInTheDocument()
+    expect(within(complaintRow).getByText('89')).toBeInTheDocument()
+    const skuRow = screen.getByRole('row', { name: /SKU 主数据/ })
+    expect(within(skuRow).getByText('3')).toBeInTheDocument()
+    expect(within(skuRow).getByText('23')).toBeInTheDocument()
     expect(screen.getByText('3 小时前')).toBeInTheDocument()
     expect(screen.getByText('2 天前')).toBeInTheDocument()
     // 零错误 → 常规色;有错 → 告警色
