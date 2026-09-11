@@ -36,7 +36,6 @@ from .ai_enhancer_weekly import (
     detect_weekly_anomalies,
     generate_weekly_action_items,
     generate_weekly_alert_insights,
-    generate_weekly_ai_summary,
     generate_weekly_attribution_analysis,
 )
 
@@ -211,30 +210,32 @@ def build_weekly_report_data(
     alerts.extend(_build_inventory_alerts(inventory_alerts))
     alerts.extend(_build_positive_signals(top_skus_comparison, ads_comparison))
     
-    # 10. 生成 AI 摘要和归因分析
-    ai_summary = ""
-    if generate_ai_summary:
-        # 通知调度器：数据获取完成，开始生成 AI 摘要
-        if stage_callback:
-            from app.models.scheduled_report import DeliveryStage
-            stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+    # BLF-1014：AI 摘要不再由 builder 内联生成（generate_weekly_ai_summary
+    # 及其 LLM 调用已摘除）。本 dict 即 AI 输入载荷，由 Insight run 的
+    # schedule_report_summary.v1 role 消费；generate_ai_summary 置 True 时
+    # 仅推进 GENERATING_SUMMARY 阶段标记。
+    if generate_ai_summary and stage_callback:
+        from app.models.scheduled_report import DeliveryStage
 
-        ai_summary = generate_weekly_ai_summary({
-            "current_week": current_week,
-            "prev_week": prev_week,
-            "changes": changes,
-            "attribution": attribution,
-            "alerts": alerts,
-            "top_skus_comparison": top_skus_comparison,
-            "ads_comparison": ads_comparison,
-            "inventory_alerts": inventory_alerts,
-            "inventory_summary": inventory_summary,
-            "anomalies": anomalies,
-            "returns_data": returns_data,
-            "project_context": project_context,
-            "sku_context": sku_context,
-            "sku_factory_info_text": sku_factory_info_text,
-        }, timeout=ai_timeout)
+        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+
+    ai_summary = ""
+    report_data_for_ai = {
+        "current_week": current_week,
+        "prev_week": prev_week,
+        "changes": changes,
+        "attribution": attribution,
+        "alerts": alerts,
+        "top_skus_comparison": top_skus_comparison,
+        "ads_comparison": ads_comparison,
+        "inventory_alerts": inventory_alerts,
+        "inventory_summary": inventory_summary,
+        "anomalies": anomalies,
+        "returns_data": returns_data,
+        "project_context": project_context,
+        "sku_context": sku_context,
+        "sku_factory_info_text": sku_factory_info_text,
+    }
     
     attribution_summary = generate_weekly_attribution_analysis({
         "attribution": attribution,
@@ -305,6 +306,8 @@ def build_weekly_report_data(
 
         # AI 生成内容
         "ai_summary": ai_summary,
+        # BLF-1014：AI 输入载荷原样随行（Insight adapter 消费；非 LLM 输出）
+        "ai_payload": report_data_for_ai,
         
         # 仪表板链接
         "dash_url": "https://dash.believeboy.com/dashboard",

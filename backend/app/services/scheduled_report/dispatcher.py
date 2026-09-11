@@ -468,17 +468,17 @@ def _build_multi_country_report(
                     "ai_summary": f"暂无 {_country_label(country)} 数据",
                 }
 
-    # Use first country's data for shared shell fields
-    first = country_data[country_list[0]]
+    # Use first country's data for shared shell fields（country_list 为空 /
+    # 首个国家缺数据时退到任意有数据的一国，避免 IndexError / KeyError）。
+    first = country_data.get(country_list[0]) if country_list else None
+    if not first:
+        first = next(iter(country_data.values()), {})
 
-    # Build a unified AI summary covering all countries
+    # BLF-1014：统一 AI 摘要不再在数据构建期生成（旧
+    # _generate_multi_country_summary 的 LLM 调用已摘除）。多国家报告的
+    # 摘要由 Insight run 按国家分别生成；country_data 原样随行作为
+    # 各国家 run 的数据来源。
     ai_summary = ""
-    if generate_ai_summary:
-        ai_summary = _generate_multi_country_summary(
-            frequency,
-            country_data,
-            ai_model=ai_model,
-        )
 
     # Build result dict — include keys from both daily and weekly formats
     # so that both email senders can find what they need
@@ -563,65 +563,9 @@ def _build_multi_country_report(
     return result
 
 
-def _generate_multi_country_summary(
-    frequency: str,
-    country_data: dict[str, dict[str, Any]],
-    ai_model: str | None = None,
-    timeout: float | None = None,
-) -> str:
-    """Generate a single AI summary covering all countries.
-
-    Falls back to per-country bullet points if AI call fails or times out.
-    Uses the same thread-based timeout as _generate_summary.
-    """
-    from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
-    from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
-    from app.services.scheduled_report.report_builder_daily import (
-        _generate_fallback_summary,
-    )
-
-    secs = timeout if timeout is not None else get_ai_timeout_sec(frequency)
-
-    if secs <= 0:
-        return _fallback_multi_country_summary(country_data)
-
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-
-    def _call_ai():
-        from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
-
-        combined: dict[str, Any] = {
-            "multi_country": True,
-            "countries": {},
-        }
-        for country, data in country_data.items():
-            combined["countries"][country] = {
-                "country_label": _country_label(country),
-                "sales": data.get("sales", {}),
-                "week_sales": data.get("week_sales", {}),
-                "prev_week_sales": data.get("prev_week_sales", {}),
-                "inventory": data.get("inventory", {}),
-                "ads": data.get("ads", {}),
-                "returns": data.get("returns", {}),
-                "top_skus": data.get("top_skus", []),
-            }
-        return generate_ai_summary(frequency, combined, model=ai_model)
-
-    try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_call_ai)
-            return future.result(timeout=secs)
-    except FuturesTimeout:
-        logger.warning(
-            "Multi-country AI summary timed out (%.0fs) — using fallback",
-            secs,
-        )
-        return _fallback_multi_country_summary(country_data)
-    except Exception as e:
-        logger.warning("Multi-country AI summary failed, using fallback: %s", e)
-        return _fallback_multi_country_summary(country_data)
-
-
+# BLF-1014：旧 `_generate_multi_country_summary`（统一多国 LLM 摘要）已摘除；
+# 多国家报告的 AI 摘要由 Insight run 消费 country_data 生成，纯格式化的
+# `_fallback_multi_country_summary` 保留供 AI 禁用/兜底路径使用）。
 def _fallback_multi_country_summary(
     country_data: dict[str, dict[str, Any]],
 ) -> str:

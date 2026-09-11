@@ -223,3 +223,57 @@ def _scale_html_fonts(html: str, factor: float) -> str:
         return f'font-size: {round(px * factor, 2)}px'
 
     return re.sub(r"font-size:\s*([\d.]+)px", _replace, html)
+
+
+def fallback_summary_text(report_data: dict[str, Any], frequency: str) -> str:
+    """AI 摘要为空时邮件摘要段落的纯格式化文本（非 LLM，BLF-1014）。
+
+    邮件模板按 ``ai_summary`` 是否非空决定摘要段落是否渲染：该文本历史上由
+    数据构建期的 LLM 生成，BLF-820 关闭自动生成、BLF-1014 把生成收口到
+    Insight run 之后一律为空 → 邮件整段摘要消失。这里用与台账降级文本同源的
+    纯格式化摘要兜底（复用既有 `_generate_fallback_*` 系列，零 LLM 调用）。
+
+    传入 ``report_data`` 已带摘要时原样返回（send 路径幂等）。
+
+    Note:
+        `_fallback_multi_country_summary` 住在 dispatcher（与台账 fallback
+        同源），惰性导入以避免模块级环依赖。
+    """
+    existing = report_data.get("ai_summary")
+    if isinstance(existing, str) and existing.strip():
+        return existing
+
+    from app.services.scheduled_report.ai_enhancer_monthly import (
+        _generate_fallback_monthly_summary,
+    )
+    from app.services.scheduled_report.ai_enhancer_weekly import (
+        _generate_fallback_weekly_summary,
+    )
+    from app.services.scheduled_report.report_builder_daily import (
+        _generate_fallback_summary,
+    )
+
+    if report_data.get("is_multi_country"):
+        country_data = report_data.get("country_data") or {}
+        if frequency == "daily":
+            from app.services.scheduled_report.dispatcher import (
+                _fallback_multi_country_summary,
+            )
+
+            return _fallback_multi_country_summary(country_data)
+        render = (
+            _generate_fallback_weekly_summary
+            if frequency == "weekly"
+            else _generate_fallback_monthly_summary
+        )
+        blocks = [
+            f"◉ {_country_label(country)}\n{render(data if isinstance(data, dict) else {})}"
+            for country, data in country_data.items()
+        ]
+        return "\n\n".join(blocks)
+
+    if frequency == "weekly":
+        return _generate_fallback_weekly_summary(report_data)
+    if frequency == "monthly":
+        return _generate_fallback_monthly_summary(report_data)
+    return _generate_fallback_summary(frequency, report_data)

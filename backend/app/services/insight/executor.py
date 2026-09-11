@@ -388,6 +388,42 @@ def _reload(db: Session, run: InsightRun) -> InsightRun:
     return run
 
 
+def _identity_cleaner(role: InsightRoleDefinition, markdown: str) -> str:
+    """默认清洗：只做 strip（与 Stage 2 行为一致）。"""
+    return markdown.strip()
+
+
+def _no_instructions(
+    role: InsightRoleDefinition, slots: dict[str, Any]
+) -> tuple[str, ...]:
+    """默认角色指令：空（模型无 system 指令）。"""
+    return ()
+
+
+def role_runtime_for(role: InsightRoleDefinition) -> tuple[Any, Any, Any]:
+    """Resolve a role's server-owned prompt template, instructions, and cleaner.
+
+    Stage 3（BLF-1014）：角色专属的 prompt/清洗由业务 adapter 提供，
+    executor 只按 role_id 分发，不复制业务模板。未注册的角色保持
+    Stage 2 的确定性行为（canonical JSON prompt、无 system 指令、原样
+    strip）。返回 ``(prompt_builder, instructions_fn, markdown_cleaner)``，
+    其中 ``instructions_fn(role, slots) -> tuple[str, ...]``。
+    """
+    if role.role_id == "schedule_report_summary":
+        from app.services.scheduled_report.insight_adapter.prompt import (
+            build_schedule_report_prompt,
+            clean_schedule_report_markdown,
+            schedule_report_instructions,
+        )
+
+        return (
+            build_schedule_report_prompt,
+            schedule_report_instructions,
+            clean_schedule_report_markdown,
+        )
+    return default_prompt_builder, _no_instructions, _identity_cleaner
+
+
 def execute_run(
     *,
     db: Session,
@@ -500,8 +536,29 @@ def execute_run(
     if not _guard(db, run, attempt):
         return run
 
-    prompt = (build_prompt or default_prompt_builder)(role, slots)
-    agent = create_insight_agent(selection)
+    prompt_builder, instructions_for, cleaner = role_runtime_for(role)
+    try:
+        prompt = (build_prompt or prompt_builder)(role, slots)
+        role_instructions = instructions_for(role, slots)
+    except Exception as exc:
+        # prompt/指令构建在 provider try 之外：异常穿出 execute_run 会被
+        # Celery 当「任务异常」丢弃，run 行永远停在 generating，上游
+        # _wait_for_terminal_and_sync 空转到 soft limit（BLF-1014 复核阻塞 2）。
+        # 载荷形状错误是确定性的，重试无意义 → 直接落 FAILED 终止态。
+        logger.exception("Insight prompt build failed (run_id=%s)", run.run_id)
+        return _fail(
+            db,
+            run,
+            active_sink,
+            make_error(
+                InsightErrorCode.SLOT_VALIDATION_FAILED,
+                "Report payload could not be rendered into a prompt"
+                f" ({type(exc).__name__})",
+                slot="report.data",
+            ),
+            attempt=attempt,
+        )
+    agent = create_insight_agent(selection, role_instructions=role_instructions)
     try:
         llm = (generate or default_generate)(agent, prompt)
     except RetryableFailure:
@@ -519,8 +576,7 @@ def execute_run(
 
     if not _guard(db, run, attempt):
         return run
-
-    markdown = (llm.markdown or "").strip()
+    markdown = cleaner(role, (llm.markdown or "").strip())
     if not markdown:
         return _fail_or_retry(
             db,

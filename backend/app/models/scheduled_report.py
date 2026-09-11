@@ -141,6 +141,10 @@ class ScheduledReportDeliveryLog(Base):
     )
     ai_summary_error: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 摘要生成错误")
     ai_summary_model: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="AI 摘要使用模型")
+    insight_run_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True,
+        comment="AI 摘要对应的 Insight run_id（schedule_report_summary.v1），BLF-1014",
+    )
     ai_summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stage: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DeliveryStage.PENDING.value, index=True,

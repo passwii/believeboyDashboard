@@ -189,6 +189,7 @@ class DeliveryLogItem(BaseModel):
     ai_summary_status: AiSummaryStatusValue = "pending"
     ai_summary_error: Optional[str] = None
     ai_summary_model: Optional[str] = None
+    insight_run_id: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
     created_at: datetime
 
@@ -265,6 +266,7 @@ class LedgerItem(BaseModel):
     ai_summary_status: AiSummaryStatusValue = "pending"
     ai_summary_error: Optional[str] = None
     ai_summary_model: Optional[str] = None
+    insight_run_id: Optional[str] = None
     ai_summary_updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
@@ -289,4 +291,5 @@ class LedgerRegenerateSummaryResponse(BaseModel):
     ledger_key: str
     delivery_log_id: Optional[int] = None
     status: AiSummaryStatusValue
+    insight_run_id: Optional[str] = None
     message: str

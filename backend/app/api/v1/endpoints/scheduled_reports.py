@@ -293,10 +293,12 @@ def regenerate_scheduled_report_ai_summary(
     from app.services.scheduled_report.ledger_service import regenerate_ledger_ai_summary_async
 
     override_ai_model = ai_model.strip() if ai_model else None
-    success, delivery_log_id, new_status, message = regenerate_ledger_ai_summary_async(
-        db,
-        ledger_key=ledger_key,
-        override_ai_model=override_ai_model,
+    success, delivery_log_id, new_status, insight_run_id, message = (
+        regenerate_ledger_ai_summary_async(
+            db,
+            ledger_key=ledger_key,
+            override_ai_model=override_ai_model,
+        )
     )
     if new_status == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
@@ -307,6 +309,7 @@ def regenerate_scheduled_report_ai_summary(
         ledger_key=ledger_key,
         delivery_log_id=delivery_log_id,
         status=new_status,
+        insight_run_id=insight_run_id,
         message=message,
     )
 

@@ -13,7 +13,6 @@ from app.models import AdUploadFile, AdUploadPromotedProductRow, AnalysisReturnR
 from app.models.project import Project
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.sku_info import SkuRecord
-from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
 from app.utils.sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
@@ -475,14 +474,17 @@ def build_report_email_data(
     report_data["sku_context"] = sku_context
     report_data["sku_factory_info_text"] = sku_factory_info_text
 
-    ai_summary = ""
-    if generate_ai_summary:
-        # 通知调度器：数据获取完成，开始生成 AI 摘要
-        if stage_callback:
-            from app.models.scheduled_report import DeliveryStage
-            stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+    # BLF-1014：AI 摘要不再由 builder 内联生成（旧 _generate_summary 已摘除）。
+    # report_data 即 AI 输入载荷（含 project_context/sku_context/
+    # sku_factory_info_text），由 Insight run 的 schedule_report_summary.v1
+    # role 消费；generate_ai_summary 参数保留兼容旧调用方（test-email 等），
+    # 置 True 时仅推进 GENERATING_SUMMARY 阶段标记。
+    if generate_ai_summary and stage_callback:
+        from app.models.scheduled_report import DeliveryStage
 
-        ai_summary = _generate_summary(frequency, report_data, ai_model, timeout=ai_timeout)
+        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+
+    ai_summary = ""
 
     # 13. Build weekly report data format for email renderer
     curr_qty = week_sales.get("week_qty", 0)
@@ -539,6 +541,10 @@ def build_report_email_data(
     period7d_change_pct = ((curr_7d_qty - prev_7d_qty) / prev_7d_qty * 100) if prev_7d_qty > 0 else 0
     period7d_amount_change_pct = ((curr_7d_amt - prev_7d_amt) / prev_7d_amt * 100) if prev_7d_amt > 0 else 0
     
+    # BLF-1014：返回 dict 本身即 AI 输入载荷（sales/week_sales/inventory/
+    # project_context/sku_context/sku_factory_info_text…），Insight adapter
+    # 按整个 report_data 组装 report.data slot；ai_payload 键显式随行，
+    # 与 weekly/monthly builder 的形状对齐，便于 adapter 统一取值。
     return {
         "sales": sales,                  # 今日数据（锚定日）
         "week_sales": week_sales,        # 近7天累计
@@ -561,6 +567,10 @@ def build_report_email_data(
         "country": country,
         "report_date": today.isoformat(),
         "date_range": date_range,
+        "project_context": project_context,
+        "sku_context": sku_context,
+        "sku_factory_info_text": sku_factory_info_text,
+        "ai_payload": report_data,
     }
 
 
@@ -696,56 +706,9 @@ def _query_top_return_reasons(
         return []
 
 
-# AI summary timeout is read per-call from env via get_ai_timeout_sec().
-# Set AI_SUMMARY_TIMEOUT_SEC=0 to disable AI and force the fallback summary.
-# Default 30s. See app/services/scheduled_report/ai_timeout.py.
-
-
-def _generate_summary(
-    frequency: str,
-    overview: dict[str, Any],
-    model: str | None = None,
-    timeout: float | None = None,
-) -> str:
-    """Generate AI summary with a configurable timeout.
-
-    Uses a thread-based timeout so it works both on the main thread
-    and inside ThreadPoolExecutor workers (where SIGALRM is unavailable).
-
-    If the AI call exceeds *timeout* seconds, a fallback text summary is
-    returned immediately and the rest of the pipeline proceeds without
-    blocking on screenshot / email delivery.
-
-    Args:
-        frequency: "daily" / "weekly" / "monthly"
-        overview: Report data dict passed to the AI prompt
-        model: Optional model override
-        timeout: Max seconds to wait for AI. Defaults to get_ai_timeout_sec(frequency).
-    """
-    secs = timeout if timeout is not None else get_ai_timeout_sec(frequency)
-
-    if secs <= 0:
-        return _generate_fallback_summary(frequency, overview)
-
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-
-    def _call_ai():
-        from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
-        return generate_ai_summary(frequency, overview, model=model)
-
-    try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_call_ai)
-            return future.result(timeout=secs)
-    except FuturesTimeout:
-        logger.warning(
-            "AI summary timed out (%.0fs) for frequency=%s — using fallback",
-            secs, frequency,
-        )
-        return _generate_fallback_summary(frequency, overview)
-    except Exception as e:
-        logger.warning("AI summary failed, using fallback: %s", e)
-        return _generate_fallback_summary(frequency, overview)
+# BLF-1014：旧 `_generate_summary`（builder 内联调 LLM + 线程超时）已摘除；
+# AI 摘要由 Insight run（schedule_report_summary.v1）生成，数据构建期只
+# 保留纯格式化的 `_generate_fallback_summary` 供 AI 禁用/兜底路径使用。
 
 
 def _generate_fallback_summary(frequency: str, overview: dict[str, Any]) -> str:
