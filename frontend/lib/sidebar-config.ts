@@ -4,7 +4,6 @@ import {
   Banknote,
   BarChart3,
   Bell,
-  Bot,
   Activity,
   Calculator,
   CalendarRange,
@@ -48,7 +47,7 @@ import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 /**
  * Sidebar 两层结构的唯一数据权威。
  *
- * 外层分组由 SIDEBAR_TOP_GROUPS 定义（9 个顶级分类）。
+ * 外层分组由 SIDEBAR_TOP_GROUPS 定义（8 个顶级分类）。
  * 二级菜单项硬编码在每组的 items 中。
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  *
@@ -116,7 +115,6 @@ const IconMap = {
   Sparkles,
   ChartColumnBig,
   Bell,
-  Bot,
   Activity,
   CalendarRange,
   Handshake,
@@ -131,7 +129,14 @@ const NEUTRAL_ACCENT = 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-
 const NEUTRAL_ACTIVE = 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]'
 
 export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
-  // 1. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 供应链（商品 / 库存 / 履约）
+  // 1. 运营（所有角色）—— 统一业务导航：总览 → Agent 员工 → 各类型业务 → Agent 接入管理
+  // 2026-09-11 决策：撤销 2026-09-05 的「Agent 中心」独立分组——Agent 与运营人员同用一套系统，
+  // 按「Agent 是否页面主角」分家在 L1 rail 上分出两套入口，使用者要在两组之间来回找同一批页面。
+  // 归位规则：总览置顶（数据流总览 = 全业务域产出/活动归集点，两类使用者共同的前门）→ Agent 员工
+  // （员工 → 产出叙事，且与总览同为 agent-center 页）→ 中段按业务类型排列（站点 / 店铺 / 销售 /
+  // 退货 / 战略 / 巡检 / 商品库存 / 履约）→ Agent 接入管理置底（凭据即员工身份，属体系运维）。
+  // 报表自动化回归「报表中心」：一切产出报表的入口统一归 reports。
+  // 方案：docs/superpowers/plans/2026-09-11-sidebar-merge-agent-operations/
   {
     id: 'operations',
     label: '运营',
@@ -139,12 +144,31 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
+      {
+        title: '数据流总览',
+        url: '/dashboard/agent-center/overview',
+        matchPrefixes: ['/dashboard/agent-center/overview'],
+        icon: IconMap.Activity,
+      },
+      {
+        title: 'Agent 员工',
+        url: '/dashboard/agent-center/employees',
+        matchPrefixes: ['/dashboard/agent-center/employees'],
+        icon: IconMap.Users,
+      },
       { title: '站点导航', url: '/dashboard/operations/site-navigation', icon: IconMap.LayoutDashboard },
       { title: '店铺导航', url: '/dashboard/operations/store-navigation', icon: IconMap.Store },
       { title: '销售数据', url: '/dashboard/operations/daily-analysis', icon: IconMap.TrendingUp },
       { title: '退货分析', url: '/dashboard/operations/return-analysis', icon: IconMap.RotateCcw },
       { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
       { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
+      {
+        title: '客户消息',
+        url: '/dashboard/operations/complaint-center',
+        matchPrefixes: ['/dashboard/operations/complaint-center'],
+        icon: IconMap.MessagesSquare,
+      },
+      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
       { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
       // 供应链原分类（商品 / 库存 / 履约）已并入运营
       { title: '按周产品分析', url: '/dashboard/operations/weekly-product-analysis', icon: IconMap.BarChart3 },
@@ -158,6 +182,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         icon: IconMap.CalendarRange,
       },
       { title: '发货管理', url: '/dashboard/operations/shipment-management', icon: IconMap.Package },
+      { title: 'Agent 接入管理', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
     ],
   },
 
@@ -195,6 +220,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/reports/scheduled-reports'],
         icon: IconMap.Zap,
       },
+      { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
       { title: '订单信息', url: '/dashboard/reports/order-info', icon: IconMap.ShoppingBag },
     ],
   },
@@ -265,44 +291,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 6. Agent 中心 —— Agent 员工产品线：产出（A 档）+ 接入管理
-  // 归类门规（2026-09-05 决策）：Agent 是页面数据的主要生产者（巡检 / 上传写侧），或页面本身是
-  // Agent 体系运维工具 → 归入本组；B 档（agent 也可读写的域工作台，如 SKU 信息 / 发货管理 /
-  // 库存分类账 / 销售数据 / 补货分析 / 各测算）留在业务分组，待数据流总览页上线后按实际使用
-  // 再评估。禁止按「有无 agent 端点」划线迁移（AGENT_DOMAINS 已 16 域，划不住）。
-  // 方案：docs/superpowers/plans/2026-09-05-agent-center-sidebar/
-  {
-    id: 'agent',
-    label: 'Agent 中心',
-    icon: IconMap.Bot,
-    accent: NEUTRAL_ACCENT,
-    activeAccent: NEUTRAL_ACTIVE,
-    items: [
-      {
-        title: '数据流总览',
-        url: '/dashboard/agent-center/overview',
-        matchPrefixes: ['/dashboard/agent-center/overview'],
-        icon: IconMap.Activity,
-      },
-      {
-        title: 'Agent 员工',
-        url: '/dashboard/agent-center/employees',
-        matchPrefixes: ['/dashboard/agent-center/employees'],
-        icon: IconMap.Users,
-      },
-      {
-        title: '客户消息',
-        url: '/dashboard/operations/complaint-center',
-        matchPrefixes: ['/dashboard/operations/complaint-center'],
-        icon: IconMap.MessagesSquare,
-      },
-      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
-      { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
-      { title: 'Agent 接入管理', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
-    ],
-  },
-
-  // 7. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
+  // 6. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
   {
     id: 'crm',
     label: 'CRM 客户与合作伙伴',
@@ -351,7 +340,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 8. 工具箱（所有角色）
+  // 7. 工具箱（所有角色）
   {
     id: 'tools',
     label: '工具箱',
@@ -364,7 +353,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 9. 系统管理（所有角色可见；细粒度权限由单页权限接管）
+  // 8. 系统管理（所有角色可见；细粒度权限由单页权限接管）
   {
     id: 'system',
     label: '系统管理',

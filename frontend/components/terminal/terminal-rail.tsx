@@ -25,7 +25,7 @@ interface TerminalRailProps {
 }
 
 /**
- * L1 极窄主轨（固定 64px，BLF-809；BLF-887 图标 20→24 上档 2026-08-29）：9 大业务域图标 + 底部主题切换与用户菜单。
+ * L1 极窄主轨（固定 64px，BLF-809；BLF-887 图标 20→24 上档 2026-08-29）：8 大业务域图标 + 底部主题切换与用户菜单。
  * 仅图标不落文字，hover 以 title 提示；活动域以左侧 2px accent 指示。
  * 图标尺寸经内联 style 应用（Tailwind JIT 不编译模板字符串拼出的类，动态 `h-[${N}px]` 从未生成）。
  */
@@ -60,7 +60,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
         </button>
       </div>
 
-      {/* 9 大业务域图标 */}
+      {/* 8 大业务域图标 */}
       <nav id="main-navigation" className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto py-2 term-scroll">
         {groups.map((group) => {
           const Icon = group.icon
