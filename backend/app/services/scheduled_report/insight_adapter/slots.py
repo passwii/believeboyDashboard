@@ -14,8 +14,9 @@
 
 scope 一致性（validator._check_scope_consistency 要求）：run 的
 ``project_id`` 必须出现在 ``report.context.project_ids`` 里、
-``country`` 必须与 ``report.context.country`` 一致。多国家订阅为每个
-国家提交一个 run，各自携带该国数据。
+``country`` 必须与 ``report.context.country`` 一致。一条 delivery 只提交
+一个 run，国家取订阅国家里第一个有可见项目的那个（多国家数据整体进
+``report.data``，见 ``submit._multi_country_payload``）。
 """
 
 from __future__ import annotations

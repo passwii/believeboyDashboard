@@ -3,7 +3,7 @@
 覆盖验收矩阵：
 
 1. submit（提交/幂等/scope/数据缺失）
-   - 首次提交 → run 行 queued + delivery_log.ai_summary_run_id 落关联；
+   - 首次提交 → run 行 queued + delivery_log.insight_run_id 落关联；
    - 重复提交（用户重复触发/重试/worker 重启）→ replay 同一 run，不重复入队；
    - 订阅缺失 / 项目范围不可用 → submitted=False，delivery_log 标 failed；
    - slots 通过 role registry 校验（report.context 与 scope 一致）。
@@ -87,12 +87,16 @@ def _add_project(db: Session, project_id: int = 15, country: str = "US") -> Proj
 
 
 def _add_subscription(
-    db: Session, *, frequency: str = "weekly", country: str = "US"
+    db: Session,
+    *,
+    frequency: str = "weekly",
+    country: str = "US",
+    project_ids: str = "15",
 ) -> ScheduledReportSubscription:
     sub = ScheduledReportSubscription(
         user_id=1,
         email="ops@example.com",
-        project_ids="15",
+        project_ids=project_ids,
         country=country,
         frequency=frequency,
         dispatch_hour=15,
@@ -226,7 +230,7 @@ def _make_run_row(
 
 class TestSubmitRunForDelivery:
     def test_submit_creates_run_and_links_delivery_log(self, db: Session):
-        """首次提交 → run 行 queued + ai_summary_run_id 关联落库。"""
+        """首次提交 → run 行 queued + insight_run_id 关联落库。"""
         from app.services.scheduled_report.insight_adapter import submit as submit_mod
 
         _add_project(db)
@@ -246,7 +250,7 @@ class TestSubmitRunForDelivery:
         assert run_id is not None
         assert enqueued == [(run_id, 1)]  # fresh run 恰好入队一次
         db.refresh(log)
-        assert log.ai_summary_run_id == run_id
+        assert log.insight_run_id == run_id
 
         run = get_run(db, run_id)
         assert run.status == "queued"
@@ -535,3 +539,238 @@ class TestSlotContract:
         # 且不抛异常（邮件主流程不受影响）。
         assert submitted is False
         assert run_id is None
+
+
+# ---------------------------------------------------------------------------
+# 4. 多国家 scope 自洽 + prompt 形状（BLF-1014 复核阻塞 1 / 2）
+# ---------------------------------------------------------------------------
+
+
+class TestMultiCountryScopeAndPrompt:
+    def test_multi_country_subscription_submits_with_self_consistent_scope(
+        self, db: Session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """生产形状：订阅 country='DE,UK,US' + project_ids='10'(US)。
+
+        旧实现拿订阅首个国家 DE 去校验 US 项目 → COUNTRY_MISMATCH，提交
+        100% 失败。scope 必须整体取自同一项目：run.country == 该项目国家，
+        且 == report.context.country。
+        """
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+
+        _add_project(db, project_id=10, country="US")
+        sub = _add_subscription(
+            db, frequency="daily", country="DE,UK,US", project_ids="10"
+        )
+        log = _add_sent_log(db, sub, frequency="daily")
+
+        # 数据构建在 sqlite 空库上跑真实 builder 代价高，这里只锚 scope 层。
+        monkeypatch.setattr(
+            submit_mod,
+            "build_report_payload",
+            lambda db_, subject, *, country: {"country": country, "sales": {}},
+        )
+        enqueued: list[tuple[str, int]] = []
+        # 用真实的调度侧 scope 校验（生产就是它抛 COUNTRY_MISMATCH）。
+        from app.services.scheduled_report.ledger_service import _admin_scope_authorizer
+
+        submitted, run_id, message = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_admin_scope_authorizer(db),
+            enqueue=lambda rid, att: enqueued.append((rid, att)),
+            settings=_fake_settings(),
+        )
+
+        assert submitted is True, message
+        run = get_run(db, run_id)
+        assert run.country == "US"
+        assert run.project_id == 10
+        slots = json.loads(run.slots_json)
+        assert slots["report.context"]["country"] == "US"
+        assert 10 in slots["report.context"]["project_ids"]
+        assert enqueued == [(run_id, 1)]
+        db.refresh(log)
+        assert log.insight_run_id == run_id
+
+    def test_subscription_countries_without_visible_project_fails_soft(
+        self, db: Session
+    ):
+        """订阅国家里没有任何一个国家能对上可见项目 → 提交安全失败。"""
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+
+        _add_project(db, project_id=15, country="US")
+        sub = _add_subscription(db, frequency="weekly", country="DE,UK")
+        log = _add_sent_log(db, sub)
+
+        submitted, run_id, message = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: None,
+            settings=_fake_settings(),
+        )
+
+        assert submitted is False
+        assert run_id is None
+        assert "项目范围" in message
+
+    def test_multi_country_submit_slots_render_prompt_for_every_frequency(
+        self, db: Session
+    ):
+        """真实 submit 链路产出的 slots 必须能渲染成 prompt（复核阻塞 2 的回归）。
+
+        旧实现把邮件形状（``countries`` 是国家**列表**）直接塞进 slot，
+        daily 分支在 ``countries.keys()`` 上抛 AttributeError → run 卡死
+        generating。这里走真正的 ``submit_run_for_delivery``（真实多国家
+        builder）→ 读 run.slots_json → ``build_schedule_report_prompt``，
+        三个频次都不得抛错、且各国上下文齐全。
+        """
+        from app.services.insight.roles import lookup_role
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+        from app.services.scheduled_report.insight_adapter.prompt import (
+            build_schedule_report_prompt,
+        )
+        from app.services.scheduled_report.ledger_service import _admin_scope_authorizer
+
+        _add_project(db, project_id=15, country="US")
+        sub = _add_subscription(db, frequency="weekly", country="DE,UK,US")
+        log = _add_sent_log(db, sub)
+
+        submitted, run_id, message = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_admin_scope_authorizer(db),
+            enqueue=lambda rid, att: None,
+            settings=_fake_settings(),
+        )
+        assert submitted is True, message
+
+        slots = json.loads(get_run(db, run_id).slots_json)
+        payload = slots["report.data"]["payload"]
+
+        # 载荷形状：国家 → 该国载荷 的 dict（不是列表），且带齐上下文键。
+        assert isinstance(payload["countries"], dict)
+        assert set(payload["countries"]) == {"DE", "UK", "US"}
+        assert payload["multi_country"] is True
+        assert "project_context" in payload
+        assert "sku_context" in payload
+        assert "sku_factory_info_text" in payload
+
+        role = lookup_role(ROLE_ID, ROLE_VERSION)
+
+        # 邮件形状（列表）确实会炸——这是修复前的线上形状，保住这个反例，
+        # 防止有人把 _multi_country_payload 退回直传。
+        with pytest.raises(AttributeError):
+            build_schedule_report_prompt(
+                role,
+                {
+                    "report.context": {"frequency": "daily"},
+                    "report.data": {"payload": {**payload, "countries": ["DE", "UK", "US"]}},
+                },
+            )
+
+        for freq in ("daily", "weekly", "monthly"):
+            freq_slots = {
+                **slots,
+                "report.context": {**slots["report.context"], "frequency": freq},
+            }
+            prompt = build_schedule_report_prompt(role, freq_slots)
+            # 三国数据整体进 prompt：工厂信息按国家分块带上，证明多国上下文没丢。
+            assert "【美国站】" in prompt
+            assert "【德国站】" in prompt
+            assert "【英国站】" in prompt
+            assert "## 项目背景信息" in prompt
+            if freq == "daily":
+                assert "## 货币对照表" in prompt
+                assert "- US → " in prompt
+                assert "- DE → " in prompt
+            else:
+                assert "## 货币对照表" not in prompt
+
+    def test_replay_of_failed_run_starts_new_attempt_and_reenqueues(
+        self, db: Session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """replay 到死 run（failed/cancelled）→ 开新 attempt 重新入队。
+
+        否则前端「打断并重新生成」会变成永久空操作（旧线程路径每次都重生成）。
+        """
+        from app.services.insight.runs import get_run as _get_run
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+
+        _add_project(db)
+        sub = _add_subscription(db)
+        log = _add_sent_log(db, sub)
+        monkeypatch.setattr(
+            submit_mod,
+            "build_report_payload",
+            lambda db_, subject, *, country: {"current_week": {"qty": 1}},
+        )
+        enqueued: list[tuple[str, int]] = []
+        first = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: enqueued.append((rid, att)),
+            settings=_fake_settings(),
+        )
+        run = _get_run(db, first[1])
+        transition(db, run, InsightStatus.FAILED)
+        assert run.attempt == 1
+
+        again = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: enqueued.append((rid, att)),
+            settings=_fake_settings(),
+        )
+
+        assert again[0] is True
+        assert again[1] == first[1]  # 同一 run 行（delivery 绑定继续有效）
+        run = _get_run(db, first[1])
+        assert run.attempt == 2
+        assert run.status == InsightStatus.QUEUED.value
+        assert enqueued == [(first[1], 1), (first[1], 2)]
+
+    def test_replay_of_completed_run_never_reenqueues(
+        self, db: Session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """replay 到已完成 run → 不重新生成（同一 delivery 不重复扣费）。"""
+        from app.services.insight.runs import get_run as _get_run
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+
+        _add_project(db)
+        sub = _add_subscription(db)
+        log = _add_sent_log(db, sub)
+        monkeypatch.setattr(
+            submit_mod,
+            "build_report_payload",
+            lambda db_, subject, *, country: {"current_week": {"qty": 1}},
+        )
+        enqueued: list[tuple[str, int]] = []
+        first = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: enqueued.append((rid, att)),
+            settings=_fake_settings(),
+        )
+        run = _get_run(db, first[1])
+        transition(db, run, InsightStatus.FINALIZING)
+        transition(db, run, InsightStatus.COMPLETED)
+
+        again = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: enqueued.append((rid, att)),
+            settings=_fake_settings(),
+        )
+
+        assert again[0] is True
+        assert again[1] == first[1]
+        run = _get_run(db, first[1])
+        assert run.status == InsightStatus.COMPLETED.value
+        assert run.attempt == 1
+        assert len(enqueued) == 1

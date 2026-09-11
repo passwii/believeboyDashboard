@@ -38,6 +38,7 @@ def _compile_jsonb_for_sqlite(element, compiler, **kw):
 
 from datetime import datetime
 from typing import ClassVar
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -52,6 +53,7 @@ from app.models.scheduled_report import (
     ScheduledReportLedgerEntry,
     ScheduledReportSubscription,
 )
+from app.schemas.insight import InsightStatus
 
 
 @pytest.fixture()
@@ -272,14 +274,18 @@ def test_regenerate_async_recovers_stuck_generating_state(
     _add_ledger_entry(db, sub, expected_date="2026-05-23", latest_delivery_log_id=log.id)
     ledger_key = f"{sub.id}:2026-05-23"
 
-    success, delivery_log_id, new_status, message = ledger_service.regenerate_ledger_ai_summary_async(
-        db, ledger_key=ledger_key, override_ai_model=None,
+    success, delivery_log_id, new_status, insight_run_id, message = (
+        ledger_service.regenerate_ledger_ai_summary_async(
+            db, ledger_key=ledger_key, override_ai_model=None,
+        )
     )
 
     assert success is True
     assert delivery_log_id == log.id
     assert new_status == AiSummaryStatus.GENERATING.value
     assert "AI 摘要生成" in message or "已启动" in message
+    # 首次触发：run 行由 worker 侧建立，此刻还没有可订阅的 run id。
+    assert insight_run_id is None
 
     db.refresh(log)
     # The state transitions: the reset call wrote PENDING, then the sync
@@ -318,7 +324,7 @@ def test_regenerate_async_skips_when_delivery_log_not_sent(
     _add_ledger_entry(db, sub, expected_date="2026-05-23", latest_delivery_log_id=log.id)
     ledger_key = f"{sub.id}:2026-05-23"
 
-    success, _, new_status, _ = ledger_service.regenerate_ledger_ai_summary_async(
+    success, _, new_status, _, _ = ledger_service.regenerate_ledger_ai_summary_async(
         db, ledger_key=ledger_key,
     )
 
@@ -375,3 +381,108 @@ def test_double_regenerate_resets_state_and_dispatches_again(
     )
     assert len(capture_delay) == 2
     assert all(c["log_id"] == log.id for c in capture_delay)
+
+
+# ---------------------------------------------------------------------------
+# BLF-1014：regenerate 回带已绑定的 Insight run id（前端订阅用）
+# ---------------------------------------------------------------------------
+
+
+def _add_insight_run(db: Session, *, run_id: str, status: str = "generating"):
+    """落一行 schedule_report_summary run，模拟上一次未完成的生成。"""
+    from app.models.insight_run import InsightRun
+
+    run = InsightRun(
+        run_id=run_id,
+        attempt=1,
+        capability="insight",
+        use_case="schedule_report_summary.v1",
+        project_id=15,
+        country="US",
+        role_id="schedule_report_summary",
+        role_version=1,
+        endpoint_id="default",
+        model_id="test-model",
+        status=status,
+        stage=status,
+        progress_percent=0,
+        idempotency_key="schedule-report:log:1",
+        request_fingerprint="f" * 64,
+        slots_json="{}",
+        status_timeline_json="[]",
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def test_regenerate_interrupts_previous_run_and_returns_its_id(
+    db: Session, capture_delay: list[dict]
+):
+    """「打断并重新生成」：旧 run 必须被 cancel，且响应把该 run id 回带给前端。
+
+    旧 run id 不是「过期数据」——worker 侧的 submit 对死 run 开新 attempt，
+    行 id 不变，所以前端拿这个 id 订阅正好能等到新一次生成。
+    """
+    from app.services.scheduled_report import ledger_service
+
+    sub = _add_subscription(db)
+    log = _add_sent_log(
+        db, sub,
+        report_date="2026-05-23",
+        ai_summary_status=AiSummaryStatus.GENERATING.value,
+        ai_summary_error=None,
+    )
+    _add_ledger_entry(db, sub, expected_date="2026-05-23", latest_delivery_log_id=log.id)
+    run = _add_insight_run(db, run_id=str(uuid4()), status="generating")
+    log.insight_run_id = run.run_id
+    db.commit()
+
+    success, delivery_log_id, new_status, insight_run_id, _message = (
+        ledger_service.regenerate_ledger_ai_summary_async(
+            db, ledger_key=f"{sub.id}:2026-05-23", override_ai_model=None,
+        )
+    )
+
+    assert success is True
+    assert delivery_log_id == log.id
+    assert new_status == AiSummaryStatus.GENERATING.value
+    assert insight_run_id == run.run_id
+
+    # 旧 run 被真正打断（不是只重置了台账状态）
+    db.refresh(run)
+    assert run.status == InsightStatus.CANCELLED.value
+
+    # 恰好一次新任务派发，且不触网
+    assert len(capture_delay) == 1
+    assert capture_delay[0]["log_id"] == log.id
+
+
+def test_regenerate_cancel_failure_does_not_block_restart(
+    db: Session, capture_delay: list[dict]
+):
+    """打断失败（例如 run 行已不存在）绝不能阻塞重新生成。"""
+    from app.services.scheduled_report import ledger_service
+
+    sub = _add_subscription(db)
+    log = _add_sent_log(
+        db, sub,
+        report_date="2026-05-23",
+        ai_summary_status=AiSummaryStatus.GENERATING.value,
+        ai_summary_error=None,
+    )
+    _add_ledger_entry(db, sub, expected_date="2026-05-23", latest_delivery_log_id=log.id)
+    log.insight_run_id = str(uuid4())  # 合法 UUID 但库里没有这一行
+    db.commit()
+
+    success, _delivery_log_id, _new_status, insight_run_id, _message = (
+        ledger_service.regenerate_ledger_ai_summary_async(
+            db, ledger_key=f"{sub.id}:2026-05-23", override_ai_model=None,
+        )
+    )
+
+    assert success is True
+    # 行不存在 → 打断静默跳过，但 run id 仍按绑定值回带
+    assert insight_run_id == log.insight_run_id
+    assert len(capture_delay) == 1

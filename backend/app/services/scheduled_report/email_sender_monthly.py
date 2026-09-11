@@ -14,6 +14,7 @@ from app.services.scheduled_report.email_sender import (
     _currency_code, CURRENCY_SYMBOLS, CURRENCY_CODES,
     _render_country_sub_header,
     _scale_html_fonts,
+    fallback_summary_text,
 )
 from app.services.scheduled_report.email_sender_weekly import (
     _render_inventory_alerts_section, _render_action_items_section,
@@ -818,7 +819,10 @@ def send_monthly_report_email(email: str, report_data: dict[str, Any], stage_cal
         country_list = [c.strip() for c in raw_country.split(",") if c.strip()]
         is_multi = len(country_list) > 1
 
-        include_ai_summary = bool((report_data.get("ai_summary") or "").strip())
+        # BLF-1014：AI 摘要不再在构建期生成 → 邮件摘要段落会整段消失。
+        # 用纯格式化兜底文本填回（零 LLM 调用），保证段落始终渲染。
+        report_data["ai_summary"] = fallback_summary_text(report_data, "monthly")
+        include_ai_summary = bool(report_data["ai_summary"].strip())
 
         if is_multi:
             country_data = report_data.get("country_data", {})

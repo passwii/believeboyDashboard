@@ -91,7 +91,7 @@ def _wait_for_terminal_and_sync(run_id: str) -> dict[str, Any]:
                 return {"status": "run_not_found", "run_id": run_id}
             log = db.execute(
                 select(ScheduledReportDeliveryLog).where(
-                    ScheduledReportDeliveryLog.ai_summary_run_id == run_id
+                    ScheduledReportDeliveryLog.insight_run_id == run_id
                 )
             ).scalars().first()
             if log is None:

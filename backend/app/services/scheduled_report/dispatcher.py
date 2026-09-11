@@ -468,8 +468,11 @@ def _build_multi_country_report(
                     "ai_summary": f"暂无 {_country_label(country)} 数据",
                 }
 
-    # Use first country's data for shared shell fields
-    first = country_data[country_list[0]]
+    # Use first country's data for shared shell fields（country_list 为空 /
+    # 首个国家缺数据时退到任意有数据的一国，避免 IndexError / KeyError）。
+    first = country_data.get(country_list[0]) if country_list else None
+    if not first:
+        first = next(iter(country_data.values()), {})
 
     # BLF-1014：统一 AI 摘要不再在数据构建期生成（旧
     # _generate_multi_country_summary 的 LLM 调用已摘除）。多国家报告的
@@ -562,8 +565,7 @@ def _build_multi_country_report(
 
 # BLF-1014：旧 `_generate_multi_country_summary`（统一多国 LLM 摘要）已摘除；
 # 多国家报告的 AI 摘要由 Insight run 消费 country_data 生成，纯格式化的
-# `_fallback_multi_country_summary` 保留供 AI 禁用/兜底路径使用。
-
+# `_fallback_multi_country_summary` 保留供 AI 禁用/兜底路径使用）。
 def _fallback_multi_country_summary(
     country_data: dict[str, dict[str, Any]],
 ) -> str:

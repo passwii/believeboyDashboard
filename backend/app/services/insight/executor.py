@@ -537,10 +537,28 @@ def execute_run(
         return run
 
     prompt_builder, instructions_for, cleaner = role_runtime_for(role)
-    prompt = (build_prompt or prompt_builder)(role, slots)
-    agent = create_insight_agent(
-        selection, role_instructions=instructions_for(role, slots)
-    )
+    try:
+        prompt = (build_prompt or prompt_builder)(role, slots)
+        role_instructions = instructions_for(role, slots)
+    except Exception as exc:
+        # prompt/指令构建在 provider try 之外：异常穿出 execute_run 会被
+        # Celery 当「任务异常」丢弃，run 行永远停在 generating，上游
+        # _wait_for_terminal_and_sync 空转到 soft limit（BLF-1014 复核阻塞 2）。
+        # 载荷形状错误是确定性的，重试无意义 → 直接落 FAILED 终止态。
+        logger.exception("Insight prompt build failed (run_id=%s)", run.run_id)
+        return _fail(
+            db,
+            run,
+            active_sink,
+            make_error(
+                InsightErrorCode.SLOT_VALIDATION_FAILED,
+                "Report payload could not be rendered into a prompt"
+                f" ({type(exc).__name__})",
+                slot="report.data",
+            ),
+            attempt=attempt,
+        )
+    agent = create_insight_agent(selection, role_instructions=role_instructions)
     try:
         llm = (generate or default_generate)(agent, prompt)
     except RetryableFailure:

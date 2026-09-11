@@ -15,6 +15,7 @@ from app.services.scheduled_report.email_sender import (
     _basic_markdown_to_html, _inline_markdown, _country_label,
     _currency_code, _render_country_sub_header,
     _scale_html_fonts,
+    fallback_summary_text,
 )
 from app.services.scheduled_report._name_utils import (
     sanitize_filename_segment,
@@ -1003,7 +1004,10 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         country_list = [c.strip() for c in raw_country.split(",") if c.strip()]
         is_multi = len(country_list) > 1
 
-        include_ai_summary = bool((report_data.get("ai_summary") or "").strip())
+        # BLF-1014：AI 摘要不再在构建期生成 → 邮件摘要段落会整段消失。
+        # 用纯格式化兜底文本填回（零 LLM 调用），保证段落始终渲染。
+        report_data["ai_summary"] = fallback_summary_text(report_data, frequency)
+        include_ai_summary = bool(report_data["ai_summary"].strip())
 
         if is_multi:
             # Multi-country path

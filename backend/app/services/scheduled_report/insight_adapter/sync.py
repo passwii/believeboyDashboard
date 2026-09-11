@@ -6,10 +6,8 @@ Insight run 终态 → ``ScheduledReportDeliveryLog.ai_summary_*`` 的唯一回�
 - ``failed``    → status=failed、error=typed error 摘要（安全文本）
 - ``cancelled`` → status=pending（用户主动取消不算失败，可再次触发）
 
-调用方：Celery ``generate_delivery_summary``（提交后观察 run 到终态）与
-``sync_delivery_log_from_run``（前端刷新/轮询时兜底同步——run 已终态但
-delivery_log 未跟上时补齐）。回写以 run 行为准、幂等：重复调用同值覆盖，
-不产生重复邮件/扣费。
+调用方：Celery ``generate_delivery_summary``（提交后观察 run 到终态并回写）。
+回写以 run 行为准、幂等：重复调用同值覆盖，不产生重复邮件/扣费。
 """
 
 from __future__ import annotations

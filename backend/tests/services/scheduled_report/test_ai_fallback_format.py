@@ -249,3 +249,203 @@ def test_should_sync_daily_fallback_non_daily_always_celery(
     assert _should_sync_daily_fallback("monthly") is False
 
 
+
+
+# ---------------------------------------------------------------------------
+# BLF-1014：摘要段落不得整段消失
+#
+# builder 期不再生成 AI 摘要（BLF-820 起、BLF-1014 收口到 Insight run），
+# report_data["ai_summary"] 到 send 时必为空 → 邮件摘要段落会整段消失。
+# 现在 send 路径用纯格式化兜底文本填回（零 LLM）。这里在 **Resend 边界**
+# 抓取真实待发 HTML 断言段落确实渲染，而不是断言内部调用了哪个函数。
+# ---------------------------------------------------------------------------
+
+
+def _daily_single() -> dict:
+    return {
+        "project_name": "项目A",
+        "report_date": "2026-08-17",
+        "country": "US",
+        "date_range": "2026-08-10 ~ 2026-08-16",
+        "sales": {"yesterday_qty": 10, "yesterday_amount": 100.0},
+        "week_sales": {"week_qty": 39, "week_amount": 1005.34},
+        "inventory": {"total_available": 693, "in_transit": 0},
+        "trend_days": [{"date": "08-10", "qty": 5}, {"date": "08-11", "qty": 5}],
+        "ai_summary": "",
+    }
+
+
+def _weekly_single() -> dict:
+    return {
+        "project_name": "项目B",
+        "report_date": "2026-08-17",
+        "week_number": "34",
+        "country": "US",
+        "date_range": "2026-08-10 ~ 2026-08-16",
+        "prev_week_range": "2026-08-03 ~ 2026-08-09",
+        "current_week": {"qty": 100, "amount": 1000.0, "avg_price": 10.0},
+        "prev_week": {"qty": 80, "amount": 800.0},
+        "changes": {},
+        "daily_trend": [{"date": "08-10", "weekday": "周一", "qty": 100}],
+        "ai_summary": "",
+    }
+
+
+def _monthly_single() -> dict:
+    return {
+        "project_name": "项目C",
+        "report_date": "2026-08-01",
+        "month_label": "2026年8月",
+        "country": "US",
+        "date_range": "2026-08-01 ~ 2026-08-31",
+        "current_month": {"qty": 1200, "amount": 12000.0, "avg_price": 10.0},
+        "prev_month": {"qty": 1000, "amount": 10000.0},
+        "yoy_month": {"qty": 900, "amount": 9000.0},
+        "mom_changes": {},
+        "yoy_changes": {},
+        "weekly_trend": [{"label": "第1周", "start": "2026-08-01", "end": "2026-08-07", "qty": 300}],
+        "ai_summary": "",
+    }
+
+
+def _multi(country_data: dict, *, extra: dict) -> dict:
+    data = {
+        "project_name": "项目D",
+        "report_date": "2026-08-17",
+        "country": "US,DE",
+        "is_multi_country": True,
+        "country_data": country_data,
+        "ai_summary": "",
+    }
+    data.update(extra)
+    return data
+
+
+def _send_and_capture(monkeypatch: pytest.MonkeyPatch, send_fn, report_data: dict, *args) -> str:
+    """在 Resend 边界抓取真实待发 HTML（不触网、不传 R2）。"""
+    from types import SimpleNamespace
+
+    import resend
+
+    import app.core.config as config_mod
+    from app.services.scheduled_report import screenshot as screenshot_mod
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        config_mod,
+        "get_settings",
+        lambda: SimpleNamespace(resend_api_key="test-key", alert_from_email="ops@example.com"),
+    )
+    monkeypatch.setattr(
+        resend.Emails, "send", lambda params: captured.update(params) or {"id": "captured"}
+    )
+    monkeypatch.setattr(
+        screenshot_mod, "process_screenshot_and_upload", lambda *a, **k: None
+    )
+
+    ok, detail = send_fn("ops@example.com", *args, report_data)
+    assert ok is True, detail
+    assert detail == "captured"
+    return captured["html"]
+
+
+@pytest.mark.parametrize(
+    ("frequency", "report_data", "marker"),
+    [
+        ("daily", _daily_single(), "销量10单/$100.00"),
+        ("weekly", _weekly_single(), "销量 100 件"),
+        ("monthly", _monthly_single(), "销量 1,200 件"),
+    ],
+)
+def test_send_path_renders_summary_for_single_country(
+    monkeypatch: pytest.MonkeyPatch, frequency: str, report_data: dict, marker: str
+) -> None:
+    """单站点：ai_summary 为空进 send → 邮件仍带摘要段落。"""
+    from app.services.scheduled_report import (
+        email_sender_daily,
+        email_sender_monthly,
+        email_sender_weekly,
+    )
+
+    send_fn = {
+        "daily": email_sender_daily.send_scheduled_report_email,
+        "weekly": email_sender_weekly.send_weekly_report_email,
+        "monthly": email_sender_monthly.send_monthly_report_email,
+    }[frequency]
+
+    extra_args = (frequency,) if frequency == "daily" else ()
+    html = _send_and_capture(monkeypatch, send_fn, report_data, *extra_args)
+
+    assert marker in html
+    # 摘要段落关闭时同一份数据不含该文案 → 段落确实来自兜底摘要
+    off = {
+        "daily": email_sender_daily._render_daily_report_html,
+        "weekly": email_sender_weekly._render_weekly_report_html,
+        "monthly": email_sender_monthly._render_monthly_report_html,
+    }[frequency](report_data, include_summary=False)
+    assert marker not in off
+
+
+@pytest.mark.parametrize(
+    ("frequency", "extra", "marker"),
+    [
+        ("daily", {"date_range": "2026-08-10 ~ 2026-08-16"}, "◉ 美国站"),
+        ("weekly", {"week_number": "34", "date_range": "2026-08-10 ~ 2026-08-16"}, "◉ 德国站"),
+        (
+            "monthly",
+            {"month_label": "2026年8月", "date_range": "2026-08-01 ~ 2026-08-31"},
+            "◉ 美国站",
+        ),
+    ],
+)
+def test_send_path_renders_summary_for_multi_country(
+    monkeypatch: pytest.MonkeyPatch, frequency: str, extra: dict, marker: str
+) -> None:
+    """多站点：每国一行兜底摘要随邮件发出（含国家标签）。"""
+    from app.services.scheduled_report import (
+        email_sender_daily,
+        email_sender_monthly,
+        email_sender_weekly,
+    )
+
+    country_data = {
+        "US": {
+            "country": "US",
+            "sales": {"yesterday_qty": 6, "yesterday_amount": 167.7},
+            "week_sales": {"week_qty": 16, "week_amount": 464.6},
+            "inventory": {"total_available": 225, "in_transit": 0},
+            "current_week": {"qty": 16, "amount": 464.6, "avg_price": 29.0},
+            "prev_week": {"qty": 10, "amount": 300.0},
+            "current_month": {"qty": 160, "amount": 4646.0, "avg_price": 29.0},
+            "prev_month": {"qty": 100, "amount": 3000.0},
+            "trend_days": [{"date": "08-10", "qty": 6}],
+            "daily_trend": [{"date": "08-10", "weekday": "周一", "qty": 6}],
+            "weekly_trend": [{"label": "第1周", "start": "08-01", "end": "08-07", "qty": 16}],
+        },
+        "DE": {
+            "country": "DE",
+            "sales": {"yesterday_qty": 8, "yesterday_amount": 208.11},
+            "week_sales": {"week_qty": 39, "week_amount": 1005.34},
+            "inventory": {"total_available": 693, "in_transit": 0},
+            "current_week": {"qty": 39, "amount": 1005.34, "avg_price": 25.0},
+            "prev_week": {"qty": 30, "amount": 800.0},
+            "current_month": {"qty": 390, "amount": 10053.4, "avg_price": 25.0},
+            "prev_month": {"qty": 300, "amount": 8000.0},
+            "trend_days": [{"date": "08-10", "qty": 8}],
+            "daily_trend": [{"date": "08-10", "weekday": "周一", "qty": 8}],
+            "weekly_trend": [{"label": "第1周", "start": "08-01", "end": "08-07", "qty": 39}],
+        },
+    }
+    report_data = _multi(country_data, extra=extra)
+
+    send_fn = {
+        "daily": email_sender_daily.send_scheduled_report_email,
+        "weekly": email_sender_weekly.send_weekly_report_email,
+        "monthly": email_sender_monthly.send_monthly_report_email,
+    }[frequency]
+
+    extra_args = (frequency,) if frequency == "daily" else ()
+    html = _send_and_capture(monkeypatch, send_fn, report_data, *extra_args)
+
+    assert marker in html
+    assert "◉ 德国站" in html and "◉ 美国站" in html

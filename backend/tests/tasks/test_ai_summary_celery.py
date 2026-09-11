@@ -135,7 +135,7 @@ def _add_queued_run(engine: Any, log_id: int) -> str:
         session.add(run)
         log = session.get(ScheduledReportDeliveryLog, log_id)
         assert log is not None
-        log.ai_summary_run_id = run.run_id
+        log.insight_run_id = run.run_id
         session.commit()
         return run.run_id
 
@@ -231,7 +231,7 @@ class TestGenerateDeliverySummaryTask:
         db.refresh(log)
         assert log.ai_summary_status == AiSummaryStatus.DONE.value
         assert log.ai_summary == "销量12单，库存300件"
-        assert log.ai_summary_run_id == outcome["run_id"]
+        assert log.insight_run_id == outcome["run_id"]
         assert log.ai_summary_model == "test-model"
 
     def test_run_failed_terminal_writes_typed_error(

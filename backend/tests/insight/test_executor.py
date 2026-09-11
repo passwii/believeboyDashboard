@@ -305,3 +305,54 @@ def test_task_registered_routed_and_guarded(monkeypatch: pytest.MonkeyPatch) -> 
     assert task.max_retries == 3
     assert task.soft_time_limit == 300
     assert task.time_limit == 420
+
+
+# ---------------------------------------------------------------------------
+# BLF-1014：不可渲染的 report.data 必须终结为 typed failure，而不是卡死
+# ---------------------------------------------------------------------------
+
+
+def test_unrenderable_report_payload_fails_terminal(db: Session) -> None:
+    """payload 渲染不出 prompt → 终态 failed(SLOT_VALIDATION_FAILED)。
+
+    回归来源：多国家分支把邮件形状（``countries`` 是国家**列表**）塞进
+    slot，daily prompt 在 ``countries.keys()`` 上抛 AttributeError；异常
+    逃出 prompt 构建段后 run 永远停在 generating（线上卡死）。
+    这里锁住两件事：终态 → failed；错误不可重试（不空转 Celery）。
+    """
+    run = _create_run(
+        db,
+        slots={
+            "report.context": {
+                "slot_version": 1,
+                "frequency": "daily",
+                "report_date": "2026-09-09",
+                "date_range_start": "2026-09-01",
+                "date_range_end": "2026-09-07",
+                "project_ids": [42],
+                "country": "US",
+            },
+            "report.data": {
+                "slot_version": 1,
+                "encoding": "json",
+                "payload": {"multi_country": True, "countries": ["US", "DE"]},
+            },
+        },
+    )
+    calls: list[str] = []
+    failed = execute_run(
+        db=db, run_id=run.run_id, attempt=1, resolve=_resolve,
+        generate=_ok_generate(calls),
+    )
+
+    assert failed.status == InsightStatus.FAILED.value
+    detail = to_detail(failed)
+    assert detail.error is not None
+    assert detail.error.code == InsightErrorCode.SLOT_VALIDATION_FAILED
+    assert not is_retryable(detail.error)
+    assert calls == []  # 从未调用 provider：坏 payload 不产生计费
+
+    # 终态幂等：再次投递不再重跑
+    execute_run(db=db, run_id=run.run_id, attempt=1, resolve=_resolve,
+                generate=_ok_generate(calls))
+    assert calls == []
