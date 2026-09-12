@@ -35,13 +35,6 @@ const AD_TRANSPORT_LABELS: Record<InsightStreamStatus, string> = {
   cancelled: '已取消',
 }
 
-/** 传输层仍在推流的状态；面板用它决定内容按草稿还是终稿渲染。 */
-const AD_STREAMING_TRANSPORT: Record<string, true> = {
-  connecting: true,
-  live: true,
-  reconnecting: true,
-}
-
 /** run 是否仍在推进 —— 决定面板给「取消」还是「重试」。 */
 const AD_ACTIVE_RUN: Record<InsightRunStatus, boolean> = {
   queued: true,
@@ -115,7 +108,8 @@ export function toAdPanelState(input: {
       status: transport,
       label: AD_TRANSPORT_LABELS[transport],
       progress: null,
-      isStreaming: Object.prototype.hasOwnProperty.call(AD_STREAMING_TRANSPORT, transport),
+      // 只有真的在推增量时才有光标；connecting / reconnecting 期间没有内容在动。
+      isStreaming: transport === 'live',
       busy: true,
     }
   }

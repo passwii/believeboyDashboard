@@ -92,6 +92,30 @@ describe('useAdInsight', () => {
     expect(result.current.runId).toBeNull()
   })
 
+  it('run 已建但 detail 读不回：给出可见失败与「重试」，不停在「取消」', async () => {
+    const startRun = vi.fn().mockResolvedValue({
+      run_id: 'ad-run-2',
+      status: 'queued',
+      attempt: 1,
+    } satisfies InsightRunStartResponse)
+    // 建 run 成功，但回读 detail 就失败：这条路径上共享 hook 只把「传输层失败」
+    // 写进状态，run 状态始终为空——正是容易退化成「只有取消、没有重试」的情形。
+    const fetchMock = vi.fn(() => Promise.reject(new Error('backend unreachable')))
+    const client = new InsightClient({ fetch: fetchMock as unknown as typeof fetch })
+
+    const { result } = renderHook(() =>
+      useAdInsight({ open: true, scope: SCOPE, startRun, client, reconnectDelayMs: 1 })
+    )
+
+    await waitFor(() => expect(result.current.panel.state.status).toBe('failed'))
+    expect(result.current.runId).toBe('ad-run-2')
+    expect(result.current.panel.state.label).toBe('广告分析生成失败')
+    // 已经无法推进：不给「取消」，且必须留下「重试」的出路。
+    expect(result.current.panel.state.busy).toBe(false)
+    expect(result.current.panel.onCancel).toBeUndefined()
+    expect(result.current.panel.onRetry).toBeTypeOf('function')
+  })
+
   it('入口关闭时不提交', () => {
     const startRun = vi.fn()
     const client = new InsightClient({ fetch: vi.fn() })

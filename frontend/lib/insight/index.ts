@@ -26,6 +26,7 @@ export {
   isInsightEventType,
   isInsightRunDetail,
   isInsightRunStartResponse,
+  toTerminalRunStatus,
   type InsightContentDeltaEvent,
   type InsightContentSnapshotEvent,
   type InsightCountry,

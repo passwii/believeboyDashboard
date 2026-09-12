@@ -12,6 +12,7 @@ import {
 } from '@/lib/insight/domain-runs'
 import {
   isInsightEventType,
+  toTerminalRunStatus,
   type InsightErrorPayload,
   type InsightRunStartResponse,
   type InsightRunStatus,
@@ -176,7 +177,10 @@ export function useInsightDomainRun<TInput>(
       })
   }, [submitKey, incomplete, incompleteMessage, path, attach, detach])
 
-  const runStatus = stream.runStatus
+  // run 状态（后端权威）优先；`fail()`（详情拉取失败 / 重连耗尽）只给传输层结论，
+  // 用它把终态补齐——否则面板会停在「无 run 状态」分支：对已经断掉的流显示「取消」、
+  // 且因为 run 状态为空而给不出「重试」，失败后无路可走。
+  const runStatus = stream.runStatus ?? toTerminalRunStatus(stream.status)
   useEffect(() => {
     if (!runId || !runStatus) return
     if (runStatus !== 'completed' && runStatus !== 'failed' && runStatus !== 'cancelled') return
