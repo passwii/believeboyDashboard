@@ -7,9 +7,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -26,6 +24,7 @@ import { getCountryLabel, COUNTRY_OPTIONS } from '@/lib/country'
 import { ProjectScopeSelect } from '@/components/project-scope-select'
 import type { AIModelConfig, Frequency } from './types'
 import { MIN_HOUR_FOR_MONDAY, WEEKDAY_LABELS } from './types'
+import { AiModelOptions } from './ai-model-options'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -133,16 +132,24 @@ export function SubscriptionForm({
   ])
 
   return (
-    <div className="max-h-[calc(90vh-8rem)] overflow-y-auto pr-1">
+    // 三段默认全开后表单明显变高：把标题与「配置预览 + 操作按钮」固定在两端，
+    // 只让中间的折叠区滚动，底部按钮不会被顶到滚动边缘、在手机上也不用翻到底才能提交。
+    <div className="flex max-h-[calc(100dvh-8rem)] flex-col pr-1">
       {/* 标题区 */}
-      <div className="mb-4">
+      <div className="mb-4 shrink-0">
         <h2 className="text-lg font-semibold">{mode === 'create' ? '新增订阅' : '编辑订阅'}</h2>
         <p className="text-sm text-muted-foreground">
           {mode === 'create' ? '配置自动报告的接收邮箱、频率和内容范围' : '修改订阅配置'}
         </p>
       </div>
 
-      <Accordion type="multiple" defaultValue={['basic', 'scope']} className="space-y-2">
+      {/* 三段默认全开（BLF-1032）：模型选择此前默认折叠，每次改模型都要先点一次
+          展开，是高频操作路径上的固定损耗。 */}
+      <Accordion
+        type="multiple"
+        defaultValue={['basic', 'scope', 'ai']}
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto"
+      >
         {/* ── 基础设置 ── */}
         <AccordionItem value="basic" className="rounded-none border-term-border bg-term-panel px-3">
           <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline [&[data-state=open]>svg]:text-foreground">
@@ -396,43 +403,13 @@ export function SubscriptionForm({
                   onValueChange={setFormAiModel}
                   disabled={isLoadingModelConfig || !modelConfig?.models.length}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="选择 AI 模型">
                     <SelectValue
                       placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {(modelConfig?.premiumModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>高级模型</SelectLabel>
-                        {modelConfig?.premiumModels.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {(modelConfig?.basicModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>基础模型</SelectLabel>
-                        {modelConfig?.basicModels.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {modelConfig?.models
-                      .filter(
-                        (m) =>
-                          !modelConfig.premiumModels.includes(m) &&
-                          !modelConfig.basicModels.includes(m)
-                      )
-                      .map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
+                    <AiModelOptions config={modelConfig} />
                   </SelectContent>
                 </Select>
               </div>
@@ -446,14 +423,14 @@ export function SubscriptionForm({
 
       {/* 全局错误 */}
       {formError && (
-        <div className="mt-3 flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
+        <div className="mt-3 flex shrink-0 items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
           <XCircle className="h-4 w-4 shrink-0" />
           {formError}
         </div>
       )}
 
       {/* 配置预览 */}
-      <div className="mt-4 rounded-none border border-term-border bg-term-raised p-2.5">
+      <div className="mt-4 shrink-0 rounded-none border border-term-border bg-term-raised p-2.5">
         <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-term-faint">配置预览</div>
         <div className="truncate font-mono text-xs text-term-muted" title={configPreview}>
           {configPreview}
@@ -461,7 +438,7 @@ export function SubscriptionForm({
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex flex-col sm:flex-row gap-2 pt-4 mt-4 border-t border-term-border">
+      <div className="mt-4 flex shrink-0 flex-col gap-2 border-t border-term-border pt-4 sm:flex-row">
         <Button variant="outline" onClick={onCancel} className="order-2 sm:order-1">
           取消
         </Button>
