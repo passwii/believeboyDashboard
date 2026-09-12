@@ -38,6 +38,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/tools/page-render', title: 'Markdown / HTML 渲染' },
   { match: '/ai/chat', title: 'AI Chat' },
   { match: '/ai/ad-analysis', title: 'AI 广告分析' },
+  { match: '/ai/inventory-health', title: 'AI 库存健康' },
   { match: '/operations/research-analysis', title: '调研分析' },
   { match: '/change-password', title: '修改密码' },
   { match: '/profile', title: '个人中心' },

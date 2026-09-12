@@ -20,6 +20,16 @@ export type InsightStreamStatus =
   | 'live'
   | 'reconnecting'
 
+/**
+ * 传输层状态 → canonical 终态：`fail()`（详情拉取失败、流重连耗尽）只给出传输层结论，
+ * 此时 run 状态仍为空，用它把「失败 / 取消 / 完成」补成权威状态，避免面板停在
+ * "无 run 状态" 分支上给出错的动作（例如对已断的流显示「取消」且不给「重试」）。
+ */
+export function toTerminalRunStatus(status: InsightStreamStatus): InsightRunStatus | null {
+  if (status === 'completed' || status === 'failed' || status === 'cancelled') return status
+  return null
+}
+
 export type InsightCountry = 'US' | 'DE' | 'UK'
 
 export type InsightSlots = Record<string, unknown>

@@ -1,14 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { Check, Copy, Loader2, Pencil, Save, X } from 'lucide-react'
 
+import { InsightMarkdown } from '@/components/insight'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
 import { DimensionPanel, type DimensionCoverage } from './dimension-panel'
 
 export interface InsightDetail {
@@ -210,20 +208,11 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
                 <DimensionPanel coverage={dimensionCoverage} defaultExpanded={false} />
               )}
               <div className="rounded-md border bg-card p-5">
-                <div
-                  className={cn(
-                    'prose prose-sm dark:prose-invert max-w-none',
-                    '[&_a]:font-medium [&_a]:text-primary',
-                    '[&_h1]:mt-6 [&_h1]:text-xl [&_h1]:font-semibold',
-                    '[&_h2]:mt-5 [&_h2]:text-lg [&_h2]:font-semibold',
-                    '[&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold',
-                    '[&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm',
-                    '[&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-primary/5 [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:my-3 [&_blockquote]:italic',
-                    '[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:font-mono'
-                  )}
-                >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.content}</ReactMarkdown>
-                </div>
+                <InsightMarkdown
+                  content={insight.content}
+                  state="final"
+                  exportFileName={`${insight.title || '广告分析'}.md`}
+                />
               </div>
             </div>
           )}

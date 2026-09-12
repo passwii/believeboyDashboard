@@ -6,9 +6,8 @@ import { useInsightStream } from '@/hooks/use-insight-stream'
 import { InsightClient } from '@/lib/insight/client'
 import {
   isInsightEventType,
+  toTerminalRunStatus,
   type InsightErrorPayload,
-  type InsightRunStatus,
-  type InsightStreamStatus,
 } from '@/lib/insight/protocol'
 import {
   ledgerRunId,
@@ -46,12 +45,6 @@ export type UseLedgerInsightOptions = {
   /** 测试注入用；默认走 Next 代理下的 `/api/backend/v1/insight/runs` */
   client?: InsightClient
   reconnectDelayMs?: number
-}
-
-/** 传输层终态 → canonical 状态：详情拉取失败等场景 hook 只给出传输层结论。 */
-function toTerminalRunStatus(status: InsightStreamStatus): InsightRunStatus | null {
-  if (status === 'completed' || status === 'failed' || status === 'cancelled') return status
-  return null
 }
 
 export function useLedgerInsight(options: UseLedgerInsightOptions): {
