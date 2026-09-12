@@ -157,11 +157,13 @@ export default function AgentOverviewClient() {
                     <TableCell className="font-medium">
                       <span className="block truncate">{domain.label}</span>
                     </TableCell>
-                    <TableCell
-                      className="text-xs text-term-muted line-clamp-2"
-                      title={domain.description}
-                    >
-                      {domain.description}
+                    <TableCell className="text-xs text-term-muted" title={domain.description}>
+                      {/* 定高两行盒：line-clamp 直接落在 <td> 上会把 display 改成 -webkit-box，
+                          单元格不再是 table-cell（border-separate 下不撑满行高）→ 该列比同行其他列矮一截；
+                          且说明占 1 行/2 行时行高会抖动。故内层定高 2 行、外层居中。 */}
+                      <span className="flex min-h-8 items-center">
+                        <span className="line-clamp-2 leading-4">{domain.description}</span>
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-nowrap items-center gap-1">

@@ -1,6 +1,7 @@
 /**
  * BLF-1027 · dashboard/agent-center/overview 「业务域活动矩阵」版式回归
- * —— 固定布局列宽（ColGroup）、行高一致、数字列右对齐、窄屏容器内横滑。
+ * —— 固定布局列宽（ColGroup）、行高一致（含行内单元格撑满行高 / 宽屏说明列换行抖动）、
+ *    数字列右对齐、窄屏容器内横滑。
  * 自包含：伪造 session cookie + page.route mock 全部后端请求，无需真实后端。
  *
  * Run: PLAYWRIGHT_PORT=<port> pnpm test:ui tests/design/agent-overview-table-blf1027.spec.ts --project=chromium
@@ -114,6 +115,34 @@ async function columnDrift(page: Page) {
   })
 }
 
+interface RowGeometry {
+  label: string
+  h: number
+  cellHeights: number[]
+}
+
+/** 每行高度 + 行内各单元格高度（单元格必须撑满行高，否则该列边框短一截） */
+async function rowGeometry(page: Page): Promise<RowGeometry[]> {
+  return page.locator(`${TABLE} tbody tr`).evaluateAll((rows) =>
+    rows.map((r) => ({
+      label: (r.children[0].textContent || '').trim(),
+      h: Math.round(r.getBoundingClientRect().height),
+      cellHeights: Array.from(r.children).map((c) => Math.round(c.getBoundingClientRect().height)),
+    }))
+  )
+}
+
+/** 行高必须在所有行、所有单元格上一致（含「说明」列换 1 行 / 2 行时） */
+function expectUniformRows(rows: RowGeometry[]) {
+  const heights = rows.map((r) => r.h)
+  expect(
+    Math.max(...heights) - Math.min(...heights),
+    `行高区间 ${JSON.stringify(rows.filter((r) => r.h !== heights[0]))}`
+  ).toBeLessThanOrEqual(1)
+  const shortCells = rows.filter((r) => r.cellHeights.some((h) => Math.abs(h - r.h) > 1))
+  expect(shortCells, `单元格未撑满行高（该列边框会比同行其他列短）`).toEqual([])
+}
+
 test.describe('BLF-1027 业务域活动矩阵版式', () => {
   test('桌面 1440：列对齐 / 行高一致 / 数据列右对齐', async ({ page }) => {
     await mockBackend(page)
@@ -127,19 +156,8 @@ test.describe('BLF-1027 业务域活动矩阵版式', () => {
     const worst = Math.max(...drift.flat())
     expect(worst, `列错位最大偏差 ${worst}px`).toBeLessThanOrEqual(1)
 
-    // ② 行高一致（无因换行造成的行高抖动）
-    const rowsInfo = await page.locator(`${TABLE} tbody tr`).evaluateAll((rows) =>
-      rows.map((r) => ({
-        label: (r.children[0].textContent || '').trim(),
-        h: Math.round(r.getBoundingClientRect().height),
-        lines: Array.from(r.children).map((c) => Math.round(c.getBoundingClientRect().height)),
-      }))
-    )
-    const heights = rowsInfo.map((r) => r.h)
-    expect(
-      Math.max(...heights) - Math.min(...heights),
-      `行高区间 ${JSON.stringify(rowsInfo.filter((r) => r.h !== heights[0]))}`
-    ).toBeLessThanOrEqual(1)
+    // ② 行高一致（无因换行造成的行高抖动），且行内每个单元格都撑满行高
+    expectUniformRows(await rowGeometry(page))
 
     // ③ 表格无右侧留白浪费：所有列宽之和 ≈ 容器可视宽度（不出现大片死区）
     const metrics = await page.locator(TABLE).first().evaluate((table) => {
@@ -160,6 +178,20 @@ test.describe('BLF-1027 业务域活动矩阵版式', () => {
     // ④ 页面无整体横向滚动
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow).toBeLessThanOrEqual(2)
+  })
+
+  test('宽屏 1920：说明列换行数不同也保持行高一致', async ({ page }) => {
+    await mockBackend(page)
+    await page.setViewportSize({ width: 1920, height: 1000 })
+    await waitTable(page)
+    await page.screenshot({ path: path.join(OUT_DIR, 'desktop-1920-data.png'), fullPage: true })
+    await page.locator(TABLE).first().screenshot({ path: path.join(OUT_DIR, 'desktop-1920-table.png') })
+
+    const rows = await rowGeometry(page)
+    // 宽屏下「说明」列被撑宽，长/短描述分别占 2 行 / 1 行——行高与单元格高度都必须仍统一
+    expect(rows.some((r) => r.label.includes('财务利润')), '应包含无入口图标的规划中域').toBe(true)
+    expectUniformRows(rows)
+    expect(Math.max(...(await columnDrift(page)).flat())).toBeLessThanOrEqual(1)
   })
 
   test('桌面 1440 暗色：截图 + 无浅色带', async ({ page }) => {
