@@ -225,7 +225,9 @@ class Settings(BaseSettings):
     insight_gate_max_duration_ms: int = Field(default=300_000, ge=0)
     insight_gate_max_first_delta_ms: int = Field(default=90_000, ge=0)
     insight_gate_max_stream_frames: int = Field(default=10_000, ge=0)
-    # canonical 域（由 Insight 服务的桶）降级比例上限：0.0 = 不允许降级。
+    # canonical 域（由 Insight 服务的桶）降级比例上限：0.0 = 不判定（只报数）。
+    # 要表达「不允许降级」请配一个正的下限（如 0.0001），让 0 专管「不判定」
+    # 这一个含义 —— 见 INSIGHT_OBSERVATION_GATE.md §2.1。
     insight_gate_max_fallback_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
     # 成本异常判定倍数：单 run token 超过桶内中位数的 N 倍即异常（样本 >= 3）。
     # 这是运维经验默认（不是仓库既有数字），按需调整；比例判定不依赖模型单价。

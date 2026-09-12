@@ -117,7 +117,9 @@ def get_retirement_readiness(
         codegraph_verified=None,
         # 第三票（CodeGraph 调用方清零 + 回滚演练）未采集前恒不就绪。
         eligible=False,
-        blocking_count=len(report.blocking_findings),
+        # 与 metrics_ok 同源：只数 canonical 桶的未通过原因，legacy 桶的 blocking
+        # 结论不参与退役判定（完整清单见 gate 端点的 findings）。
+        blocking_count=len(reasons),
     )
 
 

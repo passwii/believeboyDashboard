@@ -47,6 +47,7 @@ from app.services.insight.stream_bus import (
     METRIC_CANCEL_REQUESTED,
     METRIC_CANCEL_SUCCEEDED,
     METRIC_FIRST_DELTA_MS,
+    METRIC_RECONNECT_COMPLETED,
     METRIC_STREAM_BYTES,
     METRIC_STREAM_FRAMES,
     METRIC_STREAM_OPENS,
@@ -173,6 +174,8 @@ def record_run_snapshot(
     row.retries = max(0, (run.attempt or 1) - 1)
     row.stream_opens = _metric_int(metrics, METRIC_STREAM_OPENS)
     row.stream_reconnects = _metric_int(metrics, METRIC_STREAM_RECONNECTS)
+    # 续传闭环：带游标重连后确实观测到终态帧（0/1，由 SSE 端点写入）。
+    row.reconnect_completed = _metric_int(metrics, METRIC_RECONNECT_COMPLETED) > 0
     row.stream_frames = _metric_int(metrics, METRIC_STREAM_FRAMES)
     stream_bytes = _metric_int(metrics, METRIC_STREAM_BYTES)
     row.stream_bytes = stream_bytes or None
@@ -338,6 +341,8 @@ class CapabilityMetrics:
     retried_runs: int = 0
     stream_opens: int = 0
     stream_reconnects: int = 0
+    #: 续传后观测到终态帧的 run 数（``stream_reconnects`` 的闭环分子）。
+    reconnect_completed: int = 0
     stream_frames: int = 0
     stream_bytes: int = 0
     max_stream_xlen: int | None = None
@@ -408,6 +413,8 @@ def _aggregate_rows(
             bucket.retried_runs += 1
         bucket.stream_opens += row.stream_opens or 0
         bucket.stream_reconnects += row.stream_reconnects or 0
+        if row.reconnect_completed:
+            bucket.reconnect_completed += 1
         bucket.stream_frames += row.stream_frames or 0
         bucket.stream_bytes += row.stream_bytes or 0
         if row.stream_xlen is not None:
@@ -481,6 +488,9 @@ def aggregate_observations(
 
 # ── 门禁 ────────────────────────────────────────────────────────────────
 
+#: 首个 canonical 域 —— 退役门禁只看这些桶（旧桶的失败不影响新链路判定）。
+CANONICAL_CAPABILITIES = ("insight",)
+
 
 @dataclass(frozen=True)
 class GateFinding:
@@ -497,7 +507,11 @@ class GateFinding:
 
 @dataclass(frozen=True)
 class GateReport:
-    """Observation-window verdict; ``eligible_for_retirement`` is one of three votes."""
+    """Observation-window verdict; ``eligible_for_retirement`` is one of three votes.
+
+    ``eligible_for_retirement`` / ``retirement_reasons`` 是**唯一**的指标票口径：
+    report 属性、请求响应 JSON、审计脚本都走这里，不允许各处各判一次。
+    """
 
     window_days: int
     buckets: list[CapabilityMetrics]
@@ -506,18 +520,40 @@ class GateReport:
 
     @property
     def blocking_findings(self) -> list[GateFinding]:
+        """全部 blocking 结论（含 legacy 桶）——审计口径，不等于退役口径。"""
         return [f for f in self.findings if f.severity == SEVERITY_BLOCKING]
 
     @property
+    def retirement_reasons(self) -> list[str]:
+        """指标票未通过的原因（canonical 桶有样本 + 无 blocking 结论才算通过）。"""
+        reasons: list[str] = []
+        by_capability = {b.capability: b for b in self.buckets}
+        for name in CANONICAL_CAPABILITIES:
+            bucket = by_capability.get(name)
+            if bucket is None or bucket.runs <= 0:
+                reasons.append(f"insufficient_data:{name}.runs=0")
+        for finding in self.blocking_findings:
+            if finding.capability in CANONICAL_CAPABILITIES:
+                reasons.append(f"{finding.code}:{finding.metric}={finding.observed}")
+        return reasons
+
+    @property
     def eligible_for_retirement(self) -> bool:
-        return not self.blocking_findings
+        """指标票：canonical 桶有样本且无 blocking 结论。
+
+        空窗口**不算达标** —— 没有证据的「通过」会让退役批准建立在空数据上。
+        """
+        return not self.retirement_reasons
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "window_days": self.window_days,
             "generated_at": self.generated_at.isoformat(),
             "eligible_for_retirement": self.eligible_for_retirement,
-            "blocking_count": len(self.blocking_findings),
+            "retirement_reasons": self.retirement_reasons,
+            # 与 eligible_for_retirement 同源：为 0 ⇔ 指标票通过（含 legacy 桶的
+            # blocking 结论仍完整保留在 findings 里，只是不参与退役判定）。
+            "blocking_count": len(self.retirement_reasons),
             "buckets": [
                 {
                     "capability": b.capability,
@@ -536,6 +572,7 @@ class GateReport:
                     "stream_opens": b.stream_opens,
                     "stream_reconnects": b.stream_reconnects,
                     "reconnect_rate": b.reconnect_rate,
+                    "reconnect_completed": b.reconnect_completed,
                     "stream_frames": b.stream_frames,
                     "stream_bytes": b.stream_bytes,
                     "max_stream_xlen": b.max_stream_xlen,
@@ -579,6 +616,8 @@ def evaluate_gates(
     max_duration = getattr(thresholds, "insight_gate_max_duration_ms", 0) or 0
     max_first_delta = getattr(thresholds, "insight_gate_max_first_delta_ms", 0) or 0
     max_frames = getattr(thresholds, "insight_gate_max_stream_frames", 0) or 0
+    # 降级与上述阈值同语义：0.0 = 不判定（只报数）。想表达「不允许降级」就配
+    # 一个正的下限（如 0.0001），而不是拿 0 兼作两种含义。
     max_fallback = getattr(thresholds, "insight_gate_max_fallback_ratio", 0.0) or 0.0
 
     for bucket in buckets:
@@ -621,7 +660,7 @@ def evaluate_gates(
                     detail="Stream 已达 maxlen，续传将退化到快照重建",
                 )
             )
-        if bucket.fallback_ratio > max_fallback:
+        if max_fallback and bucket.fallback_ratio > max_fallback:
             findings.append(
                 GateFinding(
                     code="fallback_observed",
@@ -714,10 +753,6 @@ def gate_report(
     )
 
 
-#: 首个 canonical 域 —— 退役门禁只看这些桶（旧桶的失败不影响新链路判定）。
-CANONICAL_CAPABILITIES = ("insight",)
-
-
 def is_retirement_eligible(report: GateReport) -> tuple[bool, list[str]]:
     """「指标达标」这一票：返回 (是否通过, 未通过原因)。
 
@@ -726,19 +761,12 @@ def is_retirement_eligible(report: GateReport) -> tuple[bool, list[str]]:
 
     「窗口内没有样本」不算达标：观测期的意义就是拿证据说话，空窗口下发
     「通过」会让退役批准建立在没有数据之上（验收 §3 要求先达标才退役）。
+
+    与 ``GateReport.eligible_for_retirement`` / ``as_dict()`` 同源：脚本、
+    报告属性、HTTP 响应三处只允许有一个口径。
     """
-    reasons: list[str] = []
-    by_capability = {b.capability: b for b in report.buckets}
-    for name in CANONICAL_CAPABILITIES:
-        bucket = by_capability.get(name)
-        if bucket is None or bucket.runs <= 0:
-            reasons.append(f"insufficient_data:{name}.runs=0")
-    for finding in report.findings:
-        if finding.severity != SEVERITY_BLOCKING:
-            continue
-        if finding.capability in CANONICAL_CAPABILITIES:
-            reasons.append(f"{finding.code}:{finding.metric}={finding.observed}")
-    return (not reasons), reasons
+    reasons = report.retirement_reasons
+    return (not reasons), list(reasons)
 
 
 __all__ = [

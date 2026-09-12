@@ -58,6 +58,7 @@ from app.services.insight.stream_bus import (
     METRIC_CANCEL_REQUESTED,
     METRIC_CANCEL_SUCCEEDED,
     METRIC_FIRST_DELTA_MS,
+    METRIC_RECONNECT_COMPLETED,
     METRIC_STREAM_BYTES,
     METRIC_STREAM_FRAMES,
     METRIC_STREAM_OPENS,
@@ -452,6 +453,7 @@ class TestAggregation:
                 **{
                     METRIC_STREAM_OPENS: 4,
                     METRIC_STREAM_RECONNECTS: 1,
+                    METRIC_RECONNECT_COMPLETED: 1,
                     METRIC_CANCEL_REQUESTED: 1,
                     METRIC_CANCEL_SUCCEEDED: 1,
                 }
@@ -461,7 +463,19 @@ class TestAggregation:
 
         bucket = aggregate_observations(db)[0]
         assert bucket.reconnect_rate == 0.25
+        # 续传闭环：重连 1 次、且补到了终态帧。
+        assert bucket.reconnect_completed == 1
         assert bucket.cancel_success_rate == 1.0
+
+    def test_reconnect_without_terminal_frame_is_not_completed(self, db: Session) -> None:
+        """只重连、没看到终态帧（断线又断）不算闭环 —— 计数器缺席即未完成。"""
+        run = _run(db, status=InsightStatus.COMPLETED.value)
+        record_run_snapshot(
+            db, run, metrics=_metrics(**{METRIC_STREAM_OPENS: 2, METRIC_STREAM_RECONNECTS: 1})
+        )
+        db.commit()
+
+        assert aggregate_observations(db)[0].reconnect_completed == 0
 
     def test_window_excludes_older_rows(self, db: Session) -> None:
         run = _seed_completed(db)
@@ -503,6 +517,32 @@ class TestGateThresholds:
         report = gate_report(db, settings=_settings())
         assert report.blocking_findings == []
         assert report.eligible_for_retirement is True
+
+    def test_zero_fallback_threshold_is_not_judged(self, db: Session, session_factory) -> None:
+        """``insight_gate_max_fallback_ratio = 0`` = 不判定：降级只报数，不成结论。
+
+        反例回归（review）：此前 ``0.0`` 被当阈值比较，一次降级事件就把 canonical
+        桶判成 blocking —— 与 config/文档写的「0 = 不判定」相反。
+        """
+        _seed_completed(db, capability="insight")
+        record_fallback(
+            capability="insight", reason="timeout", session_factory=session_factory
+        )
+        report = gate_report(db, settings=_settings(insight_gate_max_fallback_ratio=0.0))
+        assert [b.fallback_ratio for b in report.buckets if b.capability == "insight"] == [0.5]
+        assert report.blocking_findings == []
+        assert report.eligible_for_retirement is True
+
+    def test_positive_fallback_threshold_blocks(self, db: Session, session_factory) -> None:
+        """配了正的下限才判定 —— 「不允许降级」用非零阈值表达，不与 0 混用。"""
+        _seed_completed(db, capability="insight")
+        record_fallback(
+            capability="insight", reason="timeout", session_factory=session_factory
+        )
+        report = gate_report(db, settings=_settings(insight_gate_max_fallback_ratio=0.1))
+        assert [f.code for f in report.blocking_findings] == ["fallback_observed"]
+        assert report.eligible_for_retirement is False
+        assert "fallback_observed:fallback_ratio=0.5" in report.retirement_reasons
 
     def test_duration_and_first_delta_exceeding_budget_block(self) -> None:
         from app.services.insight.observation import CapabilityMetrics
@@ -563,10 +603,22 @@ class TestGateThresholds:
         assert {f.severity for f in findings} == {SEVERITY_INFO}
         assert {f.code for f in findings} == {"failures_observed", "retries_observed"}
 
-    def test_empty_window_produces_no_findings(self, db: Session) -> None:
+    def test_empty_window_is_not_eligible_in_report_json(self, db: Session) -> None:
+        """空窗口不产生 findings，但**不是达标** —— 报告属性与 JSON 口径必须一致。
+
+        反例回归（review）：``as_dict()['eligible_for_retirement']`` 曾只看
+        ``blocking_findings``，空窗口下返回 ``true``，与 ``is_retirement_eligible()``
+        相互矛盾。
+        """
         report = gate_report(db, settings=_settings())
         assert report.buckets == []
-        assert report.as_dict()["eligible_for_retirement"] is True
+        assert report.findings == []
+        assert report.eligible_for_retirement is False
+        payload = report.as_dict()
+        assert payload["eligible_for_retirement"] is False
+        assert payload["retirement_reasons"] == ["insufficient_data:insight.runs=0"]
+        assert payload["blocking_count"] == 1
+        assert is_retirement_eligible(report) == (False, ["insufficient_data:insight.runs=0"])
 
 
 class TestRetirementEligibility:
@@ -580,13 +632,22 @@ class TestRetirementEligibility:
             reason="timeout",
             session_factory=session_factory,
         )
+        # 正阈值让 legacy 桶确实产生一条 blocking 结论（0 = 不判定）。
         report = gate_report(
-            db, settings=_settings(insight_gate_max_fallback_ratio=0.0)
+            db, settings=_settings(insight_gate_max_fallback_ratio=0.1)
         )
         assert [f.capability for f in report.blocking_findings] == ["ai_summary"]
 
         ok, reasons = is_retirement_eligible(report)
         assert ok is True and reasons == []
+        # 指标票口径唯一：report 属性 / JSON / 判定函数三处同源，legacy 的 blocking
+        # 结论只留在 findings 里做审计，不进退役口径。
+        assert report.eligible_for_retirement is True
+        payload = report.as_dict()
+        assert payload["eligible_for_retirement"] is True
+        assert payload["retirement_reasons"] == []
+        assert payload["blocking_count"] == 0
+        assert [f["capability"] for f in payload["findings"]] == ["ai_summary"]
 
     def test_canonical_findings_block_with_reasons(self, db: Session) -> None:
         _seed_completed(db, duration_ms=999_000)
@@ -674,7 +735,8 @@ class TestRedaction:
             "id", "source", "run_id", "attempt", "capability", "role_id",
             "endpoint_id", "model_id", "status", "first_delta_ms", "duration_ms",
             "input_tokens", "output_tokens", "total_tokens", "attempts", "retries",
-            "stream_opens", "stream_reconnects", "stream_frames", "stream_bytes",
+            "stream_opens", "stream_reconnects", "reconnect_completed",
+            "stream_frames", "stream_bytes",
             "stream_xlen", "stream_memory_bytes", "cancel_requested",
             "cancel_succeeded", "error_code", "error_retryable", "fallback",
             "fallback_reason", "created_at", "updated_at",

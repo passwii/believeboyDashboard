@@ -32,6 +32,7 @@ legacy `/ai-insights` 写端点、旧 URL、历史表**一律不删**。
 | `input/output/total_tokens` | LLM 用量 | 执行器终态写入的 `usage_json` |
 | `attempts` / `retries` | 尝试次数 / 重试次数 | `attempts = attempt`，`retries = attempt - 1` |
 | `stream_opens` / `stream_reconnects` | SSE 连接次数 / 其中带游标的恢复次数 | 连接即 +1；`Last-Event-ID` 非空即计一次重连（`insight_runs.py` SSE handler） |
+| `reconnect_completed` | 重连后确实补到终态帧 | `stream_reconnects` 的闭环判据：只数「重连且拿到 `done/error`」的次数，光重连不算（同一个 SSE handler 记点） |
 | `stream_frames` / `stream_bytes` / `stream_xlen` / `stream_memory_bytes` | 传输量 / 保留窗口水位 | `stream_frames`、`stream_bytes` 由 `append_event` 顺手 `hincrby`；`stream_xlen`、`stream_memory_bytes` 走 `XLEN` / `MEMORY USAGE` |
 | `cancel_requested` / `cancel_succeeded` | 取消请求数 / 真正落地数 | **同一个 run 里两者不等 = 取消失败**（`cancel_not_landed` 门禁项） |
 | `error_code` / `error_retryable` | 错误类型 | **只落错误码**，不落上游报文（见 §三） |
@@ -67,8 +68,10 @@ legacy `/ai-insights` 写端点、旧 URL、历史表**一律不删**。
 | `insight_gate_cost_anomaly_multiplier` | `5.0` | 运维经验值，非仓库固定数字（唯一一个） |
 | `insight_semaphore_wait_seconds` | `60` | 单次 run 等并发闸门的上限 |
 
-约定：**任何阈值为 `0` 表示「不判定 / 只上报」**。只有时长、首字时延、流保留窗口、
-取消未落地、成本异常会升级为 `blocking`；失败数、重试数只报 `info`。
+约定：**任何阈值为 `0` 表示「不判定 / 只上报」** —— 时长、首字时延、流保留窗口、降级比例
+四把尺子同一条规则（降级比例默认 `0.0`，故默认只报数）。配了正阈值后：时长、首字时延、
+降级比例、取消未落地、成本异常会升级为 `blocking`；失败数、重试数只报 `info`。
+配置里的 `0` 只此一义：想表达「不允许降级」请配一个正的下限（如 `0.0001`）。
 
 ### 2.2 分桶与并发 / 成本上限
 
@@ -95,6 +98,12 @@ canonical 路径此前**没有**并发闸门，本阶段补上（`celery_tasks/i
 
 **空窗口 = 不达标**：窗口内没有样本时返回
 `insufficient_data:insight.runs=0`。没数据的「通过」等于把退役批准建立在没有证据之上。
+
+**指标票只有一个口径**：`GateReport.eligible_for_retirement` / `retirement_reasons`
+是唯一事实源，`as_dict()`（HTTP 响应与审计脚本共用的 JSON）、`is_retirement_eligible()`
+（脚本退出码）都从它取数，三处不可能分叉。`as_dict()['blocking_count']` 因此等于
+`len(retirement_reasons)`（0 ⇔ 指标票通过）；legacy 桶的 blocking 结论仍完整留在
+`findings` 里供审计，但不进退役口径。
 
 ### 2.4 查询与出报告
 

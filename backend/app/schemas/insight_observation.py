@@ -49,6 +49,7 @@ class CapabilityMetricsOut(BaseModel):
     stream_opens: int
     stream_reconnects: int
     reconnect_rate: float
+    reconnect_completed: int = Field(description="续传后观测到终态帧的 run 数")
     stream_frames: int
     stream_bytes: int
     max_stream_xlen: int | None
@@ -85,7 +86,10 @@ class ObservationGateResponse(BaseModel):
     window_days: int
     generated_at: datetime
     eligible_for_retirement: bool = Field(description="指标票；不含调用方/演练两票")
-    blocking_count: int
+    retirement_reasons: list[str] = Field(
+        description="指标票未通过原因（空窗口=insufficient_data:...；与 eligible 同源）"
+    )
+    blocking_count: int = Field(description="= len(retirement_reasons)，0 ⇔ 指标票通过")
     thresholds: ObservationThresholds
     bucket_caps: dict[str, int] = Field(description="各并发桶上限（观测值 vs 配置）")
     buckets: list[CapabilityMetricsOut]

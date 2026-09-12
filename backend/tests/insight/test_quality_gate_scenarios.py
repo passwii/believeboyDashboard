@@ -48,6 +48,7 @@ from app.services.insight.domain_switch import (
     domain_switch_error,
     legacy_write_frozen,
 )
+from app.services.insight.events import TERMINAL_EVENT_TYPES
 from app.services.insight.executor import LLMResult, RetryableFailure, execute_run
 from app.services.insight.observation import (
     aggregate_observations,
@@ -72,6 +73,7 @@ from app.services.insight.sink import StreamEventSink
 from app.services.insight.stream_bus import (
     METRIC_CANCEL_REQUESTED,
     METRIC_CANCEL_SUCCEEDED,
+    METRIC_RECONNECT_COMPLETED,
     METRIC_STREAM_OPENS,
     METRIC_STREAM_RECONNECTS,
     InsightStreamWriter,
@@ -424,6 +426,9 @@ def scenario_reconnect(
 
     resumed = asyncio.run(_read(terminal_detail, cursor))
     status_seqs = [e.seq for e in resumed if e.type == "status"]
+    # 与 SSE 端点同条件地记「续传闭环」：带游标重连且确实补到终态帧。
+    if resumed and resumed[-1].type in TERMINAL_EVENT_TYPES:
+        writer.bump_metric(run.run_id, METRIC_RECONNECT_COMPLETED, 1)
     verdict.check("resume_only_missing_frames", status_seqs, [4, 5])
     verdict.check(
         "no_duplicate_frames",
@@ -442,14 +447,27 @@ def scenario_reconnect(
     row = _row(session_factory, run.run_id)
     verdict.check("row_stream_opens", row.stream_opens, 2)
     verdict.check("row_stream_reconnects", row.stream_reconnects, 1)
+    verdict.check(
+        "row_reconnect_completed",
+        row.reconnect_completed,
+        True,
+        "重连补到了终态帧 = 续传闭环",
+    )
     report = gate_report(db, settings=GATE_SETTINGS)
     bucket = next(b for b in report.buckets if b.capability == "insight")
     verdict.check("bucket_reconnect_rate", bucket.reconnect_rate, 0.5)
+    verdict.check("bucket_reconnect_completed", bucket.reconnect_completed, 1)
     verdict.check(
         "reconnect_not_a_gate",
         is_retirement_eligible(report)[0],
         True,
         "断线率只上报，不阻断退役",
+    )
+    verdict.check(
+        "report_vote_matches_function",
+        report.as_dict()["eligible_for_retirement"],
+        is_retirement_eligible(report)[0],
+        "报告 JSON 与判定函数同源（含 reconnect_completed 聚合后仍一致）",
     )
     return verdict
 

@@ -80,6 +80,11 @@ class InsightRunObservation(Base):
     stream_reconnects: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    #: 续传闭环：带游标重连后确实观测到终态帧（由 SSE 端点写入的 0/1 计数器）。
+    #: ``stream_reconnects`` 只说明「重连过」，这一列才说明「重连补回了终态」。
+    reconnect_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     stream_frames: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
