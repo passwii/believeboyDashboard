@@ -117,6 +117,7 @@ from app.models.scheduled_report import (
 )
 from app.models.insight_schedule import InsightSchedule
 from app.models.insight_run import InsightRun
+from app.models.insight_run_observation import InsightRunObservation
 from app.models.platform_revenue import PlatformRevenue
 from app.models.inspection import (
     InspectionPeriod,
@@ -247,6 +248,7 @@ __all__ = [
     "LedgerStatus",
     "InsightSchedule",
     "InsightRun",
+    "InsightRunObservation",
     "PlatformRevenue",
     "InspectionPeriod",
     "InspectionReport",

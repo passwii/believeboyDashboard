@@ -6,11 +6,12 @@ import contextlib
 import logging
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import AbstractContextManager
 
 from redis import Redis
 
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings
 from app.services.infra.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,29 @@ _LIMIT_BY_NAME: dict[str, str] = {
     "insights": "max_concurrent_insights",
     "ai_summary": "max_concurrent_ai_summary",
 }
+
+
+def bucket_limit(name: str, *, max_concurrent: int | None = None) -> int:
+    """Effective concurrency cap of one bucket (no Redis I/O).
+
+    Single source of truth for "how many of this capability may run at
+    once": the acquisition path (:func:`acquire_remote_semaphore`) and the
+    observation/gate report both read it, so a published cap can never drift
+    from the enforced one. Unknown bucket → ``max_concurrent_insights``
+    (documented backward-compatible fallback).
+    """
+    settings = get_settings()
+    if max_concurrent is not None:
+        return int(max_concurrent)
+    field = _LIMIT_BY_NAME.get(name)
+    if field is not None and hasattr(settings, field):
+        return int(getattr(settings, field))
+    return int(settings.max_concurrent_insights)
+
+
+def bucket_caps() -> dict[str, int]:
+    """All registered buckets' caps, for the observation/gate report."""
+    return {name: bucket_limit(name) for name in _LIMIT_BY_NAME}
 
 
 @contextlib.contextmanager
@@ -117,6 +141,50 @@ def acquire_remote_semaphore(
 
 def release_remote_semaphore(client: Redis, key: str, token: str) -> None:
     client.eval(RELEASE_SCRIPT, 1, key, token)
+
+
+@contextlib.contextmanager
+def acquire_semaphore_fail_open(
+    name: str,
+    *,
+    timeout: float = 300,
+    max_concurrent: int | None = None,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
+) -> Iterator[bool | None]:
+    """Like :func:`acquire_remote_semaphore`, but a Redis outage fails *open*.
+
+    Yields ``True`` (slot held), ``False`` (capacity saturated within
+    ``timeout``) or ``None`` (transport unavailable → caller proceeds
+    without a slot). The distinction matters for the canonical Insight path,
+    whose whole point is durability: a cache outage must not strand runs, so
+    transport errors degrade the cost cap instead of failing the run —
+    while genuine saturation still must not fan out LLM calls.
+
+    Only acquire-time transport errors are swallowed here; exceptions raised
+    inside the ``with`` body propagate unchanged.
+    """
+    stack = contextlib.ExitStack()
+    try:
+        acquired = stack.enter_context(
+            acquire_remote_semaphore(
+                name,
+                timeout=timeout,
+                max_concurrent=max_concurrent,
+                lease_seconds=lease_seconds,
+            )
+        )
+    except Exception:
+        logger.warning(
+            "Semaphore %s transport unavailable — proceeding without a slot",
+            name,
+            exc_info=True,
+        )
+        yield None
+        return
+    try:
+        yield acquired
+    finally:
+        stack.close()
 
 
 def _try_acquire(

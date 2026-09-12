@@ -69,6 +69,25 @@ def _mark_ai_summary_failed(log_id: int, error_message: str) -> None:
         db.close()
 
 
+def _record_summary_fallback(reason: str) -> None:
+    """登记一次「预约报表 AI 摘要未走 canonical 链路」的降级事件（BLF-1018）。
+
+    这是观测期降级比例（fallback ratio）的真实来源：semaphore 超时或提交
+    失败意味着本次摘要没有落到 Insight run 上。只记原因码与 log_id，
+    报告正文/提示词一律不入库。
+    """
+    from app.services.insight.observation import (
+        FALLBACK_CAPABILITY_AI_SUMMARY,
+        record_fallback,
+    )
+
+    record_fallback(
+        capability=FALLBACK_CAPABILITY_AI_SUMMARY,
+        reason=reason,
+        role_id="schedule_report_summary",
+    )
+
+
 def _wait_for_terminal_and_sync(run_id: str) -> dict[str, Any]:
     """轮询 run 行直到终态并同步 delivery_log（每次 tick 都尝试同步）。"""
     import time
@@ -156,6 +175,7 @@ def generate_delivery_summary(
                 _mark_ai_summary_failed(
                     log_id, f"ai_summary semaphore timeout (>{300}s)"
                 )
+                _record_summary_fallback("semaphore_timeout")
                 return {"status": "semaphore_timeout", "log_id": log_id}
 
             outcome = generate_ai_summary_for_delivery_log(
@@ -167,6 +187,7 @@ def generate_delivery_summary(
                 _mark_ai_summary_failed(
                     log_id, outcome.get("message") or "AI 摘要提交失败"
                 )
+                _record_summary_fallback("submit_failed")
                 return {"status": "submit_failed", "log_id": log_id}
 
             synced = _wait_for_terminal_and_sync(outcome["run_id"])

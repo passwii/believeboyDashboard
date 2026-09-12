@@ -50,12 +50,13 @@ from app.schemas.insight import (
     InsightRunActionResponse,
     InsightRunDetail,
     InsightRunResponse,
+    InsightStatus,
     make_error,
 )
 from app.services import project_service
 from app.services.insight import stream_bus
 from app.services.insight.cursor import CursorError, check_future_cursor, parse_event_id
-from app.services.insight.events import InsightEvent
+from app.services.insight.events import TERMINAL_EVENT_TYPES, InsightEvent
 from app.services.insight.executor import (
     IdempotencyConflict,
     RoleLookupError,
@@ -201,6 +202,17 @@ async def stream_insight_run(
 
     subscriber = InsightStreamSubscriber(redis)
 
+    # 观测期（BLF-1018）：订阅次数 / 续传次数。Redis 抖动只降级观测，
+    # 不影响这条流本身。
+    await stream_bus.bump_metric_async(
+        redis, run_id, stream_bus.METRIC_STREAM_OPENS
+    )
+    is_resume = last_event_id is not None
+    if is_resume:
+        await stream_bus.bump_metric_async(
+            redis, run_id, stream_bus.METRIC_STREAM_RECONNECTS
+        )
+
     # DB refresh on idle ticks: the sync SQLAlchemy session runs in a
     # worker thread so the event loop never blocks on I/O.
     loop = asyncio.get_running_loop()
@@ -225,6 +237,11 @@ async def stream_insight_run(
             ):
                 if await request.is_disconnected():
                     return
+                if is_resume and event.type in TERMINAL_EVENT_TYPES:
+                    # 断线恢复闭环：续传后确实拿到了终态帧。
+                    await stream_bus.bump_metric_async(
+                        redis, run_id, stream_bus.METRIC_RECONNECT_COMPLETED
+                    )
                 yield _sse_frame(event, sse_id)
         except TransportUnavailableError as exc:
             # Mid-stream outage: the connection drops (no terminal frame —
@@ -275,6 +292,20 @@ def cancel_insight_run(
         InsightStreamWriter().request_cancel(run.run_id)
     except Exception:  # noqa: BLE001
         logger.warning("Insight cancel registry consume degraded run=%s", run_id)
+
+    # 观测期（BLF-1018）：取消请求量与落地结果。运行未成终态就发起的取消是
+    # 真成功；已成终态（already_terminal）说明请求来晚了 —— 记进分母但不计
+    # 成功，聚合侧的 cancel_success_rate 会把它暴露出来。
+    from app.services.insight.observation import finalize_run_observation
+
+    try:
+        writer = InsightStreamWriter()
+        writer.bump_metric(run.run_id, stream_bus.METRIC_CANCEL_REQUESTED)
+        if run.status == InsightStatus.CANCELLED.value:
+            writer.bump_metric(run.run_id, stream_bus.METRIC_CANCEL_SUCCEEDED)
+        finalize_run_observation(run.run_id, writer=writer)
+    except Exception:  # noqa: BLE001 — 观测失败不影响取消结果
+        logger.warning("Insight cancel observation degraded run=%s", run_id)
 
     return InsightRunActionResponse(
         schema_version=1,

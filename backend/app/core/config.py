@@ -211,6 +211,31 @@ class Settings(BaseSettings):
     insight_stream_ttl_seconds: int = Field(default=86400, ge=60, le=604800)  # 24h
     insight_stream_maxlen: int = Field(default=10000, ge=100, le=100000)
 
+    # ── BLF-1018 观测期（Stage 5）────────────────────────────────────────
+    # 指标写入开关：False = 停写 insight_run_observations（聚合接口退化为
+    # 「无观测数据」），run 本身照常执行。观测期出问题时的回滚开关。
+    insight_observation_enabled: bool = Field(default=True)
+    # 聚合接口默认窗口：只统计最近 N 天的观测行。
+    insight_observation_window_days: int = Field(default=7, ge=1, le=90)
+    # 门禁阈值。默认值一律锚定仓库既有数字，不新造经验值：
+    #   300_000ms = celery_tasks/insights/run.py 的 soft_time_limit=300（执行器预算）；
+    #   90_000ms  = ai_chat_timeout_seconds 默认 90s（provider 调用预算，首字不会晚于它）；
+    #   10_000    = insight_stream_maxlen（超了说明保留窗口正在滚出，续传会退化）。
+    # 0 = 该项不判定（只报数不给结论），供运维按需收紧。
+    insight_gate_max_duration_ms: int = Field(default=300_000, ge=0)
+    insight_gate_max_first_delta_ms: int = Field(default=90_000, ge=0)
+    insight_gate_max_stream_frames: int = Field(default=10_000, ge=0)
+    # canonical 域（由 Insight 服务的桶）降级比例上限：0.0 = 不判定（只报数）。
+    # 要表达「不允许降级」请配一个正的下限（如 0.0001），让 0 专管「不判定」
+    # 这一个含义 —— 见 INSIGHT_OBSERVATION_GATE.md §2.1。
+    insight_gate_max_fallback_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    # 成本异常判定倍数：单 run token 超过桶内中位数的 N 倍即异常（样本 >= 3）。
+    # 这是运维经验默认（不是仓库既有数字），按需调整；比例判定不依赖模型单价。
+    insight_gate_cost_anomaly_multiplier: float = Field(default=5.0, ge=0.0)
+    # 抢 insights 并发槽的最长等待（秒）：饱和即回退重排队，绝不在闸门上
+    # 耗掉 soft_time_limit（300s）。
+    insight_semaphore_wait_seconds: int = Field(default=60, ge=0, le=280)
+
     # Celery (auto-derived from REDIS_* when blank)
     celery_broker_url: str = Field(default="", max_length=500)
     celery_result_url: str = Field(default="", max_length=500)
