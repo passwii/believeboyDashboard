@@ -1,5 +1,15 @@
 export { InsightClient, DEFAULT_BASE_PATH } from './client'
 export {
+  AD_ANALYSIS_RUN_PATH,
+  DOMAIN_SWITCH_NOT_READY,
+  INVENTORY_HEALTH_RUN_PATH,
+  isDomainSwitchNotReady,
+  startDomainRun,
+  type AdAnalysisRunInput,
+  type InventoryHealthRunInput,
+  type StartDomainRunOptions,
+} from './domain-runs'
+export {
   consumeInsightStream,
   InsightHttpError,
   InsightStreamEndedError,

@@ -278,6 +278,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/ai/ad-analysis'],
         icon: IconMap.BarChart3,
       },
+      {
+        title: 'AI 库存健康',
+        url: '/dashboard/ai/inventory-health',
+        matchPrefixes: ['/dashboard/ai/inventory-health'],
+        icon: IconMap.Package,
+      },
       { title: 'AI Chat', url: '/dashboard/ai/chat', icon: Sparkles },
       {
         title: '模型选型',

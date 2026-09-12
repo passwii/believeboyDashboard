@@ -59,6 +59,9 @@ const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/ai-chat\//,
   /\/ai-insights\/generate$/,
   /\/ai-insights\/.+\/regenerate$/,
+  // BLF-1016/1017：canonical 域 run 入口（广告分析 / 库存健康）在服务端要
+  // 先收敛口径再建 run，默认 5s 档会超时（run 创建后正文走 SSE，不受影响）。
+  /\/insight\/(ad-analysis|inventory-health)\/runs$/,
 ]
 
 const STATS_PATH_PATTERNS: ReadonlyArray<RegExp> = [

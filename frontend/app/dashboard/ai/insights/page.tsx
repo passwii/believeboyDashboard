@@ -1,9 +1,6 @@
 'use client'
 
 import {
-  startTransition,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -12,25 +9,9 @@ import {
 } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
-import {
-  AlertTriangle,
   Bot,
   ChevronDown,
-  Copy,
   Check,
   Eye,
   Image as ImageIcon,
@@ -46,11 +27,16 @@ import { toPng } from 'html-to-image'
 import { useSession } from 'next-auth/react'
 import { Clock } from 'lucide-react'
 
-// Module-level registry: chartId → SVG data URL (used during PNG export)
-const chartSvgRegistry = new Map<string, string>()
-
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
+import { InsightStreamPanel, type InsightChartBlock } from '@/components/insight'
 import { TermPanel } from '@/components/terminal/term-panel'
+
+import { ChartCodeBlock, LEGACY_CHART_LANGUAGES } from './_components/chart-code-block'
+import { chartSvgRegistry } from './_components/chart-svg-registry'
+import { LEGACY_SUB_STATUS_LABELS } from './_components/legacy-insight-compat'
+import { GenerationProgress } from './_components/generation-progress'
+import { LegacyReportCard } from './_components/legacy-report-card'
+import { useLegacyInsightStream } from './_components/use-legacy-insight-stream'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -83,12 +69,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
 import { parseResponseError } from '@/lib/error-utils'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { useNotifications } from '@/components/notifications'
@@ -119,57 +99,6 @@ type InsightItem = {
   content?: string
 }
 
-type AggregationDetail = {
-  step: string
-  step_label: string
-  status: 'running' | 'completed' | 'error'
-  progress_percent: number
-  record_count?: number
-  total_amount?: number
-  total_orders?: number
-  total_ad_sales?: number
-  total_impressions?: number
-  days_count?: number
-  out_of_stock_count?: number
-  data_preview?:
-    | {
-        available?: number
-        out_of_stock?: number
-        aging?: Record<string, number>
-      }
-    | Array<{ sku: string; sales_amount: number; order_qty: number }>
-  message?: string
-}
-
-type SseEvent =
-  | {
-      type: 'status'
-      status: string
-      sub_status?: string | null
-      insight_id?: number
-      title?: string
-      content?: string
-      error_message?: string | null
-      detail?: AggregationDetail
-    }
-  | { type: 'chunk'; delta: string }
-  | {
-      type: 'done'
-      insight_id: number
-      title: string
-      content?: string
-      status?: string
-      error_message?: string | null
-    }
-  | {
-      type: 'error'
-      error: string
-      insight_id?: number | null
-      status?: string
-      error_message?: string | null
-    }
-  | { type: 'ping' }
-
 type AIModelConfig = {
   providerConfigured: boolean
   models: string[]
@@ -191,38 +120,6 @@ const INSIGHT_TYPE_OPTIONS = [
   { value: 'monthly', label: '月报' },
   { value: 'custom', label: '自定义' },
 ]
-
-const SUB_STATUS_LABELS: Record<string, string> = {
-  queued: '排队中...',
-  data_aggregating: '正在聚合数据...',
-  data_aggregating_sales: '抓取销售数据...',
-  data_aggregating_ad: '抓取广告数据...',
-  data_aggregating_inventory: '抓取库存数据...',
-  data_aggregating_comparison_sales: '抓取对比期销售...',
-  data_aggregating_comparison_ad: '抓取对比期广告...',
-  data_aggregating_top_skus: '抓取 Top SKU...',
-  data_aggregating_ad_campaigns: '抓取广告活动...',
-  ai_generating: '正在生成洞察...',
-  title_generating: '正在生成标题...',
-}
-
-const GENERATION_STEPS = [
-  { key: 'data_aggregating', label: '聚合数据', description: '从数据库获取销售、广告、库存等数据' },
-  { key: 'ai_generating', label: '生成洞察', description: 'AI 分析数据并生成洞察内容' },
-  { key: 'title_generating', label: '生成标题', description: '为洞察报告生成标题' },
-]
-
-const DATA_STEPS = [
-  { key: 'data_aggregating_sales', label: '销售数据' },
-  { key: 'data_aggregating_ad', label: '广告数据' },
-  { key: 'data_aggregating_inventory', label: '库存快照' },
-  { key: 'data_aggregating_top_skus', label: 'Top SKU' },
-  { key: 'data_aggregating_comparison_sales', label: '对比期销售' },
-  { key: 'data_aggregating_comparison_ad', label: '对比期广告' },
-  { key: 'data_aggregating_ad_campaigns', label: '广告活动' },
-]
-
-const STREAMING_PREVIEW_SYNC_MS = 50
 
 function formatYMD(date: Date): string {
   // Preserve the exact calendar date chosen in the picker.
@@ -246,1325 +143,6 @@ function lastSevenDaysRange(country: string) {
   return { from: start, to: end }
 }
 
-function GenerationProgress({
-  currentSubStatus,
-  aggregationDetails,
-}: {
-  currentSubStatus: string | null
-  aggregationDetails?: Record<string, AggregationDetail>
-}) {
-  const effectiveSubStatus = currentSubStatus === 'queued' ? 'data_aggregating' : currentSubStatus
-  // Top-level step (data_aggregating, ai_generating, title_generating)
-  const topLevelIndex = effectiveSubStatus
-    ? GENERATION_STEPS.findIndex((s) => s.key === effectiveSubStatus)
-    : -1
-
-  // True when we're inside data aggregation sub-steps (e.g. data_aggregating_sales)
-  const isInSubSteps =
-    effectiveSubStatus?.startsWith('data_aggregating') && effectiveSubStatus !== 'data_aggregating'
-  // The active sub-step index
-  const activeSubStepIndex = effectiveSubStatus
-    ? DATA_STEPS.findIndex((s) => s.key === effectiveSubStatus)
-    : -1
-
-  return (
-    <div className="space-y-6">
-      {/* Status header */}
-      {currentSubStatus && (
-        <div className="flex items-center gap-2 rounded-none border border-term-accent/40 bg-term-bg px-4 py-3">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-term-accent" />
-          <span className="font-mono text-xs font-medium text-term-accent">
-            {SUB_STATUS_LABELS[currentSubStatus] ?? '处理中...'}
-          </span>
-        </div>
-      )}
-
-      {/* Stepper */}
-      <div className="space-y-0">
-        {GENERATION_STEPS.map((step, index) => {
-          const isActive = index === topLevelIndex
-          // Completed if we've moved past this step, OR we've entered a sub-step of this step
-          const isCompleted =
-            index < topLevelIndex ||
-            (topLevelIndex === index && isInSubSteps) ||
-            (topLevelIndex === 1 && currentSubStatus === 'ai_generating' && index === 0)
-          const isPending = !isActive && !isCompleted
-
-          // Determine connector fill: step 1 needs topLevelIndex >= 1; step 2 needs >= 2
-          const connectorFilled = index === 1 ? topLevelIndex >= 1 : topLevelIndex >= 2
-
-          return (
-            <div key={step.key} className="flex items-start gap-4">
-              {/* Connector line */}
-              {index > 0 && (
-                <div className="flex flex-col items-center">
-                  <div
-                    className={cn(
-                      'w-0.5 h-4 transition-colors duration-500',
-                      connectorFilled ? 'bg-term-accent' : 'bg-term-border'
-                    )}
-                  />
-                </div>
-              )}
-              {index === 0 && <div className="w-5" />}
-
-              {/* Step indicator */}
-              <div className="relative flex flex-col items-center shrink-0">
-                {/* Pulsing glow ring when this step is active (matches Loader2 spinner above) */}
-                {isActive && !isInSubSteps && (
-                  <div
-                    className="absolute rounded-full bg-term-accent/30 animate-ping"
-                    style={{ width: 20, height: 20, top: -7, left: -7 }}
-                  />
-                )}
-                <div
-                  className={cn(
-                    'flex items-center justify-center rounded-full border transition-all duration-300',
-                    isCompleted
-                      ? 'border-term-pos bg-term-pos text-term-bg'
-                      : isActive
-                        ? 'border-term-accent bg-term-bg text-term-accent'
-                        : 'border-term-border bg-term-bg text-term-faint',
-                    isActive ? 'h-5 w-5' : 'h-5 w-5'
-                  )}
-                >
-                  {isCompleted ? (
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={3}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : isActive ? (
-                    isInSubSteps ? (
-                      <span className="text-xs font-bold">{index + 1}</span>
-                    ) : (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    )
-                  ) : (
-                    <span className="text-xs font-medium">{index + 1}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Step content */}
-              <div className="flex-1 pb-6">
-                <p
-                  className={cn(
-                    'text-sm font-medium transition-colors duration-300',
-                    isActive
-                      ? 'text-term-accent'
-                      : isCompleted
-                        ? 'text-term-text'
-                        : 'text-muted-foreground'
-                  )}
-                >
-                  {step.label}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
-
-                {/* Nested data sub-steps when in data_aggregating phase */}
-                {step.key === 'data_aggregating' && (
-                  <div className="mt-2 space-y-1.5 border-l-2 border-term-border pl-2">
-                    {DATA_STEPS.map((ds, di) => {
-                      const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
-                      const isDActive = effectiveSubStatus === ds.key
-                      const detail = aggregationDetails?.[ds.key]
-
-                      return (
-                        <div
-                          key={ds.key}
-                          className={cn(
-                            'flex flex-col gap-1 transition-all duration-300',
-                            isDActive ? 'translate-x-1' : ''
-                          )}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex items-center justify-center w-3 h-3">
-                              {/* Running dot for active step */}
-                              {isDActive && (
-                                <div className="absolute inset-0 rounded-full bg-term-accent/30 animate-ping" />
-                              )}
-                              <div
-                                className={cn(
-                                  'h-1.5 w-1.5 rounded-full transition-colors duration-300',
-                                  isDActive
-                                    ? 'bg-term-accent'
-                                    : isDCompleted
-                                      ? 'bg-term-pos'
-                                      : 'bg-term-border'
-                                )}
-                              />
-                            </div>
-                            <span
-                              className={cn(
-                                'text-xs transition-colors duration-300',
-                                isDActive
-                                  ? 'text-term-accent font-semibold'
-                                  : isDCompleted
-                                    ? 'text-foreground'
-                                    : 'text-muted-foreground'
-                              )}
-                            >
-                              {ds.label}
-                            </span>
-                            {/* Animated indicator for active sub-step */}
-                            {isDActive && (
-                              <div className="ml-auto flex gap-0.5">
-                                {[0, 1, 2].map((i) => (
-                                  <div
-                                    key={i}
-                                    className="h-1 w-1 rounded-full bg-term-accent animate-bounce"
-                                    style={{ animationDelay: `${i * 120}ms` }}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Show detail data when available */}
-                          {detail && detail.status === 'completed' && (
-                            <div className="ml-5 text-[10px] text-muted-foreground/80 space-y-0.5">
-                              {detail.days_count !== undefined && detail.days_count > 0 && (
-                                <span className="inline-block mr-2">{detail.days_count}天</span>
-                              )}
-                              {detail.total_amount !== undefined && detail.total_amount > 0 && (
-                                <span className="inline-block mr-2">
-                                  ${detail.total_amount.toLocaleString()}
-                                </span>
-                              )}
-                              {detail.total_orders !== undefined && detail.total_orders > 0 && (
-                                <span className="inline-block mr-2">{detail.total_orders}单</span>
-                              )}
-                              {detail.record_count !== undefined &&
-                                detail.record_count > 0 &&
-                                ds.key.includes('sku') && (
-                                  <span className="inline-block mr-2">
-                                    {detail.record_count} SKU
-                                  </span>
-                                )}
-                              {detail.out_of_stock_count !== undefined &&
-                                detail.out_of_stock_count > 0 && (
-                                  <span className="inline-block text-term-warn">
-                                    缺货 {detail.out_of_stock_count}
-                                  </span>
-                                )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Animated dots for active top-level step (AI generating / title generating) */}
-                {isActive && !isInSubSteps && (
-                  <div className="flex gap-1 mt-2">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-term-accent animate-bounce"
-                        style={{ animationDelay: `${i * 150}ms` }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Info note */}
-      <p className="text-xs text-muted-foreground border-t pt-4">
-        生成任务在后台运行，可以切换到其他页面，稍后再来查看结果。完成后可在下方查看完整的洞察报告。
-      </p>
-    </div>
-  )
-}
-
-function LivePreviewPanel({
-  title,
-  eyebrow,
-  statusLabel,
-  statusTone = 'default',
-  content,
-  isStreaming = false,
-  isPlaceholder = false,
-  placeholderMessage,
-  collectChartSvgs,
-  panelRef,
-}: {
-  title: string
-  eyebrow: string
-  statusLabel: string
-  statusTone?: 'default' | 'active' | 'success'
-  content: string
-  isStreaming?: boolean
-  isPlaceholder?: boolean
-  placeholderMessage?: string
-  collectChartSvgs?: boolean
-  panelRef?: React.RefObject<HTMLDivElement>
-}) {
-  const toneClassName =
-    statusTone === 'success'
-      ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-700'
-      : statusTone === 'active'
-        ? 'border-term-accent/40 bg-term-bg text-term-accent'
-        : 'border-term-border bg-term-bg text-term-faint'
-
-  return (
-    <div className="relative min-w-0 overflow-hidden rounded-none border border-term-border bg-term-panel">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_58%)]" />
-      <div className="relative border-b border-border/60 bg-[linear-gradient(135deg,hsl(var(--surface-overlay)/0.96),hsl(var(--surface-soft)/0.7))] px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-term-faint">
-              {eyebrow}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{title}</p>
-          </div>
-          <div
-            className={cn(
-              'inline-flex items-center gap-2 rounded-none border px-1.5 py-0.5 font-mono text-xs',
-              toneClassName
-            )}
-          >
-            {isStreaming && (
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse motion-reduce:animate-none" aria-hidden />
-            )}
-            <span>{statusLabel}</span>
-          </div>
-        </div>
-      </div>
-
-      <div
-        ref={panelRef}
-        className={cn(
-          'relative max-h-[62vh] overflow-y-auto',
-          isPlaceholder ? 'px-5 py-5' : 'px-4 py-4 sm:px-5'
-        )}
-      >
-        {isPlaceholder ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[0, 1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-3"
-                >
-                  <div className="h-2.5 w-24 rounded-full bg-muted/70 animate-pulse motion-reduce:animate-none" />
-                  <div className="mt-3 h-2 w-full rounded-full bg-muted/55 animate-pulse motion-reduce:animate-none" />
-                  <div className="mt-2 h-2 w-4/5 rounded-full bg-muted/45 animate-pulse motion-reduce:animate-none" />
-                </div>
-              ))}
-            </div>
-            <div className="rounded-none border border-dashed border-term-accent/40 bg-term-bg px-4 py-4 font-sans text-sm leading-6 text-term-muted">
-              {placeholderMessage}
-            </div>
-          </div>
-        ) : content ? (
-          <div className="relative">
-            <MarkdownContent content={content} collectChartSvgs={collectChartSvgs} />
-            {isStreaming && (
-              <div className="pointer-events-none sticky bottom-0 flex justify-end px-3 pb-3">
-                <div className="inline-flex items-center gap-2 rounded-none border border-term-accent/40 bg-term-bg px-2 py-0.5 font-mono text-xs text-term-accent">
-                  <span className="h-1.5 w-1.5 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
-                  Markdown 实时渲染中
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex min-h-[320px] items-center justify-center rounded-none border border-dashed border-term-border bg-term-bg px-6 text-center text-sm leading-6 text-term-faint">
-            {placeholderMessage}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// --- Helper functions for parsing AI-generated mermaid chart blocks ---
-
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-}
-
-function parseLineChart(content: string) {
-  const lines = content.trim().split('\n')
-  const result: Record<string, string[]> = {}
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-    if (!line) continue
-
-    const match = line.match(/^([^[\]]+)\[(.+)\]$/)
-    if (match) {
-      const currentKey = match[1].trim().toLowerCase()
-      const rawValues = match[2].trim()
-      const values = /[,;]/.test(rawValues)
-        ? rawValues.split(/[,;]\s*/)
-        : currentKey === 'x-axis' || currentKey === 'xaxis'
-          ? rawValues.split(/\s+/)
-          : [rawValues]
-
-      result[currentKey] = values.map((v) => v.trim()).filter(Boolean)
-    }
-  }
-
-  return result
-}
-
-function parseAsciiCallout(code: string) {
-  const lines = code
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim())
-
-  if (lines.length === 0) return null
-
-  const hasBoxChars = lines.some((line) => /[┌┐└┘│─]/.test(line))
-  const hasWarningKeyword = lines.some((line) => /⚠️|警告|异常|提醒/.test(line))
-
-  if (!hasWarningKeyword) return null
-
-  // ASCII box style: requires ≥3 lines and box-drawing characters
-  if (hasBoxChars) {
-    if (lines.length < 3) return null
-
-    const contentLines = lines
-      .map((line) =>
-        line
-          .replace(/^[┌└├│]\s*/, '')
-          .replace(/\s*[┐┘┤│]$/, '')
-          .trim()
-      )
-      .filter((line) => line && !/^[─┬┴┼]+$/.test(line))
-
-    if (contentLines.length === 0) return null
-
-    return {
-      title: contentLines[0].replace(/^⚠️\s*/, '').trim(),
-      body: contentLines.slice(1),
-    }
-  }
-
-  // Plain style (e.g. ```alert\n⚠️ Title\nBody line\n```): 1–2 lines, no box chars needed
-  const title = lines[0].replace(/^⚠️\s*/, '').trim()
-
-  // Merge short lines (< 30 chars) with the previous line to handle AI line-wrapping
-  const rawBody = lines.slice(1).filter((line) => line.trim())
-  const body: string[] = []
-  for (const line of rawBody) {
-    if (line.length < 30 && body.length > 0) {
-      // Short line: merge with previous entry
-      body[body.length - 1] = body[body.length - 1] + line
-    } else {
-      body.push(line)
-    }
-  }
-
-  if (!title) return null
-
-  return { title, body }
-}
-
-function parsePieChart(content: string) {
-  const lines = content.trim().split('\n')
-  const result: Array<{ name: string; value: number }> = []
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-    if (!line) continue
-
-    if (line.toLowerCase().startsWith('title')) continue
-
-    const match = line.match(/^(.+?)\s*[:：]\s*(\d+(?:\.\d+)?)$/)
-    if (match) {
-      result.push({ name: match[1].trim(), value: parseFloat(match[2]) })
-    }
-  }
-
-  return result
-}
-
-// CSS variables — used by live Recharts components (browser resolves them)
-const CHART_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-]
-
-// Absolute hex — used by static SVG generation (SVG data URLs don't resolve CSS vars)
-const CHART_COLORS_HEX = [
-  '#3b82f6', // chart-1 blue
-  '#10b981', // chart-2 green
-  '#f59e0b', // chart-3 amber
-  '#8b5cf6', // chart-4 violet
-  '#ef4444', // chart-5 red
-]
-
-const CHART_CONFIG = {
-  value: { label: '数值', color: 'hsl(var(--chart-1))' },
-} satisfies ChartConfig
-
-function FallbackCodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }, [code])
-
-  return (
-    <div className="not-prose my-5 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-      <div className="flex items-center justify-between border-b border-term-border bg-term-raised px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
-          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-term-faint">
-            RAW BLOCK
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className="inline-flex h-7 items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-          {copied ? '已复制' : '复制'}
-        </button>
-      </div>
-      <pre className="break-words overflow-x-auto px-4 py-4 text-xs leading-6 text-foreground">
-        <code className="whitespace-pre-wrap break-words">{code}</code>
-      </pre>
-    </div>
-  )
-}
-
-function AsciiCalloutBlock({ code }: { code: string }) {
-  const parsed = parseAsciiCallout(code)
-
-  if (!parsed) {
-    return <FallbackCodeBlock code={code} />
-  }
-
-  return (
-    <div className="not-prose my-6 overflow-hidden rounded-none border border-term-warn/50 bg-term-warn/5">
-      <div className="flex items-start gap-3 px-5 py-4">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-term-warn/40 bg-term-bg text-term-warn">
-          <AlertTriangle className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs font-semibold uppercase tracking-wider text-term-warn">
-            Warning
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{parsed.title}</p>
-          <div className="mt-3 space-y-2 text-sm leading-6 text-foreground/88">
-            {parsed.body.map((line, index) => (
-              <p key={`${index}-${line}`}>{line}</p>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ChartCodeBlock({
-  chartType,
-  code,
-  collectChartSvgs,
-}: {
-  chartType: string
-  code: string
-  collectChartSvgs?: boolean
-}) {
-  const normalizedType = chartType.trim().toLowerCase()
-
-  if (normalizedType === 'linechart' || normalizedType === 'line') {
-    const parsed = parseLineChart(code)
-    const labels = parsed['x-axis'] || parsed['xaxis'] || []
-    const seriesKey = Object.keys(parsed).find(
-      (k) =>
-        k !== 'x-axis' &&
-        k !== 'xaxis' &&
-        k !== 'y-axis' &&
-        k !== 'yaxis' &&
-        parsed[k].length === labels.length
-    )
-    const seriesData = seriesKey ? parsed[seriesKey] : []
-
-    if (labels.length === 0 || seriesData.length === 0) {
-      return <FallbackCodeBlock code={code} />
-    }
-
-    const chartData = labels.map((label, i) => ({
-      label,
-      value: parseFloat(seriesData[i]) || 0,
-    }))
-
-    const chartId = `line-${code.slice(0, 20)}`
-
-    // During PNG export: render a self-contained static SVG so toPng captures it reliably.
-    if (collectChartSvgs) {
-      const W = 600
-      const H = 220
-      const padL = 52,
-        padR = 16,
-        padT = 12,
-        padB = 28
-      const vw = W - padL - padR
-      const vh = H - padT - padB
-      const values = chartData.map((d) => d.value)
-      const minV = Math.min(...values)
-      const maxV = Math.max(...values)
-      const range = maxV - minV || 1
-      const xStep = vw / Math.max(labels.length - 1, 1)
-      const toX = (i: number) => padL + i * xStep
-      const toY = (v: number) => padT + vh - ((v - minV) / range) * vh
-
-      const pts = chartData.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ')
-      const polyline = chartData.map((d, i) => `${toX(i)} ${toY(d.value)}`).join(' ')
-
-      const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + t * vh)
-      const yLabels = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(maxV - t * range))
-
-      // Area polygon under the line
-      const area =
-        `${toX(0)},${padT + vh} ` +
-        chartData.map((d, i) => `${toX(i)},${toY(d.value)}`).join(' ') +
-        ` ${toX(chartData.length - 1)},${padT + vh}`
-
-      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
-  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.32"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.03"/></linearGradient></defs>
-  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4"/>`).join('\n  ')}
-  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#94a3b8">${label}</text>`).join('\n  ')}
-  ${labels
-    .filter((_, i) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1)
-    .map((l, _, arr) => {
-      const idx = labels.indexOf(l)
-      return `<text x="${toX(idx)}" y="${H - 6}" fill="#94a3b8">${l}</text>`
-    })
-    .join('\n  ')}
-  <polygon points="${area}" fill="url(#lg)"/>
-  <polyline points="${polyline}" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <polyline points="${pts}" fill="none" stroke="transparent" stroke-width="8"/>
-</svg>`
-      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
-      chartSvgRegistry.set(chartId, url)
-      return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-          <div className="border-b border-border/60 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                  Trend Chart
-                </p>
-                <p className="mt-1 text-sm font-semibold text-foreground">
-                  {seriesKey?.toUpperCase() || '趋势变化'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="px-4 pb-3 pt-4">
-            {/* Recharts needs one frame to register its SVG; use the pre-generated static SVG as the img src */}
-            <div className="h-[260px] w-full">
-              {/* Use url directly like PieChart does — avoids timing issues with chartSvgRegistry */}
-              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
-              <img src={url} alt="趋势图表" className="h-full w-full object-contain" />
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-        <div className="border-b border-border/60 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                Trend Chart
-              </p>
-              <p className="mt-1 text-sm font-semibold text-foreground">
-                {seriesKey?.toUpperCase() || '趋势变化'}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="px-4 pb-3 pt-4">
-          <ChartContainer config={CHART_CONFIG} className="h-[260px] w-full">
-            <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="ai-insight-line-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.32} />
-                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.03} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} strokeDasharray="4 4" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={18} />
-              <YAxis tickLine={false} axisLine={false} width={44} />
-              <ChartTooltip
-                cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '4 4' }}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="var(--color-value)"
-                strokeWidth={3}
-                dot={{ r: 0 }}
-                activeDot={{
-                  r: 5,
-                  fill: 'var(--color-value)',
-                  stroke: 'hsl(var(--surface-panel))',
-                  strokeWidth: 2,
-                }}
-              />
-            </LineChart>
-          </ChartContainer>
-        </div>
-      </div>
-    )
-  }
-
-  if (normalizedType === 'piechart' || normalizedType === 'pie') {
-    const parsed = parsePieChart(code)
-
-    if (parsed.length === 0) {
-      return <FallbackCodeBlock code={code} />
-    }
-
-    const total = parsed.reduce((sum, item) => sum + item.value, 0)
-    const displayData = parsed.map((item) => ({
-      ...item,
-      pct: total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0',
-    }))
-
-    // Static SVG donut chart for PNG export — no Recharts SVG dependency.
-    if (collectChartSvgs) {
-      const size = 220
-      const cx = size / 2
-      const cy = size / 2
-      const outerR = 88
-      const innerR = 56
-      const strokeW = outerR - innerR
-
-      let angle = -Math.PI / 2 // start at 12 o'clock
-      const wedges = displayData.map((item, i) => {
-        const slice = (item.value / total) * 2 * Math.PI
-        const startA = angle
-        const endA = angle + slice
-        angle = endA
-
-        const x1 = cx + outerR * Math.cos(startA)
-        const y1 = cy + outerR * Math.sin(startA)
-        const x2 = cx + outerR * Math.cos(endA)
-        const y2 = cy + outerR * Math.sin(endA)
-        const x3 = cx + innerR * Math.cos(endA)
-        const y3 = cy + innerR * Math.sin(endA)
-        const x4 = cx + innerR * Math.cos(startA)
-        const y4 = cy + innerR * Math.sin(startA)
-        const large = slice > Math.PI ? 1 : 0
-
-        const color = CHART_COLORS_HEX[i % CHART_COLORS_HEX.length]
-        const path = `M${x1},${y1} A${outerR},${outerR} 0 ${large},1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large},0 ${x4},${y4} Z`
-        return { path, color }
-      })
-
-      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" font-family="ui-sans-serif,system-ui,sans-serif">
-        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="white" stroke-width="2"/>`).join('\n        ')}
-      </svg>`
-      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
-      const pieId = `pie-${code.slice(0, 20)}`
-      chartSvgRegistry.set(pieId, url)
-
-      return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-          <div className="border-b border-border/60 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-              Composition
-            </p>
-            <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
-          </div>
-          <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
-            <div className="h-[220px] w-full md:w-[220px]">
-              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
-              <img src={url} alt="饼图" className="h-full w-full object-contain" />
-            </div>
-            <div className="flex-1 space-y-2.5">
-              {displayData.map((item, i) => (
-                <div
-                  key={item.name}
-                  className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
-                >
-                  <div
-                    className="h-3 w-3 shrink-0 rounded-none"
-                    style={{ backgroundColor: CHART_COLORS_HEX[i % CHART_COLORS_HEX.length] }}
-                  />
-                  <span className="break-words text-muted-foreground">{item.name}</span>
-                  <span className="ml-auto font-medium tabular-nums">
-                    {item.value}{' '}
-                    <span className="text-xs text-muted-foreground">({item.pct}%)</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-        <div className="border-b border-border/60 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-            Composition
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
-        </div>
-        <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
-          <div className="h-[220px] w-full md:w-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={displayData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={56}
-                  outerRadius={88}
-                  paddingAngle={3}
-                  dataKey="value"
-                  stroke="hsl(var(--surface-soft))"
-                  strokeWidth={3}
-                >
-                  {displayData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <RechartsTooltip
-                  formatter={(value: number) => [value, '']}
-                  contentStyle={{
-                    background: 'hsl(var(--surface-panel))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '12px',
-                    fontSize: 12,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex-1 space-y-2.5">
-            {displayData.map((item, i) => (
-              <div
-                key={item.name}
-                className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
-              >
-                <div
-                  className="h-3 w-3 shrink-0 rounded-none"
-                  style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                />
-                <span className="break-words text-muted-foreground">{item.name}</span>
-                <span className="ml-auto font-medium tabular-nums">
-                  {item.value} <span className="text-xs text-muted-foreground">({item.pct}%)</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ─── Adding new chart types? ───────────────────────────────────────────────
-  // Follow this two-step pattern for each new chart:
-  //
-  // Step 1 — Static SVG for PNG export:
-  //   if (collectChartSvgs) {
-  //     const chartId = `bar-${code.slice(0, 20)}`
-  //     const svgUrl = chartSvgRegistry.get(chartId)
-  //     // Generate a self-contained SVG string; store it; render <img>.
-  //     // Use absolute color values (e.g. "#3b82f6") instead of CSS variables.
-  //     // Return the full styled card markup with the <img> in place of the chart.
-  //   }
-  //
-  // Step 2 — Live Recharts fallback:
-  //   return (
-  //     <div className="not-prose my-6 ...">  ← same card shell
-  //       … <ResponsiveContainer><BarChart>…</ResponsiveContainer> …
-  //     </div>
-  //   )
-  //
-  // The export state machine (collectChartSvgs → rAF → toPng) works
-  // automatically; only the chart body needs updating per type.
-  // ───────────────────────────────────────────────────────────────────────────
-
-  // TODO: implement bar chart static SVG export
-  if (
-    normalizedType === 'barchart' ||
-    normalizedType === 'bar' ||
-    normalizedType === 'columnchart' ||
-    normalizedType === 'column'
-  ) {
-    const parsed = parseLineChart(code) // bar charts use the same key-value format
-    const labels = parsed['x-axis'] || parsed['xaxis'] || []
-    const seriesKey = Object.keys(parsed).find(
-      (k) =>
-        !['x-axis', 'xaxis', 'y-axis', 'yaxis'].includes(k) && parsed[k].length === labels.length
-    )
-    const seriesData = seriesKey ? parsed[seriesKey] : []
-
-    if (labels.length === 0 || seriesData.length === 0) {
-      return <FallbackCodeBlock code={code} />
-    }
-
-    if (collectChartSvgs) {
-      const barW = 600
-      const barH = 220
-      const padL = 52,
-        padR = 16,
-        padT = 12,
-        padB = 28
-      const vw = barW - padL - padR
-      const vh = barH - padT - padB
-      const values = seriesData.map((v: string) => parseFloat(v) || 0)
-      const maxV = Math.max(...values, 1)
-      const barCount = labels.length
-      const slotW = vw / barCount
-      const barW2 = Math.max(8, slotW * 0.6)
-      const barGap = (slotW - barW2) / 2
-
-      const gridYs = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + t * vh)
-      const yLabels = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(maxV - t * maxV))
-
-      const bars = labels.map((label: string, i: number) => {
-        const h = (values[i] / maxV) * vh
-        const x = padL + i * slotW + barGap
-        const y = padT + vh - h
-        return `<rect x="${x}" y="${y}" width="${barW2}" height="${h}" rx="4" fill="#3b82f6" opacity="0.85"/>`
-      })
-
-      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${barW}" height="${barH}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.18"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.04"/></linearGradient></defs>
-  ${gridYs.map((y, i) => `<line x1="${padL}" y1="${y}" x2="${barW - padR}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4"/>`).join('\n  ')}
-  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#94a3b8">${label}</text>`).join('\n  ')}
-  ${labels
-    .filter(
-      (_: string, i: number) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1
-    )
-    .map((l: string) => {
-      const idx = labels.indexOf(l)
-      return `<text x="${padL + idx * slotW + slotW / 2}" y="${barH - 6}" fill="#94a3b8">${l}</text>`
-    })
-    .join('\n  ')}
-  ${bars.join('\n  ')}
-</svg>`
-      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
-      const barId = `bar-${code.slice(0, 20)}`
-      chartSvgRegistry.set(barId, url)
-
-      return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-          <div className="border-b border-border/60 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                  Bar Chart
-                </p>
-                <p className="mt-1 text-sm font-semibold text-foreground">
-                  {seriesKey?.toUpperCase() || '柱状图'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="px-4 pb-3 pt-4">
-            <div className="h-[260px] w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
-              <img src={url} alt="柱状图" className="h-full w-full object-contain" />
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    // Live Recharts fallback (replace with dedicated BarChart component if needed)
-    const chartData = labels.map((label: string, i: number) => ({
-      label,
-      value: parseFloat(seriesData[i]) || 0,
-    }))
-
-    return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-        <div className="border-b border-border/60 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                Bar Chart
-              </p>
-              <p className="mt-1 text-sm font-semibold text-foreground">
-                {seriesKey?.toUpperCase() || '柱状图'}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="px-4 pb-3 pt-4">
-          <ChartContainer config={CHART_CONFIG} className="h-[260px] w-full">
-            {/* Replace with BarChart if recharts Bar is imported */}
-            <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="ai-insight-line-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.32} />
-                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.03} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} strokeDasharray="4 4" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={18} />
-              <YAxis tickLine={false} axisLine={false} width={44} />
-              <ChartTooltip
-                cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '4 4' }}
-                content={<ChartTooltipContent indicator="line" />}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="var(--color-value)"
-                strokeWidth={3}
-                dot={{ r: 0 }}
-                activeDot={{
-                  r: 5,
-                  fill: 'var(--color-value)',
-                  stroke: 'hsl(var(--surface-panel))',
-                  strokeWidth: 2,
-                }}
-              />
-            </LineChart>
-          </ChartContainer>
-        </div>
-      </div>
-    )
-  }
-
-  return <FallbackCodeBlock code={code} />
-}
-
-function ReportSectionTitle({ children, className, ...props }: ComponentPropsWithoutRef<'h2'>) {
-  return (
-    <h2
-      className={cn(
-        'mt-10 flex items-center gap-3 border-b border-border/70 pb-3 text-[1.02rem] font-semibold tracking-[0.02em] text-foreground first:mt-0',
-        className
-      )}
-      {...props}
-    >
-      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised font-mono text-xs font-bold text-term-accent">
-        {typeof children === 'string' ? children.slice(0, 1) : '章'}
-      </span>
-      <span>{children}</span>
-    </h2>
-  )
-}
-
-const MarkdownContent = ({
-  content,
-  collectChartSvgs,
-  autoScroll = true,
-}: {
-  content: string
-  collectChartSvgs?: boolean
-  autoScroll?: boolean
-}) => {
-  const Markdown = ReactMarkdown as React.FC<{
-    remarkPlugins?: unknown[]
-    children: string
-    components?: Record<string, any>
-  }>
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const prevContentLengthRef = useRef(0)
-
-  // Auto-scroll to bottom when content grows (for streaming preview)
-  useEffect(() => {
-    if (autoScroll && content && content.length > prevContentLengthRef.current) {
-      prevContentLengthRef.current = content.length
-      // Small delay to ensure DOM has rendered the new content
-      const timer = setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-      }, 30)
-      return () => clearTimeout(timer)
-    }
-    prevContentLengthRef.current = content.length
-  }, [content, autoScroll])
-
-  return (
-    <div
-      id="ai-insight-export-root"
-      className="max-w-full min-w-0 overflow-hidden rounded-none border border-term-border bg-term-panel"
-    >
-      <div className="border-b border-term-border bg-term-raised px-4 py-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-term-faint">
-            AI Insight Report
-          </span>
-        </div>
-      </div>
-      <div className="px-6 py-6 sm:px-8">
-        <div
-          className={cn(
-            'max-w-full min-w-0 text-[15px] leading-7 text-foreground',
-            '[&_a]:font-medium [&_a]:text-term-accent [&_a]:underline-offset-4 hover:[&_a]:underline',
-            '[&_hr]:my-8 [&_hr]:border-border/70'
-          )}
-        >
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              h1({ className, ...props }: ComponentPropsWithoutRef<'h1'>) {
-                return (
-                  <h1
-                    className={cn(
-                      'text-2xl font-semibold tracking-tight text-foreground',
-                      className
-                    )}
-                    {...props}
-                  />
-                )
-              },
-              h2({
-                className,
-                children,
-                ...props
-              }: ComponentPropsWithoutRef<'h2'> & { children?: ReactNode }) {
-                return (
-                  <ReportSectionTitle className={className} {...props}>
-                    {children}
-                  </ReportSectionTitle>
-                )
-              },
-              h3({ className, ...props }: ComponentPropsWithoutRef<'h3'>) {
-                return (
-                  <h3
-                    className={cn('mt-6 text-base font-semibold text-foreground', className)}
-                    {...props}
-                  />
-                )
-              },
-              p({ className, ...props }: ComponentPropsWithoutRef<'p'>) {
-                return (
-                  <p
-                    className={cn(
-                      'mt-4 whitespace-pre-wrap text-[15px] leading-7 text-foreground/92',
-                      className
-                    )}
-                    {...props}
-                  />
-                )
-              },
-              strong({ className, ...props }: ComponentPropsWithoutRef<'strong'>) {
-                return (
-                  <strong className={cn('font-semibold text-foreground', className)} {...props} />
-                )
-              },
-              ul({ className, ...props }: ComponentPropsWithoutRef<'ul'>) {
-                return <ul className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
-              },
-              ol({ className, ...props }: ComponentPropsWithoutRef<'ol'>) {
-                return <ol className={cn('mt-4 space-y-2 pl-6', className)} {...props} />
-              },
-              li({ className, ...props }: ComponentPropsWithoutRef<'li'>) {
-                return (
-                  <li className={cn('marker:text-[hsl(var(--chart-1))]', className)} {...props} />
-                )
-              },
-              blockquote({ className, ...props }: ComponentPropsWithoutRef<'blockquote'>) {
-                return (
-                  <blockquote
-                    className={cn(
-                      'my-5 rounded-none border-l-4 border-term-accent/50 bg-term-bg px-4 py-3 text-term-muted',
-                      className
-                    )}
-                    {...props}
-                  />
-                )
-              },
-              table({ className, ...props }: ComponentPropsWithoutRef<'table'>) {
-                return (
-                  <div className="my-6 overflow-x-auto rounded-none border border-term-border bg-term-bg">
-                    <table
-                      className={cn('min-w-full border-collapse text-sm', className)}
-                      {...props}
-                    />
-                  </div>
-                )
-              },
-              thead({ className, ...props }: ComponentPropsWithoutRef<'thead'>) {
-                return (
-                  <thead className={cn('bg-[hsl(var(--surface-soft))]', className)} {...props} />
-                )
-              },
-              tbody({ className, ...props }: ComponentPropsWithoutRef<'tbody'>) {
-                return (
-                  <tbody className={cn('[&_tr:last-child]:border-b-0', className)} {...props} />
-                )
-              },
-              tr({ className, ...props }: ComponentPropsWithoutRef<'tr'>) {
-                return <tr className={cn('border-b border-border/60', className)} {...props} />
-              },
-              th({ className, ...props }: ComponentPropsWithoutRef<'th'>) {
-                return (
-                  <th
-                    className={cn(
-                      'border-r border-border/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-term-faint last:border-r-0 break-words',
-                      className
-                    )}
-                    {...props}
-                  />
-                )
-              },
-              td({ className, ...props }: ComponentPropsWithoutRef<'td'>) {
-                return (
-                  <td
-                    className={cn(
-                      'border-r border-border/60 px-4 py-3 align-top text-sm text-foreground/92 last:border-r-0 break-words',
-                      className
-                    )}
-                    {...props}
-                  />
-                )
-              },
-              code({
-                className,
-                children,
-                ...props
-              }: ComponentPropsWithoutRef<'code'> & { children?: ReactNode }) {
-                const match = /language-([\w-]+)/.exec(className || '')
-                // react-markdown v10 HTML-encodes code block content; decode it so our
-                // chart parsers and block-detection logic work correctly.
-                let code = decodeHtmlEntities(String(children)).replace(/\n$/, '')
-                const language = match?.[1]?.toLowerCase() || ''
-                const isAsciiWarningBlock = /[┌┐└┘│─]/.test(code) && /⚠️|警告|异常|提醒/.test(code)
-
-                // AI sometimes wraps ASCII art / code blocks in single backticks instead of
-                // triple backticks. Detect this by checking for inner backticks or newlines
-                // that indicate block-level content masquerading as inline code.
-                const looksLikeBlock =
-                  code.includes('\n') ||
-                  /[┌─┐│└┘├┤┬┴┼]/.test(code) ||
-                  (code.startsWith('`') && code.endsWith('`') && code.length > 2)
-
-                // Chart languages always take priority over looksLikeBlock detection
-                if (
-                  language === 'linechart' ||
-                  language === 'line' ||
-                  language === 'piechart' ||
-                  language === 'pie'
-                ) {
-                  return (
-                    <ChartCodeBlock
-                      chartType={language}
-                      code={code}
-                      collectChartSvgs={collectChartSvgs}
-                    />
-                  )
-                }
-
-                if (looksLikeBlock) {
-                  // Strip outer backticks if the whole content is backtick-wrapped
-                  if (/^`[\s\S]*`$/.test(code)) {
-                    code = code.slice(1, -1)
-                  }
-                  if (isAsciiWarningBlock) {
-                    return <AsciiCalloutBlock code={code} />
-                  }
-                  return <FallbackCodeBlock code={code} />
-                }
-
-                const isInline = !match && !code.includes('\n')
-
-                if (isInline) {
-                  return (
-                    <code
-                      className={cn(
-                        'rounded-none bg-term-raised px-1.5 py-0.5 font-mono text-[0.85em]',
-                        className
-                      )}
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  )
-                }
-
-                if (
-                  language === 'linechart' ||
-                  language === 'line' ||
-                  language === 'piechart' ||
-                  language === 'pie'
-                ) {
-                  return (
-                    <ChartCodeBlock
-                      chartType={language}
-                      code={code}
-                      collectChartSvgs={collectChartSvgs}
-                    />
-                  )
-                }
-
-                if (language === 'alert' || language === 'warning' || isAsciiWarningBlock) {
-                  // Strip leading "alert" / "warning" language tag so the parser only sees the content
-                  const codeLines = code.split('\n')
-                  const firstLine = codeLines[0]?.trim().toLowerCase() ?? ''
-                  const cleanCode =
-                    (firstLine === 'alert' || firstLine === 'warning') && codeLines.length > 1
-                      ? codeLines.slice(1).join('\n')
-                      : code
-                  return <AsciiCalloutBlock code={cleanCode} />
-                }
-
-                return <FallbackCodeBlock code={code} />
-              },
-              pre({ children }: ComponentPropsWithoutRef<'pre'> & { children?: ReactNode }) {
-                return <>{children}</>
-              },
-            }}
-          >
-            {content}
-          </Markdown>
-        </div>
-        {/* Invisible anchor at bottom for auto-scroll during streaming */}
-        <div ref={bottomRef} className="h-0 w-0 opacity-0 pointer-events-none" aria-hidden />
-      </div>
-    </div>
-  )
-}
-
 export default function AIInsightsPage() {
   const { data: session } = useSession()
   const { notify } = useNotifications()
@@ -1582,9 +160,8 @@ export default function AIInsightsPage() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true)
   const [isLoadingInsights, setIsLoadingInsights] = useState(true)
   const [insightDialogOpen, setInsightDialogOpen] = useState(false)
-  const currentInsightId = useRef<number | null>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const [eventSourceKey, setEventSourceKey] = useState(0) // Increment to trigger useEffect re-attach
+  // 生成弹窗当前订阅的旧 run id（null = 尚未拿到 id）
+  const [generatingId, setGeneratingId] = useState<number | null>(null)
 
   // View historical insight
   const [viewingInsight, setViewingInsight] = useState<InsightItem | null>(null)
@@ -1597,18 +174,10 @@ export default function AIInsightsPage() {
   // State machine: triggers charts to render <img> with SVG data URL → effect captures PNG
   const [collectChartSvgs, setCollectChartSvgs] = useState(false)
 
-  // Live streaming content (shown in generation dialog)
-  const [streamingContent, setStreamingContent] = useState('')
-  const [streamingPreviewContent, setStreamingPreviewContent] = useState('')
-  const [currentSubStatus, setCurrentSubStatus] = useState<string | null>(null)
-  const [aggregationDetails, setAggregationDetails] = useState<Record<string, AggregationDetail>>(
-    {}
-  )
   const [isGenerating, setIsGenerating] = useState(false)
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [selectedModel, setSelectedModel] = useState('')
-  const streamingRef = useRef<HTMLDivElement>(null)
 
   // Schedule-related state
   const [activeTab, setActiveTab] = useState<'insights' | 'schedules'>('insights')
@@ -1616,68 +185,11 @@ export default function AIInsightsPage() {
   const [editingSchedule, setEditingSchedule] = useState<any>(null)
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0)
 
-  // Use a ref to accumulate streaming content (avoids React batching issues)
-  const streamingContentRef = useRef('')
-
-  useEffect(() => {
-    if (!streamingContent) {
-      setStreamingPreviewContent('')
-      return
-    }
-
-    if (currentSubStatus !== 'ai_generating') {
-      setStreamingPreviewContent(streamingContent)
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      startTransition(() => {
-        setStreamingPreviewContent(streamingContent)
-      })
-    }, STREAMING_PREVIEW_SYNC_MS)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [currentSubStatus, streamingContent])
-
-  // SSE state for the "view live generation" mode
-  const viewEventSourceRef = useRef<EventSource | null>(null)
-  const [viewLiveContent, setViewLiveContent] = useState('')
-  const [viewLivePreviewContent, setViewLivePreviewContent] = useState('')
-  const [viewLiveSubStatus, setViewLiveSubStatus] = useState<string | null>(null)
-  const [viewLiveRefreshing, setViewLiveRefreshing] = useState(false)
-  const [viewLiveError, setViewLiveError] = useState<string | null>(null)
-  // Track sub_status per insight — key is insight ID, value is sub_status string
-  const insightSubStatusRef = useRef<Record<number, string | null>>({})
+  // 列表兜底刷新：旧 run 由后端继续跑，弹窗关掉后靠列表轮询反映终态
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // Track which EventSource instances this effect has already attached listeners to
-  const _attachedEses = useRef<Set<EventSource>>(new Set())
-  const isGenerationDialogExpanded = insightDialogOpen && currentSubStatus !== null
-  const isViewLiveExpanded = Boolean(
-    viewDialogOpen &&
-      (viewingInsight?.status === 'generating' ||
-        viewingInsight?.status === 'pending' ||
-        viewLiveRefreshing)
-  )
+  const isViewLive =
+    viewingInsight?.status === 'generating' || viewingInsight?.status === 'pending'
 
-  useEffect(() => {
-    if (!viewLiveContent) {
-      setViewLivePreviewContent('')
-      return
-    }
-
-    if (viewLiveSubStatus !== 'ai_generating') {
-      setViewLivePreviewContent(viewLiveContent)
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      startTransition(() => {
-        setViewLivePreviewContent(viewLiveContent)
-      })
-    }, STREAMING_PREVIEW_SYNC_MS)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [viewLiveContent, viewLiveSubStatus])
 
   useEffect(() => {
     async function loadProjects() {
@@ -1768,131 +280,122 @@ export default function AIInsightsPage() {
     }
   }, [insightDialogOpen])
 
-  const _closeViewSse = useCallback(() => {
-    if (viewEventSourceRef.current) {
-      viewEventSourceRef.current.close()
-      viewEventSourceRef.current = null
-    }
-  }, [])
+  // 旧洞察兼容订阅（BLF-1017）：整页只有这两个订阅入口，页面不再自建 EventSource、
+  // 不再累积正文、不再持有重连与终态收尾逻辑——全部收敛在 `useLegacyInsightStream` 内。
+  // 生成弹窗：订阅刚创建的 run；关闭弹窗即断开（run 由后端继续跑），列表轮询兜底。
+  // 旧正文里的 ```chart 语言块统一交给本页的 ChartCodeBlock 渲染（含 PNG 导出的静态 SVG 收集）
+  const renderLegacyChartBlock = useCallback(
+    (block: InsightChartBlock) => (
+      <ChartCodeBlock
+        chartType={block.language}
+        code={block.code}
+        collectChartSvgs={collectChartSvgs}
+      />
+    ),
+    [collectChartSvgs]
+  )
 
-  const _attachViewSse = useCallback(
-    (insightId: number) => {
-      _closeViewSse()
-      const es = new EventSource(`/api/backend/v1/ai-insights/${insightId}/stream`)
-      viewEventSourceRef.current = es
-
-      es.onmessage = (e) => {
-        if (!e.data || e.data.trim() === '') return
-        try {
-          const event: SseEvent = JSON.parse(e.data)
-
-          if (event.type === 'ping') return
-
-          // Debug: log every SSE event for view mode
-          console.log(
-            '[SSE-view] event:',
-            event.type,
-            'sub_status:',
-            'sub_status' in event ? event.sub_status : '',
-            'chunk_len:',
-            event.type === 'chunk'
-              ? ((event as { type: 'chunk'; delta: string }).delta?.length ?? 0)
-              : 'N/A'
+  const generationStream = useLegacyInsightStream({
+    insightId: generatingId,
+    enabled: insightDialogOpen && generatingId !== null,
+    onFrame: (frame) => {
+      if (frame.type === 'ping') return
+      const sid = frame.type === 'chunk' ? null : (frame.insight_id ?? generatingId)
+      if (frame.type === 'status') {
+        setInsights((prev) =>
+          prev.map((item) =>
+            item.id === sid
+              ? {
+                  ...item,
+                  status: frame.status,
+                  sub_status:
+                    frame.sub_status ?? (frame.status === 'pending' ? 'queued' : item.sub_status),
+                  title: frame.title ?? item.title,
+                }
+              : item
           )
-
-          if (event.type === 'status') {
-            setViewLiveSubStatus((prev) => {
-              if (event.sub_status) return event.sub_status
-              if (event.status === 'pending') return 'queued'
-              return prev
-            })
-            // Keep viewingInsight.sub_status in sync so dialog conditions stay satisfied
-            setViewingInsight((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    sub_status:
-                      event.sub_status ?? (event.status === 'pending' ? 'queued' : prev.sub_status),
-                  }
-                : prev
-            )
-            if (event.status === 'failed') {
-              setViewLiveRefreshing(false)
-              _closeViewSse()
-              // Update viewingInsight to reflect the failure state
-              setViewingInsight((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      status: 'failed',
-                      error_message: event.error_message ?? '生成任务失败',
-                      content: '',
-                    }
-                  : prev
-              )
-              void loadInsights()
-              return
-            }
-          } else if (event.type === 'chunk') {
-            setViewLiveContent((prev) => prev + (event.delta || ''))
-            setTimeout(() => {
-              streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
-            }, 50)
-          } else if (event.type === 'done') {
-            setViewLiveContent((prev) => {
-              const nextContent = event.content ?? prev
-              setViewLivePreviewContent(nextContent)
-              return nextContent
-            })
-            setViewLiveSubStatus(null)
-            setViewLiveRefreshing(false)
-            _closeViewSse()
-            setViewingInsight((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    status: event.status === 'failed' ? 'failed' : 'completed',
-                    title: event.title || prev.title,
-                    content: event.content || prev.content,
-                    error_message: event.error_message ?? null,
-                  }
-                : prev
-            )
-            void loadInsights()
-          } else if (event.type === 'error') {
-            setViewLiveRefreshing(false)
-            setViewLiveError(event.error_message ?? event.error ?? '无法连接到生成任务')
-            _closeViewSse()
-            setViewingInsight((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    status: 'failed',
-                    error_message: event.error_message ?? event.error ?? '无法连接到生成任务',
-                    content: '',
-                  }
-                : prev
-            )
-            void loadInsights()
-          }
-        } catch (parseErr) {
-          console.warn('Failed to parse SSE event', parseErr)
+        )
+        if (frame.status === 'failed') {
+          notify({
+            type: 'error',
+            title: '生成失败',
+            message: frame.error_message || '生成任务失败',
+          })
+          setInsights((prev) => prev.filter((i) => i.id !== sid))
         }
+        return
       }
+      if (frame.type === 'done') {
+        if (frame.status === 'failed') {
+          notify({
+            type: 'error',
+            title: '生成失败',
+            message: frame.error_message || '生成任务失败',
+          })
+          setInsights((prev) => prev.filter((i) => i.id !== sid))
+        } else {
+          void loadInsights()
+        }
+        return
+      }
+      if (frame.type === 'error') {
+        notify({ type: 'error', title: '生成失败', message: frame.error_message || frame.error })
+        setInsights((prev) => prev.filter((i) => i.id !== sid))
+      }
+    },
+  })
 
-      es.onerror = () => {
-        const errMsg = 'SSE 连接中断，请关闭窗口后重试'
-        setViewLiveRefreshing(false)
-        setViewLiveError(errMsg)
-        _closeViewSse()
+  // 详情弹窗：只在该 run 仍处于生成 / 排队时订阅，终态帧把权威内容写回详情与列表。
+  const viewStream = useLegacyInsightStream({
+    insightId: viewDialogOpen && viewingInsight ? viewingInsight.id : null,
+    enabled: viewDialogOpen && isViewLive,
+    onFrame: (frame) => {
+      if (frame.type === 'status') {
+        if (frame.status === 'failed') {
+          setViewingInsight((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: 'failed',
+                  error_message: frame.error_message ?? '生成任务失败',
+                }
+              : prev
+          )
+          void loadInsights()
+          return
+        }
         setViewingInsight((prev) =>
-          prev ? { ...prev, status: 'failed', error_message: errMsg, content: '' } : prev
+          prev
+            ? { ...prev, status: frame.status, sub_status: frame.sub_status ?? prev.sub_status }
+            : prev
+        )
+        return
+      }
+      if (frame.type === 'done') {
+        setViewingInsight((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: frame.status === 'failed' ? 'failed' : 'completed',
+                title: frame.title || prev.title,
+                content: frame.content || prev.content,
+                error_message: frame.error_message ?? null,
+              }
+            : prev
+        )
+        void loadInsights()
+        return
+      }
+      if (frame.type === 'error') {
+        setViewingInsight((prev) =>
+          prev
+            ? { ...prev, status: 'failed', error_message: frame.error_message ?? frame.error }
+            : prev
         )
         void loadInsights()
       }
     },
-    [_closeViewSse, loadInsights]
-  )
+  })
 
   const handleViewInsight = useCallback(
     async (insightId: number) => {
@@ -1901,29 +404,13 @@ export default function AIInsightsPage() {
       setViewingInsight(null)
       setIsEditingDetail(false)
       setEditingContent('')
-      setViewLiveContent('')
-      setViewLivePreviewContent('')
-      setViewLiveSubStatus(null)
-      setViewLiveError(null)
       try {
         const res = await fetch(`/api/backend/v1/ai-insights/${insightId}`)
         if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
         const data: InsightItem = await res.json()
-        // Sync SSE current state into view state immediately so stepper is visible before first event
-        const liveStatus = insightSubStatusRef.current[insightId] ?? data.sub_status
-        setViewLiveSubStatus(liveStatus)
         setViewingInsight(data)
-        if (data.status === 'generating' || data.status === 'pending') {
-          // Immediately show "live" mode so stepper appears before SSE's first event fires
-          setViewLiveRefreshing(true)
-          // Live mode: attach SSE to watch generation progress in the dialog
-          _attachViewSse(insightId)
-          setIsLoadingDetail(false)
-        } else {
-          // Completed, failed, or pending — show static content / error
-          setEditingContent(data.content || '')
-          setIsLoadingDetail(false)
-        }
+        setEditingContent(data.content || '')
+        setIsLoadingDetail(false)
       } catch (e) {
         console.error('Failed to load insight detail', e)
         notify({
@@ -1935,18 +422,12 @@ export default function AIInsightsPage() {
         setIsLoadingDetail(false)
       }
     },
-    [_attachViewSse, notify]
+    [notify]
   )
 
   const handleRetryInsight = useCallback(
     async (insightId: number) => {
       if (!(await confirm({ title: '确定要重试生成这条洞察吗？当前内容将被替换。' }))) return
-      setViewLiveRefreshing(true)
-      setViewLiveContent('')
-      setViewLivePreviewContent('')
-      setViewLiveSubStatus(null)
-      setViewLiveError(null)
-      // Mark as loading so the dialog shows a clean state while SSE connects
       setIsLoadingDetail(true)
       setIsEditingDetail(false)
       try {
@@ -1954,8 +435,8 @@ export default function AIInsightsPage() {
           method: 'POST',
         })
         if (!res.ok) throw new Error(await parseResponseError(res, '重试失败'))
-        // Immediately open the live view — SSE will update viewingInsight on first event
-        _attachViewSse(insightId)
+        // 重试后 run 回到生成态；详情轮询与 useLegacyInsightStream 会各自接管
+        await handleViewInsight(insightId)
         // Refresh the list so the table shows "生成中" immediately
         void loadInsights()
       } catch (e) {
@@ -1965,11 +446,10 @@ export default function AIInsightsPage() {
           title: '重试失败',
           message: e instanceof Error ? e.message : String(e),
         })
-        setViewLiveRefreshing(false)
         setIsLoadingDetail(false)
       }
     },
-    [_attachViewSse, loadInsights, confirm, notify]
+    [handleViewInsight, loadInsights, confirm, notify]
   )
 
   const handleStartEditingDetail = useCallback(() => {
@@ -2076,150 +556,6 @@ export default function AIInsightsPage() {
     setCollectChartSvgs(true) // triggers chart components to render <img> tags
   }, [])
 
-  const _closeSse = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current)
-      pollingIntervalRef.current = null
-    }
-  }, [])
-
-  // Top-level SSE handler — runs whenever eventSourceRef.current changes.
-  // Uses a Set to safely handle re-runs without duplicate listener attachment.
-  useEffect(() => {
-    const es = eventSourceRef.current
-    if (!es) return
-
-    // Guard: don't double-attach if this EventSource already has handlers
-    const attachedEses = _attachedEses.current
-    if (attachedEses.has(es)) return
-    attachedEses.add(es)
-
-    const onMessage = (e: MessageEvent) => {
-      if (!e.data || e.data.trim() === '') return
-      try {
-        const event: SseEvent = JSON.parse(e.data)
-
-        if (event.type === 'ping') return
-
-        // Debug: log every SSE event to help diagnose streaming issues
-        console.log(
-          '[SSE] event:',
-          event.type,
-          'sub_status:',
-          'sub_status' in event ? event.sub_status : '',
-          'detail_step:',
-          'detail' in event && event.detail ? event.detail.step : '',
-          'chunk_len:',
-          event.type === 'chunk'
-            ? ((event as { type: 'chunk'; delta: string }).delta?.length ?? 0)
-            : 'N/A'
-        )
-
-        if (event.type === 'status') {
-          const sid = event.insight_id ?? currentInsightId.current
-          const nextSubStatus = event.sub_status ?? (event.status === 'pending' ? 'queued' : null)
-          if (sid && nextSubStatus) insightSubStatusRef.current[sid] = nextSubStatus
-          setCurrentSubStatus((prev) => nextSubStatus ?? prev)
-
-          // Store aggregation detail if available
-          if (event.detail && event.detail.step) {
-            setAggregationDetails((prev) => ({
-              ...prev,
-              [event.detail!.step]: event.detail!,
-            }))
-          }
-
-          if (event.status === 'failed') {
-            notify({
-              type: 'error',
-              title: '生成失败',
-              message: event.error_message || '生成任务失败',
-            })
-            _closeSse()
-            setInsightDialogOpen(false)
-            setInsights((prev) => prev.filter((i) => i.id !== sid))
-            return
-          }
-          // Update the optimistic record's sub_status in the list — works even if dialog is closed
-          setInsights((prev) =>
-            prev.map((item) =>
-              item.id === sid
-                ? {
-                    ...item,
-                    status: event.status,
-                    sub_status: nextSubStatus ?? item.sub_status,
-                    title: event.title ? `${event.title}` : item.title,
-                  }
-                : item
-            )
-          )
-        } else if (event.type === 'chunk') {
-          const delta = event.delta || ''
-          if (!delta) return
-          // Directly set state - this works because we're inside EventSource callback
-          streamingContentRef.current += delta
-          setStreamingContent(streamingContentRef.current)
-          setTimeout(() => {
-            streamingRef.current?.scrollIntoView({ behavior: 'smooth' })
-          }, 50)
-        } else if (event.type === 'done') {
-          const sid = event.insight_id ?? currentInsightId.current
-          if (event.status === 'failed') {
-            notify({
-              type: 'error',
-              title: '生成失败',
-              message: event.error_message || '生成任务失败',
-            })
-            setInsights((prev) => prev.filter((i) => i.id !== sid))
-          }
-          // content 只从 done 事件获取，不再从 status 中途获取
-          if (event.content) {
-            setStreamingContent(event.content)
-            setStreamingPreviewContent(event.content)
-            streamingContentRef.current = event.content
-          }
-          setCurrentSubStatus(null)
-          streamingContentRef.current = '' // Reset ref after done
-          _closeSse()
-          void loadInsights()
-        } else if (event.type === 'error') {
-          const sid = event.insight_id ?? currentInsightId.current
-          notify({ type: 'error', title: '生成失败', message: event.error })
-          _closeSse()
-          setInsightDialogOpen(false)
-          setCurrentSubStatus(null)
-          setInsights((prev) => prev.filter((i) => i.id !== sid))
-        }
-      } catch (parseErr) {
-        console.warn('Failed to parse SSE event', parseErr)
-      }
-    }
-
-    const onError = () => {
-      _closeSse()
-      setInsightDialogOpen(false)
-      notify({
-        type: 'error',
-        title: 'SSE 连接中断',
-        message: '生成任务可能仍在后台运行，请稍后在列表中查看结果',
-      })
-      void loadInsights()
-    }
-
-    es.addEventListener('message', onMessage)
-    es.onerror = onError
-
-    return () => {
-      es.removeEventListener('message', onMessage)
-      es.onerror = null
-      attachedEses.delete(es)
-    }
-  }, [_closeSse, loadInsights, eventSourceKey, notify])
-
   // Polling fallback: refresh processing insights every 10s in case SSE missed the done event
   useEffect(() => {
     const hasProcessing = insights.some((i) => i.status === 'generating' || i.status === 'pending')
@@ -2250,13 +586,8 @@ export default function AIInsightsPage() {
       return
 
     setIsGenerating(true)
-    setStreamingContent('')
-    setStreamingPreviewContent('')
-    streamingContentRef.current = '' // Reset ref
-    setCurrentSubStatus('data_aggregating') // Immediately show step 1 as active
-    setAggregationDetails({}) // Reset aggregation details
+    setGeneratingId(null)
     setInsightDialogOpen(true)
-    currentInsightId.current = null
 
     try {
       const body = {
@@ -2280,7 +611,6 @@ export default function AIInsightsPage() {
 
       const result = await response.json()
       const insightId: number = result.insight_id
-      currentInsightId.current = insightId
 
       // Optimistically add a "processing" record to the list so it shows immediately without a refresh
       const optimisticRecord: InsightItem = {
@@ -2299,12 +629,8 @@ export default function AIInsightsPage() {
         updated_at: new Date().toISOString(),
       }
       setInsights((prev) => [optimisticRecord, ...prev])
-
-      // Close any previous SSE connection before creating a new one
-      _closeSse()
-      const es = new EventSource(`/api/backend/v1/ai-insights/${insightId}/stream`)
-      eventSourceRef.current = es
-      setEventSourceKey((k) => k + 1)
+      // 订阅由 useLegacyInsightStream 负责：generatingId 变化即重新订阅该 run
+      setGeneratingId(insightId)
     } catch (e) {
       console.error('Failed to start insight generation', e)
       notify({
@@ -2317,13 +643,6 @@ export default function AIInsightsPage() {
       setIsGenerating(false)
     }
   }
-
-  // Cleanup SSE on unmount
-  useEffect(() => {
-    return () => {
-      _closeSse()
-    }
-  }, [_closeSse])
 
   const handleDelete = async (insightId: number) => {
     if (!(await confirm({ title: '确定要删除这条洞察吗？', variant: 'destructive' }))) return
@@ -2651,11 +970,7 @@ export default function AIInsightsPage() {
                             <span className="flex items-center gap-2">
                               <span className="h-2 w-2 rounded-none bg-term-warn animate-pulse" />
                               <span className="text-muted-foreground">
-                                {SUB_STATUS_LABELS[
-                                  insightSubStatusRef.current[insight.id] ??
-                                    insight.sub_status ??
-                                    ''
-                                ] ?? '生成中'}
+                                {LEGACY_SUB_STATUS_LABELS[insight.sub_status ?? ''] ?? '生成中'}
                               </span>
                             </span>
                           ) : (
@@ -2693,11 +1008,7 @@ export default function AIInsightsPage() {
                                 ? '失败'
                                 : insight.status === 'pending'
                                   ? '排队中'
-                                  : (SUB_STATUS_LABELS[
-                                      insightSubStatusRef.current[insight.id] ??
-                                        insight.sub_status ??
-                                        ''
-                                    ] ?? '生成中')}
+                                  : (LEGACY_SUB_STATUS_LABELS[insight.sub_status ?? ''] ?? '生成中')}
                           </span>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -2742,10 +1053,7 @@ export default function AIInsightsPage() {
             <DialogContent
               aria-describedby="insight-generation-dialog-description"
               suppressHydrationWarning
-              className={cn(
-                'max-h-[80vh] overflow-y-auto',
-                isGenerationDialogExpanded ? 'max-w-6xl' : 'max-w-2xl'
-              )}
+              className="max-h-[80vh] max-w-4xl overflow-y-auto"
             >
               <span id="insight-generation-dialog-description" className="sr-only">
                 AI洞察报告生成进度对话框
@@ -2757,149 +1065,48 @@ export default function AIInsightsPage() {
                 </DialogTitle>
               </DialogHeader>
               <div className="mt-4">
-                {isGenerationDialogExpanded && (
-                  <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                    <div className="space-y-4">
-                      <GenerationProgress
-                        currentSubStatus={currentSubStatus}
-                        aggregationDetails={aggregationDetails}
-                      />
-                      <div className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-4">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
-                          <span className="h-2 w-2 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
-                          Live Session
+                <InsightStreamPanel
+                  status={generationStream.state.status}
+                  statusLabel={generationStream.state.label}
+                  error={generationStream.error}
+                  content={generationStream.content}
+                  contentState={generationStream.state.contentState}
+                  isStreaming={generationStream.state.isStreaming}
+                  exportFileName={`${selectedProjectName || '洞察报告'}-AI洞察.md`}
+                  chartLanguages={LEGACY_CHART_LANGUAGES}
+                  renderChartBlock={renderLegacyChartBlock}
+                  slots={{
+                    beforeContent: (
+                      <GenerationProgress currentSubStatus={generationStream.subStatus} />
+                    ),
+                    afterContent:
+                      generationStream.finished && generationStream.content.trim() ? (
+                        <div className="flex items-center justify-end gap-2 border-t pt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setInsightDialogOpen(false)
+                              if (generatingId !== null) void handleViewInsight(generatingId)
+                            }}
+                          >
+                            <Pencil className="mr-1.5 h-4 w-4" />
+                            查看并编辑
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setInsightDialogOpen(false)
+                              void loadInsights()
+                            }}
+                          >
+                            <Check className="mr-1.5 h-4 w-4" />
+                            完成
+                          </Button>
                         </div>
-                        <div className="mt-4 space-y-3">
-                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
-                              Raw Stream
-                            </p>
-                            <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                              {streamingContent.length}
-                            </p>
-                            <p className="text-xs text-muted-foreground">已接收字符数</p>
-                          </div>
-                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
-                              Render State
-                            </p>
-                            <p className="mt-1 text-sm font-medium text-foreground">
-                              {currentSubStatus === 'data_aggregating'
-                                ? '等待 AI 输出首段 Markdown'
-                                : currentSubStatus === 'ai_generating'
-                                  ? '按节流窗口实时渲染 Markdown'
-                                  : '内容已收齐，等待标题收束'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      {(currentSubStatus === 'queued' ||
-                        currentSubStatus === 'data_aggregating') && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Data Pipeline"
-                          title="洞察草稿预览区"
-                          statusLabel={
-                            currentSubStatus === 'queued'
-                              ? '任务已创建，等待后台启动'
-                              : '正在聚合业务数据'
-                          }
-                          statusTone="active"
-                          content=""
-                          isPlaceholder
-                          placeholderMessage={
-                            currentSubStatus === 'queued'
-                              ? '生成任务已经进入队列。后台线程启动后会自动进入数据聚合，并在收到第一段 AI 输出后切换到实时 Markdown 预览。'
-                              : '系统正在汇总销售、广告、库存和对比周期数据。数据聚合完成后，右侧将立即开始流式渲染 Markdown 洞察内容。'
-                          }
-                        />
-                      )}
-
-                      {currentSubStatus === 'ai_generating' && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Live Markdown"
-                          title="洞察报告实时预览"
-                          statusLabel="SSE 流式生成中"
-                          statusTone="active"
-                          content={streamingPreviewContent}
-                          isStreaming
-                          collectChartSvgs={collectChartSvgs}
-                          placeholderMessage="AI 正在分析数据，即将开始输出第一段 Markdown 内容。"
-                        />
-                      )}
-
-                      {currentSubStatus === 'title_generating' && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Finishing Pass"
-                          title="洞察内容已生成"
-                          statusLabel="正在生成标题"
-                          statusTone="success"
-                          content={streamingPreviewContent || streamingContent}
-                          collectChartSvgs={collectChartSvgs}
-                          placeholderMessage="洞察主体内容已经完成，系统正在生成标题。"
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Done state - collapse back to the single report card */}
-                {currentSubStatus === null && streamingContent && (
-                  <div className="space-y-4">
-                    {/* Header with status */}
-                    <div className="flex items-center gap-2 rounded-none border border-term-pos/40 bg-term-pos/5 px-4 py-3">
-                      <Check className="h-4 w-4 shrink-0 text-term-pos" />
-                      <span className="font-mono text-xs font-medium text-term-pos">生成完成</span>
-                    </div>
-
-                    {/* Completed content */}
-                    <div ref={streamingRef}>
-                      <MarkdownContent
-                        content={streamingPreviewContent || streamingContent}
-                        collectChartSvgs={collectChartSvgs}
-                      />
-                    </div>
-
-                    {/* Done state - show action buttons */}
-                    <div className="flex items-center justify-end gap-2 pt-4 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setInsightDialogOpen(false)
-                          const sid = currentInsightId.current
-                          if (sid) void handleViewInsight(sid)
-                        }}
-                      >
-                        <Pencil className="mr-1.5 h-4 w-4" />
-                        查看并编辑
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setInsightDialogOpen(false)
-                          void loadInsights()
-                        }}
-                      >
-                        <Check className="mr-1.5 h-4 w-4" />
-                        完成
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Fallback: queued or unknown state */}
-                {!currentSubStatus && streamingContent === '' && (
-                  <GenerationProgress
-                    currentSubStatus={currentSubStatus}
-                    aggregationDetails={aggregationDetails}
-                  />
-                )}
+                      ) : null,
+                  }}
+                />
               </div>
             </DialogContent>
           </Dialog>
@@ -2908,15 +1115,10 @@ export default function AIInsightsPage() {
           <Dialog
             open={viewDialogOpen}
             onOpenChange={(open) => {
-              if (!open) _closeViewSse()
               setViewDialogOpen(open)
               if (!open) {
                 setIsEditingDetail(false)
                 setEditingContent('')
-                setViewLiveContent('')
-                setViewLivePreviewContent('')
-                setViewLiveSubStatus(null)
-                setViewLiveError(null)
               }
             }}
           >
@@ -2925,11 +1127,7 @@ export default function AIInsightsPage() {
               suppressHydrationWarning
               className={cn(
                 'max-h-[80vh] overflow-y-auto overflow-x-auto',
-                isEditingDetail
-                  ? 'max-w-[1350px]'
-                  : isViewLiveExpanded
-                    ? 'max-w-6xl'
-                    : 'max-w-[675px]'
+                isEditingDetail ? 'max-w-[1350px]' : isViewLive ? 'max-w-6xl' : 'max-w-[675px]'
               )}
             >
               <span id="insight-view-dialog-description" className="sr-only">
@@ -2939,9 +1137,7 @@ export default function AIInsightsPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div>
                     <DialogTitle className="flex items-center gap-2">
-                      {viewingInsight?.status === 'generating' ||
-                      viewingInsight?.sub_status === 'queued' ||
-                      viewLiveRefreshing ? (
+                      {isViewLive ? (
                         <>
                           <Loader2 className="h-5 w-5 animate-spin text-term-accent" />
                           {viewingInsight?.sub_status === 'queued'
@@ -2971,9 +1167,7 @@ export default function AIInsightsPage() {
                   </div>
 
                   {/* Live / Retry button */}
-                  {(viewingInsight?.status === 'generating' ||
-                    viewingInsight?.sub_status === 'queued' ||
-                    viewLiveRefreshing) && (
+                  {isViewLive && (
                     <div className="flex shrink-0 items-center gap-2">
                       <div className="flex items-center gap-1.5 rounded-none border border-term-accent/40 px-1.5 py-0.5 font-mono text-xs text-term-accent">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -3046,10 +1240,9 @@ export default function AIInsightsPage() {
                         </p>
                       </div>
                       <div className="flex-1 overflow-y-auto px-4 py-4">
-                        <MarkdownContent
+                        <LegacyReportCard
                           content={editingContent}
                           collectChartSvgs={collectChartSvgs}
-                          autoScroll={false}
                         />
                       </div>
                     </div>
@@ -3093,113 +1286,31 @@ export default function AIInsightsPage() {
                       />
                     </div>
                   </div>
-                ) : viewingInsight?.status === 'generating' ||
-                  viewingInsight?.sub_status === 'queued' ||
-                  viewLiveRefreshing ? (
-                  /* Live generation view — stepper + streaming content */
-                  <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                    <div className="space-y-4">
-                      <GenerationProgress
-                        currentSubStatus={viewLiveSubStatus}
-                        aggregationDetails={{}}
-                      />
-                      <div className="overflow-hidden rounded-none border border-term-border bg-term-bg px-4 py-4">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-term-faint">
-                          <span className="h-2 w-2 rounded-full bg-term-accent animate-pulse motion-reduce:animate-none" />
-                          Live Session
-                        </div>
-                        <div className="mt-4 space-y-3">
-                          <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-wider text-term-faint">
-                              Raw Stream
-                            </p>
-                            <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                              {viewLiveContent.length}
-                            </p>
-                            <p className="text-xs text-muted-foreground">已接收字符数</p>
-                          </div>
-                          {viewLiveError ? (
-                            <div className="rounded-none border border-term-neg/40 bg-term-neg/5 px-3 py-3 text-sm text-term-neg">
-                              {viewLiveError}
-                            </div>
-                          ) : (
-                            <div className="rounded-none border border-term-border bg-term-panel px-3 py-3">
-                              <p className="text-[11px] uppercase tracking-wider text-term-faint">
-                                Render State
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-foreground">
-                                {viewLiveSubStatus === 'data_aggregating'
-                                  ? '等待 AI 输出首段 Markdown'
-                                  : viewLiveSubStatus === 'ai_generating'
-                                    ? '按节流窗口实时渲染 Markdown'
-                                    : '内容已收齐，等待标题收束'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      {(viewLiveSubStatus === 'queued' ||
-                        viewLiveSubStatus === 'data_aggregating') && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Data Pipeline"
-                          title="洞察草稿预览区"
-                          statusLabel={
-                            viewLiveSubStatus === 'queued'
-                              ? '任务已创建，等待后台启动'
-                              : '正在聚合业务数据'
-                          }
-                          statusTone="active"
-                          content=""
-                          isPlaceholder
-                          placeholderMessage={
-                            viewLiveSubStatus === 'queued'
-                              ? '生成任务已经进入队列。后台线程启动后会自动进入数据聚合，并在收到第一段 AI 输出后切换到实时 Markdown 预览。'
-                              : '系统正在汇总该报告所需的数据。聚合完成后，这里会立即开始渲染 Markdown 洞察正文。'
-                          }
-                        />
-                      )}
-
-                      {viewLiveSubStatus === 'ai_generating' && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Live Markdown"
-                          title="洞察报告实时预览"
-                          statusLabel="SSE 流式生成中"
-                          statusTone="active"
-                          content={viewLivePreviewContent}
-                          isStreaming
-                          collectChartSvgs={collectChartSvgs}
-                          placeholderMessage="AI 正在分析数据，即将开始输出第一段 Markdown 内容。"
-                        />
-                      )}
-
-                      {(viewLiveSubStatus === 'title_generating' ||
-                        (!viewLiveSubStatus && viewLiveContent)) && (
-                        <LivePreviewPanel
-                          panelRef={streamingRef}
-                          eyebrow="Finishing Pass"
-                          title="洞察内容已生成"
-                          statusLabel={
-                            viewLiveSubStatus === 'title_generating'
-                              ? '正在生成标题'
-                              : '等待最终落库'
-                          }
-                          statusTone="success"
-                          content={viewLivePreviewContent || viewLiveContent}
-                          collectChartSvgs={collectChartSvgs}
-                          placeholderMessage="洞察主体内容已经完成。"
-                        />
-                      )}
-                    </div>
-                  </div>
+                ) : isViewLive ? (
+                  <InsightStreamPanel
+                    status={viewStream.state.status}
+                    statusLabel={viewStream.state.label}
+                    error={viewStream.error}
+                    content={viewStream.content}
+                    contentState={viewStream.state.contentState}
+                    isStreaming={viewStream.state.isStreaming}
+                    exportFileName={`${viewingInsight.project_name}-洞察报告.md`}
+                    chartLanguages={LEGACY_CHART_LANGUAGES}
+                    renderChartBlock={renderLegacyChartBlock}
+                    onRetry={
+                      viewStream.state.status === 'failed'
+                        ? () => void handleRetryInsight(viewingInsight.id)
+                        : undefined
+                    }
+                    slots={{
+                      beforeContent: <GenerationProgress currentSubStatus={viewStream.subStatus} />,
+                    }}
+                  />
                 ) : viewingInsight?.content ? (
-                  <MarkdownContent
+                  <LegacyReportCard
                     content={viewingInsight.content}
                     collectChartSvgs={collectChartSvgs}
+                    exportFileName={`${viewingInsight.project_name}-洞察报告.md`}
                   />
                 ) : viewingInsight?.error_message ? (
                   <div className="rounded-none border border-term-neg/40 bg-term-neg/5 px-4 py-3 text-sm text-term-neg">

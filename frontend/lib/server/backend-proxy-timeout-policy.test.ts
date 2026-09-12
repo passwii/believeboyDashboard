@@ -73,6 +73,29 @@ describe('Insight canonical stream timeout tier', () => {
     expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', 'text/event-stream')).toBe(0)
   })
 })
+
+/**
+ * BLF-1017：canonical 域 run 入口（广告分析 / 库存健康）在服务端先收敛口径
+ * 再建 run，默认 5s 档会掐掉提交。落 `ai` 档（30s），与 `/ai-insights/generate`
+ * 同档；创建后的正文推送走 SSE，不受影响。
+ */
+describe('canonical domain run submit timeout tier', () => {
+  it('matches the `ai` tier (30_000ms) for both domains', () => {
+    expect(getProxyTimeoutMs('api/v1/insight/ad-analysis/runs', 'application/json')).toBe(30_000)
+    expect(getProxyTimeoutMs('api/v1/insight/inventory-health/runs', 'application/json')).toBe(30_000)
+  })
+
+  it('matches the `ai` tier when the path is prefixed with `/`', () => {
+    expect(getProxyTimeoutMs('/api/v1/insight/ad-analysis/runs', null)).toBe(30_000)
+  })
+
+  it('does NOT over-match other Insight paths', () => {
+    // 只有「建 run」进 30s 档；单 run 的 detail 走默认 5s，事件流走 stream 档 0。
+    expect(getProxyTimeoutMs('api/v1/insight/runs/run-1', 'application/json')).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', null)).toBe(0)
+    expect(getProxyTimeoutMs('api/v1/insight/ad-analysis/runs/run-1', null)).toBe(5_000)
+  })
+})
 /**
  * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
  * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳

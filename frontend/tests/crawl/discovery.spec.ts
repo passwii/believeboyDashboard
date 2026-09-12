@@ -46,6 +46,7 @@ const ROUTES: string[] = [
   '/dashboard/ai/digital-employees/1',
   '/dashboard/ai/digital-employees/office',
   '/dashboard/ai/insights',
+  '/dashboard/ai/inventory-health',
   '/dashboard/change-password',
   '/dashboard/crm',
   '/dashboard/crm/audit',
