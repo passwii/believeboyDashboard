@@ -134,8 +134,9 @@ describe('insight contract 落盘产物', () => {
     const availabilityByKey: Record<string, string> = {}
     for (const r of contract.roles) availabilityByKey[r.canonical_key] = r.availability
     expect(availabilityByKey['schedule_report_summary.v1']).toBe('active')
-    expect(availabilityByKey['ad_analysis.v1']).toBe('reserved')
-    expect(availabilityByKey['inventory_health.v1']).toBe('reserved')
+    // BLF-1016：广告 / 库存两个 role 已从 reserved 占位提升为可运行。
+    expect(availabilityByKey['ad_analysis.v1']).toBe('active')
+    expect(availabilityByKey['inventory_health.v1']).toBe('active')
     expect(contract.errors).toHaveLength(26)
     for (const e of contract.errors) {
       expect(typeof e.code).toBe('string')

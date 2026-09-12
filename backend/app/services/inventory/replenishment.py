@@ -1123,13 +1123,30 @@ def list_inventory_replenishment_analysis(
     replenishment_action: str | None = None,
     order_by: str | None = None,
     order_dir: str = "asc",
+    today: date | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, int], int, bool]:
     project = _get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
-    today = report_date if report_date is not None else date.today()
-    # BLF-502 S4：真实快照新鲜度——库存快照实际使用的 report_date（≤ today 最近一份）
-    snapshot_age_days = _compute_snapshot_age_days(
-        db, project.id, normalized_country, today
+    # BLF-1016 复审[7]：实时路径（``report_date=None``）的「今天」由调用方
+    # 注入，避免 service 自己再读一次挂钟——slot 声明的口径日、DMS 窗口、
+    # 快照年龄都锚在**同一个**参照日上（跨午夜不再分裂）。
+    today = report_date if report_date is not None else (today or date.today())
+    # BLF-502 S4 / BLF-1016 复审[7]：快照年龄必须量自**数据加载器实际使用**
+    # 的那份快照文件——历史路径 = ``<= report_date`` 最近一份，实时路径 =
+    # 「最新一份」（无上界，与 ``_load_inventory_map`` 同一谓词），否则存在
+    # 晚于参照日的快照文件时，signals 的新鲜度与 rows 的来源各说一套。
+    if report_date is None:
+        source_snapshot_date = current_inventory_snapshot_report_date(
+            db, project.id, normalized_country
+        )
+    else:
+        source_snapshot_date = latest_inventory_snapshot_date(
+            db, project.id, normalized_country, today
+        )
+    snapshot_age_days = (
+        0
+        if source_snapshot_date is None
+        else max(0, (today - source_snapshot_date).days)
     )
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
@@ -1439,7 +1456,10 @@ def list_inventory_replenishment_analysis(
                 # v1.2: 三段式（spec §3.2）
                 "inventory_state": inventory_state,
                 "replenishment_action": replenishment_action,
-                "signals": signals_obj,
+                # BLF-1016：行是数据载体，必须 JSON 原生——canonical slot 的
+                # ``json_safe`` 遇非 JSON 类型即抛（宁可提交失败也不写坏行，
+                # 这是它的既定契约）。前端/agent 两条消费路径都只读字段值。
+                "signals": signals_obj.model_dump(mode="json"),
                 # BLF-502 S3: 决策路径解释（G1）——rule 码供 Agent 解释"为什么这么判"
                 "decision_path": {
                     "state_rule": state_rule,
@@ -1523,13 +1543,14 @@ def list_inventory_replenishment_analysis(
     return paged[:page_size], summary, total, has_next
 
 
-def _compute_snapshot_age_days(
+def latest_inventory_snapshot_date(
     db: Session, project_id: int, country: str, today: date
-) -> int:
-    """BLF-502 S4：库存快照实际使用日期的年龄（天）。
+) -> date | None:
+    """历史路径（指定 ``report_date``）下最近一份库存快照的 report_date。
 
-    取 ``report_type='inventory_report'`` 且 report_date ≤ today 的最近一份；
-    无快照时返回 0（与缺失一致）。
+    即 ``_get_inventory_source(report_date=<某日>)`` 会选中的那份文件的上界
+    版本；无快照返回 None。「无快照」与「快照就是今天」都折成 0 天会让缺数
+    看起来像新鲜，故把查询本身暴露成公开函数供 slot 与 signals 共用。
     """
     row = db.execute(
         select(func.max(AnalysisSourceFile.report_date)).where(
@@ -1540,10 +1561,26 @@ def _compute_snapshot_age_days(
             AnalysisSourceFile.report_date <= today,
         )
     ).first()
-    snapshot_report_date = row[0] if row else None
-    if snapshot_report_date is None:
-        return 0
-    return max(0, (today - snapshot_report_date).days)
+    return row[0] if row else None
+
+
+def current_inventory_snapshot_report_date(
+    db: Session, project_id: int, country: str
+) -> date | None:
+    """实时路径（``report_date=None``）**实际使用**的快照文件的 report_date。
+
+    ``_load_inventory_map(report_date=None)`` 经 ``_get_inventory_source`` 的
+    「最新一份」分支取数，该分支**没有** ``<= today`` 上界。若 slot 另起一条
+    有上界的查询来声明数据口径日，二者在「存在晚于参照日的快照文件」时就会
+    给出两个不同日期：audit slot 声称的数据口径与 rows 的真实来源漂移
+    （BLF-1016 复审[7]）。这里直接复用数据加载器同一个函数，谓词不可能分叉。
+    """
+    from app.services.inventory_analysis_service import _get_inventory_source
+
+    source = _get_inventory_source(
+        db, project_id=project_id, country=country, report_date=None
+    )
+    return source.report_date if source is not None else None
 
 
 def _sort_rows(rows: list[dict[str, object]], order_by: str, order_dir: str) -> None:
@@ -1557,7 +1594,10 @@ def _sort_rows(rows: list[dict[str, object]], order_by: str, order_dir: str) -> 
 
     def key_fn(row: dict[str, object]) -> tuple[int, object]:
         value = row.get(order_by)
-        return (1 if value is None else 0, value or "")
+        # 不能写成 ``value or ""``：数值 0 会退化成空串，与同列的非零数值
+        # 比较直接 TypeError（sellable_days / available_inventory 为 0 是
+        # 常态——零库存 SKU）。这里只把 None 折进「排后」组。
+        return (1 if value is None else 0, value if value is not None else "")
 
     rows.sort(key=key_fn, reverse=reverse)
 

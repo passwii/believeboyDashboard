@@ -421,6 +421,30 @@ def role_runtime_for(role: InsightRoleDefinition) -> tuple[Any, Any, Any]:
             schedule_report_instructions,
             clean_schedule_report_markdown,
         )
+    if role.role_id == "ad_analysis":
+        from app.services.ad.insight_adapter.prompt import (
+            ad_analysis_instructions,
+            build_ad_analysis_prompt,
+            clean_ad_analysis_markdown,
+        )
+
+        return (
+            build_ad_analysis_prompt,
+            ad_analysis_instructions,
+            clean_ad_analysis_markdown,
+        )
+    if role.role_id == "inventory_health":
+        from app.services.inventory.insight_adapter.prompt import (
+            build_inventory_health_prompt,
+            clean_inventory_health_markdown,
+            inventory_health_instructions,
+        )
+
+        return (
+            build_inventory_health_prompt,
+            inventory_health_instructions,
+            clean_inventory_health_markdown,
+        )
     return default_prompt_builder, _no_instructions, _identity_cleaner
 
 
@@ -552,9 +576,11 @@ def execute_run(
             active_sink,
             make_error(
                 InsightErrorCode.SLOT_VALIDATION_FAILED,
-                "Report payload could not be rendered into a prompt"
+                f"{role.canonical_key} payload could not be rendered into a prompt"
                 f" ({type(exc).__name__})",
-                slot="report.data",
+                # 主载荷 slot 由 role 自身的必填声明决定，避免硬编码某个域
+                # （BLF-1016：同一执行器服务三个 role）。
+                slot=role.required_slots[0] if role.required_slots else None,
             ),
             attempt=attempt,
         )

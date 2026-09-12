@@ -44,6 +44,7 @@ from app.services.inventory.replenishment import (
     _load_settings_map,
     _normalize_weighted_dms,
     _pick_business_source,
+    _sort_rows,
     list_inventory_replenishment_analysis,
     list_inventory_replenishment_shipments,
     list_snapshot_options,
@@ -325,6 +326,38 @@ class TestAddDays:
 
     def test_none_days_returns_none(self):
         assert _add_days(date.today(), None) is None
+
+
+class TestSortRows:
+    """``_sort_rows`` Python 侧排序（BLF-502 S5）；0 值是常态而非缺值。"""
+
+    def test_zero_numeric_does_not_break_sorting(self):
+        """零库存 SKU 的 ``sellable_days`` 就是 0。
+
+        原实现 ``value or ""`` 让 0 退化成空串，与同列非零数值比较直接
+        ``TypeError``——R1 的 ``order_by=sellable_days`` 与库存 insight
+        adapter 的取头部路径都会撞上。
+        """
+        rows: list[dict[str, object]] = [
+            {"sku": "b", "sellable_days": 3.0},
+            {"sku": "a", "sellable_days": 0.0},
+            {"sku": "c", "sellable_days": None},
+        ]
+        _sort_rows(rows, "sellable_days", "asc")  # 不得抛 TypeError
+        assert [r["sku"] for r in rows] == ["a", "b", "c"]  # 0 最紧急，None 排最后
+
+    def test_zero_int_sorts_before_positive(self):
+        rows: list[dict[str, object]] = [
+            {"sku": "x", "available_inventory": 10},
+            {"sku": "y", "available_inventory": 0},
+        ]
+        _sort_rows(rows, "available_inventory", "desc")
+        assert [r["sku"] for r in rows] == ["x", "y"]
+
+    def test_unknown_field_keeps_order(self):
+        rows: list[dict[str, object]] = [{"sku": "b"}, {"sku": "a"}]
+        _sort_rows(rows, "not_a_field", "asc")
+        assert [r["sku"] for r in rows] == ["b", "a"]
 
 
 class TestClassifyRisk:

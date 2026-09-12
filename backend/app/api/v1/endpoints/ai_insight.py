@@ -18,6 +18,7 @@ from app.api.deps import (
     get_request_operator,
     protected,
 )
+from app.core.config import get_settings
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
     InsightChunkResponse,
@@ -45,6 +46,7 @@ from app.celery_tasks.insights.generate import (
 from app.services import project_service
 from app.services.infra import ai_cache  # noqa: F401 —— 触发 L2 域 invalidate_fn 注册
 from app.services.infra.cache_decorator import invalidate_cache_on_commit
+from app.services.insight.domain_switch import domain_switch_error, legacy_write_frozen
 from app.services.ai_insight_generator import (
     normalize_insight_markdown,
 )
@@ -119,6 +121,18 @@ def _encode_sse_event(payload: dict) -> bytes:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
+def _resolve_insight_type(value: str) -> InsightType:
+    """请求里的 insight_type → 旧枚举（未知值按 custom 处理，保持旧行为）。"""
+    return InsightType(value) if value in [e.value for e in InsightType] else InsightType.custom
+
+
+def _freeze_legacy_write(insight_type: InsightType) -> None:
+    """已切 canonical 的域：旧写入口 409（禁止双写）；开关空 = 不冻结。"""
+    role_id = legacy_write_frozen(get_settings(), insight_type)
+    if role_id:
+        raise domain_switch_error(role_id, enabled=True)
+
+
 router = APIRouter(
     prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)]
 )
@@ -144,15 +158,16 @@ def generate_insight(
     )
     project = _get_project_or_404(db, payload.project_id)
 
+    insight_type = _resolve_insight_type(payload.insight_type)
+    _freeze_legacy_write(insight_type)
+
     insight = AIInsight(
         project_id=payload.project_id,
         project_name=project.project_name,
         country=payload.country,
         title="生成中...",
         content="",
-        insight_type=InsightType(payload.insight_type)
-        if payload.insight_type in [e.value for e in InsightType]
-        else InsightType.custom,
+        insight_type=insight_type,
         date_range_start=payload.date_range_start,
         date_range_end=payload.date_range_end,
         status=InsightStatus.pending,

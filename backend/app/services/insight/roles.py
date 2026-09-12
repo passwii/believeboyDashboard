@@ -15,6 +15,10 @@ from pydantic import TypeAdapter
 
 from app.schemas.insight import InsightErrorCode
 from app.services.insight.slot_types import (
+    AdContextSlot,
+    AdDataSlot,
+    InventoryContextSlot,
+    InventoryDataSlot,
     ProjectContextSlot,
     ReportContextSlot,
     ReportDataSlot,
@@ -84,24 +88,46 @@ def _schedule_report_summary() -> InsightRoleDefinition:
     )
 
 
-def _reserved(role_id: str) -> InsightRoleDefinition:
+def _ad_analysis() -> InsightRoleDefinition:
+    """广告分析 role（BLF-1016）：范围 + 聚合产物两个必填 slot。"""
     return InsightRoleDefinition(
-        role_id=role_id,
+        role_id="ad_analysis",
         role_version=1,
-        availability=RoleAvailability.RESERVED,
-        required_slots=(),
+        availability=RoleAvailability.ACTIVE,
+        required_slots=("ad.context", "ad.data"),
         optional_slots=(),
-        slot_adapters={},
+        slot_adapters={
+            "ad.context": TypeAdapter(AdContextSlot),
+            "ad.data": TypeAdapter(AdDataSlot),
+        },
         output_format="markdown",
         output_slot="main",
-        default_model_policy=f"{role_id}.default",
+        default_model_policy="ad_analysis.default",
+    )
+
+
+def _inventory_health() -> InsightRoleDefinition:
+    """库存健康 role（BLF-1016）：范围 + 补货行/汇总两个必填 slot。"""
+    return InsightRoleDefinition(
+        role_id="inventory_health",
+        role_version=1,
+        availability=RoleAvailability.ACTIVE,
+        required_slots=("inventory.context", "inventory.data"),
+        optional_slots=(),
+        slot_adapters={
+            "inventory.context": TypeAdapter(InventoryContextSlot),
+            "inventory.data": TypeAdapter(InventoryDataSlot),
+        },
+        output_format="markdown",
+        output_slot="main",
+        default_model_policy="inventory_health.default",
     )
 
 
 _REGISTRY: dict[tuple[str, int], InsightRoleDefinition] = {
     ("schedule_report_summary", 1): _schedule_report_summary(),
-    ("ad_analysis", 1): _reserved("ad_analysis"),
-    ("inventory_health", 1): _reserved("inventory_health"),
+    ("ad_analysis", 1): _ad_analysis(),
+    ("inventory_health", 1): _inventory_health(),
 }
 
 

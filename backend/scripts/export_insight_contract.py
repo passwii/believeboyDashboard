@@ -49,6 +49,10 @@ from app.services.insight.events import (
 )
 from app.services.insight.roles import role_manifest
 from app.services.insight.slot_types import (
+    AdContextSlot,
+    AdDataSlot,
+    InventoryContextSlot,
+    InventoryDataSlot,
     ProjectContextSlot,
     ReportContextSlot,
     ReportDataSlot,
@@ -85,6 +89,10 @@ def build_contract() -> dict:
             "ReportDataSlot": TypeAdapter(ReportDataSlot).json_schema(),
             "ProjectContextSlot": TypeAdapter(ProjectContextSlot).json_schema(),
             "SkuContextSlot": TypeAdapter(SkuContextSlot).json_schema(),
+            "AdContextSlot": TypeAdapter(AdContextSlot).json_schema(),
+            "AdDataSlot": TypeAdapter(AdDataSlot).json_schema(),
+            "InventoryContextSlot": TypeAdapter(InventoryContextSlot).json_schema(),
+            "InventoryDataSlot": TypeAdapter(InventoryDataSlot).json_schema(),
         },
         "roles": role_manifest(),
         "errors": [

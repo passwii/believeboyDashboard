@@ -250,3 +250,147 @@ def test_redis_insight_semaphore_limits_concurrent_slots(monkeypatch: pytest.Mon
             assert acquired_again is False
 
     assert len(client.tokens) == 0
+
+
+def test_generate_insight_skips_row_when_schedule_domain_is_canonical(
+    eager_celery_app,
+    db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BLF-1016：已切 canonical 的域，调度链不得再建旧 AIInsight 行。"""
+    from app.celery_tasks import insights as insights_mod
+    from app.celery_tasks.insights.generate import generate_insight
+    from app.core.config import get_settings
+    from app.models import AIInsight, InsightSchedule, Project
+
+    monkeypatch.setattr(
+        get_settings(), "insight_canonical_domains", "ad_analysis", raising=False
+    )
+
+    project = Project(id=12, project_name="Demo", sort_order=0)
+    schedule = InsightSchedule(
+        id=8,
+        project_id=project.id,
+        country="US",
+        insight_type="ad_analysis",
+        cron_expression="0 7 * * *",
+        date_range_strategy="yesterday",
+        model="demo-model",
+        is_active=True,
+        created_by="tester",
+    )
+    db.add(project)
+    db.add(schedule)
+    db.commit()
+
+    def _forbidden(*_args, **_kwargs):
+        raise AssertionError("frozen domain must not start legacy generation")
+
+    monkeypatch.setattr(insights_mod.generate, "SessionLocal", lambda: db)
+    monkeypatch.setattr(db, "close", lambda: None)
+    monkeypatch.setattr(
+        insights_mod.generate,
+        "acquire_remote_semaphore",
+        lambda *_args, **_kwargs: _yield_context(True),
+    )
+    monkeypatch.setattr(insights_mod.generate, "run_insight_generation", _forbidden)
+
+    result = generate_insight.apply(args=[schedule.id]).get()
+
+    assert result == {
+        "status": "domain_migrated",
+        "domain": "ad_analysis",
+        "schedule_id": schedule.id,
+    }
+    assert db.query(AIInsight).count() == 0
+
+
+def test_generate_insight_creates_row_for_unswitched_ad_analysis_schedule(
+    eager_celery_app,
+    db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """开关未开时，ad_analysis 类型的旧调度照常建行——冻结只由开关决定。"""
+    from app.celery_tasks import insights as insights_mod
+    from app.celery_tasks.insights.generate import generate_insight
+    from app.core.config import get_settings
+    from app.models import AIInsight, InsightSchedule, InsightType, Project
+
+    monkeypatch.setattr(
+        get_settings(), "insight_canonical_domains", "", raising=False
+    )
+
+    project = Project(id=13, project_name="Demo", sort_order=0)
+    schedule = InsightSchedule(
+        id=9,
+        project_id=project.id,
+        country="US",
+        insight_type="ad_analysis",
+        cron_expression="0 7 * * *",
+        date_range_strategy="yesterday",
+        model="demo-model",
+        is_active=True,
+        created_by="tester",
+    )
+    db.add(project)
+    db.add(schedule)
+    db.commit()
+
+    generated: list[int] = []
+
+    def _record(insight_id: int, settings, payload: dict, operator: str) -> bool:
+        generated.append(insight_id)
+        return True
+
+    monkeypatch.setattr(insights_mod.generate, "SessionLocal", lambda: db)
+    monkeypatch.setattr(db, "close", lambda: None)
+    monkeypatch.setattr(
+        insights_mod.generate,
+        "acquire_remote_semaphore",
+        lambda *_args, **_kwargs: _yield_context(True),
+    )
+    monkeypatch.setattr(insights_mod.generate, "run_insight_generation", _record)
+
+    result = generate_insight.apply(args=[schedule.id]).get()
+
+    assert result["status"] == "completed"
+    row = db.get(AIInsight, result["insight_id"])
+    assert row is not None
+    assert row.insight_type == InsightType.ad_analysis
+    assert generated == [result["insight_id"]]
+
+
+def test_run_schedule_now_is_frozen_when_domain_is_canonical(
+    db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BLF-1016：run-now 也不得为已切域新建旧行，且必须是 typed 409。"""
+    from fastapi import HTTPException
+
+    from app.core.config import get_settings
+    from app.models import AIInsight, InsightSchedule
+    from app.services import insight_schedule_service as service_mod
+
+    monkeypatch.setattr(
+        get_settings(), "insight_canonical_domains", "ad_analysis", raising=False
+    )
+
+    schedule = InsightSchedule(
+        id=11,
+        project_id=1,
+        country="US",
+        insight_type="ad_analysis",
+        cron_expression="0 7 * * *",
+        date_range_strategy="yesterday",
+        is_active=True,
+        created_by="tester",
+    )
+    db.add(schedule)
+    db.commit()
+
+    with pytest.raises(HTTPException) as excinfo:
+        service_mod.run_schedule_now(db, schedule.id, operator="tester")
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail["code"] == "DOMAIN_SWITCH_NOT_READY"
+    assert db.query(AIInsight).count() == 0
