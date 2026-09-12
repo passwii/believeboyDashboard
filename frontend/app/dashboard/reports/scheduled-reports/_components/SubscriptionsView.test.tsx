@@ -33,6 +33,7 @@ vi.mock('next-auth/react', () => ({
   useSession: () => MOCK_SESSION,
 }))
 
+// mock 句柄用静态导入 + vi.mocked 提取（模块路径在编写期已知，无需动态 import）
 vi.mock('@/lib/api/ai-chat-config-store', () => ({
   ensureConfigLoaded: vi.fn(async () => ({
     providerConfigured: true,
@@ -58,6 +59,7 @@ vi.mock('./EditSubscriptionDialog', () => ({
 }))
 
 import SubscriptionsView from './SubscriptionsView'
+import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import type { Subscription } from './types'
 
 function makeSub(overrides: Partial<Subscription> & { id: number }): Subscription {
@@ -133,8 +135,17 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     notifyMock.mockClear()
     confirmMock.mockReset()
     confirmMock.mockResolvedValue(true)
+    // ensureConfigLoaded 默认走 vi.mock 工厂里的成功实现；失败注入只在需要的
+    // 用例里 mockRejectedValueOnce，这里清掉上一条用例残留的一次性队列。
+    vi.mocked(ensureConfigLoaded).mockReset()
+    vi.mocked(ensureConfigLoaded).mockResolvedValue({
+      providerConfigured: true,
+      models: ['gpt-5', 'gpt-5-mini'],
+      defaultModel: 'gpt-5',
+      premiumModels: ['gpt-5'],
+      basicModels: ['gpt-5-mini'],
+    })
   })
-
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -248,5 +259,49 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
 
     await user.click(screen.getByRole('button', { name: '清空筛选条件' }))
     expect(await screen.findByRole('table', { name: '订阅列表' })).toBeInTheDocument()
+  })
+
+  // 该用例含 3 次勾选交互 + 2 轮配置请求 + 下拉展开，jsdom 高负载下 5s 默认超时不够（与前两条批量用例同理）
+  it('模型配置请求失败后可重试：再次勾选行时重新发起配置请求（review 修复 2）', { timeout: 15000 }, async () => {
+    const ensureMock = vi.mocked(ensureConfigLoaded)
+    // 第 1 次失败 / 第 2 次成功
+    ensureMock
+      .mockRejectedValueOnce(new Error('config down'))
+      .mockResolvedValueOnce({
+        providerConfigured: true,
+        models: ['gpt-5', 'gpt-5-mini'],
+        defaultModel: 'gpt-5',
+        premiumModels: ['gpt-5'],
+        basicModels: ['gpt-5-mini'],
+      })
+    installFetch()
+    await renderView()
+    const user = userEvent.setup()
+    // 第一次进入选择态 → 配置请求失败，命令条模型下拉无可用选项
+    await user.click(rowCheckbox('u1@example.com'))
+    await waitFor(() => expect(ensureMock).toHaveBeenCalledTimes(1))
+    const bar1 = screen.getAllByTestId('subscriptions-bulk-bar')[0]!
+    expect(within(bar1).getByRole('combobox', { name: '批量修改 AI 模型' })).toHaveTextContent(
+      '选择 AI 模型',
+    )
+
+    // 清空选择再重新进入 → 哨兵已复位，配置请求重发且这次成功，下拉出现选项
+    await user.click(within(bar1).getByRole('button', { name: '清空选择' }))
+    await user.click(rowCheckbox('u1@example.com'))
+    await waitFor(() => expect(ensureMock).toHaveBeenCalledTimes(2))
+    const trigger = within(screen.getAllByTestId('subscriptions-bulk-bar')[0]!).getByRole(
+      'combobox',
+      { name: '批量修改 AI 模型' },
+    )
+    await user.click(trigger)
+    expect(await screen.findByRole('option', { name: 'gpt-5-mini' })).toBeInTheDocument()
+  })
+
+  it('桌面视口（jsdom 默认 1024px）下筛选器的「全部」选项保持完整文案「全部频率」（review 修复 1 桌面回归）', async () => {
+    installFetch()
+    await renderView()
+    // jsdom 视口 1024 ≥ md 断点 → useMobile() 为 false → 桌面分支；
+    // 频率触发器没有独立 aria-label，用首个含「全部频率」的 combobox 断言
+    expect(screen.getAllByRole('combobox').some((c) => c.textContent === '全部频率')).toBe(true)
   })
 })

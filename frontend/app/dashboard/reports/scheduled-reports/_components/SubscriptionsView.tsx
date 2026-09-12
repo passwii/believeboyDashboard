@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { getCountryLabel, COUNTRY_OPTIONS } from '@/lib/country'
 import { useConfirm } from '@/hooks/use-confirm'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useMobile } from '@/lib/hooks/use-mobile'
 import type { Frequency, Subscription, AIModelConfig } from './types'
 import { AiModelOptions } from './ai-model-options'
 import {
@@ -219,9 +220,19 @@ export default function SubscriptionsView() {
     if (modelConfigRequested.current) return
     modelConfigRequested.current = true
     setIsLoadingModelConfig(true)
-    fetchModelConfig((cfg) => {
+    // 注意失败路径：fetchModelConfig 出错时不会回调 onConfig（只在控制台打日志并
+    // 返回 null），所以复位哨兵 / 收尾 loading 必须挂在返回值上，不能只靠回调。
+    void fetchModelConfig((cfg) => {
       setModelConfig(cfg)
-      setIsLoadingModelConfig(false)
+    }).then((cfg) => {
+      if (cfg) {
+        setIsLoadingModelConfig(false)
+      } else {
+        // 请求失败：复位哨兵，下次进入选择态 / 打开弹窗可重试；同时收尾 loading，
+        // 否则批量改模型的下拉会永久停在「加载模型中...」拿不到选项（review 修复 2）。
+        modelConfigRequested.current = false
+        setIsLoadingModelConfig(false)
+      }
     })
   }, [])
 
@@ -453,6 +464,8 @@ export default function SubscriptionsView() {
 
   const roleType = session?.user?.roleType
   const canManage = roleType === 'admin' || roleType === 'operator'
+  // 视口断点（SSR 安全）：仅用于筛选器的手机短标签文案（BLF-617 移动契约）
+  const isMobile = useMobile()
 
   const bulkBar = (
     <BulkBar
@@ -518,8 +531,12 @@ export default function SubscriptionsView() {
               <SelectValue placeholder="频率" />
             </SelectTrigger>
             <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+              {/* 手机端短标签「全部」（BLF-617 移动契约）；桌面保持「全部频率」。
+                  用 JS 断点而不是 md:hidden 双 span：SelectValue 会把选项内容克隆进
+                  触发器，双 span 的 textContent 会拼成「全部全部频率」，破坏既有移动
+                  smoke 对 /^全部$/ 的文本匹配（review 修复 1）。 */}
               <SelectItem value="all" className={TERM_SELECT_ITEM}>
-                全部频率
+                {isMobile ? '全部' : '全部频率'}
               </SelectItem>
               <SelectItem value="daily" className={TERM_SELECT_ITEM}>
                 每日
