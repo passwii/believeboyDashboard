@@ -11,9 +11,21 @@ const CELL_BASE = 'h-10 px-2 align-middle whitespace-nowrap text-xs leading-5'
 const HEAD_BASE = cn(CELL_BASE, 'border-b border-term-border bg-term-raised text-left font-medium normal-case tracking-normal text-term-muted')
 const CELL_CN = cn(CELL_BASE, 'border-b border-term-border text-term-text')
 
-export function TermTable({ children, className }: { children: React.ReactNode; className?: string }) {
+export function TermTable({
+  children,
+  className,
+  'aria-label': ariaLabel,
+}: {
+  children: React.ReactNode
+  className?: string
+  /** 表格的可访问名称；调用方早已传该 prop，此前被本组件丢弃，现补齐透传 */
+  'aria-label'?: string
+}) {
   return (
-    <table className={cn('w-full border-collapse font-mono text-xs tabular-nums', className)}>
+    <table
+      aria-label={ariaLabel}
+      className={cn('w-full border-collapse font-mono text-xs tabular-nums', className)}
+    >
       {children}
     </table>
   )

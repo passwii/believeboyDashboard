@@ -176,20 +176,99 @@ export async function deleteSubscription(id: number): Promise<boolean> {
   }
 }
 
-export async function toggleSubscription(
-  id: number,
+/**
+ * 订阅可局部更新的字段。后端 `SubscriptionUpdate` 全字段可选，
+ * 未提供的字段保持原值 —— 因此批量操作只发要改的那一个字段，
+ * 不会把并发编辑中的其它字段回写覆盖。
+ */
+export type SubscriptionPatch = Partial<{
+  email: string | null
+  project_ids: string
+  country: string
+  frequency: Frequency
+  dispatch_hour: number
+  dispatch_minute: number
+  dispatch_weekday: number | null
+  dispatch_day: number | null
+  ai_model: string | null
   enabled: boolean
+}>
+
+async function patchSubscription(
+  id: number,
+  patch: SubscriptionPatch,
+  fallbackError = '操作失败'
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
       method: 'PUT',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify(patch),
     })
-    return { ok: res.ok }
+    if (!res.ok) {
+      const err = await res.text()
+      return { ok: false, error: normalizeErrorMessage(err, fallbackError) }
+    }
+    return { ok: true }
   } catch (e) {
-    return { ok: false, error: normalizeErrorMessage(e, '操作失败') }
+    return { ok: false, error: normalizeErrorMessage(e, fallbackError) }
   }
+}
+
+export async function toggleSubscription(
+  id: number,
+  enabled: boolean
+): Promise<{ ok: boolean; error?: string }> {
+  return patchSubscription(id, { enabled })
+}
+
+/** 批量操作的汇总结果：成功 id 列表 + 每条失败的首个错误文案 */
+export interface BatchResult {
+  okIds: number[]
+  failed: { id: number; error: string }[]
+}
+
+function summarizeBatch(
+  ids: number[],
+  results: PromiseSettledResult<{ ok: boolean; error?: string }>[],
+  fallbackError: string
+): BatchResult {
+  const okIds: number[] = []
+  const failed: { id: number; error: string }[] = []
+  results.forEach((result, i) => {
+    const id = ids[i]!
+    if (result.status === 'fulfilled' && result.value.ok) okIds.push(id)
+    else if (result.status === 'fulfilled')
+      failed.push({ id, error: result.value.error || fallbackError })
+    else failed.push({ id, error: normalizeErrorMessage(result.reason, fallbackError) })
+  })
+  return { okIds, failed }
+}
+
+/**
+ * 批量局部更新（BLF-1032）：逐条并发 PUT，单条失败不拖垮其余（allSettled 语义），
+ * 由调用方按 `failed.length` 决定提示强度。订阅量级为几十条，无需后端 batch 端点。
+ */
+export async function batchPatchSubscriptions(
+  ids: number[],
+  patch: SubscriptionPatch
+): Promise<BatchResult> {
+  const results = await Promise.allSettled(ids.map((id) => patchSubscription(id, patch, '更新失败')))
+  return summarizeBatch(ids, results, '更新失败')
+}
+
+/** 批量删除：DELETE 只返回成功与否，失败按条数汇总，不细化文案 */
+export async function batchDeleteSubscriptions(ids: number[]): Promise<BatchResult> {
+  const results = await Promise.allSettled(ids.map((id) => deleteSubscription(id)))
+  return summarizeBatch(
+    ids,
+    results.map((result) =>
+      result.status === 'fulfilled'
+        ? { status: 'fulfilled' as const, value: { ok: result.value } }
+        : result
+    ),
+    '删除失败'
+  )
 }
 
 // ── 测试邮件 ──
