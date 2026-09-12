@@ -25,6 +25,7 @@ the retention window.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.models.insight_run import InsightRun
@@ -43,9 +44,24 @@ from app.services.insight.events import (
     SnapshotEvent,
     StatusEvent,
 )
-from app.services.insight.stream_bus import InsightStreamWriter
+from app.services.insight.stream_bus import (
+    METRIC_FIRST_DELTA_MS,
+    InsightStreamWriter,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _as_aware(value: datetime | None) -> datetime | None:
+    """首字时延的锚点统一成 aware UTC。
+
+    run 行的 ``started_at`` 在 DB 里是 naive UTC（``_utcnow_naive``），而
+    ``InsightRunDetail.started_at`` 是 aware；两处都归一化，避免相减时
+    naive/aware 混用被静默跳过（BLF-1018 观测期：这个指标不能悄悄丢）。
+    """
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 def _to_snapshot_event(
@@ -106,6 +122,10 @@ class StreamEventSink:
         self._writer = writer
         self._run_id = str(run_id)
         self._attempt = attempt
+        # 首字时延的起点 = run 行 started_at（attempt 真实起点，跨 worker 重投
+        # 仍一致）；只在第一个 content.delta 上记一次（BLF-1018）。
+        self._started_at: datetime | None = None
+        self._first_delta_recorded = False
 
     # ── lifecycle ───────────────────────────────────────────────────────
 
@@ -117,6 +137,7 @@ class StreamEventSink:
         so a resumed delivery observes whatever progress already happened.
         """
         self._writer.open_run(self._run_id, self._attempt)
+        self._started_at = _as_aware(detail.started_at)
         self._publish_snapshot(detail)
 
     # ── executor sink protocol ──────────────────────────────────────────
@@ -128,6 +149,13 @@ class StreamEventSink:
         progress: int,
         detail: str | None = None,
     ) -> None:
+        # 首字时延的锚点在这里补齐：task 在 execute_run **之前** 就 open()，
+        # 那一刻 run 还是 queued（started_at 为空），锚点只能等第一次 phase
+        # checkpoint（``started_at`` 由 try_transition 首次盖上）——否则这个
+        # 指标在生产路径上永远是空的（BLF-1018，被场景测试抓到）。
+        # 放在 seq 之前：Redis 抽风不该连锚点一起丢。
+        if self._started_at is None:
+            self._started_at = _as_aware(run.started_at)
         seq = self._writer.next_seq(self._run_id, self._attempt)
         if seq is None:
             return
@@ -144,6 +172,7 @@ class StreamEventSink:
         self._writer.append_event(self._run_id, event)
 
     def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
+        self._record_first_delta()
         seq = self._writer.next_seq(self._run_id, self._attempt)
         if seq is None:
             return
@@ -210,6 +239,27 @@ class StreamEventSink:
     def _synthetic_terminal_seq(self) -> int:
         """Deterministic seq far above any allocated one (counter unreachable)."""
         return self._attempt * 1_000_000 + 999_999
+
+    def _record_first_delta(self) -> None:
+        """Record time-to-first(content.delta) once per sink instance.
+
+        执行器每个 run 只发一帧 content.delta（finalizing 阶段产出正文），
+        所以这个值等于「距 attempt 起点的产出时延」——命名按事实叫
+        first_delta_ms，不假装是逐 token 的首字。锚点由 ``open()``（重投时
+        run 已开跑）或首个 ``on_status``（新建 run）补齐；两者都没有的异常
+        行才跳过，不记 0 假数据。
+        """
+        if self._first_delta_recorded:
+            return
+        self._first_delta_recorded = True
+        if self._started_at is None:
+            return
+        delta_ms = int(
+            (datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000
+        )
+        self._writer.set_metric_if_absent(
+            self._run_id, METRIC_FIRST_DELTA_MS, max(0, delta_ms)
+        )
 
     # ── internal ───────────────────────────────────────────────────────
 

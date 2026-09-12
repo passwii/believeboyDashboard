@@ -40,6 +40,7 @@ Sync vs async split:
 from __future__ import annotations
 
 import logging
+from typing import Any
 from uuid import UUID
 
 import redis
@@ -79,6 +80,49 @@ def cancel_key(run_id: UUID | str) -> str:
 
 def terminal_key(run_id: UUID | str, attempt: int) -> str:
     return _p(f"insight:terminal:{run_id}:{attempt}")
+
+
+def metrics_key(run_id: UUID | str) -> str:
+    """Per-run observation counters hash (BLF-1018).
+
+    Same lifetime as the stream: written by the worker (frames/bytes/first
+    delta), the SSE endpoint (opens/reconnects) and the cancel endpoint
+    (cancel outcome). Aggregation reads this hash once at terminal state and
+    folds it into the ``insight_run_observations`` row; Redis is the
+    in-flight buffer, the DB row is the audit record.
+    """
+    return _p(f"insight:metrics:{run_id}")
+
+
+# ── observation metric field names (BLF-1018) ───────────────────────────
+#: SSE 订阅建立次数（每次 GET /stream 一次）。
+METRIC_STREAM_OPENS = "stream_opens"
+#: 带 Last-Event-ID 的续传次数（重连分子）。
+METRIC_STREAM_RECONNECTS = "stream_reconnects"
+#: 已发布事件帧数（XADD 成功一次记一次）。
+METRIC_STREAM_FRAMES = "stream_frames"
+#: 已发布载荷字节数。
+METRIC_STREAM_BYTES = "stream_bytes"
+#: 首字时延（attempt 起点 → 首个 content.delta 的毫秒数，只记第一次）。
+METRIC_FIRST_DELTA_MS = "first_delta_ms"
+#: 针对该 run 发起过的取消请求次数。
+METRIC_CANCEL_REQUESTED = "cancel_requested"
+#: 取消真正落地的次数（已成终态的取消不算）。
+METRIC_CANCEL_SUCCEEDED = "cancel_succeeded"
+#: 断线恢复观测：续传后是否观测到终态帧（0/1）。
+METRIC_RECONNECT_COMPLETED = "reconnect_completed"
+
+#: 全部计数器字段；聚合/清理按此枚举，避免拼写漂移。
+METRIC_FIELDS = (
+    METRIC_STREAM_OPENS,
+    METRIC_STREAM_RECONNECTS,
+    METRIC_STREAM_FRAMES,
+    METRIC_STREAM_BYTES,
+    METRIC_FIRST_DELTA_MS,
+    METRIC_CANCEL_REQUESTED,
+    METRIC_CANCEL_SUCCEEDED,
+    METRIC_RECONNECT_COMPLETED,
+)
 
 
 def make_stream_client() -> redis.Redis:
@@ -133,6 +177,28 @@ async def close_async_stream_client() -> None:
     if _async_client is not None:
         await _async_client.aclose()
         _async_client = None
+
+
+async def bump_metric_async(
+    client: Any, run_id: UUID | str, field: str, amount: int = 1
+) -> None:
+    """Async 版观测计数器自增（SSE 端点在事件循环里，不能用同步写端）。
+
+    best-effort：Redis 抖动只留一条 warning —— 观测是旁路，绝不能把一次
+    订阅或取消变成 500。
+    """
+    settings = get_settings()
+    try:
+        pipe = client.pipeline()
+        pipe.hincrby(metrics_key(run_id), field, amount)
+        pipe.expire(metrics_key(run_id), settings.insight_stream_ttl_seconds)
+        await pipe.execute()
+    except Exception:  # noqa: BLE001 — 传输层异常形状不定，观测降级即止
+        logger.warning(
+            "Insight metrics bump degraded (async run=%s field=%s)", run_id, field
+        )
+
+
 class InsightStreamWriter:
     """Sync write path for the Celery worker (BLF-1012).
 
@@ -187,15 +253,28 @@ class InsightStreamWriter:
             return None
 
     def append_event(self, run_id: UUID | str, event: InsightEvent) -> None:
-        """XADD one event with approximate MAXLEN trim (best-effort)."""
+        """XADD one event with approximate MAXLEN trim (best-effort).
+
+        Also accounts the published footprint (frames + serialized bytes)
+        into the per-run metric hash — the single choke point every frame
+        goes through, so the observation never misses one (BLF-1018).
+        """
         settings = get_settings()
+        payload = event.model_dump_json()
         try:
-            self._redis().xadd(
+            pipe = self._redis().pipeline()
+            pipe.xadd(
                 stream_key(run_id),
-                {EVENT_FIELD: event.model_dump_json()},
+                {EVENT_FIELD: payload},
                 maxlen=settings.insight_stream_maxlen,
                 approximate=True,
             )
+            pipe.hincrby(metrics_key(run_id), METRIC_STREAM_FRAMES, 1)
+            pipe.hincrby(
+                metrics_key(run_id), METRIC_STREAM_BYTES, len(payload.encode("utf-8"))
+            )
+            pipe.expire(metrics_key(run_id), settings.insight_stream_ttl_seconds)
+            pipe.execute()
         except redis.RedisError:
             logger.warning(
                 "Insight stream append degraded (run=%s seq=%s)",
@@ -276,9 +355,90 @@ class InsightStreamWriter:
                 stream_key(run_id),
                 snapshot_key(run_id),
                 cancel_key(run_id),
+                metrics_key(run_id),
             )
         except redis.RedisError:
             logger.warning("Insight stream reset_run degraded (run=%s)", run_id)
+
+    # ── observation counters (BLF-1018) ─────────────────────────────────
+
+    def bump_metric(
+        self, run_id: UUID | str, field: str, amount: int = 1
+    ) -> None:
+        """Increment one per-run observation counter (best-effort)."""
+        settings = get_settings()
+        try:
+            pipe = self._redis().pipeline()
+            pipe.hincrby(metrics_key(run_id), field, amount)
+            pipe.expire(metrics_key(run_id), settings.insight_stream_ttl_seconds)
+            pipe.execute()
+        except redis.RedisError:
+            logger.warning(
+                "Insight metrics bump degraded (run=%s field=%s)", run_id, field
+            )
+
+    def set_metric_if_absent(
+        self, run_id: UUID | str, field: str, value: int
+    ) -> None:
+        """First-write-wins counter: keeps "first delta" honest under redelivery.
+
+        ``HSETNX`` rather than ``HSET`` because a redelivered attempt (or a
+        second delta after the first) must not overwrite the latency already
+        measured — the metric is the *first* delta by definition.
+        """
+        settings = get_settings()
+        try:
+            pipe = self._redis().pipeline()
+            pipe.hsetnx(metrics_key(run_id), field, value)
+            pipe.expire(metrics_key(run_id), settings.insight_stream_ttl_seconds)
+            pipe.execute()
+        except redis.RedisError:
+            logger.warning(
+                "Insight metrics set degraded (run=%s field=%s)", run_id, field
+            )
+
+    def read_metrics(self, run_id: UUID | str) -> dict[str, int]:
+        """Read the whole counter hash; ``{}`` on outage or a missing key."""
+        try:
+            raw = self._redis().hgetall(metrics_key(run_id))
+        except redis.RedisError:
+            logger.warning("Insight metrics read degraded (run=%s)", run_id)
+            return {}
+        out: dict[str, int] = {}
+        for key, value in raw.items():
+            name = key.decode() if isinstance(key, bytes) else str(key)
+            try:
+                out[name] = int(value)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def stream_footprint(self, run_id: UUID | str) -> tuple[int | None, int | None]:
+        """Current ``(XLEN, MEMORY USAGE)`` of the run's stream.
+
+        Both are best-effort: ``MEMORY`` is unsupported on some servers
+        (older/embedded Redis), which yields ``None`` rather than an error.
+        """
+        length: int | None = None
+        memory: int | None = None
+        key = stream_key(run_id)
+        try:
+            length = int(self._redis().xlen(key))
+        except (redis.RedisError, TypeError, ValueError):
+            logger.warning("Insight stream xlen degraded (run=%s)", run_id)
+        try:
+            raw = self._redis().memory_usage(key)
+            memory = int(raw) if raw is not None else None
+        except (redis.RedisError, TypeError, ValueError):
+            memory = None
+        return length, memory
+
+    def clear_metrics(self, run_id: UUID | str) -> None:
+        """Drop the counter hash (explicit retry starts a fresh observation)."""
+        try:
+            self._redis().delete(metrics_key(run_id))
+        except redis.RedisError:
+            logger.warning("Insight metrics clear degraded (run=%s)", run_id)
 
     # ── cancel registry ────────────────────────────────────────────────
 

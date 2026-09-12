@@ -1,4 +1,4 @@
-"""AI 域懒分组（BLF-657）：ai_chat / ai_chat_v2 / ai_file_upload / ai_chat_usage / ai_insight / insight_runs / insight_domains。"""
+"""AI 域懒分组（BLF-657）：ai_chat / ai_chat_v2 / ai_file_upload / ai_chat_usage / ai_insight / insight_runs / insight_domains / insight_observation。"""
 
 from fastapi import APIRouter
 
@@ -8,6 +8,7 @@ from app.api.v1.endpoints.ai_chat_v2 import router as ai_chat_v2_router
 from app.api.v1.endpoints.ai_file_upload import router as ai_file_upload_router
 from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.insight_domains import router as insight_domains_router
+from app.api.v1.endpoints.insight_observation import router as insight_observation_router
 from app.api.v1.endpoints.insight_runs import router as insight_runs_router
 
 router = APIRouter()
@@ -18,3 +19,4 @@ router.include_router(ai_chat_usage_router)
 router.include_router(ai_insight_router)
 router.include_router(insight_runs_router)
 router.include_router(insight_domains_router)
+router.include_router(insight_observation_router)

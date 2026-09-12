@@ -24,12 +24,14 @@ Retry model
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 
+from app.core.config import get_settings
 from app.schemas.insight import (
     InsightError,
     InsightErrorCode,
@@ -43,6 +45,7 @@ from app.services.insight.executor import (
 from app.services.insight.runs import RunNotFound, get_run, to_detail, try_transition
 from app.services.insight.sink import StreamEventSink
 from app.services.insight.stream_bus import InsightStreamWriter
+from app.services.insight_concurrency import acquire_semaphore_fail_open
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,28 @@ TASK_NAME = "execute_insight_run"
 def _backoff_seconds(retries: int) -> int:
     """30s, 60s, 120s … capped at 10min; honors server Retry-After first."""
     return min(30 * (2**max(0, retries)), 600)
+
+
+class _CapacityDeferred(Exception):
+    """并发容量不足：本次不执行 LLM，回退重排队（run 保持 queued）。
+
+    只用于 ``self.retry`` 的上下文，不落库、不走到 executor；重试耗尽后
+    run 才被 park 成 FAILED（RATE_LIMITED，可重试）。
+    """
+
+
+def _record_observation(run_id: str) -> None:
+    """落一条观测快照（BLF-1018）；非终态/已停写时自动跳过。
+
+    用独立 session（调用方可能已 commit）并吞掉所有异常：观测是旁路，
+    永远不能让一次 run 因为指标写入失败而变成失败。
+    """
+    from app.services.insight.observation import finalize_run_observation
+
+    try:
+        finalize_run_observation(run_id)
+    except Exception:
+        logger.warning("Insight observation degraded run_id=%s", run_id, exc_info=True)
 
 
 def _park_failed(
@@ -108,6 +133,7 @@ def _park_failed(
                 sink.on_terminal(to_detail(run))
             except Exception:  # noqa: BLE001 — sink stays best-effort
                 logger.warning("Insight sink terminal degraded run_id=%s", run_id)
+        _record_observation(run_id)
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except Exception:
         db.rollback()
@@ -132,7 +158,45 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
     from app.db.session import SessionLocal
 
     db = SessionLocal()
+    # 观测期（BLF-1018）：canonical 路径此前**没有**并发闸门 —— 只有 legacy
+    # generate.py 会抢 ``insights`` 桶。这里补上，使成本/并发上限对
+    # execute_insight_run 生效，并与 legacy ``ai_summary`` 桶彼此独立。
+    # 饱和 → 不执行 LLM，回退重排队（attempt 不变，run 保持 queued）；
+    # 传输不可用 → 放行（fail-open），因为这条链路的首要目标是「run 不丢」。
+    stack = contextlib.ExitStack()
     try:
+        settings = get_settings()
+        acquired = stack.enter_context(
+            acquire_semaphore_fail_open(
+                "insights",
+                timeout=settings.insight_semaphore_wait_seconds,
+                max_concurrent=settings.max_concurrent_insights,
+            )
+        )
+        if acquired is False:
+            if self.request.retries < (self.max_retries or 0):
+                logger.info(
+                    "execute_insight_run: capacity deferred run_id=%s attempt=%s",
+                    run_id,
+                    attempt,
+                )
+                raise self.retry(
+                    exc=_CapacityDeferred("insights bucket saturated"),
+                    countdown=_backoff_seconds(self.request.retries),
+                )
+            logger.warning(
+                "execute_insight_run: capacity exhausted run_id=%s attempt=%s",
+                run_id,
+                attempt,
+            )
+            return _park_failed(
+                run_id,
+                attempt,
+                make_error(
+                    InsightErrorCode.RATE_LIMITED,
+                    "Insight 并发容量持续不足，请稍后重试",
+                ),
+            )
         # Transport wiring (BLF-1012): the sink mirrors the executor's
         # progress into the Redis Stream; best-effort only — an outage
         # degrades to dropped frames, never a failed run. The opening
@@ -172,6 +236,7 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
             )
             raise self.retry(exc=exc, countdown=countdown)
         db.commit()
+        _record_observation(run_id)
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except RunNotFound:
         db.rollback()
@@ -206,6 +271,7 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
         )
         raise
     finally:
+        stack.close()
         db.close()
 
 

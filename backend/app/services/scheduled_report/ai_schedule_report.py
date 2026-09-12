@@ -505,7 +505,24 @@ def _fallback_monthly_summary(payload: dict[str, Any]) -> str:
     return " ".join(summary_parts)
 
 
-def _fallback_summary(frequency: str, payload: dict[str, Any]) -> str:
+def _fallback_summary(
+    frequency: str, payload: dict[str, Any], *, reason: str = "error"
+) -> str:
+    """非 LLM 兜底摘要 —— 同时登记一次降级事件（BLF-1018 观测期）。
+
+    观测只记原因码（``ai_disabled`` / ``api_key_missing`` / ``timeout`` /
+    ``error``），不记 payload 与提示词：报告正文可能含业务敏感信息。
+    """
+    from app.services.insight.observation import (
+        FALLBACK_CAPABILITY_AI_SUMMARY,
+        record_fallback,
+    )
+
+    record_fallback(
+        capability=FALLBACK_CAPABILITY_AI_SUMMARY,
+        reason=reason,
+        role_id="schedule_report_summary",
+    )
     if frequency == "daily":
         return _fallback_daily_summary(payload)
     if frequency == "weekly":
@@ -585,7 +602,7 @@ def generate_summary(
 
     # Non-LLM fallback: AI explicitly disabled (timeout 0) or no API key.
     if secs <= 0:
-        return _fallback_summary(frequency, payload)
+        return _fallback_summary(frequency, payload, reason="ai_disabled")
 
     from app.core.config import get_settings
 
@@ -595,7 +612,7 @@ def generate_summary(
             "AI_CHAT_PROVIDER_API_KEY not configured, using fallback %s summary",
             frequency,
         )
-        return _fallback_summary(frequency, payload)
+        return _fallback_summary(frequency, payload, reason="api_key_missing")
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -605,7 +622,11 @@ def generate_summary(
         logger.warning(
             "%s AI summary timed out (%.0fs) — using fallback", frequency, secs
         )
-        return _fallback_summary(frequency, payload)
+        return _fallback_summary(frequency, payload, reason="timeout")
     except Exception as e:
-        logger.warning("%s AI summary failed, using fallback: %s", frequency, e)
-        return _fallback_summary(frequency, payload)
+        # 只记异常类型：provider 报错文本可能回带请求细节（提示词/凭据），
+        # 不进日志（BLF-1018 观测期脱敏要求）。
+        logger.warning(
+            "%s AI summary failed, using fallback (%s)", frequency, type(e).__name__
+        )
+        return _fallback_summary(frequency, payload, reason="error")

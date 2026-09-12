@@ -84,11 +84,18 @@ def _detail(
 
 
 class _FakeRun:
-    """Minimal InsightRun stand-in: the sink only reads run_id/status."""
+    """Minimal InsightRun stand-in: the sink reads run_id/status (+ started_at).
 
-    def __init__(self, run_id: str, status: InsightStatus) -> None:
+    ``started_at`` mirrors the real column (naive UTC) because the sink now
+    anchors first-delta latency on the first status checkpoint (BLF-1018).
+    """
+
+    def __init__(
+        self, run_id: str, status: InsightStatus, started_at: datetime | None = None
+    ) -> None:
         self.run_id = run_id
         self.status = status.value
+        self.started_at = started_at
 
 
 def _stream_events(fake_redis: fakeredis.FakeRedis, rid: str) -> list[dict]:
