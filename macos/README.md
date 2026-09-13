@@ -12,7 +12,7 @@ BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https
 | macOS | 14.0+ | 基线由 `Package.swift` 的 `platforms` 锁定 |
 | Swift | 6.0+ | `swift --version` 校验 |
 | Xcode（构建/运行） | **不需要** | 仅 CLT 即可 `swift build` / `swift run`。本包刻意把代码定在「CLT 与完整 Xcode 的交集」上：视图不用 `@State` 等属性包装器（其宏实现在仅 Xcode 提供的 `SwiftUIMacros` 插件里），引导层用 AppKit |
-| Xcode（跑测试） | **需要完整 Xcode** | `swift test` 需 XCTest，CLT 不含。本机真实安装在 `/Volumes/Rock/Xcode.app`（`/Applications/Xcode.app` 是转发壳），故：`DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test`。装了标准路径 Xcode 的机器直接 `swift test` 即可 |
+| Xcode（跑测试 / 签名公证） | **需要完整 Xcode** | `swift test` 需 XCTest，CLT 不含。本机装的是 **Xcode 27.0（27A266a）**，真身在 `/Volumes/Rock/Xcode.app`（`/Applications/Xcode.app` 只是 416K 转发壳且不含 toolchain，`xcode-select` **不能**指向它），故：`DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test`；或一次性 `sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer`（需密码）。装了标准路径 Xcode 的机器直接 `swift test` 即可。`notarytool` / `codesign` 随该 Xcode 就绪，S7 打包不再卡工具链 |
 
 ## 运行
 
@@ -32,15 +32,21 @@ BELIEVEBOY_API_KEY=<backend/.env 里的 API_KEY> \
 swift run BelieveBoyMac
 ```
 
-> 生产 API key **不在仓库里**：`blf_` key 由 `POST /api/v1/auth/login` 登录下发，**每次登录轮换、旧 key 立即失效、一个账号同时只有一把**。所以 App 不内置 key（S2 做登录），且 401/403 一律按「重新登录」处理 —— 网页端登录一次会让桌面端已存的 key 失效（详见 PLAN.md §4.1）。
+> 生产 API key **不在仓库里**：`blf_` key 由 `POST /api/v1/auth/login` 登录下发，**每次登录轮换、旧 key 立即失效、一个账号同时只有一把**。所以 App 不内置 key（S2 做登录），且 401/403 一律按「重新登录」处理 —— 网页端登录一次会让桌面端已存的 key 失效（详见 PLAN.md §4.1.1）。
 
 ## 验证
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
 swift test       # 11 个用例；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
-curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权）
+curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
+curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
+curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
 ```
+
+鉴权失败语义（`backend/app/core/security.py`）：缺 key → **401** `{"detail":"Missing API key"}`；key 无效或已被轮换 → **403** `{"detail":"Invalid API key"}`。桌面端把两者**都**导向「重新登录」。
+
+> `/api/v1/agent/*` 与 `/api/v1/internal/*` **不属 `X-API-Key` 鉴权**（要求 `Authorization` + `X-Agent-Id`），桌面端不要用。
 
 测试是**离线**的（`URLProtocol` 打桩，不碰真实网络）：健康探针两步语义、鉴权头只加在需鉴权请求上、缺凭据请求前拦截、403 → 「重新登录」信号、不可达 → 传输错误、配置解析与健康值判定边界。
 

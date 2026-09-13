@@ -1,12 +1,16 @@
 // swift-tools-version: 6.0
 
 // 工具链约束（详见 PLAN.md §9）：
-// - 本机 `xcode-select -p` 指向 Command Line Tools，完整 Xcode 27.0(27A266a) 装在
-//   /Volumes/Rock/Xcode.app（/Applications/Xcode.app 是转发壳）。两条工具链能力不同：
+// - 本机 `xcode-select -p` 指向 Command Line Tools，完整 Xcode 27.0（build 27A266a，
+//   即 27.0 RC；macOS 27.0 SDK / Swift 6.4）装在 /Volumes/Rock/Xcode.app
+//   （/Applications/Xcode.app 只是转发壳，不含 toolchain，不能 xcode-select 过去）。
+//   两条工具链能力不同：
 //   * CLT：SwiftUI 属性包装器宏（@State / @Bindable / @Environment）不可用，
 //     XCTest / swift-testing 亦不可用（缺 SwiftUIMacros / TestingMacros 插件）；
-//   * 完整 Xcode：上述宏与测试框架均可用 —— 跑 `swift test` 需
-//     `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test`。
+//   * 完整 Xcode：上述宏与测试框架均可用，打包链路（notarytool / codesign）亦就绪 ——
+//     跑 `swift test` 需 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test`
+//     （或先 `sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer`）；
+//     外置卷 Rock 未挂载时完整工具链不可用。
 // - 由此，视图层刻意不用属性包装器（@Observable + 显式 Binding），引导层用 AppKit
 //   （Sources/BelieveBoyMac/main.swift）：这份代码在两条工具链下都能 `swift build`，
 //   不必为「本机装没装 Xcode」分叉。

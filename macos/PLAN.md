@@ -1,6 +1,6 @@
 # macOS 原生客户端（SwiftUI）— 选型与分 Stage 计划
 
-> 状态：v1.1（2026-09-13 起草，同日随「Xcode 27 安装完成 + 生产直连实测 + key 轮换契约确认」修订，BLF-1041）
+> 状态：v1.1（2026-09-13 起草；同日随「Xcode 27.0 安装完成 + 生产直连实测 + key 轮换契约确认」修订 —— v1.0 的「本机无 Xcode」前提作废，见 §9，BLF-1041）
 > 前身：`gui/`（Rust + GPUI，2026-08 方案，已在本 issue 整体删除）
 > 权威来源：后端契约 = `backend/app/api/v1/`；导航权威 = `frontend/lib/sidebar-config.ts`
 
@@ -86,29 +86,48 @@ idle → loading → (loaded | failed(APIError))
 | 鉴权头 | `X-API-Key: blf_…`（账号专属 key）或 `X-API-Key: <主 key>` |
 | 用户上下文 | `X-Operator` / `X-User-Id` / `X-User-Name` / `X-Is-Admin` — 按账号可见性过滤（`/api/v1/projects/manage` 依赖 `X-Operator`） |
 | 登录 | `POST /api/v1/auth/login`（email + password）→ `LoginResponse.api_key`（**每次登录轮换**，hash-only 存储） |
-| 健康检查 | `GET /api/v1/health/live`（免鉴权，进程存活）/ `GET /api/v1/health`（需鉴权，含 DB / 只读副本 / Redis / 环境名） |
+| 健康检查 | `GET /api/v1/health/live`（免鉴权，进程存活）/ `GET /api/v1/health/ready`（免鉴权）/ `GET /api/v1/health`（需鉴权，含 DB / 只读副本 / Redis / 环境名） |
+| 鉴权失败语义 | 缺 key → **401** `{"detail":"Missing API key"}`；key 无效或已被轮换 → **403** `{"detail":"Invalid API key"}`（`backend/app/core/security.py:45-71`）—— 桌面端把 401/403 一律导向「重新登录」（见 §4.1.1） |
 
 **为什么直连而不走 Web 代理**：`frontend/app/api/backend/[...path]/route.ts` 存在的原因是 Vercel 边缘不允许 Web 端持有主 key，且需要 NextAuth 会话。桌面端是可信本地进程，账号专属 key（BLF-711）就是为它准备的 —— 直连可去掉一跳代理与一层超时，同时保持同一套后端契约。
 
 **代价（已确认）**：后端 CORS 白名单只放行 `settings.frontend_url`；桌面端是原生 URLSession 请求，**不受 CORS 约束**（CORS 是浏览器策略），因此无需后端改配置。
 
-**Key 轮换契约（2026-09-13 由后端确认，桌面端必须按此设计）**：
+> ⚠️ **可用面边界**：`/api/v1/agent/*` 与 `/api/v1/internal/*` **不属这套鉴权** —— 该域要求 `Authorization` + `X-Agent-Id` 配对（给外部 Agent 用），带 `X-API-Key` 会得到 `401 AGENT_AUTH_FAILED`。桌面端只消费账号级业务路由：生产 `/api/v1/` 共 54 个一级路由家族，排除 `agent` 与 `internal` 后即为桌面端可用面（`ad-analysis` / `complaints` / `crm` / `inspections` / `inventory-*` 等）。**Stage 4+ 搬模块时不要把 agent 域端点接进来。**
 
-- `POST /api/v1/auth/login` 下发的 `blf_` key **每次登录都轮换，旧 key 立即失效**；**一个账号同时只有一把**（`backend/app/services/user_api_key_service.py`：登录即签发新 key 并覆盖）。
-- 推论一：**App 绝不能内置/打包 key**，只能「登录换取 → 存 Keychain」（S2）。任何"预置 key"的方案都会在别人登录一次后失效。
-- 推论二：**网页端登录一次，桌面端已存的 key 立即失效**（反之亦然）。因此 **401/403 必须被处理成「请重新登录」**，不能当作普通网络错误 —— `APIError.unauthorized` + `requiresCredentialFix` 就是这条契约的落点（`RootView` 对该信号给出重填/重登提示）。
+#### 4.1.1 单设备 key：Web 登录会使桌面端 key 失效（S2 的硬约束）
+
+`blf_` 账号 key 是**覆盖式轮换**，不是「每次登录追加一把」：
+
+- `ensure_user_api_key`（`backend/app/services/user_api_key_service.py:69`）对每个账号**只维护一行** `user_api_keys`，命中已有行就覆写 `key_hash`，**旧 key 立即失效**；全仓库仅一个业务调用点：`POST /api/v1/auth/login`（`backend/app/api/v1/endpoints/auth.py:189`）。
+- **桌面端不是唯一调用方** —— 这是问题所在：
+
+| 触发路径 | 位置 | 对桌面端的影响 |
+|---|---|---|
+| Web 端登录 | `frontend/lib/auth/options.ts:47` → `/api/v1/auth/login` | 覆写同一行 → 桌面端 Keychain 里的 key 立即失效 |
+| Web 端改密码后的重认证 | `frontend/app/api/user/password/route.ts:36` → 同一端点 | 同上 |
+
+- 失效后的表现：`resolve_user_key` 按 SHA-256 反查落空（`not_found`）→ `require_api_key` 落到末尾统一返回 **403 `Invalid API key`**（`revoked` 与 `not_found` 同语义）。
+
+**桌面端必须按此设计（四条推论）**：
+
+- 推论一：**App 绝不能内置/打包 key**，只能「登录换取 → 存 Keychain」（S2）。任何「预置 key」的方案都会在别人登录一次后失效。
+- 推论二：**「401/403 一律导向重新登录」是 S2 的硬约束，不是体验优化** —— 只判 401 会漏掉最常发生的那条路径（用户当天在 Web 上登录过），用户会看到「无权限」却不知道要重新登录。`APIError.unauthorized` + `requiresCredentialFix` 就是这条契约的落点（`RootView` 对该信号给出重填/重登提示）。
 - 推论三：同一账号在多台设备/多端同时使用会**互相顶掉**。「一账号多设备多把 key」是唯一可能需要动后端的点，**待 Yawei 拍板**（后端已声明：拍板前不改）。
 - 推论四：S2 的「登录态保持」实际语义是「key 未被别处登录顶掉」——启动后第一次鉴权请求若 403，直接回登录页，不做无谓重试。
+
+**本轮不改后端**：单设备轮换是 BLF-711 的有意设计（hash-only 存储 + 泄露面最小），客户端按「403 → 重新登录」即可完整覆盖。若运营侧实测反馈「Web 与桌面端来回登录过于频繁」，再**另开后端 issue** 评估多设备 key（同账号多行，或按 `client_id` 分区）；不夹带进本 issue。
 
 **生产直连实测（2026-09-13，本机 → `https://dash-api.believeboy.com`）**：
 
 | 场景 | 结果 |
 |---|---|
 | `GET /api/v1/health/live`（免鉴权，直接 curl） | 200 `{"status":"ok","timestamp":…}` |
-| `GET /api/v1/health`（不带 key，直接 curl） | 401 |
+| `GET /api/v1/health/ready`（免鉴权，直接 curl） | 200 `{"status":"ok","timestamp":…}` |
+| `GET /api/v1/health`（不带 key，直接 curl） | 401 `{"detail":"Missing API key"}` |
 | Kit 层 `HealthProbe.live` 无凭据 | 200，`liveError = nil` |
 | Kit 层 `snapshot` 无凭据 | `live` ok → `healthError = .missingCredential`（**请求发出前拦截**，未产生 401 往返） |
-| Kit 层 `snapshot` 持无效 key | `healthError = .unauthorized(status: 403, body: …)`，`requiresCredentialFix = true` → 文案「API key 被拒绝（HTTP 403）…」 |
+| Kit 层 `snapshot` 持无效 key | `healthError = .unauthorized(status: 403, body: {"detail":"Invalid API key"})`，`requiresCredentialFix = true` → 文案「API key 被拒绝（HTTP 403）…」 |
 
 即：**Stage 1 的连通性链路已在生产后端跑通**，无需本地起后端、无需 Next.js 代理、无需后端改动；带凭据的「全绿」路径要等 S2 登录拿到真实 `blf_` key 才能端到端复现。
 
@@ -126,9 +145,9 @@ idle → loading → (loaded | failed(APIError))
 
 | 阶段 | 产物 | 门槛 |
 |---|---|---|
-| S1（当前） | `swift run BelieveBoyMac` | 本机 CLT 即可 |
-| S7a | `macos/scripts/make-app.sh` → `BelieveBoy.app`（ad-hoc 签名） | 本机 `codesign -s -` |
-| S7b | Developer ID 签名 + `notarytool` 公证 + `.dmg` | **外部依赖：Apple Developer 账号（$99/年），当前缺失** |
+| S1（当前） | `swift run BelieveBoyMac` | `swift build` 即可，**无需 Xcode**（CLT 与完整 Xcode 均已实测通过）；`swift test`（11 用例）需完整 Xcode（§9） |
+| S7a | `macos/scripts/make-app.sh` → `BelieveBoy.app`（ad-hoc 签名） | 本机 `codesign -s -`（工具链已随 Xcode 27.0 就绪） |
+| S7b | Developer ID 签名 + `notarytool` 公证 + `.dmg` | **外部依赖：Apple Developer 账号（$99/年），当前缺失**。签名/公证工具链本身已就绪（`xcrun notarytool` 可解析，§9），缺的只是证书与账号 |
 | S7c | Sparkle 2 自动更新（appcast） | 依赖 S7b |
 | CI | GitHub Actions `macos-15` runner：`swift build` + `swift test`（runner 自带完整 Xcode，无需 `DEVELOPER_DIR`） | 仓库 secrets 无要求 |
 
@@ -216,9 +235,9 @@ S0 → S1 → S2 → S3 → S4 → S5(×8) → S6
 
 | 项 | 影响 | 处置 |
 |---|---|---|
-| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyKitTests/`，见 §8 S1）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。 |
-| **Xcode 安装位置非标准** | `/Applications/Xcode.app` 是 416K **转发壳**（`Contents/Resources/real_app_path.txt` → 真实路径），真实安装在 `/Volumes/Rock/Xcode.app`（外置卷）。`xcodebuild` 用系统默认路径会报 "requires Xcode" | 一律用 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer` 显式指定（见 `README.md`）。**外置卷未挂载时 Xcode 工具链不可用**，CLT 路径仍可 `swift build`（代码不受影响），仅 `swift test` 不可用。 |
-| **桌面端 key 与网页端互踢**（key 每次登录轮换、一账号同时只有一把） | 网页端登录一次 → 桌面端已存 key **立即失效**（反之亦然）；多设备同时使用互相顶掉。桌面端表现为 403 | 已定契约：**App 不打包/不内置 key**，401/403 一律走「请重新登录」而非静默失败（`APIError.requiresCredentialFix`，已实测生产 403 → 该信号）。「一账号多设备多把 key」是**唯一**可能需要改后端的点（`backend/app/services/user_api_key_service.py`），**待 Yawei 拍板**；在拍板前不改后端 |
+| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyKitTests/`，见 §8 S1）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。**一并就绪的还有打包链路**：`xcrun notarytool` / `swift-format` / `simctl` 在完整 Xcode 下均可解析（license、first-launch 已通过），S7a/S7b 不再卡工具链。 |
+| **Xcode 安装位置非标准**（外置卷） | 真身 `/Volumes/Rock/Xcode.app` = **Xcode 27.0（build `27A266a`，即 27.0 RC）**，macOS 27.0 SDK（`macosx27.0`）+ Swift 6.4；`/Applications/Xcode.app` 只是 **416K 转发壳**（`Contents/Resources/real_app_path.txt` → 真实路径），**不含 toolchain**。本机 `xcode-select -p` **仍指向 `/Library/Developer/CommandLineTools`**，纯净 shell 下 `xcodebuild` 依旧报 "requires Xcode" | 两条等价写法：① 一次性（需密码，**留给用户执行**）`sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer` —— **不能**指向 `/Applications/Xcode.app`（壳，无 `Contents/Developer`）；② 免 sudo、按命令生效（本仓库 CI/文档采用）：`DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer`。**外置卷未挂载时完整工具链不可用**（`swift test` 挂），CLT 路径仍可 `swift build`，代码不受影响。 |
+| **桌面端 key 与网页端互踢**（覆盖式轮换，一账号同时只有一把） | 覆写同一行 `user_api_keys.key_hash`（`user_api_key_service.py:69`）→ 桌面端已存 key **立即失效**；调用方不止桌面端：Web 登录（`frontend/lib/auth/options.ts:47`）与改密码重认证（`frontend/app/api/user/password/route.ts:36`）都打 `POST /api/v1/auth/login`。失效表现为 **403 `Invalid API key`**（`security.py:45-71`），**不是 401** | 已定契约（详见 §4.1.1）：**App 不打包/不内置 key**；**401/403 一律走「请重新登录」而非静默失败**（`APIError.requiresCredentialFix`，已实测生产 403 → 该信号）—— 只判 401 会漏掉最常发生的路径。「一账号多设备多把 key」是**唯一**可能需要改后端的点，**待 Yawei 拍板**；在拍板前不改后端 |
 | Apple Developer 账号缺失 | S7b/S7c 无法推进 | 需用户决策（是否购买）；在此之前以 ad-hoc `.app` 分发 |
 | 后端 CORS 白名单不含桌面端 | 无影响（原生请求无 CORS） | 记录结论，不申请后端改动 |
 | 无 WebSocket / 推送 | 桌面端实时性只能轮询 | 轮询 + 退避即可满足当前需求；若需推送，另开后端 issue |
