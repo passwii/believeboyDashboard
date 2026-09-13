@@ -6,6 +6,7 @@
 3. stale-while-revalidate：数据变更后先返回旧快照，随后（后台刷新完成）返回新数据；
 4. 失效语义：``invalidate_daily_analysis_cache`` 只标记 epoch、不删快照；
 5. cache key 幂等：项目顺序无关；country/日期/schema 指纹变化 → 不同 key；
+   重复 project id 去重 + 稳定排序后才进聚合（复审回归）；
 6. 冷启动单飞：未抢到锁的调用方等待先到者回填；等待超时才自行计算（且不覆盖缓存）。
 
 全程用内存版 Redis 客户端补丁，不依赖本地 Redis，也不污染真实 key。
@@ -118,7 +119,7 @@ def _seed_sku_row(
 def env():
     """单项目 + 一行销售数据（显式 project_ids 请求 → cache key 确定）。"""
     suffix = uuid.uuid4().hex[:8]
-    day = date.today() - timedelta(days=11)
+    day = datetime.now(UTC).date() - timedelta(days=11)
     db = SessionLocal()
     try:
         project = Project(
@@ -224,6 +225,80 @@ def test_second_request_served_from_cache(client, fake_redis, env, monkeypatch):
     # 缓存体必须能被当前响应模型解析（schema 指纹机制的前提）
     parsed = DailyAnalysisAllProjectsResponse.model_validate_json(second.content)
     assert _total_sales(parsed.model_dump()) == pytest.approx(10.0)
+
+
+def test_duplicate_project_ids_normalized_before_aggregation(
+    client, fake_redis, env, monkeypatch
+):
+    """回归（复审）：项目 id 必须先去重 + 稳定排序，再进聚合 / key / 后台刷新。
+
+    此前缓存 key 对 id 去重、聚合却按原始 ids 循环：`project_ids=1,1` 与
+    `project_ids=1` 共用同一个 key，命中时返回**双倍**累计结果。
+    """
+    pid_a = env["project_id"]
+    suffix = uuid.uuid4().hex[:8]
+    db = SessionLocal()
+    try:
+        other = Project(
+            project_name=f"blf1038-dup-{suffix}",
+            project_operator=f"blf1038-dup-op-{suffix}",
+            assistant_operator=None,
+            sort_order=0,
+            is_active=True,
+        )
+        db.add(other)
+        db.commit()
+        db.refresh(other)
+        pid_b = int(other.id)
+    finally:
+        db.close()
+
+    seen: list[list[int]] = []
+    original = endpoint_mod.build_daily_analysis_all_projects
+
+    def _spy(session, *, project_ids, **kwargs):
+        seen.append(list(project_ids))
+        return original(session, project_ids=project_ids, **kwargs)
+
+    monkeypatch.setattr(endpoint_mod, "build_daily_analysis_all_projects", _spy)
+
+    try:
+        day_text = env["day"].isoformat()
+        url = (
+            "/api/v1/daily-analysis/all"
+            f"?project_ids={pid_b},{pid_a},{pid_b}&country=US"
+            f"&start_date={day_text}&end_date={day_text}"
+        )
+        first = client.get(url, headers=_headers())
+        assert first.status_code == 200, first.text
+        assert seen == [sorted([pid_a, pid_b])], "聚合只应看到去重且稳定排序后的 id"
+        assert _total_sales(first.json()) == pytest.approx(10.0), "重复 id 不得双倍累计"
+
+        # key / 后台刷新共用同一份规范化列表 → 快照落在规范化 id 的 key 上
+        normalized_key = redis_service.make_daily_analysis_all_cache_key(
+            project_ids=[pid_b, pid_a, pid_b],
+            country="US",
+            start_date=day_text,
+            end_date=day_text,
+            sku=None,
+            schema_fingerprint=ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
+        )
+        assert (
+            redis_service.load_daily_analysis_all_snapshot(normalized_key) is not None
+        )
+
+        # 重复请求命中同一 key：不再重算，且响应体逐字节一致
+        second = client.get(url, headers=_headers())
+        assert second.status_code == 200, second.text
+        assert len(seen) == 1, "第二次请求应命中缓存，不再跑聚合"
+        assert second.content == first.content
+    finally:
+        db = SessionLocal()
+        try:
+            db.execute(delete(Project).where(Project.id == pid_b))
+            db.commit()
+        finally:
+            db.close()
 
 
 def test_data_change_serves_stale_then_refreshes(client, fake_redis, env, monkeypatch):

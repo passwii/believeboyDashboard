@@ -101,6 +101,15 @@ inventory→`max(coalesce(report_date, snapshot_at::date))`，`max()` 天然忽�
 - 测试：`tests/api/test_daily_analysis_all_cache.py`（命中/冷启动单飞/过期后台刷新/失效标记/key 幂等/体可被响应模型解析）
   - `tests/services/daily/test_daily_latest_available_dates.py`（聚合等价 + NULL 分支）。
 
+## 五之二、复审修复（Tia REQUEST_CHANGES，2026-09-13）
+
+1. **项目 id 规范化**：原实现里 key 侧 `sorted(set(project_ids))` 去重、聚合侧却按原始
+   `ids` 循环 → `project_ids=1,1` 与 `project_ids=1` 共用同一 key，命中即返回**双倍**结果。
+   现改为授权校验完成后统一 `normalized_ids = sorted(set(ids))`，**聚合 / 缓存 key /
+   后台刷新共用同一份列表**；回归测试 `test_duplicate_project_ids_normalized_before_aggregation`
+   （先验证它在未修复代码上必失败：聚合收到 `[pid_b, pid_a, pid_b]`）。
+2. **DTZ011**：测试 fixture 的 `date.today()` → `datetime.now(UTC).date()`。
+
 ## 六、验收对照
 
 | 验收 | 本方案如何达成 |

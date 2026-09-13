@@ -193,6 +193,12 @@ def get_daily_analysis_all(
                 is_admin=bool(is_admin),
             )
 
+    # BLF-1038 复审修复：授权校验完成后统一规范化项目 id（去重 + 稳定排序），
+    # 聚合 / 缓存 key / 后台刷新共用这一份列表。缓存 key 本就对 id 去重，若聚合
+    # 仍按原始 ids 循环，`project_ids=1,1` 会与 `project_ids=1` 共用同一个 key，
+    # 却把该项目累计两次 —— 一旦命中缓存就返回错误的双倍结果。
+    normalized_ids = sorted(set(ids))
+
     # 可见项目集为空是合法状态（如 operator 名下无项目），照常走空聚合
     # 而不是 422 —— hook 拿到 200 才能正常显示 0 而非一直 --。
     # build_daily_analysis_all_projects 对空 project_ids 自然返回空响应。
@@ -215,7 +221,7 @@ def get_daily_analysis_all(
     end_text = normalized_end.isoformat()
 
     cache_key = redis_service.make_daily_analysis_all_cache_key(
-        project_ids=ids,
+        project_ids=normalized_ids,
         country=normalized_country,
         start_date=start_text,
         end_date=end_text,
@@ -226,7 +232,7 @@ def get_daily_analysis_all(
     def _compute_body() -> bytes:
         return _build_all_projects_body(
             db,
-            project_ids=ids,
+            project_ids=normalized_ids,
             country=normalized_country,
             start_date=start_text,
             end_date=end_text,
@@ -240,7 +246,7 @@ def get_daily_analysis_all(
         background_tasks.add_task(
             _refresh_all_projects_snapshot,
             cache_key=cache_key,
-            project_ids=ids,
+            project_ids=normalized_ids,
             country=normalized_country,
             start_date=start_text,
             end_date=end_text,
