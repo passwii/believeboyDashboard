@@ -13,13 +13,16 @@ from dataclasses import dataclass
 from datetime import date
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import warnings
 import zipfile
 
-import pandas as pd
+# BLF-1036: unused eager pandas import removed (boot chain: endpoints.category_research).
+# openpyxl (→ numpy+PIL, ~40MB) also moved to lazy: only the xlsx export path needs it.
 from slugify import slugify
-from openpyxl import Workbook
+
+if TYPE_CHECKING:
+    from openpyxl import Workbook
 
 from app.services.excel_format import (
     apply_column_formats,
@@ -151,6 +154,8 @@ def _build_analysis_workbook_bytes(
     trends: list,
 ) -> bytes:
     """Build analysis Excel workbook."""
+    from openpyxl import Workbook
+
     wb = Workbook()
     wb.remove(wb.active)
 

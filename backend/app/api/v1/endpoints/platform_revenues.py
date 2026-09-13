@@ -19,7 +19,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -334,6 +333,8 @@ async def upload_platform_revenue_image(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="File size exceeds 10MB"
         )
+
+    from PIL import Image, ImageOps, UnidentifiedImageError
 
     try:
         image = Image.open(BytesIO(payload))

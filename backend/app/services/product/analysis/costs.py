@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module loads at API/worker boot via
+# app.services.product.analysis; pd is only needed when building the costs DF.
+if TYPE_CHECKING:
+    import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -55,5 +58,8 @@ def _build_active_product_costs_df(
                 'FOB单价': float(fob_cost),
             }
         )
+
+
+    import pandas as pd
 
     return pd.DataFrame(data)

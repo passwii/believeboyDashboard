@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — pd appears in annotations (kept unevaluated
+# by ``from __future__ import annotations``) and one runtime call in
+# commit_ad_upload; this module loads at API boot via endpoints.ad_upload.
+if TYPE_CHECKING:
+    import pandas as pd
+
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -685,6 +691,8 @@ def commit_ad_upload(
             created_by=operator,
             file_sha256=file_sha256_hash,
         )
+
+    import pandas as pd
 
     saved_rows: list[AdUploadFile] = []
     if is_periodic_row_date_upload:

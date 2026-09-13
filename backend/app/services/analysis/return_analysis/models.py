@@ -5,8 +5,11 @@ Extracted from return_analysis_service.py (phase 5 of backend refactor plan).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-import pandas as pd
+# BLF-1036: pandas imported lazily (boot chain: endpoints.return_analysis).
+if TYPE_CHECKING:
+    import pandas as pd
 
 from app.services.analysis.return_analysis.parsers import US_TIMEZONE
 
@@ -21,6 +24,8 @@ def _convert_to_us_date(iso_datetime: datetime) -> str:
 
 def _split_customer_comments(comment: str) -> list[str]:
     """Split pipe-delimited customer comments into a list, cleaning HTML entities."""
+    import pandas as pd
+
     if pd.isna(comment) or not comment:
         return []
     cleaned = str(comment).replace("&#39;", "'").replace("&amp;", "&")

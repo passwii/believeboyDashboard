@@ -9,7 +9,8 @@ from pathlib import Path
 import shutil
 import uuid
 
-import pandas as pd
+# BLF-1036: pandas imported lazily inside the recognizer that parses dates;
+# this module loads at API boot via endpoints.ad_upload.
 from fastapi import HTTPException, UploadFile, status
 from slugify import slugify
 from sqlalchemy.orm import Session
@@ -159,6 +160,8 @@ def recognize_saved_ad_upload(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> AdUploadRecognitionResponse:
+    import pandas as pd
+
     path = resolve_ad_upload_temp_file_path(settings, temp_file_id)
     df = _read_dataframe(path)
     extension = path.suffix.lower()

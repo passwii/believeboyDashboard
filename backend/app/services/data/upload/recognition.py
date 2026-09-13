@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
-import pandas as pd
+# BLF-1036: pandas import removed — pd appears only in type annotations here
+# (kept unevaluated by ``from __future__ import annotations``).
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings

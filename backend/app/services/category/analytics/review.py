@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
+# BLF-1036: numpy imported lazily (boot chain: endpoints.category_research).
 
 
 def build_review_research(rows: list) -> dict[str, Any]:
     """Calculate review and rating metrics."""
+    import numpy as np
     review_values = [max(0, int(item.review_count or 0)) for item in rows]
     rating_values = [float(item.rating) for item in rows if item.rating is not None]
 
@@ -164,6 +165,8 @@ def build_new_product_opportunity(
     total_monthly_sales: int,
 ) -> dict[str, float]:
     """Calculate new product opportunity metrics."""
+    import numpy as np
+
     if not rows:
         return {
             'new_product_count': 0,

@@ -10,14 +10,18 @@ without duplicating code.
 """
 from __future__ import annotations
 
+# BLF-1036: pandas is deliberately NOT imported at module top level. This
+# module sits on the API/beat/worker boot import chain (app.utils.__init__),
+# and the pandas+numpy+openpyxl stack costs ~65MB RSS per process that never
+# uses it. Import pandas inside the functions that need it instead — after
+# the first import sys.modules caches it, so per-call overhead is a dict hit.
+
 import warnings
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
-
-import pandas as pd
 
 from app.utils.utils import (
     to_int as _to_int,
@@ -32,6 +36,9 @@ from app.utils.text_utils import (
     normalize_asin as _normalize_asin,
     normalize_sku as _normalize_sku,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -147,6 +154,8 @@ def is_counted_sales_status(
 
 
 def parse_transaction_at(row: Any) -> datetime | None:
+    import pandas as pd
+
     for key in ("date/time", "transaction date", "transaction_date", "date"):
         if key not in row:
             continue
@@ -161,7 +170,10 @@ def parse_transaction_at(row: Any) -> datetime | None:
 
 
 def _parse_utc_timestamp(value: Any) -> pd.Timestamp:
+    import pandas as pd
+
     text = _normalize_text(value)
+
     if text is None:
         return pd.NaT
     parts = text.rsplit(" ", 1)
@@ -180,6 +192,8 @@ def _parse_utc_timestamp(value: Any) -> pd.Timestamp:
 
 
 def read_excel_no_warning(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -196,6 +210,8 @@ def parse_business_rows(
     path: Path,
     source_file_id: int,
 ) -> tuple[list[dict[str, Any]], int, int]:
+    import pandas as pd
+
     df = pd.read_csv(path, encoding="utf-8-sig")
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -244,6 +260,8 @@ def parse_payment_rows(
     known_skus: set[str],
     known_asins: set[str],
 ) -> tuple[list[dict[str, Any]], int, int]:
+    import pandas as pd
+
     df = df.copy()
     numeric_cols = [
         "quantity",
@@ -338,6 +356,8 @@ def parse_ad_rows(
     known_skus: set[str],
     known_asins: set[str],
 ) -> tuple[list[dict[str, Any]], int, int]:
+    import pandas as pd
+
     df = read_excel_no_warning(path)
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -383,6 +403,8 @@ def parse_inventory_rows(
     path: Path,
     source_file_id: int,
 ) -> tuple[list[dict[str, Any]], int, int]:
+    import pandas as pd
+
     df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -493,6 +515,8 @@ def detect_countries_in_sales_file(path: Path) -> list[str]:
     Reads the sales-channel column and extracts unique country codes.
     Returns list like ['UK', 'DE'].
     """
+    import pandas as pd
+
     df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -528,6 +552,8 @@ def parse_sales_rows(
     *,
     country: str = "US",
 ) -> tuple[list[dict[str, Any]], int, int]:
+    import pandas as pd
+
     df = pd.read_csv(path, sep="\t", encoding="utf-8-sig")
     df.columns = [str(col).strip() for col in df.columns]
     required = [
@@ -640,6 +666,8 @@ def parse_return_rows(
     Raises:
         ValueError: if required columns (``return-date``, ``sku``) are missing.
     """
+    import pandas as pd
+
     required = ["return-date", "sku"]
     missing = [c for c in required if c not in df.columns]
     if missing:

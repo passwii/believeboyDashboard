@@ -30,8 +30,6 @@ from app.services.upload_service import save_upload_file
 from app.services.project_service import ensure_project_access
 from decimal import Decimal
 from io import BytesIO
-from openpyxl import Workbook
-from openpyxl.styles import Font
 from urllib.parse import quote as url_quote
 import re
 
@@ -346,7 +344,10 @@ def export_pt3_data(
     if not pt3:
         raise HTTPException(status_code=404, detail="PT3 calculation not found")
 
-    # Build workbook
+    # Build workbook (openpyxl lazy per BLF-1036 — numpy+PIL not needed at boot)
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
     wb = Workbook()
     ws = wb.active
     ws.title = "数据库数据"

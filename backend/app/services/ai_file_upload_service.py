@@ -1,10 +1,14 @@
 from io import BytesIO
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+# BLF-1036: pandas / PIL / pypdf imported lazily inside the extract_* helpers.
+# This module is imported at API boot (endpoints.ai_file_upload); the
+# pandas+PIL stack costs ~65MB RSS that's only needed when a file is
+# actually uploaded for AI parsing.
+if TYPE_CHECKING:
+    import pandas as pd
+
 from fastapi import HTTPException, UploadFile, status
-from PIL import Image
-from pypdf import PdfReader
 
 from app.utils.constants import MAX_CONTENT_LENGTH, MAX_EXCEL_ROWS, MAX_EXCEL_COLS
 
@@ -52,6 +56,8 @@ def validate_file(file: UploadFile) -> None:
 
 
 def extract_csv_content(content: bytes, filename: str) -> tuple[str, bool, str | None]:
+    import pandas as pd
+
     try:
         df = pd.read_csv(BytesIO(content), encoding="utf-8", on_bad_lines="skip", nrows=MAX_EXCEL_ROWS)
     except Exception:
@@ -80,6 +86,8 @@ def extract_csv_content(content: bytes, filename: str) -> tuple[str, bool, str |
 
 
 def extract_excel_content(content: bytes, filename: str) -> tuple[str, bool, str | None]:
+    import pandas as pd
+
     try:
         xl = pd.ExcelFile(BytesIO(content))
         sheets = xl.sheet_names[:3]
@@ -128,6 +136,8 @@ def extract_excel_content(content: bytes, filename: str) -> tuple[str, bool, str
 
 
 def extract_image_content(content: bytes, filename: str) -> tuple[str, bool, str | None]:
+    from PIL import Image
+
     try:
         img = Image.open(BytesIO(content))
         w, h = img.size
@@ -147,6 +157,8 @@ def extract_image_content(content: bytes, filename: str) -> tuple[str, bool, str
 
 
 def extract_pdf_content(content: bytes, filename: str) -> tuple[str, bool, str | None]:
+    from pypdf import PdfReader
+
     try:
         reader = PdfReader(BytesIO(content))
         total_pages = len(reader.pages)

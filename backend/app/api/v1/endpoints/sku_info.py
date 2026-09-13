@@ -16,7 +16,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -994,6 +993,8 @@ def upload_product_image(
         raise HTTPException(status_code=400, detail="文件大小不能超过 10MB")
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="文件为空")
+
+    from PIL import Image, ImageOps, UnidentifiedImageError
 
     try:
         image = Image.open(BytesIO(content))

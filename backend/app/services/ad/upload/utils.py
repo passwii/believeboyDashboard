@@ -5,9 +5,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module chain loads at API boot via
+# endpoints.ad_upload; pandas is only needed when actually parsing an ad report.
+if TYPE_CHECKING:
+    import pandas as pd
+
 from fastapi import HTTPException, status
 from slugify import slugify
 
@@ -72,6 +76,8 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _read_dataframe(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     suffix = path.suffix.lower()
     if suffix == '.csv':
         return _normalize_columns(pd.read_csv(path, encoding='utf-8-sig'))
@@ -135,6 +141,8 @@ def _to_decimal(value: object, *, percent: bool = False) -> Decimal:
 
 
 def _json_safe_value(value: object) -> object:
+    import pandas as pd
+
     if value is None or pd.isna(value):
         return None
     if isinstance(value, pd.Timestamp):
@@ -181,6 +189,8 @@ def _date_to_string(value: object) -> str | None:
                 '%Y-%m-%d'
             )
         return None
+    import pandas as pd
+
     parsed = pd.to_datetime(value, errors='coerce')
     if parsed is None or pd.isna(parsed):
         return None

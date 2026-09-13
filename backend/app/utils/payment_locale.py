@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import csv
 import io
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module sits on the API/worker boot
+# import chain via app.services.report.monthly; the pandas stack costs ~65MB
+# RSS in processes that never parse payment reports.
+if TYPE_CHECKING:
+    import pandas as pd
 
 from app.utils.country import normalize_country, COUNTRY_TO_LOCALE
 
@@ -328,6 +332,8 @@ def detect_payment_report_structure(path: Path, *, country: str = 'US') -> Payme
 
 
 def parse_localized_number(value: Any, locale: str) -> float:
+    import pandas as pd
+
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return 0.0
     text = str(value).strip()
@@ -454,6 +460,8 @@ def normalize_payment_description(value: Any, locale: str = 'en') -> str:
 
 
 def read_payment_report_dataframe(path: Path, *, country: str = 'US') -> pd.DataFrame:
+    import pandas as pd
+
     structure = detect_payment_report_structure(path, country=country)
     raw_bytes = path.read_bytes()
 

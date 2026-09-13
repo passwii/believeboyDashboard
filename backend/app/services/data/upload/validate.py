@@ -16,8 +16,12 @@ BLF-975 复测扩展：
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module loads at API boot via
+# endpoints.uploads / endpoints.agent.upload; only _match_ad_spec parses dates.
+if TYPE_CHECKING:
+    import pandas as pd
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -132,6 +136,8 @@ def _match_ad_spec(path, report_type: str) -> dict | None:
     if "结束日期" in df.columns and not df["结束日期"].dropna().empty:
         detected_end = _date_to_string(df["结束日期"].dropna().iloc[0])
     elif "日期" in df.columns and not df["日期"].dropna().empty:
+        import pandas as pd
+
         parsed = pd.to_datetime(df["日期"], errors="coerce").dropna()
         if not parsed.empty:
             detected_start = parsed.min().strftime("%Y-%m-%d")

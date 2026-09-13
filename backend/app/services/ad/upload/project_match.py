@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import pandas as pd
+# BLF-1036: pandas import dropped — pd appears only in type annotations here,
+# which ``from __future__ import annotations`` keeps unevaluated at runtime.
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session

@@ -6,8 +6,12 @@ for product analysis consumption.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module loads at worker boot via
+# app.services.report.monthly; only the build_df_from_* helpers need it.
+if TYPE_CHECKING:
+    import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +41,7 @@ def build_df_from_source(db: Session, *, source_id: int) -> pd.DataFrame:
     Returns:
         DataFrame with standardized payment columns.
     """
+    import pandas as pd
     rows = (
         db.execute(
             select(AnalysisPaymentRow)
@@ -75,6 +80,7 @@ def build_df_from_sources(db: Session, *, source_ids: list[int]) -> pd.DataFrame
     Returns:
         Concatenated DataFrame of all sources.
     """
+    import pandas as pd
     if not source_ids:
         return pd.DataFrame(columns=_PAYMENT_COLUMNS)
     frames = [build_df_from_source(db, source_id=sid) for sid in source_ids]
