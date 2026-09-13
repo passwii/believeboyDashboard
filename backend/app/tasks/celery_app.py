@@ -1,21 +1,31 @@
 """Celery application factory and configuration.
 
-This module owns the Celery app instance used by the worker systemd unit
-(`believeboy-celery.service`).
+This module owns the Celery app instance used by the API process and the
+worker systemd units (`believeboy-celery.service`,
+`believeboy-celery-scheduled.service`).
 
 BEL-55-P1 added `app.celery_tasks.run_job` (the Celery port of the original
 in-process job runner) and the `reports` queue route.
 BEL-55-P2 added `app.celery_tasks.insights.generate` and the `insights`
 queue route. BLF-1037 removed the last BEL-55-P0/P1 leftovers: the `ping`
 smoke-test task and the `backend/worker/` package.
+BLF-1047 moved the queue routes + beat schedule into
+`app/tasks/celery_shared.py` so beat can import the same tables while using a
+different app that skips this module's `include=[...]` import chain — see
+`app/tasks/celery_beat_app.py`.
 """
 
 from __future__ import annotations
 
 from celery import Celery
-from celery.schedules import crontab
 
 from app.core.config import get_settings
+from app.tasks.celery_shared import (
+    BEAT_SCHEDULE,
+    CELERY_DEFAULT_QUEUE,
+    CELERY_TASK_TIMEZONE,
+    TASK_ROUTES,
+)
 
 
 def _build_celery_app() -> Celery:
@@ -32,6 +42,10 @@ def _build_celery_app() -> Celery:
         "believeboy",
         broker=settings._celery_broker_url_resolved,
         backend=settings._celery_result_url_resolved,
+        # Tasks executed by the workers below are eagerly imported at worker
+        # boot. `celery beat` uses the same `init_worker()` path, so it must NOT
+        # point at this module (BLF-1047) — beat runs `celery_beat_app` instead.
+        #
         # `run_job` is the Celery port of the original in-process job
         # runner. The worker systemd unit consumes from
         # `default,reports,insights` (see
@@ -73,107 +87,17 @@ def _build_celery_app() -> Celery:
         # shouldn't starve short ones, and OOM-killed tasks get redelivered
         # instead of sitting on the prefetch buffer.
         worker_prefetch_multiplier=1,
-        # Default routing: every task without an explicit route lands here.
-        task_default_queue="default",
-        # BEL-55-P1: long-running report jobs land on the `reports` queue
-        # so they don't compete for prefetch slots with short-lived
-        # default tasks (CRM scans, alerts, ...). The worker systemd
-        # unit already consumes from this queue.
-        task_routes={
-            "app.celery_tasks.run_job.run_job": {"queue": "reports"},
-            "generate_insight": {"queue": "insights"},
-            "execute_insight_run": {"queue": "insights"},
-            # BEL-NEW: 定时报告迁移至 Celery
-            # - `dispatch_one` 在 `scheduled` 队列（独立 worker 单元），计划 §4.4
-            # - `generate_delivery_summary` 在 `ai_summary` 队列，独立信号量 §4.6
-            "dispatch_one": {"queue": "scheduled"},
-            "generate_delivery_summary": {"queue": "ai_summary"},
-            # 虚拟办公室独立推进器：default 队列（短任务 <100ms）
-            "office_tick": {"queue": "default"},
-            # CRM 公海自动回收（P3a）：default 队列（每日一次短任务）
-            "crm_sea_reclaim": {"queue": "default"},
-            # CRM 任务到期提醒扫描（BLF-513）：default 队列（每小时一次短任务）
-            "crm_task_reminder": {"queue": "default"},
-            # CRM 7 天无跟进提醒（BLF-539）：default 队列（每日一次短任务）
-            "crm_follow_up_reminder": {"queue": "default"},
-            # CRM 规则引擎执行器（BLF-544）：default 队列（每日一次短任务）
-            "crm_rule_engine": {"queue": "default"},
-            # CRM 无跟进提醒邮件（BLF-540）：default 队列（每日 09:10 一次短任务）
-            "crm_stale_email": {"queue": "default"},
-            # 告警定时检测（P1）：default 队列（短任务，每 15 分钟）
-            "alert_detect": {"queue": "default"},
-            # BEL-377：agent API 审计日志保留清理：default 队列（每日一次短任务）
-            "agent_api_audit_cleanup": {"queue": "default"},
-            # BLF-460：agent 写操作明细保留清理：default 队列（每日一次短任务）
-            "operation_audit_cleanup": {"queue": "default"},
-            # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
-            "ai_chat_token_usage.refresh_daily": {"queue": "default"},
-        },
-        # beat_schedule 说明（BLF-1034）：曾经的 office-tick 3s beat 条目已移除——
-        # 30 天内 office SSE 0 次访问且 digital_employees 仅 1 行，纯后台空转
-        # （~28,800 任务/天的 broker 往返 + worker fork + journald 99% 噪音）。
-        # office_tick 任务定义保留在 app/celery_tasks/office_tick.py，SSE 端点
-        # 走 _build_tick_sync 的 Redis miss fallback 自算；将来恢复调度时在
-        # beat_schedule 加回 {"office-tick": {"task": "office_tick", "schedule": 3.0}} 即可。
-        beat_schedule={
-            # CRM 公海自动回收（P3a）：每日凌晨 3 点扫描 N 天未跟进的客户/线索掉公海。
-            "crm-sea-reclaim": {
-                "task": "crm_sea_reclaim",
-                "schedule": crontab(hour=3, minute=0),
-            },
-            # CRM 任务到期提醒（BLF-513）：每小时 :05 扫描截止前 24h 内未提醒任务（错开整点）
-            "crm-task-reminder": {
-                "task": "crm_task_reminder",
-                "schedule": crontab(minute=5),
-            },
-            # CRM 7 天无跟进提醒（BLF-539）：每日 09:00 扫 stale 实体写提醒记录（工作日早高峰）
-            "crm-follow-up-reminder": {
-                "task": "crm_follow_up_reminder",
-                "schedule": crontab(hour=9, minute=0),
-            },
-            # CRM 规则引擎执行器（BLF-544）：每日 09:05 扫规则执行（错开 P9-1 提醒扫描）
-            "crm-rule-engine": {
-                "task": "crm_rule_engine",
-                "schedule": crontab(hour=9, minute=5),
-            },
-            # CRM 无跟进提醒邮件（BLF-540）：每日 09:10 扫描超期实体并按负责人发提醒邮件（错开 09:00/09:05）
-            "crm-stale-email": {
-                "task": "crm_stale_email",
-                "schedule": crontab(hour=9, minute=10),
-            },
-            # 告警定时检测（P1）：每 15 分钟跑全量规则检测 + 分发
-            "alert-detect": {
-                "task": "alert_detect",
-                "schedule": crontab(minute="*/15"),
-            },
-            # BEL-373：退货分析物化表每日 03:00 UTC 刷新（plan §2.4 拍板）
-            "return-analysis-refresh-daily": {
-                "task": "return_analysis.refresh_daily",
-                "schedule": crontab(hour=3, minute=0),
-            },
-            # BEL-377：agent API 审计日志每日 04:00 清理超过保留期的行
-            "agent-api-audit-cleanup": {
-                "task": "agent_api_audit_cleanup",
-                "schedule": crontab(hour=4, minute=0),
-            },
-            # BLF-460：agent 写操作明细每日 04:30 清理（错开 04:00 读侧清理）
-            "operation-audit-cleanup": {
-                "task": "operation_audit_cleanup",
-                "schedule": crontab(hour=4, minute=30),
-            },
-            # BEL-379：ai_chat token 用量每日 03:15 CST（Asia/Shanghai 时区下）刷新快照，
-            # 错开 return-analysis 03:00 与 agent-api-audit 04:00 的整点并发。
-            "ai-chat-token-usage-refresh-daily": {
-                "task": "ai_chat_token_usage.refresh_daily",
-                "schedule": crontab(hour=3, minute=15),
-            },
-        },
+        # Default routing + queue routes: shared with the beat app so the
+        # publisher and the executor can never disagree (BLF-1047).
+        task_default_queue=CELERY_DEFAULT_QUEUE,
+        task_routes=TASK_ROUTES,
+        beat_schedule=BEAT_SCHEDULE,
         # All timestamps in messages/results use project timezone.
-        timezone="Asia/Shanghai",
+        timezone=CELERY_TASK_TIMEZONE,
         enable_utc=True,
         # Concurrency is set per worker (`-c` flag in systemd unit); keep
-        # the setting here as a documented fallback for `celery -A ... beat`
-        # style invocations. The systemd unit also passes `--concurrency`
+        # the setting here as a documented fallback for `celery worker`
+        # invocations that omit it. The systemd unit also passes `--concurrency`
         # explicitly so a VPS resize only needs an env-var bump, not a
         # code change.
         worker_concurrency=settings.celery_worker_concurrency,

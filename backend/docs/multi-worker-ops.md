@@ -31,8 +31,10 @@
 > 队列由主 worker 执行。task 内有行锁 + 乐观锁幂等护栏，broker 重投不会重复备份。
 > **Celery Beat 必须单实例**：`daily-pg-full-backup`（每日 03:00 全量）与
 > `r2-backup-cleanup`（每日 04:30 保留清理）由 beat 触发，多副本部署时只能
-> 在一台机器起 `celery -A app.tasks.celery_app beat`（乐观锁虽兜底，勿依赖）。
-
+> 在一台机器起 `celery -A app.tasks.celery_beat_app beat`（乐观锁虽兜底，勿依赖）。
+> beat 用 `celery_beat_app`（`include=[]`）而不是 `celery_app`：celery beat 启动
+> 会走 `init_worker()` → `import_default_modules()`，指向 `celery_app` 会把整条
+> 任务模块 import 链拉进这个只发任务名的进程（实测 202MB → ~70MB，见 BLF-1047）。
 
 > **为什么只起一个 worker 进程？** `believeboy-celery.service` 用的是
 > `celery -A app.tasks.celery_app worker -c 4`：一个 worker **进程** + 4
@@ -131,19 +133,23 @@ redis-cli -n <broker_db> LLEN insights
 ### 3.2 处置流程
 
 1. **先看 worker 是否在跑**：
+
    ```bash
    systemctl status believeboy-celery
    sudo journalctl -u believeboy-celery -p err -n 50 --no-pager
    ```
+
    进程不在 / 一直 OOM 退出 → 看第 5.1 节。
 
 2. **进程在跑但队列还在涨**：
+
    ```bash
    # 看 worker 的并发是否被吃满
    redis-cli -n 0 KEYS 'celery-task-meta-*' | wc -l
    # 看 worker 的 heartbeat（最近一次 ack 距今多久）
    sudo journalctl -u believeboy-celery --since "10 min ago" | tail
    ```
+
    现象 1：**所有任务都卡在 `Received` 不动** —— 任务体里 `await` 了一
    个永不返回的 RPC / DB 死锁。`systemctl restart believeboy-celery`
    把 worker 进程整体踢掉，broker 会把未 ack 的消息 rebalance 给新进程
@@ -267,12 +273,14 @@ believeboy-celery.service: Main process exited, code=killed, status=9/KILL
    Python list**。在 `app/services/report_*` 里找 `df = pd.read_sql(...)` 看是不是
    没用 `chunksize=`。
 3. 临时止血：
+
    ```bash
    # 把 worker 暂停 5 分钟让任务在 broker 端排队，避免雪崩
    sudo systemctl stop believeboy-celery
    sleep 300
    sudo systemctl start believeboy-celery
    ```
+
 4. 永久修复 PR 走正常的 code review 流程。
 
 ### 5.2 任务长时间 `RUNNING`（超过 30 分钟）
@@ -283,10 +291,12 @@ process 也一直没退。
 排查路径：
 
 1. **worker 进程是否还在**？
+
    ```bash
    systemctl status believeboy-celery
    ps -ef | grep -E "celery -A app.tasks" | grep -v grep
    ```
+
 2. **worker 进程还在**：极可能是任务体里在 `await` 一个永不返回的对象
    （AI 聊天 / 文件上传 / HTTP 拉取）。Ssh 进 worker 主机，`py-spy dump
    --pid <worker_pid>` 看调用栈。
