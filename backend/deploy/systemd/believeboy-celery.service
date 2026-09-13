@@ -31,6 +31,13 @@ MemoryMax=512M
 MemoryHigh=384M
 MemorySwapMax=128M
 
+# 长跑膨胀防护（BLF-1039 item 3）：worker 子进程已由
+# --max-tasks-per-child=50 定期重建，但主进程（broker 连接 / 日志缓冲 /
+# pandas 栈导入后的堆碎片）仍是长跑只增不减。RuntimeMaxSec=7d 让 systemd
+# 每周整体重启一次；重启安全——所有任务均 acks_late +
+# task_reject_on_worker_lost，in-flight 任务会被 broker 重投。
+RuntimeMaxSec=7d
+
 # 消费 default,reports,insights,ai_summary 四个队列。
 # scheduled 队列由独立的 believeboy-celery-scheduled.service 消费，
 # 实现 Chrome 截图任务的内存隔离（方案 §4.4）。

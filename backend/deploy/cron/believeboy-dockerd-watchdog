@@ -1,0 +1,13 @@
+# BelieveBoy dockerd 长跑 CPU 泄漏看门狗（BLF-1039 item 1b）
+# 安装目标由 productEnvAgent/deploy_vps.py 的 DEPLOY_COMMANDS 写入 /etc/cron.d/。
+# 直接 cp 本文件到 /etc/cron.d/ 也可用：文件自带 user 字段，符合 cron.d 格式。
+#
+# 频率：每分钟一次，每次采样 10 秒（脚本内 sleep）；连续 10 次 CPU >= 50%
+# 才重启 docker.service（≈10 分钟持续高占用）——阈值/次数/冷却都可用环境变量
+# 覆盖，默认值见脚本头部注释。
+#
+# flock -n 防止上一轮采样（10s sleep）与下一轮重叠；拿不到锁直接退出，
+# 不产生任何输出（cron 不会发邮件）。
+# 输出全部走 syslog（logger -t believeboy-dockerd-watchdog）：
+#   journalctl -t believeboy-dockerd-watchdog --since today
+* * * * * root /usr/bin/flock -n /var/lock/believeboy-dockerd-watchdog.lock /root/believeboyDashboard/backend/deploy/scripts/dockerd_watchdog.sh
