@@ -97,6 +97,24 @@ idle → loading → (loaded | failed(APIError))
 
 > ⚠️ **`/api/v1/agent/*` 与 `/api/v1/internal/*` 不属这套鉴权**：`/api/v1/agent/projects` 即使带 `X-API-Key` 也返回 `401 AGENT_AUTH_FAILED`（该域要求 `Authorization` + `X-Agent-Id` 配对，是给外部 Agent 用的）。桌面端只消费账号级业务路由 —— 生产 `/api/v1/` 共 54 个一级路由家族，排除 `agent` 与 `internal` 后即为桌面端可用面（`ad-analysis` / `complaints` / `crm` / `inspections` / `inventory-*` 等）。
 
+#### 4.1.1 单设备 key：Web 登录会使桌面端 key 失效（S2 的硬约束）
+
+`blf_` 账号 key 是**覆盖式轮换**，不是"每次登录追加一把"：
+
+- `ensure_user_api_key`（`backend/app/services/user_api_key_service.py:69`）对每个账号**只维护一行** `user_api_keys`，命中已有行就覆写 `key_hash`，**旧 key 立即失效**；全仓库仅一个业务调用点：`POST /api/v1/auth/login`（`backend/app/api/v1/endpoints/auth.py:189`）。
+- **桌面端不是唯一调用方** —— 这是问题所在：
+
+| 触发路径 | 位置 | 对桌面端的影响 |
+|---|---|---|
+| Web 端登录 | `frontend/lib/auth/options.ts:47` → `/api/v1/auth/login` | 覆写同一行 → 桌面端 Keychain 里的 key 立即失效 |
+| Web 端改密码后的重认证 | `frontend/app/api/user/password/route.ts:36` → 同一端点 | 同上 |
+
+- 失效后的表现：`resolve_user_key` 按 SHA-256 反查落空（`not_found`）→ `require_api_key` 落到末尾统一返回 **403 `Invalid API key`**（`backend/app/core/security.py:45-71`；`revoked` 与 `not_found` 同语义）。
+
+**因此"401/403 一律导向重新登录"是 S2 的硬约束，不是体验优化**：只在 401 时跳登录页会漏掉最常发生的那条路径（用户在 Web 上登录过），用户会看到"无权限"却不知道需要重新登录。
+
+**本轮不改后端**（用户要求零后端改动）：单设备轮换是 BLF-711 的有意设计（hash-only 存储 + 泄露面最小），客户端按「403 → 重新登录」即可完整覆盖。若后续运营侧实测反馈"Web 与桌面端来回登录过于频繁"，再**另开后端 issue** 评估多设备 key（同账号多行，或按 `client_id` 分区）；该改动不属本 issue 范围，不得顺手夹带。
+
 ### 4.2 端点面（Stage 4+ 逐模块启用）
 
 模块清单以 `frontend/lib/sidebar-config.ts` 为唯一权威（8 组，二级项以该文件为准，此处不复制数量以免漂移）。当前端点全集见 `backend/app/api/v1/endpoints/`。
