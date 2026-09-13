@@ -7,7 +7,7 @@ User=root
 Group=root
 WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
-ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=1 --max-tasks-per-child=100
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=1 --max-tasks-per-child=50
 Restart=always
 RestartSec=3
 
@@ -34,7 +34,9 @@ MemorySwapMax=128M
 # 消费 default,reports,insights,ai_summary 四个队列。
 # scheduled 队列由独立的 believeboy-celery-scheduled.service 消费，
 # 实现 Chrome 截图任务的内存隔离（方案 §4.4）。
-# --max-tasks-per-child=100 防止 fork worker 长期运行后内存膨胀不释放。
+# --max-tasks-per-child=50（BLF-1035，原 100）：Stage 1 移除 office_tick
+# 3s beat 后任务量骤降，fork 成本更低，更早重建 worker 进程可释放
+# pandas 栈 COW 后的内存膨胀驻留。
 # 缩到 -c 1 后，如遇 default 队列任务堆积（积压 / 长尾 IO），优先调小
 # --max-tasks-per-child 复现 fork、或独立拆出 reports worker 进程（方案 A），
 # 而非直接升 -c——这条 VPS 内存太小是结构性约束。

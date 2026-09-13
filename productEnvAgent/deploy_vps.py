@@ -58,10 +58,17 @@ DEPLOY_COMMANDS = [
     "systemctl stop believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
     "systemctl disable believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
     "rm -f /etc/systemd/system/believeboy-worker.service /etc/systemd/system/believeboy-worker-scheduled.service",
-    # --- 同步新 service 文件到系统目录并重新加载 ---
+    # --- 同步 service / journald / cron.d 配置到系统目录并重新加载 ---
+    # BLF-1035：journald cap（00-believeboy-cap.conf）与 swap 每日回收
     f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery.service /etc/systemd/system/believeboy-celery.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery-scheduled.service /etc/systemd/system/believeboy-celery-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
+    f"&& mkdir -p /etc/systemd/journald.conf.d "
+    f"&& cp {PROJECT_DIR}backend/deploy/journald/00-believeboy-cap.conf /etc/systemd/journald.conf.d/00-believeboy-cap.conf "
+    f"&& systemctl restart systemd-journald "
+    f"&& cp {PROJECT_DIR}backend/deploy/cron/believeboy-swap-reclaim /etc/cron.d/believeboy-swap-reclaim "
+    f"&& chmod 0644 /etc/cron.d/believeboy-swap-reclaim "
+    f"&& chmod +x {PROJECT_DIR}backend/deploy/scripts/swap_reclaim.sh "
     f"&& systemctl daemon-reload",
     # 启用新单元（首次部署时 enable，后续幂等）
     "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true",
@@ -84,6 +91,10 @@ CHECK_COMMANDS = [
     "systemctl is-active believeboy-celery.service",
     "systemctl is-active believeboy-celery-scheduled.service",
     f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
+    "grep -q ^SystemMaxUse=200M$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf"
+    " && grep -q ^SystemKeepFree=1G$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf",
+    "test -x /root/believeboyDashboard/backend/deploy/scripts/swap_reclaim.sh"
+    " && grep -q swap_reclaim.sh /etc/cron.d/believeboy-swap-reclaim",
 ]
 
 # 日志获取命令（用于错误分析）
