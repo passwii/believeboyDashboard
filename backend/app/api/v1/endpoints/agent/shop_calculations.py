@@ -170,7 +170,9 @@ def list_shop_calculations(
     country: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
-    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    include_anchor: bool = Query(
+        default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]
+    ),
     target_net_margin: float | None = Query(
         default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
     ),
@@ -189,7 +191,9 @@ def list_shop_calculations(
         )
     return agent_ok(
         {
-            "items": [_dump_item(item, include_anchor=include_anchor) for item in items],
+            "items": [
+                _dump_item(item, include_anchor=include_anchor) for item in items
+            ],
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -215,7 +219,9 @@ def get_shop_calculation_sku(
     sku: str,
     db: Session = Depends(get_read_db_session),
     country: str | None = Query(default=None),
-    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    include_anchor: bool = Query(
+        default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]
+    ),
     target_net_margin: float | None = Query(
         default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
     ),
@@ -253,7 +259,9 @@ def list_shop_calculation_history(
     to: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    include_anchor: bool = Query(
+        default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]
+    ),
     target_net_margin: float | None = Query(
         default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
     ),
@@ -704,7 +712,9 @@ def compute_shop_calculation(
                 human_message=str(exc),
                 details=[{"engine": str(exc)}],
             ) from None
-    anchor = _anchor_from_computed(computed, target_net_margin=payload.target_net_margin)
+    anchor = _anchor_from_computed(
+        computed, target_net_margin=payload.target_net_margin
+    )
     return agent_ok(
         {
             "mode": payload.mode,

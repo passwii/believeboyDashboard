@@ -437,9 +437,7 @@ def _anchor_for_request(
     目标利润达成，因此 ``target_advertising_rate`` 会收束到请求输入的
     ``advertising_rate``（可当自洽断言用）。
     """
-    return _anchor_from_computed(
-        computed, target_net_margin=request.target_profit_rate
-    )
+    return _anchor_from_computed(computed, target_net_margin=request.target_profit_rate)
 
 
 def _engine_to_run_item(
