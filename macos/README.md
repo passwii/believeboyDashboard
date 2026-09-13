@@ -3,7 +3,7 @@
 BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https://dash-api.believeboy.com`），复用 `backend/` 现有 API，不改后端、不经 Next.js 代理。
 
 - **技术路线 / stage 计划 / 工具链约束**：见 [PLAN.md](./PLAN.md)（权威）
-- **当前进度**：Stage 0/1 —— 最小可运行骨架（能启动、能连后端健康检查）。业务模块未实现。
+- **当前进度**：Stage 0/1/2 —— 骨架 + 登录与会话（能启动、能登录、能连后端健康检查）。业务模块未实现。
 
 ## 环境要求
 
@@ -22,9 +22,11 @@ swift build              # 编译（CLT 或 Xcode 工具链均可）
 swift run BelieveBoyMac  # 启动（弹出窗口），默认连生产后端
 ```
 
-窗口内操作：选后端地址（生产 / 本地 / 自定义）→ 填 API key →「保存到钥匙串」→「检查连接」（或 `⌘R`）。
+窗口内操作：选服务器（生产 / 本地 / 自定义）→ 填邮箱 + 密码 →「登录」→ 进主界面，自动跑一次连接检查（或 `⌘R` 手动重跑，`⌘⇧L` 退出登录）。
 
-需要指向本地后端时（本地调试后端用，非必需）：
+登录下发的 `blf_` key 存入 macOS 钥匙串，下次启动直接进主界面（不闪登录页）。
+不需登录的无人值守场景（开发 / CI / 无 GUI 排查）可以给环境变量凭据绕过登录页
+（只有 key、没有账号档案，因此**不发** `X-Operator` 一族请求头）：
 
 ```bash
 BELIEVEBOY_BASE_URL=http://127.0.0.1:8100 \
@@ -32,23 +34,72 @@ BELIEVEBOY_API_KEY=<backend/.env 里的 API_KEY> \
 swift run BelieveBoyMac
 ```
 
-> 生产 API key **不在仓库里**：`blf_` key 由 `POST /api/v1/auth/login` 登录下发，**每次登录轮换、旧 key 立即失效、一个账号同时只有一把**。所以 App 不内置 key（S2 做登录），且 401/403 一律按「重新登录」处理 —— 网页端登录一次会让桌面端已存的 key 失效（详见 PLAN.md §4.1.1）。
+> 注：环境变量凭据的优先级**高于**钥匙串会话（保持 S1 的「进程级只读覆盖」语义）。
+> 要用登录态就把 `BELIEVEBOY_API_KEY` 去掉。
+
+### 登录态为什么会失效（不是 bug）
+
+`blf_` 账号 key 是**覆盖式轮换**：一个账号同时只有一把。**网页端登录**
+（`frontend/lib/auth/options.ts:47`）与**改密码后的重认证**
+（`frontend/app/api/user/password/route.ts:36`）打的是同一个 `POST /api/v1/auth/login`，
+一旦发生就会覆写 `user_api_keys.key_hash`（`backend/app/services/user_api_key_service.py`），
+**桌面端手里那把立刻失效**。
+
+失效的表现是 **403 `{"detail":"Invalid API key"}`**（`backend/app/core/security.py`），
+**不是 401** —— 所以只判 401 会漏掉最常见的这条路径。桌面端的处理：
+
+- 401/403 一律回到登录页，并说明「可能已在网页端或其他设备重新登录」；
+- **不做重试**（重试只会再拿一个 403），并把已失效的 key 从钥匙串清掉；
+- 传输失败（后端不可达）**不算**凭据问题，留在主界面显示连接错误。
+
+「一账号多设备多把 key」需后端改动，是独立决策（详见 PLAN.md §4.1.1），本轮不改后端。
+
+> 生产 API key **不在仓库里**，App 也**不内置任何 key**：`blf_` key 只能由
+> `POST /api/v1/auth/login` 登录换取，**每次登录轮换、旧 key 立即失效、一个账号同时只有一把**。
+> 密码只随登录请求发一次（不落盘、不进日志）；key 与账号档案存 macOS 钥匙串。
 
 ## 验证
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 11 个用例；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 64 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
 ```
+
+### 真后端端到端（轮换 / 账号上下文）
+
+`Tests/BelieveBoyTests/LiveRotationTests.swift` 里有两条**默认 skip** 的用例，用来钉住
+服务端事实（打桩只能证明客户端行为，证明不了「同账号二次登录真的会让第一把 key 变 403」）。
+**不要用生产真人账号跑**——登录会轮换该账号的 key，把同事的网页端会话踢掉。用本地后端 + 测试库：
+
+```bash
+# 1) 后端指向测试库（账号见 backend/scripts/agent_testing/README.md）
+cd backend
+TEST_DATABASE_URL="$(grep '^TEST_DATABASE_URL=' .env.test | cut -d= -f2-)" \
+  uvicorn app.main:app --port 8000
+
+# 2) 另开终端跑真后端用例（含非管理员账号，验证 X-Operator 注入）
+cd macos
+BELIEVEBOY_E2E_BASE_URL=http://127.0.0.1:8000 \
+BELIEVEBOY_E2E_EMAIL=test_admin@believeboy.com \
+BELIEVEBOY_E2E_PASSWORD="$(grep '^TEST_ADMIN_PASSWORD=' ../backend/.env.test | cut -d= -f2-)" \
+BELIEVEBOY_E2E_OPERATOR_EMAIL=test_operator@believeboy.com \
+BELIEVEBOY_E2E_OPERATOR_PASSWORD="$(grep '^TEST_OPERATOR_PASSWORD=' ../backend/.env.test | cut -d= -f2-)" \
+DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --filter LiveRotationTests
+```
+
+> 后端登录有限流（IP 10 次 / 15 分钟）。反复手测撞到 **429** 时，清一下计数器即可：
+> `redis-cli DEL "bb:ratelimit:login_ip:127.0.0.1"`。
 
 鉴权失败语义（`backend/app/core/security.py`）：缺 key → **401** `{"detail":"Missing API key"}`；key 无效或已被轮换 → **403** `{"detail":"Invalid API key"}`。桌面端把两者**都**导向「重新登录」。
 
 > `/api/v1/agent/*` 与 `/api/v1/internal/*` **不属 `X-API-Key` 鉴权**（要求 `Authorization` + `X-Agent-Id`），桌面端不要用。
 
 测试是**离线**的（`URLProtocol` 打桩，不碰真实网络）：健康探针两步语义、鉴权头只加在需鉴权请求上、缺凭据请求前拦截、403 → 「重新登录」信号、不可达 → 传输错误、配置解析、**总体/分项健康判定**（`degraded` 明细、Redis 内存 `unavailable`/`unknown`/未配置）、**超时分档真实落到请求上**、**base URL 根地址校验**、**凭据三态**（有 / 没配 / 读失败）。
+
+S2 新增用例：**登录请求形状**（POST / 无凭据头 / JSON 体 / 邮箱 trim 而密码原样）、**响应解码**（snake_case、`role_type` 兜底）、**失败分类**（401 密码错 / 401 账号停用 / 429 限流 / 200 但 `api_key` 为空）、**账号上下文注入**（`X-Operator` 中文 percent-encoding、非管理员显式 `false`、无档案时不发）、**登录态状态机**（冷启动直进主界面且零网络往返、登录成功入库、401/403 回登录页且不重试、轮换后重新登录即自愈、传输失败不登出、并发点登录只发一次）、**密码不落盘**、**真钥匙串往返**。
 
 浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
@@ -63,7 +114,7 @@ curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 M
 | 环境变量 | 作用 |
 |---|---|
 | `BELIEVEBOY_BASE_URL` | 覆盖后端地址（默认 `https://dash-api.believeboy.com`）；**必须是根地址** —— 带路径 / 查询 / fragment 会被 `APIError.invalidBaseURL` 拒绝，而不是拼出 `/api/api/v1/...` 这类必然 404 的地址 |
-| `BELIEVEBOY_API_KEY` | 覆盖 API key 来源（默认读 macOS 钥匙串） |
+| `BELIEVEBOY_API_KEY` | 环境变量凭据（**可选**，绕过登录页）：只有 key、没有账号档案，因此不发 `X-Operator` 一族请求头。优先级高于钥匙串会话；要用登录态就去掉它 |
 
 ## 目录
 

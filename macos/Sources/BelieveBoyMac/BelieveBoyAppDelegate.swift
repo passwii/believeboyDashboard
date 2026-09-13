@@ -7,7 +7,7 @@ import SwiftUI
 /// 菜单不是装饰 —— 没有主菜单就没有 `⌘Q`（只能 kill 进程）与任何键盘快捷键。
 /// SPM 可执行文件不会自带菜单栏，必须显式装配。
 @MainActor
-final class BelieveBoyAppDelegate: NSObject, NSApplicationDelegate {
+final class BelieveBoyAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let model = AppModel()
     private var window: NSWindow?
 
@@ -47,6 +47,15 @@ final class BelieveBoyAppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(checkConnection),
             keyEquivalent: "r"
         )
+        // `addItem(withTitle:action:keyEquivalent:)` 没有修饰键参数 —— 要 ⌘⇧L
+        // 必须先生成 item 再设 `keyEquivalentModifierMask`（默认是仅 ⌘）。
+        let signOutItem = NSMenuItem(
+            title: "退出登录",
+            action: #selector(signOut),
+            keyEquivalent: "l"
+        )
+        signOutItem.keyEquivalentModifierMask = [.command, .shift]
+        appMenu.addItem(signOutItem)
         appMenu.addItem(.separator())
         appMenu.addItem(
             withTitle: "退出 BelieveBoy",
@@ -70,5 +79,20 @@ final class BelieveBoyAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func checkConnection() {
         Task { await model.checkConnection() }
+    }
+
+    @objc private func signOut() {
+        model.signOut()
+    }
+
+    /// 未登录时两个动作都没有意义：点「检查后端连接」只会印一个用户看不到的提示，
+    /// 点「退出登录」则是在空登录态上重复清钥匙串。
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(checkConnection), #selector(signOut):
+            return model.isSignedIn
+        default:
+            return true
+        }
     }
 }
