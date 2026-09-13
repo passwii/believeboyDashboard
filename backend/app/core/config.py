@@ -249,11 +249,6 @@ class Settings(BaseSettings):
     # CRM 规则引擎执行器（P9-6, BLF-544）：全局开关（False = 停扫规则；
     # 规则级启停仍由 crm_rules.enabled 控制）。环境变量 CRM_RULE_ENGINE_ENABLED 可调。
     crm_rule_engine_enabled: bool = Field(default=True)
-    # BEL-55-P1 dual-write switch. When true, `job_service.enqueue_job`
-    # dispatches via Celery; when false, it falls back to the in-process
-    # daemon thread. Flip to false to roll back the Celery migration
-    # without redeploying code.
-    enable_celery_dispatch: bool = Field(default=True)
 
     @property
     def _redis_auth_segment(self) -> str:

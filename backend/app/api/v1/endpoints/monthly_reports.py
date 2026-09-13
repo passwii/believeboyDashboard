@@ -117,7 +117,6 @@ def create_monthly_report(
     after_validation = perf_counter()
 
     task = monthly_report_runtime_service.create_task(
-        settings,
         project_id=project_id,
         project_name=project_name,
         country=country,

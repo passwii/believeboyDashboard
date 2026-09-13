@@ -16,11 +16,10 @@ router = APIRouter(dependencies=[Depends(protected)])
 def create_job(
     data: CreateJobRequest,
     db: Session = Depends(get_primary_db_session),
-    settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
 ) -> JobResponse:
     payload = {'job_type': data.job_type, 'file_id': data.file_id, 'params': data.params}
-    job = job_service.enqueue_job(db, settings, payload, operator=operator)
+    job = job_service.enqueue_job(db, payload, operator=operator)
 
     return JobResponse(
         id=job.id,

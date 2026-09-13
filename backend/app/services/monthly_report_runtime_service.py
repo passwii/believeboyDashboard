@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.models import MonthlyReport
 from app.models.job import Job, JobRun, JobStatus
@@ -41,7 +40,6 @@ class MonthlyReportTask:
 
 
 def create_task(
-    settings: Settings,
     *,
     project_id: int | None,
     project_name: str,
@@ -67,7 +65,7 @@ def create_task(
     if owns_session:
         db = SessionLocal()
     try:
-        job = job_service.enqueue_job(db, settings, payload, operator=operator)
+        job = job_service.enqueue_job(db, payload, operator=operator)
         return _task_from_job(db, job)
     finally:
         if owns_session:

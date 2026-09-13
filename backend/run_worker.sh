@@ -88,8 +88,9 @@ case "$CMD" in
   ping)
     # Quick round-trip check. The worker must be running separately
     # (e.g. via the systemd unit or `./run_worker.sh single` in another
-    # terminal). Exits non-zero on timeout.
-    exec python -c "from app.tasks.celery_app import ping; print(ping.apply().get(timeout=10))"
+    # terminal). Uses Celery's built-in control ping — no task needed,
+    # and it exits non-zero when no worker replies within the timeout.
+    exec celery -A "$APP" inspect ping --timeout 10
     ;;
 
   *)

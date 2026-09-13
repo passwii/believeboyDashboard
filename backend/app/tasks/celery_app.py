@@ -3,10 +3,11 @@
 This module owns the Celery app instance used by the worker systemd unit
 (`believeboy-celery.service`).
 
-BEL-55-P0 brought up the broker + ping smoke-test task. BEL-55-P1 adds
-`app.celery_tasks.run_job` (the lifted `worker.tasks.run_job`) and the
-`reports` queue route. BEL-55-P2 adds `app.celery_tasks.insights.generate`
-and the `insights` queue route.
+BEL-55-P1 added `app.celery_tasks.run_job` (the Celery port of the original
+in-process job runner) and the `reports` queue route.
+BEL-55-P2 added `app.celery_tasks.insights.generate` and the `insights`
+queue route. BLF-1037 removed the last BEL-55-P0/P1 leftovers: the `ping`
+smoke-test task and the `backend/worker/` package.
 """
 
 from __future__ import annotations
@@ -31,16 +32,15 @@ def _build_celery_app() -> Celery:
         "believeboy",
         broker=settings._celery_broker_url_resolved,
         backend=settings._celery_result_url_resolved,
-        # `ping` is the BEL-55-P0 smoke-test task; `run_job` is the
-        # BEL-55-P1 lift of `worker.tasks.run_job` into Celery. The
-        # worker systemd unit consumes from `default,reports,insights`
-        # (see deploy/systemd/believeboy-celery.service) so both modules
-        # are eagerly imported at worker boot.
+        # `run_job` is the Celery port of the original in-process job
+        # runner. The worker systemd unit consumes from
+        # `default,reports,insights` (see
+        # deploy/systemd/believeboy-celery.service) so these modules are
+        # eagerly imported at worker boot.
         # BEL-NEW: `scheduled_report.dispatch_one` (方案 §4.5) and
         # `ai_summary.generate_delivery_summary` (§4.6) add two more tasks
         # on dedicated `scheduled` and `ai_summary` queues.
         include=[
-            "app.celery_tasks.ping",
             "app.celery_tasks.run_job",
             "app.celery_tasks.insights.generate",
             "app.celery_tasks.insights.run",
@@ -77,7 +77,7 @@ def _build_celery_app() -> Celery:
         task_default_queue="default",
         # BEL-55-P1: long-running report jobs land on the `reports` queue
         # so they don't compete for prefetch slots with short-lived
-        # default tasks (e.g. the smoke-test ping). The worker systemd
+        # default tasks (CRM scans, alerts, ...). The worker systemd
         # unit already consumes from this queue.
         task_routes={
             "app.celery_tasks.run_job.run_job": {"queue": "reports"},
@@ -204,12 +204,3 @@ celery_app: Celery = _build_celery_app()
 # Making believeboy the default binds `@shared_task` correctly in every
 # thread. See tests/tasks/test_celery_app_config.py.
 celery_app.set_default()
-
-
-# Re-export the smoke-test task so callers can do `from app.tasks.celery_app
-# import ping; ping.delay().get()` without reaching into the celery_tasks
-# package directly. Mirrors the call shape in the BEL-55-P0 acceptance check.
-from app.celery_tasks.ping import ping  # noqa: E402
-
-
-__all__ = ["celery_app", "ping"]

@@ -1,26 +1,12 @@
 from __future__ import annotations
 
 import json
-import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-from app.core.config import Settings
-
-
-def _settings(*, enable_celery_dispatch: bool) -> Settings:
-    return Settings(
-        _env_file=None,
-        database_url="postgresql+psycopg://x:x@localhost:5432/x",
-        redis_host="localhost",
-        redis_port=6379,
-        redis_db=0,
-        enable_celery_dispatch=enable_celery_dispatch,
-    )
 
 
 @pytest.fixture()
@@ -45,24 +31,17 @@ def test_create_task_creates_job_payload_and_dispatches(db, monkeypatch: pytest.
     from app.models import Job
     from app.services import monthly_report_runtime_service as runtime_service
 
-    settings = _settings(enable_celery_dispatch=False)
-    thread_calls = {"count": 0, "target": None, "args": None}
+    delay_called = {"count": 0, "args": None}
 
-    def _fake_thread(*args, **kwargs):
-        thread_calls["count"] += 1
-        thread_calls["target"] = kwargs.get("target")
-        thread_calls["args"] = kwargs.get("args")
+    def _fake_delay(job_id: int) -> None:
+        delay_called["count"] += 1
+        delay_called["args"] = (job_id,)
 
-        class _StubThread:
-            def start(self) -> None:
-                return None
-
-        return _StubThread()
-
-    monkeypatch.setattr(threading, "Thread", _fake_thread, raising=True)
+    monkeypatch.setattr(
+        "app.celery_tasks.run_job.run_job.delay", _fake_delay, raising=False
+    )
 
     task = runtime_service.create_task(
-        settings,
         project_id=7,
         project_name="测试项目",
         country="US",
@@ -94,8 +73,8 @@ def test_create_task_creates_job_payload_and_dispatches(db, monkeypatch: pytest.
             },
         },
     }
-    assert thread_calls["count"] == 1
-    assert thread_calls["args"] == (job.id,)
+    assert delay_called["count"] == 1
+    assert delay_called["args"] == (job.id,)
 
 
 def test_get_task_reads_progress_from_latest_job_run_and_persistence_from_monthly_report(db) -> None:

@@ -181,10 +181,32 @@ redis-cli -n <broker_db> LLEN insights
 
 ### 4.1 单条任务重新入队
 
-在前端 Job 列表找到目标任务，用「重跑」按钮重新入队即可（也可用 CLI，见 4.2）。重新入队的任务会**重新跑一遍完整 body**；
+在前端 Job 列表找到目标任务，用「重跑」按钮重新入队即可。重新入队的任务会**重新跑一遍完整 body**；
 如果是幂等任务（带 `INSERT ... ON CONFLICT` / `JobRun` 状态机
 防重入）就安全，非幂等任务（写文件 / 触发外部 RPC）需要先确认不会
 产生重复副作用。
+
+没有前端入口时（例如批量核查后才决定重跑某一条），在 VPS 上用 CLI：
+
+```bash
+cd /root/believeboyDashboard/backend
+source .venv/bin/activate
+
+# 方式 A（推荐）：只投递消息，交给 reports 队列的 worker 异步跑——
+# 与前端「重跑」等价，不占用当前 shell。
+celery -A app.tasks.celery_app call app.celery_tasks.run_job.run_job --args '[<job_id>]'
+
+# 方式 B：在本进程内同步跑完（阻塞到结束，输出直接看得到），
+# 适合 worker 没起来 / 想立刻看堆栈的排障场景。
+# `<job_id>` 换成真实 Job.id（纯数字，不要带尖括号）。
+python -c "from app.celery_tasks.run_job import run_job; run_job.apply(args=[<job_id>]).get()"
+```
+
+> B 是原 `python -m worker.oneoff_runner <job_id>` 的等价写法（该脚本已在
+> BLF-1037 随 `backend/worker/` 一起删除）。两条命令都走
+> `app.celery_tasks.run_job.run_job`，因此重跑语义（`acks_late`、
+> `max_retries=3`、`Job.status == success` 早退）与线上完全一致；
+> 目标 Job 已是 `SUCCESS` 时任务体会直接早退，不会重复执行。
 
 ### 4.2 批量把某次事故里的失败任务全部 requeue
 
