@@ -37,6 +37,8 @@ sessions/
 skills/
 sources/
 statuses/
+# 例外：macOS 客户端（BLF-1041）的 SPM 约定目录 `Sources/`，被上面 Helmor 的 `sources/` 规则误伤
+!macos/Sources/
 .claude-plugin/
 .pytest_cache/
 .cache/

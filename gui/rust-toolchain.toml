@@ -1,6 +1,0 @@
-[toolchain]
-# 2026-08-14 验证结论：Rust 1.82 的 Cargo 无法解析当前 crates.io（edition2024 需要 Cargo 1.85+），
-# 且 gpui 0.1.x 已 yank。升级到当前 stable 1.97.1 后 workspace 全绿（见 BLF-673）。
-channel = "1.97.1"
-components = ["rustfmt", "clippy"]
-profile = "minimal"
