@@ -1,0 +1,6 @@
+# BelieveBoy swap 驻留每日回收（BLF-1035）
+# 安装目标由 productEnvAgent/deploy_vps.py 的 DEPLOY_COMMANDS 写入 /etc/cron.d/。
+# 直接 cp 本文件到 /etc/cron.d/ 也可用：文件自带 user 字段，符合 cron.d 格式。
+# 04:30 Asia/Shanghai（VPS 时区）低峰执行；脚本内有 MemAvailable 前置检查，
+# 内存余量不足时安全跳过并记 syslog，不会 OOM。
+30 4 * * * root /root/believeboyDashboard/backend/deploy/scripts/swap_reclaim.sh

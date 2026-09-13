@@ -58,10 +58,17 @@ DEPLOY_COMMANDS = [
     "systemctl stop believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
     "systemctl disable believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
     "rm -f /etc/systemd/system/believeboy-worker.service /etc/systemd/system/believeboy-worker-scheduled.service",
-    # --- 同步新 service 文件到系统目录并重新加载 ---
+    # --- 同步 service / journald / cron.d 配置到系统目录并重新加载 ---
+    # BLF-1035：journald cap（00-believeboy-cap.conf）与 swap 每日回收
     f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery.service /etc/systemd/system/believeboy-celery.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery-scheduled.service /etc/systemd/system/believeboy-celery-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
+    f"&& mkdir -p /etc/systemd/journald.conf.d "
+    f"&& cp {PROJECT_DIR}backend/deploy/journald/00-believeboy-cap.conf /etc/systemd/journald.conf.d/00-believeboy-cap.conf "
+    f"&& systemctl restart systemd-journald "
+    f"&& cp {PROJECT_DIR}backend/deploy/cron/believeboy-swap-reclaim /etc/cron.d/believeboy-swap-reclaim "
+    f"&& chmod 0644 /etc/cron.d/believeboy-swap-reclaim "
+    f"&& chmod +x {PROJECT_DIR}backend/deploy/scripts/swap_reclaim.sh "
     f"&& systemctl daemon-reload",
     # 启用新单元（首次部署时 enable，后续幂等）
     "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true",
@@ -84,6 +91,10 @@ CHECK_COMMANDS = [
     "systemctl is-active believeboy-celery.service",
     "systemctl is-active believeboy-celery-scheduled.service",
     f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
+    "grep -q ^SystemMaxUse=200M$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf"
+    " && grep -q ^SystemKeepFree=1G$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf",
+    "test -x /root/believeboyDashboard/backend/deploy/scripts/swap_reclaim.sh"
+    " && grep -q swap_reclaim.sh /etc/cron.d/believeboy-swap-reclaim",
 ]
 
 # 日志获取命令（用于错误分析）
@@ -404,16 +415,31 @@ def deploy(dry_run=False, auto_confirm=False):
             )
             return False
 
-    # 步骤 6: 验证服务状态
+    # 步骤 6: 验证服务状态（含 journald/cron 落地校验，失败即阻断部署）
     print("\n>>> 步骤 6: 验证部署结果...")
-    is_active = False
+    checks_ok = True
+    failed_checks = []
     for cmd in CHECK_COMMANDS:
         rc, out, err = run_ssh_command(cmd, dry_run=dry_run)
         result = out.strip() if rc == 0 else err.strip()
         status_icon = "✓" if rc == 0 else "✗"
         print(f"  {status_icon} {cmd}: {result}")
-        if "is-active" in cmd and "active" in out:
-            is_active = True
+        if rc != 0:
+            checks_ok = False
+            failed_checks.append(cmd)
+
+    # 任一落地校验失败：走既有失败出口（健康检查前拦截，避免"检查失败
+    # 但 API 200 → 部署成功"的假阳性——BLF-1035 review）
+    if not checks_ok and not dry_run:
+        print(f"✗ 部署后校验失败 ({len(failed_checks)}/{len(CHECK_COMMANDS)} 项):")
+        for cmd in failed_checks:
+            print(f"  ✗ {cmd}")
+        handle_deploy_failure(
+            "post-deploy checks (services/journald/cron)",
+            dry_run=dry_run,
+            error="; ".join(failed_checks),
+        )
+        return False
 
     # 检查服务是否真正启动
     print("\n>>> 步骤 7: 确认服务健康状态...")

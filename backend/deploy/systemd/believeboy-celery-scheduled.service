@@ -10,7 +10,7 @@ WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
 ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
           -A app.tasks.celery_app worker \
-          -Q scheduled -c 2 --loglevel=info --max-tasks-per-child=100
+          -Q scheduled -c 2 --loglevel=info --max-tasks-per-child=50
 Restart=always
 RestartSec=3
 
@@ -25,7 +25,9 @@ MemorySwapMax=256M
 # 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
 # `believeboy-celery.service` 负责。`-c 2` 允许双路并发消化批量补发，
 # chrome-headless-shell + --single-process 已将单任务内存压到可控范围。
-# --max-tasks-per-child=100 防止 fork worker 长期运行后内存膨胀不释放。
+# --max-tasks-per-child=50：screenshot 任务内存大（峰值 345MB、曾顶满
+# 255MB swap），该 worker 每天仅 ~18 个 dispatch 任务，更早 fork 重建可
+# 释放峰值驻留，任务量小所以 fork 成本可忽略（BLF-1035，原 100）。
 
 [Install]
 WantedBy=multi-user.target
