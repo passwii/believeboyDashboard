@@ -170,16 +170,22 @@ LOG_COMMANDS = {
 
 
 def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeout=300):
-    """通过 SSH 在 VPS 上执行命令。"""
-    ssh_command = f"ssh {user}@{host} '{command}'"
+    """通过 SSH 在 VPS 上执行命令。
+
+    命令以 argv 形式传给 ssh（不走本地 shell）：`command` 原样作为 ssh 的第二个
+    参数，由 VPS 上的远端 shell 解释。好处是本地 shell 不再参与拆分——
+    旧写法 `ssh host '{command}'` 会因为命令体里出现单引号而被本地 shell
+    截断/重拼（`python -c 'import app.main'` 就是这么被拆成
+    `python -c import app.main` 而静默失败的）。
+    """
+    ssh_command = f"ssh {user}@{host} '{command}'"  # 仅用于 dry-run 预览/人工复现
     if dry_run:
         print(f"[DRY RUN] 即将执行: {ssh_command}")
         return 0, "", ""
 
     try:
         result = subprocess.run(
-            ssh_command,
-            shell=True,
+            ["ssh", f"{user}@{host}", command],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -334,8 +340,9 @@ def collect_failure_logs(stage_name, dry_run=False):
 
     # 获取 Python 错误追踪
     print("\n>>> 检查 Python 应用错误...")
+    # 用双引号（不用单引号）：命令串保持「无嵌套单引号」的约定
     rc, out, err = run_ssh_command(
-        f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main' 2>&1",
+        f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main" 2>&1',
         dry_run=dry_run,
     )
     logs["journal_logs"]["python_import"] = {
@@ -449,13 +456,16 @@ def format_report(logs, analysis):
 
 
 def save_report(logs, analysis, dry_run=False):
-    """保存报告到本地文件。"""
+    """保存报告到本地文件（best-effort）。
+
+    失败出口的顺序是「收日志 → 存报告 → 发告警」，报告只是存档：磁盘满 /
+    目录不可写不能连带把告警吞吐，否则真失败会被降级成一次静默的崩溃
+    （BLF-1046 验收要求「真失败仍被拦住」，这条路径本身必须可靠）。
+    """
     if dry_run:
         return
 
     log_dir = os.path.join(os.path.dirname(__file__), "logs")
-    os.makedirs(log_dir, exist_ok=True)
-
     date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = os.path.join(log_dir, f"deploy-failed-{date_str}.json")
 
@@ -465,8 +475,13 @@ def save_report(logs, analysis, dry_run=False):
         "generated_at": datetime.datetime.now().isoformat(),
     }
 
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, ensure_ascii=False, indent=2)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"\n⚠️ 失败报告保存失败（不影响告警发送）: {e}")
+        return None
 
     print(f"\n💾 报告已保存到: {filename}")
     return filename
@@ -615,16 +630,23 @@ def deploy(dry_run=False, auto_confirm=False):
 
     if not dry_run:
         print("\n>>> 部署完成！显示最近日志：\n")
+        remote = f"{VPS_USER}@{VPS_HOST}"
         try:
             subprocess.run(
-                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-api --no-pager -n 20'",
-                shell=True,
+                [
+                    "ssh",
+                    remote,
+                    "journalctl -u believeboy-api --no-pager -n 20",
+                ],
                 timeout=30,
             )
             # 一并显示 scheduled worker 启动日志，确认新代码已加载、dispatch_one 已注册
             subprocess.run(
-                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-celery-scheduled --no-pager -n 12'",
-                shell=True,
+                [
+                    "ssh",
+                    remote,
+                    "journalctl -u believeboy-celery-scheduled --no-pager -n 12",
+                ],
                 timeout=30,
             )
         except subprocess.TimeoutExpired:

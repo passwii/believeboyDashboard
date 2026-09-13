@@ -107,7 +107,11 @@ def test_beat_is_restarted_by_deploy_and_rollback():
 
 
 def test_deploy_commands_have_no_nested_single_quotes():
-    """SSH 命令外层用单引号包裹：命令体里出现单引号会破坏解析。
+    """SSH 命令串保持「无嵌套单引号」——让命令在两种传参形式下都无歧义。
+
+    传输已改 argv 形式（run_ssh_command 不再走本地 shell），但命令体一律
+    避开嵌套单引号：一来人类可读（dry-run 预览把命令包在 `'...'` 里）、
+    二来不让「同一串命令因传参方式不同而语义不同」这类陷阱复活。
 
     BLF-1046：探活命令此前是写在 deploy() 里的内联串（`-w '%{http_code}'`
     + `|| echo '000'`），既绕过了这条断言，也让 SSH 层把它拆成多段。
