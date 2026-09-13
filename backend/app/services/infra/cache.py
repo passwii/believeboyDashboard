@@ -398,7 +398,9 @@ def _cache_get_raw_bytes(key: str) -> bytes | None:
 
 def _cache_set_raw_bytes(key: str, raw: bytes, ttl: int) -> None:
     client = get_redis_client()
-    payload = _COMPRESS_PREFIX + base64.b64encode(zlib.compress(raw, level=1)).decode("ascii")
+    payload = _COMPRESS_PREFIX + base64.b64encode(zlib.compress(raw, level=1)).decode(
+        "ascii"
+    )
     client.setex(key, ttl, payload)
 
 
@@ -432,7 +434,9 @@ def store_daily_analysis_all_snapshot(
 
     stamp = computed_at if computed_at is not None else _time.time()
     _cache_set_raw_bytes(
-        key, _encode_daily_analysis_all_snapshot(body, stamp), DAILY_ANALYSIS_ALL_HARD_TTL
+        key,
+        _encode_daily_analysis_all_snapshot(body, stamp),
+        DAILY_ANALYSIS_ALL_HARD_TTL,
     )
 
 
@@ -443,7 +447,11 @@ def mark_daily_analysis_all_data_changed() -> None:
     """
     import time as _time
 
-    cache_set(_DAILY_ANALYSIS_ALL_EPOCH_KEY, {"at": _time.time()}, _DAILY_ANALYSIS_ALL_EPOCH_TTL)
+    cache_set(
+        _DAILY_ANALYSIS_ALL_EPOCH_KEY,
+        {"at": _time.time()},
+        _DAILY_ANALYSIS_ALL_EPOCH_TTL,
+    )
 
 
 def _load_daily_analysis_all_epoch() -> float:
@@ -472,7 +480,10 @@ def try_acquire_daily_analysis_all_lock(key: str) -> bool:
     client = get_redis_client()
     return bool(
         client.set(
-            _daily_analysis_all_lock_key(key), "1", nx=True, ex=DAILY_ANALYSIS_ALL_LOCK_TTL
+            _daily_analysis_all_lock_key(key),
+            "1",
+            nx=True,
+            ex=DAILY_ANALYSIS_ALL_LOCK_TTL,
         )
     )
 

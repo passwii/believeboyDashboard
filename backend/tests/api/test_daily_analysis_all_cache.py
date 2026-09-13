@@ -86,7 +86,9 @@ def _headers(*, is_admin: bool = True) -> dict[str, str]:
     }
 
 
-def _seed_sku_row(db, *, project_id: int, source_file_id: int, day: date, sale: str) -> None:
+def _seed_sku_row(
+    db, *, project_id: int, source_file_id: int, day: date, sale: str
+) -> None:
     db.add(
         AnalysisSalesOrderRow(
             project_id=project_id,
@@ -159,9 +161,7 @@ def env():
     db = SessionLocal()
     try:
         db.execute(
-            delete(AnalysisSalesOrderRow).where(
-                AnalysisSalesOrderRow.project_id == pid
-            )
+            delete(AnalysisSalesOrderRow).where(AnalysisSalesOrderRow.project_id == pid)
         )
         db.execute(
             delete(AnalysisSourceFile).where(AnalysisSourceFile.project_id == pid)
@@ -183,7 +183,9 @@ def _url(env, *, day: date | None = None) -> str:
     )
 
 
-def _key(env, *, schema_fingerprint: str = ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT) -> str:
+def _key(
+    env, *, schema_fingerprint: str = ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT
+) -> str:
     return redis_service.make_daily_analysis_all_cache_key(
         project_ids=[env["project_id"]],
         country="US",
@@ -354,9 +356,7 @@ def test_cold_start_single_flight_waits_for_winner(fake_redis):
     redis_service.release_daily_analysis_all_lock(other_key)
 
 
-def test_cold_start_wait_timeout_falls_back_to_compute(
-    fake_redis, monkeypatch, env
-):
+def test_cold_start_wait_timeout_falls_back_to_compute(fake_redis, monkeypatch, env):
     """等待超时分支：仍返回正确数据，但不覆盖缓存（避免盖掉先到者的结果）。"""
     key = _key(env)
     monkeypatch.setattr(

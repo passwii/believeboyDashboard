@@ -250,7 +250,9 @@ def get_daily_analysis_all(
     return Response(content=body, media_type="application/json")
 
 
-@router.get("/daily-analysis/all-countries", response_model=DailyAnalysisAllCountriesResponse)
+@router.get(
+    "/daily-analysis/all-countries", response_model=DailyAnalysisAllCountriesResponse
+)
 def get_daily_analysis_all_countries(
     project_id: int,
     start_date: Annotated[str, Query(min_length=10, max_length=10)],

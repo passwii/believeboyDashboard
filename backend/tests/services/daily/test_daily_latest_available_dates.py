@@ -277,7 +277,9 @@ def test_latest_available_dates_empty_project(project_with_sources):
         result = _load_latest_available_dates(db, project_id=pid, country="US")
     finally:
         if pid is not None:
-            db.execute(delete(AnalysisSourceFile).where(AnalysisSourceFile.project_id == pid))
+            db.execute(
+                delete(AnalysisSourceFile).where(AnalysisSourceFile.project_id == pid)
+            )
             row = db.get(Project, pid)
             if row is not None:
                 db.delete(row)

@@ -109,7 +109,11 @@ def _build_asin_to_sku_map(
         if asin and sku:
             normalized_asin = asin.strip()
             normalized_sku = sku.strip()
-            if normalized_asin and normalized_sku and normalized_asin not in asin_to_sku:
+            if (
+                normalized_asin
+                and normalized_sku
+                and normalized_asin not in asin_to_sku
+            ):
                 asin_to_sku[normalized_asin] = normalized_sku
     return asin_to_sku
 
@@ -153,7 +157,15 @@ def _load_business_metrics(
     dates: set[str] = set()
     latest: date | None = None
 
-    for period_start, period_end, asin, page_views, units_ordered, sessions, sales_amount in rows:
+    for (
+        period_start,
+        period_end,
+        asin,
+        page_views,
+        units_ordered,
+        sessions,
+        sales_amount,
+    ) in rows:
         if asin is None:
             continue
         normalized_asin = asin.strip()
@@ -189,8 +201,7 @@ def _load_latest_available_dates(
 ) -> dict[str, str | None]:
     # ad 数据从 ad_upload_files 查 (C 表是 ad 报告的新体系)
     latest_ad_date: date | None = db.execute(
-        select(func.max(AdUploadFile.report_date))
-        .where(
+        select(func.max(AdUploadFile.report_date)).where(
             AdUploadFile.project_id == project_id,
             AdUploadFile.country == country,
             AdUploadFile.is_current.is_(True),
@@ -471,7 +482,8 @@ def build_daily_analysis_all_projects(
         )
 
         project_detail, project_summary = _aggregate_buckets(
-            detail_buckets, sku_filter=all_projects_sku_filter,
+            detail_buckets,
+            sku_filter=all_projects_sku_filter,
         )
         project_breakdown[project_id] = {
             "project_name": project.project_name,
@@ -505,7 +517,9 @@ def build_daily_analysis_all_projects(
         for sku, qty in project_in_transit_map.items():
             global_in_transit_map[sku] = global_in_transit_map.get(sku, 0) + qty
 
-    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=all_projects_sku_filter)
+    global_detail, global_summary = _aggregate_buckets(
+        global_buckets, sku_filter=all_projects_sku_filter
+    )
 
     # Inject in_transit_qty for global detail rows
     for row in global_detail:
@@ -602,11 +616,15 @@ def _load_usd_factors_for_countries(
                 factors[(country_value, ym)] = Decimal("1")
                 continue
 
-            source_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
-                db, currency=currency, year_month=ym
+            source_rate = (
+                exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                    db, currency=currency, year_month=ym
+                )
             )
-            usd_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
-                db, currency="USD", year_month=ym
+            usd_rate = (
+                exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                    db, currency="USD", year_month=ym
+                )
             )
             if source_rate is None or usd_rate is None:
                 raise HTTPException(
@@ -640,9 +658,7 @@ def _convert_bucket_amounts_to_usd(
     非金额字段（order_qty / impressions / clicks / ...）保持不变。
     """
     factor_by_year_month: dict[str, Decimal] = {
-        ym: usd_factors[(country, ym)]
-        for (_c, ym) in usd_factors
-        if _c == country
+        ym: usd_factors[(country, ym)] for (_c, ym) in usd_factors if _c == country
     }
     if not factor_by_year_month:
         return
@@ -776,7 +792,8 @@ def build_daily_analysis_all_countries(
         )
 
         country_detail, country_summary = _aggregate_buckets(
-            detail_buckets, sku_filter=None,
+            detail_buckets,
+            sku_filter=None,
         )
         country_in_transit_map = _load_in_transit_quantities(
             db, project_id, country_value
@@ -835,7 +852,10 @@ def build_daily_analysis_all_countries(
             "start_date": normalized_start.isoformat(),
             "end_date": normalized_end.isoformat(),
             "requested_days": len(
-                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+                [
+                    item.isoformat()
+                    for item in date_range(normalized_start, normalized_end)
+                ]
             ),
             "summary_days": len(global_summary),
             "detail_rows": len(global_detail),
@@ -856,6 +876,7 @@ def build_daily_analysis_all_countries(
         "currency": "USD",
         "currency_note": "金额字段已按当月 CNY 中转折算为 USD 统一展示；非金额字段（订单/曝光/点击/库存等）保持原值。",
     }
+
 
 def build_daily_analysis_all_projects_countries(
     db: Session,
@@ -1063,7 +1084,10 @@ def build_daily_analysis_all_projects_countries(
             "start_date": normalized_start.isoformat(),
             "end_date": normalized_end.isoformat(),
             "requested_days": len(
-                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+                [
+                    item.isoformat()
+                    for item in date_range(normalized_start, normalized_end)
+                ]
             ),
             "summary_days": len(global_summary),
             "detail_rows": len(global_detail),
