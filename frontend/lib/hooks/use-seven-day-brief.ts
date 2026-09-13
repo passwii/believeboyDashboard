@@ -123,6 +123,52 @@ function shiftYMD(ymd: string, days: number): string {
   const shifted = new Date(Date.UTC(y!, m! - 1, d!) + days * 86_400_000)
   return shifted.toISOString().slice(0, 10)
 }
+
+/**
+ * 7 天快报的 4 个统计窗口 + 覆盖它们的并集区间（BLF-1038）。
+ *
+ * 输入 endDate 为数据终点 E（调用方传美西 T-1）：
+ * - current：近 7 天 [E-6, E]
+ * - previous：上一周期 [E-13, E-7]
+ * - mtd / prevMtd：本月至今 vs 上月同期（见 mtdWindows）
+ * - union：[min(E-13, prevMtd.start), E]
+ *
+ * union 恒覆盖全部 4 个窗口（prevMtd.start 是上月 1 日，早于 E-13 时取前者），
+ * 因此一次请求即可在客户端按日期裁出各窗口，窗口口径与逐窗口分别请求一致。
+ */
+export function briefWindows(endDate: string): {
+  unionStart: string
+  unionEnd: string
+  current: { start: string; end: string }
+  previous: { start: string; end: string }
+  mtd: { start: string; end: string }
+  prevMtd: { start: string; end: string }
+} {
+  const currentStart = shiftYMD(endDate, -6)
+  const previousEnd = shiftYMD(currentStart, -1)
+  const previousStart = shiftYMD(previousEnd, -6)
+  const mtd = mtdWindows(endDate)
+  return {
+    unionStart: previousStart <= mtd.prevStart ? previousStart : mtd.prevStart,
+    unionEnd: endDate,
+    current: { start: currentStart, end: endDate },
+    previous: { start: previousStart, end: previousEnd },
+    mtd: { start: mtd.mtdStart, end: mtd.mtdEnd },
+    prevMtd: { start: mtd.prevStart, end: mtd.prevEnd },
+  }
+}
+
+/** 按 YYYY-MM-DD 闭区间裁剪行（ISO 日期可字典序比较）；无 date 的行不参与窗口。 */
+export function rowsInWindow<T extends { date?: string }>(
+  rows: T[],
+  start: string,
+  end: string
+): T[] {
+  return rows.filter(
+    (row) => typeof row.date === 'string' && row.date >= start && row.date <= end
+  )
+}
+
 /**
  * 本月至今 vs 上月同期窗口（BLF-967）。
  *
@@ -173,6 +219,10 @@ async function fetchDailyTotals(
     country: 'US',
     start_date: startDate,
     end_date: endDate,
+    // BLF-1038：本 hook 只消费 summary_rows / available_dates，不需要逐 SKU
+    // 的 detail_rows（30 天窗口实测 3.64MB vs 91KB）。后端 include_detail
+    // 默认 true，故对其它调用方零影响；参数落地前后端忽略未知 query 参数。
+    include_detail: 'false',
   })
   const response = await fetch(`/api/backend/api/v1/daily-analysis/all?${params.toString()}`, {
     cache: 'no-store',
@@ -215,27 +265,27 @@ export function useSevenDayBrief(): {
     const seq = ++requestSeqRef.current
     try {
       const today = todayYMDinTimezone()
-      // 近 7 天窗口：T-7 到 T-1（美西昨天为终点）
       const endDate = shiftYMD(today, -1)
-      const startDate = shiftYMD(endDate, -6)
-      // 上一周期窗口：紧邻的前 7 天
-      const prevEndDate = shiftYMD(startDate, -1)
-      const prevStartDate = shiftYMD(prevEndDate, -6)
+      const windows = briefWindows(endDate)
 
-      // 当前窗口 + 上一周期窗口 + 本月至今/上月同期（BLF-967，4 路并发，失败整体降级 error）
-      const mtd = mtdWindows(endDate)
-      const [current, previous, mtdCur, mtdPrev] = await Promise.all([
-        fetchDailyTotals(startDate, endDate),
-        fetchDailyTotals(prevStartDate, prevEndDate),
-        fetchDailyTotals(mtd.mtdStart, mtd.mtdEnd),
-        fetchDailyTotals(mtd.prevStart, mtd.prevEnd),
-      ])
+      // BLF-1038：4 个窗口（近 7 天 / 上一周期 / 本月至今 / 上月同期）合并为
+      // 1 次并集区间请求，取回后按日期各自裁剪。窗口间日期大量重叠，合并后
+      // 请求数 4 → 1，传输量反而少于 4 次分别取，冷路径聚合成本也约减半。
+      // 失败仍整体降级 error（与合并前 4 路并发失败同一语义）。
+      const { rows, availableDates } = await fetchDailyTotals(
+        windows.unionStart,
+        windows.unionEnd
+      )
       if (seq !== requestSeqRef.current) return
 
-      const cur = aggregateWindow(current.rows)
-      const prev = aggregateWindow(previous.rows)
-      const mtdCurAgg = aggregateWindow(mtdCur.rows)
-      const mtdPrevAgg = aggregateWindow(mtdPrev.rows)
+      const cur = aggregateWindow(rowsInWindow(rows, windows.current.start, windows.current.end))
+      const prev = aggregateWindow(
+        rowsInWindow(rows, windows.previous.start, windows.previous.end)
+      )
+      const mtdCurAgg = aggregateWindow(rowsInWindow(rows, windows.mtd.start, windows.mtd.end))
+      const mtdPrevAgg = aggregateWindow(
+        rowsInWindow(rows, windows.prevMtd.start, windows.prevMtd.end)
+      )
 
       setBrief({
         gmv: cur.gmv,
@@ -256,7 +306,9 @@ export function useSevenDayBrief(): {
         })(),
         mtdGmv: mtdCurAgg.gmv,
         mtdGmvDelta: pctChange(mtdCurAgg.gmv, mtdPrevAgg.gmv),
-        latestSalesDate: pickLatestSalesDate(current.availableDates) ?? endDate,
+        // available_dates 由后端按项目取最新日期（与请求区间无关），并集请求
+        // 得到的结果与原先「当前窗口」请求逐字节一致。
+        latestSalesDate: pickLatestSalesDate(availableDates) ?? endDate,
       })
       setStatus('ok')
     } catch {
