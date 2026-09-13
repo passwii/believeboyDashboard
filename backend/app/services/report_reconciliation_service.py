@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from decimal import Decimal
 
-import openpyxl
-
+# BLF-1036: openpyxl imported lazily — this module loads at API boot via the
+# reporting lazy router group; openpyxl pulls numpy+PIL (~40MB) that only the
+# actual reconciliation path needs.
 from app.utils.pdf_extractor import PDFExtractor
 
 
@@ -102,6 +103,8 @@ def reconcile(
     excel_sheet_name: str = "报表核算",
     tolerance: float = TOLERANCE,
 ) -> ReconciliationResult:
+    import openpyxl
+
     wb = openpyxl.load_workbook(excel_path, data_only=True)
     sheet = wb[excel_sheet_name]
 

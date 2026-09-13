@@ -4,7 +4,12 @@ Aggregates payment report rows by SKU for product analysis consumption.
 """
 from __future__ import annotations
 
-import pandas as pd
+from typing import TYPE_CHECKING
+
+# BLF-1036: pandas imported lazily (boot chain: app.services.report.monthly
+# → worker/beat import at boot); only the aggregation call sites need it.
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def build_sku_aggregate(df_payment: pd.DataFrame) -> pd.DataFrame:
@@ -75,6 +80,8 @@ def build_sku_aggregate(df_payment: pd.DataFrame) -> pd.DataFrame:
     refund_group = refund_group.drop(
         columns=["product sales", "shipping credits", "promotional rebates", "other"]
     )
+
+    import pandas as pd
 
     merged = pd.merge(sale_group, refund_group, on="sku", how="left")
     merged = pd.merge(merged, sale_refund_amz_fee, on="sku", how="left")

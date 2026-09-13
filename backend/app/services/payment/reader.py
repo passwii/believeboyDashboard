@@ -5,8 +5,12 @@ Wrapper around services.payment.locale for reading payment report CSVs.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandas as pd
+# BLF-1036: pandas import removed — pd appears only in the return annotation,
+# which ``from __future__ import annotations`` keeps unevaluated at runtime.
+if TYPE_CHECKING:
+    import pandas as pd
 
 from app.services.payment.locale import read_payment_report_dataframe
 

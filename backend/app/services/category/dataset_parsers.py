@@ -11,7 +11,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from pathlib import Path
 
-from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.models import CategoryResearchDataset
@@ -52,6 +51,8 @@ class ParsedWorkbookPayload:
 
 def _parse_workbook(path: Path) -> ParsedWorkbookPayload:
     """Parse category research Excel workbook."""
+    from openpyxl import load_workbook
+
     wb = load_workbook(path, data_only=True)
     product_rows: list[dict[str, Any]] = []
     trend_rows: list[dict[str, Any]] = []

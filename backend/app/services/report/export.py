@@ -9,12 +9,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, NamedStyle, PatternFill, Side
-from openpyxl.utils import get_column_letter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -28,6 +25,12 @@ from app.models import (
 )
 from app.models.job import JobStatus
 from app.utils.country import get_country_label_cn, normalize_country
+
+# BLF-1036: openpyxl imported lazily — this module loads at API/worker/beat boot
+# via app.services.report.monthly; openpyxl pulls numpy+PIL (~40MB) that the
+# report-pipeline processes only need when actually exporting an xlsx.
+if TYPE_CHECKING:
+    from openpyxl import Workbook
 
 from app.services.report.pt3 import (
     _build_accounting_rows,
@@ -332,6 +335,8 @@ def _rows_to_sheet(ws, rows: list[dict[str, object]]) -> None:
 
 
 def _auto_width(ws) -> None:
+    from openpyxl.utils import get_column_letter
+
     """Set column widths based on content.
 
     Args:
@@ -378,6 +383,8 @@ def _excel_num_fmt(format_key: str, currency_code: str = "USD") -> str | None:
 
 
 def _apply_excel_border(cell, color: str = "FFE2E8F0") -> None:
+    from openpyxl.styles import Border, Side
+
     """Apply standard border to cell.
 
     Args:
@@ -393,6 +400,8 @@ def _apply_excel_border(cell, color: str = "FFE2E8F0") -> None:
 
 
 def _apply_monthly_like_styles(workbook: Workbook) -> None:
+    from openpyxl.styles import Alignment, Border, Font, NamedStyle, PatternFill, Side
+
     """Apply consistent styling to all sheets in workbook.
 
     Args:
@@ -472,6 +481,8 @@ def _apply_monthly_like_styles(workbook: Workbook) -> None:
 
 
 def _auto_width_for_report_sheet_service(ws) -> None:
+    from openpyxl.utils import get_column_letter
+
     """Set column widths for report sheets (supports Chinese characters).
 
     Args:
@@ -495,6 +506,8 @@ def _auto_width_for_report_sheet_service(ws) -> None:
 def _style_accounting_summary_rows(
     ws, rows: list[dict[str, Any]], currency_code: str = "USD"
 ) -> None:
+    from openpyxl.styles import Border, Font, PatternFill, Side
+
     """Post-style the 报表核算 sheet to highlight the spacer and total rows.
 
     `_apply_monthly_like_styles` already gives every cell a uniform sty1/sty2
@@ -638,6 +651,8 @@ def export_financial_accounting_detail_workbook(
     Returns:
         Tuple of (filename, file_bytes)
     """
+    from openpyxl import Workbook
+
     month = _parse_report_month(report_month)
     report, pt3 = _load_report_with_pt3_or_404(
         db,

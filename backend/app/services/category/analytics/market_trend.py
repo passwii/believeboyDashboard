@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
+# BLF-1036: numpy imported lazily (boot chain: endpoints.category_research).
 
 
 def build_market_growth(trend_rows: list) -> dict[str, Any]:
     """Calculate market growth metrics."""
+    import numpy as np
     from app.services.category.sales_trend import aggregate_market_monthly_sales
 
     monthly_totals = aggregate_market_monthly_sales(trend_rows)
@@ -92,6 +93,7 @@ def build_market_growth(trend_rows: list) -> dict[str, Any]:
 
 def build_seasonality(trend_rows: list) -> dict[str, Any]:
     """Calculate seasonality metrics."""
+    import numpy as np
     from app.services.category.sales_trend import aggregate_market_monthly_sales
 
     monthly_totals = aggregate_market_monthly_sales(trend_rows)
@@ -171,6 +173,7 @@ def build_seasonality(trend_rows: list) -> dict[str, Any]:
 
 def build_asin_momentum(trend_rows: list, *, limit: int = 30) -> list[dict[str, Any]]:
     """Calculate ASIN momentum metrics."""
+    import numpy as np
     grouped: dict[str, list[tuple[str, int]]] = {}
     for item in trend_rows:
         asin = (item.asin or '').strip().upper()

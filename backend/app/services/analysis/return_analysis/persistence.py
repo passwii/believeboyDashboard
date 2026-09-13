@@ -13,9 +13,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+# BLF-1036: pandas imported lazily (boot chain: endpoints.return_analysis);
+# only _build_sub_dataframe needs it at runtime.
+if TYPE_CHECKING:
+    import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -232,6 +235,8 @@ def _build_sub_dataframe(
 
     We match by order-id and return-date since those are the natural keys.
     """
+    import pandas as pd
+
     if not parsed_rows:
         return original_df.iloc[0:0]  # Empty df with same columns
 

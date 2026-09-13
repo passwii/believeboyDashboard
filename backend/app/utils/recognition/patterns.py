@@ -7,10 +7,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pandas as pd
-
+# BLF-1036: pandas imported lazily — this module sits on the API boot chain via
+# app.api.v1.endpoints.agent.upload; recognition only needs pandas when an
+# actual report file is being recognized.
 if TYPE_CHECKING:
-    from zoneinfo import ZoneInfo
+    import pandas as pd
+
+
 
 OPENPYXL_MISSING_DEFAULT_STYLE_WARNING = (
     r"Workbook contains no default style, apply openpyxl's default"
@@ -29,6 +32,8 @@ COUNTRY_TIMEZONE: dict[str, str] = {
 
 
 def _read_excel(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -39,7 +44,8 @@ def _read_excel(path: Path) -> pd.DataFrame:
 
 
 def _read_csv_with_encoding_fallback(path: Path, sep: str = "\t") -> pd.DataFrame:
-    """Try UTF-8 first, fall back to CP1252 (Windows-1252) if decode fails."""
+    import pandas as pd
+
     for encoding in ("utf-8-sig", "cp1252"):
         try:
             return pd.read_csv(path, sep=sep, encoding=encoding)
@@ -82,6 +88,8 @@ def _normalize_identifier(value: object) -> str:
 
 
 def _date_to_string(value: object) -> str | None:
+    import pandas as pd
+
     if value is None or value == "":
         return None
     try:
@@ -95,6 +103,8 @@ def _date_to_string(value: object) -> str | None:
 
 def _date_to_string_by_country(value: object, country: str) -> str | None:
     """Convert date to string, applying timezone conversion for the given country."""
+    import pandas as pd
+
     if value is None or value == "":
         return None
     try:

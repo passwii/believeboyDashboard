@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+# BLF-1036: pandas imported lazily — this module loads at API boot via
+# endpoints.category_research; pd is only needed when computing price bands.
+if TYPE_CHECKING:
+    import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.models import CategoryResearchProductDetail, CategoryResearchSalesTrend
@@ -92,6 +95,8 @@ def build_quantile_price_bands(prices: list[float]) -> list[dict[str, Any]]:
     if not prices:
         return []
 
+    import pandas as pd
+
     series = pd.Series(prices)
     quantiles = series.quantile([0.25, 0.5, 0.75, 1.0]).tolist()
     p25, p50, p75, p100 = [float(item) for item in quantiles]
@@ -120,6 +125,8 @@ def build_price_stats(prices: list[float]) -> dict[str, float]:
     """Build price statistics (mean, median, percentiles)."""
     if not prices:
         return {'mean': 0.0, 'median': 0.0, 'p25': 0.0, 'p75': 0.0}
+
+    import pandas as pd
 
     series = pd.Series(prices)
     return {

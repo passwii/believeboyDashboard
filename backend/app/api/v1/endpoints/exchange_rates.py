@@ -5,7 +5,6 @@ from io import BytesIO
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
@@ -226,6 +225,9 @@ async def upload_exchange_rate_image(file: UploadFile = File(...)) -> ExchangeRa
     payload = await file.read()
     if not payload or len(payload) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='File size exceeds 10MB')
+
+    # BLF-1036: PIL imported lazily — this endpoint runs at API boot otherwise.
+    from PIL import Image, ImageOps, UnidentifiedImageError
 
     try:
         image = Image.open(BytesIO(payload))

@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-import numpy as np
+# BLF-1036: numpy imported lazily (boot chain: endpoints.category_research
+# → category.analytics); only the metric builders need it.
 
 
 def is_china_seller(item) -> bool:
@@ -41,6 +42,8 @@ def is_amazon_seller(seller: str | None, bbx_attr: str | None) -> bool:
 
 def build_china_seller_competition(rows: list) -> dict[str, Any]:
     """Calculate China seller competition metrics."""
+    import numpy as np
+
     seller_set: set[str] = set()
     china_seller_set: set[str] = set()
     total_sales = 0
@@ -78,6 +81,8 @@ def build_supply_complexity(
     prices: list[float],
 ) -> dict[str, float]:
     """Calculate supply complexity metrics."""
+    import numpy as np
+
     total_fulfillment = sum(int(value) for value in fulfillment_counter.values())
     active_counts = [int(value) for value in fulfillment_counter.values() if int(value) > 0]
 

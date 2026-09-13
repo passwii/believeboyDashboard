@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import warnings
 
-import numpy as np
-import pandas as pd
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment, Border, Font, Side
-from openpyxl.utils import get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows
+# BLF-1036: pandas / numpy / openpyxl imported lazily. This script loads at
+# API/worker boot via app.services.product.analysis (script_registry); the
+# whole heavy stack is only needed when a product-analysis report is built.
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+    from openpyxl import Workbook
+
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
@@ -47,6 +49,9 @@ def _safe_project_name(project_name: str) -> str:
 
 
 def _safe_div(numerator: pd.Series | float, denominator: pd.Series | float) -> pd.Series | float:
+    import numpy as np
+    import pandas as pd
+
     if isinstance(numerator, pd.Series):
         den = denominator if isinstance(denominator, pd.Series) else pd.Series(denominator, index=numerator.index)
         return np.where(den == 0, 0, numerator / den)
@@ -62,18 +67,24 @@ def _format_report_date(report_start_date: str, report_end_date: str) -> str:
 
 
 def _read_excel_without_style_warning(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
         return pd.read_excel(path, engine='openpyxl')
 
 
 def _load_workbook_without_style_warning(path: Path) -> Workbook:
+    from openpyxl import load_workbook
+
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', message=OPENPYXL_MISSING_DEFAULT_STYLE_WARNING, category=UserWarning)
         return load_workbook(path)
 
 
 def _read_business_report(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     df = pd.read_csv(path, encoding='utf-8-sig')
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -114,6 +125,8 @@ def _read_business_report(path: Path) -> pd.DataFrame:
 
 
 def _read_ad_report(path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     df = _read_excel_without_style_warning(path)
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -152,6 +165,8 @@ from app.utils.country import normalize_country
 
 
 def _load_project_costs_df(project_name: str, country: str, year_month: str | None = None) -> pd.DataFrame:
+    import pandas as pd
+
     db = SessionLocal()
     try:
         stmt = select(SkuRecord).where(
@@ -193,6 +208,8 @@ def _load_project_costs_df(project_name: str, country: str, year_month: str | No
 
 
 def _build_payment_aggregate(df_payment: pd.DataFrame) -> pd.DataFrame:
+    import pandas as pd
+
     df_order_and_refund = df_payment.loc[df_payment['type'].isin(['Order', 'Refund'])]
     df_orders = df_payment.loc[df_payment['type'] == 'Order']
     df_refunds = df_payment.loc[df_payment['type'] == 'Refund']
@@ -248,6 +265,8 @@ def _build_overview(
     df_ad: pd.DataFrame,
     df_payment: pd.DataFrame,
 ) -> pd.DataFrame:
+    import pandas as pd
+
     df_merge = pd.merge(df_cost, df_ad, on='SKU', how='left')
     df_merge = pd.merge(df_merge, df_business, on='ASIN', how='left')
     df_merge = pd.merge(df_merge, df_payment, on='SKU', how='left')
@@ -366,6 +385,8 @@ def _build_overview(
 
 
 def _append_summary_row(df_overview: pd.DataFrame, report_date: str) -> pd.DataFrame:
+    import pandas as pd
+
     sum_columns = {
         '总销量',
         '总销售额',
@@ -423,6 +444,8 @@ def _append_summary_row(df_overview: pd.DataFrame, report_date: str) -> pd.DataF
 
 
 def _to_python_scalar(value: Any) -> Any:
+    import numpy as np
+
     if isinstance(value, np.generic):
         return value.item()
     return value
@@ -444,6 +467,8 @@ def _build_pt1_payload(df_overview: pd.DataFrame) -> dict[str, Any]:
 
 
 def _load_template_or_create() -> Workbook:
+    from openpyxl import Workbook, load_workbook
+
     backend_root = Path(__file__).resolve().parents[3]
     template = backend_root / 'storage' / 'model-file' / 'product_analysis_template.xlsx'
     if template.exists():
@@ -454,6 +479,10 @@ def _load_template_or_create() -> Workbook:
 
 
 def _apply_sheet_data(ws, df: pd.DataFrame, bold_last_row: bool = True) -> None:
+    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
     thin = Side(style='thin', color='000000')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal='center', vertical='center')
@@ -481,6 +510,10 @@ def _apply_sheet_data(ws, df: pd.DataFrame, bold_last_row: bool = True) -> None:
 
 
 def _build_inventory_sheet(workbook: Workbook, inventory_path: Path, df_overview: pd.DataFrame) -> None:
+    import pandas as pd
+    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.utils import get_column_letter
+
     try:
         inv_df = pd.read_csv(inventory_path, sep='\t', encoding='utf-8-sig')
     except Exception:
