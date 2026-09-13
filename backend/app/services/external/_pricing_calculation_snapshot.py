@@ -27,12 +27,12 @@ columns come from the snapshot header (synthetic id = ``snapshot_id *
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.services import pricing_calculation_snapshot_service
 from app.schemas.external.shop_calculation import ShopCalculationHistoryRow
+from app.services import pricing_calculation_snapshot_service
+from app.services.pricing.anchor import _anchor_from_item
 
 
 def find_pricing_snapshot_as_of(
@@ -40,8 +40,9 @@ def find_pricing_snapshot_as_of(
     *,
     project_id: int,
     country: str,
-    as_of: Optional[date] = None,
-) -> tuple[int | None, List[ShopCalculationHistoryRow]]:
+    as_of: date | None = None,
+    target_net_margin: float | None = None,
+) -> tuple[int | None, list[ShopCalculationHistoryRow]]:
     """Return ``(snapshot_id, rows)`` for the latest snapshot ≤ ``as_of``.
 
     Returns ``(None, [])`` if no snapshot exists for the project/country
@@ -50,6 +51,10 @@ def find_pricing_snapshot_as_of(
 
     The function does **not** validate project existence; the endpoint
     layer wraps ``projects_query.project_exists`` for 404 handling.
+
+    ``target_net_margin``（BLF-1043）：传入则每行额外带
+    ``target_advertising_rate``。快照是无历史行，但明细行本身存了全部费用拆项，
+    所以锚在服务端纯代数推导，不落库、零迁移。
     """
     snapshot_id = _find_latest_snapshot_id(
         db, project_id=project_id, country=country, as_of=as_of
@@ -63,8 +68,11 @@ def find_pricing_snapshot_as_of(
         # race condition; treat as not found.
         return None, []
 
-    rows: List[ShopCalculationHistoryRow] = []
+    rows: list[ShopCalculationHistoryRow] = []
     for item in detail.items:
+        # BLF-1043：快照的 BI 扁平行与服务端推的同行口径一致 —— 用同一个 helper
+        # 从明细行的费用拆项推导锚（纯代数，不查库）。
+        anchor = _anchor_from_item(item, target_net_margin=target_net_margin)
         rows.append(
             ShopCalculationHistoryRow(
                 id=item.id,
@@ -83,6 +91,9 @@ def find_pricing_snapshot_as_of(
                 profit_rate=item.profit.profit_rate,
                 payout_usd=item.profit.payout_usd,
                 total_fee_usd=item.fees.total_fee_usd,
+                breakeven_advertising_rate=anchor.breakeven_advertising_rate,
+                max_ad_spend_per_unit_usd=anchor.max_ad_spend_per_unit_usd,
+                target_advertising_rate=anchor.target_advertising_rate,
                 created_at=item.created_at,
                 updated_at=item.updated_at,
             )
@@ -95,8 +106,8 @@ def _find_latest_snapshot_id(
     *,
     project_id: int,
     country: str,
-    as_of: Optional[date],
-) -> Optional[int]:
+    as_of: date | None,
+) -> int | None:
     """Return the id of the latest snapshot ≤ ``as_of`` (or any date if None).
 
     Walks ``pricing_calculation_snapshot_service.list_snapshots`` which is

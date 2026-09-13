@@ -39,13 +39,13 @@ from app.schemas.shop_calculation_agent import (
     AgentCalculationSource,
     AgentShopCalculationAppendRequest,
     AgentShopCalculationComputeRequest,
-    ComputeMode,
 )
 from app.services import shop_calculation_service
 from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log_for_targets,
 )
+from app.services.pricing.anchor import _anchor_from_amounts, _anchor_from_computed
 from app.services.pricing.computation import _compute_eu_pricing, _compute_pricing
 
 shop_calculations_router = APIRouter(
@@ -140,6 +140,24 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+ANCHOR_QUERY_DOCS = {
+    "include_anchor": "是否返回定价派生块 anchor（BLF-1043）；false 时响应与旧版逐字节一致",
+    "target_net_margin": (
+        "目标净利率（可选，-1~1）；传入则 anchor 额外返回 "
+        "target_advertising_rate = 盈亏平衡广告费率 − target_net_margin"
+    ),
+}
+
+
+def _dump_item(item: object, *, include_anchor: bool) -> dict:
+    """item → JSON-safe dict；``include_anchor=False`` 时**剔除** anchor 键。
+
+    剔除而不是置 null：前者才能满足「与旧响应逐字节一致」的 parity 断言。
+    """
+    exclude = set() if include_anchor else {"anchor"}
+    return item.model_dump(mode="json", exclude=exclude)  # type: ignore[attr-defined]
+
+
 # ============================================================
 # 读路由
 # ============================================================
@@ -152,6 +170,10 @@ def list_shop_calculations(
     country: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=500),
+    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    target_net_margin: float | None = Query(
+        default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
+    ),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """R1 店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）。"""
@@ -163,10 +185,11 @@ def list_shop_calculations(
             country=country,
             page=page,
             page_size=page_size,
+            target_net_margin=target_net_margin,
         )
     return agent_ok(
         {
-            "items": [item.model_dump(mode="json") for item in items],
+            "items": [_dump_item(item, include_anchor=include_anchor) for item in items],
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -192,6 +215,10 @@ def get_shop_calculation_sku(
     sku: str,
     db: Session = Depends(get_read_db_session),
     country: str | None = Query(default=None),
+    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    target_net_margin: float | None = Query(
+        default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
+    ),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """R2 SKU 详情：当前态最新行；country 缺省时多国家 → 400 AMBIGUOUS。"""
@@ -210,7 +237,10 @@ def get_shop_calculation_sku(
             ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY,
             details=[{"country": str(row.country)} for row in rows],
         )
-    return agent_ok(shop_calculation_service._to_item(rows[0]).model_dump(mode="json"))
+    item = shop_calculation_service._to_item(
+        rows[0], target_net_margin=target_net_margin
+    )
+    return agent_ok(_dump_item(item, include_anchor=include_anchor))
 
 
 @shop_calculations_router.get("/skus/{sku}/history")
@@ -223,6 +253,10 @@ def list_shop_calculation_history(
     to: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    include_anchor: bool = Query(default=True, description=ANCHOR_QUERY_DOCS["include_anchor"]),
+    target_net_margin: float | None = Query(
+        default=None, ge=-1, le=1, description=ANCHOR_QUERY_DOCS["target_net_margin"]
+    ),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """R3 SKU 历史：append-only 全部版本（observed_at 倒序）+ from/to/分页薄壳。"""
@@ -236,6 +270,7 @@ def list_shop_calculation_history(
             sku=sku,
             country=country,
             include_deleted=False,
+            target_net_margin=target_net_margin,
         )
     filtered = [
         item
@@ -247,7 +282,9 @@ def list_shop_calculation_history(
     page_items = filtered[offset : offset + limit]
     return agent_ok(
         {
-            "items": [item.model_dump(mode="json") for item in page_items],
+            "items": [
+                _dump_item(item, include_anchor=include_anchor) for item in page_items
+            ],
             "total": total,
         }
     )
@@ -275,7 +312,7 @@ def get_shop_calculation_audit(
             ErrorCode.RESOURCE_NOT_FOUND,
             human_message=f"SKU {sku} 在本项目不存在店铺测算记录",
         )
-    target_ids = [row.id for row in history]
+    target_ids: list[str | int] = [row.id for row in history]
     rows = query_operation_audit_log_for_targets(
         db,
         target_type="shop_calculation",
@@ -398,6 +435,19 @@ def _preview_append(body: dict, request: Request) -> dict:
         if overwrites
         else "将新增一条当前快照（append-only 保留历史）"
     )
+    # BLF-1043：预览也带 anchor（写前就能看到盈亏平衡广告费率，无需等落库）。
+    # 请求体自带全量费用拆项，故纯代数推导、不查库。target_net_margin 不由 W1 传入
+    # （它不是快照字段），故两个 target 字段为 null。
+    anchor = _anchor_from_amounts(
+        total_fee_usd=req.total_fee_usd,
+        advertising_fee_usd=req.advertising_fee_usd,
+        ddp_cost_usd=req.ddp_cost_usd,
+        sale_price_usd=req.sale_price_usd,
+        vat_usd=req.vat_usd if req.profit_after_vat_rate is not None else None,
+        usd_to_rmb_rate=req.usd_to_rmb_rate,
+        usd_to_rmb_rate_source=req.usd_to_rmb_rate_source,
+        observed_at=req.observed_at,
+    )
     return {
         "action": "shop_calculation.append",
         "sku": req.sku,
@@ -411,6 +461,7 @@ def _preview_append(body: dict, request: Request) -> dict:
         "overwrites_current": overwrites,
         "previous_sale_price_usd": previous_price,
         "warnings_count": len(req.warnings),
+        "anchor": anchor.model_dump(mode="json"),
         "note": note,
     }
 
@@ -528,6 +579,10 @@ def _engine_to_run_item(
         "full_container_quantity": 0.0,
         "full_container_price_rmb": 0.0,
         "competitor_url": None,
+        # BLF-1043：派生块挂在试算行上（与 /shop-calculation 读取同口径）。
+        "anchor": _anchor_from_computed(
+            computed, target_net_margin=request.target_net_margin
+        ).model_dump(mode="json"),
     }
 
 
@@ -620,6 +675,11 @@ def _engine_to_snapshot(
         if profit.get("profit_after_vat_rate") is not None
         else None
     )
+    # BLF-1043：snapshot 同样带 anchor（agent 可直接看到打平前的广告费上限）；
+    # 多余的键在 POST W1 时被 ``AgentShopCalculationAppendRequest`` 忽略（extra=ignore）。
+    snapshot["anchor"] = _anchor_from_computed(
+        computed, target_net_margin=request.target_net_margin
+    ).model_dump(mode="json")
     return snapshot
 
 
@@ -644,12 +704,14 @@ def compute_shop_calculation(
                 human_message=str(exc),
                 details=[{"engine": str(exc)}],
             ) from None
+    anchor = _anchor_from_computed(computed, target_net_margin=payload.target_net_margin)
     return agent_ok(
         {
             "mode": payload.mode,
             "calculation": _engine_to_run_item(computed, payload, payload.mode),
             "snapshot": _engine_to_snapshot(computed, payload, payload.mode),
-            "usd_to_rmb_rate": float(computed["usd_to_rmb_rate"]),
-            "usd_to_rmb_rate_source": computed["usd_to_rmb_rate_source"],
+            # 汇率同一份来源：从 anchor.basis 取，避免散落的 float() 窄化
+            "usd_to_rmb_rate": anchor.basis.usd_to_rmb_rate,
+            "usd_to_rmb_rate_source": anchor.basis.usd_to_rmb_rate_source,
         }
     )

@@ -147,13 +147,18 @@ class AgentShopCalculationComputeRequest(BaseModel):
     inbound_placement_mode: InboundPlacementMode = "single_destination"
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
+    # 目标净利率（BLF-1043，可选）：响应 anchor 里额外返回
+    # target_advertising_rate = 盈亏平衡广告费率 − target_net_margin。
+    # 允许负值（「清库存」档允许亏），故 ge=-1 而不是 ge=0。
+    target_net_margin: float | None = Field(default=None, ge=-1, le=1)
+
     # EU 专属（mode=eu_accounting 时手动填写费，默认 0）
     delivery_fee_usd: float = Field(default=0.0, ge=0, le=100000)
     inbound_config_fee_usd: float = Field(default=0.0, ge=0, le=100000)
     storage_fee_usd: float = Field(default=0.0, ge=0, le=100000)
 
     @model_validator(mode="after")
-    def _check_country_mode(self) -> "AgentShopCalculationComputeRequest":
+    def _check_country_mode(self) -> AgentShopCalculationComputeRequest:
         if self.mode == "eu_accounting" and self.country not in ("DE", "UK"):
             raise ValueError("eu_accounting 模式 country 必须是 DE 或 UK")
         if self.mode == "profit_calc" and self.country != "US":

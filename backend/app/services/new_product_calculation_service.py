@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -11,10 +10,16 @@ from app.schemas.new_product_calculation import (
     NewProductCalculationCreateRequest,
     NewProductCalculationItem,
 )
+from app.services.pricing.anchor import _anchor_from_amounts
 
 
 def _to_item(row: NewProductCalculation) -> NewProductCalculationItem:
-    """将数据库模型转换为 API 响应（2026-08-03 由 _to_item(StoreSkuPricingSnapshot) 改名）"""
+    """将数据库模型转换为 API 响应（2026-08-03 由 _to_item(StoreSkuPricingSnapshot) 改名）。
+
+    同时由行上已有的费用拆项派生 ``anchor``（BLF-1043：读取时派生、零迁移），
+    并以行上已有的 ``target_profit_rate`` 作为目标净利率 —— 本域的
+    「给目标利润 → 反算广告费率」即 ``anchor.target_advertising_rate``。
+    """
     return NewProductCalculationItem(
         id=row.id,
         project_id=row.project_id,
@@ -97,6 +102,22 @@ def _to_item(row: NewProductCalculation) -> NewProductCalculationItem:
             if row.profit_after_vat_rate is not None
             else None,
         },
+        # BLF-1043：用行上的 Decimal 列而不是上面拍平的 float（避免二次舍入）。
+        anchor=_anchor_from_amounts(
+            total_fee_usd=row.total_fee_usd,
+            advertising_fee_usd=row.advertising_fee_usd,
+            ddp_cost_usd=row.ddp_cost_usd,
+            sale_price_usd=row.sale_price_usd,
+            vat_usd=(
+                (getattr(row, "vat_usd", None) or Decimal(0))
+                if row.profit_after_vat_rate is not None
+                else None
+            ),
+            usd_to_rmb_rate=row.usd_to_rmb_rate,
+            usd_to_rmb_rate_source=row.usd_to_rmb_rate_source,
+            observed_at=row.observed_at,
+            target_net_margin=row.target_profit_rate,
+        ),
         warnings=row.warnings_json or [],
         notes=row.notes,
         source=row.source,

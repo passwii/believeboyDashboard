@@ -37,10 +37,10 @@ from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (
     ShopCalculationSnapshotsResponse,
 )
-from app.services.external import projects_query
 from app.services.external import (
     _pricing_calculation_snapshot as pricing_snap_svc,
 )
+from app.services.external import projects_query
 
 pricing_snapshots_router = APIRouter(
     prefix="/projects/{project_id}",
@@ -103,10 +103,24 @@ def get_agent_pricing_snapshot_as_of(
         ),
     ),
     country: str = Query(default="US"),
+    target_net_margin: float | None = Query(
+        default=None,
+        ge=-1,
+        le=1,
+        description=(
+            "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate"
+            "（BLF-1043）"
+        ),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
-    """定价目录冻结：最近一次 ``snapshot_date ≤ as_of`` 的全 SKU 经济账。"""
+    """定价目录冻结：最近一次 ``snapshot_date ≤ as_of`` 的全 SKU 经济账。
+
+    BLF-1043：每行带三个派生列（``breakeven_advertising_rate`` /
+    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate``）；快照明细行本身
+    存了全部费用拆项，故锚在服务端纯代数推导，不落库、零迁移。
+    """
     with _service_errors():
         try:
             normalized_country = parse_country(country)
@@ -124,6 +138,7 @@ def get_agent_pricing_snapshot_as_of(
             project_id=project_id,
             country=normalized_country,
             as_of=as_of_date,
+            target_net_margin=target_net_margin,
         )
         if snapshot_id is None:
             if as_of_date is not None:

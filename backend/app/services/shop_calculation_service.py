@@ -11,10 +11,18 @@ from app.schemas.shop_calculation import (
     ShopCalculationCreateRequest,
     ShopCalculationItem,
 )
+from app.services.pricing.anchor import _anchor_from_amounts
 
 
-def _to_item(row: ShopCalculation) -> ShopCalculationItem:
-    """将数据库模型转换为 API 响应"""
+def _to_item(
+    row: ShopCalculation, *, target_net_margin: float | None = None
+) -> ShopCalculationItem:
+    """将数据库模型转换为 API 响应。
+
+    ``target_net_margin``（BLF-1043）：调用方传了目标净利率时，``anchor`` 里额外
+    回填 ``target_advertising_rate = breakeven − target_net_margin``；不传则两字段
+    均为 null。
+    """
     return ShopCalculationItem(
         id=row.id,
         project_id=row.project_id,
@@ -97,6 +105,25 @@ def _to_item(row: ShopCalculation) -> ShopCalculationItem:
             if row.profit_after_vat_rate is not None
             else None,
         },
+        # BLF-1043 定价派生块：读取时派生（零迁移、不写库）。
+        # 直接取行上的 Decimal 列而不是上面拍平的 float，避免二次舍入；
+        # EU 的 platform_fee_usd 是 referral_fee_usd 的别名（同一笔佣金），
+        # 不进 total_fee_usd，所以这里也不用再减/加它。
+        anchor=_anchor_from_amounts(
+            total_fee_usd=row.total_fee_usd,
+            advertising_fee_usd=row.advertising_fee_usd,
+            ddp_cost_usd=row.ddp_cost_usd,
+            sale_price_usd=row.sale_price_usd,
+            vat_usd=(
+                getattr(row, "vat_usd", Decimal("0")) or Decimal("0")
+                if row.profit_after_vat_rate is not None
+                else None
+            ),
+            usd_to_rmb_rate=row.usd_to_rmb_rate,
+            usd_to_rmb_rate_source=row.usd_to_rmb_rate_source,
+            observed_at=row.observed_at,
+            target_net_margin=target_net_margin,
+        ),
         warnings=row.warnings_json or [],
         notes=row.notes,
         created_by=row.created_by,
@@ -244,6 +271,7 @@ def list_by_project(
     country: str | None = None,
     page: int = 1,
     page_size: int = 200,
+    target_net_margin: float | None = None,
 ) -> tuple[list[ShopCalculationItem], int]:
     """查询店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）。"""
     safe_page = max(page, 1)
@@ -268,7 +296,7 @@ def list_by_project(
         .all()
     )
 
-    return [_to_item(row) for row in rows], total
+    return [_to_item(row, target_net_margin=target_net_margin) for row in rows], total
 
 
 def list_history(
@@ -278,6 +306,7 @@ def list_history(
     sku: str | None = None,
     country: str | None = None,
     include_deleted: bool = False,
+    target_net_margin: float | None = None,
 ) -> list[ShopCalculationItem]:
     """查询某店铺（可指定 SKU / 国家）的全部历史行，按 observed_at 倒序。
 
@@ -292,7 +321,7 @@ def list_history(
         stmt = stmt.where(ShopCalculation.deleted_at.is_(None))
     stmt = stmt.order_by(ShopCalculation.observed_at.desc(), ShopCalculation.id.desc())
     rows = db.execute(stmt).scalars().all()
-    return [_to_item(row) for row in rows]
+    return [_to_item(row, target_net_margin=target_net_margin) for row in rows]
 
 
 # ── 删除（软删除）──────────────────────────────────────────────────────────────
