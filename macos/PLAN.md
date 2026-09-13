@@ -68,7 +68,9 @@ idle → loading → (loaded | failed(APIError))
 | 长任务 | 复用后端 Job 模型（`/api/v1/jobs`）轮询；桌面端用 `Task` + 退避，不用 Timer |
 | 取消 | 视图 `task {}` 绑定生命周期；切换模块即取消上一模块的未完成请求 |
 | 错误 | 统一 `APIError`（transport / http(status, body) / decoding / unauthorized），只在一处映射文案 |
-| 超时 | 沿用 Web 代理的**分层超时表**（`frontend/lib/server/backend-proxy-timeout-policy.ts`）：流式=无限、报表=60s、AI=30s、统计=15s、详情=10s、列表=5s |
+| 超时 | 沿用 Web 代理的**分层超时表**（`frontend/lib/server/backend-proxy-timeout-policy.ts`）：流式=`RequestTier.unboundedTimeout`（见下）、报表=60s、AI=30s、统计=15s、详情=10s、列表=5s |
+
+> **流式档「无超时」的实现口径**：`URLRequest` 没有"禁用超时"开关，**不写** `timeoutInterval` 只会拿到 Foundation 默认的 60s（SSE / NDJSON 数据间隙超 60s 即被掐断）。因此流式档显式写入 `RequestTier.unboundedTimeout`（365 天）作为「极大有限值」；真正的无限等待需靠会话级 `URLSessionConfiguration.timeoutIntervalForResource`（默认 7 天）兜底。
 
 > 严格并发下 `URLSession`、`Decodable` 模型一律 `Sendable`；跨 actor 传递的响应模型全部 `struct` + `Sendable`。
 

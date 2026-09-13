@@ -70,7 +70,7 @@ public struct RootView: View {
                 }
 
                 HStack(spacing: 8) {
-                    TextField("自定义地址（留空则用上方环境，需含 http/https）", text: binding(for: \.customBaseURL))
+                    TextField("自定义地址（根地址、不含路径；留空则用上方环境）", text: binding(for: \.customBaseURL))
                         .textFieldStyle(.roundedBorder)
                     Button("清除") { model.customBaseURL = "" }
                         .disabled(model.customBaseURL.isEmpty)
@@ -145,6 +145,13 @@ public struct RootView: View {
 
                 if let snapshot = model.phase.snapshot {
                     resultRows(for: snapshot)
+                } else if let block = model.phase.credentialBlock {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.orange)
+                        Text("检查未发起：\(block)")
+                            .font(.callout)
+                    }
                 } else if !model.phase.isChecking {
                     Text("按 ⌘R 或点击「检查连接」发起探测。")
                         .font(.callout)
@@ -165,16 +172,18 @@ public struct RootView: View {
             )
             statusRow(
                 title: "完整健康 /health（含鉴权）",
-                ok: snapshot.health != nil,
-                detail: snapshot.health.map { "status=\($0.status) · env=\($0.version ?? "unknown")" }
-                    ?? snapshot.healthError?.displayMessage ?? "未请求"
+                ok: snapshot.health?.isOverallHealthy ?? false,
+                detail: snapshot.health.map { health in
+                    let summary = "status=\(health.status) · env=\(health.version ?? "unknown")"
+                    return health.isOverallHealthy ? summary : summary + " · 存在异常依赖，见下方明细"
+                } ?? snapshot.healthError?.displayMessage ?? "未请求"
             )
             if let health = snapshot.health {
                 statusRow(title: "主库", ok: health.isDatabaseHealthy, detail: health.database)
                 statusRow(title: "只读副本", ok: health.isReplicaHealthy, detail: health.databaseReplica)
                 statusRow(title: "Redis", ok: health.isEmptyOrHealthyRedis, detail: health.redis)
                 if let memory = health.redisMemory {
-                    statusRow(title: "Redis 内存", ok: true, detail: memory)
+                    statusRow(title: "Redis 内存", ok: health.isRedisMemoryUsable, detail: memory)
                 }
             }
         }

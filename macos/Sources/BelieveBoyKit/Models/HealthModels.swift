@@ -33,6 +33,31 @@ public struct HealthStatus: Decodable, Sendable, Equatable {
     public var isEmptyOrHealthyRedis: Bool {
         redis == "not configured" || Self.isHealthy(redis)
     }
+
+    /// `redis_memory` 是否为可信读数。后端在 `INFO memory` 失败时写 `unavailable`、
+    /// 取不到字段时写 `unknown` —— 两者都只是「没读到」，不能当作绿色。
+    /// `nil`（未配置 Redis，后端不返回该字段）不算异常，故不在此判定内。
+    public var isRedisMemoryUsable: Bool {
+        guard let redisMemory else { return false }
+        return Self.isHealthy(redisMemory) && redisMemory.lowercased() != "unknown"
+    }
+
+    /// 全部明细依赖是否健康。明细行与总体行共用这套判定，避免两处口径漂移。
+    public var hasHealthyDependencies: Bool {
+        isDatabaseHealthy && isReplicaHealthy && isEmptyOrHealthyRedis
+            && (redisMemory == nil || isRedisMemoryUsable)
+    }
+
+    /// 总体是否健康 —— UI 的绿勾判定。
+    ///
+    /// 以 `status` 为权威，而不是「拿到了响应就算健康」：后端在主库/副本异常时仍返回
+    /// HTTP 200 + `status: "degraded"`（`backend/app/api/v1/endpoints/health.py`），
+    /// 只看响应是否有值会把降级显示成绿勾。同时叠加逐项判定 —— 后端 overall 只看主库
+    /// 与副本，Redis / 内存读数异常时 `status` 仍是 `ok`，只看 `status` 就会出现
+    /// 「总体绿灯 + 明细红灯」的自相矛盾。
+    public var isOverallHealthy: Bool {
+        Self.isHealthy(status) && hasHealthyDependencies
+    }
 }
 
 /// 一次连接检查的完整结果。

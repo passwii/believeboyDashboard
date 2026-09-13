@@ -48,17 +48,21 @@ curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 M
 
 > `/api/v1/agent/*` 与 `/api/v1/internal/*` **不属 `X-API-Key` 鉴权**（要求 `Authorization` + `X-Agent-Id`），桌面端不要用。
 
-测试是**离线**的（`URLProtocol` 打桩，不碰真实网络）：健康探针两步语义、鉴权头只加在需鉴权请求上、缺凭据请求前拦截、403 → 「重新登录」信号、不可达 → 传输错误、配置解析与健康值判定边界。
+测试是**离线**的（`URLProtocol` 打桩，不碰真实网络）：健康探针两步语义、鉴权头只加在需鉴权请求上、缺凭据请求前拦截、403 → 「重新登录」信号、不可达 → 传输错误、配置解析、**总体/分项健康判定**（`degraded` 明细、Redis 内存 `unavailable`/`unknown`/未配置）、**超时分档真实落到请求上**、**base URL 根地址校验**、**凭据三态**（有 / 没配 / 读失败）。
 
-浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可直接离屏渲染 ——
+浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
 无需启动 GUI 进程即可确认视图真实渲染结果。
+
+> **注意**：离屏缓存出来的 PNG 背景是**透明**的，浅色外观下黑色文字会「不可见」；
+> 需要把视图放进 `NSWindow` 并（用 `PIL` / `NSImage` 之类）先铺白底再叠绘制，
+> 或直接把缓存结果按 alpha 合成到白底上，才能读文字。
 
 ## 配置项
 
 | 环境变量 | 作用 |
 |---|---|
-| `BELIEVEBOY_BASE_URL` | 覆盖后端地址（默认 `https://dash-api.believeboy.com`） |
+| `BELIEVEBOY_BASE_URL` | 覆盖后端地址（默认 `https://dash-api.believeboy.com`）；**必须是根地址** —— 带路径 / 查询 / fragment 会被 `APIError.invalidBaseURL` 拒绝，而不是拼出 `/api/api/v1/...` 这类必然 404 的地址 |
 | `BELIEVEBOY_API_KEY` | 覆盖 API key 来源（默认读 macOS 钥匙串） |
 
 ## 目录

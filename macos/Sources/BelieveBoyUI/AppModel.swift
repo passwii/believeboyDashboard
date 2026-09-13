@@ -12,11 +12,14 @@ import Observation
 @MainActor
 @Observable
 public final class AppModel {
-    /// 连接检查的三态。
+    /// 连接检查的状态。
     public enum ConnectionPhase: Equatable {
         case idle
         case checking
         case done(HealthSnapshot)
+        /// 检查**尚未发起** —— 没有可用凭据（未配置，或钥匙串读取失败）。
+        /// 不伪造一个探针失败结果：进程存活与否根本还没测过，红的「进程存活」行是假信号。
+        case blockedByCredential(String)
 
         public var isChecking: Bool {
             if case .checking = self { return true }
@@ -25,6 +28,12 @@ public final class AppModel {
 
         public var snapshot: HealthSnapshot? {
             if case .done(let snapshot) = self { return snapshot }
+            return nil
+        }
+
+        /// 未发起检查的原因（非 nil 时 UI 显示该文案而非"按 ⌘R"提示）。
+        public var credentialBlock: String? {
+            if case .blockedByCredential(let message) = self { return message }
             return nil
         }
     }
@@ -70,15 +79,16 @@ public final class AppModel {
     // MARK: - 凭据
 
     public func refreshCredentialState() {
-        do {
-            hasStoredCredential = try credentialStore.loadAPIKey() != nil
+        switch CredentialAvailability.resolve(credentialStore) {
+        case .available:
+            hasStoredCredential = true
             credentialMessage = nil
-        } catch let error as CredentialStoreError {
+        case .missing:
             hasStoredCredential = false
-            credentialMessage = error.displayMessage
-        } catch {
+            credentialMessage = nil
+        case .unavailable(let reason):
             hasStoredCredential = false
-            credentialMessage = error.localizedDescription
+            credentialMessage = reason
         }
     }
 
@@ -109,14 +119,35 @@ public final class AppModel {
 
     // MARK: - 连接检查
 
+    /// 检查连接。
+    ///
+    /// **无凭据即中止**：找不到 key 时直接结束本次检查，不再发探针 —— 后端所有业务
+    /// 端点（含 `/health`）都要鉴权，发出去只会拿到 401，把「没填 key」显示成
+    /// 「key 被拒绝」，误导排查方向。UI 改看「未配置凭据」，与启动时一致。
     public func checkConnection() async {
         guard !phase.isChecking else { return }
         phase = .checking
 
-        let storedKey = try? credentialStore.loadAPIKey()
-        let config = AppConfig.resolved(baseURL: effectiveBaseURL, apiKey: storedKey ?? nil)
-        let client = APIClient(config: config)
-        let snapshot = await HealthProbe.snapshot(using: client)
-        phase = .done(snapshot)
+        switch CredentialAvailability.resolve(credentialStore) {
+        case .available(let key):
+            hasStoredCredential = true
+            credentialMessage = nil
+            let config = AppConfig.resolved(baseURL: effectiveBaseURL, apiKey: key)
+            let client = APIClient(config: config)
+            let snapshot = await HealthProbe.snapshot(using: client)
+            phase = .done(snapshot)
+        case .missing:
+            failCheck(message: "尚未配置 API key，请先在上方保存到钥匙串。")
+        case .unavailable(let reason):
+            // 读钥匙串失败 ≠ 没配 key，两者的处置文案不同。
+            failCheck(message: reason)
+        }
+    }
+
+    /// 本次检查未发起，原因对用户可见。
+    private func failCheck(message: String) {
+        hasStoredCredential = false
+        credentialMessage = message
+        phase = .blockedByCredential(message)
     }
 }

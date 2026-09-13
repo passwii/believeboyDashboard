@@ -32,7 +32,8 @@ public struct AppConfig: Sendable, Equatable {
         }
     }
 
-    /// 后端根地址，不含 `/api/v1`（路径前缀由 `APIClient` 统一拼接）。
+    /// 后端根地址，**不含路径 / query / fragment**，也不含 `/api/v1`
+    /// （路径前缀由 `APIClient` 统一拼接；带路径会被它显式拒绝）。
     public var baseURL: URL
     /// 账号专属 key（`blf_` 前缀，登录下发）或主 key。`nil` = 尚未配置。
     public var apiKey: String?

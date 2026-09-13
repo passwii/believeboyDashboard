@@ -4,6 +4,8 @@ import Foundation
 public enum APIError: Error, Sendable, Equatable {
     /// 路径无法拼成合法 URL（相对路径与 baseURL 组合失败）。
     case invalidURL(String)
+    /// `baseURL` 不是根地址（带路径前缀 / query / fragment）——`/api/v1` 前缀无法安全拼接。
+    case invalidBaseURL(String)
     /// 传输层失败（DNS / 连接被拒 / 超时 / TLS）。
     case transport(String)
     /// 缺少凭据 —— 请求尚未发出。
@@ -24,6 +26,8 @@ extension APIError: LocalizedError {
         switch self {
         case .invalidURL(let path):
             return "后端地址或路径不合法：\(path)"
+        case .invalidBaseURL(let value):
+            return "后端地址必须是根地址（不含路径 / 查询参数）：\(value)"
         case .transport(let detail):
             return "无法连接后端：\(detail)"
         case .missingCredential:
@@ -44,7 +48,7 @@ extension APIError: LocalizedError {
     public var requiresCredentialFix: Bool {
         switch self {
         case .missingCredential, .unauthorized: return true
-        case .invalidURL, .transport, .http, .decoding: return false
+        case .invalidURL, .invalidBaseURL, .transport, .http, .decoding: return false
         }
     }
 }

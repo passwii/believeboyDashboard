@@ -19,9 +19,10 @@ public enum RequestTier: Sendable {
     /// 集合列表与轻量探针。
     case list
 
-    public var timeout: TimeInterval {
+    /// 该档位的请求超时；`nil` = 不设超时（流式）。
+    public var timeout: TimeInterval? {
         switch self {
-        case .stream: return 0
+        case .stream: return nil
         case .report: return 60
         case .ai: return 30
         case .stats: return 15
@@ -29,6 +30,14 @@ public enum RequestTier: Sendable {
         case .list: return 5
         }
     }
+
+    /// 无超时档（`.stream`）实际写到 `URLRequest.timeoutInterval` 上的值。
+    ///
+    /// `URLRequest` 没有「禁用超时」开关 —— 不写就等于 Foundation 默认的 60s，
+    /// 会把长时间没有数据的 SSE / NDJSON 在 60s 处掐断。故显式抬到一个远超任何真实
+    /// 会话上限的值；真正的兜底是 `URLSessionConfiguration.timeoutIntervalForResource`
+    /// （默认 7 天，会话级，不由本客户端控制）。
+    public static let unboundedTimeout: TimeInterval = 60 * 60 * 24 * 365
 }
 
 /// 后端 HTTP 客户端。值语义、无可变共享状态，天然 `Sendable`。
@@ -94,27 +103,14 @@ public struct APIClient: Sendable {
         tier: RequestTier,
         authenticated: Bool
     ) throws -> URLRequest {
-        let normalized = path.hasPrefix("/") ? path : "/" + path
-        let full = Self.apiPrefix + normalized
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw APIError.invalidURL(baseURL.absoluteString)
-        }
-        components.path = (components.path.hasSuffix("/") ? String(components.path.dropLast()) : components.path) + full
-        if !query.isEmpty {
-            components.queryItems = query
-                .sorted { $0.key < $1.key }
-                .map { URLQueryItem(name: $0.key, value: $0.value) }
-        }
-        guard let url = components.url else {
-            throw APIError.invalidURL(full)
-        }
+        let url = try Self.url(baseURL: baseURL, path: path, query: query)
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if tier.timeout > 0 {
-            request.timeoutInterval = tier.timeout
-        }
+        // 无论该档是否设限都显式写一次：不写不会「无超时」，只会拿到 Foundation 的
+        // 60s 默认值。
+        request.timeoutInterval = tier.timeout ?? RequestTier.unboundedTimeout
         if authenticated {
             guard let apiKey, let trimmed = apiKey.trimmedNonEmpty else {
                 throw APIError.missingCredential
@@ -122,6 +118,35 @@ public struct APIClient: Sendable {
             request.setValue(trimmed, forHTTPHeaderField: "X-API-Key")
         }
         return request
+    }
+
+    /// 拼接最终请求 URL。
+    ///
+    /// `baseURL` 必须是**根地址**（无路径前缀、无 query、无 fragment）。带路径前缀时
+    /// `baseURL + "/api/v1"` 有歧义 —— `https://proxy.example.com/api/` 会拼成
+    /// `/api/api/v1/...`，而客户端无法判断用户是要让该前缀生效、还是已经在地址里带了
+    /// API 段。故显式拒绝（`APIError.invalidBaseURL`），而不是静默拼出一个永远 404 的地址。
+    static func url(baseURL: URL, path: String, query: [String: String]) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidBaseURL(baseURL.absoluteString)
+        }
+        guard components.path.isEmpty || components.path == "/",
+              components.query == nil, components.fragment == nil
+        else {
+            throw APIError.invalidBaseURL(baseURL.absoluteString)
+        }
+
+        let normalized = path.hasPrefix("/") ? path : "/" + path
+        components.path = Self.apiPrefix + normalized
+        if !query.isEmpty {
+            components.queryItems = query
+                .sorted { $0.key < $1.key }
+                .map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        guard let url = components.url else {
+            throw APIError.invalidURL(path)
+        }
+        return url
     }
 
     private func send<T: Decodable & Sendable>(_ request: URLRequest) async throws -> T {

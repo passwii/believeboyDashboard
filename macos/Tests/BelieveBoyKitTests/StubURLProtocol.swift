@@ -19,6 +19,8 @@ final class StubURLProtocol: URLProtocol {
     struct RequestLog: Sendable {
         var path: String
         var apiKey: String?
+        /// 实际交给 URL 加载系统的超时 —— 断言超时策略看这里，不看常量表。
+        var timeout: TimeInterval
     }
 
     nonisolated(unsafe) static var responder: (@Sendable (URLRequest) -> Response)?
@@ -52,7 +54,8 @@ final class StubURLProtocol: URLProtocol {
         Self.log.append(
             RequestLog(
                 path: request.url?.path ?? "",
-                apiKey: request.value(forHTTPHeaderField: "X-API-Key")
+                apiKey: request.value(forHTTPHeaderField: "X-API-Key"),
+                timeout: request.timeoutInterval
             )
         )
         guard let responder = Self.responder else {
