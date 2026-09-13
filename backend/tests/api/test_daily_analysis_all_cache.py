@@ -8,8 +8,9 @@
 5. cache key 幂等：项目顺序无关；country/日期/schema 指纹/include_detail 变化 → 不同 key；
    重复 project id 去重 + 稳定排序后才进聚合（复审回归）；
 6. 冷启动单飞：未抢到锁的调用方等待先到者回填；等待超时才自行计算（且不覆盖缓存）；
-7. ``include_detail=false``：只摘明细键（摘要口径逐字节不变），且两种响应形状
-   互不串体（各自的缓存 key）。
+7. ``include_detail=false``（BLF-1045）：只把顶层与 ``project_breakdown[*]`` 的
+   ``detail_rows`` 清空为空列表（**键保留**、字段集合与默认形状一致），且两种响应
+   形状互不串体（各自的缓存 key）。
 
 全程用内存版 Redis 客户端补丁，不依赖本地 Redis，也不污染真实 key。
 """
@@ -37,6 +38,7 @@ from app.schemas.daily_analysis import (
     ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
     DailyAnalysisAllProjectsResponse,
     serialize_all_projects_response,
+    strip_all_projects_detail,
 )
 from app.services import infra as redis_service
 from app.services.infra import cache as cache_mod
@@ -180,13 +182,16 @@ def env():
         db.close()
 
 
-def _url(env, *, day: date | None = None) -> str:
+def _url(env, *, day: date | None = None, include_detail: bool | None = None) -> str:
     day_text = (day or env["day"]).isoformat()
-    return (
+    url = (
         "/api/v1/daily-analysis/all"
         f"?project_ids={env['project_id']}&country=US"
         f"&start_date={day_text}&end_date={day_text}"
     )
+    if include_detail is not None:
+        url += f"&include_detail={'true' if include_detail else 'false'}"
+    return url
 
 
 def _key(
@@ -459,7 +464,7 @@ def test_cold_start_wait_timeout_falls_back_to_compute(fake_redis, monkeypatch, 
     assert redis_service.load_daily_analysis_all_snapshot(key) is None
 
 
-# ── include_detail（BLF-1038 前端裁剪）───────────────────────────────
+# ── include_detail（BLF-1045：summary-only 形状 + 缓存 key 隔离）────────
 
 
 def _summary_payload() -> dict[str, object]:
@@ -515,25 +520,30 @@ def _summary_payload() -> dict[str, object]:
     }
 
 
-def test_serialize_include_detail_false_is_exact_subset():
-    """``include_detail=false`` == 完整响应体仅去掉两个明细键（其余逐字节一致）。
+def test_serialize_include_detail_false_keeps_field_set():
+    """``include_detail=false`` == 完整响应体把两处 ``detail_rows`` 置空（其余逐字节一致）。
 
-    并覆盖：裁剪分支不能跳过 Pydantic 强转（Decimal → float），否则缓存体里
-    会冒出 json.dumps 无法处理 / 与完整口径不一致的类型。
+    键**不消失**（前端生成类型 ``api.d.ts`` 里 ``detail_rows`` 是必填字段），且裁剪
+    分支不能跳过 Pydantic 强转（Decimal → float），否则缓存体里会冒出与完整口径
+    不一致的类型。
     """
     payload = _summary_payload()
 
     full = json.loads(serialize_all_projects_response(payload))
     pruned = json.loads(serialize_all_projects_response(payload, include_detail=False))
 
-    assert "detail_rows" not in pruned
-    assert "detail_rows" not in pruned["project_breakdown"]["1"]
+    assert pruned["detail_rows"] == []
+    assert pruned["project_breakdown"]["1"]["detail_rows"] == []
 
     expected = copy.deepcopy(full)
-    expected.pop("detail_rows")
+    expected["detail_rows"] = []
     for entry in expected["project_breakdown"].values():
-        entry.pop("detail_rows")
+        entry["detail_rows"] = []
     assert pruned == expected
+
+    # 逐层键集合一致（前端必填字段的契约不破）
+    assert set(pruned) == set(full)
+    assert set(pruned["project_breakdown"]["1"]) == set(full["project_breakdown"]["1"])
 
     assert isinstance(pruned["summary_rows"][0]["sales_amount"], float)
     assert isinstance(pruned["summary_rows"][0]["cpc"], float)
@@ -543,36 +553,45 @@ def test_serialize_include_detail_false_is_exact_subset():
     assert full["detail_rows"][0]["sku"] == "SKU-1038"
 
 
-def test_include_detail_false_prunes_keys_keeps_summary(client, fake_redis, env):
-    """端点行为：``include_detail=false`` 只摘明细键，摘要 / 可用日期 / 项目名不变。"""
+def test_include_detail_false_blanks_detail_keeps_summary(client, fake_redis, env):
+    """端点行为：``include_detail=false`` 只清空明细，字段集合 / 摘要 / 可用日期 / 项目名不变。"""
     full = client.get(_url(env), headers=_headers())
     assert full.status_code == 200, full.text
     full_body = full.json()
     assert full_body["detail_rows"], "默认仍返回完整明细（运营日报页真消费）"
 
-    pruned = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    pruned = client.get(_url(env, include_detail=False), headers=_headers())
     assert pruned.status_code == 200, pruned.text
+    assert pruned.headers["content-type"] == "application/json"
     body = pruned.json()
 
-    assert "detail_rows" not in body
+    # 键不消失（前端必填字段）——只置空
+    assert body["detail_rows"] == []
+    assert set(body) == set(full_body)
     assert body["summary_rows"] == full_body["summary_rows"]
     assert body["available_dates"] == full_body["available_dates"]
     assert set(body["project_breakdown"]) == set(full_body["project_breakdown"])
     for project_id, entry in body["project_breakdown"].items():
-        assert "detail_rows" not in entry, "嵌套明细键也要裁掉"
-        assert entry["project_name"] == full_body["project_breakdown"][project_id]["project_name"]
-        assert entry["summary_rows"] == full_body["project_breakdown"][project_id]["summary_rows"]
+        full_entry = full_body["project_breakdown"][project_id]
+        assert set(entry) == set(full_entry)
+        assert entry["detail_rows"] == [], "嵌套明细也要清空"
+        assert entry["project_name"] == full_entry["project_name"]
+        assert entry["summary_rows"] == full_entry["summary_rows"]
 
-    # 明细是响应体体积的主要来源 → 裁掉后体明显更小
+    # 明细是响应体体积的主要来源 → 清空后体明显更小
     assert len(pruned.content) < len(full.content)
 
 
-def test_include_detail_shapes_do_not_share_snapshot(client, fake_redis, env, monkeypatch):
-    """回归（P0）：两种响应形状各一个缓存 key，不得串体。
+@pytest.mark.parametrize("first_detail", [True, False])
+def test_include_detail_shapes_do_not_share_snapshot(
+    client, fake_redis, env, monkeypatch, first_detail
+):
+    """回归（P0）：两种响应形状各一个缓存 key，不得串体（先后顺序无关）。
 
     否则先到的 ``include_detail=false`` 请求会把 summary-only 字节写进完整形状
     共用的 key，随后同一 project 集 + 同一日期区间的运营日报页请求命中它
-    （``daily-analysis-client.tsx`` 真读 ``payload.detail_rows``）→ 明细表整体塌掉。
+    （``daily-analysis-client.tsx`` 真读 ``payload.detail_rows``）→ 明细表整体塌掉；
+    反过来说完整形状的 3.6MB 字节被首页命中 → 载荷精简失效。
     """
     calls: list[int] = []
     original = endpoint_mod.build_daily_analysis_all_projects
@@ -583,24 +602,38 @@ def test_include_detail_shapes_do_not_share_snapshot(client, fake_redis, env, mo
 
     monkeypatch.setattr(endpoint_mod, "build_daily_analysis_all_projects", _spy)
 
-    summary_only = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
-    assert summary_only.status_code == 200, summary_only.text
-    assert "detail_rows" not in summary_only.json()
+    first = client.get(_url(env, include_detail=first_detail), headers=_headers())
+    assert first.status_code == 200, first.text
     assert len(calls) == 1
 
-    # 同项目集 / 同日期区间，只差 include_detail → 必须另算一份，不得命中摘要快照
-    full = client.get(_url(env), headers=_headers())
-    assert full.status_code == 200, full.text
-    assert full.json()["detail_rows"], "完整形状不得命中 summary-only 快照"
+    # 同项目集 / 同日期区间，只差 include_detail → 必须另算一份，不得命中对方快照
+    second = client.get(_url(env, include_detail=not first_detail), headers=_headers())
+    assert second.status_code == 200, second.text
     assert len(calls) == 2, "两种形状应各自一份快照"
 
+    for wanted_detail, response in ((first_detail, first), (not first_detail, second)):
+        payload = response.json()
+        assert payload["summary_rows"], "两种形状都必须保留 summary_rows"
+        if wanted_detail:
+            assert payload["detail_rows"], "include_detail=true 必须带逐 SKU 明细"
+            assert all(
+                entry["detail_rows"]
+                for entry in payload["project_breakdown"].values()
+            ), "project_breakdown 的明细不得被裁"
+        else:
+            assert payload["detail_rows"] == []
+            assert all(
+                entry["detail_rows"] == []
+                for entry in payload["project_breakdown"].values()
+            )
+
     # 各自再请求一次 → 各自命中自己的快照（形状不再错位）
-    assert (
-        client.get(f"{_url(env)}&include_detail=false", headers=_headers()).content
-        == summary_only.content
-    )
-    assert client.get(_url(env), headers=_headers()).content == full.content
-    assert len(calls) == 2
+    for detail, response in ((first_detail, first), (not first_detail, second)):
+        assert (
+            client.get(_url(env, include_detail=detail), headers=_headers()).content
+            == response.content
+        )
+    assert len(calls) == 2, "两种形状都命中各自快照，不应重算"
 
     key_summary = _key(env, include_detail=False)
     key_full = _key(env, include_detail=True)
@@ -614,13 +647,13 @@ def test_include_detail_false_background_refresh_keeps_summary_shape(
 ):
     """后台刷新（SWR）必须沿用请求的 include_detail —— 否则过期后摘要请求会被
     刷成完整体（体积回到 5.6MB），或反过来把完整形状刷成摘要体。"""
-    first = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    first = client.get(_url(env, include_detail=False), headers=_headers())
     assert first.status_code == 200, first.text
-    assert "detail_rows" not in first.json()
+    assert first.json()["detail_rows"] == []
 
     # 推进 data-epoch → 快照过期，下一次请求先给旧快照并触发后台刷新
     cache_mod.mark_daily_analysis_all_data_changed()
-    stale = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    stale = client.get(_url(env, include_detail=False), headers=_headers())
     assert stale.status_code == 200, stale.text
     assert stale.content == first.content
 
@@ -637,8 +670,65 @@ def test_include_detail_false_background_refresh_keeps_summary_shape(
             break
         time.sleep(0.05)
     assert refreshed is not None, "后台刷新应在超时前回填新快照"
-    assert "detail_rows" not in json.loads(refreshed[0]), "刷新后的体仍是摘要形状"
+    refreshed_body = json.loads(refreshed[0])
+    assert refreshed_body["detail_rows"] == [], "刷新后的体仍是摘要形状"
+    assert refreshed_body["summary_rows"], "刷新后仍保留 summary_rows"
 
     # 完整形状的快照不受摘要形状刷新影响
     full = client.get(_url(env), headers=_headers())
     assert full.json()["detail_rows"]
+
+
+def test_include_detail_default_equals_explicit_true(client, fake_redis, env):
+    """缺省（不传）与显式 ``true`` 逐字节一致；``false`` 是另一个体（且更小）。
+
+    中间清空内存 Redis，确保比较的是两条**冷路径**产物，而不是同一快照被命中。
+    """
+    explicit = client.get(_url(env, include_detail=True), headers=_headers())
+    assert explicit.status_code == 200, explicit.text
+
+    fake_redis.store.clear()
+    default = client.get(_url(env), headers=_headers())
+    assert default.status_code == 200, default.text
+    assert default.content == explicit.content, "缺省必须等价于显式 true（逐字节）"
+
+    fake_redis.store.clear()
+    summary_only = client.get(_url(env, include_detail=False), headers=_headers())
+    assert summary_only.status_code == 200, summary_only.text
+    assert summary_only.content != explicit.content
+    assert len(summary_only.content) < len(explicit.content), "清空明细后体应更小"
+    # 默认 true 的调用方（运营日报页）拿到的仍是带明细的完整体
+    assert summary_only.json()["detail_rows"] == []
+    assert explicit.json()["detail_rows"]
+
+
+def test_strip_all_projects_detail_keeps_shape_without_mutating_input():
+    """裁剪函数单元测试：清空明细、保留其它字段、不改原 payload。"""
+    block = {
+        "project_name": "p1",
+        "summary_rows": [{"date": "2026-03-01", "sales_amount": 10.0}],
+        "detail_rows": [{"sku": "SKU-1", "sales_amount": 10.0}],
+    }
+    payload: dict[str, object] = {
+        "summary_rows": [{"date": "2026-03-01"}],
+        "detail_rows": [{"sku": "SKU-1"}],
+        "available_dates": {"sales_report": ["2026-03-01"]},
+        "project_breakdown": {7: block},
+    }
+
+    stripped = strip_all_projects_detail(payload)
+
+    assert stripped["detail_rows"] == []
+    assert set(stripped) == set(payload)
+    assert stripped["summary_rows"] == payload["summary_rows"]
+    assert stripped["available_dates"] == payload["available_dates"]
+    stripped_breakdown = stripped["project_breakdown"]
+    assert isinstance(stripped_breakdown, dict)
+    stripped_block = stripped_breakdown[7]
+    assert stripped_block["detail_rows"] == []
+    assert set(stripped_block) == set(block)
+    assert stripped_block["project_name"] == "p1"
+    assert stripped_block["summary_rows"] == block["summary_rows"]
+    # 输入不被就地修改（调用方可能复用同一 payload）
+    assert payload["detail_rows"] == [{"sku": "SKU-1"}]
+    assert block["detail_rows"] == [{"sku": "SKU-1", "sales_amount": 10.0}]

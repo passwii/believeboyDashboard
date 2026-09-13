@@ -148,10 +148,10 @@ def get_daily_analysis_all(
     include_detail: bool = Query(
         default=True,
         description=(
-            "false → 响应体去掉 detail_rows 与 project_breakdown[*].detail_rows"
-            "（只读 summary_rows / project_breakdown[*].summary_rows 的页面用，"
-            "响应体约降 95%）；默认 true 保持完整响应，契约不变。"
-            "两种形状缓存 key 独立，互不串体。"
+            "false → detail_rows 与 project_breakdown[*].detail_rows 置为空列表"
+            "（键保留、字段集合不变；只读 summary_rows /"
+            "project_breakdown[*].summary_rows 的页面用，响应体约降 95%）；"
+            "默认 true 返回完整明细，契约不变。两种形状缓存 key 独立，互不串体。"
         ),
     ),
     db: Session = Depends(get_read_db_session),
