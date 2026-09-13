@@ -415,16 +415,31 @@ def deploy(dry_run=False, auto_confirm=False):
             )
             return False
 
-    # 步骤 6: 验证服务状态
+    # 步骤 6: 验证服务状态（含 journald/cron 落地校验，失败即阻断部署）
     print("\n>>> 步骤 6: 验证部署结果...")
-    is_active = False
+    checks_ok = True
+    failed_checks = []
     for cmd in CHECK_COMMANDS:
         rc, out, err = run_ssh_command(cmd, dry_run=dry_run)
         result = out.strip() if rc == 0 else err.strip()
         status_icon = "✓" if rc == 0 else "✗"
         print(f"  {status_icon} {cmd}: {result}")
-        if "is-active" in cmd and "active" in out:
-            is_active = True
+        if rc != 0:
+            checks_ok = False
+            failed_checks.append(cmd)
+
+    # 任一落地校验失败：走既有失败出口（健康检查前拦截，避免"检查失败
+    # 但 API 200 → 部署成功"的假阳性——BLF-1035 review）
+    if not checks_ok and not dry_run:
+        print(f"✗ 部署后校验失败 ({len(failed_checks)}/{len(CHECK_COMMANDS)} 项):")
+        for cmd in failed_checks:
+            print(f"  ✗ {cmd}")
+        handle_deploy_failure(
+            "post-deploy checks (services/journald/cron)",
+            dry_run=dry_run,
+            error="; ".join(failed_checks),
+        )
+        return False
 
     # 检查服务是否真正启动
     print("\n>>> 步骤 7: 确认服务健康状态...")
