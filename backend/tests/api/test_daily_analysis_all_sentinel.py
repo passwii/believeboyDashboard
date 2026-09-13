@@ -12,6 +12,9 @@
 - 可见项目集为空 → 200 空聚合（不是 422/500）；
 - 非 admin 对不可见项目仍 403（原有 ensure_project_access 语义不变）；
 - 逗号整数形式（存量消费方）行为不变，含非法 token 仍 422。
+
+注（BLF-1045）：哨兵路径与显式 id 路径共用同一份聚合 / 序列化 / 缓存逻辑，
+``include_detail`` 对两者等效（形状契约见 ``test_daily_analysis_all_cache.py``）。
 """
 
 from __future__ import annotations
@@ -47,7 +50,11 @@ def _auth_headers(is_admin: bool, operator: str | None = None) -> dict[str, str]
 
 @pytest.fixture
 def env():
-    """三个项目：P1/P2 属 operator ``blf915-op``，P3 属别的 operator。
+    """三个项目：P1/P2 属 operator ``blf915-op-<轮次>``，P3 属别的 operator。
+
+    operator 按轮次唯一（BLF-1045 加固）：本文件有「可见集 == {P1, P2}」的**精确
+    集合**断言，而 ``BLF_test`` 是常驻测试库（多 worktree 共用）——某次运行被中断时
+    残留项目会以同一 operator 留在库里，精确断言会因无关数据而误报。
 
     每个项目 US 站种一行订单（sales_amount = item_price + shipping_price，
     US 口径为净额、忽略税列）：
@@ -56,14 +63,16 @@ def env():
     - P3: 40.00 + 10.00 = 50.00
     """
     suffix = uuid.uuid4().hex[:8]
+    op_main = f"blf915-op-{suffix}"
+    op_other = f"blf915-other-{suffix}"
     day = datetime.now(UTC).date() - timedelta(days=10)
     db = SessionLocal()
     pids: dict[str, int] = {}
     try:
         for name, operator in (
-            ("p1", "blf915-op"),
-            ("p2", "blf915-op"),
-            ("p3", "blf915-other"),
+            ("p1", op_main),
+            ("p2", op_main),
+            ("p3", op_other),
         ):
             project = Project(
                 project_name=f"blf915-{name}-{suffix}",
@@ -129,7 +138,7 @@ def env():
     finally:
         db.close()
 
-    yield {"pids": pids, "day": day}
+    yield {"pids": pids, "day": day, "op_main": op_main, "op_other": op_other}
 
     db = SessionLocal()
     try:
@@ -187,7 +196,7 @@ def test_all_sentinel_non_admin_scopes_to_operator(client, env):
     """
     resp = client.get(
         _all_url(env["day"]),
-        headers=_auth_headers(is_admin=False, operator="blf915-op"),
+        headers=_auth_headers(is_admin=False, operator=env["op_main"]),
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -225,7 +234,7 @@ def test_explicit_ids_still_enforce_access(client, env):
     )
     resp = client.get(
         url,
-        headers=_auth_headers(is_admin=False, operator="blf915-op"),
+        headers=_auth_headers(is_admin=False, operator=env["op_main"]),
     )
     assert resp.status_code == 403, resp.text
 
