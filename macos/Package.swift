@@ -1,10 +1,16 @@
 // swift-tools-version: 6.0
 
 // 工具链约束（详见 PLAN.md §9）：
-// - 本机只有 Command Line Tools，没有完整 Xcode，因此：
-//   * SwiftUI 的属性包装器宏（@State / @Bindable / @Environment）不可用 —— 视图层
-//     用 @Observable + 显式 Binding，引导层用 AppKit（见 Sources/BelieveBoyMac/main.swift）；
-//   * XCTest / swift-testing 均不可用（缺 TestingMacros 插件）—— 本包不设 testTarget。
+// - 本机 `xcode-select -p` 指向 Command Line Tools，完整 Xcode 27.0(27A266a) 装在
+//   /Volumes/Rock/Xcode.app（/Applications/Xcode.app 是转发壳）。两条工具链能力不同：
+//   * CLT：SwiftUI 属性包装器宏（@State / @Bindable / @Environment）不可用，
+//     XCTest / swift-testing 亦不可用（缺 SwiftUIMacros / TestingMacros 插件）；
+//   * 完整 Xcode：上述宏与测试框架均可用 —— 跑 `swift test` 需
+//     `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test`。
+// - 由此，视图层刻意不用属性包装器（@Observable + 显式 Binding），引导层用 AppKit
+//   （Sources/BelieveBoyMac/main.swift）：这份代码在两条工具链下都能 `swift build`，
+//   不必为「本机装没装 Xcode」分叉。
+// - testTarget 只在 `swift test` 时编译，不影响 CLT 下的 `swift build`。
 //
 // 分三层：Kit（纯 Foundation 逻辑，可无 UI 验证）→ UI（SwiftUI 视图，可离屏渲染）
 // → Mac（进程引导）。UI 独立成 target 的价值：视图可在无窗口环境下渲染/校验，
@@ -24,5 +30,6 @@ let package = Package(
         .target(name: "BelieveBoyKit"),
         .target(name: "BelieveBoyUI", dependencies: ["BelieveBoyKit"]),
         .executableTarget(name: "BelieveBoyMac", dependencies: ["BelieveBoyUI"]),
+        .testTarget(name: "BelieveBoyKitTests", dependencies: ["BelieveBoyKit"]),
     ]
 )
