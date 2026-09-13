@@ -146,6 +146,42 @@ def test_runtime_max_sec_on_long_running_units():
     )
 
 
+def test_beat_unit_runs_the_beat_only_app():
+    """BLF-1047：beat 单元必须用 include=[] 的 celery_beat_app，worker 仍用 celery_app。
+
+    这是「beat 不再 import 任务实现」在部署侧的前提：单元文件与 app 定义分处两地，
+    写错了 beat 会把整条任务模块 import 链重新拉进调度进程（~190MB 驻留），
+    而进程一样健康启动、一样能发任务——不机械断言就发现不了。
+    """
+
+    def _normalized_exec_start(unit: str) -> str:
+        """ExecStart= 指令（含反斜杠续行）拼平后的文本。"""
+        lines = (SYSTEMD_DIR / unit).read_text(encoding="utf-8").splitlines()
+        starts = [i for i, line in enumerate(lines) if line.startswith("ExecStart=")]
+        assert len(starts) == 1, f"{unit} 应恰好有一条 ExecStart"
+        block = [lines[starts[0]]]
+        idx = starts[0]
+        while block[-1].rstrip().endswith("\\") and idx + 1 < len(lines):
+            idx += 1
+            block.append(lines[idx])
+        return " ".join(part.rstrip("\\").strip() for part in block)
+
+    beat_exec = _normalized_exec_start("believeboy-beat.service")
+    assert "beat" in beat_exec
+    assert "-A app.tasks.celery_beat_app" in beat_exec, (
+        f"beat 单元未指向 celery_beat_app（执行命令：{beat_exec}）"
+    )
+    # 旧的 `-A app.tasks.celery_app` 写法不得回流
+    assert "-A app.tasks.celery_app " not in beat_exec
+
+    for unit in ("believeboy-celery.service", "believeboy-celery-scheduled.service"):
+        exec_line = _normalized_exec_start(unit)
+        assert "worker" in exec_line
+        assert "-A app.tasks.celery_app worker" in exec_line, (
+            f"{unit} 应继续用 celery_app（含 include 全量任务模块）"
+        )
+
+
 def test_watchdog_script_and_cron_are_wired():
     """看门狗脚本 + cron.d 条目必须成套，且被部署安装 + 校验。"""
     assert WATCHDOG.is_file()

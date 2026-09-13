@@ -9,18 +9,27 @@ WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
 # 单实例 beat：--schedule 指定本地 db 文件，避免多 beat 重复发任务。
 # 只调度、不执行——任务由 believeboy-celery（default 队列）消费。
-ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app beat -l info --schedule=/var/lib/believeboy/celerybeat-schedule
+#
+# 用 celery_beat_app（BLF-1047）而不是 celery_app：beat 发的是「任务名」，
+# 不需要任务实现，但 celery beat 启动会走 init_worker() → import_default_modules()，
+# 把 app 的 include=[...] 整条链（celery_tasks → services → models/db）拉进调度
+# 进程。celery_beat_app 的 include 为空，只带 broker/时区/queue 路由/beat_schedule
+# （表在 app/tasks/celery_shared.py，与 worker app 同一份）。
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_beat_app beat -l info --schedule=/var/lib/believeboy/celerybeat-schedule
 Restart=always
 RestartSec=3
 
-# 长跑膨胀防护（BLF-1039 item 3）：巡检实测 beat 以 33 天 uptime 跑出
-# 192MB MemoryPeak（刚重启时仅 ~55MB），systemd 的 MemoryCurrent 不会
-# 自己回收这类长跑膨胀（Stage 6 现场实测 MemoryCurrent 54MB /
-# MemoryPeak 192MB）。RuntimeMaxSec=7d 让 systemd 每周定时 SIGTERM +
-# 重启（Restart=always 保证重启生效），把驻留压回基线；beat 的调度进度
-# 落在 --schedule 指定的本地 db 文件，重启不丢已发出的任务记录。
-# 不用 MemoryMax 兜底的原因：观测峰值 192MB 距任何安全上限都太近，
-# 命中即杀会造成随机调度中断；固定周期重启更可预测。
+# 长跑膨胀防护（BLF-1039 引入，理由已按 BLF-1047 实测更正）：
+# BLF-1039 加 RuntimeMaxSec 的依据是「beat 冷启动仅 ~55MB、33 天长跑涨到
+# 192MB」，但 BLF-1047 复测推翻了该前提——真因是上面那条 -A 用了 celery_app，
+# 触发的 include 整链 import：新起 beat 45s 内即达 198MB VmHWM / 177MB
+# RssAnon，随后进入平台期（不是慢泄漏；Stage 6 的 54MB 读数取在 import 完成
+# 之前的窗口）。改用 celery_beat_app 后实测稳态 ~67MB。
+# 所以这条 RuntimeMaxSec 不再承担「压制 ~190MB 膨胀」的职责，保留为纯兜底：
+# 周期重启释放长跑进程的正常碎片/缓存增长，成本低且可预测。
+# 继续不加 MemoryMax 的原因（BLF-1047 后更新）：beat 现在是个 ~70MB 的轻进程，
+# 真要涨应是代码 bug；对调度器设硬上限会把「内存问题」变成「静默丢调度」,
+# 后者更难发现也更危险。
 RuntimeMaxSec=7d
 
 # 部署注意（BLF-1039）：本单元已纳入 productEnvAgent/deploy_vps.py 的
