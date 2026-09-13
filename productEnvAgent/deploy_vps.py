@@ -25,8 +25,12 @@ import argparse
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
+import time
+from collections.abc import Callable, Sequence
+from typing import NamedTuple
 
 # BLF-524：部署失败告警（复用 workspace 内 multica issue 评论渠道）
 from alerting import (
@@ -98,6 +102,14 @@ DEPLOY_COMMANDS = [
 ]
 
 # 检查命令（部署后验证）
+#
+# 就绪语义复核（BLF-1046 交付范围的一部分）：
+# 这里的 `systemctl is-active <unit>` **不是**就绪信号——后端四个单元都是
+# Type=simple（未声明 Type=），systemd 在 fork 出主进程后立即标记 active，
+# 所以起窗内 is-active 也已经返回 active。它们断言的是「单元已被 systemd
+# 接管 + 配置确实落地」，不是「服务已能响应请求」。就绪判定唯一权威是
+# 步骤 7 的 HTTP 探活（带截止时间重试）。保持现状不改：把这些换成探活
+# 只会让单元级故障（单元没装上/崩了）的信息丢失，而 readiness 已由步7覆盖。
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
     "systemctl is-active believeboy-celery.service",
@@ -120,6 +132,34 @@ CHECK_COMMANDS = [
     " && grep -q ^RuntimeMaxSec=7d$ /etc/systemd/system/believeboy-celery-scheduled.service",
 ]
 
+# --- API 健康探活（BLF-1046）---
+#
+# 为什么不能单次 curl 定生死：`systemctl restart believeboy-api` 到 uvicorn
+# `Application startup complete` 之间有约 15s 起窗（BLF-1038 实测：restart
+# 00:39:09 → startup complete 00:39:24）。探活落在起窗内必然 connection
+# refused → curl 打印 000 → 旧逻辑判定「API 健康检查失败」→ 走失败出口。
+# 结果每次重启型部署都可能产生一次假失败告警 + 一次人工排查（BLF-1033
+# Stage 5 即如此：现场三单元全 active、health 401/4ms，部署本身完全健康）。
+# 故改为「截止时间内退避重试」，真起不来仍然在截止后失败。
+#
+# 探活 URL 保持 /api/v1/health（语义不变）：401 = 服务已起但端点需 API key，
+# 200 = 连 DB/Redis 状态都健康。刻意不换成 /health/live（无鉴权无 DB），
+# 那会丢掉「DB/Redis 可用」这层信号。
+HEALTH_URL = "http://127.0.0.1:8100/api/v1/health"
+# 用双引号包 %{http_code}：run_ssh_command 已用单引号包裹整条命令，
+# 命令体内再出现单引号会被 SSH 外层单引号截断（BLF-1039 前车之鉴）。
+# 不加 `|| echo '000'`：curl 即便连不上也会打印 000，且会额外追加一个
+# 000（现场观察到的 "HTTP 000000" 就是这么来的）。
+HEALTH_PROBE_CMD = f'curl -s -o /dev/null -w "%{{http_code}}" {HEALTH_URL}'
+# 200 = 健康（含 DB/Redis 状态）；401 = 服务已起，但 /health 需 API key。
+HEALTH_READY_CODES = ("200", "401")
+# 截止时间与退避表：起窗约 15s，60s 截止留足 4 倍余量（累计等待到 ~56s：
+# 探活在 t=0/1/3/6/11/16/21/26/31/36/41/46/51/56s）；退避表走完即止，
+# 保证「探活本身几乎不耗时」时也不会无限重试。
+HEALTH_PROBE_DEADLINE_SECONDS = 60
+HEALTH_PROBE_BACKOFF_SECONDS = (1, 2, 3) + (5,) * 12
+HEALTH_PROBE_TIMEOUT_SECONDS = 10
+
 # 日志获取命令（用于错误分析）
 LOG_COMMANDS = {
     "recent": "journalctl -u believeboy-api --no-pager -n 50",
@@ -130,16 +170,22 @@ LOG_COMMANDS = {
 
 
 def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeout=300):
-    """通过 SSH 在 VPS 上执行命令。"""
-    ssh_command = f"ssh {user}@{host} '{command}'"
+    """通过 SSH 在 VPS 上执行命令。
+
+    命令以 argv 形式传给 ssh（不走本地 shell）：`command` 原样作为 ssh 的第二个
+    参数，由 VPS 上的远端 shell 解释。好处是本地 shell 不再参与拆分——
+    旧写法 `ssh host '{command}'` 会因为命令体里出现单引号而被本地 shell
+    截断/重拼（`python -c 'import app.main'` 就是这么被拆成
+    `python -c import app.main` 而静默失败的）。
+    """
+    ssh_command = f"ssh {user}@{host} '{command}'"  # 仅用于 dry-run 预览/人工复现
     if dry_run:
         print(f"[DRY RUN] 即将执行: {ssh_command}")
         return 0, "", ""
 
     try:
         result = subprocess.run(
-            ssh_command,
-            shell=True,
+            ["ssh", f"{user}@{host}", command],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -149,6 +195,80 @@ def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeou
         return -1, "", "命令执行超时（120秒）"
     except Exception as e:
         return -1, "", str(e)
+
+
+class HealthProbeResult(NamedTuple):
+    """一次「重试到截止时间」探活的结论。"""
+
+    ready: bool
+    code: str
+    attempts: int
+    elapsed: float
+
+
+def parse_health_code(output: str) -> str:
+    """从 `curl -w '%{http_code}'` 的输出里取归一化 HTTP 状态码。
+
+    curl 即便连接失败也会打印 `000`，`|| echo '000'` 之类的兜底还会再追加
+    一个（现场即 `HTTP 000000`），SSH 层失败时 stdout 甚至可能为空。
+    这里抓出所有三位码取最后一个，取不到（空输出 / 非数字）一律当 `000`
+    （不可探明 = 未就绪 = 可重试），绝不把未知状态当成功。
+    """
+    codes = re.findall(r"\d{3}", output or "")
+    return codes[-1] if codes else "000"
+
+
+def is_health_ready(code: str) -> bool:
+    """200 / 401 视为服务已起（401 = /health 需 API key，语义保留）。"""
+    return code in HEALTH_READY_CODES
+
+
+def probe_api_health(dry_run: bool = False) -> tuple[int, str, str]:
+    """单次探活（不做重试）：返回 run_ssh_command 的 (rc, out, err)。"""
+    return run_ssh_command(
+        HEALTH_PROBE_CMD, dry_run=dry_run, timeout=HEALTH_PROBE_TIMEOUT_SECONDS
+    )
+
+
+def _default_health_probe() -> str:
+    """默认探活：真实 SSH + curl，返回归一化状态码（不可探明 → 000）。"""
+    return parse_health_code(probe_api_health()[1])
+
+
+def wait_for_api_health(
+    probe: Callable[[], str] = _default_health_probe,
+    *,
+    deadline_seconds: float = HEALTH_PROBE_DEADLINE_SECONDS,
+    backoff: Sequence[float] = HEALTH_PROBE_BACKOFF_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> HealthProbeResult:
+    """在截止时间内退避重试探活，直到就绪或彻底判失败。
+
+    - `000`（连不上 / 起窗内）可重试；`200` / `401` 立即通过。
+    - 退避表 `backoff` 逐项作为「下一次探活前的等待」，走完即止。
+    - 「再等一轮就会超过截止时间」时不再等待，直接判失败——即最后一次
+      探活必定发生在截止时间内。
+    判失败只是返回 ready=False，由调用方走既有失败出口（收日志 + 告警）。
+    探活函数与时钟 / 等待都从参数注入，便于在单测里用假时钟锁住边界。
+    """
+    max_attempts = len(backoff) + 1
+    start = clock()
+    attempts = 0
+
+    while True:
+        attempts += 1
+        code = probe()
+        elapsed = clock() - start
+        if is_health_ready(code):
+            return HealthProbeResult(True, code, attempts, elapsed)
+        if attempts >= max_attempts:
+            return HealthProbeResult(False, code, attempts, elapsed)
+
+        delay = backoff[min(attempts - 1, len(backoff) - 1)]
+        if elapsed + delay > deadline_seconds:
+            return HealthProbeResult(False, code, attempts, elapsed)
+        sleep(delay)
 
 
 def detect_bad_sha():
@@ -220,8 +340,9 @@ def collect_failure_logs(stage_name, dry_run=False):
 
     # 获取 Python 错误追踪
     print("\n>>> 检查 Python 应用错误...")
+    # 用双引号（不用单引号）：命令串保持「无嵌套单引号」的约定
     rc, out, err = run_ssh_command(
-        f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main' 2>&1",
+        f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main" 2>&1',
         dry_run=dry_run,
     )
     logs["journal_logs"]["python_import"] = {
@@ -335,13 +456,16 @@ def format_report(logs, analysis):
 
 
 def save_report(logs, analysis, dry_run=False):
-    """保存报告到本地文件。"""
+    """保存报告到本地文件（best-effort）。
+
+    失败出口的顺序是「收日志 → 存报告 → 发告警」，报告只是存档：磁盘满 /
+    目录不可写不能连带把告警吞吐，否则真失败会被降级成一次静默的崩溃
+    （BLF-1046 验收要求「真失败仍被拦住」，这条路径本身必须可靠）。
+    """
     if dry_run:
         return
 
     log_dir = os.path.join(os.path.dirname(__file__), "logs")
-    os.makedirs(log_dir, exist_ok=True)
-
     date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = os.path.join(log_dir, f"deploy-failed-{date_str}.json")
 
@@ -351,8 +475,13 @@ def save_report(logs, analysis, dry_run=False):
         "generated_at": datetime.datetime.now().isoformat(),
     }
 
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, ensure_ascii=False, indent=2)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"\n⚠️ 失败报告保存失败（不影响告警发送）: {e}")
+        return None
 
     print(f"\n💾 报告已保存到: {filename}")
     return filename
@@ -464,35 +593,60 @@ def deploy(dry_run=False, auto_confirm=False):
         )
         return False
 
-    # 检查服务是否真正启动
-    print("\n>>> 步骤 7: 确认服务健康状态...")
-    rc, out, err = run_ssh_command(
-        "curl -s -o /dev/null -w '%{http_code}' "
-        "http://127.0.0.1:8100/api/v1/health || echo '000'",
-        dry_run=dry_run,
-        timeout=10,
+    # 检查服务是否真正启动（BLF-1046：截止时间内退避重试，容忍 uvicorn 起窗）
+    print(
+        f"\n>>> 步骤 7: 确认服务健康状态（{HEALTH_PROBE_DEADLINE_SECONDS}s 内重试）..."
     )
-    code = (out or "").strip() or "000"
-    # 200 = 健康(含 DB/Redis 状态);401 = 服务已起,但 /health 需 API key(部署探活视为通过)
-    if code in ("200", "401"):
-        print(f"  ✓ API 健康检查通过 (HTTP {code})")
+    if dry_run:
+        # dry-run 没有真实探活结果，也不该按退避表空转等待：只预览命令
+        print(
+            f"  [DRY RUN] 探活命令（退避至 {HEALTH_PROBE_DEADLINE_SECONDS}s 截止）: "
+            f"{HEALTH_PROBE_CMD}"
+        )
+        print("  ✓ API 健康检查通过 (dry-run 跳过)")
     else:
-        print(f"  ✗ API 健康检查失败 (HTTP {code})，收集诊断信息...")
-        handle_deploy_failure("API health check", dry_run=dry_run, error=f"HTTP {code}")
-        return False
+
+        def _probe() -> str:
+            rc, out, err = probe_api_health()
+            code = parse_health_code(out)
+            detail = "" if rc == 0 else f" (exit {rc}: {err.strip()[:120]})"
+            print(f"    探活: HTTP {code}{detail}")
+            return code
+
+        result = wait_for_api_health(_probe)
+        if result.ready:
+            print(
+                f"  ✓ API 健康检查通过 (HTTP {result.code}，"
+                f"第 {result.attempts} 次探活，耗时 {result.elapsed:.1f}s)"
+            )
+        else:
+            error = (
+                f"HTTP {result.code}"
+                f"（{result.attempts} 次探活 / {result.elapsed:.1f}s 内始终未就绪）"
+            )
+            print(f"  ✗ API 健康检查失败 ({error})，收集诊断信息...")
+            handle_deploy_failure("API health check", dry_run=dry_run, error=error)
+            return False
 
     if not dry_run:
         print("\n>>> 部署完成！显示最近日志：\n")
+        remote = f"{VPS_USER}@{VPS_HOST}"
         try:
             subprocess.run(
-                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-api --no-pager -n 20'",
-                shell=True,
+                [
+                    "ssh",
+                    remote,
+                    "journalctl -u believeboy-api --no-pager -n 20",
+                ],
                 timeout=30,
             )
             # 一并显示 scheduled worker 启动日志，确认新代码已加载、dispatch_one 已注册
             subprocess.run(
-                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-celery-scheduled --no-pager -n 12'",
-                shell=True,
+                [
+                    "ssh",
+                    remote,
+                    "journalctl -u believeboy-celery-scheduled --no-pager -n 12",
+                ],
                 timeout=30,
             )
         except subprocess.TimeoutExpired:

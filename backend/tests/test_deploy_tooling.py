@@ -1,6 +1,6 @@
-"""运维部署工具回归测试（BLF-1039 长期机制项）
+"""运维部署工具回归测试（BLF-1039 长期机制项 / BLF-1046 探活重试）
 
-覆盖两类断言：
+覆盖三类断言：
 
 1. **静态配置一致性**（纯读文件，不触网、不连 VPS）：部署/回滚命令序列是否
    覆盖了所有 systemd 单元、长跑膨胀防护（RuntimeMaxSec）是否落在单元文件里、
@@ -13,6 +13,11 @@
    dockerd pid 变化时计数归零、输出不可解析时 fail closed（不拿未知 CPU 值
    做重启决定）。脚本跑在生产 VPS 上且会重启 docker，所以这里用假外部命令
    把决策路径全部走一遍——脚本改动若破坏判定逻辑，本文件必须失败。
+
+3. **API 探活重试**（BLF-1046，纯函数 + 假时钟）：状态码归一化、截止时间
+   内的退避重试（`000 → 000 → 401` 成功 / `200` 直通 / 全程 `000` 判失败 /
+   不睡过截止点 / 退避表走完即止不死循环）。这一段锁的是「重试不得把真失败
+   洗成成功」——真起不来的服务必须在截止后仍然失败。
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -102,10 +107,24 @@ def test_beat_is_restarted_by_deploy_and_rollback():
 
 
 def test_deploy_commands_have_no_nested_single_quotes():
-    """SSH 命令外层用单引号包裹：命令体里出现单引号会破坏解析。"""
-    for name in ("DEPLOY_COMMANDS", "CHECK_COMMANDS"):
-        for cmd in getattr(deploy_vps, name):
-            assert "'" not in cmd, f"[{name}] 存在嵌套单引号: {cmd[:120]}"
+    """SSH 命令串保持「无嵌套单引号」——让命令在两种传参形式下都无歧义。
+
+    传输已改 argv 形式（run_ssh_command 不再走本地 shell），但命令体一律
+    避开嵌套单引号：一来人类可读（dry-run 预览把命令包在 `'...'` 里）、
+    二来不让「同一串命令因传参方式不同而语义不同」这类陷阱复活。
+
+    BLF-1046：探活命令此前是写在 deploy() 里的内联串（`-w '%{http_code}'`
+    + `|| echo '000'`），既绕过了这条断言，也让 SSH 层把它拆成多段。
+    现在探活命令提为常量，一并纳入断言。
+    """
+    commands = [
+        cmd
+        for name in ("DEPLOY_COMMANDS", "CHECK_COMMANDS")
+        for cmd in getattr(deploy_vps, name)
+    ]
+    commands.append(deploy_vps.HEALTH_PROBE_CMD)
+    for cmd in commands:
+        assert "'" not in cmd, f"存在嵌套单引号: {cmd[:120]}"
 
 
 def test_runtime_max_sec_on_long_running_units():
@@ -409,3 +428,218 @@ def test_watchdog_dry_run_never_restarts(watchdog_env):
     assert proc.returncode == 0, proc.stderr
     assert _restarts(watchdog_env) == ""
     assert "dry-run" in _log(watchdog_env)
+
+
+# ---------------------------------------------------------------------------
+# 3. API 健康探活重试（BLF-1046）
+#
+# 起因：`systemctl restart believeboy-api` 到 uvicorn `Application startup
+# complete` 之间有约 15s 起窗，单次探活落在窗内必然 000 → 假失败告警 +
+# 人工排查。下面用假时钟 + 假探活把「重试成功」与「真失败仍被拦住」两条
+# 路径都钉死——最容易做坏的是后者（重试把真失败洗成成功）。
+# ---------------------------------------------------------------------------
+
+
+class FakeClock:
+    """可控单调时钟：sleep 时按等待量前进，便于断言截止时间边界。"""
+
+    def __init__(self, start: float = 0.0) -> None:
+        self.now = start
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+def _sequence_probe(codes: list[str]) -> tuple[Callable[[], str], list[str]]:
+    """返回「依次吐 codes、用完后一直吐最后一个」的假探活 + 调用记录。"""
+    calls: list[str] = []
+
+    def probe() -> str:
+        code = codes[min(len(calls), len(codes) - 1)]
+        calls.append(code)
+        return code
+
+    return probe, calls
+
+
+# --- 状态码归一化 ---
+
+
+def test_parse_health_code_normalises_curl_output():
+    # curl 自身打印 000 + `|| echo '000'` 追加的 000 → 现场观察到的 000000
+    assert deploy_vps.parse_health_code("000000") == "000"
+    assert deploy_vps.parse_health_code("000") == "000"
+    assert deploy_vps.parse_health_code("401") == "401"
+    assert deploy_vps.parse_health_code("200\n") == "200"
+
+
+def test_parse_health_code_treats_unparseable_as_failure():
+    """空输出 / 非数字（SSH 层挂掉等）一律 000——不可探明 ≠ 健康。"""
+    for raw in ("", "   ", "not-a-code", "curl: (7) Failed to connect\n"):
+        assert deploy_vps.parse_health_code(raw) == "000"
+
+
+def test_ready_codes_are_200_and_401_only():
+    assert deploy_vps.is_health_ready("200")
+    assert deploy_vps.is_health_ready("401")  # 服务已起，/health 需 API key
+    for code in ("000", "301", "404", "500", "502", "503", ""):
+        assert not deploy_vps.is_health_ready(code)
+
+
+# --- 探活命令本身 ---
+
+
+def test_health_probe_command_has_no_nested_single_quotes():
+    cmd = deploy_vps.HEALTH_PROBE_CMD
+    assert "'" not in cmd  # 嵌套单引号会被 SSH 外层单引号截断
+    assert cmd.count("%{http_code}") == 1
+    assert deploy_vps.HEALTH_URL in cmd
+
+
+def test_health_retry_is_wired_into_deploy():
+    """部署步骤 7 必须走重试函数，且探活命令只能来自常量（不得再有内联串）。"""
+    src = DEPLOY_PY.read_text(encoding="utf-8")
+    assert "wait_for_api_health(" in src
+    # 常量外不得再出现可执行探活：`curl ` 只允许出现在 HEALTH_PROBE_CMD 里
+    assert src.count("curl -s") == 1
+    assert "|| echo" not in deploy_vps.HEALTH_PROBE_CMD
+    assert deploy_vps.HEALTH_PROBE_CMD == (
+        'curl -s -o /dev/null -w "%{http_code}" ' + deploy_vps.HEALTH_URL
+    )
+
+
+def test_health_defaults_cover_the_uvicorn_startup_window():
+    """起窗实测 ~15s（BLF-1038）；默认退避表与截止时间要留出数倍余量。"""
+    assert deploy_vps.HEALTH_PROBE_DEADLINE_SECONDS >= 45
+    assert sum(deploy_vps.HEALTH_PROBE_BACKOFF_SECONDS) >= 45
+
+
+# --- 重试行为 ---
+
+
+def test_wait_for_api_health_passes_immediately_on_200():
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["200"])
+    result = deploy_vps.wait_for_api_health(
+        probe, clock=clock.monotonic, sleep=clock.sleep
+    )
+    assert result.ready is True
+    assert result.code == "200"
+    assert result.attempts == 1
+    assert calls == ["200"]
+    assert clock.slept == []  # 首次就通过，不等待
+
+
+def test_wait_for_api_health_retries_through_startup_000_to_401():
+    """000 → 000 → 401：起窗内失败可重试，服务起来后即通过。"""
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["000", "000", "401"])
+    result = deploy_vps.wait_for_api_health(
+        probe, clock=clock.monotonic, sleep=clock.sleep
+    )
+    assert result.ready is True
+    assert result.code == "401"
+    assert result.attempts == 3
+    assert calls == ["000", "000", "401"]
+    assert clock.slept == [1, 2]  # 退避 1s / 2s
+    assert result.elapsed == 3.0
+
+
+def test_wait_for_api_health_covers_realistic_15s_startup_window():
+    """前 5 次探活（t=0/1/3/6/11）落在起窗内，第 6 次 t=16s 拿到 401。"""
+    clock = FakeClock()
+    probe, _ = _sequence_probe(["000"] * 5 + ["401"])
+    result = deploy_vps.wait_for_api_health(
+        probe, clock=clock.monotonic, sleep=clock.sleep
+    )
+    assert result.ready is True
+    assert result.attempts == 6
+    assert result.elapsed == 16.0
+    assert result.elapsed <= deploy_vps.HEALTH_PROBE_DEADLINE_SECONDS
+
+
+def test_wait_for_api_health_fails_when_service_never_starts():
+    """真失败必须被拦住：全程 000 → ready=False（且不无限重试）。"""
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["000"])
+    result = deploy_vps.wait_for_api_health(
+        probe,
+        deadline_seconds=60,
+        backoff=(1, 2, 3),
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert result.ready is False
+    assert result.code == "000"
+    assert len(calls) == 4  # 首次 + 退避表 3 项，走完即止
+
+
+def test_wait_for_api_health_never_sleeps_past_deadline():
+    """再等一轮就会越过截止时间时收手，不把时间花在必然超时的等待上。"""
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["000"])
+    result = deploy_vps.wait_for_api_health(
+        probe,
+        deadline_seconds=10,
+        backoff=(1, 2, 3, 5),
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert result.ready is False
+    assert clock.slept == [1, 2, 3]  # 第 4 次等待（5s）会到 11s > 10s，不再睡
+    assert clock.now == 6.0
+    assert clock.now <= 10
+    assert len(calls) == 4
+
+
+def test_wait_for_api_health_allows_probe_exactly_at_deadline():
+    """边界：累计等待正好等于截止时间时的探活仍要发生（最后一次不越界）。"""
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["000"])
+    result = deploy_vps.wait_for_api_health(
+        probe,
+        deadline_seconds=6,
+        backoff=(1, 2, 3, 5, 5, 5),
+        clock=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert result.ready is False
+    assert clock.slept == [1, 2, 3]
+    assert clock.now == 6.0  # 第 4 次探活正好落在截止时刻
+    assert len(calls) == 4
+
+
+def test_wait_for_api_health_terminates_even_if_sleep_does_not_advance_clock():
+    """兜底：sleep 不推进时钟（异常环境）也不能死循环——退避表走完即止。"""
+    clock = FakeClock()
+    probe, calls = _sequence_probe(["000"])
+    result = deploy_vps.wait_for_api_health(
+        probe,
+        backoff=(1, 2),
+        clock=clock.monotonic,
+        sleep=lambda _seconds: None,
+    )
+    assert result.ready is False
+    assert len(calls) == 3
+    assert clock.now == 0.0
+
+
+def test_api_unit_has_no_systemd_readiness_signal():
+    """BLF-1046 复核 CHECK_COMMANDS：api 单元没有 systemd 就绪信号。
+
+    Type=simple（未声明 Type=）意味着 systemd 在 fork 出主进程后立即标记
+    active，因此 `systemctl is-active believeboy-api` 在 uvicorn 起窗内也返回
+    active——它断言的是「单元已被 systemd 接管」，不是「服务已能响应请求」。
+    就绪判定的唯一权威是步骤 7 的 HTTP 探活。若将来单元改成 notify/exec
+    （系统提供就绪通知），这条断言会提醒重新评估两条判定的关系。
+    """
+    content = (SYSTEMD_DIR / "believeboy-api.service").read_text(encoding="utf-8")
+    assert "Type=notify" not in content
+    assert "Type=exec" not in content
+    # 单元级落地校验保留（配置/单元是否装上仍然必须机械核对）
+    assert any("is-active believeboy-api" in cmd for cmd in deploy_vps.CHECK_COMMANDS)
