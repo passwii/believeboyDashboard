@@ -8,7 +8,7 @@ BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https
 ## 环境要求
 
 | 项 | 要求 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | macOS | 14.0+ | 基线由 `Package.swift` 的 `platforms` 锁定 |
 | Swift | 6.0+ | `swift --version` 校验 |
 | Xcode（构建/运行） | **不需要** | 仅 CLT 即可 `swift build` / `swift run`。本包刻意把代码定在「CLT 与完整 Xcode 的交集」上：视图不用 `@State` 等属性包装器（其宏实现在仅 Xcode 提供的 `SwiftUIMacros` 插件里），引导层用 AppKit |
@@ -112,7 +112,7 @@ S2 新增用例：**登录请求形状**（POST / 无凭据头 / JSON 体 / 邮�
 ## 配置项
 
 | 环境变量 | 作用 |
-|---|---|
+| --- | --- |
 | `BELIEVEBOY_BASE_URL` | 覆盖后端地址（默认 `https://dash-api.believeboy.com`）；**必须是根地址** —— 带路径 / 查询 / fragment 会被 `APIError.invalidBaseURL` 拒绝，而不是拼出 `/api/api/v1/...` 这类必然 404 的地址 |
 | `BELIEVEBOY_API_KEY` | 环境变量凭据（**可选**，绕过登录页）：只有 key、没有账号档案，因此不发 `X-Operator` 一族请求头。优先级高于钥匙串会话；要用登录态就去掉它 |
 
