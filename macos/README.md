@@ -11,7 +11,7 @@ BelieveBoy Dashboard 的原生 macOS 客户端。复用 `backend/`（FastAPI）�
 |---|---|---|
 | macOS | 14.0+ | 基线由 `Package.swift` 的 `platforms` 锁定 |
 | Swift | 6.0+ | `swift --version` 校验 |
-| Xcode | **不需要** | 仅 CLT 即可 `swift build` / `swift run`。**但没有 Xcode 时**：测试框架（XCTest / swift-testing）与 SwiftUI 属性包装器宏（`@State` 等）不可用 → 本包不设 testTarget、视图不使用属性包装器（详见 PLAN.md §9） |
+| Xcode | 可选（本机已装 27.0） | 仅 CLT 即可 `swift build` / `swift run`。完整 Xcode 27.0（27A266a）装在 `/Volumes/Rock/Xcode.app`，用于 `swift test`、签名/公证。⚠️ `/Applications/Xcode.app` 是跳转壳且 `xcode-select` 仍指向 CommandLineTools → 需 `sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer`，或临时 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer`（详见 PLAN.md §9） |
 
 ## 运行
 
@@ -28,12 +28,20 @@ swift run BelieveBoyMac
 
 窗口内操作：选后端地址（生产 / 本地 / 自定义）→ 填 API key →「保存到钥匙串」→「检查连接」（或 `⌘R`）。
 
-## 验证（无需 Xcode）
+## 验证
 
 ```bash
-swift build                                    # 必须零错误
-curl -s $BASE/api/v1/health/live               # 后端存活（免鉴权）
+swift build                                    # 必须零错误（CLT 或完整 Xcode 均可）
+curl -s $BASE/api/v1/health/live               # 后端存活（免鉴权，期望 200 {"status":"ok",...}）
+
+# 用完整 Xcode 工具链复核（可选；测试 target 补齐后可加 swift test）
+export DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer
+xcodebuild -version                            # 期望 Xcode 27.0 / 27A266a
+swift test                                     # Xcode 下 swift-testing 可用
 ```
+
+鉴权探针（免凭据即可区分三类失败，实测语义见 PLAN.md §4.1）：
+`/health` 无 key → `401 Missing API key`；错 key → `403 Invalid API key`；`/health/live` 无 key → `200`。
 
 浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可直接离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
@@ -51,7 +59,7 @@ curl -s $BASE/api/v1/health/live               # 后端存活（免鉴权）
 ```
 macos/
 ├── PLAN.md                     # 选型 + 架构 + stage 计划（权威文档）
-├── Package.swift               # 三层 target，无 testTarget
+├── Package.swift               # 三层 target，暂无 testTarget
 └── Sources/
     ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 健康探针（不 import SwiftUI）
     ├── BelieveBoyUI/           # SwiftUI 视图 + AppModel（可离屏渲染）

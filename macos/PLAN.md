@@ -1,6 +1,6 @@
 # macOS 原生客户端（SwiftUI）— 选型与分 Stage 计划
 
-> 状态：v1.0（2026-09-13 起草，BLF-1041）
+> 状态：v1.1（2026-09-13 起草；同日工具链复核更新：Xcode 27.0 已安装，v1.0 的「无 Xcode」前提作废，见 §9）
 > 前身：`gui/`（Rust + GPUI，2026-08 方案，已在本 issue 整体删除）
 > 权威来源：后端契约 = `backend/app/api/v1/`；导航权威 = `frontend/lib/sidebar-config.ts`
 
@@ -11,8 +11,8 @@
 | 议题 | 决策 | 理由 |
 |---|---|---|
 | App 形态 | 原生 macOS app，SwiftUI + AppKit 兜底（仅必要时） | 用户指定；Apple 平台一等公民，无跨平台抽象税 |
-| 工程载体 | **Swift Package Manager**（`macos/Package.swift`），**不建 `.xcodeproj`** | 本机只有 Command Line Tools（`xcodebuild` 不可用）；SPM 可 `swift build` / `swift run`，Xcode 可直接打开 `Package.swift`。**代价见 §9「工具链约束」**：CLT 下 SwiftUI 属性包装器宏与测试框架不可用，代码据此定型 |
-| 引导方式 | AppKit 引导（`NSApplication` + `NSHostingView`），**不用 `@main struct …: App`** | CLT 下 `@State` / `@Bindable` / `@Environment` 是外部宏（实现在只有 Xcode 才提供的 `SwiftUIMacros` 插件里），`App` 形态必然踩到；AppKit 引导顺带解决「SPM 可执行文件默认不是前台 App」 |
+| 工程载体 | **Swift Package Manager**（`macos/Package.swift`），**不建 `.xcodeproj`** | SPM 工程 `swift build` / `swift run` 即可，Xcode 也能直接打开 `Package.swift`，本地与 CI 都省掉 `.xcodeproj` 的合并成本。此决策**不再受工具链限制**（Xcode 27.0 已装，`xcodebuild` 可用，见 §9）；`.xcodeproj` 只在 S7 确实需要 asset catalog / Interface Builder 时再评估 |
+| 引导方式 | AppKit 引导（`NSApplication` + `NSHostingView`），**不用 `@main struct …: App`** | 定型于「仅 CLT」时期（当时 `@State` 等属性包装器宏不可用）。**该前提已于 2026-09-13 作废**：装 Xcode 27.0 后 `@main App` + `@State` 实测可编译（§9）。保留 AppKit 引导仍有独立价值 —— SPM 可执行文件默认不是前台 App，`setActivationPolicy(.regular)` 本就需显式设置；是否切回 `@main App` 列为 S2/S3 顺带项 |
 | Swift 版本 | Swift 6 语言模式（`swift-tools-version: 6.0`），严格并发 | 新代码零历史包袱，一开始就吃并发检查；避免后期 `@unchecked Sendable` 蔓延 |
 | macOS 基线 | **macOS 14 Sonoma** | `@Observable`（Observation 框架）与 `NavigationSplitView` 成熟形态的最低门槛；覆盖 2020 年后绝大多数在役 Mac |
 | 窗口/导航 | 单窗口 `WindowGroup` + `NavigationSplitView` 三栏（侧栏 / 内容 / 详情） | 与 Web 端「8 大分组 → 二级页」两层结构同构，搬运成本最低 |
@@ -30,7 +30,7 @@
 ### 2.1 形态
 
 - **单窗口文档型应用**，不是菜单栏常驻工具，也不是多窗口 IDE。
-- S1 用 AppKit 建单窗口（`NSWindow` + `NSHostingView`）；装 Xcode 后可切到 `WindowGroup` scene，**视图层不变**（见 §9 工具链约束）。目标形态是单窗口多栏，不是多窗口。
+- S1 用 AppKit 建单窗口（`NSWindow` + `NSHostingView`）。**Xcode 27.0 已装，`@main App` + `WindowGroup` scene 现已可用**（§9），切换时**视图层不变**；目标形态是单窗口多栏，不是多窗口。
 - 后续可选加菜单栏常驻项（长任务/告警角标）与偏好设置窗口（`⌘,`），但**不作为 Stage 3 的必需项**。
 - 原生窗口语义全部交给系统：`NavigationSplitView` 自动处理侧栏折叠、工具栏、`⌘⌥S`、全屏；不手写窗口 chrome。
 
@@ -86,11 +86,16 @@ idle → loading → (loaded | failed(APIError))
 | 鉴权头 | `X-API-Key: blf_…`（账号专属 key）或 `X-API-Key: <主 key>` |
 | 用户上下文 | `X-Operator` / `X-User-Id` / `X-User-Name` / `X-Is-Admin` — 按账号可见性过滤（`/api/v1/projects/manage` 依赖 `X-Operator`） |
 | 登录 | `POST /api/v1/auth/login`（email + password）→ `LoginResponse.api_key`（**每次登录轮换**，hash-only 存储） |
-| 健康检查 | `GET /api/v1/health/live`（免鉴权，进程存活）/ `GET /api/v1/health`（需鉴权，含 DB / 只读副本 / Redis / 环境名） |
+| 健康检查 | `GET /api/v1/health/live`（免鉴权，进程存活）/ `GET /api/v1/health/ready`（免鉴权）/ `GET /api/v1/health`（需鉴权，含 DB / 只读副本 / Redis / 环境名） |
+| 鉴权失败语义 | 缺 key → **401** `{"detail":"Missing API key"}`；key 无效或已被轮换 → **403** `{"detail":"Invalid API key"}` —— 桌面端把 401/403 一律导向「重新登录」（S2） |
 
 **为什么直连而不走 Web 代理**：`frontend/app/api/backend/[...path]/route.ts` 存在的原因是 Vercel 边缘不允许 Web 端持有主 key，且需要 NextAuth 会话。桌面端是可信本地进程，账号专属 key（BLF-711）就是为它准备的 —— 直连可去掉一跳代理与一层超时，同时保持同一套后端契约。
 
 **代价（已确认）**：后端 CORS 白名单只放行 `settings.frontend_url`；桌面端是原生 URLSession 请求，**不受 CORS 约束**（CORS 是浏览器策略），因此无需后端改配置。
+
+**生产直连实测（2026-09-13）**：`GET /api/v1/health/live` → `200 {"status":"ok",…}`（免鉴权）；`/health` 无 key → `401 Missing API key`；错 key → `403 Invalid API key`；`/api/v1/exchange-rates`、`/api/v1/digital-employees` 同为 401/403。账号级业务路由统一走 `X-API-Key`，「零后端改动直连生产」成立。
+
+> ⚠️ **`/api/v1/agent/*` 与 `/api/v1/internal/*` 不属这套鉴权**：`/api/v1/agent/projects` 即使带 `X-API-Key` 也返回 `401 AGENT_AUTH_FAILED`（该域要求 `Authorization` + `X-Agent-Id` 配对，是给外部 Agent 用的）。桌面端只消费账号级业务路由 —— 生产 `/api/v1/` 共 54 个一级路由家族，排除 `agent` 与 `internal` 后即为桌面端可用面（`ad-analysis` / `complaints` / `crm` / `inspections` / `inventory-*` 等）。
 
 ### 4.2 端点面（Stage 4+ 逐模块启用）
 
@@ -106,9 +111,9 @@ idle → loading → (loaded | failed(APIError))
 
 | 阶段 | 产物 | 门槛 |
 |---|---|---|
-| S1（当前） | `swift run BelieveBoyMac` | 本机 CLT 即可 |
-| S7a | `macos/scripts/make-app.sh` → `BelieveBoy.app`（ad-hoc 签名） | 本机 `codesign -s -` |
-| S7b | Developer ID 签名 + `notarytool` 公证 + `.dmg` | **外部依赖：Apple Developer 账号（$99/年），当前缺失** |
+| S1（当前） | `swift run BelieveBoyMac` | `swift build` 即可，**无需 Xcode**；Xcode 27.0 已装后 `swift test` 同样可用（§9） |
+| S7a | `macos/scripts/make-app.sh` → `BelieveBoy.app`（ad-hoc 签名） | 本机 `codesign -s -`（工具链已随 Xcode 27.0 就绪） |
+| S7b | Developer ID 签名 + `notarytool` 公证 + `.dmg` | **外部依赖：Apple Developer 账号（$99/年），当前缺失**。签名/公证工具链本身已就绪（`xcrun notarytool` 可解析，§9），缺的只是证书与账号 |
 | S7c | Sparkle 2 自动更新（appcast） | 依赖 S7b |
 | CI | GitHub Actions `macos-15` runner：`swift build`；补测试 target 后加 `swift test`（runner 自带 Xcode） | 仓库 secrets 无要求 |
 
@@ -131,7 +136,7 @@ idle → loading → (loaded | failed(APIError))
 macos/
 ├── PLAN.md                    # 本文件
 ├── README.md                  # 开发/运行/验证速查
-├── Package.swift              # SPM 清单（Swift 6 / macOS 14），无 testTarget（见 §9）
+├── Package.swift              # SPM 清单（Swift 6 / macOS 14），暂无 testTarget（Xcode 27.0 已装，可补，见 §9）
 ├── .gitignore                 # .build / .swiftpm / Package.resolved / dist
 └── Sources/
     ├── BelieveBoyKit/         # 纯逻辑层，不 import SwiftUI
@@ -152,7 +157,7 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **取消的旧计划项**：`Tests/BelieveBoyKitTests/`（CLT 下 XCTest / swift-testing 均不可用，见 §9）与 `scripts/make-app.sh`（属 S7a，本 issue 不做）。装入 Xcode 后可原样补回。
+> **暂缓的计划项**：`Tests/BelieveBoyKitTests/` 在「仅 CLT」时期无法构建（XCTest / swift-testing 均缺宏插件）；**Xcode 27.0 已装且 `swift test` 实测可跑通（§9），该 testTarget 可原样补回**，列入 S2/S3 顺带项。`scripts/make-app.sh` 属 S7a，本 issue 不做。
 
 ---
 
@@ -163,7 +168,7 @@ macos/
 | Stage | 目标 | 可交付物 | 验收标准 | 依赖 | 归属 |
 |---|---|---|---|---|---|
 | **S0** | 仓库清场 | 删除 `gui/`、`docs/gui-mvp-plan.md`、`.github/workflows/gui-windows-build.yml`；新建 `macos/`、`windows/` | `git ls-files \| grep '^gui/'` 为空；无残留 CI 引用 | — | **本 issue** |
-| **S1** | 最小可运行骨架 | `macos/` SPM 工程（Kit + UI + 引导三层）：`AppConfig` + `APIClient` + Keychain 凭据 + 健康检查视图 + AppKit 引导与主菜单；`windows/README.md` 占位 | ① `swift build` 零错误；② Kit 层对真实后端端到端跑通（存活探针 / 鉴权探针 / snake_case 解码 / 缺凭据拦截 / 错误 key → 403 / 不可达 → transport / snapshot 短路）；③ App 启动建出窗口；④ 视图渲染出 `/health` 的 DB·副本·Redis·内存·环境名真实数据，失败态显示对应中文错误。**本机无 Xcode，故不含 `swift test`**（见 §9） | S0 | **本 issue** |
+| **S1** | 最小可运行骨架 | `macos/` SPM 工程（Kit + UI + 引导三层）：`AppConfig` + `APIClient` + Keychain 凭据 + 健康检查视图 + AppKit 引导与主菜单；`windows/README.md` 占位 | ① `swift build` 零错误；② Kit 层对真实后端端到端跑通（存活探针 / 鉴权探针 / snake_case 解码 / 缺凭据拦截 / 错误 key → 403 / 不可达 → transport / snapshot 短路）；③ App 启动建出窗口；④ 视图渲染出 `/health` 的 DB·副本·Redis·内存·环境名真实数据，失败态显示对应中文错误。**v1.0 起草时因本机无 Xcode 而不含 `swift test`；Xcode 27.0 已装，测试 target 现可补（见 §9）** | S0 | **本 issue** |
 | **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页 | 冷启动凭据有效直进主界面；key 失效有明确再登录路径；密码不落盘 | S1 | 后续 issue |
 | **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致；切换模块无泄漏 Task；窗口尺寸/侧栏折叠状态恢复 | S2 | 后续 issue |
 | **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 后续 issue |
@@ -194,7 +199,7 @@ S0 → S1 → S2 → S3 → S4 → S5(×8) → S6
 
 | 项 | 影响 | 处置 |
 |---|---|---|
-| **本机只有 CLT，无完整 Xcode**（`xcodebuild` 不可用；`/Applications/Xcode-beta.app` 是 424K 残壳） | ① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`/`App`）不可用 —— 其实现在 `SwiftUIMacros` 插件，只在完整 Xcode 内；② XCTest 与 swift-testing **均无法构建**（前者 `unable to resolve module dependency: 'XCTest'`，后者缺 `TestingMacros` 插件）；③ 无 Interface Builder / asset catalog / 公证工具链 | 已按此定型代码：引导用 AppKit、视图不用属性包装器、包内不设 testTarget，验证改走「编译 + 真后端端到端 + 离屏渲染」。**装了 Xcode 后可平滑补齐**：视图文件加回 `@State`/`@Bindable`（每处 1 行）、引导切回 `@main App`、补 `Tests/`。**待用户决策是否安装 Xcode**（约 10 GB） |
+| **工具链现状（2026-09-13 复核：Xcode 已装，v1.0「无 Xcode」前提作废）** | Xcode **27.0（build `27A266a`，即 27.0 RC）** 已装于 **`/Volumes/Rock/Xcode.app`** —— macOS 27.0 SDK（`macosx27.0`）、Swift 6.4。`/Applications/Xcode.app` 是 **416K 跳转壳**（`Contents/Resources/real_app_path.txt` → `/Volumes/Rock/Xcode.app`），**不含 toolchain**，所以 `xcode-select` 不能指向它。<br>⚠️ 该机 `xcode-select -p` **仍指向 `/Library/Developer/CommandLineTools`**，纯净 shell 下 `xcodebuild` 依旧报 `requires Xcode`；需一条要密码的 sudo：<br>`sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer`<br>免 sudo 等价写法：`export DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer` | **已实测解锁**：① `@main struct …: App` + `@State` 可编译；② `swift test` + swift-testing 可跑通（`✔ Test sanity() passed`）；③ `notarytool` / `swift-format` / `simctl` 可解析，license 与 first-launch 检查已通过。现有 `Sources/` 在 Xcode 工具链下 `swift build` 同样零错误 —— **属兼容，不是过期**，故不阻塞交付。<br>**顺带项（不阻塞 S1 验收）**：视图加回 `@State`/`@Bindable`、引导切回 `@main App`、补 `Tests/BelieveBoyKitTests/`。<br>**新约束**：安装落在 `/Volumes/Rock`（内盘仅约 26G 空闲，装不下），**Rock 未挂载即失效**；脚本与 CI 不得硬编码该路径，需能回退 CLT |
 | Apple Developer 账号缺失 | S7b/S7c 无法推进 | 需用户决策（是否购买）；在此之前以 ad-hoc `.app` 分发 |
 | 后端 CORS 白名单不含桌面端 | 无影响（原生请求无 CORS） | 记录结论，不申请后端改动 |
 | 无 WebSocket / 推送 | 桌面端实时性只能轮询 | 轮询 + 退避即可满足当前需求；若需推送，另开后端 issue |
