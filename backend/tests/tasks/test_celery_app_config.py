@@ -115,6 +115,30 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert fresh.conf.task_routes["generate_insight"]["queue"] == "insights"
 
 
+def test_beat_schedule_has_no_office_tick(monkeypatch: pytest.MonkeyPatch) -> None:
+    """BLF-1034：office_tick 不再有 beat 调度（3s 空转是生产最大无谓 CPU 源）。
+
+    任务定义与路由保留（SSE fallback 与手动触发仍可用），仅 beat 不再发。
+    """
+    monkeypatch.setenv("REDIS_HOST", "redis.local")
+    monkeypatch.setenv("REDIS_PORT", "6379")
+    monkeypatch.setenv("REDIS_DB", "0")
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
+    monkeypatch.delenv("CELERY_RESULT_URL", raising=False)
+
+    from app.tasks.celery_app import _build_celery_app
+
+    fresh = _build_celery_app()
+    assert "office-tick" not in fresh.conf.beat_schedule
+    assert all(e["task"] != "office_tick" for e in fresh.conf.beat_schedule.values())
+    # 任务本体仍注册（可手动调用 / 恢复调度时无需改代码）
+    assert "app.celery_tasks.office_tick" in fresh.conf.include
+    assert fresh.conf.task_routes["office_tick"]["queue"] == "default"
+    # 其余周期任务不受影响（防误删整个 schedule）
+    assert "crm-sea-reclaim" in fresh.conf.beat_schedule
+    assert "alert-detect" in fresh.conf.beat_schedule
+
+
 def test_shared_task_binds_to_believeboy_app_from_worker_thread() -> None:
     """BEL-128 follow-up: FastAPI sync routes run in a ThreadPoolExecutor.
 

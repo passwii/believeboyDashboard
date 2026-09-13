@@ -109,12 +109,13 @@ def _build_celery_app() -> Celery:
             # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
             "ai_chat_token_usage.refresh_daily": {"queue": "default"},
         },
-        # 虚拟办公室：每 3s 推进所有员工虚拟状态
+        # beat_schedule 说明（BLF-1034）：曾经的 office-tick 3s beat 条目已移除——
+        # 30 天内 office SSE 0 次访问且 digital_employees 仅 1 行，纯后台空转
+        # （~28,800 任务/天的 broker 往返 + worker fork + journald 99% 噪音）。
+        # office_tick 任务定义保留在 app/celery_tasks/office_tick.py，SSE 端点
+        # 走 _build_tick_sync 的 Redis miss fallback 自算；将来恢复调度时在
+        # beat_schedule 加回 {"office-tick": {"task": "office_tick", "schedule": 3.0}} 即可。
         beat_schedule={
-            "office-tick": {
-                "task": "office_tick",
-                "schedule": 3.0,
-            },
             # CRM 公海自动回收（P3a）：每日凌晨 3 点扫描 N 天未跟进的客户/线索掉公海。
             "crm-sea-reclaim": {
                 "task": "crm_sea_reclaim",

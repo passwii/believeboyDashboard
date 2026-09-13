@@ -1,5 +1,5 @@
 [Unit]
-Description=Believeboy Celery beat scheduler (periodic tasks: office-tick / crm-sea-reclaim)
+Description=Believeboy Celery beat scheduler (periodic tasks: crm-sea-reclaim / crm-task-reminder / alert-detect etc.)
 After=network.target
 
 [Service]
