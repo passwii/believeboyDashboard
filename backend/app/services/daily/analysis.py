@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -18,18 +18,17 @@ from app.models import (
 )
 from app.services import exchange_rate_service
 from app.services import infra as redis_service
+from app.services.daily.ad import _load_ad_metrics
 from app.services.daily.aggregation import (
-    _MetricBucket,
     _aggregate_buckets,
     _get_or_create_bucket,
+    _MetricBucket,
     _set_asin_if_blank,
 )
-from app.services.daily.sales import _load_sales_metrics
-from app.services.daily.ad import _load_ad_metrics
 from app.services.daily.inventory import _load_inventory_metrics
+from app.services.daily.sales import _load_sales_metrics
 from app.utils.country import normalize_country
 from app.utils.date_utils import date_range, parse_yyyy_mm_dd
-from app.utils.math_utils import round_money, safe_ratio
 
 
 def _get_project_or_404(db: Session, project_id: int) -> Project:
@@ -110,7 +109,11 @@ def _build_asin_to_sku_map(
         if asin and sku:
             normalized_asin = asin.strip()
             normalized_sku = sku.strip()
-            if normalized_asin and normalized_sku and normalized_asin not in asin_to_sku:
+            if (
+                normalized_asin
+                and normalized_sku
+                and normalized_asin not in asin_to_sku
+            ):
                 asin_to_sku[normalized_asin] = normalized_sku
     return asin_to_sku
 
@@ -154,7 +157,15 @@ def _load_business_metrics(
     dates: set[str] = set()
     latest: date | None = None
 
-    for period_start, period_end, asin, page_views, units_ordered, sessions, sales_amount in rows:
+    for (
+        period_start,
+        period_end,
+        asin,
+        page_views,
+        units_ordered,
+        sessions,
+        sales_amount,
+    ) in rows:
         if asin is None:
             continue
         normalized_asin = asin.strip()
@@ -190,8 +201,7 @@ def _load_latest_available_dates(
 ) -> dict[str, str | None]:
     # ad 数据从 ad_upload_files 查 (C 表是 ad 报告的新体系)
     latest_ad_date: date | None = db.execute(
-        select(func.max(AdUploadFile.report_date))
-        .where(
+        select(func.max(AdUploadFile.report_date)).where(
             AdUploadFile.project_id == project_id,
             AdUploadFile.country == country,
             AdUploadFile.is_current.is_(True),
@@ -200,12 +210,29 @@ def _load_latest_available_dates(
         )
     ).scalar()
 
-    # 其他 3 种 report_type 仍从 analysis_source_files 读
-    stmt = select(
-        AnalysisSourceFile.report_type,
+    # 其他 3 种 report_type 仍从 analysis_source_files 读。
+    # BLF-1038：原实现把该项目下三种 report_type 的
+    # (report_date, period_start_date, snapshot_at) **全量行**（生产单项目 ~450 行、
+    # 全项目聚合 ~4400 行/次）拉回 Python 只为求 3 个最大值。改为把聚合下推到 SQL
+    # （返回 1 行 3 列），语义逐条对齐：
+    # - sales_report: max(report_date)（max 天然忽略 NULL，等价于 Python 跳过 None 后取最大）；
+    # - business_report: max(period_start_date)；
+    # - inventory_report: max(coalesce(report_date, snapshot_at::date))
+    #   （等价于 Python 的 `report_date or snapshot_at.date()` 后取最大）。
+    inventory_business_date = func.coalesce(
         AnalysisSourceFile.report_date,
-        AnalysisSourceFile.period_start_date,
-        AnalysisSourceFile.snapshot_at,
+        cast(AnalysisSourceFile.snapshot_at, Date),
+    )
+    stmt = select(
+        func.max(AnalysisSourceFile.report_date).filter(
+            AnalysisSourceFile.report_type == "sales_report"
+        ),
+        func.max(inventory_business_date).filter(
+            AnalysisSourceFile.report_type == "inventory_report"
+        ),
+        func.max(AnalysisSourceFile.period_start_date).filter(
+            AnalysisSourceFile.report_type == "business_report"
+        ),
     ).where(
         AnalysisSourceFile.project_id == project_id,
         AnalysisSourceFile.country == country,
@@ -214,44 +241,9 @@ def _load_latest_available_dates(
             ("sales_report", "inventory_report", "business_report")
         ),
     )
-    rows = db.execute(stmt).all()
-
-    latest_sales_date: date | None = None
-    latest_inventory_date: date | None = None
-    latest_business_date: date | None = None
-
-    for report_type, report_date, period_start_date, snapshot_at in rows:
-        if report_type == "sales_report":
-            business_date = report_date
-            if business_date is None:
-                continue
-            latest_sales_date = (
-                business_date
-                if latest_sales_date is None or business_date > latest_sales_date
-                else latest_sales_date
-            )
-        elif report_type == "inventory_report":
-            business_date = report_date or (
-                snapshot_at.date() if snapshot_at is not None else None
-            )
-            if business_date is None:
-                continue
-            latest_inventory_date = (
-                business_date
-                if latest_inventory_date is None
-                or business_date > latest_inventory_date
-                else latest_inventory_date
-            )
-        elif report_type == "business_report":
-            business_date = period_start_date
-            if business_date is None:
-                continue
-            latest_business_date = (
-                business_date
-                if latest_business_date is None
-                or business_date > latest_business_date
-                else latest_business_date
-            )
+    latest_sales_date, latest_inventory_date, latest_business_date = db.execute(
+        stmt
+    ).one()
 
     return {
         "latest_sales_date": latest_sales_date.isoformat()
@@ -490,7 +482,8 @@ def build_daily_analysis_all_projects(
         )
 
         project_detail, project_summary = _aggregate_buckets(
-            detail_buckets, sku_filter=all_projects_sku_filter,
+            detail_buckets,
+            sku_filter=all_projects_sku_filter,
         )
         project_breakdown[project_id] = {
             "project_name": project.project_name,
@@ -524,7 +517,9 @@ def build_daily_analysis_all_projects(
         for sku, qty in project_in_transit_map.items():
             global_in_transit_map[sku] = global_in_transit_map.get(sku, 0) + qty
 
-    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=all_projects_sku_filter)
+    global_detail, global_summary = _aggregate_buckets(
+        global_buckets, sku_filter=all_projects_sku_filter
+    )
 
     # Inject in_transit_qty for global detail rows
     for row in global_detail:
@@ -621,11 +616,15 @@ def _load_usd_factors_for_countries(
                 factors[(country_value, ym)] = Decimal("1")
                 continue
 
-            source_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
-                db, currency=currency, year_month=ym
+            source_rate = (
+                exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                    db, currency=currency, year_month=ym
+                )
             )
-            usd_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
-                db, currency="USD", year_month=ym
+            usd_rate = (
+                exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                    db, currency="USD", year_month=ym
+                )
             )
             if source_rate is None or usd_rate is None:
                 raise HTTPException(
@@ -659,9 +658,7 @@ def _convert_bucket_amounts_to_usd(
     非金额字段（order_qty / impressions / clicks / ...）保持不变。
     """
     factor_by_year_month: dict[str, Decimal] = {
-        ym: usd_factors[(country, ym)]
-        for (_c, ym) in usd_factors.keys()
-        if _c == country
+        ym: usd_factors[(country, ym)] for (_c, ym) in usd_factors if _c == country
     }
     if not factor_by_year_month:
         return
@@ -795,7 +792,8 @@ def build_daily_analysis_all_countries(
         )
 
         country_detail, country_summary = _aggregate_buckets(
-            detail_buckets, sku_filter=None,
+            detail_buckets,
+            sku_filter=None,
         )
         country_in_transit_map = _load_in_transit_quantities(
             db, project_id, country_value
@@ -854,7 +852,10 @@ def build_daily_analysis_all_countries(
             "start_date": normalized_start.isoformat(),
             "end_date": normalized_end.isoformat(),
             "requested_days": len(
-                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+                [
+                    item.isoformat()
+                    for item in date_range(normalized_start, normalized_end)
+                ]
             ),
             "summary_days": len(global_summary),
             "detail_rows": len(global_detail),
@@ -875,6 +876,7 @@ def build_daily_analysis_all_countries(
         "currency": "USD",
         "currency_note": "金额字段已按当月 CNY 中转折算为 USD 统一展示；非金额字段（订单/曝光/点击/库存等）保持原值。",
     }
+
 
 def build_daily_analysis_all_projects_countries(
     db: Session,
@@ -1082,7 +1084,10 @@ def build_daily_analysis_all_projects_countries(
             "start_date": normalized_start.isoformat(),
             "end_date": normalized_end.isoformat(),
             "requested_days": len(
-                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+                [
+                    item.isoformat()
+                    for item in date_range(normalized_start, normalized_end)
+                ]
             ),
             "summary_days": len(global_summary),
             "detail_rows": len(global_detail),

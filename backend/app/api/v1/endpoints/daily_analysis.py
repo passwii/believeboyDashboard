@@ -1,26 +1,100 @@
 from __future__ import annotations
 
-from typing import Annotated, Optional
+import logging
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session, get_request_operator, protected
+from app.db.session import SessionLocal
 from app.schemas.daily_analysis import (
+    ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
     DailyAnalysisAllCountriesResponse,
     DailyAnalysisAllProjectsCountriesResponse,
     DailyAnalysisAllProjectsResponse,
     DailyAnalysisResponse,
+    serialize_all_projects_response,
 )
+from app.services import infra as redis_service
+from app.services import project_service
 from app.services.daily import (
     build_daily_analysis,
     build_daily_analysis_all_countries,
     build_daily_analysis_all_projects,
     build_daily_analysis_all_projects_countries,
 )
-from app.services import project_service
+from app.utils.country import normalize_country
+from app.utils.date_utils import parse_yyyy_mm_dd
 
 router = APIRouter(dependencies=[Depends(protected)])
+
+logger = logging.getLogger(__name__)
+
+
+def _build_all_projects_body(
+    db: Session,
+    *,
+    project_ids: list[int],
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+) -> bytes:
+    """跑聚合 + 序列化响应字节（BLF-1038：缓存体 = 响应体）。"""
+    payload = build_daily_analysis_all_projects(
+        db,
+        project_ids=project_ids,
+        country=country,
+        start_date=start_date,
+        end_date=end_date,
+        sku=sku,
+    )
+    return serialize_all_projects_response(payload)
+
+
+def _refresh_all_projects_snapshot(
+    *,
+    cache_key: str,
+    project_ids: list[int],
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+) -> None:
+    """stale-while-revalidate 的后台刷新（FastAPI BackgroundTasks 调用）。
+
+    - 用独立 session（请求 session 可能已随响应关闭），读主库保证拿到刚提交的数据；
+    - 失败只记 warning（旧快照继续服务，下个周期再试），不把异常往上抛；
+    - 无论成败都释放单飞锁，否则后续请求将永远无法刷新。
+    """
+    db = SessionLocal()
+    try:
+        body = _build_all_projects_body(
+            db,
+            project_ids=project_ids,
+            country=country,
+            start_date=start_date,
+            end_date=end_date,
+            sku=sku,
+        )
+        redis_service.store_daily_analysis_all_snapshot(cache_key, body)
+    except Exception:
+        logger.warning(
+            "daily-analysis/all 后台刷新失败（cache_key=%s）", cache_key, exc_info=True
+        )
+    finally:
+        db.close()
+        redis_service.release_daily_analysis_all_lock(cache_key)
 
 
 @router.get("/daily-analysis", response_model=DailyAnalysisResponse)
@@ -29,7 +103,7 @@ def get_daily_analysis(
     start_date: Annotated[str, Query(min_length=10, max_length=10)],
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
-    sku: Optional[str] = None,
+    sku: str | None = None,
     no_cache: bool = Query(default=False),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -54,6 +128,7 @@ def get_daily_analysis(
 
 @router.get("/daily-analysis/all", response_model=DailyAnalysisAllProjectsResponse)
 def get_daily_analysis_all(
+    background_tasks: BackgroundTasks,
     project_ids: Annotated[
         str,
         Query(
@@ -66,7 +141,7 @@ def get_daily_analysis_all(
     start_date: Annotated[str, Query(min_length=10, max_length=10)],
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
-    sku: Optional[str] = None,
+    sku: str | None = None,
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -118,20 +193,72 @@ def get_daily_analysis_all(
                 is_admin=bool(is_admin),
             )
 
+    # BLF-1038 复审修复：授权校验完成后统一规范化项目 id（去重 + 稳定排序），
+    # 聚合 / 缓存 key / 后台刷新共用这一份列表。缓存 key 本就对 id 去重，若聚合
+    # 仍按原始 ids 循环，`project_ids=1,1` 会与 `project_ids=1` 共用同一个 key，
+    # 却把该项目累计两次 —— 一旦命中缓存就返回错误的双倍结果。
+    normalized_ids = sorted(set(ids))
+
     # 可见项目集为空是合法状态（如 operator 名下无项目），照常走空聚合
     # 而不是 422 —— hook 拿到 200 才能正常显示 0 而非一直 --。
     # build_daily_analysis_all_projects 对空 project_ids 自然返回空响应。
-    return build_daily_analysis_all_projects(
-        db,
-        project_ids=ids,
-        country=country,
-        start_date=start_date,
-        end_date=end_date,
+    #
+    # BLF-1038：命中路径直接返回缓存的响应字节（stale-while-revalidate）：
+    # - 新鲜快照 → 字节直出（无 DB、无聚合、无 Pydantic/FastAPI 序列化）；
+    # - 过期快照（超软新鲜期或数据已被写入 epoch 标记）→ 立即返回旧字节，
+    #   并交 BackgroundTasks 异步刷新，请求不等重算；
+    # - 无快照 → 单飞计算并回填（并发调用方等先到者，避免 N 份全量计算）。
+    # 授权/可见集解析仍在缓存之前执行，缓存不短路权限校验。
+    normalized_country = normalize_country(country)
+    normalized_start = parse_yyyy_mm_dd(start_date, "start_date")
+    normalized_end = parse_yyyy_mm_dd(end_date, "end_date")
+    if normalized_start > normalized_end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date cannot be greater than end_date",
+        )
+    start_text = normalized_start.isoformat()
+    end_text = normalized_end.isoformat()
+
+    cache_key = redis_service.make_daily_analysis_all_cache_key(
+        project_ids=normalized_ids,
+        country=normalized_country,
+        start_date=start_text,
+        end_date=end_text,
         sku=sku,
+        schema_fingerprint=ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
     )
 
+    def _compute_body() -> bytes:
+        return _build_all_projects_body(
+            db,
+            project_ids=normalized_ids,
+            country=normalized_country,
+            start_date=start_text,
+            end_date=end_text,
+            sku=sku,
+        )
 
-@router.get("/daily-analysis/all-countries", response_model=DailyAnalysisAllCountriesResponse)
+    body, needs_refresh = redis_service.load_or_compute_daily_analysis_all_body(
+        cache_key, _compute_body
+    )
+    if needs_refresh and redis_service.try_acquire_daily_analysis_all_lock(cache_key):
+        background_tasks.add_task(
+            _refresh_all_projects_snapshot,
+            cache_key=cache_key,
+            project_ids=normalized_ids,
+            country=normalized_country,
+            start_date=start_text,
+            end_date=end_text,
+            sku=sku,
+        )
+
+    return Response(content=body, media_type="application/json")
+
+
+@router.get(
+    "/daily-analysis/all-countries", response_model=DailyAnalysisAllCountriesResponse
+)
 def get_daily_analysis_all_countries(
     project_id: int,
     start_date: Annotated[str, Query(min_length=10, max_length=10)],
