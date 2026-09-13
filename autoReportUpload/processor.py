@@ -13,7 +13,6 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -1420,6 +1419,8 @@ def _parse_and_insert_rows(
 
 
 def _extract_sales_report_dates(path: Path, country: str) -> list[date]:
+    import pandas as pd
+
     df = pd.read_csv(path, sep="\t", encoding="utf-8-sig", nrows=200)
     if "purchase-date" not in df.columns:
         return []

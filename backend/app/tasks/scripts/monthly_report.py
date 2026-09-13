@@ -5,10 +5,10 @@ from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
-from openpyxl.utils import get_column_letter
+if TYPE_CHECKING:
+    from openpyxl import Workbook
 
 from app.services.payment import read_payment_csv, classify_rows
 from app.services.payment.financial import (
@@ -56,6 +56,8 @@ def _rows_to_sheet(ws, rows: list[dict[str, object]]) -> None:
 
 
 def _auto_width_for_report_sheet(ws) -> None:
+    from openpyxl.utils import get_column_letter
+
     for col in range(1, ws.max_column + 1):
         letter = get_column_letter(col)
         max_length = 0
@@ -72,6 +74,9 @@ def _auto_width_for_report_sheet(ws) -> None:
 
 
 def _apply_styles(workbook: Workbook) -> None:
+    from openpyxl.styles import Alignment, Border, Font, NamedStyle, Side
+    from openpyxl.utils import get_column_letter
+
     thin = Side(style="thin", color="000000")
 
     if "sty1" not in workbook.named_styles:
@@ -352,6 +357,8 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     amz_card = _sum_field(debt, "total")
     advertising_percentage = _safe_div_percent_decimal(cost_of_advertising, income_total)
     report("computing_summary", 42, "合成数据：已完成核心指标计算")
+
+    from openpyxl import Workbook
 
     wb = Workbook()
 
