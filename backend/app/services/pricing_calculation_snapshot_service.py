@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -33,13 +33,13 @@ from app.schemas.pricing_calculation_snapshot import (
 from app.schemas.shop_calculation import (
     ShopCalculationDimensions,
     ShopCalculationFees,
+    ShopCalculationItem,
     ShopCalculationProfit,
     ShopCalculationWeight,
-    ShopCalculationItem,
 )
-from app.utils.text_utils import normalize_text
 from app.services import shop_calculation_service
-
+from app.services.pricing.anchor import _anchor_from_item
+from app.utils.text_utils import normalize_text
 
 # ── Summary helpers ──────────────────────────────────────────────────────────
 
@@ -398,11 +398,16 @@ def _snapshot_item_to_dto(item: PricingCalculationSnapshotItem) -> ShopCalculati
     """把 ``pricing_calculation_snapshot_items`` 行映射成 ``ShopCalculationItem``。
 
     形状与 ``/api/v1/shop-calculation`` 列表端点完全一致，前端可无修改地消费。
+
+    BLF-1043：明细行带**读取时派生**的定价块 ``anchor``（盈亏平衡广告费率等）。
+    与 agent R7（``/pricing-snapshots`` 扁平化路径）调的是**同一个 helper 同一个
+    入参对象**（都是本函数产出的 DTO），所以内部明细接口与 agent 扁平行必然同口径。
+    纯代数派生、不落库、无迁移，append-only 语义不变。
     """
     # synthetic id：snapshot_id * 1M + source_row_no，保证同一快照内稳定
     synthetic_id = item.snapshot_id * 1_000_000 + item.source_row_no
 
-    return ShopCalculationItem(
+    dto = ShopCalculationItem(
         id=synthetic_id,
         project_id=item.project_id,
         project_name=item.project_name,
@@ -488,3 +493,7 @@ def _snapshot_item_to_dto(item: PricingCalculationSnapshotItem) -> ShopCalculati
         created_at=item.created_at,
         updated_at=item.created_at,
     )
+    # 派生块在 DTO 建好之后挂（helper 需要嵌套的 fees / profit 块，与 agent R7
+    # 路径共用同一份口径；``sale_price_usd == 0`` → 锚为 None，不 clamp）。
+    dto.anchor = _anchor_from_item(dto)
+    return dto
