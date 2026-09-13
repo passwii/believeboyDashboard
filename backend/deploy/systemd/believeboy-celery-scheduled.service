@@ -22,6 +22,13 @@ MemoryMax=768M
 MemoryHigh=640M
 MemorySwapMax=256M
 
+# 长跑膨胀防护（BLF-1039 item 3）：与 believeboy-celery 同理，每周整体
+# 重启一次消除长跑膨胀（巡检实测该类单元 33 天 uptime 可跑出远高于冷启动
+# 的常驻）。重启对定时报告安全：dispatch 任务均 acks_late +
+# task_reject_on_worker_lost，in-flight 任务会被 broker 重投；截图子进程
+# 被 SIGTERM 后由后续重投重建。
+RuntimeMaxSec=7d
+
 # 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
 # `believeboy-celery.service` 负责。`-c 2` 允许双路并发消化批量补发，
 # chrome-headless-shell + --single-process 已将单任务内存压到可控范围。

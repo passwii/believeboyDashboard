@@ -21,12 +21,12 @@ VPS 部署 Agent - BelieveBoy Dashboard
  7. 获取并分析部署失败的日志
 """
 
-import subprocess
-import sys
 import argparse
 import datetime
 import json
 import os
+import subprocess
+import sys
 
 # BLF-524：部署失败告警（复用 workspace 内 multica issue 评论渠道）
 from alerting import (
@@ -60,28 +60,40 @@ DEPLOY_COMMANDS = [
     "rm -f /etc/systemd/system/believeboy-worker.service /etc/systemd/system/believeboy-worker-scheduled.service",
     # --- 同步 service / journald / cron.d 配置到系统目录并重新加载 ---
     # BLF-1035：journald cap（00-believeboy-cap.conf）与 swap 每日回收
+    # BLF-1039：believeboy-beat 纳入同步范围——此前该单元是历史上手工安装
+    # 到 /etc/systemd/system 的，部署只重启 api / 两个 worker，导致 beat 侧
+    # 代码变更（beat_schedule 删除、惰性导入等）必须人工 restart 才生效。
+    # BLF-1039：dockerd 看门狗（脚本 + cron.d）一并幂等安装。
     f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery.service /etc/systemd/system/believeboy-celery.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery-scheduled.service /etc/systemd/system/believeboy-celery-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
+    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-beat.service /etc/systemd/system/believeboy-beat.service "
     f"&& mkdir -p /etc/systemd/journald.conf.d "
     f"&& cp {PROJECT_DIR}backend/deploy/journald/00-believeboy-cap.conf /etc/systemd/journald.conf.d/00-believeboy-cap.conf "
     f"&& systemctl restart systemd-journald "
     f"&& cp {PROJECT_DIR}backend/deploy/cron/believeboy-swap-reclaim /etc/cron.d/believeboy-swap-reclaim "
     f"&& chmod 0644 /etc/cron.d/believeboy-swap-reclaim "
     f"&& chmod +x {PROJECT_DIR}backend/deploy/scripts/swap_reclaim.sh "
+    f"&& cp {PROJECT_DIR}backend/deploy/cron/believeboy-dockerd-watchdog /etc/cron.d/believeboy-dockerd-watchdog "
+    f"&& chmod 0644 /etc/cron.d/believeboy-dockerd-watchdog "
+    f"&& chmod +x {PROJECT_DIR}backend/deploy/scripts/dockerd_watchdog.sh "
     f"&& systemctl daemon-reload",
     # 启用新单元（首次部署时 enable，后续幂等）
-    "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true",
+    "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service believeboy-beat.service 2>/dev/null || true",
     "systemctl restart believeboy-api",
     # Celery worker 必须随代码部署一起重启，否则旧进程内存里的 task 签名
     # 不更新（如 dispatch_one 的 old_log_id 参数），补发任务会抛 TypeError
     # 并永久卡在 preparing。两个 worker 单元：
-    #   believeboy-celery（-Q default,reports,insights,ai_summary -c 4）
+    #   believeboy-celery（-Q default,reports,insights,ai_summary -c 1）
     #   believeboy-celery-scheduled（-Q scheduled -c 2，截图内存隔离）
     # 均用 acks_late + task_reject_on_worker_lost，重启时 in-flight 任务
     # 会被 broker 重投，安全。
     "systemctl restart believeboy-celery.service",
     "systemctl restart believeboy-celery-scheduled.service",
+    # beat 同理必须随部署重启（BLF-1039）：beat 侧变更（beat_schedule 条目
+    # 增删 / 任务模块惰性导入）只在 beat 进程重新导入时生效。beat 的调度
+    # 进度落在 --schedule 本地 db，重启不丢已发出的记录。
+    "systemctl restart believeboy-beat.service",
     "systemctl status believeboy-api --no-pager",
 ]
 
@@ -90,11 +102,22 @@ CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
     "systemctl is-active believeboy-celery.service",
     "systemctl is-active believeboy-celery-scheduled.service",
+    # BLF-1039：beat 已纳入部署范围（同步 + restart）。单引号会被 SSH 外层
+    # 单引号破坏，因此 grep 模式一律不加引号。
+    "systemctl is-active believeboy-beat.service",
     f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
     "grep -q ^SystemMaxUse=200M$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf"
     " && grep -q ^SystemKeepFree=1G$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf",
     "test -x /root/believeboyDashboard/backend/deploy/scripts/swap_reclaim.sh"
     " && grep -q swap_reclaim.sh /etc/cron.d/believeboy-swap-reclaim",
+    # BLF-1039：dockerd 看门狗落地校验（脚本可执行 + cron.d 条目指向它）
+    "test -x /root/believeboyDashboard/backend/deploy/scripts/dockerd_watchdog.sh"
+    " && grep -q dockerd_watchdog.sh /etc/cron.d/believeboy-dockerd-watchdog",
+    # BLF-1039：长跑膨胀防护落地校验（beat / 两个 worker 单元都有
+    # RuntimeMaxSec=7d；/etc/systemd/system 下是部署同步后的副本）
+    "grep -q ^RuntimeMaxSec=7d$ /etc/systemd/system/believeboy-beat.service"
+    " && grep -q ^RuntimeMaxSec=7d$ /etc/systemd/system/believeboy-celery.service"
+    " && grep -q ^RuntimeMaxSec=7d$ /etc/systemd/system/believeboy-celery-scheduled.service",
 ]
 
 # 日志获取命令（用于错误分析）
@@ -282,15 +305,15 @@ def format_report(logs, analysis):
     lines.append("=" * 60)
     lines.append(f"\n📋 失败阶段: {logs['stage']}")
     lines.append(f"⏰ 发生时间: {logs['timestamp']}")
-    lines.append(f"\n🔍 可能原因:")
+    lines.append("\n🔍 可能原因:")
     for cause in analysis["likely_causes"]:
         lines.append(f"   • {cause}")
 
-    lines.append(f"\n💡 建议操作:")
+    lines.append("\n💡 建议操作:")
     for rec in analysis["recommendations"]:
         lines.append(f"   → {rec}")
 
-    lines.append(f"\n📊 详细日志:")
+    lines.append("\n📊 详细日志:")
     lines.append("-" * 40)
 
     # 按优先级显示日志

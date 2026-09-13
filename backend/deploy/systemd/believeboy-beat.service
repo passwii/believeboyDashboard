@@ -13,5 +13,19 @@ ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery
 Restart=always
 RestartSec=3
 
+# 长跑膨胀防护（BLF-1039 item 3）：巡检实测 beat 以 33 天 uptime 跑出
+# 192MB MemoryPeak（刚重启时仅 ~55MB），systemd 的 MemoryCurrent 不会
+# 自己回收这类长跑膨胀（Stage 6 现场实测 MemoryCurrent 54MB /
+# MemoryPeak 192MB）。RuntimeMaxSec=7d 让 systemd 每周定时 SIGTERM +
+# 重启（Restart=always 保证重启生效），把驻留压回基线；beat 的调度进度
+# 落在 --schedule 指定的本地 db 文件，重启不丢已发出的任务记录。
+# 不用 MemoryMax 兜底的原因：观测峰值 192MB 距任何安全上限都太近，
+# 命中即杀会造成随机调度中断；固定周期重启更可预测。
+RuntimeMaxSec=7d
+
+# 部署注意（BLF-1039）：本单元已纳入 productEnvAgent/deploy_vps.py 的
+# DEPLOY_COMMANDS（同步 service 文件 + restart）——此前 beat 不在部署
+# 范围内，beat 侧代码变更必须人工 restart 才生效。
+
 [Install]
 WantedBy=multi-user.target

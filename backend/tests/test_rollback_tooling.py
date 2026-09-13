@@ -14,15 +14,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]  # 仓库根目录
 if str(REPO_ROOT / "productEnvAgent") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "productEnvAgent"))
 
-from alerting import (  # noqa: E402
-    STATE_FILE,
+from alerting import (  # noqa: E402  # pyright: ignore[reportMissingImports]
     build_alert_body,
     build_rollback_command,
     read_failed_deploy_state,
     record_failed_deploy,
     resolve_alert_issue_id,
 )
-from rollback import (  # noqa: E402
+from rollback import (  # noqa: E402  # pyright: ignore[reportMissingImports]
     build_backend_plan,
     build_frontend_plan,
     format_plan,
@@ -76,7 +75,7 @@ def test_backend_plan_default_steps():
     assert labels[0] == "展示当前状态"
     assert "git revert 坏提交" in labels
     assert "Alembic 机械检查" in labels
-    assert "重启三个服务" in labels
+    assert "重启四个服务" in labels
     assert "服务状态检查" in labels
     assert "健康检查 (HTTP)" in labels
 
@@ -90,13 +89,15 @@ def test_backend_plan_revert_is_merge_aware():
     assert "else git revert --no-edit" in revert_cmd
 
 
-def test_backend_plan_restart_all_three_services():
+def test_backend_plan_restart_all_four_services():
     plan = build_backend_plan(SHA)
-    restart_cmd = dict(plan)["重启三个服务"]
+    restart_cmd = dict(plan)["重启四个服务"]
     for svc in [
         "believeboy-api",
         "believeboy-celery.service",
         "believeboy-celery-scheduled.service",
+        # BLF-1039：beat 侧变更必须重启 beat 才生效，回滚序列同样不能漏
+        "believeboy-beat.service",
     ]:
         assert svc in restart_cmd
 
@@ -178,7 +179,7 @@ def test_build_alert_body_shape():
 
 
 def test_failed_deploy_state_roundtrip(tmp_path, monkeypatch):
-    import alerting
+    import alerting  # pyright: ignore[reportMissingImports]
 
     monkeypatch.setattr(alerting, "LOGS_DIR", tmp_path)
     monkeypatch.setattr(alerting, "STATE_FILE", tmp_path / "last-failed-deploy.json")
@@ -193,7 +194,7 @@ def test_failed_deploy_state_roundtrip(tmp_path, monkeypatch):
 
 
 def test_failed_deploy_state_missing(tmp_path, monkeypatch):
-    import alerting
+    import alerting  # pyright: ignore[reportMissingImports]
 
     monkeypatch.setattr(alerting, "STATE_FILE", tmp_path / "nope.json")
     assert read_failed_deploy_state() is None

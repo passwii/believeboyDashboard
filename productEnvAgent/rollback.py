@@ -25,7 +25,6 @@ import argparse
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from alerting import (
     STATE_FILE,
@@ -41,11 +40,15 @@ PROJECT_DIR = "/root/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
 VENV_ACTIVATE = "source /root/believeboyDashboard/backend/.venv/bin/activate"
 
-# 三个后端服务（部署/回滚都要一起重启）
+# 四个后端服务（部署/回滚都要一起重启）
+# believeboy-beat 于 BLF-1039 补入：beat 侧变更（beat_schedule / 任务模块
+# 惰性导入）必须重启 beat 进程才生效，此前回滚漏掉 beat 会让「回滚成功」
+# 却仍跑着新代码的 beat 进程。
 SERVICES = [
     "believeboy-api",
     "believeboy-celery.service",
     "believeboy-celery-scheduled.service",
+    "believeboy-beat.service",
 ]
 
 GITHUB_REPO = "passwii/believeboyDashboard"
@@ -80,7 +83,7 @@ def build_backend_plan(
     """后端回滚命令序列：[(阶段名, 远程命令)]。
 
     顺序：状态展示 → fetch → 校验 bad-sha → revert（merge-aware）→
-    （可选 push 回 origin）→ alembic 处理 → 重启三服务 → 健康检查。
+    （可选 push 回 origin）→ alembic 处理 → 重启四服务 → 健康检查。
     """
     plan: list[tuple[str, str]] = []
 
@@ -150,14 +153,15 @@ def build_backend_plan(
             )
         )
 
-    plan.append(("重启三个服务", _ssh("systemctl restart " + " ".join(SERVICES))))
+    plan.append(("重启四个服务", _ssh("systemctl restart " + " ".join(SERVICES))))
 
     plan.append(
         (
             "服务状态检查",
             _ssh(
                 "systemctl is-active believeboy-api "
-                "believeboy-celery.service believeboy-celery-scheduled.service"
+                "believeboy-celery.service believeboy-celery-scheduled.service "
+                "believeboy-beat.service"
             ),
         )
     )
@@ -346,7 +350,7 @@ def run_rollback(
         + ("" if not frontend_plan else "；前端已回滚")
     )
     print("=" * 64)
-    print(f"提示: 回滚后请同步 revert 提交（见 ROLLBACK.md「回滚后重试部署」）。")
+    print("提示: 回滚后请同步 revert 提交（见 ROLLBACK.md「回滚后重试部署」）。")
     return 0
 
 
