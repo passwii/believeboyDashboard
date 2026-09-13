@@ -34,7 +34,6 @@ def eager_celery_app(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("REDIS_DB", "0")
     monkeypatch.setenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
     monkeypatch.setenv("CELERY_RESULT_URL", "redis://localhost:6379/2")
-    monkeypatch.setenv("ENABLE_CELERY_DISPATCH", "true")
 
     # Reset the lru-cached Settings + rebuild the Celery app so the
     # eager-mode flag takes effect.
