@@ -1,5 +1,9 @@
+"""daily-analysis 响应模型 + 全项目聚合响应的字节序列化（BLF-1038）。"""
+
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from pydantic import BaseModel
@@ -118,3 +122,35 @@ class DailyAnalysisAllProjectsCountriesResponse(BaseModel):
     country_breakdown: dict[str, dict[str, object]]
     currency: str = "USD"
     currency_note: str | None = None
+
+
+# ── 全项目聚合响应的字节序列化（BLF-1038）──────────────────────────────
+# `/daily-analysis/all` 的响应体约 3.4MB，命中缓存时若还得走
+# Pydantic 校验 + FastAPI 序列化，prod 下足以吃掉 300ms 的延迟预算。
+# 因此缓存里存的是**这里序列化好的字节**，命中直接 `Response(bytes)` 返回。
+
+# 响应 schema 指纹进缓存 key：模型一改（字段增删 / 嵌套模型变化），
+# 指纹随之变化 → 旧缓存体自然不再命中，无需人工 bump 版本号。
+ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT: str = hashlib.sha256(
+    json.dumps(
+        DailyAnalysisAllProjectsResponse.model_json_schema(), sort_keys=True
+    ).encode("utf-8")
+).hexdigest()[:8]
+
+
+def serialize_all_projects_response(payload: dict[str, object]) -> bytes:
+    """把聚合结果 dict 序列化为响应字节（JSON，与 FastAPI 同口径）。
+
+    先 ``model_validate`` 再 ``model_dump(mode="json")``：
+    - 写进缓存前先过一遍响应模型，保证缓存体的形状一定合当前 schema；
+    - 序列化设置对齐 FastAPI ``JSONResponse``（``ensure_ascii=False`` /
+      ``allow_nan=False`` / ``separators=(",", ":")``），保证与未命中缓存时
+      的响应体逐字节一致。
+    """
+    model = DailyAnalysisAllProjectsResponse.model_validate(payload)
+    return json.dumps(
+        model.model_dump(mode="json"),
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
