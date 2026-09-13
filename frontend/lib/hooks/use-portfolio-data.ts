@@ -194,6 +194,9 @@ export function usePortfolioData({
           country,
           start_date: startDate,
           end_date: endDate,
+          // BLF-1038：本页只消费 project_breakdown[*].summary_rows，不需要
+          // detail_rows（30 天窗口实测 3.64MB → 91KB）。
+          include_detail: 'false',
         })
         // BEL-423：与 daily-analysis 共用 daily-analysis/all 端点的 2min 客户端缓存，
         // 两页来回切换不重复请求。

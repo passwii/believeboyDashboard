@@ -235,12 +235,17 @@ export default function DashboardV2Page() {
         country: 'US',
         start_date: startDate,
         end_date: endDate,
+        // BLF-1038：首页只用 summary_rows / project_breakdown（每项目 summary_rows），
+        // 不需要逐 SKU 的 detail_rows —— 30 天窗口实测 3.64MB → 91KB。
+        // include_detail 后端默认 true，运营明细页等真实消费方不受影响。
+        include_detail: 'false',
       })
       const compareParams = new URLSearchParams({
         project_ids: ids,
         country: 'US',
         start_date: formatYMD(prevFrom),
         end_date: formatYMD(prevTo),
+        include_detail: 'false',
       })
 
       const [response, compareResponse] = await Promise.all([

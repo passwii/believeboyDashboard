@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { renderHook, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   aggregateWindow,
+  briefWindows,
   mtdWindows,
   pickLatestSalesDate,
   ppChange,
+  rowsInWindow,
+  useSevenDayBrief,
   type SummaryRow,
 } from './use-seven-day-brief'
 
@@ -197,5 +201,197 @@ describe('mtdWindows（BLF-967：本月至今 vs 上月同期）', () => {
       prevStart: '2024-02-01',
       prevEnd: '2024-02-29',
     })
+  })
+})
+describe('briefWindows（BLF-1038：并集窗口覆盖 4 个统计窗口）', () => {
+  /** 与实现同口径的日期平移（测试内独立实现，避免自证） */
+  function shift(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split('-').map(Number)
+    return new Date(Date.UTC(y!, m! - 1, d!) + days * 86_400_000).toISOString().slice(0, 10)
+  }
+
+  function listDays(start: string, end: string): string[] {
+    const days: string[] = []
+    for (let day = start; day <= end; day = shift(day, 1)) days.push(day)
+    return days
+  }
+
+  const cases = ['2026-09-02', '2026-09-01', '2026-09-20', '2026-03-31', '2026-01-05', '2024-03-30']
+
+  it.each(cases)('%s：union 覆盖 current / previous / mtd / prevMtd 全部窗口', (endDate: string) => {
+    const w = briefWindows(endDate)
+    for (const win of [w.current, w.previous, w.mtd, w.prevMtd]) {
+      expect(w.unionStart <= win.start).toBe(true)
+      expect(w.unionEnd >= win.end).toBe(true)
+    }
+  })
+
+  it.each(cases)('%s：union 起点 = 上月 1 日（早于近 7 天窗口起点）', (endDate: string) => {
+    const w = briefWindows(endDate)
+    expect(w.unionStart).toBe(mtdWindows(endDate).prevStart)
+    expect(w.unionEnd).toBe(endDate)
+  })
+
+  it('月中：end=2026-09-20 → 并集 08-01~09-20，窗口按 E 派生', () => {
+    expect(briefWindows('2026-09-20')).toEqual({
+      unionStart: '2026-08-01',
+      unionEnd: '2026-09-20',
+      current: { start: '2026-09-14', end: '2026-09-20' },
+      previous: { start: '2026-09-07', end: '2026-09-13' },
+      mtd: { start: '2026-09-01', end: '2026-09-20' },
+      prevMtd: { start: '2026-08-01', end: '2026-08-20' },
+    })
+  })
+
+  it('月初：end=2026-09-05 → 窗口跨越上月（近 7 天 08-30~09-05）', () => {
+    expect(briefWindows('2026-09-05')).toEqual({
+      unionStart: '2026-08-01',
+      unionEnd: '2026-09-05',
+      current: { start: '2026-08-30', end: '2026-09-05' },
+      previous: { start: '2026-08-23', end: '2026-08-29' },
+      mtd: { start: '2026-09-01', end: '2026-09-05' },
+      prevMtd: { start: '2026-08-01', end: '2026-08-05' },
+    })
+  })
+
+  it('跨年：end=2026-01-05 → union 起点 2025-12-01', () => {
+    expect(briefWindows('2026-01-05').unionStart).toBe('2025-12-01')
+  })
+
+  it('窗口天数为并集天数的子集：current 7 天恒 ≤ union 天数', () => {
+    const w = briefWindows('2026-09-20')
+    expect(listDays(w.current.start, w.current.end)).toHaveLength(7)
+    expect(listDays(w.unionStart, w.unionEnd).length).toBeGreaterThanOrEqual(7)
+  })
+})
+
+describe('rowsInWindow（BLF-1038：并集响应按窗口裁剪）', () => {
+  const rows: SummaryRow[] = [
+    { date: '2026-08-31', sales_amount: 999 },
+    { date: '2026-09-01', sales_amount: 1 },
+    { date: '2026-09-07', sales_amount: 2 },
+    { date: '2026-09-08', sales_amount: 4 },
+    { date: '2026-09-15', sales_amount: 888 },
+    { sales_amount: 777 },
+  ]
+
+  it('闭区间保留端点、丢弃区间外与无 date 的行', () => {
+    expect(rowsInWindow(rows, '2026-09-01', '2026-09-08')).toEqual([
+      { date: '2026-09-01', sales_amount: 1 },
+      { date: '2026-09-07', sales_amount: 2 },
+      { date: '2026-09-08', sales_amount: 4 },
+    ])
+  })
+
+  it('裁剪后各窗口聚合 = 逐窗口分别请求的聚合（并集等价性）', () => {
+    const w = briefWindows('2026-09-14')
+    const current = aggregateWindow(rowsInWindow(rows, w.current.start, w.current.end))
+    const previous = aggregateWindow(rowsInWindow(rows, w.previous.start, w.previous.end))
+    // current = 09-08~09-14 → 1 行(4)；previous = 09-01~09-07 → 2 行(1+2=3)
+    expect(current.gmv).toBe(4)
+    expect(previous.gmv).toBe(3)
+  })
+})
+
+describe('useSevenDayBrief（BLF-1038：4 窗口合并为 1 次并集请求）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** 当前美西日期与数据终点 E（T-1）——与 hook 同口径 */
+  function todaysEndDate(): string {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(
+      new Date()
+    )
+    const [y, m, d] = today.split('-').map(Number)
+    return new Date(Date.UTC(y!, m! - 1, d!) - 86_400_000).toISOString().slice(0, 10)
+  }
+
+  function listDays(start: string, end: string): string[] {
+    const days: string[] = []
+    for (let day = start; day <= end; ) {
+      days.push(day)
+      const [y, m, d] = day.split('-').map(Number)
+      day = new Date(Date.UTC(y!, m! - 1, d!) + 86_400_000).toISOString().slice(0, 10)
+    }
+    return days
+  }
+
+  /** 并集区间内每天 1 单 1 美元；未裁剪前的区间外塞入巨值行验证被丢弃 */
+  function buildRows(w: ReturnType<typeof briefWindows>): SummaryRow[] {
+    return [
+      ...listDays(w.unionStart, w.unionEnd).map((date) => ({
+        date,
+        sales_amount: 1,
+        order_qty: 1,
+        ad_spend: 1,
+        ad_orders: 1,
+        pending_order_qty: date === w.unionEnd ? 7 : 0,
+      })),
+      { date: '2000-01-01', sales_amount: 1_000_000, order_qty: 1000 },
+    ]
+  }
+
+  it('仅 1 次请求（并集区间 + include_detail=false），按窗口裁出各聚合值', async () => {
+    const endDate = todaysEndDate()
+    const w = briefWindows(endDate)
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          summary_rows: buildRows(w),
+          available_dates: { sales_report: [endDate] },
+        }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useSevenDayBrief())
+    await waitFor(() => expect(result.current.status).toBe('ok'))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = String(fetchMock.mock.calls[0]![0])
+    const params = new URLSearchParams(url.split('?')[1])
+    expect(params.get('project_ids')).toBe('all')
+    expect(params.get('country')).toBe('US')
+    expect(params.get('start_date')).toBe(w.unionStart)
+    expect(params.get('end_date')).toBe(w.unionEnd)
+    expect(params.get('include_detail')).toBe('false')
+
+    const { brief } = result.current
+    expect(brief.gmv).toBe(7)
+    expect(brief.orders).toBe(7)
+    expect(brief.adSpend).toBe(7)
+    expect(brief.adOrders).toBe(7)
+    // pending 取窗口内最新日（= E）的值
+    expect(brief.pending).toBe(7)
+    expect(brief.mtdGmv).toBe(listDays(w.mtd.start, w.mtd.end).length)
+    expect(brief.gmvDelta).toBeCloseTo(0)
+    expect(brief.latestSalesDate).toBe(endDate)
+  })
+
+  it('区间外行不影响任何窗口聚合（裁剪生效）', async () => {
+    const endDate = todaysEndDate()
+    const w = briefWindows(endDate)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ summary_rows: buildRows(w), available_dates: {} }),
+      })
+    )
+
+    const { result } = renderHook(() => useSevenDayBrief())
+    await waitFor(() => expect(result.current.status).toBe('ok'))
+
+    // 巨值行落在窗口外 → GMV 仍等于窗口天数
+    expect(result.current.brief.gmv).toBe(7)
+    // available_dates 缺失时回退到 E
+    expect(result.current.brief.latestSalesDate).toBe(endDate)
+  })
+
+  it('请求失败整体降级 error（与合并前 4 路并发语义一致）', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    const { result } = renderHook(() => useSevenDayBrief())
+    await waitFor(() => expect(result.current.status).toBe('error'))
   })
 })
