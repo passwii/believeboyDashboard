@@ -42,8 +42,8 @@ from app.schemas.external.shop_calculation import (
     ShopCalculationHistoryResponse,
     ShopCalculationSnapshotsResponse,
 )
-from app.services.external import projects_query
 from app.services.external import _shop_calculation as shop_calc_svc
+from app.services.external import projects_query
 
 shop_calculation_router = APIRouter(
     prefix="/projects/{project_id}",
@@ -129,10 +129,24 @@ def get_agent_shop_calculation_history(
     page_size: int = Query(default=200, ge=1, le=500),
     order_by: str = Query(default="observed_at"),
     order_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    target_net_margin: float | None = Query(
+        default=None,
+        ge=-1,
+        le=1,
+        description=(
+            "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate"
+            " = 盈亏平衡广告费率 − target_net_margin（BLF-1043）"
+        ),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
-    """当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平 15 列。"""
+    """当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。
+
+    BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /
+    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——
+    扁平行没有费用拆项，消费方自己算不出锚。
+    """
     with _service_errors():
         try:
             normalized_country = parse_country(country) if country else None
@@ -153,6 +167,7 @@ def get_agent_shop_calculation_history(
             country=normalized_country,
             page=page,
             page_size=page_size,
+            target_net_margin=target_net_margin,
         )
 
         # Service already orders by ``observed_at DESC, id DESC``; if the
@@ -191,10 +206,22 @@ def get_agent_shop_calculation_snapshots(
         description="Exact-match SKU filter (case-sensitive).",
     ),
     country: str = Query(default=""),
+    target_net_margin: float | None = Query(
+        default=None,
+        ge=-1,
+        le=1,
+        description=(
+            "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate"
+            "（BLF-1043）"
+        ),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
-    """append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。"""
+    """append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
+
+    BLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。
+    """
     with _service_errors():
         try:
             from_d = _parse_iso_date(from_date, field="from_date")
@@ -219,6 +246,7 @@ def get_agent_shop_calculation_snapshots(
             to_date=to_d,
             sku=sku,
             country=normalized_country,
+            target_net_margin=target_net_margin,
         )
 
         resp = ShopCalculationSnapshotsResponse(

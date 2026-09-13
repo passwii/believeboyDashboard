@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.pricing_anchor import PricingAnchor
 
 InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
 CalculationType = Literal[
@@ -118,6 +119,9 @@ class NewProductCalculationItem(BaseModel):
     fees: NewProductCalculationFees
     # 利润详情
     profit: NewProductCalculationProfit
+    # 定价派生块（BLF-1043）：盈亏平衡广告费率 / 目标广告费率；读取时派生、不落库。
+    # 本域的 target 即行上已有的 ``target_profit_rate``（「给目标利润 → 反算广告费率」）。
+    anchor: PricingAnchor | None = None
 
     # 警告信息
     warnings: list[str] = Field(default_factory=list)

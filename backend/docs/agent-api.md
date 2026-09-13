@@ -99,6 +99,79 @@ Query 参数：
 货件字段约定：`shipment_status` ∈ {draft, in_transit, completed}；
 `shipping_method` ∈ {sea, air, express, truck, rail, other}（英文 token）。
 
+### 店铺测算域（含定价派生块 `anchor`，BLF-1043）
+
+    GET    /api/v1/agent/projects/{project_id}/shop-calculations
+    GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}
+    GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/history
+    GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/audit
+    POST   /api/v1/agent/projects/{project_id}/shop-calculations                 （confirm）
+    POST   /api/v1/agent/projects/{project_id}/shop-calculations/compute
+    GET    /api/v1/agent/projects/{project_id}/shop-calculation-history          （BI 扁平）
+    GET    /api/v1/agent/projects/{project_id}/shop-calculation/snapshots        （BI 扁平）
+    GET    /api/v1/agent/projects/{project_id}/pricing-snapshots                 （BI 扁平）
+    GET/POST /api/v1/agent/projects/{project_id}/new-product-calculations*       （同款派生）
+
+**为什么有这个块**：判定「广告效率好不好」需要「盈亏平衡广告费率」（运营口径的
+盈亏平衡 ACOS）。`advertising_rate` 在定价引擎里只以线性项
+`sale_price_usd × advertising_rate` 出现，所以它是一元一次方程、有闭式解 —— 由 API
+算一次，所有消费方（广告周报 / OPS 审批 / 报表）共用同一口径，避免各写一遍漂移：
+
+```text
+non_ad_fee_usd            = total_fee_usd - advertising_fee_usd   # EU 三笔手动费已在 total_fee 内
+breakeven_advertising_rate = 1 - (non_ad_fee_usd + ddp_cost_usd + vat_usd) / sale_price_usd
+```
+
+自检恒等式：`breakeven_advertising_rate ≡ advertising_rate + profit_rate`
+（两侧均含引擎的 2 位金额 / 4 位比率舍入，残差 ≤ 约 `0.01 / sale_price_usd`）。
+
+富契约（`shop-calculations*`、`new-product-calculations*`、`/compute` 的
+`calculation` 与 `snapshot`）挂嵌套块 `anchor`；BI 扁平契约
+（`shop-calculation-history`、`shop-calculation/snapshots`、`pricing-snapshots`）
+没有费用拆项，改为**显式补三列**（服务端推）：`breakeven_advertising_rate` /
+`max_ad_spend_per_unit_usd` / `target_advertising_rate`。
+
+```json
+{
+  "anchor": {
+    "breakeven_advertising_rate": 0.2980,
+    "non_ad_fee_usd": 15.60,
+    "max_ad_spend_per_unit_usd": 12.81,
+    "breakeven_advertising_rate_after_vat": null,
+    "target_net_margin": 0.10,
+    "target_advertising_rate": 0.1980,
+    "basis": {
+      "observed_at": "2026-09-13T08:00:00+00:00",
+      "usd_to_rmb_rate": 6.7894,
+      "usd_to_rmb_rate_source": "manual"
+    }
+  }
+}
+```
+
+Query / body 参数：
+
+| 参数 | 位置 | 默认 | 说明 |
+|---|---|---|---|
+| `include_anchor` | Query（富契约读路由） | `true` | `false` 时响应与旧版**逐字节一致**（键消失，不是置 null） |
+| `target_net_margin` | Query（读数、BI 扁平、`pricing-snapshots`）/ body（`/compute`） | 不传 | 目标净利率，校验 `ge=-1, le=1`（**清库存档允许亏**，不要收紧成 `ge=0`）；不传则两个 target 字段为 `null` |
+
+`target_advertising_rate = breakeven_advertising_rate - target_net_margin`。
+新品域没有独立参数：目标净利率即行上的 `target_profit_rate`。
+
+消费注意：
+
+* **派生量，不落库**：读时计算，零迁移，不影响 append-only 语义。
+* **不 clamp**：闭式解 ≤ 0（成本已高于售价，不花广告费也亏）原样返回负值 —— 负值本身是诊断信号。
+* **`sale_price_usd == 0` → `null`**（返回 0 会被读成「广告一分不能花」）。
+* **US 的 `breakeven_advertising_rate_after_vat` 是 `null`**，不是 0（避免被误读为「美国有 VAT」）。
+* **锚依赖汇率而漂移**（实测同 SKU：fx 6.7894 → 29.80%，fx 6.7078 → 29.38%），
+  所以必须把 `anchor`（含 `basis`）当**自包含对象**缓存与版本化。
+* `return_loss_usd` 是**期望值**（`sale_price_usd × return_loss_rate`），因此锚是
+  「按当前退货率假设的期望锚」，不是「零退货锚」。
+* 读数派生自**该行自己的费用字段**（agent 可写）：恒等式就是行内自洽性的免费自检，
+  残差超 `0.01 / price` 说明这一行的费用拆项本身不自洽。
+
 ## 3. 响应壳
 
 成功：`{ "ok": true, "data": ..., "idempotency_key": "..." }`

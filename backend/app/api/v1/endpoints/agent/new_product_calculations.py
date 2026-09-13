@@ -51,6 +51,7 @@ from app.services.audit_log_service import (
     query_operation_audit_log_for_targets,
 )
 from app.services.pricing import _build_create_payload
+from app.services.pricing.anchor import _anchor_from_computed
 from app.services.pricing.computation import _compute_pricing
 from app.services.pricing.cost_reverse import _solve_fob_cost_for_profit_rate
 from app.services.pricing.fbm import _compute_fbm_pricing
@@ -427,6 +428,18 @@ async def upsert_new_product_calculation(
 # ============================================================
 
 
+def _anchor_for_request(
+    computed: dict[str, Any], request: AgentNewProductCalculationComputeRequest
+):
+    """新品域的 ``anchor``：目标净利率取请求上已有的 ``target_profit_rate``。
+
+    profit_reverse / cost_reverse 模式下售价 / 成本是输出，引擎解出的值保证
+    目标利润达成，因此 ``target_advertising_rate`` 会收束到请求输入的
+    ``advertising_rate``（可当自洽断言用）。
+    """
+    return _anchor_from_computed(computed, target_net_margin=request.target_profit_rate)
+
+
 def _engine_to_run_item(
     computed: dict[str, Any],
     request: AgentNewProductCalculationComputeRequest,
@@ -485,6 +498,9 @@ def _engine_to_run_item(
         "full_container_quantity": float(request.full_container_quantity or 0),
         "full_container_price_rmb": float(request.full_container_price_rmb or 0),
         "competitor_url": None,
+        # BLF-1043：派生块（本域的 target 即 target_profit_rate，即「给目标利润 →
+        # 反算广告费率」）。成本已高过售价时 breakeven 为负，原样返回不 clamp。
+        "anchor": _anchor_for_request(computed, request).model_dump(mode="json"),
     }
 
 
@@ -575,6 +591,9 @@ def _engine_to_snapshot(
         "source": None,
         "observed_at": None,
     }
+    # BLF-1043：snapshot 同样带 anchor（多余的键在 POST W1 时被
+    # ``AgentNewProductCalculationUpsertRequest`` 忽略，extra=ignore）。
+    snapshot["anchor"] = _anchor_for_request(computed, request).model_dump(mode="json")
     return snapshot
 
 
@@ -616,12 +635,14 @@ def compute_new_product_calculation(
                 human_message=str(exc),
                 details=[{"engine": str(exc)}],
             ) from None
+    anchor = _anchor_for_request(computed, payload)
     return agent_ok(
         {
             "mode": payload.mode,
             "calculation": _engine_to_run_item(computed, payload, payload.mode),
             "snapshot": _engine_to_snapshot(computed, payload, payload.mode),
-            "usd_to_rmb_rate": float(computed["usd_to_rmb_rate"]),
-            "usd_to_rmb_rate_source": computed["usd_to_rmb_rate_source"],
+            # 汇率同一份来源：从 anchor.basis 取，避免散落的 float() 窄化
+            "usd_to_rmb_rate": anchor.basis.usd_to_rmb_rate,
+            "usd_to_rmb_rate_source": anchor.basis.usd_to_rmb_rate_source,
         }
     )

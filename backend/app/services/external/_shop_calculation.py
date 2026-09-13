@@ -22,7 +22,6 @@ defense-in-depth alongside the Pydantic schema.
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -35,10 +34,11 @@ def list_shop_calculation_history(
     db: Session,
     *,
     project_id: int,
-    country: Optional[str] = None,
+    country: str | None = None,
     page: int = 1,
     page_size: int = 200,
-) -> Tuple[List[ShopCalculationHistoryRow], int]:
+    target_net_margin: float | None = None,
+) -> tuple[list[ShopCalculationHistoryRow], int]:
     """Return the current-state list of ShopCalculation rows for a project.
 
     Delegates to ``shop_calculation_service.list_by_project`` (which
@@ -55,6 +55,9 @@ def list_shop_calculation_history(
     page, page_size
         Pagination params. ``page_size`` is clamped 1..500 by the
         underlying service.
+    target_net_margin
+        Optional target net margin (BLF-1043). When supplied, each row
+        also carries ``target_advertising_rate``.
 
     Returns
     -------
@@ -68,6 +71,7 @@ def list_shop_calculation_history(
         country=country,
         page=page,
         page_size=page_size,
+        target_net_margin=target_net_margin,
     )
     rows = [_flatten_history_row(it) for it in items]
     return rows, total
@@ -77,12 +81,13 @@ def list_shop_calculation_snapshots(
     db: Session,
     *,
     project_id: int,
-    from_date: Optional[date] = None,
-    to_date: Optional[date] = None,
-    sku: Optional[str] = None,
-    country: Optional[str] = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    sku: str | None = None,
+    country: str | None = None,
     include_deleted: bool = False,
-) -> List[ShopCalculationHistoryRow]:
+    target_net_margin: float | None = None,
+) -> list[ShopCalculationHistoryRow]:
     """Return the append-only time-series rows for a project.
 
     Delegates to ``shop_calculation_service.list_history`` (which
@@ -102,8 +107,9 @@ def list_shop_calculation_snapshots(
         sku=sku,
         country=country,
         include_deleted=include_deleted,
+        target_net_margin=target_net_margin,
     )
-    out: List[ShopCalculationHistoryRow] = []
+    out: list[ShopCalculationHistoryRow] = []
     for it in items:
         observed = getattr(it, "observed_at", None)
         if (
@@ -126,7 +132,12 @@ def _flatten_history_row(item) -> ShopCalculationHistoryRow:
     attributes directly. The mapping is hand-written (no Pydantic
     ``from_attributes`` magic) so that adding a field here is a
     deliberate, reviewable change.
+
+    BLF-1043：扁平行带有费用拆项（item.fees / item.profit），所以锚能在服务端
+    算出来 —— 挂到三个派生列上。消费方拿到的扁平行没有任何 fee 明细，自己算
+    不出锚，故必须由服务端（唯一的公式落点 ``pricing.anchor``）推。
     """
+    anchor = getattr(item, "anchor", None)
     return ShopCalculationHistoryRow(
         id=item.id,
         project_id=item.project_id,
@@ -144,6 +155,15 @@ def _flatten_history_row(item) -> ShopCalculationHistoryRow:
         profit_rate=item.profit.profit_rate,
         payout_usd=item.profit.payout_usd,
         total_fee_usd=item.fees.total_fee_usd,
+        breakeven_advertising_rate=(
+            anchor.breakeven_advertising_rate if anchor is not None else None
+        ),
+        max_ad_spend_per_unit_usd=(
+            anchor.max_ad_spend_per_unit_usd if anchor is not None else None
+        ),
+        target_advertising_rate=(
+            anchor.target_advertising_rate if anchor is not None else None
+        ),
         created_at=item.created_at,
         updated_at=item.updated_at,
     )

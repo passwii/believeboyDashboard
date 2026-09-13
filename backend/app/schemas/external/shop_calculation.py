@@ -23,13 +23,15 @@ Design notes:
     * Fee-rule labels — long internal strings, low BI value
 * Fields mirror the ROW_WHITELIST contract in
   ``app/api/v1/endpoints/agent/_whitelist.py`` — adding a
-  field here **requires** extending that whitelist, and vice versa.
+  **列-backed** field here **requires** extending that whitelist, and vice
+  versa. ``breakeven_advertising_rate`` / ``max_ad_spend_per_unit_usd`` /
+  ``target_advertising_rate``（BLF-1043）是**读取时派生**的（不是表列），
+  所以它们不在 whitelist 里、也不可用作 ``order_by``。
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,7 +59,7 @@ class ShopCalculationHistoryRow(BaseModel):
     project_id: int
     project_name: str
     sku: str
-    asin: Optional[str] = None
+    asin: str | None = None
     country: str
     accounting_type: str = "profit_calc"
     # BEL-378 append-only time-series metadata
@@ -69,6 +71,14 @@ class ShopCalculationHistoryRow(BaseModel):
     profit_rate: float = 0.0  # ratio 0..1 (NOT percent — matches the raw column)
     payout_usd: float = 0.0
     total_fee_usd: float = 0.0
+    # BLF-1043 定价派生列（服务端推，不改 append-only 语义）。
+    # 扁平行**没有**费用拆项、没有 advertising_rate/advertising_fee_usd，所以消费方
+    # 自己算不出锚 —— 必须由服务端显式补这一列。口径见
+    # ``app/services/pricing/anchor.py``（比率 4 位小数；sale_price=0 → null；
+    # 不 clamp，负值是诊断信号）。
+    breakeven_advertising_rate: float | None = None
+    max_ad_spend_per_unit_usd: float | None = None
+    target_advertising_rate: float | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -83,9 +93,9 @@ class ShopCalculationHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     project_id: int
-    country: Optional[str] = None  # echo back when filter applied
+    country: str | None = None  # echo back when filter applied
     total: int = 0
-    data: List[ShopCalculationHistoryRow] = Field(default_factory=list)
+    data: list[ShopCalculationHistoryRow] = Field(default_factory=list)
 
 
 class ShopCalculationSnapshotsResponse(BaseModel):
@@ -99,12 +109,12 @@ class ShopCalculationSnapshotsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     project_id: int
-    from_date: Optional[str] = None  # ISO YYYY-MM-DD
-    to_date: Optional[str] = None
-    sku: Optional[str] = None
-    country: Optional[str] = None
+    from_date: str | None = None  # ISO YYYY-MM-DD
+    to_date: str | None = None
+    sku: str | None = None
+    country: str | None = None
     total: int = 0
-    data: List[ShopCalculationHistoryRow] = Field(default_factory=list)
+    data: list[ShopCalculationHistoryRow] = Field(default_factory=list)
 
 
 __all__ = [
