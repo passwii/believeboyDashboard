@@ -1,10 +1,9 @@
 """Tests for `app.celery_tasks.run_job` (BEL-55-P1).
 
 Runs the Celery task body in `task_always_eager=True` mode so we don't
-need a live broker for unit tests. The integration round-trip via a
-real worker is exercised in `test_celery_ping_round_trip.py`; this file
-focuses on the task body, the route registration, and the idempotency
-guarantees the PR description claims.
+need a live broker for unit tests. This file focuses on the task body,
+the route registration, and the idempotency guarantees the PR
+description claims.
 """
 
 from __future__ import annotations

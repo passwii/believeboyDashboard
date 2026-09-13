@@ -1,6 +1,7 @@
 """Shared utilities for the believeboy Celery task package.
 
-BEL-55-P1 lifts the body of `worker.tasks.run_job` into Celery. To keep the
+BEL-55-P1 lifted the body of the pre-Celery in-process job runner into Celery
+(the legacy runner was deleted in BLF-1037). To keep the
 new task body readable and to give BEL-55-P3 (the in-memory monthly-report
 task table) something to reuse, the cross-task helpers live here:
 
@@ -11,11 +12,11 @@ task table) something to reuse, the cross-task helpers live here:
 * `monthly_progress_callback` — adapts `push_progress` to the callback
   signature expected by the monthly report pipeline.
 * `resolve_extra_file_ids` / `extract_monthly_report_id` /
-  `prepare_monthly_report_if_needed` — unchanged helpers lifted from
-  `worker/tasks.py:11-104`.
+  `prepare_monthly_report_if_needed` — unchanged helpers lifted from the
+  original in-process runner.
 
 The progress helpers commit on success and roll back on serialization
-failure (mirroring the old `worker/tasks.py:_push_progress` behavior so
+failure (mirroring the original `_push_progress` behavior so
 that a bad payload never poisons the surrounding transaction).
 """
 
@@ -43,7 +44,7 @@ def build_progress_payload(
     """Build the JSON `JobRun.log_excerpt` payload.
 
     `task_id` is the Celery task UUID (`self.request.id`); it lands in the
-    payload only when supplied so the legacy thread path keeps emitting
+    payload only when supplied so the legacy in-process path keeps emitting
     the original two-key JSON shape.
     """
     safe_progress = max(0, min(progress, 100))
@@ -68,7 +69,7 @@ def push_progress(
 ) -> None:
     """Write the latest progress JSON to `JobRun.log_excerpt`.
 
-    Mirrors `worker/tasks.py:_push_progress`: errors during serialization
+    Mirrors the original in-process `_push_progress`: errors during serialization
     or commit are swallowed (and the transaction rolled back) so a
     transient progress-write failure never aborts the surrounding handler.
     """

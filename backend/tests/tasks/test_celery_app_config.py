@@ -1,9 +1,8 @@
 """Tests for app.tasks.celery_app — pins the broker/backend auto-derivation
 and the explicit override behavior described in BEL-55-P0.
 
-The smoke-test round-trip via a running worker is exercised in
-`tests/services/test_celery_ping.py` (integration). This file focuses on the
-*configuration* layer so failures point at a single attribute.
+This file focuses on the *configuration* layer (routes, queues, includes)
+so failures point at a single attribute.
 """
 
 from __future__ import annotations
@@ -110,7 +109,7 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert conf.broker_url == "redis://redis.local:6379/1"
     assert conf.result_backend == "redis://redis.local:6379/2"
     assert conf.worker_concurrency == 2
-    assert "app.celery_tasks.ping" in fresh.conf.include
+    assert "app.celery_tasks.run_job" in fresh.conf.include
     assert "app.celery_tasks.insights.generate" in fresh.conf.include
     assert fresh.conf.task_routes["generate_insight"]["queue"] == "insights"
 

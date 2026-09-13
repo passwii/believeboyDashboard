@@ -1,7 +1,6 @@
 from datetime import datetime, UTC
 from pathlib import Path
 import logging
-import threading
 
 from celery.exceptions import Retry
 from kombu.exceptions import OperationalError
@@ -14,16 +13,11 @@ from app.models import Job, JobRun, JobStatus
 logger = logging.getLogger(__name__)
 
 
-def enqueue_job(db: Session, settings: Settings, payload: dict, operator: str | None = None) -> Job:
-    """Create a `Job` row and dispatch the work to Celery or the legacy thread.
+def enqueue_job(db: Session, payload: dict, operator: str | None = None) -> Job:
+    """Create a `Job` row and dispatch it to the Celery `reports` queue.
 
-    BEL-55-P1 dual-write: when `settings.enable_celery_dispatch` is true
-    (the default), the new job is pushed onto the Celery `reports` queue
-    via `app.celery_tasks.run_job.run_job.delay(job_id)`. When false —
-    the rollback knob — the job runs in an in-process daemon thread,
-    matching the pre-Celery behavior of `worker.tasks.run_job`. The
-    legacy path is kept for one PR cycle as a safety net; remove once
-    the Celery path is battle-tested.
+    The job is pushed onto the queue via
+    `app.celery_tasks.run_job.run_job.delay(job_id)`.
 
     BEL-2026-06-17 follow-up: when the Celery broker is unreachable
     (`kombu.exceptions.OperationalError` from `.delay()`) or the task
@@ -40,48 +34,43 @@ def enqueue_job(db: Session, settings: Settings, payload: dict, operator: str | 
     db.commit()
     job_id = job.id
 
-    if settings.enable_celery_dispatch:
-        from app.celery_tasks.run_job import run_job as celery_run_job
+    from app.celery_tasks.run_job import run_job as celery_run_job
+    try:
+        celery_run_job.delay(job_id)
+    except (OperationalError, Retry) as exc:
+        # Broker is down (or self.retry() surfaced Retry synchronously).
+        # Fall back to running the task in-process so the operator's
+        # monthly-report POST doesn't 500. Use `celery_run_job.run()`,
+        # NOT `celery_run_job.run_job()`: `@shared_task(bind=True)`
+        # means the wrapper has to inject `self.request`.
+        logger.warning(
+            "celery broker unavailable for job %s, falling back to sync run: %s",
+            job_id, exc,
+        )
+        db.refresh(job)
+        run = mark_job_running(db, job)
         try:
-            celery_run_job.delay(job_id)
-        except (OperationalError, Retry) as exc:
-            # Broker is down (or self.retry() surfaced Retry synchronously).
-            # Fall back to running the task in-process so the operator's
-            # monthly-report POST doesn't 500. Use `celery_run_job.run()`,
-            # NOT `celery_run_job.run_job()`: `@shared_task(bind=True)`
-            # means the wrapper has to inject `self.request`.
-            logger.warning(
-                "celery broker unavailable for job %s, falling back to sync run: %s",
-                job_id, exc,
+            celery_run_job.run(job_id)
+        except Retry as retry_exc:
+            # Self.retry() raises Retry (not MaxRetriesExceededError) when
+            # the retry budget is exhausted in eager/sync mode. The sync
+            # fallback intentionally does NOT reschedule — we mark FAILED
+            # and let the operator's poll endpoint answer. Do not re-raise.
+            mark_job_failed(
+                db, job, run,
+                f"broker_unavailable_sync_fallback_retry_exhausted: {retry_exc}",
             )
-            db.refresh(job)
-            run = mark_job_running(db, job)
-            try:
-                celery_run_job.run(job_id)
-            except Retry as retry_exc:
-                # Self.retry() raises Retry (not MaxRetriesExceededError) when
-                # the retry budget is exhausted in eager/sync mode. The sync
-                # fallback intentionally does NOT reschedule — we mark FAILED
-                # and let the operator's poll endpoint answer. Do not re-raise.
-                mark_job_failed(
-                    db, job, run,
-                    f"broker_unavailable_sync_fallback_retry_exhausted: {retry_exc}",
-                )
-                logger.warning(
-                    "job %s sync fallback exhausted retries: %s", job_id, retry_exc,
-                )
-            except Exception as sync_exc:  # noqa: BLE001
-                # Real business exception (handler bug, bad data, etc.) —
-                # not a transient condition. Mark FAILED for the audit trail,
-                # then re-raise so the FastAPI handler returns 500 and the
-                # operator sees something is genuinely wrong.
-                mark_job_failed(db, job, run, f"sync_run_failed: {sync_exc}")
-                logger.exception("job %s sync fallback raised", job_id)
-                raise
-    else:
-        from worker.tasks import run_job as thread_run_job
-        thread = threading.Thread(target=thread_run_job, args=(job_id,), daemon=True, name=f'job-runner-{job_id}')
-        thread.start()
+            logger.warning(
+                "job %s sync fallback exhausted retries: %s", job_id, retry_exc,
+            )
+        except Exception as sync_exc:  # noqa: BLE001
+            # Real business exception (handler bug, bad data, etc.) —
+            # not a transient condition. Mark FAILED for the audit trail,
+            # then re-raise so the FastAPI handler returns 500 and the
+            # operator sees something is genuinely wrong.
+            mark_job_failed(db, job, run, f"sync_run_failed: {sync_exc}")
+            logger.exception("job %s sync fallback raised", job_id)
+            raise
     return job
 
 

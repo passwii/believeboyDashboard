@@ -1,11 +1,11 @@
 """Celery task that executes a `Job` row end-to-end.
 
-This is the BEL-55-P1 lift of `worker/tasks.py:run_job` into a Celery task.
-The body is intentionally a near-line-for-line port of the original
-`run_job` so the diff against `worker/tasks.py` is reviewable; the helper
-functions have moved to `app.celery_tasks._common`.
+This is the BEL-55-P1 Celery port of the pre-Celery in-process job runner
+(deleted in BLF-1037). The body is intentionally
+a near-line-for-line port of the original `run_job`; the helper functions
+have moved to `app.celery_tasks._common`.
 
-Key behaviors that differ from the legacy thread path:
+Key behaviors that differ from the old thread path:
 
 * `task_acks_late=True` + `max_retries=3` + `default_retry_delay=30`:
   the broker re-delivers if a worker is killed mid-task, and we retry up
