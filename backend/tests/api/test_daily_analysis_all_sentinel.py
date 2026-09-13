@@ -1,8 +1,9 @@
 """BLF-915 跟进：``/daily-analysis/all`` 支持 ``project_ids=all`` 哨兵。
 
-背景：首页顶栏 KPI（``use-header-kpis``）与 Footer 快报（``use-daily-brief``）
-以 ``project_ids=all`` 调 ``/daily-analysis/all``，而后端只接受逗号整数，
-48h 内全部 422 → 两个 hook 静默降级、KPI 一直显示 ``--``。
+背景：首页顶栏 KPI 与 Footer 快报、首页 / 组合总览的 ``daily-analysis/all``
+调用方（历史曾由 ``use-header-kpis`` 发起，该 hook 已于 BLF-874 Stage 1 随
+顶栏改版下线）以 ``project_ids=all`` 调 ``/daily-analysis/all``，而后端只接受
+逗号整数， 48h 内全部 422 → hook 静默降级、KPI 一直显示 ``--``。
 
 本文件覆盖端点新契约：
 - ``project_ids=all`` → 解析为调用者可见项目集（admin=全部活跃项目，

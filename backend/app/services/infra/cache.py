@@ -369,14 +369,25 @@ def make_daily_analysis_all_cache_key(
     end_date: str,
     sku: str | None,
     schema_fingerprint: str,
+    include_detail: bool = True,
 ) -> str:
     """全项目聚合快照的缓存 key（项目 id 顺序无关，含响应 schema 指纹）。
 
     ``schema_fingerprint`` 进 key 的目的：响应模型一旦变更，旧缓存体形状即失效，
     无需人工 bump 版本号。
+
+    ``include_detail`` 也必须在 key 里（BLF-1038）：它不改变响应模型（summary
+    形状是完整响应去掉 ``detail_rows`` 的子集），因此 ``schema_fingerprint``
+    对两种形状完全相同 —— 只靠指纹会让「先到的 summary-only 请求」把字节写进
+    完整形状共用的 key，随后同时段同项目集的运营日报页请求命中它（它真消费
+    ``detail_rows``），明细表整体塌掉。
     """
     ids = ",".join(str(i) for i in sorted(set(project_ids)))
-    raw = f"{ids}|{country}|{start_date}|{end_date}|{sku or ''}|{schema_fingerprint}"
+    detail_flag = "1" if include_detail else "0"
+    raw = (
+        f"{ids}|{country}|{start_date}|{end_date}|{sku or ''}"
+        f"|detail={detail_flag}|{schema_fingerprint}"
+    )
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
     return f"{DAILY_ANALYSIS_ALL_KEY_PREFIX}:snapshot:{digest}"
 

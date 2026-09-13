@@ -138,7 +138,9 @@ ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT: str = hashlib.sha256(
 ).hexdigest()[:8]
 
 
-def serialize_all_projects_response(payload: dict[str, object]) -> bytes:
+def serialize_all_projects_response(
+    payload: dict[str, object], *, include_detail: bool = True
+) -> bytes:
     """把聚合结果 dict 序列化为响应字节（JSON，与 FastAPI 同口径）。
 
     先 ``model_validate`` 再 ``model_dump(mode="json")``：
@@ -146,10 +148,45 @@ def serialize_all_projects_response(payload: dict[str, object]) -> bytes:
     - 序列化设置对齐 FastAPI ``JSONResponse``（``ensure_ascii=False`` /
       ``allow_nan=False`` / ``separators=(",", ":")``），保证与未命中缓存时
       的响应体逐字节一致。
+
+    ``include_detail=False``（BLF-1038，前端快报 / 首页 / 组合总览只读
+    ``summary_rows``）：响应体**去掉** ``detail_rows`` 与
+    ``project_breakdown[*].detail_rows`` 两个键（不是置空数组——留一个空数组
+    会让消费方无法区分「没有明细数据」与「没请求明细」），其余字段与默认口径
+    逐字节一致。59 天窗口实测 5.64MB → ~177KB。
+
+    注意：``detail_rows`` 在响应模型里仍是必填字段（因此 OpenAPI 契约、前端
+    生成的 TS 类型都不变），摘要形状是它的**子集**；两种形状互不兼容，缓存
+    key 必须带上 ``include_detail``（见 ``make_daily_analysis_all_cache_key``）。
     """
-    model = DailyAnalysisAllProjectsResponse.model_validate(payload)
+    if include_detail:
+        model = DailyAnalysisAllProjectsResponse.model_validate(payload)
+        data = model.model_dump(mode="json")
+    else:
+        # 先给明细键填上空列表过模型（保留 summary_rows / available_dates 的
+        # 校验与类型强转；直接删键会因必填字段缺失校验失败，直接 dump 原始
+        # dict 又会跳过 Pydantic 的 Decimal→float 等强转），dump 后再摘键。
+        stripped = dict(payload)
+        stripped["detail_rows"] = []
+        breakdown = payload.get("project_breakdown")
+        if isinstance(breakdown, dict):
+            stripped["project_breakdown"] = {
+                project_id: (
+                    {**entry, "detail_rows": []} if isinstance(entry, dict) else entry
+                )
+                for project_id, entry in breakdown.items()
+            }
+        model = DailyAnalysisAllProjectsResponse.model_validate(stripped)
+        data = model.model_dump(mode="json")
+        data.pop("detail_rows", None)
+        dumped_breakdown = data.get("project_breakdown")
+        if isinstance(dumped_breakdown, dict):
+            for entry in dumped_breakdown.values():
+                if isinstance(entry, dict):
+                    entry.pop("detail_rows", None)
+
     return json.dumps(
-        model.model_dump(mode="json"),
+        data,
         ensure_ascii=False,
         allow_nan=False,
         separators=(",", ":"),

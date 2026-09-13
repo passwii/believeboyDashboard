@@ -5,16 +5,20 @@
 2. 缓存体合当前响应 schema（``model_validate_json`` 通过）；
 3. stale-while-revalidate：数据变更后先返回旧快照，随后（后台刷新完成）返回新数据；
 4. 失效语义：``invalidate_daily_analysis_cache`` 只标记 epoch、不删快照；
-5. cache key 幂等：项目顺序无关；country/日期/schema 指纹变化 → 不同 key；
+5. cache key 幂等：项目顺序无关；country/日期/schema 指纹/include_detail 变化 → 不同 key；
    重复 project id 去重 + 稳定排序后才进聚合（复审回归）；
-6. 冷启动单飞：未抢到锁的调用方等待先到者回填；等待超时才自行计算（且不覆盖缓存）。
+6. 冷启动单飞：未抢到锁的调用方等待先到者回填；等待超时才自行计算（且不覆盖缓存）；
+7. ``include_detail=false``：只摘明细键（摘要口径逐字节不变），且两种响应形状
+   互不串体（各自的缓存 key）。
 
 全程用内存版 Redis 客户端补丁，不依赖本地 Redis，也不污染真实 key。
 """
 
 from __future__ import annotations
 
+import copy
 import fnmatch
+import json
 import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -32,6 +36,7 @@ from app.models import AnalysisSalesOrderRow, AnalysisSourceFile, Project
 from app.schemas.daily_analysis import (
     ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
     DailyAnalysisAllProjectsResponse,
+    serialize_all_projects_response,
 )
 from app.services import infra as redis_service
 from app.services.infra import cache as cache_mod
@@ -185,7 +190,10 @@ def _url(env, *, day: date | None = None) -> str:
 
 
 def _key(
-    env, *, schema_fingerprint: str = ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT
+    env,
+    *,
+    schema_fingerprint: str = ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
+    include_detail: bool = True,
 ) -> str:
     return redis_service.make_daily_analysis_all_cache_key(
         project_ids=[env["project_id"]],
@@ -194,6 +202,7 @@ def _key(
         end_date=env["day"].isoformat(),
         sku=None,
         schema_fingerprint=schema_fingerprint,
+        include_detail=include_detail,
     )
 
 
@@ -370,7 +379,7 @@ def test_invalidate_marks_stale_only(client, fake_redis, env):
 
 
 def test_cache_key_order_and_field_sensitivity():
-    """key 幂等：项目 id 顺序无关；country / 日期 / schema 指纹变化 → 不同 key。"""
+    """key 幂等：项目 id 顺序无关；country / 日期 / schema 指纹 / include_detail → 不同 key。"""
 
     def _key_for(
         project_ids: list[int],
@@ -379,6 +388,7 @@ def test_cache_key_order_and_field_sensitivity():
         start_date: str = "2026-03-01",
         end_date: str = "2026-03-10",
         schema_fingerprint: str = "abc12345",
+        include_detail: bool = True,
     ) -> str:
         return redis_service.make_daily_analysis_all_cache_key(
             project_ids=project_ids,
@@ -387,6 +397,7 @@ def test_cache_key_order_and_field_sensitivity():
             end_date=end_date,
             sku=None,
             schema_fingerprint=schema_fingerprint,
+            include_detail=include_detail,
         )
 
     key_a = _key_for([3, 1, 2])
@@ -395,13 +406,13 @@ def test_cache_key_order_and_field_sensitivity():
     assert key_a == key_b
     assert key_a != key_c
 
-    for variant in (
-        {"country": "DE"},
-        {"start_date": "2026-02-01"},
-        {"end_date": "2026-03-31"},
-        {"schema_fingerprint": "def67890"},
-    ):
-        assert _key_for([1, 2, 3], **variant) != key_a
+    assert _key_for([1, 2, 3], country="DE") != key_a
+    assert _key_for([1, 2, 3], start_date="2026-02-01") != key_a
+    assert _key_for([1, 2, 3], end_date="2026-03-31") != key_a
+    assert _key_for([1, 2, 3], schema_fingerprint="def67890") != key_a
+
+    # include_detail 也在 key 里（BLF-1038：两种响应形状不得共用快照）
+    assert _key_for([1, 2, 3], include_detail=False) != key_a
 
 
 def test_cold_start_single_flight_waits_for_winner(fake_redis):
@@ -446,3 +457,188 @@ def test_cold_start_wait_timeout_falls_back_to_compute(fake_redis, monkeypatch, 
     assert body == b"fallback-body"
     assert needs_refresh is False
     assert redis_service.load_daily_analysis_all_snapshot(key) is None
+
+
+# ── include_detail（BLF-1038 前端裁剪）───────────────────────────────
+
+
+def _summary_payload() -> dict[str, object]:
+    """构造一份带 Decimal 的完整聚合 payload（直接喂序列化器，不跑 DB）。"""
+    summary_row = {
+        "date": "2026-03-01",
+        "order_qty": 2,
+        "pending_order_qty": 1,
+        "sales_amount": Decimal("12.345"),
+        "impressions": 10,
+        "clicks": 2,
+        "cpc": Decimal("0.5"),
+        "ad_spend": Decimal("1.25"),
+        "ad_orders": 1,
+        "available_qty": 7,
+        "page_views": 5,
+        "units_ordered": 2,
+        "sessions": 4,
+        "ordered_sales_amount": Decimal("11.00"),
+        "conversion_rate": Decimal("0.4"),
+    }
+    detail_row = {
+        "date": "2026-03-01",
+        "sku": "SKU-1038",
+        "asin": None,
+        "order_qty": 2,
+        "pending_order_qty": 1,
+        "sales_amount": Decimal("12.345"),
+        "impressions": 10,
+        "clicks": 2,
+        "cpc": Decimal("0.5"),
+        "ad_spend": Decimal("1.25"),
+        "ad_orders": 1,
+        "available_qty": 7,
+        "in_transit_qty": 3,
+        "page_views": 5,
+        "units_ordered": 2,
+        "sessions": 4,
+        "ordered_sales_amount": Decimal("11.00"),
+        "conversion_rate": Decimal("0.4"),
+    }
+    return {
+        "summary_rows": [summary_row],
+        "detail_rows": [detail_row],
+        "available_dates": {"sales_report": ["2026-03-01"]},
+        "project_breakdown": {
+            1: {
+                "project_name": "P1",
+                "summary_rows": [summary_row],
+                "detail_rows": [detail_row],
+            }
+        },
+    }
+
+
+def test_serialize_include_detail_false_is_exact_subset():
+    """``include_detail=false`` == 完整响应体仅去掉两个明细键（其余逐字节一致）。
+
+    并覆盖：裁剪分支不能跳过 Pydantic 强转（Decimal → float），否则缓存体里
+    会冒出 json.dumps 无法处理 / 与完整口径不一致的类型。
+    """
+    payload = _summary_payload()
+
+    full = json.loads(serialize_all_projects_response(payload))
+    pruned = json.loads(serialize_all_projects_response(payload, include_detail=False))
+
+    assert "detail_rows" not in pruned
+    assert "detail_rows" not in pruned["project_breakdown"]["1"]
+
+    expected = copy.deepcopy(full)
+    expected.pop("detail_rows")
+    for entry in expected["project_breakdown"].values():
+        entry.pop("detail_rows")
+    assert pruned == expected
+
+    assert isinstance(pruned["summary_rows"][0]["sales_amount"], float)
+    assert isinstance(pruned["summary_rows"][0]["cpc"], float)
+
+    # 默认口径（含明细）仍是完整形状，且合响应模型
+    DailyAnalysisAllProjectsResponse.model_validate(full)
+    assert full["detail_rows"][0]["sku"] == "SKU-1038"
+
+
+def test_include_detail_false_prunes_keys_keeps_summary(client, fake_redis, env):
+    """端点行为：``include_detail=false`` 只摘明细键，摘要 / 可用日期 / 项目名不变。"""
+    full = client.get(_url(env), headers=_headers())
+    assert full.status_code == 200, full.text
+    full_body = full.json()
+    assert full_body["detail_rows"], "默认仍返回完整明细（运营日报页真消费）"
+
+    pruned = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    assert pruned.status_code == 200, pruned.text
+    body = pruned.json()
+
+    assert "detail_rows" not in body
+    assert body["summary_rows"] == full_body["summary_rows"]
+    assert body["available_dates"] == full_body["available_dates"]
+    assert set(body["project_breakdown"]) == set(full_body["project_breakdown"])
+    for project_id, entry in body["project_breakdown"].items():
+        assert "detail_rows" not in entry, "嵌套明细键也要裁掉"
+        assert entry["project_name"] == full_body["project_breakdown"][project_id]["project_name"]
+        assert entry["summary_rows"] == full_body["project_breakdown"][project_id]["summary_rows"]
+
+    # 明细是响应体体积的主要来源 → 裁掉后体明显更小
+    assert len(pruned.content) < len(full.content)
+
+
+def test_include_detail_shapes_do_not_share_snapshot(client, fake_redis, env, monkeypatch):
+    """回归（P0）：两种响应形状各一个缓存 key，不得串体。
+
+    否则先到的 ``include_detail=false`` 请求会把 summary-only 字节写进完整形状
+    共用的 key，随后同一 project 集 + 同一日期区间的运营日报页请求命中它
+    （``daily-analysis-client.tsx`` 真读 ``payload.detail_rows``）→ 明细表整体塌掉。
+    """
+    calls: list[int] = []
+    original = endpoint_mod.build_daily_analysis_all_projects
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(endpoint_mod, "build_daily_analysis_all_projects", _spy)
+
+    summary_only = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    assert summary_only.status_code == 200, summary_only.text
+    assert "detail_rows" not in summary_only.json()
+    assert len(calls) == 1
+
+    # 同项目集 / 同日期区间，只差 include_detail → 必须另算一份，不得命中摘要快照
+    full = client.get(_url(env), headers=_headers())
+    assert full.status_code == 200, full.text
+    assert full.json()["detail_rows"], "完整形状不得命中 summary-only 快照"
+    assert len(calls) == 2, "两种形状应各自一份快照"
+
+    # 各自再请求一次 → 各自命中自己的快照（形状不再错位）
+    assert (
+        client.get(f"{_url(env)}&include_detail=false", headers=_headers()).content
+        == summary_only.content
+    )
+    assert client.get(_url(env), headers=_headers()).content == full.content
+    assert len(calls) == 2
+
+    key_summary = _key(env, include_detail=False)
+    key_full = _key(env, include_detail=True)
+    assert key_summary != key_full
+    assert redis_service.load_daily_analysis_all_snapshot(key_summary) is not None
+    assert redis_service.load_daily_analysis_all_snapshot(key_full) is not None
+
+
+def test_include_detail_false_background_refresh_keeps_summary_shape(
+    client, fake_redis, env
+):
+    """后台刷新（SWR）必须沿用请求的 include_detail —— 否则过期后摘要请求会被
+    刷成完整体（体积回到 5.6MB），或反过来把完整形状刷成摘要体。"""
+    first = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    assert first.status_code == 200, first.text
+    assert "detail_rows" not in first.json()
+
+    # 推进 data-epoch → 快照过期，下一次请求先给旧快照并触发后台刷新
+    cache_mod.mark_daily_analysis_all_data_changed()
+    stale = client.get(f"{_url(env)}&include_detail=false", headers=_headers())
+    assert stale.status_code == 200, stale.text
+    assert stale.content == first.content
+
+    deadline = time.monotonic() + 5.0
+    refreshed = None
+    while time.monotonic() < deadline:
+        snapshot = redis_service.load_daily_analysis_all_snapshot(
+            _key(env, include_detail=False)
+        )
+        if snapshot is not None and redis_service.is_daily_analysis_all_snapshot_fresh(
+            snapshot[1]
+        ):
+            refreshed = snapshot
+            break
+        time.sleep(0.05)
+    assert refreshed is not None, "后台刷新应在超时前回填新快照"
+    assert "detail_rows" not in json.loads(refreshed[0]), "刷新后的体仍是摘要形状"
+
+    # 完整形状的快照不受摘要形状刷新影响
+    full = client.get(_url(env), headers=_headers())
+    assert full.json()["detail_rows"]
