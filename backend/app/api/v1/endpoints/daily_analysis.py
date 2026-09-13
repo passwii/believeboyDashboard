@@ -49,6 +49,7 @@ def _build_all_projects_body(
     start_date: str,
     end_date: str,
     sku: str | None,
+    include_detail: bool = True,
 ) -> bytes:
     """跑聚合 + 序列化响应字节（BLF-1038：缓存体 = 响应体）。"""
     payload = build_daily_analysis_all_projects(
@@ -59,7 +60,7 @@ def _build_all_projects_body(
         end_date=end_date,
         sku=sku,
     )
-    return serialize_all_projects_response(payload)
+    return serialize_all_projects_response(payload, include_detail=include_detail)
 
 
 def _refresh_all_projects_snapshot(
@@ -70,6 +71,7 @@ def _refresh_all_projects_snapshot(
     start_date: str,
     end_date: str,
     sku: str | None,
+    include_detail: bool = True,
 ) -> None:
     """stale-while-revalidate 的后台刷新（FastAPI BackgroundTasks 调用）。
 
@@ -86,6 +88,7 @@ def _refresh_all_projects_snapshot(
             start_date=start_date,
             end_date=end_date,
             sku=sku,
+            include_detail=include_detail,
         )
         redis_service.store_daily_analysis_all_snapshot(cache_key, body)
     except Exception:
@@ -142,6 +145,15 @@ def get_daily_analysis_all(
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
     sku: str | None = None,
+    include_detail: bool = Query(
+        default=True,
+        description=(
+            "false → 响应体去掉 detail_rows 与 project_breakdown[*].detail_rows"
+            "（只读 summary_rows / project_breakdown[*].summary_rows 的页面用，"
+            "响应体约降 95%）；默认 true 保持完整响应，契约不变。"
+            "两种形状缓存 key 独立，互不串体。"
+        ),
+    ),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -226,6 +238,7 @@ def get_daily_analysis_all(
         start_date=start_text,
         end_date=end_text,
         sku=sku,
+        include_detail=include_detail,
         schema_fingerprint=ALL_PROJECTS_RESPONSE_SCHEMA_FINGERPRINT,
     )
 
@@ -237,6 +250,7 @@ def get_daily_analysis_all(
             start_date=start_text,
             end_date=end_text,
             sku=sku,
+            include_detail=include_detail,
         )
 
     body, needs_refresh = redis_service.load_or_compute_daily_analysis_all_body(
@@ -251,6 +265,7 @@ def get_daily_analysis_all(
             start_date=start_text,
             end_date=end_text,
             sku=sku,
+            include_detail=include_detail,
         )
 
     return Response(content=body, media_type="application/json")
