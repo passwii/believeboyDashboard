@@ -1,5 +1,7 @@
 # BelieveBoy Dashboard 终端化推进 Master Prompt
 
+> ⚠️ 历史文档：文中「桌面端 GUI」指已删除的 `gui/`（Rust + GPUI）方案 —— 该目录已于 2026-09-13 整体删除（BLF-1041），桌面端路线改为 SwiftUI，见 [`macos/PLAN.md`](../../macos/PLAN.md)。本文的 **Web 端**终端化指令仍然有效。
+
 > 用途：在任意 AI 编码工具（Claude Code / Cursor / Codex 等）中作为完整工作指令使用。
 > 使用方式：把本文件全文作为首条任务提示词发给工具，或按 §任务 分批发给它。
 > 前置事实：终端外壳已合入 main（commit `9e47d99a`，PR #379）。此后已追加落地：全局放大两档（31117bdc / 3bed4693）、Footer 多频道 Ticker（BLF-816，#390）、订单信息页终端化（BLF-817，#392）、Top Header 全局筛选四件套（BLF-819，f8ef897c）、页面顶部胶囊去重（BLF-824）、L2 SubNav 折叠动效（BLF-825，#397）、桌面端 GUI Stage12 二十模块迁移（#398）。
