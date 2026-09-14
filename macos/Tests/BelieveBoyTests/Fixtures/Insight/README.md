@@ -49,7 +49,7 @@ run 行**（固定 `run_id`：completed 一条、failed 一条），抓完即删
 
 | 文件 | 内容 |
 | --- | --- |
-| `ai-insights-list.json` | 洞察列表（`project_id=1&country=US&limit=20&offset=0`），生产快照 47 条 |
+| `ai-insights-list.json` | 洞察列表（`project_id=1&country=US&limit=20&offset=0`），生产快照返回 `total=9 / items=9` |
 | `ai-insights-ad-analysis-list.json` | 同一端点 + `insight_type=ad_analysis`（广告分析页的历史列表口径） |
 | `ai-insights-detail.json` | 列表首条（id=46）的明细：`content`（Markdown 正文）+ `strategy_metadata`（该条为 `null`） |
 | `ai-insights-schedules.json` | 定时列表（生产快照当前 **0 条** —— 空态夹具） |
@@ -61,6 +61,14 @@ run 行**（固定 `run_id`：completed 一条、failed 一条），抓完即删
 | `insight-run-stream-failed.txt` | `snapshot → error` |
 | `insight-run-stream-failed-resume.txt` | 带 `Last-Event-ID` 的续传响应：只回 `error` |
 | `insight-run-stream-invalid-cursor.json` | 非法 `Last-Event-ID` 的真实 400（typed `RESUME_CURSOR_INVALID`） |
+
+## 关于 5 个 `.txt` 夹具的「EOF 空行」（`git diff --check` 提示，属预期）
+
+`ai-insights-stream-terminal.txt` 与 4 个 `insight-run-stream-*.txt` 都以一个**空行**结尾，
+`git diff --check` 会提示 `new blank line at EOF`。**这是 SSE 的 wire format，不是笔误**：
+SSE 事件以「一行空行」终止（后端 `_sse_frame` 的编码就是 `event: …\nid: …\ndata: …\n` +
+事件终止的 `\n`），所以抓下来的响应体天然以 `\n\n` 收尾。删掉它会让最后一帧变成未终止帧，
+夹具也不再是后端的原样字节（与 `manifest.json` 里的 `sha256` 一并失效）。故保留，不改。
 
 ## 重抓流程
 

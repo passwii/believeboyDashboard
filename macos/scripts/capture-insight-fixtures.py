@@ -340,10 +340,16 @@ def main() -> int:
         test_headers = {"X-API-Key": test_config.api_key, **headers_base}
 
         for label, run_id, note in [
-            ("completed", SEEDED_COMPLETED_RUN_ID, "终态 completed（含 outputs/usage/artifact_id）"),
+            (
+                "completed",
+                SEEDED_COMPLETED_RUN_ID,
+                "终态 completed（含 outputs/usage/artifact_id）",
+            ),
             ("failed", SEEDED_FAILED_RUN_ID, "终态 failed（含 typed error）"),
         ]:
-            run_detail = test_client.get(f"/api/v1/insight/runs/{run_id}", headers=test_headers)
+            run_detail = test_client.get(
+                f"/api/v1/insight/runs/{run_id}", headers=test_headers
+            )
             run_detail.raise_for_status()
             record_json(
                 f"insight-run-detail-{label}.json",

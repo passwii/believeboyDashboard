@@ -36,7 +36,12 @@ let package = Package(
         .executableTarget(name: "BelieveBoyMac", dependencies: ["BelieveBoyUI"]),
         .testTarget(
             name: "BelieveBoyTests",
-            dependencies: ["BelieveBoyKit", "BelieveBoyUI"]
+            dependencies: ["BelieveBoyKit", "BelieveBoyUI"],
+            // `Fixtures/` 是真实后端响应快照（AdAnalysis / AdData / Insight …），由测试用
+            // `#filePath` 按源码树路径读取，不做 SPM resource。显式 exclude 掉，否则
+            // SwiftPM 每次加载 manifest 都会打印「found N file(s) which are unhandled」
+            // （S5.1/S5.2 起的既有 warning，本批顺手消掉）。
+            exclude: ["Fixtures"]
         ),
     ]
 )
