@@ -1,0 +1,229 @@
+{
+  "by_model": [],
+  "daily": [
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-17",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-18",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-19",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-20",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-21",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-22",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-23",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-24",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-25",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-26",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-27",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-28",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-29",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-30",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-08-31",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-01",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-02",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-03",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-04",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-05",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-06",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-07",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-08",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-09",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-10",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-11",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-12",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-13",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-14",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    },
+    {
+      "completion_tokens": 0,
+      "date": "2026-09-15",
+      "message_count": 0,
+      "prompt_tokens": 0,
+      "total_tokens": 0
+    }
+  ],
+  "end_date": "2026-09-15",
+  "range": "30d",
+  "snapshot_freshness": {
+    "latest_computed_at": null,
+    "latest_data_date": null
+  },
+  "start_date": "2026-08-17",
+  "totals": {
+    "completion_tokens": 0,
+    "conversation_count": 0,
+    "message_count": 0,
+    "prompt_tokens": 0,
+    "total_tokens": 0
+  }
+}

@@ -50,6 +50,24 @@ public final class ModuleTaskScope {
         entry.task.cancel()
     }
 
+    /// 取消某个 key **以及它的子 key** 下的任务（幂等）。
+    ///
+    /// 为什么需要（S5.4 补，AI 会话片）：一个模块可以有**多条互不相干的在跑任务** ——
+    /// 会话列表、消息历史、用量统计、以及一条可能活很久的 SSE 流。它们必须各自可取消
+    /// （切会话只该拆掉会话相关的两条），又必须整体可取消（切模块要全拆）。
+    ///
+    /// 子 key 的写法是 `"\(父 key):\(用途)"`：`run(key:)` 仍按子 key 精确去重
+    /// （同一用途重复发起只留最后一次），而外壳切模块时用本方法把 `"\(route id)"`
+    /// 整棵树收掉。
+    ///
+    /// 分隔符用 `:` 是安全的：所有 key 的根都是 route id（`/dashboard/...`），
+    /// 路径里不会有冒号，所以「父 key + `:`」不会误匹配到另一条 route id。
+    public func cancelTree(key: String) {
+        let prefix = key + ":"
+        let matched = entries.keys.filter { $0 == key || $0.hasPrefix(prefix) }
+        for childKey in matched { cancel(key: childKey) }
+    }
+
     /// 取消全部任务（如登出：会话都不在了，挂着轮询只会 401）。
     public func cancelAll() {
         let running = entries.values

@@ -38,6 +38,18 @@ public final class NavigationStore {
     /// 同样住在外壳里：临时的搜索词、翻到第几页、展开了哪几行都是「用户在这个页面上的位置」，
     /// 切走再回来应当原处。两页的筛选条各自持有 `AdFilters`（同一份实现，见 `AdFilters`）。
     public let adData: AdDataStore
+    /// 「AI 智能 → AI Chat」（S5.4）的模块 store：会话列表 + 消息历史 + POST-SSE 流式生成。
+    ///
+    /// 住在外壳里：当前会话、草稿输入、流式草稿、用量面板的区间选择都是「用户在这个页面上的
+    /// 位置」—— 切走再回来应当原处（也是「流式跑到一半切模块」能靠 `tasks.cancelTree` 收尾的
+    /// 前提：任务登记在外壳的作用域里，而不是跟着视图一起没了）。
+    public let aiChat: AIChatStore
+    /// 「AI 智能 → 客服交流」（S5.4）的模块 store：场景输入 + 一次生成。
+    ///
+    /// 与 `aiChat` 分开持有而不是共用：两页的输入区与产物形态不同（会话历史 vs 单块输出），
+    /// 共用一份只会让「切页后输入框被对方覆盖」。它们共用的是**底座**（`AIChatClient` /
+    /// `AIChatTurnAccumulator` / `AIChatPresetCatalog`），不是状态。
+    public let customerService: CustomerServiceStore
 
     /// 「AI → AI 洞察」（S5.3）的模块 store：洞察列表（分页 + 筛选）+ 明细 + 旧链路流式 +
     /// 定时列表（只读）。
@@ -75,7 +87,9 @@ public final class NavigationStore {
             insightTypeFilter: InsightCatalog.adAnalysisInsightType
         ),
         adAnalysisRun: CanonicalRunStore = CanonicalRunStore(domain: .adAnalysis),
-        inventoryRun: CanonicalRunStore = CanonicalRunStore(domain: .inventoryHealth)
+        inventoryRun: CanonicalRunStore = CanonicalRunStore(domain: .inventoryHealth),
+        aiChat: AIChatStore = AIChatStore(),
+        customerService: CustomerServiceStore = CustomerServiceStore()
     ) {
         self.groups = groups
         self.preferences = preferences
@@ -87,6 +101,8 @@ public final class NavigationStore {
         self.adAnalysisInsights = adAnalysisInsights
         self.adAnalysisRun = adAnalysisRun
         self.inventoryRun = inventoryRun
+        self.aiChat = aiChat
+        self.customerService = customerService
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)
@@ -177,9 +193,14 @@ public final class NavigationStore {
     // MARK: - 内部
 
     /// 切换选中项，并**取消上一个选中项名下的所有任务**（验收 2：切换模块不留残任务）。
+    ///
+    /// 用 `cancelTree` 而不是 `cancel`：S5.4 起一个模块会有多条互不相干的在跑任务
+    /// （会话列表 / 消息历史 / 用量 / 一条 SSE 流），它们各自登记在 `"\(route id):用途"`
+    /// 子 key 下（见 `ModuleTaskScope.cancelTree`）。对 S5.1~S5.3 那些只用 route id 一个
+    /// key 的模块，退化成与原来完全相同的 `cancel(key:)`，行为不变。
     private func changeRoute(to routeID: String?) {
         guard routeID != selectedRouteID else { return }
-        tasks.cancel(key: selectionTaskKey)
+        tasks.cancelTree(key: selectionTaskKey)
         selectedRouteID = routeID
     }
 

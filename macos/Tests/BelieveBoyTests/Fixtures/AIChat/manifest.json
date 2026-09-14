@@ -1,0 +1,73 @@
+{
+  "auth": "X-API-Key（主 key）+ X-Is-Admin: true + X-User-Id: <user-id>",
+  "backend": "本地后端经 FastAPI TestClient 走真实 HTTP 路由；响应读自隔离库 BLF_test，其中的会话与消息是从只读快照库 BLF 复制的真实数据",
+  "capture_script": "macos/scripts/capture-ai-chat-fixtures.py（BLF 只读；SSE 由后端编码器生成）",
+  "captured_at": "2026-09-15T01:39:12+0800",
+  "captured_by": "BLF-1065（macOS Stage 5.4 AI 会话片）",
+  "databases": {
+    "source_read_only": "localhost:5432/BLF",
+    "target_read_write": "localhost:5432/BLF_test"
+  },
+  "files": [
+    {
+      "bytes": 309,
+      "endpoint": "GET /api/v1/ai/config",
+      "file": "ai-config.json",
+      "note": "模型 / 场景配置",
+      "sha256": "e1f93a2ceefa49dc9c4eda4a1cb56ba1caa3b3218326b754b21f71e170b60785"
+    },
+    {
+      "bytes": 284,
+      "endpoint": "GET /api/v1/ai/conversations",
+      "file": "ai-conversations.json",
+      "note": "账号 99001065 的会话列表（1 条）",
+      "sha256": "cbc7a473673f38c5fdece69165eb81d9a385d8264cc18372e69b38815abe59ab"
+    },
+    {
+      "bytes": 12707,
+      "endpoint": "GET /api/v1/ai/conversations/3196/messages",
+      "file": "ai-conversation-messages.json",
+      "note": "会话 3196 的消息历史（4 条，含 search_sources）",
+      "sha256": "9bce98da1ba07002e4de4faf539a8ea5e968796b5b988c6e13e74667c32d7fbd"
+    },
+    {
+      "bytes": 4762,
+      "endpoint": "GET /api/v1/ai/usage/stats",
+      "file": "ai-usage-stats-30d.json",
+      "note": "token 用量（range=30d；物化表 30 天，含补 0 行）",
+      "sha256": "c66c75daf1e6c9b5b9470cc23cc5043fc2ac177f33bd83ec3b97ae96aa69f68c"
+    },
+    {
+      "bytes": 9351,
+      "endpoint": "POST /api/v1/ai/conversations/{id}/messages/stream（SSE）",
+      "file": "ai-chat-stream-turn.txt",
+      "note": "一次完整生成的事件序列（7 个 text_delta + ping + done）",
+      "sha256": "fda3bd59febb2a70e4be0e61c1a9efe0090ca93a3881bd6f5f5bbd07f87b1a1e"
+    },
+    {
+      "bytes": 186,
+      "endpoint": "同上 + Last-Event-ID",
+      "file": "ai-chat-stream-resume.txt",
+      "note": "续传帧：从 Last-Event-ID 之后继续，**没有 done**（_resume_stream 不合成）",
+      "sha256": "19419652bbef461408f6002aa0c13d8b04e38911dd1b64fa7a65e2e9f00ce425"
+    },
+    {
+      "bytes": 103,
+      "endpoint": "同上（error 分支）",
+      "file": "ai-chat-stream-error.txt",
+      "note": "error 事件（rate_limit）",
+      "sha256": "54e77010391e37dbde7c4d7ba5262163e550eff3d3c38ce45bd920d0840e5d71"
+    }
+  ],
+  "params": {
+    "conversation_id": 3196,
+    "conversation_title": "[BLF-1065 夹具] Qwen3.6 Plus免费版解析",
+    "cursor_source": "本地 Redis XADD（临时 key，抓完即删）",
+    "note": "SSE 三份由 `encode_sse` + `_encode_done_sse` 输出（事件实例是真实 ProtocolEvent，done 载荷的两条消息来自真实 ai_messages 行）；钉的是**线格式**（id 游标 / data 键名 / 事件顺序），不钉 AI 文本（口径 8）",
+    "seed_note": "快照库里「归属账号」与「有消息」互不相容（有消息的会话 user_id IS NULL，后端对任何调用方都 404），故脚本把真实会话连同消息复制进 BLF_test 的夹具账号下，再经真实路由读出来 —— 内容来自生产快照，读写都不落 BLF。",
+    "usage_range": "30d",
+    "user_id": 99001065
+  },
+  "provider_configured": false,
+  "usage_snapshot_rows": 30
+}
