@@ -1,7 +1,7 @@
 from urllib.parse import unquote
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -15,7 +15,7 @@ from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.infra import delete_user_sessions, validate_session, write_session
 from app.services.rate_limit_service import clear_key, increment_and_check
-from app.services.user_api_key_service import ensure_user_api_key
+from app.services.user_api_key_service import ensure_user_api_key, normalize_client_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -85,7 +85,34 @@ def _check_login_rate_limits(request: Request, email: str) -> tuple[bool, int]:
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONResponse:
+def login(
+    request: Request,
+    payload: LoginRequest,
+    x_client_id: str | None = Header(default=None, alias="X-Client-Id"),
+) -> LoginResponse | JSONResponse:
+    """登录并签发该设备槽的专属 API key（BLF-711 / BLF-1059）。
+
+    设备槽通过请求头 ``X-Client-Id`` 携带（可选）：一个账号可以有多把 key，
+    每个槽内只有一把有效 key；同一槽重登 = 轮换（旧 key 立即失效），**槽之间
+    互不影响**。不携带此头的调用方（网页端代理、拆分前发布的桌面端构建）落
+    ``default`` 槽，行为与拆分前完全一致，故网页端零改动。
+
+    选头而不选请求体字段的理由：不动 ``/auth/login`` 的 request/response
+    schema —— 已提交的契约文件（``frontend/types/api-generated/openapi.json``
+    与 ``api.d.ts``）保持同步，``pnpm build`` 的 ``gen:api-types:check`` 不受
+    影响，也不必为纯后端改动去做一次跨端契约导出；且本仓库的身份类入参本来就
+    走头（``X-Operator`` / ``X-Is-Admin`` / ``X-User-Id`` / ``X-API-Key``）。
+
+    形态非法（超 64 字符 / 含空白与控制字符）→ 400，而不是静默落 ``default``：
+    静默降级会让发错标识的设备与网页端共用一把 key，比报错更难排查。
+    """
+    try:
+        client_id = normalize_client_id(x_client_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid X-Client-Id"
+        ) from None
+
     # ── Rate limit check ───────────────────────────────────────────────────────
     allowed, retry_after = _check_login_rate_limits(request, payload.email)
     if not allowed:
@@ -181,12 +208,14 @@ def login(request: Request, payload: LoginRequest) -> LoginResponse | JSONRespon
         except Exception:
             pass  # Redis unavailable — degrade gracefully, session check will be skipped
 
-        # BLF-711：登录按账号下发专属 API key（桌面端不再依赖 BELIEVEBOY_TOKEN）。
-        # 轮换语义：旧 key 立即失效、返回新明文——hash-only 存储下无法回显旧明文。
-        # 数据库异常不阻断登录（桌面端仍有主 key 兜底路径），降级为 api_key=""。
+        # BLF-711 / BLF-1059：登录按 (账号, 设备槽) 下发专属 API key（桌面端不再
+        # 依赖 BELIEVEBOY_TOKEN）。轮换语义限定在本槽：同槽重登旧 key 立即失效、
+        # 返回新明文——hash-only 存储下无法回显旧明文。不带 X-Client-Id 的调用方
+        # 落 default 槽，行为与拆分前一致。数据库异常不阻断登录（桌面端仍有主 key
+        # 兜底路径），降级为 api_key=""。
         api_key = ""
         try:
-            _, api_key = ensure_user_api_key(db, str(row["id"]))
+            _, api_key = ensure_user_api_key(db, str(row["id"]), client_id)
             db.commit()
         except Exception:
             db.rollback()

@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -16,6 +16,7 @@ from app.services.audit_log_service import (
 from app.services.infra import delete_user_sessions
 from app.services.r2_lifecycle import record_delete_failure
 from app.services.r2_service import extract_key_from_url, try_delete_file_from_r2
+from app.services.user_api_key_service import revoke_user_key
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +327,24 @@ def update_user(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     item = _to_item(row)
+
+    # BLF-1059：改密码 → 撤销该账号**全部设备**的用户 API key。
+    #
+    # 密码是这个账号唯一的共享秘密：一旦它变了，所有凭它换来的长期凭据（每台设备
+    # 槽里的 blf_ key）都必须失效——否则改密码（含管理员重置他人密码）对已签发的
+    # key 毫无约束力，被重置者手里的 key 照样能一直访问。此处 client_id=None 即
+    # 「全部设备」，与同文件下方 delete_user_sessions 的语义保持一致。
+    #
+    # 放在 db.commit() 之前：用户行更新与 key 吊销同一事务提交，不会出现
+    # 「密码已改但旧 key 仍有效」的窗口。改密码者随后重新登录即可拿到新 key。
+    if password is not None:
+        revoked_keys = revoke_user_key(db, user_id).revoked
+        logger.info(
+            "user API keys revoked on password change user_id=%s keys=%s",
+            user_id,
+            [r.id for r in revoked_keys],
+        )
+
     append_operation_audit_log(
         db,
         action="users.update",
