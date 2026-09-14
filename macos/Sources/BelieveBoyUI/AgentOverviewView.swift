@@ -21,6 +21,12 @@ enum ModuleRegistry {
             return AnyView(AdAnalysisView(model: model, navigation: navigation))
         case AdDataView.routeID:
             return AnyView(AdDataView(model: model, navigation: navigation))
+        case AIInsightsView.routeID:
+            return AnyView(AIInsightsView(model: model, navigation: navigation))
+        case AIAdAnalysisView.routeID:
+            return AnyView(AIAdAnalysisView(model: model, navigation: navigation))
+        case AIInventoryHealthView.routeID:
+            return AnyView(AIInventoryHealthView(model: model, navigation: navigation))
         default:
             return nil
         }
@@ -35,6 +41,15 @@ extension AppModel {
     func agentOpsProvider() -> AgentOpsClient? {
         guard let client = makeAPIClient() else { return nil }
         return AgentOpsClient(client: client)
+    }
+
+    /// 洞察三页的数据源：用当前会话（key + 账号上下文）构造；未登录返回 nil。
+    ///
+    /// 与 S5.1 / S5.2 同样复用 `AppModel` 的 `URLSession` —— 单测用打桩 session 跑通
+    /// 链路时，模块请求必须走同一个 session，否则「离屏渲染模块」的用例会静默打真实网络。
+    func insightProvider() -> InsightClient? {
+        guard let client = makeAPIClient() else { return nil }
+        return InsightClient(client: client)
     }
 }
 
