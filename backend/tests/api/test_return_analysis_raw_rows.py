@@ -20,24 +20,12 @@ from return_row_factories import (
     seed_return_source,
 )
 
-from app.db.session import SessionLocal
 from app.main import app
 
 
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
-
-
-@pytest.fixture
-def db_session():
-    """提交型会话：工厂内部 commit，端点走的是自己的会话，必须彼此可见。"""
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
 
 
 @pytest.fixture
@@ -105,6 +93,27 @@ class TestRawRowsEndpoint:
         assert body["start_date"] == default_return_window()[0]
         assert body["end_date"] == default_return_window()[1]
         row = body["rows"][0]
+        # 线上契约锁死为「恰好这 17 个字段」：多一个 / 少一个 / 改名都要红。
+        # 前端列配置（后续任务）按这份名单逐字对齐，故用集合全等而非子集断言。
+        assert set(row) == {
+            "return_date",
+            "original_return_datetime",
+            "order_id",
+            "sku",
+            "asin",
+            "fnsku",
+            "product_name",
+            "quantity",
+            "fulfillment_center_id",
+            "detailed_disposition",
+            "disposition_display",
+            "reason",
+            "reason_display",
+            "status",
+            "status_display",
+            "license_plate_number",
+            "customer_comment",
+        }, f"raw-rows 响应字段集漂移：{sorted(row)}"
         assert row["order_id"] == "O-1"
         assert row["sku"] == "S-1"
         assert row["asin"] == "B01"
@@ -196,9 +205,15 @@ class TestRawRowsEndpoint:
         assert filtered["row_count"] == 1
         assert everything["row_count"] == 2
 
-    def test_ordering_is_return_date_then_id(
+    def test_ordering_is_by_return_date_asc(
         self, client, project_id, db_session, admin_headers
     ):
+        """只锁 return_date 升序（每天一行，不构成同日 id 兜底的鉴别样本）。
+
+        同日 ``id ASC`` 兜底由服务层
+        ``test_shared_return_rows_query.py::test_ordering_is_return_date_then_id``
+        覆盖，此处不重复。
+        """
         end_date = date.today() - timedelta(days=1)
         earlier = end_date - timedelta(days=1)
         sf = seed_return_source(db_session, project_id, tag="ord")

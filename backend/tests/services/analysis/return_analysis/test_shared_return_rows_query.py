@@ -21,21 +21,10 @@ from return_row_factories import (
 )
 from sqlalchemy import text
 
-from app.db.session import SessionLocal
 from app.services.analysis.return_analysis import (
     build_return_analysis,
     query_current_return_rows,
 )
-
-
-@pytest.fixture()
-def db_session():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
 
 
 @pytest.fixture()
@@ -200,10 +189,17 @@ def test_ordering_is_return_date_then_id(db_session, test_project):
     （堆 / TID）顺序**，而普通插入的物理顺序恒等于 id 顺序 —— 那样即使删掉
     ``queries.py`` 里的 ``AnalysisReturnRow.id.asc()`` 兜底，断言照样成立。
 
-    所以这里让两者刻意相反：``O-LATE-1`` 先插（拿到更小的 id），随后原值重写
-    一次（MVCC 下 UPDATE 会生成新的行版本、物理上挪到 ``O-LATE-2`` 之后），
-    于是同日两行的物理顺序是 ``[O-LATE-2, O-LATE-1]``，只有 id 兜底才能得到
-    期望的 ``[O-LATE-1, O-LATE-2]``。``source_row_no`` 同步按物理顺序编排。
+    所以这里让两者刻意相反：``O-LATE-1`` 先插（拿到更小的 id），随后对该行
+    执行一次 UPDATE 探测（把原本为 NULL 的 ``customer_comments`` 写入
+    ``'ordering-tiebreak-probe'``）。该列既不参与过滤也不参与排序，写的也不是
+    「原值」—— 目的纯粹是借 MVCC 机制让 UPDATE 生成新的行版本、把该行在物理
+    上挪到 ``O-LATE-2`` 之后。``source_row_no`` 同步按物理顺序编排。
+
+    脆弱性提示：这条鉴别力**依赖被重写的元组在物理上恰好落在另一条同日行
+    之后**。堆 / page 层面的行为一旦变化（vacuum、fillfactor、页分配策略等），
+    探测行可能又回到前面 —— 那时本断言会退化为「即使删掉 id 兜底也仍然通过」，
+    即**静默失去鉴别力，但绝不会误报失败**。因此它是「防止有人删掉同日
+    tiebreak」的守卫，而非「每次运行都真的踩到 tiebreak」的保证。
     """
     start, end = default_return_window()
     end_date = date.today() - timedelta(days=1)
