@@ -289,14 +289,18 @@ public final class AppModel {
 
     /// 退出登录：清钥匙串会话并回到登录页。
     public func signOut() {
+        var cleanupFailure: String?
         do {
             try sessionStore.clearSession()
         } catch let error as CredentialStoreError {
-            sessionNotice = "已退出登录，但钥匙串未清干净：\(error.displayMessage)"
+            cleanupFailure = "已退出登录，但钥匙串未清干净：\(error.displayMessage)"
         } catch {
-            sessionNotice = "已退出登录，但钥匙串未清干净：\(error.localizedDescription)"
+            cleanupFailure = "已退出登录，但钥匙串未清干净：\(error.localizedDescription)"
         }
         resetSessionState(reason: nil)
+        // 清理失败的提示要放在重置**之后**：重置会清掉上一个会话的提示，
+        // 否则「登录成功但没写进钥匙串」这类旧提示会跟着进到登录页。
+        if let cleanupFailure { note(cleanupFailure) }
     }
 
     /// 会话入库。失败**不阻断本次登录**（key 在内存里仍然可用），但必须告知用户
@@ -315,6 +319,9 @@ public final class AppModel {
         emailDraft = ""
         passwordDraft = ""
         loginError = nil
+        // 登录页是「新的一页」：上一个会话的提示（如「已登录但没写进钥匙串」）
+        // 跟着过来只会让用户对着登录页猜自己到底登上了没有。
+        sessionNotice = nil
         phase = .idle
         sessionState = .signedOut(reason: reason)
         // 被 403 顶回登录页时，「记住密码」能让这次重登只是一次点击。
