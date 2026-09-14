@@ -230,15 +230,37 @@ def default_prompt_builder(
     )
 
 
+def _usage_tokens(usage: Any) -> tuple[int, int]:
+    """读取 agent run 的 ``(input_tokens, output_tokens)``，兼容两代 pydantic-ai。
+
+    2.x：``result.usage`` 是**属性**，字段 ``input_tokens``/``output_tokens``；
+    旧版：``result.usage()`` 是方法，字段 ``request_tokens``/``response_tokens``。
+    取数失败一律按 0 计——usage 形状变化绝不能把一个已经成功的 run 判成失败
+    （生产实证：旧写法抛 TypeError 被 classify 成 PROVIDER_UNAVAILABLE 反复重试）。
+    """
+
+    if callable(usage):
+        usage = usage()
+    if usage is None:
+        return 0, 0
+    input_tokens = getattr(usage, "input_tokens", None)
+    if input_tokens is None:
+        input_tokens = getattr(usage, "request_tokens", 0)
+    output_tokens = getattr(usage, "output_tokens", None)
+    if output_tokens is None:
+        output_tokens = getattr(usage, "response_tokens", 0)
+    return int(input_tokens or 0), int(output_tokens or 0)
+
+
 def default_generate(agent: Any, prompt: str) -> LLMResult:
     """One-shot agent run with real usage; emits no per-token traffic."""
 
     result = asyncio.run(agent.run(prompt))
-    usage = result.usage()
+    input_tokens, output_tokens = _usage_tokens(getattr(result, "usage", None))
     return LLMResult(
         markdown=result.output if isinstance(result.output, str) else str(result.output),
-        input_tokens=int(usage.request_tokens or 0),
-        output_tokens=int(usage.response_tokens or 0),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
 
 

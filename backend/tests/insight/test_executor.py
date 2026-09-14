@@ -63,6 +63,53 @@ def _resolve(endpoint_id: str, model_id: str, role: InsightRoleDefinition, setti
     return _selection()
 
 
+# ---------------------------------------------------------------------------
+# default_generate：真实 pydantic-ai 结果形状（既有测试全部注入假 generate）
+# ---------------------------------------------------------------------------
+
+
+def test_default_generate_reads_installed_pydantic_ai_result():
+    """回归：default_generate 必须吃安装版的真实 AgentRunResult 形状。
+
+    生产实证：worker 路径首次真实执行时 ``result.usage()`` 抛
+    ``TypeError: 'RunUsage' object is not callable``——2.x 把 ``usage`` 从
+    方法改成属性、``request/response_tokens`` 更名 ``input/output_tokens``，
+    旧写法让整条摘要链被 classify 成 PROVIDER_UNAVAILABLE 反复重试直至失败。
+    这里用真实 Agent + TestModel（本地、零网络）锁住真实 API 形状。
+    """
+    from pydantic_ai import Agent
+    from pydantic_ai.models.test import TestModel
+
+    from app.services.insight.executor import default_generate
+
+    agent = Agent(
+        TestModel(custom_output_text="## 摘要\n- 要点"),
+        instructions=["summarize the slots"],
+        tools=[],
+    )
+
+    result = default_generate(agent, "summarize")
+
+    assert result.markdown == "## 摘要\n- 要点"
+    assert result.input_tokens > 0
+    assert result.output_tokens > 0
+
+
+def test_usage_tokens_reads_both_pydantic_ai_shapes():
+    """usage 取数对两代形状都成立，缺字段一律按 0 计（不拖垮已成功的 run）。"""
+    from types import SimpleNamespace
+
+    from app.services.insight.executor import _usage_tokens
+
+    assert _usage_tokens(SimpleNamespace(input_tokens=3, output_tokens=5)) == (3, 5)
+    assert _usage_tokens(
+        lambda: SimpleNamespace(request_tokens=7, response_tokens=9)
+    ) == (7, 9)
+    assert _usage_tokens(None) == (0, 0)
+    assert _usage_tokens(SimpleNamespace(input_tokens=None)) == (0, 0)
+
+
+
 def _ok_generate(calls: list[str]):
     def _generate(agent: Any, prompt: str) -> LLMResult:
         calls.append(prompt)
