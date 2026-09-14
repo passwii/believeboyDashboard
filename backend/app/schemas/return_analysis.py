@@ -123,3 +123,36 @@ class ReturnAnalysisResponse(BaseModel):
     fulfillment_center_rows: list[FulfillmentCenterItem]  # 仓库分布
     multi_item_return_count: int  # 多件退货单数
     multi_item_return_quantity: int  # 多件退货涉及总量
+
+
+class ReturnRawRowItem(BaseModel):
+    """亚马逊退货报表原始行（原始数据 Tab / Excel sheet 的一行，共 17 字段）。"""
+
+    return_date: str  # 站点时区归一后的退货日期 YYYY-MM-DD
+    original_return_datetime: str  # 报表原值 return-date（UTC ISO8601）
+    order_id: str
+    sku: str
+    asin: str | None
+    fnsku: str | None
+    product_name: str | None
+    quantity: int
+    fulfillment_center_id: str | None
+    detailed_disposition: str
+    disposition_display: str  # 中文翻译
+    reason: str
+    reason_display: str  # 中文翻译
+    status: str
+    status_display: str  # 中文翻译
+    license_plate_number: str | None
+    customer_comment: str | None
+
+
+class ReturnRawRowsResponse(BaseModel):
+    """退货原始行响应（独立端点 /return-analysis/raw-rows）。"""
+
+    project_id: int
+    country: str
+    start_date: str
+    end_date: str
+    row_count: int
+    rows: list[ReturnRawRowItem]
