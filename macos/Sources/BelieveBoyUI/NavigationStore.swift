@@ -22,6 +22,12 @@ public final class NavigationStore {
     public let groups: [NavigationGroup]
     /// 模块任务作用域：视图发起的后台工作都登记在这里（见 `ModuleTaskScope`）。
     public let tasks: ModuleTaskScope
+    /// 「运营 → 数据流总览」（S4）的模块 store。
+    ///
+    /// 放在外壳里而不是模块视图内：视图是值类型、重绘即重建，把状态放在视图里等于
+    /// 「切走再回来 = 重新加载 + 丢失选中行」。由外壳持有后，S5 搬进来的模块照此
+    /// 继续往这里加（模块之间共享同一份生命周期）。
+    public let agentOverview: AgentOverviewStore
 
     public private(set) var selectedGroupID: String?
     public private(set) var selectedRouteID: String?
@@ -36,11 +42,13 @@ public final class NavigationStore {
     public init(
         groups: [NavigationGroup] = NavigationCatalog.groups,
         preferences: ShellPreferencesStore = UserDefaultsShellPreferencesStore(),
-        tasks: ModuleTaskScope = ModuleTaskScope()
+        tasks: ModuleTaskScope = ModuleTaskScope(),
+        agentOverview: AgentOverviewStore = AgentOverviewStore()
     ) {
         self.groups = groups
         self.preferences = preferences
         self.tasks = tasks
+        self.agentOverview = agentOverview
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)

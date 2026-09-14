@@ -356,6 +356,20 @@ public final class AppModel {
 
     // MARK: - 连接检查
 
+    /// 用当前会话构造后端客户端（凭据 + 账号上下文 + 同一个 `URLSession`）。
+    ///
+    /// 业务模块（S4 起）复用它而不是各自 new 一个 `URLSession`：单测用打桩 session
+    /// 跑链路时，模块请求必须落在同一个 session 上，否则用例会静默打真实网络。
+    /// 未登录返回 nil。
+    func makeAPIClient() -> APIClient? {
+        guard let authSession = sessionState.session else { return nil }
+        return APIClient(
+            config: AppConfig(baseURL: effectiveBaseURL, apiKey: authSession.apiKey),
+            authSession: authSession,
+            session: urlSession
+        )
+    }
+
     /// 检查连接。
     ///
     /// **未登录即中止**：没有会话时直接结束本次检查，不再发探针 —— 后端所有业务
@@ -363,17 +377,12 @@ public final class AppModel {
     /// 「key 被拒绝」，误导排查方向。
     public func checkConnection() async {
         guard !phase.isChecking else { return }
-        guard let authSession = sessionState.session else {
+        guard let client = makeAPIClient() else {
             phase = .blockedByCredential("尚未登录，请先登录。")
             return
         }
         phase = .checking
 
-        let client = APIClient(
-            config: AppConfig(baseURL: effectiveBaseURL, apiKey: authSession.apiKey),
-            authSession: authSession,
-            session: urlSession
-        )
         let snapshot = await HealthProbe.snapshot(using: client)
 
         // 任一步拿到「凭据需修」信号都回登录页。存活探针本身免鉴权、正常不会 401/403，
