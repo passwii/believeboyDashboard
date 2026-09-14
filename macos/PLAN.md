@@ -31,7 +31,7 @@
 
 - **单窗口文档型应用**，不是菜单栏常驻工具，也不是多窗口 IDE。
 - S1 用 AppKit 建单窗口（`NSWindow` + `NSHostingView`）；装 Xcode 后可切到 `WindowGroup` scene，**视图层不变**（见 §9 工具链约束）。目标形态是单窗口多栏，不是多窗口。
-- 后续可选加菜单栏常驻项（长任务/告警角标）与偏好设置窗口（`⌘,`），但**不作为 Stage 3 的必需项**。
+- 后续可选加菜单栏常驻项（长任务/告警角标），但**不作为 Stage 3 的必需项**；**偏好设置做成外壳内的浮层**（§8 S3 的「偏好设置（base URL 切 生产/本地）」，快捷键 `⌘,` 是它的第二入口），**不单独开偏好设置窗口** —— 那块 UI 自 S1 起就存在（登录页页脚 / 主界面），S3 只是把它**收编**进外壳，不新增能力、不因此扩期。
 - 原生窗口语义全部交给系统：`NavigationSplitView` 自动处理侧栏折叠、工具栏、`⌘⌥S`、全屏；不手写窗口 chrome。
 
 ### 2.2 导航（两层，与 `frontend/lib/sidebar-config.ts` 同构）
@@ -43,8 +43,11 @@ NavigationSplitView
 └── detail     : 选中页面的内容区（模块视图）
 ```
 
-- **权威对齐**：Swift 侧维护一份 `NavigationCatalog`（分组 + 二级项 + route id + 权限位），字段与 `frontend/lib/sidebar-config.ts` 一一对应；新增模块时两侧同步，**由 stage 验收清单检查条目数一致性**（不做代码生成，避免构建期耦合前端工具链）。
-- 二级页首期全部渲染 `ModulePlaceholderView`（标题 + 对应后端端点 + 「未实现」状态），保证「可见即可见」：导航先立起来，模块逐个填。
+- **权威对齐**：Swift 侧维护一份 `NavigationCatalog`（分组 + 二级项 + route id + 高亮语义；**不含权限位**，见下），字段与 `frontend/lib/sidebar-config.ts` 一一对应；新增模块时两侧同步 —— 由 stage 验收清单 + `NavigationCatalogTests` 的快照用例（8 组 / 56 项 / 各组条目数 / 18 处 `matchPrefixes`）检查一致性（**不做代码生成**，避免把前端工具链拉进构建期依赖）。
+- **不做 role 过滤**：`sidebar-config.ts` 的 `roles` / `groupRoles` 已全部移除（该文件头写明「可见性改由单页权限（per-page）接管」，`filterByRole` / `getVisibleGroups` 仅保留接口），**实测 0 处标记**。桌面端 catalog 因此只做 分组 / 二级项 / route id；照旧口径做 role 过滤反而会与 Web 端可见性不一致。
+- **高亮不能只比 `url` 相等**：Web 的 `isLinkActive` 有一条 `/dashboard` 特例（仅精确相等）加 `matchPrefixes` 前缀匹配（实测 18 处），否则子路径页面会丢高亮。Swift 侧 `NavigationCatalog.isActive(path:item:)` 复刻这条语义。
+- **CRM「待跟进」的动态徽标只留语义位**：Web 端那条挂 `CrmFollowUpBadge`（需要拉数据才有数字）。catalog 用 `requiresLiveData` 记下这条语义，占位期不显示编造的数字，实现在 S4+。
+- 二级页首期全部渲染 `ModulePlaceholderView`（分组 + 标题 + **对应 Web 路由** + 「未实现」状态），保证「可见即可见」：导航先立起来，模块逐个填。**占位视图不发任何请求**，也**不列「对应后端端点」** —— 端点映射要逐模块核对（同一个 Web 页可能打多个端点），先写进去就是把猜出来的映射当契约传播；S4 起随模块一起落地。
 - 命令面板（`⌘K`）与全局搜索属后续 stage；Web 端 `search-command` 的语义（跳转 + 最近访问）桌面端对齐。
 
 ### 2.3 状态机（每个模块视图统一三态）
@@ -66,13 +69,20 @@ idle → loading → (loaded | failed(APIError))
 | 网络层 | `struct APIClient: Sendable`（持 `URLSession` + `baseURL` + 凭据提供者），值语义无共享可变状态 |
 | 凭据 | `CredentialStore` 协议 + `KeychainCredentialStore` 实现；API key 只经它读写 |
 | 长任务 | 复用后端 Job 模型（`/api/v1/jobs`）轮询；桌面端用 `Task` + 退避，不用 Timer |
-| 取消 | 视图 `task {}` 绑定生命周期；切换模块即取消上一模块的未完成请求 |
+| 取消 | 视图 `task {}` 绑定生命周期；切换模块即取消上一模块的未完成请求（**显式登记**：`ModuleTaskScope` 按 route id 收拢非结构化 `Task`，切换时由外壳统一取消 —— 只靠视图 `.task` 覆盖不到模块自己的轮询与手动刷新） |
 | 错误 | 统一 `APIError`（transport / http(status, body) / decoding / unauthorized），只在一处映射文案 |
 | 超时 | 沿用 Web 代理的**分层超时表**（`frontend/lib/server/backend-proxy-timeout-policy.ts`）：流式=`RequestTier.unboundedTimeout`（见下）、报表=60s、AI=30s、统计=15s、详情=10s、列表=5s |
 
 > **流式档「无超时」的实现口径**：`URLRequest` 没有"禁用超时"开关，**不写** `timeoutInterval` 只会拿到 Foundation 默认的 60s（SSE / NDJSON 数据间隙超 60s 即被掐断）。因此流式档显式写入 `RequestTier.unboundedTimeout`（365 天）作为「极大有限值」；真正的无限等待需靠会话级 `URLSessionConfiguration.timeoutIntervalForResource`（默认 7 天）兜底。
 
 > 严格并发下 `URLSession`、`Decodable` 模型一律 `Sendable`；跨 actor 传递的响应模型全部 `struct` + `Sendable`。
+>
+> **S3 探针结论（2026-09-14，BLF-1051）**：把选择态（分组 / 二级项）与侧栏折叠态放进
+> `@MainActor @Observable` store（`NavigationStore`）、视图用显式 `Binding` 回调命令式
+> setter，`NavigationSplitView` 三栏选择与折叠都成立，且 **CLT 下 `swift build` 仍通过**
+> ——「CLT 也能 build」的承诺没有被打破（`@State` / `@Bindable` 依旧不使用）。视图与
+> store 之间只经 `NavigationBindings` 一处对接。查这条结论的用例：`NavigationStoreTests`
+> + `ShellRenderingTests`（离屏渲染三栏外壳）。
 
 ---
 
@@ -192,36 +202,46 @@ macos/
     │   ├── KeychainSessionStore.swift     # 钥匙串实现：key + 档案（先档案后 key）
     │   ├── RememberedLogin.swift  # 「记住密码」协议 + 钥匙串实现（opt-in，与 key / 档案分槽）
     │   ├── HealthProbe.swift      # live / full / snapshot（两步语义）
+    │   ├── Navigation/            # 导航与外壳状态的**纯逻辑**（不 import SwiftUI）
+    │   │   ├── NavigationCatalog.swift   # 8 分组 / 56 二级项 / 高亮语义（对齐 sidebar-config.ts）
+    │   │   └── ShellPreferences.swift    # 选中项 / 侧栏折叠态 / 窗口尺寸 + 不可信落盘的清洗规则
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       └── AuthModels.swift   # LoginRequest/Response、AuthenticatedUser、AuthSession、UserContext
     ├── BelieveBoyUI/          # SwiftUI 视图 + 视图状态（可离屏渲染，不需启动 GUI）
     │   ├── AppModel.swift         # @MainActor @Observable：登录态 + 连接配置 + 健康检查
-    │   ├── RootView.swift         # 按会话状态选页（restoring / 登录 / 主界面）+ 窗口尺寸切换
+    │   ├── NavigationStore.swift  # @MainActor @Observable：选中项 / 折叠态 / 持久化 + 模块任务作用域
+    │   ├── NavigationBindings.swift  # 视图→store 的显式 Binding + SplitViewVisibility 映射（无属性包装器）
+    │   ├── ModuleTaskScope.swift  # 按 route id 收拢模块后台任务，切换时统一取消（不泄漏 Task）
+    │   ├── RootView.swift         # 按会话状态选页（restoring / 登录 / 外壳）+ 窗口尺寸切换
     │   ├── LoginView.swift        # 登录表单（窄栏居中，服务器选择默认折叠）
-    │   ├── HealthView.swift       # 登录后的主界面（账号 + 后端地址 + 连接检查）
-    │   └── ViewSupport.swift      # 显式 Binding 助手 + 共用小组件 + 窗口尺寸探针
+    │   ├── ShellView.swift        # 三栏外壳（8 分组 / 二级项 / 模块内容）+ 工具栏
+    │   ├── ModulePlaceholderView.swift  # 二级页占位（分组 + 标题 + Web 路由 + 未实现，不发请求）
+    │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
+    │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
+    │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
+    │   └── ViewSupport.swift      # 显式 Binding 助手 + 共用小组件 + 窗口尺寸口径/探针
     └── BelieveBoyMac/         # 进程引导（薄壳）
         ├── main.swift             # NSApplication + setActivationPolicy(.regular)
-        └── BelieveBoyAppDelegate.swift  # 窗口 + 主菜单（⌘R / ⌘⇧L 退出登录 / ⌘Q / 编辑菜单）
+        └── BelieveBoyAppDelegate.swift  # 窗口（尺寸恢复/记录）+ 主菜单（⌘R / ⌘, / ⌘⇧L / ⌘Q / 编辑菜单）
 ```
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机用例）当前 **77 个用例**（其中 2 个真后端用例默认 skip），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **128 个用例**（其中 2 个真后端用例默认 skip），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
 
 ---
 
 ## 8. Stage 计划
 
-> 归属列写明「本 issue」或「后续单独开 issue」。本 issue（BLF-1041）只做 S0 + S1。
+> 归属列的「已完成（BLF-xxxx）」就是该 stage 的交付 issue；未完成的写明后续单独开 issue。
 
 | Stage | 目标 | 可交付物 | 验收标准 | 依赖 | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | **S0** | 仓库清场 | 删除 `gui/`、`docs/gui-mvp-plan.md`、`.github/workflows/gui-windows-build.yml`；新建 `macos/`、`windows/` | `git ls-files \| grep '^gui/'` 为空；无残留 CI 引用 | — | **本 issue** |
 | S1 | 最小可运行骨架 | `macos/` SPM 工程（Kit + UI + 引导三层）：`AppConfig` + `APIClient` + Keychain 凭据 + 健康检查视图 + AppKit 引导与主菜单 + Kit 层 XCTest；`windows/README.md` 占位 | ① `swift build` 零错误（CLT 与完整 Xcode 两条工具链分别实测）；② Kit 层对真实后端端到端跑通（存活探针 / 鉴权探针 / snake_case 解码 / 缺凭据拦截 / 错误 key → 403 / 不可达 → transport / snapshot 短路）；③ App 启动建出窗口；④ 视图渲染出 `/health` 的 DB·副本·Redis·内存·环境名真实数据，失败态显示对应中文错误；⑤ `swift test` 11 用例全绿（需完整 Xcode，见 §9）；⑥ 生产直连验证见 §4.1 实测表 | S0 | 已完成（BLF-1041） |
 | **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页；「记住密码」（钥匙串，opt-in） | 冷启动凭据有效直进主界面；**401/403（含被网页端/其他设备登录顶掉导致 key 失效）→ 明确再登录路径，不做无谓重试**；App 不内置任何 key；密码不落盘（仅勾选「记住密码」时入钥匙串，且从不进 `UserDefaults`/账号档案/日志）；登录页精简（无说明性段落，服务器选择默认折叠） | S1 | 已完成（BLF-1044） |
-| **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致；切换模块无泄漏 Task；窗口尺寸/侧栏折叠状态恢复 | S2 | 后续 issue |
+| **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地，**收编**已存在的选择 UI，不新增能力） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致（快照用例钉在 Swift 侧）；切换模块无泄漏 Task（`ModuleTaskScope` 按 route id 取消，占位视图零请求）；窗口尺寸 / 侧栏折叠状态可恢复（`ShellPreferences` + 落盘清洗与夹回可见屏幕的规则） | S2 | 已完成（BLF-1051） |
 | **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 后续 issue |
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S4 | 后续多个 issue（每组一个） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |

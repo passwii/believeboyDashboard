@@ -133,33 +133,44 @@ struct NoticeRow: View {
     }
 }
 
-/// 按登录态调整承载窗口的尺寸：登录页用紧凑窗口（贴近 macOS 登录窗口的观感），
-/// 登录后用能装下信息密度的窗口。
+/// 窗口尺寸口径：登录页紧凑（贴近 macOS 登录窗口的观感），外壳宽敞（装得下三栏）。
+///
+/// 独立成一个公开类型而不是藏在探针里：进程引导（`BelieveBoyMac`）在**建窗口时**就要
+/// 用同一份尺寸，两处各写一套数字必然漂移。尺寸常量同时与
+/// `ShellPreferences.WindowFrame`（恢复用）对齐。
+public enum ShellWindowStyle: Equatable {
+    case compact
+    case regular
+
+    /// 按登录态取口径（登录页 / 外壳）。
+    public static func forSession(isSignedIn: Bool) -> ShellWindowStyle {
+        isSignedIn ? .regular : .compact
+    }
+
+    public var contentSize: NSSize {
+        switch self {
+        case .compact: return NSSize(width: 440, height: 540)
+        case .regular: return NSSize(width: WindowFrame.Size.regular.width, height: WindowFrame.Size.regular.height)
+        }
+    }
+
+    public var minimumContentSize: NSSize {
+        switch self {
+        case .compact: return NSSize(width: 420, height: 480)
+        case .regular: return NSSize(width: WindowFrame.minimum.width, height: WindowFrame.minimum.height)
+        }
+    }
+}
+
+/// 按登录态调整承载窗口的尺寸。
 ///
 /// 只在「紧凑 ↔ 宽敞」真正切换时动一次窗口 —— 每次重绘都 `setContentSize` 会把用户
 /// 手动拉伸过的窗口弹回去。窗口被拉得比目标更宽时也不再缩（尊重用户的选择），
 /// 折叠态（登录页）除外：那一页本来就窄，拉宽的窗口里只会多出一圈空白。
 struct WindowSizingProbe: NSViewRepresentable {
-    enum Style: Equatable {
-        case compact
-        case regular
-
-        var contentSize: NSSize {
-            switch self {
-            case .compact: return NSSize(width: 440, height: 540)
-            case .regular: return NSSize(width: 880, height: 660)
-            }
-        }
-
-        var minimumContentSize: NSSize {
-            switch self {
-            case .compact: return NSSize(width: 420, height: 480)
-            case .regular: return NSSize(width: 640, height: 520)
-            }
-        }
-    }
-
-    let style: Style
+    let style: ShellWindowStyle
+    /// 启动时窗口已按**恢复的**尺寸就位 → 首次渲染不按登录态改尺寸。
+    let skipsFirstApplication: Bool
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -169,6 +180,13 @@ struct WindowSizingProbe: NSViewRepresentable {
         // `applied` 只在真正设过尺寸后才置位：首次 `updateNSView` 时 view 还没挂进
         // 窗口（`view.window == nil`），此时不该把这次机会用掉。
         guard context.coordinator.applied != style, let window = view.window else { return }
+        // 恢复过的窗口尺寸优先于「按登录态设尺寸」：把这次机会标记为已用，
+        // 但只补齐最小尺寸约束，不动用户上次的窗口大小。
+        if context.coordinator.applied == nil, skipsFirstApplication {
+            context.coordinator.applied = style
+            window.contentMinSize = style.minimumContentSize
+            return
+        }
         guard style == .compact || window.frame.width < style.contentSize.width else {
             context.coordinator.applied = style
             return
@@ -187,6 +205,6 @@ struct WindowSizingProbe: NSViewRepresentable {
 
     final class Coordinator {
         /// 已实际应用的样式；`nil` = 还没成功设过尺寸。
-        var applied: Style?
+        var applied: ShellWindowStyle?
     }
 }

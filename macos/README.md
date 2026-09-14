@@ -3,7 +3,7 @@
 BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https://dash-api.believeboy.com`），复用 `backend/` 现有 API，不改后端、不经 Next.js 代理。
 
 - **技术路线 / stage 计划 / 工具链约束**：见 [PLAN.md](./PLAN.md)（权威）
-- **当前进度**：Stage 0/1/2 —— 骨架 + 登录与会话（能启动、能登录、能连后端健康检查）。业务模块未实现。
+- **当前进度**：Stage 0/1/2/3 —— 骨架 + 登录与会话 + **应用外壳与导航**（三栏：8 个分组 → 56 个二级项 → 模块占位视图）。业务模块本身未实现（S4 起逐个搬）。
 
 ## 环境要求
 
@@ -23,6 +23,15 @@ swift run BelieveBoyMac  # 启动（弹出窗口），默认连生产后端
 ```
 
 窗口内操作：填邮箱 + 密码 →「登录」→ 进主界面，自动跑一次连接检查（或 `⌘R` 手动重跑，`⌘⇧L` 退出登录）。
+
+登录后是三栏外壳（与 Web 端侧栏同构）：
+
+- **侧栏**：8 个分组（运营 / 报表中心 / 财务资金 / 广告 / AI 智能 / CRM / 工具箱 / 系统管理）——条目与顺序以 `frontend/lib/sidebar-config.ts` 为准；
+- **内容栏**：所选分组下的二级项（共 56 项）；
+- **详情栏**：选中项的**占位视图**（分组 + 标题 + 对应 Web 路由 + 「未实现」）。占位视图**不发任何请求**，也**不列后端端点** —— 端点映射逐模块核对，S4 起随模块落地；CRM「待跟进」在 Web 上有动态徽标，占位期只保留语义位、不显示编造的数字；
+- **未选分组时**详情栏是「连接与身份」概览（账号 + 连接检查），工具栏「连接与身份」可随时回来；
+- **偏好设置**（工具栏齿轮 或 `⌘,`）：后端地址 生产 / 本地 + 自定义地址（与登录页页脚同一块 UI，只是收编到外壳里）；
+- 侧栏折叠（`⌘⌥S` 或拖分栏线）与**窗口尺寸**在下次启动时恢复：落盘的选中项、折叠态、窗口 frame 存在 `UserDefaults` 的 `shell.preferences.v1`（一条 JSON；**不含任何凭据**）。落盘内容会被清洗：条目已不在 catalog、尺寸不合理、窗口坐标跑到屏幕外（拔显示器）都会退回默认，不会“启动了但看不见”。
 
 登录页默认只有表单与一个「记住密码」勾选框：
 
@@ -74,10 +83,21 @@ swift run BelieveBoyMac
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 77 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 128 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
+```
+
+### 导航条目数对照（人工，不做代码生成）
+
+`NavigationCatalog` 是 `frontend/lib/sidebar-config.ts` 的 Swift 等价物，跨仓库一致性按
+PLAN §2.2 仍是**人工对照** —— 改那边就顺手跑这两条命令，并对照 Swift 侧快照用例
+（`NavigationCatalogTests`：8 组 / 56 项 / 各组条目数 / 18 处 `matchPrefixes`）：
+
+```bash
+grep -c "^    id: '" frontend/lib/sidebar-config.ts                  # 8 个分组
+grep -c "matchPrefixes: \[" frontend/lib/sidebar-config.ts         # 18 处前缀匹配
 ```
 
 ### 真后端端到端（轮换 / 账号上下文）
@@ -115,6 +135,8 @@ S2 新增用例：**登录请求形状**（POST / 无凭据头 / JSON 体 / 邮�
 
 S2 UI 精简新增用例：**「记住密码」默认关**（未勾选时一个字节都不写）、**登录成功才写**（勾选当下不写、失败不写）、**取消勾选即删**、**403 被顶掉后凭据仍预填**（一次点击即可重登）、**登出不删「记住密码」**、**密码不进 `UserDefaults` 与账号档案**、**「记住密码」读写失败只提示、不挡登录**、**服务器选择默认折叠**，以及 `RememberedLoginTests` 的真钥匙串往返与「条目写坏 → 当没记住」。
 
+S3 新增用例：**导航快照**（8 组 / 56 项 / 各组条目数 / 18 处 `matchPrefixes` / route id 唯一 / 分组归属看条目位置而非路由前缀）、**高亮语义**（`/dashboard` 精确匹配特例、前缀匹配点亮子路径、无前缀条目不被兄弟子路径误亮）、**动态徽标语义位**（只有 CRM「待跟进」带 `requiresLiveData`）、**外壳状态恢复**（选中项 / 折叠态 / 窗口尺寸落盘往返；旧条目被删则退回概览；尺寸不合理或坐标在屏幕外则丢弃并居中）、**切换模块不残留任务**（`ModuleTaskScope` 取消上一个 route 的任务、同 key 重跑先取消、概览任务也会被收掉）、**离屏渲染**（三栏外壳真画出内容，且占位视图**零请求**）。
+
 浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
 无需启动 GUI 进程即可确认视图真实渲染结果。
@@ -136,11 +158,11 @@ S2 UI 精简新增用例：**「记住密码」默认关**（未勾选时一个�
 macos/
 ├── PLAN.md                     # 选型 + 架构 + stage 计划（权威文档）
 ├── Package.swift               # 三层 target + BelieveBoyTests
-├── Tests/BelieveBoyTests/      # XCTest（离线打桩；需完整 Xcode）
+├── Tests/BelieveBoyTests/      # XCTest（离线打桩 + 离屏渲染；需完整 Xcode）
 └── Sources/
-    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针（不 import SwiftUI）
-    ├── BelieveBoyUI/           # SwiftUI 视图 + AppModel（可离屏渲染）
-    └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口 + 菜单）
+    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针 / 导航目录与外壳状态（不 import SwiftUI）
+    ├── BelieveBoyUI/           # SwiftUI 视图 + store（可离屏渲染）
+    └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口尺寸恢复 + 菜单）
 ```
 
 依赖方向 `BelieveBoyMac → BelieveBoyUI → BelieveBoyKit` 单向。
