@@ -102,6 +102,66 @@ final class AdAnalysisRenderingTests: XCTestCase {
         }
     }
 
+    /// 空态提示（`NoticeRow(.warning)`）是否**真的被画到了位图上**。
+    ///
+    /// 判据是该提示条的两件固定特征，二者都要满足：
+    /// ① 橙色提示底 —— 横向铺满内容区（`NoticeRow` 的 `Spacer` 把它撑宽）的橙色条带；
+    /// ② 条带里真的有文案 —— 近似中性色的字形像素（见 `isNoticeText`）。
+    ///
+    /// 只查橙色不够（页面别处也可能出现暖色），所以加 ②；而 ② 不能拿「与页面底色对比」
+    /// 来判 —— 离屏宿主没有窗口背景，`cacheDisplay` 出来的底色是**透明**的。
+    ///
+    /// 为什么不查辅助功能树：无头进程里 `NSHostingView.accessibilityChildren()` 返回空
+    /// （实测 `count = 0`），拿不到文本，只能退到位图结构。
+    private func warningNoticeIsPainted(_ rep: NSBitmapImageRep) -> Bool {
+        // 2× 屏下 1280×800 的窗口约 2560×1664 像素，隔 4 采样。
+        let stepX = max(1, rep.pixelsWide / 640)
+        let stepY = max(1, rep.pixelsHigh / 400)
+
+        var minX = Int.max, maxX = Int.min, minY = Int.max, maxY = Int.min
+        for x in stride(from: 0, to: rep.pixelsWide, by: stepX) {
+            for y in stride(from: 0, to: rep.pixelsHigh, by: stepY) {
+                guard let color = rep.colorAt(x: x, y: y), Self.isWarningOrange(color) else { continue }
+                minX = min(minX, x)
+                maxX = max(maxX, x)
+                minY = min(minY, y)
+                maxY = max(maxY, y)
+            }
+        }
+        // 提示条要成「条」：横向铺开、且有高度（不是 1px 描边、也不是一个小图标）。
+        guard minX <= maxX, minY <= maxY, maxX - minX > 300, maxY - minY > 20 else { return false }
+
+        var textXs: [Int] = []
+        for x in stride(from: minX, through: maxX, by: stepX) {
+            for y in stride(from: minY, through: maxY, by: stepY) {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                if Self.isNoticeText(color) {
+                    textXs.append(x)
+                }
+            }
+        }
+        guard let leftmost = textXs.min(), let rightmost = textXs.max() else { return false }
+        return rightmost - leftmost > 100
+    }
+
+    /// 饱和橙：系统橙 `#FF9500`（浅色）/ `#FF9F0A`（深色）都命中，蓝色强调色与红色横幅都不命中。
+    private static func isWarningOrange(_ color: NSColor) -> Bool {
+        let red = color.redComponent
+        let green = color.greenComponent
+        let blue = color.blueComponent
+        return red > 0.5 && red - blue > 0.25 && red >= green && green > blue
+    }
+
+    /// 提示条里的文案像素：近似中性色（浅色外观的黑字 / 深色外观的白字）。
+    ///
+    /// 用「中性」而不是「与底色对比高」：离屏位图没有窗口背景（提示底的橙色是半透明、
+    /// `colorAt` 会把它的颜色解到饱和橙），所以底色对比量不出来；而橙色底与橙色图标
+    /// 天然高饱和，中性的字形像素只可能来自文案本身。
+    private static func isNoticeText(_ color: NSColor) -> Bool {
+        let channels = [color.redComponent, color.greenComponent, color.blueComponent]
+        return (channels.max() ?? 0) - (channels.min() ?? 0) < 0.12
+    }
+
     private func opaqueSampleCount(_ rep: NSBitmapImageRep) -> Int {
         let stepX = max(1, rep.pixelsWide / 40)
         let stepY = max(1, rep.pixelsHigh / 40)
@@ -266,6 +326,12 @@ final class AdAnalysisRenderingTests: XCTestCase {
     // MARK: - 三态渲染
 
     /// 空态：项目有、报表没有 → 显示「无数据」提示而不是空白或 0。
+    ///
+    /// 两层断言分别挡住两类回归：
+    /// ① 文案口径 —— `AdAnalysisTabContentTests` 逐 Tab 钉住「空态 → 提示文本」；
+    /// ② 真的画出来了 —— 下面这次位图核对。② 不能只看「像素非零」：首版的 `.empty`
+    /// 被外层 `EmptyView()` 吃掉后位图同样非零（页头 / 筛选条 / Tab 栏一直在画），
+    /// 所以那条旧断言挡不住它，必须换成本用例的「警告图标 + 紧邻文案」结构判据。
     func testEmptyStateRendersNotice() async throws {
         let routes = try snapshotRoutes(overrides: [
             "/api/v1/ad-analysis/overview": .json(
@@ -280,7 +346,12 @@ final class AdAnalysisRenderingTests: XCTestCase {
         await waitUntil { navigation.adAnalysis.contentState == .empty }
 
         hosted.pump()
-        XCTAssertGreaterThan(opaqueSampleCount(try hosted.bitmap()), 0, "空态也要画出提示")
+        let bitmap = try hosted.bitmap()
+        XCTAssertGreaterThan(opaqueSampleCount(bitmap), 0, "空态也要画出提示")
+        XCTAssertTrue(
+            warningNoticeIsPainted(bitmap),
+            "空态必须画出「无数据」警告提示（橙色图标 + 紧跟的文案），而不是一片空白"
+        )
     }
 
     /// 错误态：后端 500 → 失败横幅 + 重试按钮（可再渲染一次）。

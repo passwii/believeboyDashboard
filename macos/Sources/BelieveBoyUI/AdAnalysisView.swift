@@ -1,6 +1,57 @@
 import BelieveBoyKit
 import SwiftUI
 
+/// 正文（`tabContent`）的渲染分支 —— 纯数据，判定收在 `resolve`。
+///
+/// 为什么把这一支挑出视图：验收标准 3 的「空态必须显示『无数据』」只在
+/// `projectGate == .ready` **且** `contentState == .empty` 这一支上成立，而这一支最容易被
+/// 外层提前吃掉 —— S5.1 首版把 `emptyNotice` 写在 `readyContent` 里，`.empty` 却是先命中
+/// 外层 `EmptyView()`，于是「项目存在但报表为空」时页面一片空白，提示永远画不出来（离屏
+/// 像素非零的断言照样通过）。判定挑出来之后，单测可以直接钉住「空态 → notice」。
+enum AdAnalysisTabContent: Equatable {
+    /// 正文位置放一行加载提示（项目列表 / 当前 Tab）。
+    case loading(String)
+    /// 正文位置放提示条 —— 当前是「无数据」空态，**不能渲染成空白**。
+    case notice(String)
+    /// 正文留空：项目列表或当前 Tab 加载失败，提示与重试在 `stateBanners`。
+    case blocked
+    /// 有数据，走 `readyContent`。
+    case ready
+
+    /// 正文分支口径（视图只负责把它画出来）。
+    static func resolve(
+        gate: AdAnalysisStore.ProjectGate,
+        content: AdAnalysisStore.ContentState,
+        tabLabel: String
+    ) -> AdAnalysisTabContent {
+        switch gate {
+        case .pending:
+            return .loading("正在加载项目列表…")
+        case .failed, .noProjects:
+            // 项目列表本身不可用：整页提示在 `stateBanners`，正文没有可加载的 Tab。
+            return .blocked
+        case .ready:
+            switch content {
+            case .loading:
+                return .loading("正在加载「\(tabLabel)」…")
+            case .empty:
+                // 空态 = 报表里没有落在这组筛选里的记录，**不是** 0、也**不是**报错。
+                return .notice(emptyNoticeMessage(tabLabel: tabLabel))
+            case .failed:
+                return .blocked
+            case .ready:
+                return .ready
+            }
+        }
+    }
+
+    /// 空态文案（验收标准 3 的「无数据」提示原文）。
+    static func emptyNoticeMessage(tabLabel: String) -> String {
+        "当前筛选条件下「\(tabLabel)」没有数据 ——"
+            + "不是加载失败：该项目的报表里没有落在这个项目 / 站点 / 日期区间内的记录。"
+    }
+}
+
 /// 「广告 → 广告分析」只读页（Web `/dashboard/advertising/ad-analysis`，默认落地 `overview`）。
 ///
 /// 一个 Tab 一个端点（10 个 GET，见 `AdAnalysisCatalog.tabs`），全部共用顶部的项目 /
@@ -8,6 +59,8 @@ import SwiftUI
 ///
 /// 视图不使用属性包装器宏（工具链约束，见 `Package.swift` 顶部）：需要双向绑定的地方
 /// 走显式 `Binding`（见 `AdAnalysisComponents` 里的 Picker / Toggle）。
+///
+/// 正文分支口径在 `AdAnalysisTabContent.resolve`（含「空态必须画出提示」那条）。
 public struct AdAnalysisView: View {
     /// Web 路由 —— 模块路由表的命中键，也是模块任务作用域的 key。
     public static let routeID = AdAnalysisCatalog.routeID
@@ -78,7 +131,7 @@ public struct AdAnalysisView: View {
         .padding(.bottom, 10)
     }
 
-    // MARK: - 状态提示（错误 / 刷新失败 / 空）
+    // MARK: - 状态提示（项目失败 / 无项目 / 内容失败 / 刷新失败）
 
     @ViewBuilder
     private var stateBanners: some View {
@@ -122,20 +175,20 @@ public struct AdAnalysisView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch store.projectGate {
-        case .pending:
-            loadingRow("正在加载项目列表…")
-        case .failed, .noProjects:
+        switch AdAnalysisTabContent.resolve(
+            gate: store.projectGate,
+            content: store.contentState,
+            tabLabel: store.selectedTab.label
+        ) {
+        case .loading(let text):
+            loadingRow(text)
+        case .notice(let message):
+            // 空态提示走同一个 `NoticeRow`，与错误 / 刷新失败提示同构。
+            NoticeRow(kind: .warning, message: message)
+        case .blocked:
             EmptyView()
         case .ready:
-            switch store.contentState {
-            case .loading:
-                loadingRow("正在加载「\(store.selectedTab.label)」…")
-            case .failed, .empty:
-                EmptyView()
-            case .ready:
-                readyContent
-            }
+            readyContent
         }
     }
 
@@ -150,24 +203,12 @@ public struct AdAnalysisView: View {
         .padding(.vertical, 30)
     }
 
-    /// 空态单独一支：**无数据要显示「无数据」，而不是 0 或报错**。
-    @ViewBuilder
-    private var emptyNotice: some View {
-        NoticeRow(
-            kind: .warning,
-            message: "当前筛选条件下「\(store.selectedTab.label)」没有数据 ——"
-                + "不是加载失败：该项目的报表里没有落在这个项目 / 站点 / 日期区间内的记录。"
-        )
-    }
-
+    /// 有数据时的正文（只由 `AdAnalysisTabContent.ready` 进入；空态在 `tabContent` 里
+    /// 就已经走掉 `notice` 那一支，不会到这里）。
     @ViewBuilder
     private var readyContent: some View {
         let payload = store.selectedTabState.payload
         let tabKey = store.selectedTabKey
-
-        if store.contentState == .empty {
-            emptyNotice
-        }
 
         if let payload {
             if !payload.metrics.isEmpty {
