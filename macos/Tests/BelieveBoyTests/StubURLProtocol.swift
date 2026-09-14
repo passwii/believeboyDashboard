@@ -3,16 +3,48 @@ import XCTest
 
 /// 拦截所有请求的 URLProtocol 桩件 —— 测试离线运行，不碰真实后端。
 ///
-/// 静态状态不加锁：XCTest 在同一进程内串行执行同一 suite 的用例，每个用例在发起
-/// 请求前重设 `responder` 并清空 `log`（`swift test --parallel` 按 suite 分进程，
-/// 本文件只有一个 suite）。
+/// `responder` / `log` 是静态的且不加锁：XCTest 在同一进程内串行执行同一 suite 的用例，
+/// 每个用例在发起请求前重设 `responder` 并清空 `log`（`swift test --parallel` 按 suite
+/// 分进程）；两者的读写都在同一个「请求已 await 回来」的用例内，不存在并发读者。
+/// 唯一的例外是**取消观测点**（`stopLoading` 在 URLSession 队列上写、用例在断言里读，
+/// 写侧与读侧不同步），它走 `cancellations` 这个自带锁的快照对象。
 final class StubURLProtocol: URLProtocol {
     struct Response: Sendable {
         var status: Int
         var body: String
+        /// 分片响应体（SSE / 下载用）：每项各触发一次 `didLoad`，消费者可逐片处理。
+        /// 为空时整份 `body` 一次性交付。
+        var chunks: [String] = []
+        /// 响应头（默认加 `Content-Type: application/json`）。
+        var headers: [String: String] = [:]
+        /// 交付完分片后**不结束**连接（长连接 SSEM 用：只有取消才结束）。
+        var holdsOpen: Bool = false
+        /// 相邻分片之间的延迟（秒）；让"逐块消费 / 中途取消"可被真实观察到。
+        var chunkDelay: TimeInterval = 0
+        /// 传输层失败（DNS / 连接被拒 / 超时）。设置后直接 `didFailWithError`。
+        var failure: URLError?
 
         static func json(_ status: Int, _ body: String) -> Response {
             Response(status: status, body: body)
+        }
+
+        /// 分片流式响应（`text/event-stream` 或文件下载）。
+        static func stream(
+            _ status: Int = 200,
+            chunks: [String],
+            contentType: String = "text/event-stream",
+            headers: [String: String] = [:],
+            holdsOpen: Bool = false,
+            chunkDelay: TimeInterval = 0
+        ) -> Response {
+            Response(
+                status: status,
+                body: "",
+                chunks: chunks,
+                headers: headers.merging(["Content-Type": contentType]) { current, _ in current },
+                holdsOpen: holdsOpen,
+                chunkDelay: chunkDelay
+            )
         }
     }
 
@@ -43,10 +75,61 @@ final class StubURLProtocol: URLProtocol {
             else { return nil }
             return object.compactMapValues { $0 as? String }
         }
+
+        /// 请求体解成任意 JSON 对象（嵌套结构用）。
+        var jsonObject: [String: Any]? {
+            guard let body, let data = body.data(using: .utf8) else { return nil }
+            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        }
     }
 
     nonisolated(unsafe) static var responder: (@Sendable (URLRequest) -> Response)?
     nonisolated(unsafe) static var log: [RequestLog] = []
+    /// 取消观测点：`stopLoading` 被调用的次数与被中止的路径（按中止顺序）。
+    ///
+    /// 「URLSession 任务被拆掉」只能从这里看出来，而 `stopLoading` 跑在 URLSession 自己的
+    /// 队列上 —— 写侧与读侧必须是**同一把锁**、读的必须是**同一次快照**。早前把计数与路径
+    /// 分别放在两个无锁静态变量里，即便只给写侧加实例锁，读者仍是无锁读，既不构成一致快照
+    /// （可能读到「计数已加、路径还空」）也仍是数据竞争（TSan 会报）。
+    static let cancellations = CancellationLog()
+
+    /// `stopLoading` 的两个观测面（计数 / 路径）的一致快照，写入、重置、读取共用一把锁。
+    final class CancellationLog: @unchecked Sendable {
+        struct Snapshot: Sendable, Equatable {
+            var stopLoadingCount: Int
+            var stoppedPaths: [String]
+        }
+
+        private let lock = NSLock()
+        private var count = 0
+        private var paths: [String] = []
+
+        /// 一次性取出两个观测面 —— 断言与等待都读它，不必分两次读。
+        var snapshot: Snapshot {
+            lock.lock()
+            defer { lock.unlock() }
+            return Snapshot(stopLoadingCount: count, stoppedPaths: paths)
+        }
+
+        func record(path: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            count += 1
+            paths.append(path)
+        }
+
+        /// 重置也在同一把锁里 —— 否则新用例的重置会与上一个用例的在途 `stopLoading` 撞车。
+        func reset() {
+            lock.lock()
+            defer { lock.unlock() }
+            count = 0
+            paths = []
+        }
+    }
+
+    private static let deliveryQueue = DispatchQueue(label: "StubURLProtocol.delivery")
+    private let stoppedLock = NSLock()
+    private var stopped = false
 
     /// 按路径登记固定响应。未登记的路径直接 `XCTFail` —— 避免测试静默打到真实网络。
     static func session(routes: [String: Response]) -> URLSession {
@@ -65,6 +148,7 @@ final class StubURLProtocol: URLProtocol {
     static func session(handler: @escaping @Sendable (URLRequest) -> Response) -> URLSession {
         responder = handler
         log = []
+        cancellations.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         return URLSession(configuration: configuration)
@@ -101,18 +185,57 @@ final class StubURLProtocol: URLProtocol {
             return
         }
         let response = responder(request)
+
+        if let failure = response.failure {
+            client?.urlProtocol(self, didFailWithError: failure)
+            return
+        }
+
+        var headerFields = response.headers
+        if headerFields["Content-Type"] == nil {
+            headerFields["Content-Type"] = "application/json"
+        }
         let httpResponse = HTTPURLResponse(
             url: request.url!,
             statusCode: response.status,
             httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]
+            headerFields: headerFields
         )!
         client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(response.body.utf8))
-        client?.urlProtocolDidFinishLoading(self)
+
+        let chunks = response.chunks.isEmpty ? [response.body] : response.chunks
+        let holdsOpen = response.holdsOpen
+        let delay = response.chunkDelay
+        // 交付放到后台队列：分片之间可以插入延迟，让「逐块消费」与「中途取消」
+        // 成为可观测的事实，而不是"理论上分片了"。
+        Self.deliveryQueue.async {
+            for chunk in chunks {
+                guard !self.isStopped else { return }
+                self.client?.urlProtocol(self, didLoad: Data(chunk.utf8))
+                if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+            }
+            guard !holdsOpen, !self.isStopped else { return }
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        // 先在实例锁里完成「本次是否首次中止」的判定，再把**同一次中止**的两个观测面
+        // 一起交给 `cancellations` —— 两个观测面在同一次 `record` 里落盘，读者不会
+        // 看到半截状态。
+        stoppedLock.lock()
+        let alreadyStopped = stopped
+        stopped = true
+        stoppedLock.unlock()
+        guard !alreadyStopped else { return }
+        Self.cancellations.record(path: request.url?.path ?? "")
+    }
+
+    private var isStopped: Bool {
+        stoppedLock.lock()
+        defer { stoppedLock.unlock() }
+        return stopped
+    }
 
     /// 读取请求体：`URLSession` 会在交给 `URLProtocol` 之前把 `httpBody` 折叠成
     /// `httpBodyStream`，只读 `httpBody` 会得到 nil，POST 断言就会变成空断言。
@@ -132,5 +255,44 @@ final class StubURLProtocol: URLProtocol {
             data.append(buffer, count: read)
         }
         return String(data: data, encoding: .utf8)
+    }
+}
+
+// MARK: - 测试工具
+
+/// 线程安全的取值盒子（跨 actor / 回调写、断言里读）。
+final class LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+
+    init(_ initial: Value) {
+        stored = initial
+    }
+
+    var value: Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+
+    func mutate(_ body: (inout Value) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        body(&stored)
+    }
+}
+
+/// 记录时间序列（轮询等待 / 下载进度）。
+final class RecordingSink<Value>: @unchecked Sendable {
+    private let box: LockedBox<[Value]>
+
+    init() {
+        box = LockedBox([])
+    }
+
+    var values: [Value] { box.value }
+
+    func record(_ value: Value) {
+        box.mutate { $0.append(value) }
     }
 }

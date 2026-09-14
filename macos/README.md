@@ -126,7 +126,7 @@ swift run BelieveBoyMac
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 186 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 256 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
@@ -204,6 +204,41 @@ DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --filter Liv
 > 需要把视图放进 `NSWindow` 并（用 `PIL` / `NSImage` 之类）先铺白底再叠绘制，
 > 或直接把缓存结果按 alpha 合成到白底上，才能读文字。
 
+## 客户端底座：写 / 上传 / 流式 / 轮询 + 下载（S5.0）
+
+搬运业务模块时反复要用的四类能力已在 Kit 层备好（细节见 `PLAN.md` §7 的 `Networking/` 与 `Jobs/`，用例在各 `*Tests.swift`）。新页面直接组合它们，**不要**在 store 里再拼一遍 URLRequest：
+
+```swift
+let client = APIClient(config: config, authSession: session)
+
+// 1) JSON 写入（POST / PUT / PATCH / DELETE；`…IgnoringResponse` 一组只看状态码，吃得下 204 空体）
+let created: InspectionPeriod = try await client.write(.post, "/inspections/periods", body: payload)
+try await client.deleteIgnoringResponse("/crm/follow-ups/5")
+
+// 2) multipart 上传（文件按块读，不整份进内存；中文文件名两种形态都给）
+var form = MultipartFormData()
+form.addField("country", "US")
+form.addFile("file", filename: "中文台账.csv", mimeType: "text/csv", contentsOf: fileURL)
+let reply: UploadReply = try await client.upload("/report-upload/commit", form: form)
+
+// 3) SSE 流式（.stream 档无超时；逐帧到达；取消即拆连接）
+for try await event in client.stream("/insight/runs/\(runID)/stream") {
+    let delta = try event.decode(DeltaEvent.self)
+}
+
+// 4) 长任务轮询 + 结果下载（退避 + 上限，不会无限打后端；落盘是流式的）
+let jobs = JobClient(client: client)
+let job = try await jobs.submit(jobType: "report_upload_ingest", fileID: "f-1")
+let done = try await jobs.waitForSuccess(job.id)                 // 失败 → APIError.jobFailed
+let file = try await jobs.downloadResult(job.id, to: destination) // 流式落盘 + 原子替换
+```
+
+约定：
+
+- **超时档**沿用 Web 代理那张表（`RequestTier`）—— 上传默认 `.report`（60s）、SSE 用 `.stream`（`unboundedTimeout`）、普通写默认 `.detail`（10s）。
+- **错误分类**统一走 `APIError`：401/403 → `requiresCredentialFix == true`（回登录页）；传输失败 / 轮询超时 / 任务失败 / 本地文件 I/O **都不是**凭据问题，不得把用户赶回登录页。
+- **取消**：`stream`、轮询、下载都响应 `Task` 取消，取消时不留后台 Task、不留半成品文件（下载写临时文件再原子替换）。
+
 ## 配置项
 
 | 环境变量 | 作用 |
@@ -219,7 +254,7 @@ macos/
 ├── Package.swift               # 三层 target + BelieveBoyTests
 ├── Tests/BelieveBoyTests/      # XCTest（离线打桩 + 离屏渲染；需完整 Xcode）
 └── Sources/
-    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针 / 导航目录与外壳状态 / 业务域（AgentOps：注册表 + 格式化 + 四端点客户端）（不 import SwiftUI）
+    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络（写 / 上传 / SSE / 下载 / 轮询）/ 凭据 / 会话 / 健康探针 / 导航目录与外壳状态 / 长任务 Jobs / 业务域（AgentOps）（不 import SwiftUI）
     ├── BelieveBoyUI/           # SwiftUI 视图 + store（可离屏渲染）
     └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口尺寸恢复 + 菜单）
 ```
