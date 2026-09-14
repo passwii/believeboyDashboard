@@ -17,6 +17,8 @@ enum ModuleRegistry {
         switch item.id {
         case AgentOverviewView.routeID:
             return AnyView(AgentOverviewView(model: model, navigation: navigation))
+        case AdAnalysisView.routeID:
+            return AnyView(AdAnalysisView(model: model, navigation: navigation))
         default:
             return nil
         }

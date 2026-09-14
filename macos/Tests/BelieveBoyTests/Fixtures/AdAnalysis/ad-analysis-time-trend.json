@@ -1,0 +1,775 @@
+{
+  "comparison": null,
+  "country": "US",
+  "project_id": 1,
+  "summary": [
+    {
+      "clicks": 54,
+      "cpc": 1.29,
+      "report_date": "2026-05-05",
+      "running_spend": 69.49,
+      "spend": 69.49,
+      "spend_change_ratio": 0.0
+    },
+    {
+      "clicks": 54,
+      "cpc": 1.38,
+      "report_date": "2026-05-08",
+      "running_spend": 144.2,
+      "spend": 74.71,
+      "spend_change_ratio": 0.0751
+    },
+    {
+      "clicks": 48,
+      "cpc": 1.52,
+      "report_date": "2026-06-01",
+      "running_spend": 217.04,
+      "spend": 72.84,
+      "spend_change_ratio": -0.025
+    },
+    {
+      "clicks": 41,
+      "cpc": 1.41,
+      "report_date": "2026-06-02",
+      "running_spend": 274.82,
+      "spend": 57.78,
+      "spend_change_ratio": -0.2068
+    },
+    {
+      "clicks": 42,
+      "cpc": 1.24,
+      "report_date": "2026-06-03",
+      "running_spend": 326.77,
+      "spend": 51.95,
+      "spend_change_ratio": -0.1009
+    },
+    {
+      "clicks": 47,
+      "cpc": 1.4,
+      "report_date": "2026-06-04",
+      "running_spend": 392.53,
+      "spend": 65.76,
+      "spend_change_ratio": 0.2658
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.22,
+      "report_date": "2026-06-07",
+      "running_spend": 455.84,
+      "spend": 63.31,
+      "spend_change_ratio": -0.0373
+    },
+    {
+      "clicks": 67,
+      "cpc": 1.28,
+      "report_date": "2026-06-09",
+      "running_spend": 541.3,
+      "spend": 85.46,
+      "spend_change_ratio": 0.3499
+    },
+    {
+      "clicks": 55,
+      "cpc": 1.4,
+      "report_date": "2026-06-10",
+      "running_spend": 618.55,
+      "spend": 77.25,
+      "spend_change_ratio": -0.0961
+    },
+    {
+      "clicks": 51,
+      "cpc": 1.51,
+      "report_date": "2026-06-11",
+      "running_spend": 695.63,
+      "spend": 77.08,
+      "spend_change_ratio": -0.0022
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.46,
+      "report_date": "2026-06-12",
+      "running_spend": 771.3,
+      "spend": 75.67,
+      "spend_change_ratio": -0.0183
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.21,
+      "report_date": "2026-06-13",
+      "running_spend": 834.18,
+      "spend": 62.88,
+      "spend_change_ratio": -0.169
+    },
+    {
+      "clicks": 59,
+      "cpc": 1.26,
+      "report_date": "2026-06-14",
+      "running_spend": 908.51,
+      "spend": 74.33,
+      "spend_change_ratio": 0.1821
+    },
+    {
+      "clicks": 51,
+      "cpc": 1.33,
+      "report_date": "2026-06-15",
+      "running_spend": 976.24,
+      "spend": 67.73,
+      "spend_change_ratio": -0.0888
+    },
+    {
+      "clicks": 40,
+      "cpc": 1.13,
+      "report_date": "2026-06-16",
+      "running_spend": 1021.4,
+      "spend": 45.16,
+      "spend_change_ratio": -0.3332
+    },
+    {
+      "clicks": 44,
+      "cpc": 1.08,
+      "report_date": "2026-06-17",
+      "running_spend": 1069.12,
+      "spend": 47.72,
+      "spend_change_ratio": 0.0567
+    },
+    {
+      "clicks": 47,
+      "cpc": 1.13,
+      "report_date": "2026-06-18",
+      "running_spend": 1122.07,
+      "spend": 52.95,
+      "spend_change_ratio": 0.1096
+    },
+    {
+      "clicks": 31,
+      "cpc": 1.26,
+      "report_date": "2026-06-19",
+      "running_spend": 1161.25,
+      "spend": 39.18,
+      "spend_change_ratio": -0.2601
+    },
+    {
+      "clicks": 43,
+      "cpc": 1.07,
+      "report_date": "2026-06-20",
+      "running_spend": 1207.33,
+      "spend": 46.08,
+      "spend_change_ratio": 0.1761
+    },
+    {
+      "clicks": 48,
+      "cpc": 1.14,
+      "report_date": "2026-06-21",
+      "running_spend": 1262.18,
+      "spend": 54.85,
+      "spend_change_ratio": 0.1903
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.45,
+      "report_date": "2026-06-22",
+      "running_spend": 1337.38,
+      "spend": 75.2,
+      "spend_change_ratio": 0.371
+    },
+    {
+      "clicks": 59,
+      "cpc": 1.49,
+      "report_date": "2026-06-23",
+      "running_spend": 1425.51,
+      "spend": 88.13,
+      "spend_change_ratio": 0.1719
+    },
+    {
+      "clicks": 54,
+      "cpc": 1.69,
+      "report_date": "2026-06-24",
+      "running_spend": 1516.78,
+      "spend": 91.27,
+      "spend_change_ratio": 0.0356
+    },
+    {
+      "clicks": 44,
+      "cpc": 1.58,
+      "report_date": "2026-06-25",
+      "running_spend": 1586.46,
+      "spend": 69.68,
+      "spend_change_ratio": -0.2366
+    },
+    {
+      "clicks": 40,
+      "cpc": 1.54,
+      "report_date": "2026-06-26",
+      "running_spend": 1648.09,
+      "spend": 61.63,
+      "spend_change_ratio": -0.1155
+    },
+    {
+      "clicks": 60,
+      "cpc": 1.39,
+      "report_date": "2026-06-27",
+      "running_spend": 1731.56,
+      "spend": 83.47,
+      "spend_change_ratio": 0.3544
+    },
+    {
+      "clicks": 61,
+      "cpc": 1.45,
+      "report_date": "2026-06-28",
+      "running_spend": 1819.99,
+      "spend": 88.43,
+      "spend_change_ratio": 0.0594
+    },
+    {
+      "clicks": 67,
+      "cpc": 1.37,
+      "report_date": "2026-06-29",
+      "running_spend": 1911.68,
+      "spend": 91.69,
+      "spend_change_ratio": 0.0369
+    },
+    {
+      "clicks": 66,
+      "cpc": 1.39,
+      "report_date": "2026-06-30",
+      "running_spend": 2003.54,
+      "spend": 91.86,
+      "spend_change_ratio": 0.0019
+    },
+    {
+      "clicks": 50,
+      "cpc": 1.47,
+      "report_date": "2026-07-01",
+      "running_spend": 2077.24,
+      "spend": 73.7,
+      "spend_change_ratio": -0.1977
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.36,
+      "report_date": "2026-07-02",
+      "running_spend": 2148.12,
+      "spend": 70.88,
+      "spend_change_ratio": -0.0383
+    },
+    {
+      "clicks": 58,
+      "cpc": 1.29,
+      "report_date": "2026-07-03",
+      "running_spend": 2222.67,
+      "spend": 74.55,
+      "spend_change_ratio": 0.0518
+    },
+    {
+      "clicks": 52,
+      "cpc": 1.3,
+      "report_date": "2026-07-04",
+      "running_spend": 2290.01,
+      "spend": 67.34,
+      "spend_change_ratio": -0.0967
+    },
+    {
+      "clicks": 53,
+      "cpc": 1.38,
+      "report_date": "2026-07-06",
+      "running_spend": 2362.94,
+      "spend": 72.93,
+      "spend_change_ratio": 0.083
+    },
+    {
+      "clicks": 46,
+      "cpc": 1.53,
+      "report_date": "2026-07-07",
+      "running_spend": 2433.47,
+      "spend": 70.53,
+      "spend_change_ratio": -0.0329
+    },
+    {
+      "clicks": 49,
+      "cpc": 1.47,
+      "report_date": "2026-07-08",
+      "running_spend": 2505.29,
+      "spend": 71.82,
+      "spend_change_ratio": 0.0183
+    },
+    {
+      "clicks": 54,
+      "cpc": 1.41,
+      "report_date": "2026-07-09",
+      "running_spend": 2581.35,
+      "spend": 76.06,
+      "spend_change_ratio": 0.059
+    },
+    {
+      "clicks": 50,
+      "cpc": 1.48,
+      "report_date": "2026-07-10",
+      "running_spend": 2655.24,
+      "spend": 73.89,
+      "spend_change_ratio": -0.0285
+    },
+    {
+      "clicks": 53,
+      "cpc": 1.4,
+      "report_date": "2026-07-11",
+      "running_spend": 2729.35,
+      "spend": 74.11,
+      "spend_change_ratio": 0.003
+    },
+    {
+      "clicks": 49,
+      "cpc": 1.43,
+      "report_date": "2026-07-12",
+      "running_spend": 2799.34,
+      "spend": 69.99,
+      "spend_change_ratio": -0.0556
+    },
+    {
+      "clicks": 46,
+      "cpc": 1.6,
+      "report_date": "2026-07-14",
+      "running_spend": 2872.92,
+      "spend": 73.58,
+      "spend_change_ratio": 0.0513
+    },
+    {
+      "clicks": 49,
+      "cpc": 1.51,
+      "report_date": "2026-07-15",
+      "running_spend": 2947.12,
+      "spend": 74.2,
+      "spend_change_ratio": 0.0084
+    },
+    {
+      "clicks": 40,
+      "cpc": 1.8,
+      "report_date": "2026-07-16",
+      "running_spend": 3018.97,
+      "spend": 71.85,
+      "spend_change_ratio": -0.0317
+    },
+    {
+      "clicks": 49,
+      "cpc": 1.47,
+      "report_date": "2026-07-17",
+      "running_spend": 3091.0,
+      "spend": 72.03,
+      "spend_change_ratio": 0.0025
+    },
+    {
+      "clicks": 48,
+      "cpc": 1.45,
+      "report_date": "2026-07-18",
+      "running_spend": 3160.54,
+      "spend": 69.54,
+      "spend_change_ratio": -0.0346
+    },
+    {
+      "clicks": 54,
+      "cpc": 1.31,
+      "report_date": "2026-07-19",
+      "running_spend": 3231.45,
+      "spend": 70.91,
+      "spend_change_ratio": 0.0197
+    },
+    {
+      "clicks": 56,
+      "cpc": 1.3,
+      "report_date": "2026-07-20",
+      "running_spend": 3304.4,
+      "spend": 72.95,
+      "spend_change_ratio": 0.0288
+    },
+    {
+      "clicks": 48,
+      "cpc": 1.48,
+      "report_date": "2026-07-21",
+      "running_spend": 3375.51,
+      "spend": 71.11,
+      "spend_change_ratio": -0.0252
+    },
+    {
+      "clicks": 53,
+      "cpc": 1.41,
+      "report_date": "2026-07-22",
+      "running_spend": 3450.15,
+      "spend": 74.64,
+      "spend_change_ratio": 0.0496
+    },
+    {
+      "clicks": 42,
+      "cpc": 1.88,
+      "report_date": "2026-07-23",
+      "running_spend": 3529.12,
+      "spend": 78.97,
+      "spend_change_ratio": 0.058
+    },
+    {
+      "clicks": 23,
+      "cpc": 3.03,
+      "report_date": "2026-07-24",
+      "running_spend": 3598.78,
+      "spend": 69.66,
+      "spend_change_ratio": -0.1179
+    },
+    {
+      "clicks": 34,
+      "cpc": 2.23,
+      "report_date": "2026-07-25",
+      "running_spend": 3674.56,
+      "spend": 75.78,
+      "spend_change_ratio": 0.0879
+    },
+    {
+      "clicks": 32,
+      "cpc": 2.15,
+      "report_date": "2026-07-26",
+      "running_spend": 3743.45,
+      "spend": 68.89,
+      "spend_change_ratio": -0.0909
+    },
+    {
+      "clicks": 35,
+      "cpc": 2.08,
+      "report_date": "2026-07-27",
+      "running_spend": 3816.4,
+      "spend": 72.95,
+      "spend_change_ratio": 0.0589
+    },
+    {
+      "clicks": 35,
+      "cpc": 2.33,
+      "report_date": "2026-07-28",
+      "running_spend": 3897.87,
+      "spend": 81.47,
+      "spend_change_ratio": 0.1168
+    },
+    {
+      "clicks": 34,
+      "cpc": 1.98,
+      "report_date": "2026-07-29",
+      "running_spend": 3965.32,
+      "spend": 67.45,
+      "spend_change_ratio": -0.1721
+    },
+    {
+      "clicks": 27,
+      "cpc": 2.83,
+      "report_date": "2026-07-30",
+      "running_spend": 4041.68,
+      "spend": 76.36,
+      "spend_change_ratio": 0.1321
+    },
+    {
+      "clicks": 22,
+      "cpc": 3.32,
+      "report_date": "2026-08-01",
+      "running_spend": 4114.79,
+      "spend": 73.11,
+      "spend_change_ratio": -0.0426
+    },
+    {
+      "clicks": 34,
+      "cpc": 2.25,
+      "report_date": "2026-08-02",
+      "running_spend": 4191.41,
+      "spend": 76.62,
+      "spend_change_ratio": 0.048
+    },
+    {
+      "clicks": 28,
+      "cpc": 2.34,
+      "report_date": "2026-08-03",
+      "running_spend": 4256.83,
+      "spend": 65.42,
+      "spend_change_ratio": -0.1462
+    },
+    {
+      "clicks": 23,
+      "cpc": 3.31,
+      "report_date": "2026-08-05",
+      "running_spend": 4332.85,
+      "spend": 76.02,
+      "spend_change_ratio": 0.162
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.26,
+      "report_date": "2026-08-06",
+      "running_spend": 4400.78,
+      "spend": 67.93,
+      "spend_change_ratio": -0.1064
+    },
+    {
+      "clicks": 29,
+      "cpc": 2.47,
+      "report_date": "2026-08-07",
+      "running_spend": 4472.5,
+      "spend": 71.72,
+      "spend_change_ratio": 0.0558
+    },
+    {
+      "clicks": 27,
+      "cpc": 2.71,
+      "report_date": "2026-08-08",
+      "running_spend": 4545.63,
+      "spend": 73.13,
+      "spend_change_ratio": 0.0197
+    },
+    {
+      "clicks": 27,
+      "cpc": 2.7,
+      "report_date": "2026-08-09",
+      "running_spend": 4618.48,
+      "spend": 72.85,
+      "spend_change_ratio": -0.0038
+    },
+    {
+      "clicks": 38,
+      "cpc": 1.88,
+      "report_date": "2026-08-10",
+      "running_spend": 4689.88,
+      "spend": 71.4,
+      "spend_change_ratio": -0.0199
+    },
+    {
+      "clicks": 29,
+      "cpc": 2.6,
+      "report_date": "2026-08-11",
+      "running_spend": 4765.24,
+      "spend": 75.36,
+      "spend_change_ratio": 0.0555
+    },
+    {
+      "clicks": 35,
+      "cpc": 2.19,
+      "report_date": "2026-08-12",
+      "running_spend": 4841.89,
+      "spend": 76.65,
+      "spend_change_ratio": 0.0171
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.17,
+      "report_date": "2026-08-13",
+      "running_spend": 4906.87,
+      "spend": 64.98,
+      "spend_change_ratio": -0.1523
+    },
+    {
+      "clicks": 31,
+      "cpc": 2.24,
+      "report_date": "2026-08-14",
+      "running_spend": 4976.32,
+      "spend": 69.45,
+      "spend_change_ratio": 0.0688
+    },
+    {
+      "clicks": 36,
+      "cpc": 2.07,
+      "report_date": "2026-08-15",
+      "running_spend": 5050.67,
+      "spend": 74.35,
+      "spend_change_ratio": 0.0706
+    },
+    {
+      "clicks": 25,
+      "cpc": 3.04,
+      "report_date": "2026-08-16",
+      "running_spend": 5126.63,
+      "spend": 75.96,
+      "spend_change_ratio": 0.0217
+    },
+    {
+      "clicks": 31,
+      "cpc": 2.25,
+      "report_date": "2026-08-17",
+      "running_spend": 5196.35,
+      "spend": 69.72,
+      "spend_change_ratio": -0.0821
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.45,
+      "report_date": "2026-08-18",
+      "running_spend": 5269.82,
+      "spend": 73.47,
+      "spend_change_ratio": 0.0538
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.48,
+      "report_date": "2026-08-19",
+      "running_spend": 5344.18,
+      "spend": 74.36,
+      "spend_change_ratio": 0.0121
+    },
+    {
+      "clicks": 29,
+      "cpc": 2.58,
+      "report_date": "2026-08-20",
+      "running_spend": 5418.96,
+      "spend": 74.78,
+      "spend_change_ratio": 0.0056
+    },
+    {
+      "clicks": 31,
+      "cpc": 2.53,
+      "report_date": "2026-08-21",
+      "running_spend": 5497.45,
+      "spend": 78.49,
+      "spend_change_ratio": 0.0496
+    },
+    {
+      "clicks": 34,
+      "cpc": 2.14,
+      "report_date": "2026-08-22",
+      "running_spend": 5570.22,
+      "spend": 72.77,
+      "spend_change_ratio": -0.0729
+    },
+    {
+      "clicks": 34,
+      "cpc": 2.12,
+      "report_date": "2026-08-23",
+      "running_spend": 5642.35,
+      "spend": 72.13,
+      "spend_change_ratio": -0.0088
+    },
+    {
+      "clicks": 32,
+      "cpc": 2.36,
+      "report_date": "2026-08-24",
+      "running_spend": 5717.8,
+      "spend": 75.45,
+      "spend_change_ratio": 0.046
+    },
+    {
+      "clicks": 37,
+      "cpc": 2.01,
+      "report_date": "2026-08-25",
+      "running_spend": 5792.32,
+      "spend": 74.52,
+      "spend_change_ratio": -0.0123
+    },
+    {
+      "clicks": 31,
+      "cpc": 2.43,
+      "report_date": "2026-08-26",
+      "running_spend": 5867.68,
+      "spend": 75.36,
+      "spend_change_ratio": 0.0113
+    },
+    {
+      "clicks": 27,
+      "cpc": 3.17,
+      "report_date": "2026-08-27",
+      "running_spend": 5953.35,
+      "spend": 85.67,
+      "spend_change_ratio": 0.1368
+    },
+    {
+      "clicks": 24,
+      "cpc": 3.28,
+      "report_date": "2026-08-28",
+      "running_spend": 6032.08,
+      "spend": 78.73,
+      "spend_change_ratio": -0.081
+    },
+    {
+      "clicks": 28,
+      "cpc": 2.59,
+      "report_date": "2026-08-29",
+      "running_spend": 6104.49,
+      "spend": 72.41,
+      "spend_change_ratio": -0.0803
+    },
+    {
+      "clicks": 24,
+      "cpc": 2.93,
+      "report_date": "2026-08-30",
+      "running_spend": 6174.92,
+      "spend": 70.43,
+      "spend_change_ratio": -0.0273
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.44,
+      "report_date": "2026-08-31",
+      "running_spend": 6248.1,
+      "spend": 73.18,
+      "spend_change_ratio": 0.039
+    },
+    {
+      "clicks": 26,
+      "cpc": 2.8,
+      "report_date": "2026-09-01",
+      "running_spend": 6320.79,
+      "spend": 72.69,
+      "spend_change_ratio": -0.0067
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.46,
+      "report_date": "2026-09-02",
+      "running_spend": 6394.57,
+      "spend": 73.78,
+      "spend_change_ratio": 0.015
+    },
+    {
+      "clicks": 28,
+      "cpc": 2.54,
+      "report_date": "2026-09-03",
+      "running_spend": 6465.58,
+      "spend": 71.01,
+      "spend_change_ratio": -0.0375
+    },
+    {
+      "clicks": 32,
+      "cpc": 2.05,
+      "report_date": "2026-09-04",
+      "running_spend": 6531.2,
+      "spend": 65.62,
+      "spend_change_ratio": -0.0759
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.34,
+      "report_date": "2026-09-05",
+      "running_spend": 6601.48,
+      "spend": 70.28,
+      "spend_change_ratio": 0.071
+    },
+    {
+      "clicks": 36,
+      "cpc": 1.99,
+      "report_date": "2026-09-06",
+      "running_spend": 6673.21,
+      "spend": 71.73,
+      "spend_change_ratio": 0.0206
+    },
+    {
+      "clicks": 37,
+      "cpc": 1.97,
+      "report_date": "2026-09-08",
+      "running_spend": 6745.98,
+      "spend": 72.77,
+      "spend_change_ratio": 0.0145
+    },
+    {
+      "clicks": 44,
+      "cpc": 2.29,
+      "report_date": "2026-09-10",
+      "running_spend": 6846.91,
+      "spend": 100.93,
+      "spend_change_ratio": 0.387
+    },
+    {
+      "clicks": 47,
+      "cpc": 2.03,
+      "report_date": "2026-09-11",
+      "running_spend": 6942.21,
+      "spend": 95.3,
+      "spend_change_ratio": -0.0558
+    }
+  ]
+}

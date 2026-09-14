@@ -82,7 +82,8 @@ idle → loading → (loaded | failed(APIError))
 > setter，`NavigationSplitView` 三栏选择与折叠都成立，且 **CLT 下 `swift build` 仍通过**
 > ——「CLT 也能 build」的承诺没有被打破（`@State` / `@Bindable` 依旧不使用）。视图与
 > store 之间只经 `NavigationBindings` 一处对接。查这条结论的用例：`NavigationStoreTests`
-> + `ShellRenderingTests`（离屏渲染三栏外壳）。
+>
+> - `ShellRenderingTests`（离屏渲染三栏外壳）。
 >
 > **S4 探针结论（2026-09-14，BLF-1052）**：
 > ① **模块状态必须由外壳持有**（`NavigationStore.agentOverview`）—— 视图是值类型、重绘即
@@ -96,6 +97,26 @@ idle → loading → (loaded | failed(APIError))
 > ④ `convertFromSnakeCase` 对数字段的行为反直觉：`calls_24h → calls24H`（不是 `calls24h`），
 > 字段名必须照实写，否则编译通过、运行时整条响应报「缺少字段」。
 > 查这些结论的用例：`AgentOverviewStoreTests`、`AgentOpsClientTests`、`ShellRenderingTests`。
+>
+> **S5.1 探针结论（2026-09-14，BLF-1056，广告分析页）**：
+> ① **动态 `list[dict]` 行的键名不会被 `convertFromSnakeCase` 变换** —— 策略只作用于
+> 结构体属性对应的键，`[String: T]` 这种字典型解码保留后端原样（`sales_7d` 不会变成
+> `sales7D`）。这决定了广告分析的列键照抄后端字段名，而不是猜 CamelCase；
+> 反过来说信封字段（`project_id` → `projectId`）**必须**按变换后的名字写 `CodingKeys`，
+> 两边的坑方向相反。查：`AdAnalysisDecodingTests.testRowKeysKeepSnakeCaseInDictionaryDecoding`。
+> ② **「进页自动选中第一个项目」会让视图的 `.task(id:)` 重跑一次**（筛选值变了 → id 变了）。
+> 若第二次照样走 `ModuleTaskScope.run(key:)`，它会把第一次**还在飞**的请求取消掉 ——
+> 同一个端点发两次、还白等一轮。处置：store 记在飞请求（Tab → 签名 + 票号），
+> 同一组筛选在飞时直接返回（与 Web `ad-client-cache.ts` 的 `INFLIGHT` map 同义）。
+> 查：`AdAnalysisStoreTests.testDuplicateLoadWhileInFlightIsNotRefetched`。
+> ③ **离屏渲染用例必须自己收尾**：`NSHostingView` 释放只取消视图 `.task`，已登记进
+> `ModuleTaskScope` 的非结构化任务不会跟着死 —— 它们会跑到**下一个用例**的打桩日志里。
+> 同时「零请求」类断言要用日志**增量**（基线 + dropFirst），不要依赖全局日志从头干净。
+> 查：`AdAnalysisRenderingTests` 的 `tearDown` 与 `loggedPaths(since:)`。
+> ④ 与 Web 的数值对齐要先对齐**格式化**：Web 表格用 `x.toFixed(2)`（无千分位），
+> 而「总览」明细用 `toLocaleString('zh-CN')`（有千分位）—— 两端同一列口径不同，
+> 照抄错一处就会「看起来差不多但数值不一致」。桌面端因此不走 `NumberFormatter`
+> （它跟随系统区域），改为手写分组。
 
 ---
 
@@ -200,6 +221,7 @@ macos/
 ├── .gitignore                 # .build / .swiftpm / Package.resolved / dist
 ├── Tests/
 │   └── BelieveBoyTests/       # XCTest：Kit 逻辑 + UI 状态机（离线，打桩 URLProtocol）
+│       └── Fixtures/AdAnalysis/  # 广告分析 10 个端点的真实响应快照 + manifest（sha256 / 抓取时点）
 │                              #   S2 起同时覆盖 BelieveBoyUI（登录态状态机），故不再叫 *KitTests
 └── Sources/
     ├── BelieveBoyKit/         # 纯逻辑层，不 import SwiftUI
@@ -234,6 +256,12 @@ macos/
     │   ├── Jobs/                 # 长任务（S5.0）
     │   │   ├── JobModels.swift   # JobStatus（未知状态安全降级）+ JobSummary/JobDetail/JobRun
     │   │   └── JobClient.swift   # /jobs 三端点 + waitForCompletion / waitForSuccess
+    │   ├── AdAnalysis/            # 「广告分析」的领域逻辑（S5.1，不 import SwiftUI）
+    │   │   ├── AdAnalysisCatalog.swift    # 10 个子 Tab / 站点选项 / 端点目录（对齐 config.ts）
+    │   │   ├── AdAnalysisModels.swift     # 动态行（list[dict]）+ 卡片模型 + 查询参数（日期可空）
+    │   │   ├── AdAnalysisFormatting.swift # 金额 / 百分比 / 占位「—」/ 纯日期串（不走 locale）
+    │   │   ├── AdAnalysisColumns.swift    # 逐 Tab 列定义 + 「总览」五源合并网格
+    │   │   └── AdAnalysisClient.swift     # 项目列表 5s + 10 端点 15s
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json 这类形状由调用方定的字段）
@@ -250,6 +278,9 @@ macos/
     │   ├── ModuleRegistry.swift          # 模块视图路由表（route id → 真模块；未命中则走占位）
     │   ├── AgentOverviewStore.swift      # 「数据流总览」状态机（四源并发各自降级 + 三态 + 选中行）
     │   ├── AgentOverviewView.swift       # 「数据流总览」只读页（7 列矩阵 + 详情面板 + hover）
+    │   ├── AdAnalysisStore.swift         # 「广告分析」状态机（共享筛选条 + 10 个 Tab 各自三态 + 在飞去重）
+    │   ├── AdAnalysisView.swift          # 「广告分析」只读页（筛选条 + Tab 栏 + 明细网格 + 图表）
+    │   ├── AdAnalysisComponents.swift    # 广告分析共用件（筛选条 / 磁贴 / 叙述 / 风险卡 / 网格 / 图表）
     │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
     │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
     │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
@@ -261,7 +292,12 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **186 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **256 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
+>
+> **计数口径（S5.1 实测，2026-09-14）**：`origin/main`（不含 PR #614）基线 186 个，本批
+> （广告分析页）**+70** → 256；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`，
+> 实测 **256 executed / 4 skipped / 0 failures**。PR #614 自带 75 个用例，合入后总数会再涨。
+> `scripts/make-app.sh` 仍属 S7a。
 
 ---
 
