@@ -96,6 +96,7 @@ describe('canonical domain run submit timeout tier', () => {
     expect(getProxyTimeoutMs('api/v1/insight/ad-analysis/runs/run-1', null)).toBe(5_000)
   })
 })
+
 /**
  * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
  * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳
@@ -115,5 +116,17 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
     expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
     expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  })
+})
+
+describe('退货分析原始行端点：stats 档（15s）', () => {
+  it('matches the `stats` tier (15_000ms)', () => {
+    expect(getProxyTimeoutMs('api/v1/return-analysis/raw-rows', null)).toBe(15_000)
+    expect(getProxyTimeoutMs('/api/v1/return-analysis/raw-rows', null)).toBe(15_000)
+  })
+
+  it('不误伤 /return-analysis 主端点（保持默认 5_000ms）', () => {
+    expect(getProxyTimeoutMs('api/v1/return-analysis', null)).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/return-analysis?period=30d', null)).toBe(5_000)
   })
 })

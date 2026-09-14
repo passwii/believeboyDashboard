@@ -71,6 +71,9 @@ const STATS_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   // BLF-1019：order-info/filter-options 是 3 个 distinct 全表扫（3-6s），
   // 默认 5s 档必超时 → 前端下拉永久空白。给 15s stats 档。
   /\/order-info\/filter-options$/,
+  // 退货分析原始行：一次返回整周期无分页明细，属统计量级而非单资源 detail；
+  // `$` 锚定保证不误伤 /return-analysis 主端点（那仍走默认 5s 档）。
+  /\/return-analysis\/raw-rows$/,
 ]
 
 const DETAIL_PATH_PATTERNS: ReadonlyArray<RegExp> = [
