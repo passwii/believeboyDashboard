@@ -39,6 +39,20 @@ public final class NavigationStore {
     /// 切走再回来应当原处。两页的筛选条各自持有 `AdFilters`（同一份实现，见 `AdFilters`）。
     public let adData: AdDataStore
 
+    /// 「AI → AI 洞察」（S5.3）的模块 store：洞察列表（分页 + 筛选）+ 明细 + 旧链路流式 +
+    /// 定时列表（只读）。
+    public let aiInsights: AIInsightsStore
+
+    /// 「AI → AI 广告分析」（S5.3）的模块 store：历史列表固定 `insight_type=ad_analysis`，
+    /// 明细带维度面板。
+    public let adAnalysisInsights: AIInsightsStore
+
+    /// 「AI → AI 广告分析」的 canonical run 观察（`/insight/runs/{run_id}` + 流）。
+    public let adAnalysisRun: CanonicalRunStore
+
+    /// 「AI → AI 库存健康」的 canonical run 观察（库存域文案表）。
+    public let inventoryRun: CanonicalRunStore
+
     public private(set) var selectedGroupID: String?
     public private(set) var selectedRouteID: String?
     public private(set) var columnVisibility: ShellColumnVisibility
@@ -55,7 +69,13 @@ public final class NavigationStore {
         tasks: ModuleTaskScope = ModuleTaskScope(),
         agentOverview: AgentOverviewStore = AgentOverviewStore(),
         adAnalysis: AdAnalysisStore = AdAnalysisStore(),
-        adData: AdDataStore = AdDataStore()
+        adData: AdDataStore = AdDataStore(),
+        aiInsights: AIInsightsStore = AIInsightsStore(),
+        adAnalysisInsights: AIInsightsStore = AIInsightsStore(
+            insightTypeFilter: InsightCatalog.adAnalysisInsightType
+        ),
+        adAnalysisRun: CanonicalRunStore = CanonicalRunStore(domain: .adAnalysis),
+        inventoryRun: CanonicalRunStore = CanonicalRunStore(domain: .inventoryHealth)
     ) {
         self.groups = groups
         self.preferences = preferences
@@ -63,6 +83,10 @@ public final class NavigationStore {
         self.agentOverview = agentOverview
         self.adAnalysis = adAnalysis
         self.adData = adData
+        self.aiInsights = aiInsights
+        self.adAnalysisInsights = adAnalysisInsights
+        self.adAnalysisRun = adAnalysisRun
+        self.inventoryRun = inventoryRun
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)

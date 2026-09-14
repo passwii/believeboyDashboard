@@ -1,0 +1,123 @@
+{
+  "auth": "X-API-Key（主 key）+ X-Is-Admin: true + X-Operator: admin",
+  "capture_script": "macos/scripts/capture-insight-fixtures.py（只读 GET，无写请求）",
+  "captured_at": "2026-09-14T23:55:04+0800",
+  "captured_by": "BLF-1062（macOS Stage 5.3 AI 洞察三页）",
+  "files": [
+    {
+      "bytes": 4513,
+      "endpoint": "GET /api/v1/ai-insights",
+      "file": "ai-insights-list.json",
+      "note": "project_id=1 country=US limit=20 offset=0；total=9 items=9",
+      "sha256": "3817959c8407623dde688696e377865da02e7c8943d5eece2b4fa9c17dbe2f45"
+    },
+    {
+      "bytes": 545,
+      "endpoint": "GET /api/v1/ai-insights?insight_type=ad_analysis",
+      "file": "ai-insights-ad-analysis-list.json",
+      "note": "「AI 广告分析」页历史列表的固定参数（同一端点的第二种固定参数组）；total=1",
+      "sha256": "d426a0b3b572c6e90968fdd2fd931b28f15a6059983b6de999e28ec01e4d5c37"
+    },
+    {
+      "bytes": 4167,
+      "endpoint": "GET /api/v1/ai-insights/46",
+      "file": "ai-insights-detail.json",
+      "note": "列表首条（id=46）明细；content 2331 字符",
+      "sha256": "10ddcc99fb4a321cc52d1c5cfc1573bd2652715a5f9fada7befae27462390423"
+    },
+    {
+      "bytes": 32,
+      "endpoint": "GET /api/v1/ai-insights/schedules",
+      "file": "ai-insights-schedules.json",
+      "note": "无筛选；生产快照库当前 0 条定时任务（空态夹具）",
+      "sha256": "70687c8fa319500122348b82c7c442f45cb27c5e4c1791a0fae18d46acc50f05"
+    },
+    {
+      "bytes": 1293,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}（completed）",
+      "file": "insight-run-detail-completed.json",
+      "note": "终态 completed（含 outputs/usage/artifact_id）",
+      "sha256": "158f6a1706d81a83a1f960ee3fd1c74b498a698394e07d13705a4d68b9309645"
+    },
+    {
+      "bytes": 853,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}（failed）",
+      "file": "insight-run-detail-failed.json",
+      "note": "终态 failed（含 typed error）",
+      "sha256": "51b92c3151744b2c9d1b0a0aec534fd2aeb1bf6ed8091e5438e51ce675f40265"
+    },
+    {
+      "bytes": 265,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}/stream（Last-Event-ID 非法）",
+      "file": "insight-run-stream-invalid-cursor.json",
+      "note": "真实错误响应（400 typed）；客户端据此回退到 detail 端点",
+      "sha256": "7da73384cc4a44c28507ed60dbc118bdb7098ed59120b36deea82b000bf89b7f"
+    }
+  ],
+  "params": {
+    "country": "US",
+    "limit": 20,
+    "project_id": 1
+  },
+  "source_a": {
+    "database": "生产快照库 BLF（backend/.env 的 DATABASE_URL）",
+    "endpoints": [
+      "GET /api/v1/ai-insights",
+      "GET /api/v1/ai-insights/{insight_id}",
+      "GET /api/v1/ai-insights/schedules",
+      "GET /api/v1/ai-insights/{insight_id}/stream"
+    ],
+    "note": "与 S5.1/S5.2 同源（生产快照库），固定 project_id=1 / country=US。"
+  },
+  "source_b": {
+    "country": "US",
+    "database": "隔离库 BLF_test（生产 URL 换库名）",
+    "endpoints": [
+      "GET /api/v1/insight/runs/{run_id}",
+      "GET /api/v1/insight/runs/{run_id}/stream"
+    ],
+    "note": "canonical run 在生产快照库里 0 行（实测 select count(*) from insight_runs = 0），故在隔离库插入两条真实终态 run 行（固定 run_id），抓完即删；响应由真实路由产出。",
+    "project_id": 427,
+    "seeded_run_ids": {
+      "completed": "b1f00000-0000-4000-8000-0000000000c1",
+      "failed": "b1f00000-0000-4000-8000-0000000000f1"
+    }
+  },
+  "streams": [
+    {
+      "bytes": 3860,
+      "endpoint": "GET /api/v1/ai-insights/46/stream",
+      "file": "ai-insights-stream-terminal.txt",
+      "note": "旧链路 SSE 原文（已终态 → 立即一帧 status 后关闭）；该端点不发 id: 也不认 Last-Event-ID",
+      "sha256": "6a89ec57bb8dc7cf19ce5fca35d8611665551ca88ba4024ca4e3fa204c663ee5"
+    },
+    {
+      "bytes": 1768,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}/stream（completed）",
+      "file": "insight-run-stream-completed.txt",
+      "note": "真实 SSE 帧序列（含 id: 游标）；Redis 无历史 → 走「从 DB 快照合成终态帧」分支",
+      "sha256": "8ded20ce4f7ca06411bf88c26134f0082c1b139efa4464770f961a9b3400c14e"
+    },
+    {
+      "bytes": 937,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}/stream（completed · Last-Event-ID 续传）",
+      "file": "insight-run-stream-completed-resume.txt",
+      "note": "带 Last-Event-ID: b1f00000-0000-4000-8000-0000000000c1:1:1000001 的续传响应（断言游标语义：只回终态帧、不回已见帧）",
+      "sha256": "b8f50b5ac3403e312c4081a9d4dff426618544530c36b469fba2cc3ccd1db60a"
+    },
+    {
+      "bytes": 824,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}/stream（failed）",
+      "file": "insight-run-stream-failed.txt",
+      "note": "真实 SSE 帧序列（含 id: 游标）；Redis 无历史 → 走「从 DB 快照合成终态帧」分支",
+      "sha256": "8044b0ce43e512ae66510cb2aa032289daa43b2f873765a5363b45b8469a9605"
+    },
+    {
+      "bytes": 373,
+      "endpoint": "GET /api/v1/insight/runs/{run_id}/stream（failed · Last-Event-ID 续传）",
+      "file": "insight-run-stream-failed-resume.txt",
+      "note": "带 Last-Event-ID: b1f00000-0000-4000-8000-0000000000f1:1:1000001 的续传响应（断言游标语义：只回终态帧、不回已见帧）",
+      "sha256": "69c0e2869abc0eec0df543d799da6a5626cb769f4ed88c72dd253a44e95017a0"
+    }
+  ]
+}

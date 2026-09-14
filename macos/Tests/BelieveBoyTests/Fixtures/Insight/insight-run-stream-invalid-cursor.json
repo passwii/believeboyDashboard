@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": {
+      "code": "RESUME_CURSOR_INVALID",
+      "message": "Last-Event-ID 'not-a-cursor' is not a valid cursor (malformed cursor 'not-a-cursor': expected '{run_id}:{attempt}:{seq}')",
+      "retryable": false
+    }
+  },
+  "status": 400
+}

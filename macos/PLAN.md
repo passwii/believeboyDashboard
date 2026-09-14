@@ -139,6 +139,31 @@ idle → loading → (loaded | failed(APIError))
 > 已有 1321 行数据的「搜索词」显示成「暂无数据」。桌面端改成「全部类型可选 + 可用性看 raw 响应
 > 是否为空」，附属端点只用来显示「最近一次入库」。查：`AdDataDecodingTests.testUploadFilesSnapshotDocumentsTruncation`。
 
+> **S5.3 探针结论（2026-09-14，BLF-1062，AI 洞察三页）**：
+> ① **同一个「SSE」在三页里是两种传输**：旧链路（`/ai-insights/{id}/stream`）**不发 `id:`**、
+> 后端**不认 `Last-Event-ID`**（只 `insight_runs.py` / `ai_chat_v2.py` 读这个头），每 2s 轮询 DB、
+> 只在状态变化时发 `status`、正文只随终态帧回来；canonical（`/insight/runs/{id}/stream`）
+> 每帧带 `id: {run_id}:{attempt}:{seq}`、认游标、按 `(attempt, seq)` 续传。于是「断线恢复」
+> 在旧链路上**只能**落成「重连 + 回读 detail 权威快照」，在 canonical 上才是真游标续传 ——
+> 这条差异写成 `InsightCatalog` 的两个显式布尔量，不让它藏在实现里。查：`InsightDecodingTests`
+> 的 `testLegacyStreamCarriesNoCursor` / `testResumeResponseOnlyCarriesTheTerminalFrame`。
+> ② **canonical 侧没有 run 列表端点**（`insight_runs.py` 全量路由 = 建/读/流/取消/重试），
+> 而本批不做写链路 → 桌面端「canonical run 明细 + 流式」的可达入口只能是**按 run id 观察**
+> （Web 的 run id 来自台账行 `insight_run_id`，桌面端台账页还没搬）。写成显式输入框 + 一句
+> 「为什么不给列表」，而不是把不可达藏起来。查：`CanonicalRunStoreTests`。
+> ③ **`content.delta` 累积 + 快照覆盖**：`done` / `snapshot` 帧带的是**全量** outputs，
+> 直接覆盖而不是追加 —— 断线续传时重放帧会把半截增量留在正文里。配合按 `id` 去重
+> （`InsightCursorTracker`）才闭环。查：`CanonicalRunStoreTests.testReconnectSendsLastEventIDAndDedupesReplay`。
+> ④ **进页自动选中第一个项目会让「生效签名」变一次**：若用闸门**之前**的签名记账，视图
+> `.task(id:)` 重跑时会认定「筛选变了」再发一次同参数请求（S5.1 踩过的坑）。S5.3 的做法是
+> **在项目闸门之后取 `filters.signature`** 并用它记账。查：`AIInsightsStoreTests.testDuplicateLoadIsNotRefetched`。
+> ⑤ **回读权威 detail 不能无条件回写 `error_message`**：运行中那一栏可能已经写着「生成流已断开」
+> 的传输提示，用 detail 的 `null` 覆盖会把「流断了但 run 还在跑」这句话抹掉。故只在终态回写。
+> 查：`AIInsightsStoreTests.testStreamDisconnectReconnectsWithBoundedAttempts`。
+> ⑥ **`strategy_metadata` 是 JSON 字符串，解析必须用 `convertFromSnakeCase`**：里面的键名是
+> 后端原样写进去的 `evolution_metadata` / `dimensions_analyzed`，默认策略下全部取不到 ——
+> 维度面板会**静默消失**而不是报错。查：`InsightPanelMappingTests.testDimensionCoverageParsesEvolutionMetadata`。
+
 ---
 
 ## 4. 如何复用 `backend/` 现有 API（零后端改动）
@@ -331,11 +356,11 @@ macos/
 
 > **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **256 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
 >
-> **计数口径（S5.2 实测，2026-09-14）**：本批开工基线 = `origin/main`（含 PR #614 / #615）
-> **339 executed / 4 skipped / 0 failures**；广告数据页 **+89** → **428 executed / 4 skipped /
+> **计数口径（S5.3 实测，2026-09-14）**：本批开工基线 = `origin/main`（`a2b2c593`，S5.2 交付侧）
+> **428 executed / 4 skipped / 0 failures**；AI 洞察三页 **+75** → **503 executed / 4 skipped /
 > 0 failures**；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
-> 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339。
-> `scripts/make-app.sh` 仍属 S7a。
+> 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339，
+> S5.2 广告数据页 +89 → 428。`scripts/make-app.sh` 仍属 S7a。
 
 ---
 
@@ -353,6 +378,7 @@ macos/
 | **S5.0** | 客户端能力补齐（S5 的前置批次，不加页面） | Kit 层四类能力：**JSON 写入**（PUT/PATCH/DELETE + 文档无体的「忽略响应体」一组）、**multipart 上传**（显式 `Content-Length` + `httpBodyStream`，文件按块读、中文文件名双形态）、**SSE 流式**（逐帧 yield、`.stream` 档、取消即拆连接）、**长任务轮询 + 文件下载**（退避 + 上限、流式落盘 + 原子替换）；`JobClient` 收编 `/jobs` 三端点 | 四类能力各有打桩用例（断言真实请求属性，而非常量表）；multipart 边界 / 中文文件名正确且上传体不整份进内存；SSE 走 `.stream` 档且取消不留 Task；轮询有退避与上限（不无限打后端）；错误分类沿用 `APIError`（401/403 → `requiresCredentialFix`；传输失败不算凭据问题）；`swift test` 256 用例全绿（4 个真后端用例默认 skip） | S4 | 已完成（BLF-1053） |
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S5.0 | 后续多个 issue（每组一个） |
 | **S5.2** | S5 广告分组第二批 | 「广告 → 广告数据」只读页：报表类型选择 + 共享筛选条 + 原始行表格（搜索 / 排序 / 客户端翻页 / 行内 `raw_row` 中文列详情） | 11 个端点全部接通、固定参数下数值与 Web 一致（切片与全量响应同 id 逐字段一致）；加载/空/错误三态齐备，刷新失败保留旧表；切类型 / 改筛选 / 切模块取消在跑请求且不落错误态；单发 `limit=10000` + `pageSize=100` 客户端翻页并给「可能截断」提示（不做 offset 翻页）；11 个端点各有真实响应快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 428 用例全绿 | S5.1 | 已完成（BLF-1057） |
+| **S5.3** | S5 AI 分组（AI 洞察三页） | 「AI → AI 洞察 / AI 广告分析 / AI 库存健康」三页只读 + 流式观察：6 个端点（含 2 条 SSE）、Markdown + 图表围栏降级、流式草稿切分、维度面板、canonical run 观察 | 6 个端点全部接通、可达（给「端点 → macos 消费点」对照表）；AI 文本按「同源同结构」（状态机 + 事件序列 + 数值字段）；三态齐备（空态显式画出「暂无洞察/暂无运行记录」）；切页/改筛选/切模块取消在跑请求（含拆 SSE 连接）且不落错误态；run detail + 事件序列各一份真实快照入 `Fixtures/Insight/`（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 503 用例全绿 | S5.2 | 已完成（BLF-1062） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
 | **S8** | 自动更新与系统集成 | Sparkle appcast；菜单栏角标（告警/长任务）；系统通知 | 旧版本可收到新版本提示并完成升级；通知点击可深链到对应模块 | S7 | 后续 issue（可选） |
