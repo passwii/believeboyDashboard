@@ -25,19 +25,34 @@ export function usTodayYMD(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: US_TIMEZONE }).format(now)
 }
 
+/**
+ * 后端 `GET /api/v1/complaints/overview` 响应形状
+ * (`backend/app/schemas/complaint_center.py` 的 `OverviewResponse`)。
+ *
+ * 自 BLF-981(#556,`shop_id → project_id + country`)起,店铺行是 `projects`
+ * (`OverviewProjectRow[]`);旧名 `shops` 已被**有意**换掉且未留兼容别名。
+ * 本接口读的键由 `tests/fixtures/complaints-overview-*.json`(真实响应快照)
+ * 在单测里钉住 —— 后端再改名时该用例变红,不会再像 `shops` 那样静默降级。
+ */
+export interface ComplaintsOverviewResponse {
+  /** 有当日巡检 run 时非空;无 run 时后端返回 `[]` */
+  projects?: unknown[]
+  metrics?: { total_needs_reply?: unknown }
+}
+
+/** 本解析器读取的响应键(与真实响应快照做形状断言,改名即红) */
+export const COMPLAINTS_OVERVIEW_KEYS = ['projects', 'metrics'] as const
+
 /** 纯函数:客诉概览响应 → { hasRun, needsReply }(容错:非预期形状返回无 run) */
 export function parseComplaintsOverview(payload: unknown): {
   hasRun: boolean
   needsReply: number | null
 } {
-  const p = (payload ?? {}) as {
-    shops?: unknown
-    metrics?: { total_needs_reply?: unknown }
-  }
-  const shops = Array.isArray(p.shops) ? p.shops : []
+  const p = (payload ?? {}) as ComplaintsOverviewResponse
+  const projects = Array.isArray(p.projects) ? p.projects : []
   const needsReply = p.metrics?.total_needs_reply
   return {
-    hasRun: shops.length > 0,
+    hasRun: projects.length > 0,
     needsReply: typeof needsReply === 'number' ? needsReply : null,
   }
 }
