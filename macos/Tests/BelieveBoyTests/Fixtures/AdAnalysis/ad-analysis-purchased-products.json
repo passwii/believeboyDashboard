@@ -1,0 +1,87 @@
+{
+  "country": "US",
+  "items": [
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250NM",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 3,
+      "other_sku_sales_7d": 2699.97,
+      "other_sku_units_7d": 3,
+      "purchased_asin": "B0G6C865B6"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-DL18",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 2,
+      "other_sku_sales_7d": 1397.98,
+      "other_sku_units_7d": 2,
+      "purchased_asin": "B0CJF6HC24"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250NM",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 2,
+      "other_sku_sales_7d": 1220.98,
+      "other_sku_units_7d": 2,
+      "purchased_asin": "B0CJF8GL1H"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-DL18",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 899.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0G6C865B6"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250M",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 899.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0G6C865B6"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250NM",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 698.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0CJF6HC24"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-DL18",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 610.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0CJF8GL1H"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250M",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 610.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0CJF8GL1H"
+    },
+    {
+      "action": "暂无关联转化",
+      "ad_sku": "MJQ-TR250C",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 0,
+      "other_sku_sales_7d": 0.0,
+      "other_sku_units_7d": 0,
+      "purchased_asin": "B0CJF6HC24"
+    }
+  ],
+  "project_id": 1
+}

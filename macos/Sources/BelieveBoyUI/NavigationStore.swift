@@ -28,6 +28,10 @@ public final class NavigationStore {
     /// 「切走再回来 = 重新加载 + 丢失选中行」。由外壳持有后，S5 搬进来的模块照此
     /// 继续往这里加（模块之间共享同一份生命周期）。
     public let agentOverview: AgentOverviewStore
+    /// 「广告 → 广告分析」（S5.1）的模块 store：共享筛选条 + 10 个子 Tab 的状态。
+    ///
+    /// 同样放在外壳里：切 Tab / 切模块再回来不该重新拉数据、也不该丢掉已选项目与站点。
+    public let adAnalysis: AdAnalysisStore
 
     public private(set) var selectedGroupID: String?
     public private(set) var selectedRouteID: String?
@@ -43,12 +47,14 @@ public final class NavigationStore {
         groups: [NavigationGroup] = NavigationCatalog.groups,
         preferences: ShellPreferencesStore = UserDefaultsShellPreferencesStore(),
         tasks: ModuleTaskScope = ModuleTaskScope(),
-        agentOverview: AgentOverviewStore = AgentOverviewStore()
+        agentOverview: AgentOverviewStore = AgentOverviewStore(),
+        adAnalysis: AdAnalysisStore = AdAnalysisStore()
     ) {
         self.groups = groups
         self.preferences = preferences
         self.tasks = tasks
         self.agentOverview = agentOverview
+        self.adAnalysis = adAnalysis
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)

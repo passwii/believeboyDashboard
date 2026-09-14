@@ -1,0 +1,365 @@
+{
+  "comparison": null,
+  "country": "US",
+  "issue_cards": [
+    {
+      "drill_to": "budget",
+      "level": "medium",
+      "next_step": "进入预算页，优先处理有订单或有关联销售的预算缺口活动。",
+      "summary": "当前识别到 47 个有单或有销售额但预算在线时间不足的活动。",
+      "title": "存在预算受限活动"
+    },
+    {
+      "drill_to": "search-terms",
+      "level": "medium",
+      "next_step": "进入搜索词页，优先处理达到否词或降价门槛的词。",
+      "summary": "当前识别到 56 个达到观察门槛但未出单的搜索词。",
+      "title": "存在浪费搜索词"
+    },
+    {
+      "drill_to": "traffic-quality",
+      "level": "high",
+      "next_step": "先定位异常活动，再回到投放入口和广告位检查是否有异常流量来源。",
+      "summary": "当前识别到 446 个无效流量偏高的活动，建议优先排查异常入口。",
+      "title": "流量质量异常"
+    },
+    {
+      "drill_to": "placements",
+      "level": "medium",
+      "next_step": "进入广告位页，优先下调高点击无单的位置系数。",
+      "summary": "当前识别到 452 条高点击未出单的广告位明细，建议结合广告位页下钻。",
+      "title": "存在低效广告位"
+    },
+    {
+      "drill_to": "products",
+      "level": "medium",
+      "next_step": "进入 SKU 页，优先对能带动交叉销售的 SKU 做预算和承接优化。",
+      "summary": "当前识别到 8 个广告 SKU 明显带动其他商品成交，可结合 SKU 页继续加码。",
+      "title": "存在关联购买放大量"
+    }
+  ],
+  "metrics": [
+    {
+      "display_value": "$6,872.17",
+      "helper": "广告总花费",
+      "label": "Spend",
+      "value": 6872.17
+    },
+    {
+      "display_value": "$35,792.52",
+      "helper": "7天销售额",
+      "label": "Sales 7d",
+      "value": 35792.52
+    },
+    {
+      "display_value": "48",
+      "helper": "7天订单数",
+      "label": "Orders 7d",
+      "value": 48.0
+    },
+    {
+      "display_value": "0.57%",
+      "helper": "点击率",
+      "label": "CTR",
+      "value": 0.0057
+    },
+    {
+      "display_value": "$1.76",
+      "helper": "单次点击成本",
+      "label": "CPC",
+      "value": 1.76
+    },
+    {
+      "display_value": "19.20%",
+      "helper": "广告投入产出比",
+      "label": "ACOS",
+      "value": 0.192
+    },
+    {
+      "display_value": "5.21",
+      "helper": "广告投资回报率",
+      "label": "ROAS",
+      "value": 5.2083
+    },
+    {
+      "display_value": "96",
+      "helper": "当前筛选范围内已入库的趋势天数",
+      "label": "Trend Days",
+      "value": 96.0
+    },
+    {
+      "display_value": "$9,039.88",
+      "helper": "关联购买销售额 / 订单 12",
+      "label": "Cross-sell Sales 7d",
+      "value": 9039.88
+    }
+  ],
+  "narrative_sections": [
+    {
+      "action": "先确认整体是在放量提效还是放量失效，再决定往活动还是承接层继续下钻。",
+      "drill_to": "campaigns",
+      "evidence": [
+        "花费 6,872.17 美元，销售额 35,792.52 美元，订单 48 单。",
+        "CTR 0.57%，CPC 1.76 美元，ACOS 19.20%。",
+        "当前高消耗活动是 A-Close 250NM，花费 32.67 美元。"
+      ],
+      "summary": "当前广告整体处于可放量区间，效率仍在可控范围内。",
+      "title": "总体结论"
+    },
+    {
+      "action": "先排查异常入口和异常广告位，再做常规调价。",
+      "drill_to": "traffic-quality",
+      "evidence": [
+        "有 47 个活动预算在线时间不足但仍有订单或销售额。",
+        "有 452 条广告位明细出现高点击无单。",
+        "有 446 个活动出现高无效点击或高无效曝光。"
+      ],
+      "summary": "管理运营层还有流量质量风险，不能把问题全部归因给商品承接。",
+      "title": "管理层归因"
+    },
+    {
+      "action": "优先做否词、降价或拆精确承接，避免继续用低质量词放量。",
+      "drill_to": "search-terms",
+      "evidence": [
+        "浪费最高的搜索词是 autoclave sterilizers，花费 13.89 美元，点击 9 次。",
+        "当前共识别到 56 个达到观察门槛但未出单的搜索词。"
+      ],
+      "summary": "来源层已经出现明确浪费点，部分搜索词正在消耗但没有带来订单。",
+      "title": "来源层归因"
+    },
+    {
+      "action": "把能带动关联成交的 SKU 列为优先保量对象，同时补足关联页面承接。",
+      "drill_to": "products",
+      "evidence": [
+        "有 4245 个 SKU 曝光已达到观察门槛，但 CTR 仍低于 0.50%。",
+        "有 1942 个 SKU 已出现高点击低转化。",
+        "有 8 个广告 SKU 正在明显带动关联购买。",
+        "当前高消耗 SKU 是 MJQ-TR250E，花费 146.26 美元。"
+      ],
+      "summary": "商品承接层不仅有点击承接问题，还有转化承接问题。",
+      "title": "承接层归因"
+    }
+  ],
+  "project_id": 1,
+  "top_campaigns": [
+    {
+      "acos": 0.0,
+      "campaign_name": "A-Close 250NM",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 32.67
+    },
+    {
+      "acos": 0.0451,
+      "campaign_name": "A-Close 250NM",
+      "orders_7d": 1,
+      "sales_7d": 698.99,
+      "spend": 31.55
+    },
+    {
+      "acos": 0.0,
+      "campaign_name": "A-Close 250NM",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 31.46
+    },
+    {
+      "acos": 0.0,
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 30.09
+    },
+    {
+      "acos": 0.0,
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 28.23
+    }
+  ],
+  "top_cross_sell_products": [
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250NM",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 3,
+      "other_sku_sales_7d": 2699.97,
+      "other_sku_units_7d": 3,
+      "purchased_asin": "B0G6C865B6"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-DL18",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 2,
+      "other_sku_sales_7d": 1397.98,
+      "other_sku_units_7d": 2,
+      "purchased_asin": "B0CJF6HC24"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250NM",
+      "campaign_count": 2,
+      "other_sku_orders_7d": 2,
+      "other_sku_sales_7d": 1220.98,
+      "other_sku_units_7d": 2,
+      "purchased_asin": "B0CJF8GL1H"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-DL18",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 899.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0G6C865B6"
+    },
+    {
+      "action": "放大关联",
+      "ad_sku": "MJQ-TR250M",
+      "campaign_count": 1,
+      "other_sku_orders_7d": 1,
+      "other_sku_sales_7d": 899.99,
+      "other_sku_units_7d": 1,
+      "purchased_asin": "B0G6C865B6"
+    }
+  ],
+  "top_products": [
+    {
+      "acos": 0.0,
+      "ad_asin": "B0CJF8GL1H",
+      "ad_sku": "MJQ-TR250E",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 146.26
+    },
+    {
+      "acos": 0.0,
+      "ad_asin": "B0CJF8GL1H",
+      "ad_sku": "MJQ-TR250E",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 143.22
+    },
+    {
+      "acos": 0.0,
+      "ad_asin": "B0CJF8GL1H",
+      "ad_sku": "MJQ-TR250E",
+      "orders_7d": 0,
+      "sales_7d": 0.0,
+      "spend": 142.35
+    },
+    {
+      "acos": 0.0427,
+      "ad_asin": "B0CJF8GL1H",
+      "ad_sku": "MJQ-TR250E",
+      "orders_7d": 5,
+      "sales_7d": 3333.95,
+      "spend": 142.29
+    },
+    {
+      "acos": 0.1218,
+      "ad_asin": "B0CJF8GL1H",
+      "ad_sku": "MJQ-TR250E",
+      "orders_7d": 2,
+      "sales_7d": 1167.98,
+      "spend": 142.22
+    }
+  ],
+  "top_waste_terms": [
+    {
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "clicks": 9,
+      "orders_7d": 0,
+      "search_term": "autoclave sterilizers",
+      "spend": 13.89
+    },
+    {
+      "campaign_name": "定位广告跑 M 和 NM",
+      "clicks": 7,
+      "orders_7d": 0,
+      "search_term": "autoclave",
+      "spend": 12.98
+    },
+    {
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "clicks": 8,
+      "orders_7d": 0,
+      "search_term": "autoclave",
+      "spend": 11.82
+    },
+    {
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "clicks": 8,
+      "orders_7d": 0,
+      "search_term": "autoclave sterilizers",
+      "spend": 11.63
+    },
+    {
+      "campaign_name": "M-KW-250C-P-autoclave-NP",
+      "clicks": 7,
+      "orders_7d": 0,
+      "search_term": "autoclave",
+      "spend": 10.58
+    }
+  ],
+  "trend_summary": [
+    {
+      "clicks": 28,
+      "cpc": 2.54,
+      "report_date": "2026-09-03",
+      "running_spend": 6465.58,
+      "spend": 71.01,
+      "spend_change_ratio": -0.0375
+    },
+    {
+      "clicks": 32,
+      "cpc": 2.05,
+      "report_date": "2026-09-04",
+      "running_spend": 6531.2,
+      "spend": 65.62,
+      "spend_change_ratio": -0.0759
+    },
+    {
+      "clicks": 30,
+      "cpc": 2.34,
+      "report_date": "2026-09-05",
+      "running_spend": 6601.48,
+      "spend": 70.28,
+      "spend_change_ratio": 0.071
+    },
+    {
+      "clicks": 36,
+      "cpc": 1.99,
+      "report_date": "2026-09-06",
+      "running_spend": 6673.21,
+      "spend": 71.73,
+      "spend_change_ratio": 0.0206
+    },
+    {
+      "clicks": 37,
+      "cpc": 1.97,
+      "report_date": "2026-09-08",
+      "running_spend": 6745.98,
+      "spend": 72.77,
+      "spend_change_ratio": 0.0145
+    },
+    {
+      "clicks": 44,
+      "cpc": 2.29,
+      "report_date": "2026-09-10",
+      "running_spend": 6846.91,
+      "spend": 100.93,
+      "spend_change_ratio": 0.387
+    },
+    {
+      "clicks": 47,
+      "cpc": 2.03,
+      "report_date": "2026-09-11",
+      "running_spend": 6942.21,
+      "spend": 95.3,
+      "spend_change_ratio": -0.0558
+    }
+  ]
+}
