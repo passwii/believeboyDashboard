@@ -35,6 +35,13 @@ def build_app():
     # Import lazily so the script can be run with a clean PYTHONPATH after
     # `cd backend && pip install -r requirements.txt`.
     from app.main import app  # type: ignore[import-not-found]
+    from app.api.v1.lazy_router import preload_all_lazy_groups
+
+    # BLF-657 懒分组：FastAPI 0.139 的 openapi 生成过程中若懒分组才被加载，
+    # effective_candidates 缓存失效会重建 route 克隆 → field_mapping 里的旧
+    # ModelField 与新克隆对不上，直接抛 KeyError。必须在 app.openapi() 之前
+    # 一次性物化全部懒分组（export 与 check 两条路径都走这里）。
+    preload_all_lazy_groups()
     return app
 
 
