@@ -45,13 +45,18 @@ public struct APIClient: Sendable {
     /// 后端 API 前缀（`backend/app/main.py` 的 `prefix="/api/v1"`）。
     public static let apiPrefix = "/api/v1"
 
-    private let baseURL: URL
-    private let apiKey: String?
+    // 以下成员为 `internal` 而非 `private`：写入（`Networking/APIClient+Write.swift`）、
+    // multipart 上传、SSE 流式与下载（同目录）都是**同模块内的扩展**，需要复用同一套
+    // 请求构造与错误分类（超时分层 / 凭据注入 / 账号上下文 / 401·403 归类）。
+    // 复制一份构造逻辑到别的文件才是真风险 —— 两处迟早漂移。`internal` 不越出
+    // BelieveBoyKit 模块，UI 层看到的公开面不变。
+    let baseURL: URL
+    let apiKey: String?
     /// 账号上下文（`X-Operator` / `X-User-Id` / `X-Is-Admin`）。`nil` = 无账号档案。
-    private let userContext: UserContext?
-    private let session: URLSession
-    private let decoder: JSONDecoder
-    private let encoder: JSONEncoder
+    let userContext: UserContext?
+    let session: URLSession
+    let decoder: JSONDecoder
+    let encoder: JSONEncoder
 
     public init(
         baseURL: URL,
@@ -166,7 +171,7 @@ public struct APIClient: Sendable {
 
     // MARK: - 内部
 
-    private func makeRequest(
+    func makeRequest(
         method: String,
         path: String,
         query: [String: String],
@@ -229,7 +234,7 @@ public struct APIClient: Sendable {
         return url
     }
 
-    private func send<T: Decodable & Sendable>(_ request: URLRequest) async throws -> T {
+    func send<T: Decodable & Sendable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await transport(request)
         let http = try httpResponse(response, data: data)
         guard (200..<300).contains(http.statusCode) else {
@@ -242,7 +247,7 @@ public struct APIClient: Sendable {
         }
     }
 
-    private func transport(_ request: URLRequest) async throws -> (Data, URLResponse) {
+    func transport(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await session.data(for: request)
         } catch let error as URLError {
@@ -252,14 +257,14 @@ public struct APIClient: Sendable {
         }
     }
 
-    private func httpResponse(_ response: URLResponse, data: Data) throws -> HTTPURLResponse {
+    func httpResponse(_ response: URLResponse, data: Data) throws -> HTTPURLResponse {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("响应不是 HTTP 响应")
         }
         return http
     }
 
-    private static func statusError(_ status: Int, data: Data) -> APIError {
+    static func statusError(_ status: Int, data: Data) -> APIError {
         let body = String(data: data, encoding: .utf8) ?? ""
         if status == 401 || status == 403 {
             return .unauthorized(status: status, body: body)
@@ -267,7 +272,7 @@ public struct APIClient: Sendable {
         return .http(status: status, body: body)
     }
 
-    private static func describe(_ error: Error) -> String {
+    static func describe(_ error: Error) -> String {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .timedOut: return "请求超时（\(urlError.code.rawValue)）"

@@ -16,6 +16,19 @@ public enum APIError: Error, Sendable, Equatable {
     case http(status: Int, body: String)
     /// 响应体与预期模型不匹配。
     case decoding(String)
+    /// 长任务轮询到上限仍未到终态（不再继续打后端）。
+    case pollingTimedOut(attempts: Int)
+    /// 长任务终态为 failed（`status` 是后端给的状态，`detail` 取最近一次 run 的
+    /// `error_message`，可能为空）。
+    case jobFailed(status: String, detail: String?)
+    /// 响应体落盘失败（磁盘满 / 无权限 / 目标路径不可写）。
+    ///
+    /// 与 `.transport` 分开：网络断了和磁盘写不进，处置方式完全不同。
+    case fileWrite(String)
+    /// 待上传的本地文件读不到（被删 / 无权限 / 读属性失败）。
+    ///
+    /// 同样是本地 I/O 与网络无关：请求甚至还没发出去。
+    case fileRead(String)
 }
 
 extension APIError: LocalizedError {
@@ -41,6 +54,16 @@ extension APIError: LocalizedError {
                 : "后端返回 HTTP \(status)：\(trimmed.prefix(200))"
         case .decoding(let detail):
             return "响应解析失败：\(detail)"
+        case .pollingTimedOut(let attempts):
+            return "任务在 \(attempts) 次轮询后仍未完成，已停止等待。"
+        case .jobFailed(let status, let detail):
+            let trimmed = detail?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let reason = (trimmed?.isEmpty == false) ? "：\(trimmed!)" : ""
+            return "任务执行失败（\(status)）\(reason)"
+        case .fileWrite(let detail):
+            return "文件写入失败：\(detail)"
+        case .fileRead(let detail):
+            return "文件读取失败：\(detail)"
         }
     }
 
@@ -48,7 +71,11 @@ extension APIError: LocalizedError {
     public var requiresCredentialFix: Bool {
         switch self {
         case .missingCredential, .unauthorized: return true
-        case .invalidURL, .invalidBaseURL, .transport, .http, .decoding: return false
+        // `.jobFailed` / `.pollingTimedOut` / `.fileWrite` 都是「请求已按身份通过、
+        // 事情本身没成」，与凭据无关：不得把用户赶回登录页。
+        case .invalidURL, .invalidBaseURL, .transport, .http, .decoding,
+             .pollingTimedOut, .jobFailed, .fileWrite, .fileRead:
+            return false
         }
     }
 }

@@ -223,8 +223,20 @@ macos/
     │   │   ├── AgentOpsModels.swift      # domain-summary / 客诉 / 巡检 / 报表的响应模型 + 矩阵装配
     │   │   ├── AgentOpsFormatting.swift  # 美西今天 / 新鲜度 / 相对时间 / 错误率（纯函数，显式吃 now）
     │   │   └── AgentOpsClient.swift      # 四端点客户端（分层超时：矩阵 15s、三源 5s）
+    │   ├── Networking/           # 通用 HTTP 能力（S5.0：后续每批都要用，故先补齐）
+    │   │   ├── APIClient+Write.swift      # POST/PUT/PATCH/DELETE + 「忽略响应体」一组（204 空体）
+    │   │   ├── APIClient+Upload.swift     # multipart 上传（显式 Content-Length + httpBodyStream）
+    │   │   ├── MultipartFormData.swift    # 表单组装 + 按块读磁盘文件的 InputStream（不整份进内存）
+    │   │   ├── ServerSentEvent.swift      # SSE 帧模型 + 纯逻辑解析器（可离线钉规则）
+    │   │   ├── APIClient+Stream.swift     # SSE 消费：.stream 档 / 逐帧 yield / 取消即拆连接
+    │   │   ├── APIClient+Download.swift   # 文件下载：流式落盘 + 临时文件原子替换 + 进度回调
+    │   │   └── PollingPolicy.swift        # 轮询退避 + 上限 + 可注入 sleeper（测试不等真时间）
+    │   ├── Jobs/                 # 长任务（S5.0）
+    │   │   ├── JobModels.swift   # JobStatus（未知状态安全降级）+ JobSummary/JobDetail/JobRun
+    │   │   └── JobClient.swift   # /jobs 三端点 + waitForCompletion / waitForSuccess
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
+    │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json 这类形状由调用方定的字段）
     │       └── AuthModels.swift   # LoginRequest/Response、AuthenticatedUser、AuthSession、UserContext
     ├── BelieveBoyUI/          # SwiftUI 视图 + 视图状态（可离屏渲染，不需启动 GUI）
     │   ├── AppModel.swift         # @MainActor @Observable：登录态 + 连接配置 + 健康检查
@@ -264,19 +276,21 @@ macos/
 | **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页；「记住密码」（钥匙串，opt-in） | 冷启动凭据有效直进主界面；**401/403（含被网页端/其他设备登录顶掉导致 key 失效）→ 明确再登录路径，不做无谓重试**；App 不内置任何 key；密码不落盘（仅勾选「记住密码」时入钥匙串，且从不进 `UserDefaults`/账号档案/日志）；登录页精简（无说明性段落，服务器选择默认折叠） | S1 | 已完成（BLF-1044） |
 | **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地，**收编**已存在的选择 UI，不新增能力） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致（快照用例钉在 Swift 侧）；切换模块无泄漏 Task（`ModuleTaskScope` 按 route id 取消，占位视图零请求）；窗口尺寸 / 侧栏折叠状态可恢复（`ShellPreferences` + 落盘清洗与夹回可见屏幕的规则） | S2 | 已完成（BLF-1051） |
 | **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 已完成（BLF-1052） |
-| **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S4 | 后续多个 issue（每组一个） |
+| **S5.0** | 客户端能力补齐（S5 的前置批次，不加页面） | Kit 层四类能力：**JSON 写入**（PUT/PATCH/DELETE + 文档无体的「忽略响应体」一组）、**multipart 上传**（显式 `Content-Length` + `httpBodyStream`，文件按块读、中文文件名双形态）、**SSE 流式**（逐帧 yield、`.stream` 档、取消即拆连接）、**长任务轮询 + 文件下载**（退避 + 上限、流式落盘 + 原子替换）；`JobClient` 收编 `/jobs` 三端点 | 四类能力各有打桩用例（断言真实请求属性，而非常量表）；multipart 边界 / 中文文件名正确且上传体不整份进内存；SSE 走 `.stream` 档且取消不留 Task；轮询有退避与上限（不无限打后端）；错误分类沿用 `APIError`（401/403 → `requiresCredentialFix`；传输失败不算凭据问题）；`swift test` 256 用例全绿（4 个真后端用例默认 skip） | S4 | 已完成（BLF-1053） |
+| **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S5.0 | 后续多个 issue（每组一个） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
 | **S8** | 自动更新与系统集成 | Sparkle appcast；菜单栏角标（告警/长任务）；系统通知 | 旧版本可收到新版本提示并完成升级；通知点击可深链到对应模块 | S7 | 后续 issue（可选） |
 
 ### 8.1 依赖顺序（关键路径）
 
-```
-S0 → S1 → S2 → S3 → S4 → S5(×8) → S6
+```text
+S0 → S1 → S2 → S3 → S4 → S5.0 → S5(×8) → S6
                               ↘ S7 → S8
 ```
 
 - S7 的**代码**部分（打包脚本、CI）不依赖 S3 之后的业务进度，可以提前；但**签名/公证**卡在 Apple Developer 账号上。
+- S5.0（BLF-1053）是 S5 的**能力前置**：它不加页面，只把「写 / 上传 / 流式 / 轮询 + 下载」四类客户端底座补齐 —— 底座不齐时，每批都要自己现搓一遍 multipart 与轮询。
 - S5 的 8 个分组互相独立，可并行开 issue（注意：同一 `Package.swift` 与 `NavigationCatalog` 是共享编辑点，并行时由人工串行合并）。
 
 ### 8.2 本 issue 明确不做
