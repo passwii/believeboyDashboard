@@ -394,10 +394,19 @@ export default function ReturnAnalysisPage() {
   const [rawRows, setRawRows] = useState<ReturnRawRowsResponse | null>(null)
   const [rawLoading, setRawLoading] = useState(false)
   const [rawError, setRawError] = useState<string | null>(null)
-  // 全局刷新（force）时把 force 语义传递给原始行请求，避免命中 2min 客户端缓存
+  // 全局刷新（force）时把 force 语义传递给原始行请求，避免命中 2min 客户端缓存。
+  // 注意这是「粘性跨 Tab 旗标」：原始数据 Tab 关着时点刷新也会把它置 true 并保留，
+  // 直到下一次原始行请求消费它才清零 —— 后续的导出任务依赖这个行为
+  //（刷新后导出的原始行必须是新数据，不能是 2min 缓存里的旧周期行）。
   const rawForceRef = useRef(false)
+  // 原始行请求世代：loadData 作废旧周期数据时自增，用来丢弃「在途的旧周期响应」
+  const rawRequestEpochRef = useRef(0)
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
+
+  // 主分析请求失败（data 为空且不在加载中）时原始 Tab 没有可依赖的周期数据：
+  // 给诚实空态，而不是让 tbody 永远停在 skeleton。
+  const rawNeedsMainData = !data && !loading && !rawRows && !rawError
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -451,6 +460,9 @@ export default function ReturnAnalysisPage() {
       // 周期切换防串数据：旧周期的原始行一律作废，等下次进 Tab/导出时重取
       setRawRows(null)
       setRawError(null)
+      // 世代自增：在途的旧周期原始行响应回来后会被识别为过期并整体丢弃，
+      // 否则它会把旧周期的行（含旧 start_date 至 end_date 表头）写回表格/导出
+      rawRequestEpochRef.current += 1
       if (force) rawForceRef.current = true
 
       setLoading(true)
@@ -484,7 +496,11 @@ export default function ReturnAnalysisPage() {
   const loadRawRows = useCallback(
     async (force = false) => {
       const effectiveRange = normalizeDateRange(dateRange)
-      if (!effectiveRange?.from || !effectiveRange?.to || !projectId) return null
+      if (!effectiveRange?.from || !effectiveRange?.to || !projectId) {
+        // 筛选不完整时不发请求，但要给「重试」按钮可见反馈（否则按钮看起来毫无反应）
+        setRawError('请先选择项目与日期范围')
+        return null
+      }
 
       const search = new URLSearchParams({
         project_id: projectId,
@@ -492,6 +508,8 @@ export default function ReturnAnalysisPage() {
         start_date: formatYMD(effectiveRange.from),
         end_date: formatYMD(effectiveRange.to),
       })
+      // 记下发起时的世代：响应回来若世代已变（用户切了周期/项目/站点），整份结果直接丢弃
+      const requestEpoch = rawRequestEpochRef.current
       setRawLoading(true)
       setRawError(null)
       try {
@@ -499,15 +517,19 @@ export default function ReturnAnalysisPage() {
           `${API_BASE}/return-analysis/raw-rows?${search.toString()}`,
           { session, force, fallbackError: '原始数据加载失败' }
         )
+        if (requestEpoch !== rawRequestEpochRef.current) return null
         setRawRows(payload)
         return payload
       } catch (fetchError) {
+        // 过期请求连错误都不上报：它描述的是已经不存在的周期
+        if (requestEpoch !== rawRequestEpochRef.current) return null
         setRawError(
           fetchError instanceof Error ? fetchError.message : '原始数据加载失败'
         )
         return null
       } finally {
-        rawForceRef.current = false
+        // 世代未变才消费 force 旗标，否则会把新一轮强制刷新刚置上的旗标误清掉
+        if (requestEpoch === rawRequestEpochRef.current) rawForceRef.current = false
         setRawLoading(false)
       }
     },
@@ -1417,7 +1439,12 @@ export default function ReturnAnalysisPage() {
                           as="tbody"
                           className="[&_tr:last-child]:border-b-0"
                         >
-                          {rawLoading || !rawRows ? (
+                          {rawNeedsMainData ? (
+                            <EmptyTableState
+                              colSpan={RETURN_RAW_COLUMNS.length}
+                              message="请先加载退货分析数据"
+                            />
+                          ) : rawLoading || !rawRows ? (
                             <TableSkeletonRows columns={RETURN_RAW_COLUMNS.length} rows={8} />
                           ) : rawRows.rows.length ? (
                             rawRows.rows.slice(0, RAW_DISPLAY_LIMIT).map((row, index) => (
