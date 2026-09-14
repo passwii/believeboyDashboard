@@ -13,7 +13,8 @@ BLF-1059 一账号多把 key（按设备槽 ``client_id`` 分区）额外覆盖�
 * 两个不同槽各登录一次 → 先登录那把**仍然有效**（核心验收；拆分前必然 403）；
 * 同一槽二次登录 → 只轮换该槽，其它槽不受影响；
 * 不带 ``X-Client-Id`` 落 ``default`` 槽，同槽二次登录才互顶（= 拆分前的 Web 行为）；
-* 非法槽标识 → 400（不静默降级）；
+* 非法槽标识 → 400（不静默降级）：含首尾/内部空白、制表符、超长、非法字符一律拒，
+  **不做** ``strip``——``" mac-install-a "`` 不得别名到 ``mac-install-a`` 槽；
 * 撤销/轮换粒度：按 user = 全部设备，按 ``(user, client)`` = 只动那一台；
 * 每账号 ``MAX_ACTIVE_KEYS_PER_USER`` 个有效槽上限：超限回收最旧一把，不清空全部；
 * 改密码 → 该账号全部设备 key 失效，改密码者重登拿到可用新 key。
@@ -535,7 +536,7 @@ class TestAdminEndpoints:
         """设计 6：rotate 支持可选 client_id —— 给定则只轮换那一台。"""
         _cleanup_user_keys(test_operator["id"])
         _, web_key = _seed_key(test_operator["id"])
-        key_id, mac_key = _seed_key(test_operator["id"], "mac-install-a")
+        _, mac_key = _seed_key(test_operator["id"], "mac-install-a")
         try:
             resp = client.post(
                 f"/api/v1/internal/user-api-keys/{test_operator['id']}/rotate",
@@ -570,6 +571,67 @@ class TestAdminEndpoints:
                 headers=admin_headers,
             )
             assert resp.status_code == 404
+        finally:
+            _cleanup_user_keys(test_operator["id"])
+
+    def test_whitespace_client_id_is_rejected_not_trimmed(
+        self, client, admin_headers, test_operator
+    ):
+        """管理面选择器不做 ``strip``：``" mac-install-a "`` 必须 400，且不动任何槽。
+
+        回归（Tia review）：服务层原先先 ``strip()``，于是 ``" mac-install-a "`` 被
+        静默归一成合法槽 ``mac-install-a`` —— 非法标识**别名**到一台合法设备，
+        管理员以为吊销了别的设备，实际动的是这一台。首尾空白 / 内部空白 / 制表符
+        三种形态都走 400（查询参数不经 HTTP 层 OWS 裁剪，能真实覆盖）。
+        """
+        _cleanup_user_keys(test_operator["id"])
+        _, mac_key = _seed_key(test_operator["id"], "mac-install-a")
+        try:
+            for bad in (
+                " mac-install-a ",
+                "\tmac-install-a",
+                "mac-install-a\t",
+                "mac install a",
+                "mac\tinstall",
+            ):
+                resp = client.post(
+                    f"/api/v1/internal/user-api-keys/{test_operator['id']}/revoke",
+                    params={"client_id": bad},
+                    headers=admin_headers,
+                )
+                assert resp.status_code == 400, (
+                    f"{bad!r} 应被拒绝，实际 {resp.status_code}"
+                )
+            rows = _slot_rows(test_operator["id"])
+            assert set(rows) == {"mac-install-a"}, "非法选择器不得改动/新建任何槽"
+            assert rows["mac-install-a"]["revoked_at"] is None
+            assert _health_status(client, mac_key) == 200
+        finally:
+            _cleanup_user_keys(test_operator["id"])
+
+    def test_empty_client_id_query_means_all_devices(
+        self, client, admin_headers, test_operator
+    ):
+        """``?client_id=``（空串）= 没给选择器 → 全部设备，不窄化成 ``default`` 槽。
+
+        本端点的缺省语义就是「该账号全部设备」；把空串当 ``default`` 槽反而是
+        静默窄化（想重置全部设备、结果只动了网页端那一把，比全量更难发现）。
+        """
+        _cleanup_user_keys(test_operator["id"])
+        _, web_key = _seed_key(test_operator["id"])
+        _, mac_key = _seed_key(test_operator["id"], "mac-install-a")
+        try:
+            resp = client.post(
+                f"/api/v1/internal/user-api-keys/{test_operator['id']}/revoke",
+                params={"client_id": ""},
+                headers=admin_headers,
+            )
+            assert resp.status_code == 200, resp.text
+            body = resp.json()
+            assert body["client_id"] is None
+            assert body["revoked_count"] == 2
+            assert _health_status(client, web_key) == 403
+            assert _health_status(client, mac_key) == 403
         finally:
             _cleanup_user_keys(test_operator["id"])
 
@@ -702,12 +764,25 @@ class TestMultiClientSlots:
         """非法槽标识 → 400，且不落任何行。
 
         不静默降级为 ``default``：发错标识的设备若与网页端共用一把 key，会回到
-        「互相顶掉」且极难排查。（空/全空白是另一回事 —— 等价于不带该头，见
-        ``test_blank_client_id_falls_back_to_default``。）
+        「互相顶掉」且极难排查。
+
+        空白一律非法（``strip`` 已移除）：``"   "`` 不再被当成"空标识"落 ``default``，
+        因为它是**含空白**的值；只有真正的空串（``X-Client-Id:`` 无值）走兼容规则，
+        见 ``test_blank_client_id_falls_back_to_default``。
         """
         _cleanup_user_keys(test_operator["id"])
         try:
-            for bad in ("bad id", "x" * 65, "semi;colon", "with/slash", "tab\tsep"):
+            for bad in (
+                "bad id",
+                "x" * 65,
+                "semi;colon",
+                "with/slash",
+                "tab\tsep",
+                " pad-in-id ",
+                "\tlead-tab",
+                "trail-tab\t",
+                "   ",
+            ):
                 resp = client.post(
                     "/api/v1/auth/login",
                     json={
@@ -724,7 +799,11 @@ class TestMultiClientSlots:
             _cleanup_user_keys(test_operator["id"])
 
     def test_blank_client_id_falls_back_to_default(self, client, settings, test_operator):
-        """空/全空白标识 → ``default`` 槽（等价于不带该头），不是错误。"""
+        """空串标识（``X-Client-Id:`` 无值）→ ``default`` 槽（等价于不带该头）。
+
+        兼容规则只给真正的空值：全空白（``"   "``）是含空白的非法值，走 400 —— 见
+        ``test_invalid_client_id_is_rejected``。
+        """
         _cleanup_user_keys(test_operator["id"])
         body = _login(
             client,
@@ -997,6 +1076,102 @@ class TestPasswordChangeRevokesKeys:
             assert _health_status(client, body["api_key"]) == 200
             rows = _slot_rows(test_operator["id"])
             assert rows["mac-install-a"]["revoked_at"] is None
+        finally:
+            _cleanup_user_keys(test_operator["id"])
+
+
+class TestClientIdStrictValidation:
+    """``normalize_client_id`` 的严格校验（服务层单测，不经 HTTP 层）。
+
+    HTTP 层（h11 / starlette）可能裁掉 header 值两侧的 OWS，所以"原始值校验"
+    必须有服务层单测兜底：``" foo "`` 这类值即使从 header 进不来，也可能从管理面
+    查询参数或未来任何内部调用进来 —— 一旦 ``strip``，就等于让非法标识**别名**到
+    一台合法设备的槽（发错标识的客户端会顶掉真正那台的 key，两边都难察觉）。
+    """
+
+    def test_none_and_empty_string_use_default_slot(self) -> None:
+        assert user_api_key_service.normalize_client_id(None) == "default"
+        assert user_api_key_service.normalize_client_id("") == "default"
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            " foo ",  # 首尾空白（原先被 strip 成合法槽）
+            " foo",
+            "foo ",
+            "\tfoo",
+            "foo\t",
+            "\t",  # 全空白：含空白的非法值，不再是"空标识"
+            "   ",
+            "foo bar",  # 内部空白
+            "foo\nbar",  # 控制字符
+            "foo\r",
+            "foo\r\n",
+            "foo\u00a0",  # 非 ASCII 空白（strip 会吃掉的形态）
+            "semi;colon",
+            "with/slash",
+            "x" * 65,
+        ],
+    )
+    def test_invalid_values_raise_value_error(self, value: str) -> None:
+        with pytest.raises(ValueError):
+            user_api_key_service.normalize_client_id(value)
+
+    def test_valid_charset_and_length_boundary(self) -> None:
+        """契约内的合法值原样透传（含 64 字符上限边界）。"""
+        for ok in ("default", "mac-install-a", "a.b:c_d-1", "x" * 64, "0" * 64):
+            assert user_api_key_service.normalize_client_id(ok) == ok
+
+    def test_whitespace_variant_does_not_alias_legal_slot(
+        self, client, test_operator
+    ):
+        """核心回归：非法 ``" mac-install-a "`` 不得动到 ``mac-install-a`` 槽那把 key。"""
+        _cleanup_user_keys(test_operator["id"])
+        _, mac_key = _seed_key(test_operator["id"], "mac-install-a")
+        db = SessionLocal()
+        try:
+            with pytest.raises(ValueError):
+                user_api_key_service.ensure_user_api_key(
+                    db, test_operator["id"], " mac-install-a "
+                )
+            db.rollback()
+        finally:
+            db.close()
+        try:
+            rows = _slot_rows(test_operator["id"])
+            assert set(rows) == {"mac-install-a"}, "非法标识不得新建槽"
+            assert rows["mac-install-a"]["revoked_at"] is None
+            assert _health_status(client, mac_key) == 200, "真正那台设备的 key 不受影响"
+        finally:
+            _cleanup_user_keys(test_operator["id"])
+
+    def test_login_rejects_whitespace_client_id_header(
+        self, client, settings, test_operator
+    ):
+        """登录路径同样严格：``X-Client-Id`` 带首尾空白 / 制表符 / 全空白 → 400。
+
+        校验发生在限流之前，故不会吃登录配额（失败请求也不落任何槽）。
+        """
+        _cleanup_user_keys(test_operator["id"])
+        try:
+            for bad in (
+                " mac-install-a ",
+                "\tmac-install-a",
+                "mac-install-a\t",
+                "   ",
+            ):
+                resp = client.post(
+                    "/api/v1/auth/login",
+                    json={
+                        "email": settings.test_operator_email,
+                        "password": settings.test_operator_password,
+                    },
+                    headers={"X-Client-Id": bad},
+                )
+                assert resp.status_code == 400, (
+                    f"{bad!r} 应被拒绝，实际 {resp.status_code}"
+                )
+            assert _slot_rows(test_operator["id"]) == {}, "非法标识不应落任何槽"
         finally:
             _cleanup_user_keys(test_operator["id"])
 

@@ -46,7 +46,9 @@ CLIENT_ID_MAX_LENGTH = 64
 # 每账号最多几把**有效** key；超限回收最旧的一把（不拒绝登录，见 _evict_over_limit）。
 MAX_ACTIVE_KEYS_PER_USER = 5
 # 允许的槽标识字符集：UUID / 主机名 / 安装 id 都在内，又挡住空白与控制字符。
-_CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9._:\-]+$")
+# 用 ``fullmatch`` 而非 ``^...$``：``$`` 在 Python 里能匹配尾随换行前的位置，
+# 锚点会让 ``"abc\n"`` 这类值蒙混过关（``\Z`` 才等价于 fullmatch 的语义）。
+_CLIENT_ID_RE = re.compile(r"[A-Za-z0-9._:\-]+")
 
 
 def _normalize_user_id(user_id: str | uuid.UUID) -> uuid.UUID:
@@ -57,21 +59,30 @@ def _normalize_user_id(user_id: str | uuid.UUID) -> uuid.UUID:
 
 
 def normalize_client_id(client_id: str | None) -> str:
-    """归一设备槽标识：``None`` / 空白 → ``default``；形态非法抛 ``ValueError``。
+    """归一设备槽标识：``None`` / ``""`` → ``default``；其余按**原始值**严格校验。
 
-    不做静默降级：非法标识若悄悄落到 ``default``，发错标识的设备就会与网页端
-    共用一把 key（又回到互相顶掉的老毛病）且难排查；这里直接报错，由调用方转
-    400。长度与列宽（``String(64)``）一致，超长拒绝而非截断——截断会让两个不同
-    的设备标识撞成同一槽。
+    三条硬规则（BLF-1059 契约：``[A-Za-z0-9._:-]``，≤64 字符）：
+
+    1. **不 strip**：``" mac-install-a "`` 若被归一成 ``mac-install-a``，就等于让
+       一个非法标识**别名**到一台合法设备的槽——发错标识的客户端会顶掉真正那台
+       设备的 key，且两边都难以察觉（这正是拆分前"互相顶掉"最难排查的形态）。
+       含首尾空白 / 内部空白 / 制表符 / 换行等控制字符一律 ``ValueError`` → 400。
+    2. **只有 ``None`` 与 ``""`` 走 ``default``**：二者语义上等价于"没带这个
+       标识"（网页端代理、拆分前发布的桌面端构建、HTTP 里空 header），必须与
+       拆分前行为一致，故保留这条兼容规则。全空白（``"   "``）**不算**——
+       它是含空白的非法值（见规则 1），不再被当成"空标识"降级。
+    3. **不静默降级**：非法标识若悄悄落到 ``default``，发错标识的设备就会与
+       网页端共用一把 key（又回到互相顶掉的老毛病）且难排查；这里直接报错，
+       由调用方转 400。长度与列宽（``String(64)``）一致，超长拒绝而非截断——
+       截断会让两个不同的设备标识撞成同一槽。
     """
-    if client_id is None:
+    # 空串 / None = "没带标识" → 缺省槽（兼容规则）。注意：此处**不做** strip，
+    # 只看原始值是否为 ""：`" "` 之类的全空白是非法值而不是空值。
+    if client_id is None or client_id == "":
         return DEFAULT_CLIENT_ID
-    value = client_id.strip()
-    if not value:
-        return DEFAULT_CLIENT_ID
-    if len(value) > CLIENT_ID_MAX_LENGTH or not _CLIENT_ID_RE.fullmatch(value):
-        raise ValueError(f"invalid client_id: {value!r}")
-    return value
+    if len(client_id) > CLIENT_ID_MAX_LENGTH or not _CLIENT_ID_RE.fullmatch(client_id):
+        raise ValueError(f"invalid client_id: {client_id!r}")
+    return client_id
 
 
 def hash_key(plaintext: str) -> str:

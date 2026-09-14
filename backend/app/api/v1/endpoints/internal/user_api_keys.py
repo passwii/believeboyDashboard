@@ -63,13 +63,21 @@ class UserApiKeyRotateResponse(BaseModel):
 
 
 def _optional_client_id(client_id: str | None) -> str | None:
-    """归一管理面的 ``client_id`` 查询参数：``None`` 保留「全部设备」语义。
+    """归一管理面的 ``client_id`` 查询参数：``None`` / ``""`` → 「全部设备」。
 
     与登录路径不同，这里 ``None`` **不是** ``default`` 槽，而是「该账号全部
-    设备」（拆分前按 user_id 操作的语义）。形态非法同样抛 400——静默降级成
-    ``default`` 会让管理员以为吊销了某台设备，实际却动了网页端那把 key。
+    设备」（拆分前按 user_id 操作的语义）。
+
+    ``""``（如 ``?client_id=``）同样按「没给选择器」处理：本端点的缺省语义本来
+    就是全部设备，把空串当成 ``default`` 槽反而是静默窄化（管理员想重置全部
+    设备、结果只动了网页端那一把，比全量更难发现）。
+
+    形态非法（含首尾/内部空白、控制字符、超 64 字符）一律 400——这些**不**能被
+    当成空值：静默降级成 ``default`` 会让管理员以为动了某一台设备，实际却动了
+    网页端那把 key（``" mac-install-a "`` 若被 strip 成合法槽就是这个后果）。
     """
-    if client_id is None:
+    # 注意：只有真正的空值走缺省分支；`"   "` 之类全空白不是空值，交给下面抛 400。
+    if client_id is None or client_id == "":
         return None
     try:
         return normalize_client_id(client_id)
