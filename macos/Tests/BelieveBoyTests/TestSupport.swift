@@ -172,6 +172,56 @@ final class InMemoryRememberedLoginStore: RememberedLoginStore, @unchecked Senda
     }
 }
 
+/// 内存设备标识存储：测试专用（理由同 `InMemorySessionStore`）。
+///
+/// 「同一台机器重启进程后仍用同一个标识」这类用例靠它把「盘」留下来：用例之间
+/// 传同一个实例即可，不必碰开发机真实钥匙串（真钥匙串另有一条往返用例，见
+/// `ClientIdentifierTests`）。
+final class InMemoryClientIdentifierStore: ClientIdentifierStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: String?
+    private var loadFailure: Error?
+    private var saveFailure: Error?
+    private var saveCount = 0
+
+    init(seeded: String? = nil) {
+        stored = seeded
+    }
+
+    /// 注入读取失败（钥匙串被锁 / 权限被拒）。
+    func failLoading(with error: Error) { withLock { loadFailure = error } }
+    /// 注入写入失败。
+    func failSaving(with error: Error) { withLock { saveFailure = error } }
+
+    var clientID: String? { withLock { stored } }
+    var saveCalls: Int { withLock { saveCount } }
+
+    func loadClientID() throws -> String? {
+        let failure = withLock { loadFailure }
+        if let failure { throw failure }
+        return withLock { stored }
+    }
+
+    func saveClientID(_ clientID: String) throws {
+        let failure = withLock { saveFailure }
+        if let failure { throw failure }
+        withLock {
+            saveCount += 1
+            stored = clientID
+        }
+    }
+
+    func deleteClientID() throws {
+        withLock { stored = nil }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
 extension AuthenticatedUser {
     /// 测试用管理员档案（字段取自测试库 `test_admin@believeboy.com` 的形态）。
     static let fixtureAdmin = AuthenticatedUser(

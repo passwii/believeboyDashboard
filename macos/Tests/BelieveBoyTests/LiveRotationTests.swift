@@ -41,15 +41,19 @@ final class LiveRotationTests: XCTestCase {
         return (baseURL, email, password)
     }
 
-    /// 同一账号连续登录两次 → 第一次下发的 key 立刻变成 403，第二次的可用。
-    ///    /// 这就是「用户当天在网页端登录过 → 桌面端 key 失效」的机制本身。
-    func testSecondLoginSameAccountInvalidatesFirstKeyWith403() async throws {
+    /// 同一设备槽连续登录两次 → 第一次下发的 key 立刻变成 403，第二次的可用。
+    ///
+    /// 这是 BLF-1059 保留的**槽内**语义：同一个 `X-Client-Id` 再登一次就是轮换同一把
+    /// key（不是另开一把）。桌面端自己的重登（退出再登 / 被顶后重登）走的就是这条路。
+    func testSecondLoginInTheSameDeviceSlotInvalidatesTheFirstKeyWith403() async throws {
         let backend = try liveBackend()
+        let deviceSlot = "macos-e2e-\(UUID().uuidString.lowercased())"
 
         let first = try await AuthService.login(
             email: backend.email,
             password: backend.password,
-            baseURL: backend.baseURL
+            baseURL: backend.baseURL,
+            clientID: deviceSlot
         )
         XCTAssertTrue(first.apiKey.hasPrefix("blf_"), "账号专属 key 应带 blf_ 前缀：\(first.apiKey.prefix(12))")
         XCTAssertFalse(first.apiKey.isEmpty)
@@ -59,19 +63,20 @@ final class LiveRotationTests: XCTestCase {
         let firstClientAlive = APIClient(baseURL: backend.baseURL, apiKey: first.apiKey)
         _ = try await HealthProbe.full(using: firstClientAlive)
 
-        // 「另一台设备 / 网页端」再登录一次 —— 等价于 Web 端 login 打同一端点。
+        // 同一个设备槽再登一次（等价于桌面端自己重启后重新登录）。
         let second = try await AuthService.login(
             email: backend.email,
             password: backend.password,
-            baseURL: backend.baseURL
+            baseURL: backend.baseURL,
+            clientID: deviceSlot
         )
-        XCTAssertNotEqual(second.apiKey, first.apiKey, "同一账号二次登录必须轮换出不同的 key")
+        XCTAssertNotEqual(second.apiKey, first.apiKey, "同一槽二次登录必须轮换出不同的 key")
 
         // 旧 key 立刻失效，且必须是 403（不是 401）—— 这正是客户端要接住的那个信号。
         let staleClient = APIClient(baseURL: backend.baseURL, apiKey: first.apiKey)
         do {
             _ = try await HealthProbe.full(using: staleClient)
-            XCTFail("旧 key 应已失效（后端 ensure_user_api_key 覆写 key_hash）")
+            XCTFail("旧 key 应已失效（后端 ensure_user_api_key 覆写同一槽的 key_hash）")
         } catch let error as APIError {
             XCTAssertEqual(
                 error,
@@ -88,6 +93,43 @@ final class LiveRotationTests: XCTestCase {
         let freshClient = APIClient(baseURL: backend.baseURL, apiKey: second.apiKey)
         let health = try await HealthProbe.full(using: freshClient)
         XCTAssertFalse(health.database.isEmpty)
+    }
+
+    /// **本 stage 存在的理由（验收 1）**：桌面端（带设备标识）登录后，网页端那把 key
+    /// 仍然有效；反之亦然。
+    ///
+    /// 网页端不带 `X-Client-Id` → 落 `default` 槽，正是真实 Web 代理的行为，因此这里不
+    /// 打桩、不模拟：两把 key 都拿真后端验一遍。
+    func testDesktopAndWebSlotsDoNotInvalidateEachOther() async throws {
+        let backend = try liveBackend()
+        let deviceSlot = "macos-e2e-\(UUID().uuidString.lowercased())"
+
+        // 1) 桌面端登录（带设备标识）。
+        let desktop = try await AuthService.login(
+            email: backend.email,
+            password: backend.password,
+            baseURL: backend.baseURL,
+            clientID: deviceSlot
+        )
+        let desktopClient = APIClient(baseURL: backend.baseURL, apiKey: desktop.apiKey)
+        _ = try await HealthProbe.full(using: desktopClient)
+
+        // 2) 网页端登录（不带该头 → default 槽）。
+        let web = try await AuthService.login(
+            email: backend.email,
+            password: backend.password,
+            baseURL: backend.baseURL,
+            clientID: nil
+        )
+        XCTAssertNotEqual(web.apiKey, desktop.apiKey, "两个设备槽各自持有不同的 key")
+
+        // 3) 桌面端那把**仍然有效** —— 拆分前这一步会 403。
+        let health = try await HealthProbe.full(using: desktopClient)
+        XCTAssertFalse(health.database.isEmpty, "桌面端登录后网页端不得把桌面端顶掉")
+
+        // 4) 反向：网页端登录之后，桌面端再登一次也不影响网页端那把。
+        let webKeyStillValid = APIClient(baseURL: backend.baseURL, apiKey: web.apiKey)
+        _ = try await HealthProbe.full(using: webKeyStillValid)
     }
 
     /// 账号上下文请求头打真后端 —— 用 `/order-info/filter-options` 做**可观测**断言。
@@ -112,7 +154,8 @@ final class LiveRotationTests: XCTestCase {
         let session = try await AuthService.login(
             email: email,
             password: password,
-            baseURL: baseURL
+            baseURL: baseURL,
+            clientID: "macos-e2e-user-context"
         )
         let user = try XCTUnwrap(session.user)
         XCTAssertFalse(user.isAdmin, "该用例的前提是非管理员账号，否则 X-Operator 校验不参与")

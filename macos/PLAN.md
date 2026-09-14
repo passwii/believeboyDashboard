@@ -177,7 +177,7 @@ idle → loading → (loaded | failed(APIError))
 | 路径前缀 | `/api/v1/...`（`app.include_router(api_router, prefix="/api/v1")`） |
 | 鉴权头 | `X-API-Key: blf_…`（账号专属 key）或 `X-API-Key: <主 key>` |
 | 用户上下文 | `X-Operator` / `X-User-Id` / `X-User-Name` / `X-Is-Admin` — 按账号可见性过滤（`/api/v1/projects/manage` 依赖 `X-Operator`） |
-| 登录 | `POST /api/v1/auth/login`（email + password）→ `LoginResponse.api_key`（**每次登录轮换**，hash-only 存储） |
+| 登录 | `POST /api/v1/auth/login`（email + password，可选头 `X-Client-Id` 选设备槽）→ `LoginResponse.api_key`（**同槽内轮换**，hash-only 存储） |
 | 健康检查 | `GET /api/v1/health/live`（免鉴权，进程存活）/ `GET /api/v1/health/ready`（免鉴权）/ `GET /api/v1/health`（需鉴权，含 DB / 只读副本 / Redis / 环境名） |
 | 鉴权失败语义 | 缺 key → **401** `{"detail":"Missing API key"}`；key 无效或已被轮换 → **403** `{"detail":"Invalid API key"}`（`backend/app/core/security.py:45-71`）—— 桌面端把 401/403 一律导向「重新登录」（见 §4.1.1） |
 
@@ -188,6 +188,10 @@ idle → loading → (loaded | failed(APIError))
 > ⚠️ **可用面边界**：`/api/v1/agent/*` 与 `/api/v1/internal/*` **不属这套鉴权** —— 该域要求 `Authorization` + `X-Agent-Id` 配对（给外部 Agent 用），带 `X-API-Key` 会得到 `401 AGENT_AUTH_FAILED`。桌面端只消费账号级业务路由：生产 `/api/v1/` 共 54 个一级路由家族，排除 `agent` 与 `internal` 后即为桌面端可用面（`ad-analysis` / `complaints` / `crm` / `inspections` / `inventory-*` 等）。**Stage 4+ 搬模块时不要把 agent 域端点接进来。**
 
 #### 4.1.1 单设备 key：Web 登录会使桌面端 key 失效（S2 的硬约束）
+
+> **📌 已由 BLF-1059（后端）+ BLF-1060（桌面端）取代，见 §4.1.2** —— key 已按设备槽分区，
+> 本节保留为**历史依据**：它解释了 S2 为何把「401/403 一律导向重新登录」定为硬约束，
+> 以及推论一/二/四为何至今仍成立（只有推论三已被解除）。
 
 `blf_` 账号 key 是**覆盖式轮换**，不是「每次登录追加一把」：
 
@@ -209,6 +213,27 @@ idle → loading → (loaded | failed(APIError))
 - 推论四：S2 的「登录态保持」实际语义是「key 未被别处登录顶掉」——启动后第一次鉴权请求若 403，直接回登录页，不做无谓重试。
 
 **本轮不改后端**：单设备轮换是 BLF-711 的有意设计（hash-only 存储 + 泄露面最小），客户端按「403 → 重新登录」即可完整覆盖。若运营侧实测反馈「Web 与桌面端来回登录过于频繁」，再**另开后端 issue** 评估多设备 key（同账号多行，或按 `client_id` 分区）；不夹带进本 issue。
+
+> 后续：该后端 issue 就是 **BLF-1059**（“按 `client_id` 分区”这条被选中），客户端那半是
+> **BLF-1060**；当时的两个前置条件（「实测反馈」与「Yawei 拍板」）都已满足。
+
+#### 4.1.2 多设备槽 key：一个账号多把 key（BLF-1059 + BLF-1060，现行契约）
+
+`user_api_keys` 的「一账号一行」已被拆成**按设备槽分区**：同一个槽内仍只有一把有效 key
+（同槽重登 = 轮换），**槽与槽互不影响** —— 桌面端登录不再顶掉网页端那把 key（反之亦然）。
+
+| 侧 | 落点 | 内容 |
+| --- | --- | --- |
+| 后端（BLF-1059） | `backend/app/services/user_api_key_service.py`（迁移 272） | `user_api_keys` 增 `client_id`（`String(64)`，默认 `'default'`），唯一约束改为 `(user_id, client_id)`；登录读头 `X-Client-Id`（`auth.py`，`Header(alias="X-Client-Id")`），**不动 `/auth/login` 的 schema** |
+| 客户端（BLF-1060） | `Sources/BelieveBoyKit/ClientIdentifier.swift` | 首次启动生成 UUID → 钥匙串条目 `client-id`（与 key / 档案 / 「记住密码」分槽）→ 每次登录作为 `X-Client-Id` 发出 |
+
+契约细节（两端必须一致，改一端就得改另一端）：
+
+- **合法性**：`None` 与 `""` = 没带该标识 → 落 `default` 槽（网页端与拆分前的旧构建的行为，故网页端零改动）；其余值必须整体匹配 `[A-Za-z0-9._:-]` 且 ≤64 字符，含空白 / 控制字符 / 非 ASCII 一律 **400**（`fullmatch`，**不 strip** —— strip 会把非法标识悄悄别名到另一台设备的槽）。Swift 侧同口径实现在 `ClientIdentifier.isValid`，存量值非法时**重新生成**而不是原样发出去。
+- **槽上限**：每账号 5 个有效槽，超限回收**最旧**一把（不拒绝登录）。推论：设备标识必须跨进程稳定，否则每次启动新开一槽，很快把别的设备挤出去。
+- **改密码**：撤销该账号**全部设备**的 key（自助 + 管理员重置同一落点）→ 桌面端收到 403，走既有「重新登录」路径。
+- **不变的部分**：鉴权路径（`resolve_user_key` → `require_api_key`）与 401/403 语义零改动；推论一（不内置 key）、推论二（401/403 一律导向重新登录）、推论四（不做无谓重试）依旧成立。
+- **失败退化的取向**：设备标识的钥匙串条目读写失败时，客户端**不退化成「不带标识」**（那会落 `default` 槽，把网页端顶掉 = 把本 stage 要修的问题请回来），而是本次进程用一个临时标识、并给出可见提示。
 
 **生产直连实测（2026-09-13，本机 → `https://dash-api.believeboy.com`）**：
 
@@ -278,8 +303,9 @@ macos/
     │   ├── AuthService.swift      # POST /auth/login → AuthSession（HTTP 语义→登录语义）
     │   ├── AuthError.swift        # 登录失败的分类与文案
     │   ├── CredentialStore.swift  # key 协议 + 只读环境变量实现 + 凭据三态判定
-    │   ├── KeychainItem.swift     # kSecClassGenericPassword 条目 CRUD（key / 档案 / 「记住密码」三个条目共用）
+    │   ├── KeychainItem.swift     # kSecClassGenericPassword 条目 CRUD（key / 档案 / 「记住密码」/ 设备标识四个条目共用）
     │   ├── KeychainCredentialStore.swift  # 账号专属 key（blf_）
+    │   ├── ClientIdentifier.swift  # 设备标识（X-Client-Id）协议 + 钥匙串实现 + 与后端同口径的合法性判定
     │   ├── SessionStore.swift     # 会话持久化协议（key + 账号档案）
     │   ├── KeychainSessionStore.swift     # 钥匙串实现：key + 档案（先档案后 key）
     │   ├── RememberedLogin.swift  # 「记住密码」协议 + 钥匙串实现（opt-in，与 key / 档案分槽）
@@ -406,9 +432,9 @@ S0 → S1 → S2 → S3 → S4 → S5.0 → S5(×8) → S6
 
 | 项 | 影响 | 处置 |
 | --- | --- | --- |
-| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyTests/`，见 §8 S1/S2）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。**一并就绪的还有打包链路**：`xcrun notarytool` / `swift-format` / `simctl` 在完整 Xcode 下均可解析（license、first-launch 已通过），S7a/S7b 不再卡工具链。**附带坑（S4 实测）**：两条工具链共用 `.build/` 时，索引产物会互相覆盖，sourcekit 报 `Compiled module was created by a different version of the compiler` 而后退回 `No such module`；另外 CLT 构建不了 testTarget，故 Editor 侧索引在 CLT 下必然残缺。处置：跑完 `swift test`（Xcode 工具链）后删 `.build/index-build`，需要索引时用 CLT 重建（`swift build`）；或给 `swift test` 单独指定 `--scratch-path .build/xcode-check` 与索引目录互不干扰。这条只影响本机编辑器体验，不影响构建与测试。 |
+| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyTests/`，见 §8 S1/S2）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。**一并就绪的还有打包链路**：`xcrun notarytool` / `swift-format` / `simctl` 在完整 Xcode 下均可解析（license、first-launch 已通过），S7a/S7b 不再卡工具链。**附带坑（S4 实测）**：两条工具链共用 `.build/` 时，索引产物会互相覆盖，sourcekit 报 `Compiled module was created by a different version of the compiler` 而后退回 `No such module`；另外 CLT 构建不了 testTarget，故 Editor 侧索引在 CLT 下必然残缺。处置：跑完 `swift test`（Xcode 工具链）后删 `.build/index-build`，需要索引时用 CLT 重建（`swift build`）；或给 `swift test` 单独指定 `--scratch-path .build/xcode-check` 与索引目录互不干扰。这条只影响本机编辑器体验，不影响构建与测试。**另一类同源假阳性（BLF-1060 实测）**：新建源文件后，索引侧的 SwiftPM 文件列表可能仍是旧的，于是**新文件里的类型在引用方报 `Cannot find 'X' in scope`**，而 `swift build` / `swift test` 全绿 —— 以构建为准，不要为一个只存在于索引侧的报错去改代码。 |
 | **Xcode 安装位置非标准**（外置卷） | 真身 `/Volumes/Rock/Xcode.app` = **Xcode 27.0（build `27A266a`，即 27.0 RC）**，macOS 27.0 SDK（`macosx27.0`）+ Swift 6.4；`/Applications/Xcode.app` 只是 **416K 转发壳**（`Contents/Resources/real_app_path.txt` → 真实路径），**不含 toolchain**。本机 `xcode-select -p` **仍指向 `/Library/Developer/CommandLineTools`**，纯净 shell 下 `xcodebuild` 依旧报 "requires Xcode" | 两条等价写法：① 一次性（需密码，**留给用户执行**）`sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer` —— **不能**指向 `/Applications/Xcode.app`（壳，无 `Contents/Developer`）；② 免 sudo、按命令生效（本仓库 CI/文档采用）：`DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer`。**外置卷未挂载时完整工具链不可用**（`swift test` 挂），CLT 路径仍可 `swift build`，代码不受影响。 |
-| **桌面端 key 与网页端互踢**（覆盖式轮换，一账号同时只有一把） | 覆写同一行 `user_api_keys.key_hash`（`user_api_key_service.py:69`）→ 桌面端已存 key **立即失效**；调用方不止桌面端：Web 登录（`frontend/lib/auth/options.ts:47`）与改密码重认证（`frontend/app/api/user/password/route.ts:36`）都打 `POST /api/v1/auth/login`。失效表现为 **403 `Invalid API key`**（`security.py:45-71`），**不是 401** | 已定契约（详见 §4.1.1）：**App 不打包/不内置 key**；**401/403 一律走「请重新登录」而非静默失败**（`APIError.requiresCredentialFix`，已实测生产 403 → 该信号）—— 只判 401 会漏掉最常发生的路径。「一账号多设备多把 key」是**唯一**可能需要改后端的点，**待 Yawei 拍板**；在拍板前不改后端 |
+| **桌面端 key 与网页端互踢**（曾是覆盖式轮换，一账号同时只有一把） | 拆分前：覆写同一行 `user_api_keys.key_hash`（`user_api_key_service.py:69`）→ 桌面端已存 key **立即失效**；调用方不止桌面端：Web 登录（`frontend/lib/auth/options.ts:47`）与改密码重认证（`frontend/app/api/user/password/route.ts:36`）都打 `POST /api/v1/auth/login`。失效表现为 **403 `Invalid API key`**（`security.py:45-71`），**不是 401** | **已解决**：后端 BLF-1059 把 key 按设备槽分区（迁移 272 + `X-Client-Id`），客户端 BLF-1060 每次登录都带上本机标识（`ClientIdentifier`，钥匙串 `client-id` 条目）→ 网页端与桌面端各持一把、互不顶（详见 §4.1.2）。仍保留的契约：**App 不打包/不内置 key**；**401/403 一律走「请重新登录」而非静默失败**（`APIError.requiresCredentialFix`）—— 现在的成因是同槽被顶 / 改密码撤销全部设备 / 槽超限回收最旧一把 |
 | Apple Developer 账号缺失 | S7b/S7c 无法推进 | 需用户决策（是否购买）；在此之前以 ad-hoc `.app` 分发 |
 | 后端 CORS 白名单不含桌面端 | 无影响（原生请求无 CORS） | 记录结论，不申请后端改动 |
 | 无 WebSocket / 推送 | 桌面端实时性只能轮询 | 轮询 + 退避即可满足当前需求；若需推送，另开后端 issue |
