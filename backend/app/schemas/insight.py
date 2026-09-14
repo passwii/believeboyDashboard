@@ -33,6 +33,8 @@ FORBIDDEN_CLIENT_KEYS = ("system_prompt", "instructions", "api_key", "base_url",
 #: 幂等 key / 受控标识正则（与 limits.py 保持一致，schema 侧做第一道拦截）
 IDEMPOTENCY_KEY_PATTERN = r"^[A-Za-z0-9._:-]{1,64}$"
 CONTROLLED_ID_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,63}$"
+#: model_id 承载供应商真实模型名（大小写敏感，见 limits.MODEL_ID_PATTERN）
+MODEL_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,63}$"
 
 #: 输出内容摘要：小写 SHA-256 hex
 SHA256_HEX_PATTERN = r"^[0-9a-f]{64}$"
@@ -212,7 +214,7 @@ class InsightRunRequest(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=64, pattern=IDEMPOTENCY_KEY_PATTERN)
     client_request_id: UUID4 | None = None
     endpoint_id: Annotated[str, Field(pattern=CONTROLLED_ID_PATTERN)] | None = None
-    model_id: Annotated[str, Field(pattern=CONTROLLED_ID_PATTERN)] | None = None
+    model_id: Annotated[str, Field(pattern=MODEL_ID_PATTERN)] | None = None
 
     @model_validator(mode="before")
     @classmethod

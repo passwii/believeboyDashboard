@@ -94,6 +94,12 @@ class Settings(BaseSettings):
     insight_endpoint_ids: str = Field(default="default", max_length=500)
     insight_default_model: str = Field(default="", max_length=200)
     insight_role_default_models: str = Field(default="", max_length=2000)
+    # Insight 可用模型是否并入「供应商现役模型清单」（代理 /v1/models，带 TTL
+    # 缓存）。默认开：UI 下拉与 chat 链路都取自该清单，Insight 若只认静态
+    # AI_CHAT_* 清单就会与其漂移，把用户在下拉里选得到的模型判成
+    # MODEL_NOT_ALLOWED（生产：订阅预设 GPT-5.6-Luna 被误判）。置 False 回退静态
+    # allowlist（回滚开关）；拉取失败时也自动回退，不放大可用集合。
+    insight_allow_provider_models: bool = Field(default=True)
     # BLF-1016 可逆开关：逗号分隔的域 role 白名单（ad_analysis,
     # inventory_health）。为空 = 旧链路唯一写端；列入的域改为 canonical
     # Insight 写入，并冻结旧 AIInsight 写端点（不双写）。回滚只需清空。

@@ -198,6 +198,36 @@ def test_model_allowlist():
     assert _code(exc) == InsightErrorCode.INVALID_REQUEST
 
 
+def test_model_id_carries_real_provider_model_names():
+    """model_id 是供应商侧的真实模型名：大小写敏感，可含命名空间分隔符。
+
+    回归：把 model_id 当「全小写受控标识」会让任何订阅预设模型（如
+    ``GPT-5.6-Luna``）在 schema 层直接被拒——定时报告 AI 摘要 100% 提交失败。
+    """
+    request = validate_run_request(make_request(model_id="GPT-5.6-Luna"), allow_all)
+    assert request.model_id == "GPT-5.6-Luna"
+
+    request = validate_run_request(
+        make_request(model_id="cohere/north-mini-code:free"), allow_all
+    )
+    assert request.model_id == "cohere/north-mini-code:free"
+
+
+def test_endpoint_id_remains_a_controlled_lowercase_id():
+    """endpoint_id 是服务端端点标识（非供应商命名），仍拒绝大写/URL 形状。"""
+    with pytest.raises(InsightValidationError) as exc:
+        validate_run_request(make_request(endpoint_id="Default"), allow_all)
+    assert _code(exc) == InsightErrorCode.INVALID_REQUEST
+
+
+def test_controlled_id_patterns_stay_single_source():
+    """schema 与 limits 两侧的正则必须逐字一致（历史上是手工双写）。"""
+    from app.schemas import insight as schemas
+
+    assert schemas.MODEL_ID_PATTERN == L.MODEL_ID_PATTERN
+    assert schemas.CONTROLLED_ID_PATTERN == L.CONTROLLED_ID_PATTERN
+
+
 def test_fingerprint_excludes_key_and_client_id(valid_request):
     request = validate_run_request(valid_request, allow_all)
     base = fingerprint_of(request)

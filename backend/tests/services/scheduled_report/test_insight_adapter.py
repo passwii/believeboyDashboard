@@ -290,6 +290,35 @@ class TestSubmitRunForDelivery:
         assert first[1] == again[1]  # 同一 run
         assert len(enqueued) == 1  # 只入队一次（replay 不入队）
 
+    def test_submit_accepts_provider_model_name_from_subscription(self, db: Session):
+        """回归：订阅预设的供应商模型名（含大写）必须能提交 run。
+
+        生产实证：订阅 ai_model='GPT-5.6-Luna' 时，adapter 把它塞进
+        ``raw['model_id']``，被 schema 的「全小写受控标识」正则打回 →
+        ``AI 摘要提交失败：String should match pattern ...``。
+        """
+        from app.services.scheduled_report.insight_adapter import submit as submit_mod
+
+        _add_project(db)
+        sub = _add_subscription(db)
+        sub.ai_model = "GPT-5.6-Luna"
+        db.commit()
+        log = _add_sent_log(db, sub)
+        settings = _fake_settings()
+        settings.ai_chat_basic_models = "GPT-5.6-Luna"
+
+        submitted, run_id, message = submit_mod.submit_run_for_delivery(
+            db,
+            log_id=log.id,
+            scope_authorizer=_AllowAll(),
+            enqueue=lambda rid, att: None,
+            settings=settings,
+        )
+
+        assert submitted is True, message
+        assert run_id is not None
+        assert get_run(db, run_id).model_id == "GPT-5.6-Luna"
+
     def test_submit_fails_when_subscription_missing(self, db: Session):
         """订阅外键失效（级联删除后残余行/悬挂引用）→ submitted=False +
         人可读原因（delivery 标 failed 由调用方）。"""

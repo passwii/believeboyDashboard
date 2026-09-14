@@ -33,8 +33,14 @@ STATUS_DETAIL_MAX_CHARS = 512
 #: 幂等 key 正则：ASCII，1–64 字符
 IDEMPOTENCY_KEY_PATTERN = r"^[A-Za-z0-9._:-]{1,64}$"
 
-#: 受控标识正则：endpoint_id / model_id，仅小写标识
+#: 受控标识正则：endpoint_id / 服务端自有标识，仅小写标识
 CONTROLLED_ID_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,63}$"
+
+#: 模型标识正则：``model_id`` 不是受控 slug，而是**供应商侧的真实模型名**，
+#: 大小写敏感（``GPT-5.6-Luna``）、可含命名空间/变体分隔符
+#: （``cohere/north-mini-code:free``）。授权由 provider allowlist + blocklist
+#: 负责，正则只拦空白/换行等非法形状。
+MODEL_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,63}$"
 
 #: report.context project_ids 上限
 REPORT_PROJECT_IDS_MAX = 50

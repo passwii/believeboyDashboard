@@ -130,6 +130,108 @@ def test_test_model_can_be_used_for_isolated_insight_streaming():
         return "".join(chunks)
 
     assert asyncio.run(collect()) == "streamed insight"
+
+
+def test_provider_advertised_models_extend_the_allowlist():
+    """UI 下拉与 Insight allowlist 必须同源：供应商现役模型名必须可解析。
+
+    回归：订阅预设 ``GPT-5.6-Luna``（代理的大小写敏感真实 id）
+    只出现在供应商 /v1/models 里，静态 AI_CHAT_* 清单没跟上 → 提交 run 时
+    MODEL_NOT_ALLOWED。
+    """
+    settings = FakeSettings()
+    settings.insight_allow_provider_models = True
+    resolver = InsightModelResolver(settings, model_lister=lambda: ["GPT-5.6-Luna"])
+
+    resolved = resolver.resolve_model(model_id="GPT-5.6-Luna")
+
+    assert resolved.model_id == "GPT-5.6-Luna"
+
+
+def test_provider_listing_failure_keeps_static_allowlist_only():
+    """代理抖动（拉不到清单）不得放行未知模型，也不得打死静态 allowlist。"""
+    settings = FakeSettings()
+    settings.insight_allow_provider_models = True
+
+    def _boom() -> list[str]:
+        raise RuntimeError("provider down")
+
+    resolver = InsightModelResolver(settings, model_lister=_boom)
+
+    assert resolver.resolve_model(model_id="insight-fast").model_id == "insight-fast"
+    with pytest.raises(InsightProviderError) as exc_info:
+        resolver.resolve_model(model_id="GPT-5.6-Luna")
+    assert exc_info.value.code is InsightProviderErrorCode.MODEL_NOT_ALLOWED
+
+
+def test_provider_advertised_models_still_respect_blocklist():
+    settings = FakeSettings()
+    settings.insight_allow_provider_models = True
+    settings.ai_chat_model_blocklist = "GPT-5.6-Luna"
+    resolver = InsightModelResolver(settings, model_lister=lambda: ["GPT-5.6-Luna"])
+
+    with pytest.raises(InsightProviderError) as exc_info:
+        resolver.resolve_model(model_id="GPT-5.6-Luna")
+
+    assert exc_info.value.code is InsightProviderErrorCode.MODEL_NOT_ALLOWED
+
+
+def test_provider_listing_stays_off_without_the_setting():
+    """未开启开关的 settings 形状（老配置 / 单测替身）不得触发供应商拉取。"""
+    calls: list[str] = []
+    resolver = InsightModelResolver(
+        FakeSettings(),
+        model_lister=lambda: calls.append("called") or ["GPT-5.6-Luna"],
+    )
+
+    with pytest.raises(InsightProviderError) as exc_info:
+        resolver.resolve_model(model_id="GPT-5.6-Luna")
+
+    assert exc_info.value.code is InsightProviderErrorCode.MODEL_NOT_ALLOWED
+    assert calls == []
+
+
+def test_fetch_provider_model_ids_reads_the_configured_provider(monkeypatch):
+    """默认真实取数走既有 provider 客户端（不在 insight 侧再实现一遍）。"""
+    import app.services.ai.llm as llm_mod
+    from app.services.insight import provider as provider_mod
+
+    monkeypatch.setattr(
+        llm_mod,
+        "fetch_models_from_provider",
+        lambda *_args, **_kwargs: ["GPT-5.6-Luna", "Believeboy-Nano"],
+    )
+    provider_mod._provider_models_cache = None
+
+    ids = provider_mod.fetch_provider_model_ids(FakeSettings(), ttl_seconds=0)
+
+    assert ids == frozenset({"GPT-5.6-Luna", "Believeboy-Nano"})
+
+
+def test_fetch_provider_model_ids_serves_stale_cache_on_failure(monkeypatch):
+    """首次成功后可容忍后续拉取失败（不让代理抖动变成提交失败）。"""
+    import app.services.ai.llm as llm_mod
+    from app.services.insight import provider as provider_mod
+
+    provider_mod._provider_models_cache = None
+    monkeypatch.setattr(
+        llm_mod, "fetch_models_from_provider", lambda *_a, **_k: ["GPT-5.6-Luna"]
+    )
+    assert provider_mod.fetch_provider_model_ids(FakeSettings(), ttl_seconds=0) == frozenset(
+        {"GPT-5.6-Luna"}
+    )
+
+    def _boom(*_args, **_kwargs):
+        raise httpx.ConnectError("proxy down")
+
+    monkeypatch.setattr(llm_mod, "fetch_models_from_provider", _boom)
+    assert provider_mod.fetch_provider_model_ids(FakeSettings(), ttl_seconds=0) == frozenset(
+        {"GPT-5.6-Luna"}
+    )
+
+    provider_mod._provider_models_cache = None
+
+
 def test_rate_limit_during_stream_is_retryable_and_redacted():
     settings = FakeSettings()
     resolver = InsightModelResolver(settings)

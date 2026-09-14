@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
@@ -77,6 +77,70 @@ def _provider_is_configured(settings: _SettingsLike) -> bool:
 
 def _trim_trailing_slash(value: str) -> str:
     return value.removesuffix("/")
+
+#: 供应商现役模型清单缓存 TTL（秒）与模块级缓存槽：同一进程内
+#: API / worker 共享，避免每次提交 run 都打一次 /v1/models。
+PROVIDER_MODELS_TTL_SECONDS = 600
+#: 清单拉取自身的超时上限（秒）：绝不占用 chat 的长超时预算。
+PROVIDER_MODELS_TIMEOUT_SECONDS = 10.0
+#: ``(base_url, fetched_at_monotonic, model_ids)``；按 base_url 隔离，
+#: 避免同进程内不同端点互相污染。
+_provider_models_cache: tuple[str, float, frozenset[str]] | None = None
+
+
+def fetch_provider_model_ids(
+    settings: _SettingsLike, *, ttl_seconds: int | None = None
+) -> frozenset[str]:
+    """读取供应商现役模型 id（与 UI / chat 下拉同源）。
+
+    这是 Insights allowlist 与「用户在下拉里选得到的模型」保持一致的唯一
+    来源：静态 ``AI_CHAT_*`` 清单会随代理上新而漂移，漂移结果是把用户选得
+    到的模型判成 MODEL_NOT_ALLOWED（生产实证：GPT-5.6-Luna）。
+
+    失败语义：拉取失败**不放大**可用集合——返回上次成功结果（stale），没有
+    缓存则返回空集，授权结论退回纯静态 allowlist。
+    """
+
+    import time
+
+    global _provider_models_cache
+
+    ttl = PROVIDER_MODELS_TTL_SECONDS if ttl_seconds is None else ttl_seconds
+    base_url = str(getattr(settings, "ai_chat_provider_base_url", "")).strip()
+    now = time.monotonic()
+    cached = _provider_models_cache
+    if (
+        cached is not None
+        and cached[0] == base_url
+        and ttl > 0
+        and now - cached[1] < ttl
+    ):
+        return cached[2]
+
+    from app.services.ai import llm as ai_llm
+
+    # 清单是一支小 GET，不占用 chat 的长超时预算：解析发生在提交 run 的
+    # 请求/worker 路径上，不能因为代理挂住而拖住请求。
+    configured_timeout = float(
+        getattr(settings, "ai_chat_timeout_seconds", 30) or 30
+    )
+    try:
+        models = frozenset(
+            ai_llm.fetch_models_from_provider(
+                base_url,
+                str(getattr(settings, "ai_chat_provider_api_key", "")).strip(),
+                max(1.0, min(configured_timeout, PROVIDER_MODELS_TIMEOUT_SECONDS)),
+            )
+        )
+    except Exception:  # noqa: BLE001 — 供应商不可达不改变授权结论
+        logger.warning(
+            "Insight provider model listing failed; reusing cached allowlist"
+        )
+        return cached[2] if cached is not None and cached[0] == base_url else frozenset()
+
+    _provider_models_cache = (base_url, now, models)
+    return models
+
 
 class InsightProviderErrorCode(str, Enum):
     """Stable error codes for Insight run/API layers."""
@@ -162,6 +226,8 @@ class _StreamAgent(Protocol):
 
 
 ModelFactory = Callable[[str, str], Model]
+#: 供应商现役模型 id 的取数函数（可注入替身，单测不打网络）。
+ModelLister = Callable[[], Iterable[str]]
 
 
 class InsightModelResolver:
@@ -211,6 +277,7 @@ class InsightModelResolver:
         role_default_models: Mapping[str, str] | None = None,
         endpoint_ids: set[str] | frozenset[str] | None = None,
         model_factory: ModelFactory | None = None,
+        model_lister: ModelLister | None = None,
     ) -> None:
         self._settings = settings
         configured_role_defaults = _parse_role_defaults(
@@ -236,6 +303,9 @@ class InsightModelResolver:
             else configured_endpoint_ids or {configured_default_endpoint}
         )
         self._model_factory = model_factory or self._build_openai_model
+        self._model_lister = model_lister or (
+            lambda: fetch_provider_model_ids(self._settings)
+        )
 
     def resolve_model(
         self,
@@ -358,6 +428,16 @@ class InsightModelResolver:
         if default_model:
             configured.add(default_model)
         configured.update(self._role_default_models.values())
+        # 供应商现役模型与 UI 下拉同源：静态清单漂移不再决定
+        # 可用集合。开关关闭或拉取失败时退回纯静态 allowlist——只做并集，
+        # 绝不因供应商抖动放大可用集合。
+        if getattr(self._settings, "insight_allow_provider_models", False):
+            try:
+                configured |= set(self._model_lister())
+            except Exception:  # noqa: BLE001 — 取数失败不改变授权结论
+                logger.warning(
+                    "Insight provider model listing failed; static allowlist only"
+                )
         blocked = _split_models(self._settings.ai_chat_model_blocklist)
         return {model for model in configured if model not in blocked}
 
