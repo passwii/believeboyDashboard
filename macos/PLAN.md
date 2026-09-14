@@ -118,6 +118,27 @@ idle → loading → (loaded | failed(APIError))
 > 照抄错一处就会「看起来差不多但数值不一致」。桌面端因此不走 `NumberFormatter`
 > （它跟随系统区域），改为手写分组。
 
+> **S5.2 探针结论（2026-09-14，BLF-1057，广告数据页）**：
+> ① **同一个后端，日期契约可以按页面而不同**：`ad-analysis/*` 不传日期 = 聚合全量历史，而
+> `internal/ad-data/*` 的 `period` 是**必填**的，不传直接 `400 period is required`。所以
+> 「不限定日期」在广告数据页必须落成**哨兵窗口**（Web 的 `start_date: dateFrom || '2000-01-01'`）。
+> 照搬上一页的「日期为空就不传参数」会 400。查：`AdDataFormattingTests.testEndpointPathsAndQueryShape`。
+> ② **`summary.total_rows` 是本页返回行数，不是窗口内总数**（后端就是 `len(rows)`）——
+> 拿它当总数会算错总页数，也会让「可能被截断」这件事看不出来。判据只能是「`data.count` 顶到
+> `limit`」。查：`AdDataDecodingTests.testSummaryTotalRowsIsThisPageOnly`。
+> ③ **服务端 offset 翻页不可用**：`_run_raw_query` 只按单个列排序、没有 tiebreaker，实测同一组
+> 参数两次取数**顺序并不稳定**（`limit=200` 的切片不总是 `limit=10000` 响应的前缀，10 个端点里
+> 8 个不是）—— 于是「翻页会重复/漏行」不是理论风险。故本批单发 `limit=10000` + 客户端翻页。
+> 查：`AdDataTableTests.testPagingSlicesIntoSortedRows` 与夹具 README 的实测记录。
+> ④ **`/api/v1/internal/*` 不是一种鉴权**（修正 §4.1 的笼统说法）：`internal/ad-data/*` 挂的是
+> `protected`（`require_api_key`，支持 `blf_` 账号 key），而 `internal/api_keys` /
+> `internal/user_api_keys` 挂 `_require_admin`。`agent/*` 才是要求 Bearer + `X-Agent-Id` 的那一域。
+> 桌面端消费 `internal/ad-data/*` 因此是正当的（BLF-1057 实测可达）。
+> ⑤ **不要把「有数据」的判定交给附属端点**：`ad-upload-files` 按 `updated_at desc` 截断
+> （实测该项目该站点 current 文件 1405 份、端点上限 500），照抄 Web 的「不在列表里就置灰」会把
+> 已有 1321 行数据的「搜索词」显示成「暂无数据」。桌面端改成「全部类型可选 + 可用性看 raw 响应
+> 是否为空」，附属端点只用来显示「最近一次入库」。查：`AdDataDecodingTests.testUploadFilesSnapshotDocumentsTruncation`。
+
 ---
 
 ## 4. 如何复用 `backend/` 现有 API（零后端改动）
@@ -221,7 +242,8 @@ macos/
 ├── .gitignore                 # .build / .swiftpm / Package.resolved / dist
 ├── Tests/
 │   └── BelieveBoyTests/       # XCTest：Kit 逻辑 + UI 状态机（离线，打桩 URLProtocol）
-│       └── Fixtures/AdAnalysis/  # 广告分析 10 个端点的真实响应快照 + manifest（sha256 / 抓取时点）
+│       ├── Fixtures/AdAnalysis/  # 广告分析 10 个端点的真实响应快照 + manifest（sha256 / 抓取时点）
+│       └── Fixtures/AdData/      # 广告数据 11 个端点的真实响应快照 + manifest（同上；抓取脚本见 macos/scripts/）
 │                              #   S2 起同时覆盖 BelieveBoyUI（登录态状态机），故不再叫 *KitTests
 └── Sources/
     ├── BelieveBoyKit/         # 纯逻辑层，不 import SwiftUI
@@ -257,14 +279,25 @@ macos/
     │   │   ├── JobModels.swift   # JobStatus（未知状态安全降级）+ JobSummary/JobDetail/JobRun
     │   │   └── JobClient.swift   # /jobs 三端点 + waitForCompletion / waitForSuccess
     │   ├── AdAnalysis/            # 「广告分析」的领域逻辑（S5.1，不 import SwiftUI）
-    │   │   ├── AdAnalysisCatalog.swift    # 10 个子 Tab / 站点选项 / 端点目录（对齐 config.ts）
+    │   │   ├── AdAnalysisCatalog.swift    # 10 个子 Tab / 端点目录（对齐 config.ts）
     │   │   ├── AdAnalysisModels.swift     # 动态行（list[dict]）+ 卡片模型 + 查询参数（日期可空）
     │   │   ├── AdAnalysisFormatting.swift # 金额 / 百分比 / 占位「—」/ 纯日期串（不走 locale）
     │   │   ├── AdAnalysisColumns.swift    # 逐 Tab 列定义 + 「总览」五源合并网格
     │   │   └── AdAnalysisClient.swift     # 项目列表 5s + 10 端点 15s
+    │   ├── Ads/                   # 广告两页**共用**的领域逻辑（S5.2 起）
+    │   │   ├── AdFilters.swift            # 筛选条取值 + 查询签名（两页同一份，日期语义差异留在各自 Query）
+    │   │   ├── AdPageState.swift          # 加载档（idle/loading/loaded/failed）+ 项目闸门
+    │   │   ├── AdSharedCatalog.swift      # 站点三选一 + 项目列表端点
+    │   │   ├── AdDataCatalog.swift        # 10 种报表类型 / 列定义 / 哨兵窗口 / limit=10000 / pageSize=100
+    │   │   ├── AdDataModels.swift         # 原始行信封 + 入库文件 + 查询（period 必填 → 哨兵窗口）
+    │   │   ├── AdDataFormatting.swift     # 单元格口径（对齐 Web formatAdDataValue，占位「-」）
+    │   │   ├── AdDataTablePipeline.swift  # 客户端「搜索 → 排序 → 翻页」纯函数流水线
+    │   │   └── AdDataClient.swift         # 项目 5s + 入库文件 5s + 10 个原始行端点 15s
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
-    │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json 这类形状由调用方定的字段）
+    │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json / 广告两页的动态行值）
+    │       ├── DynamicJSONRow.swift # 形状由后端决定的一行（广告分析明细行 + 广告数据原始行）
+    │       ├── NumberText.swift   # 数字 → 文本的原语（分组 / 两位小数 / 百分比；不走 locale）
     │       └── AuthModels.swift   # LoginRequest/Response、AuthenticatedUser、AuthSession、UserContext
     ├── BelieveBoyUI/          # SwiftUI 视图 + 视图状态（可离屏渲染，不需启动 GUI）
     │   ├── AppModel.swift         # @MainActor @Observable：登录态 + 连接配置 + 健康检查
@@ -280,7 +313,11 @@ macos/
     │   ├── AgentOverviewView.swift       # 「数据流总览」只读页（7 列矩阵 + 详情面板 + hover）
     │   ├── AdAnalysisStore.swift         # 「广告分析」状态机（共享筛选条 + 10 个 Tab 各自三态 + 在飞去重）
     │   ├── AdAnalysisView.swift          # 「广告分析」只读页（筛选条 + Tab 栏 + 明细网格 + 图表）
-    │   ├── AdAnalysisComponents.swift    # 广告分析共用件（筛选条 / 磁贴 / 叙述 / 风险卡 / 网格 / 图表）
+    │   ├── AdAnalysisComponents.swift    # 广告分析共用件（磁贴 / 叙述 / 风险卡 / 网格 / 图表）
+    │   ├── AdFilterBar.swift             # 两页**共用**的筛选条（协议 AdFilterDriving 驱动，文案差异由 store 提供）
+    │   ├── AdDataStore.swift             # 「广告数据」状态机（10 种类型三态 + 客户端搜索/排序/翻页/展开）
+    │   ├── AdDataView.swift              # 「广告数据」只读页（筛选条 + 类型选择 + 搜索 + 原始行表 + 翻页）
+    │   ├── AdDataComponents.swift        # 广告数据共用件（类型选择 / 搜索 / 原始行表 / raw_row 详情 / 翻页条）
     │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
     │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
     │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
@@ -294,9 +331,10 @@ macos/
 
 > **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **256 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
 >
-> **计数口径（S5.1 实测，2026-09-14）**：`origin/main`（不含 PR #614）基线 186 个，本批
-> （广告分析页）**+70** → 256；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`，
-> 实测 **256 executed / 4 skipped / 0 failures**。PR #614 自带 75 个用例，合入后总数会再涨。
+> **计数口径（S5.2 实测，2026-09-14）**：本批开工基线 = `origin/main`（含 PR #614 / #615）
+> **339 executed / 4 skipped / 0 failures**；广告数据页 **+89** → **428 executed / 4 skipped /
+> 0 failures**；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
+> 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339。
 > `scripts/make-app.sh` 仍属 S7a。
 
 ---
@@ -314,6 +352,7 @@ macos/
 | **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 已完成（BLF-1052） |
 | **S5.0** | 客户端能力补齐（S5 的前置批次，不加页面） | Kit 层四类能力：**JSON 写入**（PUT/PATCH/DELETE + 文档无体的「忽略响应体」一组）、**multipart 上传**（显式 `Content-Length` + `httpBodyStream`，文件按块读、中文文件名双形态）、**SSE 流式**（逐帧 yield、`.stream` 档、取消即拆连接）、**长任务轮询 + 文件下载**（退避 + 上限、流式落盘 + 原子替换）；`JobClient` 收编 `/jobs` 三端点 | 四类能力各有打桩用例（断言真实请求属性，而非常量表）；multipart 边界 / 中文文件名正确且上传体不整份进内存；SSE 走 `.stream` 档且取消不留 Task；轮询有退避与上限（不无限打后端）；错误分类沿用 `APIError`（401/403 → `requiresCredentialFix`；传输失败不算凭据问题）；`swift test` 256 用例全绿（4 个真后端用例默认 skip） | S4 | 已完成（BLF-1053） |
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S5.0 | 后续多个 issue（每组一个） |
+| **S5.2** | S5 广告分组第二批 | 「广告 → 广告数据」只读页：报表类型选择 + 共享筛选条 + 原始行表格（搜索 / 排序 / 客户端翻页 / 行内 `raw_row` 中文列详情） | 11 个端点全部接通、固定参数下数值与 Web 一致（切片与全量响应同 id 逐字段一致）；加载/空/错误三态齐备，刷新失败保留旧表；切类型 / 改筛选 / 切模块取消在跑请求且不落错误态；单发 `limit=10000` + `pageSize=100` 客户端翻页并给「可能截断」提示（不做 offset 翻页）；11 个端点各有真实响应快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 428 用例全绿 | S5.1 | 已完成（BLF-1057） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
 | **S8** | 自动更新与系统集成 | Sparkle appcast；菜单栏角标（告警/长任务）；系统通知 | 旧版本可收到新版本提示并完成升级；通知点击可深链到对应模块 | S7 | 后续 issue（可选） |

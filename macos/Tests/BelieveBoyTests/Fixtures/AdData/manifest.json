@@ -1,0 +1,138 @@
+{
+  "auth": "X-API-Key（主 key）+ X-Is-Admin: true",
+  "backend": "本地后端 + 生产快照库 BLF（backend/.env 的 DATABASE_URL），经 FastAPI TestClient 走真实 HTTP 路由",
+  "capture_script": "macos/scripts/capture-ad-data-fixtures.py（只读 GET，无写请求）",
+  "captured_at": "2026-09-14T20:09:19+0800",
+  "captured_by": "BLF-1057（macOS Stage 5.2 广告数据页）",
+  "files": [
+    {
+      "bytes": 321247,
+      "endpoint": "campaigns",
+      "file": "ad-data-campaigns-raw.json",
+      "full_bytes": 1106776,
+      "full_rows": 944,
+      "report_type": "ad_campaign_report",
+      "rows": 200,
+      "sha256": "af429efc988b94df48ad4a85361cf9cbb6adf0905f04c8aed2c21937a9e0df5a"
+    },
+    {
+      "bytes": 404988,
+      "endpoint": "budgets",
+      "file": "ad-data-budgets-raw.json",
+      "full_bytes": 1583641,
+      "full_rows": 1040,
+      "report_type": "ad_budget_report",
+      "rows": 200,
+      "sha256": "4c8004893baafcb0e4779325f37561320ecd581c70ba5188787f1a746a9c854c"
+    },
+    {
+      "bytes": 331191,
+      "endpoint": "targets",
+      "file": "ad-data-targets-raw.json",
+      "full_bytes": 2698506,
+      "full_rows": 2250,
+      "report_type": "ad_target_report",
+      "rows": 200,
+      "sha256": "fe8aab734b1eb9af0beae2b92f63650f3d6fd33df5aa04931e1fc184039c5226"
+    },
+    {
+      "bytes": 251250,
+      "endpoint": "placements",
+      "file": "ad-data-placements-raw.json",
+      "full_bytes": 2529377,
+      "full_rows": 2742,
+      "report_type": "ad_placement_report",
+      "rows": 200,
+      "sha256": "265473e29900b8c7edb507b209ae45320f5e119ea7fa5220da2a9ee58fa845b2"
+    },
+    {
+      "bytes": 322617,
+      "endpoint": "search-terms",
+      "file": "ad-data-search-terms-raw.json",
+      "full_bytes": 1528848,
+      "full_rows": 1321,
+      "report_type": "ad_search_term_report",
+      "rows": 200,
+      "sha256": "1eec7a163216ebe8a95ce0198ab727a4e92d73f6368f66a14654cab12132e150"
+    },
+    {
+      "bytes": 303295,
+      "endpoint": "search-term-shares",
+      "file": "ad-data-search-term-shares-raw.json",
+      "full_bytes": 3405532,
+      "full_rows": 3101,
+      "report_type": "ad_search_term_share_report",
+      "rows": 200,
+      "sha256": "bd312dff276cfb5e4857d2486a998984341b15aa441b89f13008fee1568316f5"
+    },
+    {
+      "bytes": 347420,
+      "endpoint": "promoted-products",
+      "file": "ad-data-promoted-products-raw.json",
+      "full_bytes": 9981232,
+      "full_rows": 7805,
+      "report_type": "ad_promoted_product_report",
+      "rows": 200,
+      "sha256": "0b69a1d1abc7bf9131d56ccbc69e246531064be9d318fce9f172e7eaa49c53ec"
+    },
+    {
+      "bytes": 57255,
+      "endpoint": "time-trends",
+      "file": "ad-data-time-trends-raw.json",
+      "full_bytes": 40019,
+      "full_rows": 98,
+      "report_type": "ad_time_trend_report",
+      "rows": 98,
+      "sha256": "47446e816ae2d2ca27fc218b02a7c4d5235096456b426b6904c6f8f6a53ee9ce"
+    },
+    {
+      "bytes": 207825,
+      "endpoint": "invalid-traffic",
+      "file": "ad-data-invalid-traffic-raw.json",
+      "full_bytes": 719372,
+      "full_rows": 953,
+      "report_type": "ad_invalid_traffic_report",
+      "rows": 200,
+      "sha256": "45d2d288e70a0b90ec3d9a3cbe9840d47d6dcc915f75367bcf6e152b3b64ce6a"
+    },
+    {
+      "bytes": 18246,
+      "endpoint": "purchased-products",
+      "file": "ad-data-purchased-products-raw.json",
+      "full_bytes": 13585,
+      "full_rows": 15,
+      "report_type": "ad_purchased_product_report",
+      "rows": 15,
+      "sha256": "0867b2896d7a1453885e6aae2f99fb3214a6b544bdd76ba4365034d372605cd6"
+    }
+  ],
+  "params": {
+    "country": "US",
+    "end_date": "2100-12-31",
+    "fixture_limit": 200,
+    "note": "夹具落盘用 limit=200（体积纪律，见 README）；full_rows / full_bytes 是 limit=10000（页面口径）时的真实行数与响应字节数，只测量不落盘。",
+    "page_limit": 10000,
+    "period": "custom",
+    "project_id": 1,
+    "start_date": "2000-01-01"
+  },
+  "upload_files": {
+    "bytes": 185723,
+    "country": "US",
+    "file": "ad-upload-files.json",
+    "items": 500,
+    "limit": 500,
+    "report_types": [
+      "ad_budget_report",
+      "ad_campaign_report",
+      "ad_invalid_traffic_report",
+      "ad_placement_report",
+      "ad_promoted_product_report",
+      "ad_purchased_product_report",
+      "ad_search_term_share_report",
+      "ad_target_report",
+      "ad_time_trend_report"
+    ],
+    "sha256": "7784434e648d595499badd2838c881fca8779e3fadbac86176980a35db570f66"
+  }
+}

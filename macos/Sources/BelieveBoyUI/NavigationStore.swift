@@ -32,6 +32,12 @@ public final class NavigationStore {
     ///
     /// 同样放在外壳里：切 Tab / 切模块再回来不该重新拉数据、也不该丢掉已选项目与站点。
     public let adAnalysis: AdAnalysisStore
+    /// 「广告 → 广告数据」（S5.2）的模块 store：10 种报表类型的原始行表 + 客户端搜索 / 排序 /
+    /// 翻页 / 行展开。
+    ///
+    /// 同样住在外壳里：临时的搜索词、翻到第几页、展开了哪几行都是「用户在这个页面上的位置」，
+    /// 切走再回来应当原处。两页的筛选条各自持有 `AdFilters`（同一份实现，见 `AdFilters`）。
+    public let adData: AdDataStore
 
     public private(set) var selectedGroupID: String?
     public private(set) var selectedRouteID: String?
@@ -48,13 +54,15 @@ public final class NavigationStore {
         preferences: ShellPreferencesStore = UserDefaultsShellPreferencesStore(),
         tasks: ModuleTaskScope = ModuleTaskScope(),
         agentOverview: AgentOverviewStore = AgentOverviewStore(),
-        adAnalysis: AdAnalysisStore = AdAnalysisStore()
+        adAnalysis: AdAnalysisStore = AdAnalysisStore(),
+        adData: AdDataStore = AdDataStore()
     ) {
         self.groups = groups
         self.preferences = preferences
         self.tasks = tasks
         self.agentOverview = agentOverview
         self.adAnalysis = adAnalysis
+        self.adData = adData
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)
