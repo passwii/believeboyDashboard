@@ -28,6 +28,10 @@ public struct ShellView: View {
             detailColumn
         }
         .toolbar { toolbarItems }
+        // 离开外壳（登出 / 窗口收起）= 模块工作全部作废：继续跑只会在没有会话的情况下
+        // 拿一堆 401 回来（而且用户已经把界面交回登录页），与 PLAN §4.1.1 「失效就停」
+        // 同口径。任务由 `ModuleTaskScope` 统一收拢，所以这里只需一句话。
+        .onDisappear { navigation.tasks.cancelAll() }
     }
 
     // MARK: - 侧栏：8 个分组
@@ -72,7 +76,12 @@ public struct ShellView: View {
     @ViewBuilder
     private var detailColumn: some View {
         if let group = navigation.selectedGroup, let item = navigation.selectedItem {
-            ModulePlaceholderView(group: group, item: item)
+            // 已搬运的模块命中路由表（真数据 + 三态）；未命中的仍是占位（零请求）。
+            if let module = ModuleRegistry.view(for: item, model: model, navigation: navigation) {
+                module
+            } else {
+                ModulePlaceholderView(group: group, item: item)
+            }
         } else if let group = navigation.selectedGroup {
             ContentUnavailableView(
                 "\(group.label) 下未选页面",

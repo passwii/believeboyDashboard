@@ -3,7 +3,7 @@
 BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https://dash-api.believeboy.com`），复用 `backend/` 现有 API，不改后端、不经 Next.js 代理。
 
 - **技术路线 / stage 计划 / 工具链约束**：见 [PLAN.md](./PLAN.md)（权威）
-- **当前进度**：Stage 0/1/2/3 —— 骨架 + 登录与会话 + **应用外壳与导航**（三栏：8 个分组 → 56 个二级项 → 模块占位视图）。业务模块本身未实现（S4 起逐个搬）。
+- **当前进度**：Stage 0–4 —— 骨架 + 登录与会话 + **应用外壳与导航**（三栏：8 个分组 → 56 个二级项）+ **首个真实业务模块「运营 → 数据流总览」**（只读、四端点、三态齐备）。其余 55 个二级项仍是占位视图（S5 起按分组继续搬）。
 
 ## 环境要求
 
@@ -28,7 +28,7 @@ swift run BelieveBoyMac  # 启动（弹出窗口），默认连生产后端
 
 - **侧栏**：8 个分组（运营 / 报表中心 / 财务资金 / 广告 / AI 智能 / CRM / 工具箱 / 系统管理）——条目与顺序以 `frontend/lib/sidebar-config.ts` 为准；
 - **内容栏**：所选分组下的二级项（共 56 项）；
-- **详情栏**：选中项的**占位视图**（分组 + 标题 + 对应 Web 路由 + 「未实现」）。占位视图**不发任何请求**，也**不列后端端点** —— 端点映射逐模块核对，S4 起随模块落地；CRM「待跟进」在 Web 上有动态徽标，占位期只保留语义位、不显示编造的数字；
+- **详情栏**：**已搬运的模块**渲染真页面（当前只有「运营 → 数据流总览」，见下节），其余二级项仍是**占位视图**（分组 + 标题 + 对应 Web 路由 + 「未实现」）。占位视图**不发任何请求**，也**不列后端端点** —— 端点映射逐模块核对；CRM「待跟进」在 Web 上有动态徽标，占位期只保留语义位、不显示编造的数字；
 - **未选分组时**详情栏是「连接与身份」概览（账号 + 连接检查），工具栏「连接与身份」可随时回来；
 - **偏好设置**（工具栏齿轮 或 `⌘,`）：后端地址 生产 / 本地 + 自定义地址（与登录页页脚同一块 UI，只是收编到外壳里）；
 - 侧栏折叠（`⌘⌥S` 或拖分栏线）与**窗口尺寸**在下次启动时恢复：落盘的选中项、折叠态、窗口 frame 存在 `UserDefaults` 的 `shell.preferences.v1`（一条 JSON；**不含任何凭据**）。落盘内容会被清洗：条目已不在 catalog、尺寸不合理、窗口坐标跑到屏幕外（拔显示器）都会退回默认，不会“启动了但看不见”。
@@ -79,11 +79,54 @@ swift run BelieveBoyMac
 > 密码只随登录请求发一次（不进日志）；key 与账号档案存 macOS 钥匙串；
 > **密码只有勾上「记住密码」时才进钥匙串**，且从不进 `UserDefaults`、账号档案或日志。
 
+## 「运营 → 数据流总览」（S4，只读）
+
+侧栏 **运营 → 数据流总览**（对应 Web 路由 `/dashboard/agent-center/overview`）。
+
+矩阵 7 列：业务域 / 最近活动 / 调用 24h / 调用 7d / 7d 错误 / 今日产出 / 状态；
+**说明、能力、路由数、读写量、Web 入口进详情面板**（点行展开）与 **hover 提示** —— Web 是
+11 列定宽 `min-w-[1040px]` 横滑表，三栏外壳的详情栏装不下。若之后要「照搬 Web 密度」，
+把 `AgentOverviewView` 的列宽改回定宽全列 + 横向滚动即可（小改，不动数据层）。
+
+数据源（四个端点并发、**各自降级**：一个源失败只让它那两列显示占位「—」，其余列与矩阵不受影响）：
+
+| 用途 | 端点 | 超时档 |
+| --- | --- | --- |
+| 业务域活动矩阵 | `GET /agent-ops/domain-summary?days=7` | 统计 15s |
+| 今日产出·客诉 | `GET /complaints/overview?date=<美西今天>` | 列表 5s |
+| 今日产出·巡检 | `GET /inspections/periods/current` → `/periods/{id}/overview` | 列表 5s |
+| 今日产出·报表 | `GET /rpa-reports/status?report_date=<美西今天>&country=US` | 列表 5s |
+
+口径要点（与 Web 同源同值，逐条钉在用例里）：
+
+- **注册表补全**：后端只返回「窗口内有调用」的域，17 个业务域（16 live / 1 planned）里缺位的行
+  显示占位「—」而**不是** 0；后端返回的未知 code 整条忽略。`AgentDomainCatalog` 复刻
+  `frontend/lib/agent-domains.ts`（含「产出域置顶 + 稳定排序」的行序）；
+- **新鲜度**：绿 <24h / 黄 1–7d / 灰 >7d 或从未活动；相对时间「刚刚 / N 分钟前 / N 小时前 / N 天前 / M/D」；
+- **今天是美西今天**（`America/Los_Angeles`）：用本机时区算会让「今日产出」整列多/少一天
+  （美西 16:00 之后 = 北京次日），这是本页最容易错、也最难靠肉眼发现的一处；
+- **三态齐备**：加载（首次）、空（窗口内无活动 → 明确提示 + 全占位表格）、错误（矩阵失败 →
+  错误卡片 + 重试；**有旧数据时保留表格** + 警告横幅，不把可用数据藏起来）；
+- **口径与后端响应字段名**：`agent-ops/domain-summary` 的 `items` 缺省 / `null` 都当空矩阵；
+  巡检概览取 `total_projects` / `submitted_count`；报表按 **cell** 数（项目 × 报表类型）聚合，
+  只有 `is_uploaded === true` 计入已上传。
+
+> ⚠️ **已记录的跨端差异（不是桌面端口径漂移）**：Web 的 `use-agent-production.ts` 里
+> `parseComplaintsOverview` 读的是 `payload.shops`，而后端 `OverviewResponse` 在
+> `shop_id → project_id` 重构后只返回 `projects` —— 所以 **Web 的「今日产出·客诉」列恒为「—」**。
+> 桌面端按后端真实语义（`projects` 非空 = 有当日巡检 run）实现，有 run 的那天会显示
+> 「待回复 N」。修 Web 是一行（`p.projects`），但属于 `frontend/` 改动，需另开 issue。
+
+> 解码陷阱（写代码前先看这条）：`convertFromSnakeCase` 把 `calls_24h` 转成 **`calls24H`**
+> （不是 `calls24h`）—— 属性名必须照它写，否则编译通过、运行时整条响应报「缺少字段」。
+> `AgentOpsDataTests` 用真实响应钉住这几个字段名（`calls24H` / `calls7D` / `writes24H` /
+> `writes7D` / `errors7D`）。
+
 ## 验证
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 128 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 186 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
@@ -137,6 +180,22 @@ S2 UI 精简新增用例：**「记住密码」默认关**（未勾选时一个�
 
 S3 新增用例：**导航快照**（8 组 / 56 项 / 各组条目数 / 18 处 `matchPrefixes` / route id 唯一 / 分组归属看条目位置而非路由前缀）、**高亮语义**（`/dashboard` 精确匹配特例、前缀匹配点亮子路径、无前缀条目不被兄弟子路径误亮）、**动态徽标语义位**（只有 CRM「待跟进」带 `requiresLiveData`）、**外壳状态恢复**（选中项 / 折叠态 / 窗口尺寸落盘往返；旧条目被删则退回概览；尺寸不合理或坐标在屏幕外则丢弃并居中）、**切换模块不残留任务**（`ModuleTaskScope` 取消上一个 route 的任务、同 key 重跑先取消、概览任务也会被收掉）、**离屏渲染**（三栏外壳真画出内容，且占位视图**零请求**）。
 
+S4 新增用例：**业务域注册表快照**（17 域 / 16 live / 1 planned / code 全集 / 矩阵行序的稳定排序）、**格式口径**（美西今天跨时区边界、新鲜度三档边界、相对时间全分支、错误率与 Web 同口径舍入）、**真实响应快照解码**（6 位小数秒时间戳、两层嵌套的报表矩阵、`projects` vs 已废弃的 `shops`、未知 code 忽略、缺位即占位）、**请求形状与分层超时**（矩阵 15s / 三源 5s、巡检两跳的 id 取自第一跳、`X-Operator` 一族必发、无凭据不发请求）、**状态机**（加载→就绪、空态、错误态与重试、刷新失败保留旧数据、单源失败只影响自己那两列、挂起源保持 loading、取消回 idle 不落错误态、切模块取消在跑加载、连点刷新只留最后一次）、**离屏渲染**（真模块发 5 个请求并画出数据）。
+
+真后端「同源同值」用例（`Tests/BelieveBoyTests/LiveAgentOpsTests.swift`，**默认 skip**）：对同一组端点做两次读 —— 一次走 `AgentOpsClient`、一次走裸 `URLSession` + `JSONSerialization` —— 逐字段比对（调用量 / 写量 / 错误数 / 时间戳 / 待回复数 / 巡检计数 / 报表 cell 聚合）。跑法（本地后端 + 生产库快照；**不要用真人账号的 `blf_` key**，登录会轮换它）：
+
+```bash
+cd backend && .venv/bin/uvicorn app.main:app --port 8100     # DATABASE_URL 取自 backend/.env
+# 另开一终端（Redis 也要在跑：报表/项目列表走缓存）
+cd macos
+BELIEVEBOY_E2E_BASE_URL=http://127.0.0.1:8100 \
+BELIEVEBOY_E2E_API_KEY="$(grep '^API_KEY=' ../backend/.env | cut -d= -f2-)" \
+BELIEVEBOY_E2E_OPERATOR=Yawei \
+BELIEVEBOY_E2E_USER_ID=<账号 uuid> \
+BELIEVEBOY_E2E_IS_ADMIN=true \
+DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --filter LiveAgentOpsTests
+```
+
 浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
 无需启动 GUI 进程即可确认视图真实渲染结果。
@@ -154,13 +213,13 @@ S3 新增用例：**导航快照**（8 组 / 56 项 / 各组条目数 / 18 处 `
 
 ## 目录
 
-```
+```text
 macos/
 ├── PLAN.md                     # 选型 + 架构 + stage 计划（权威文档）
 ├── Package.swift               # 三层 target + BelieveBoyTests
 ├── Tests/BelieveBoyTests/      # XCTest（离线打桩 + 离屏渲染；需完整 Xcode）
 └── Sources/
-    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针 / 导航目录与外壳状态（不 import SwiftUI）
+    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针 / 导航目录与外壳状态 / 业务域（AgentOps：注册表 + 格式化 + 四端点客户端）（不 import SwiftUI）
     ├── BelieveBoyUI/           # SwiftUI 视图 + store（可离屏渲染）
     └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口尺寸恢复 + 菜单）
 ```

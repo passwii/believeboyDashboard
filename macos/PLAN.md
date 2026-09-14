@@ -47,7 +47,7 @@ NavigationSplitView
 - **不做 role 过滤**：`sidebar-config.ts` 的 `roles` / `groupRoles` 已全部移除（该文件头写明「可见性改由单页权限（per-page）接管」，`filterByRole` / `getVisibleGroups` 仅保留接口），**实测 0 处标记**。桌面端 catalog 因此只做 分组 / 二级项 / route id；照旧口径做 role 过滤反而会与 Web 端可见性不一致。
 - **高亮不能只比 `url` 相等**：Web 的 `isLinkActive` 有一条 `/dashboard` 特例（仅精确相等）加 `matchPrefixes` 前缀匹配（实测 18 处），否则子路径页面会丢高亮。Swift 侧 `NavigationCatalog.isActive(path:item:)` 复刻这条语义。
 - **CRM「待跟进」的动态徽标只留语义位**：Web 端那条挂 `CrmFollowUpBadge`（需要拉数据才有数字）。catalog 用 `requiresLiveData` 记下这条语义，占位期不显示编造的数字，实现在 S4+。
-- 二级页首期全部渲染 `ModulePlaceholderView`（分组 + 标题 + **对应 Web 路由** + 「未实现」状态），保证「可见即可见」：导航先立起来，模块逐个填。**占位视图不发任何请求**，也**不列「对应后端端点」** —— 端点映射要逐模块核对（同一个 Web 页可能打多个端点），先写进去就是把猜出来的映射当契约传播；S4 起随模块一起落地。
+- 二级页首期全部渲染 `ModulePlaceholderView`（分组 + 标题 + **对应 Web 路由** + 「未实现」状态），保证「可见即可见」：导航先立起来，模块逐个填。**占位视图不发任何请求**，也**不列「对应后端端点」** —— 端点映射要逐模块核对（同一个 Web 页可能打多个端点），先写进去就是把猜出来的映射当契约传播；S4 起随模块一起落地（S4 已把「数据流总览」换成真模块，其余仍走占位；命中表在 `ModuleRegistry`）。
 - 命令面板（`⌘K`）与全局搜索属后续 stage；Web 端 `search-command` 的语义（跳转 + 最近访问）桌面端对齐。
 
 ### 2.3 状态机（每个模块视图统一三态）
@@ -83,6 +83,19 @@ idle → loading → (loaded | failed(APIError))
 > ——「CLT 也能 build」的承诺没有被打破（`@State` / `@Bindable` 依旧不使用）。视图与
 > store 之间只经 `NavigationBindings` 一处对接。查这条结论的用例：`NavigationStoreTests`
 > + `ShellRenderingTests`（离屏渲染三栏外壳）。
+>
+> **S4 探针结论（2026-09-14，BLF-1052）**：
+> ① **模块状态必须由外壳持有**（`NavigationStore.agentOverview`）—— 视图是值类型、重绘即
+> 重建，状态放视图里等于「切走再回来 = 重新加载 + 丢选中行」；S5 搬新模块照此往外壳加。
+> ② 模块自己的加载要经 `ModuleTaskScope.run(key: 当前 route id)` 登记（不是裸 `Task`），
+> 切换模块时由外壳统一取消；**取消不能落成错误态**（否则每次切回来都看到一条「已取消」
+> 红条），故状态机在写入前判 `loadToken` + `Task.isCancelled`，取消就把还在 loading 的源
+> 退回 idle。
+> ③ 离屏渲染**真模块**时宿主必须一直活着：`NSHostingView` 一释放，视图的 `.task` 就被取消，
+> 加载永远到不了「已就绪」（S3 的占位视图零请求，所以没踩到这个坑）。
+> ④ `convertFromSnakeCase` 对数字段的行为反直觉：`calls_24h → calls24H`（不是 `calls24h`），
+> 字段名必须照实写，否则编译通过、运行时整条响应报「缺少字段」。
+> 查这些结论的用例：`AgentOverviewStoreTests`、`AgentOpsClientTests`、`ShellRenderingTests`。
 
 ---
 
@@ -205,6 +218,11 @@ macos/
     │   ├── Navigation/            # 导航与外壳状态的**纯逻辑**（不 import SwiftUI）
     │   │   ├── NavigationCatalog.swift   # 8 分组 / 56 二级项 / 高亮语义（对齐 sidebar-config.ts）
     │   │   └── ShellPreferences.swift    # 选中项 / 侧栏折叠态 / 窗口尺寸 + 不可信落盘的清洗规则
+    │   ├── AgentOps/              # 业务模块的领域逻辑（S4 起按模块增，不 import SwiftUI）
+    │   │   ├── AgentDomains.swift        # 业务域注册表（复刻 agent-domains.ts：17 域 / 16 live / 行序）
+    │   │   ├── AgentOpsModels.swift      # domain-summary / 客诉 / 巡检 / 报表的响应模型 + 矩阵装配
+    │   │   ├── AgentOpsFormatting.swift  # 美西今天 / 新鲜度 / 相对时间 / 错误率（纯函数，显式吃 now）
+    │   │   └── AgentOpsClient.swift      # 四端点客户端（分层超时：矩阵 15s、三源 5s）
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       └── AuthModels.swift   # LoginRequest/Response、AuthenticatedUser、AuthSession、UserContext
@@ -217,6 +235,9 @@ macos/
     │   ├── LoginView.swift        # 登录表单（窄栏居中，服务器选择默认折叠）
     │   ├── ShellView.swift        # 三栏外壳（8 分组 / 二级项 / 模块内容）+ 工具栏
     │   ├── ModulePlaceholderView.swift  # 二级页占位（分组 + 标题 + Web 路由 + 未实现，不发请求）
+    │   ├── ModuleRegistry.swift          # 模块视图路由表（route id → 真模块；未命中则走占位）
+    │   ├── AgentOverviewStore.swift      # 「数据流总览」状态机（四源并发各自降级 + 三态 + 选中行）
+    │   ├── AgentOverviewView.swift       # 「数据流总览」只读页（7 列矩阵 + 详情面板 + hover）
     │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
     │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
     │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
@@ -228,7 +249,7 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **128 个用例**（其中 2 个真后端用例默认 skip），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **186 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
 
 ---
 
@@ -242,7 +263,7 @@ macos/
 | S1 | 最小可运行骨架 | `macos/` SPM 工程（Kit + UI + 引导三层）：`AppConfig` + `APIClient` + Keychain 凭据 + 健康检查视图 + AppKit 引导与主菜单 + Kit 层 XCTest；`windows/README.md` 占位 | ① `swift build` 零错误（CLT 与完整 Xcode 两条工具链分别实测）；② Kit 层对真实后端端到端跑通（存活探针 / 鉴权探针 / snake_case 解码 / 缺凭据拦截 / 错误 key → 403 / 不可达 → transport / snapshot 短路）；③ App 启动建出窗口；④ 视图渲染出 `/health` 的 DB·副本·Redis·内存·环境名真实数据，失败态显示对应中文错误；⑤ `swift test` 11 用例全绿（需完整 Xcode，见 §9）；⑥ 生产直连验证见 §4.1 实测表 | S0 | 已完成（BLF-1041） |
 | **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页；「记住密码」（钥匙串，opt-in） | 冷启动凭据有效直进主界面；**401/403（含被网页端/其他设备登录顶掉导致 key 失效）→ 明确再登录路径，不做无谓重试**；App 不内置任何 key；密码不落盘（仅勾选「记住密码」时入钥匙串，且从不进 `UserDefaults`/账号档案/日志）；登录页精简（无说明性段落，服务器选择默认折叠） | S1 | 已完成（BLF-1044） |
 | **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地，**收编**已存在的选择 UI，不新增能力） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致（快照用例钉在 Swift 侧）；切换模块无泄漏 Task（`ModuleTaskScope` 按 route id 取消，占位视图零请求）；窗口尺寸 / 侧栏折叠状态可恢复（`ShellPreferences` + 落盘清洗与夹回可见屏幕的规则） | S2 | 已完成（BLF-1051） |
-| **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 后续 issue |
+| **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 已完成（BLF-1052） |
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S4 | 后续多个 issue（每组一个） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
@@ -270,7 +291,7 @@ S0 → S1 → S2 → S3 → S4 → S5(×8) → S6
 
 | 项 | 影响 | 处置 |
 | --- | --- | --- |
-| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyTests/`，见 §8 S1/S2）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。**一并就绪的还有打包链路**：`xcrun notarytool` / `swift-format` / `simctl` 在完整 Xcode 下均可解析（license、first-launch 已通过），S7a/S7b 不再卡工具链。 |
+| **两条工具链能力不同**（已实测，2026-09-13） | **Command Line Tools**（`xcode-select -p` = `/Library/Developer/CommandLineTools`）：① SwiftUI 属性包装器宏（`@State`/`@Bindable`/`@Environment`）不可用 —— 实现在 `SwiftUIMacros` 插件里，仅完整 Xcode 提供；② XCTest 与 swift-testing 均无法构建（缺 `XCTest` 模块 / `TestingMacros` 插件）。**完整 Xcode 27.0 (27A266a)**：宏与测试框架均可用。 | 不切 `xcode-select`（需 sudo，且改动全局默认工具链），改用 `DEVELOPER_DIR=<Xcode>/Contents/Developer` 按命令指定。**代码刻意选在两条工具链的交集**：引导用 AppKit、视图不用属性包装器 → `swift build` 在两条工具链下都通过（CLT 已实测），装了 Xcode 的人也不受影响。测试则明确**要求完整 Xcode**（`Tests/BelieveBoyTests/`，见 §8 S1/S2）；`swift build` 不编译 testTarget，故 CLT 用户无感。若日后要切 `@main App` + `@State`/`@Bindable`，属独立 issue 的可选简化（当前无功能收益）。**一并就绪的还有打包链路**：`xcrun notarytool` / `swift-format` / `simctl` 在完整 Xcode 下均可解析（license、first-launch 已通过），S7a/S7b 不再卡工具链。**附带坑（S4 实测）**：两条工具链共用 `.build/` 时，索引产物会互相覆盖，sourcekit 报 `Compiled module was created by a different version of the compiler` 而后退回 `No such module`；另外 CLT 构建不了 testTarget，故 Editor 侧索引在 CLT 下必然残缺。处置：跑完 `swift test`（Xcode 工具链）后删 `.build/index-build`，需要索引时用 CLT 重建（`swift build`）；或给 `swift test` 单独指定 `--scratch-path .build/xcode-check` 与索引目录互不干扰。这条只影响本机编辑器体验，不影响构建与测试。 |
 | **Xcode 安装位置非标准**（外置卷） | 真身 `/Volumes/Rock/Xcode.app` = **Xcode 27.0（build `27A266a`，即 27.0 RC）**，macOS 27.0 SDK（`macosx27.0`）+ Swift 6.4；`/Applications/Xcode.app` 只是 **416K 转发壳**（`Contents/Resources/real_app_path.txt` → 真实路径），**不含 toolchain**。本机 `xcode-select -p` **仍指向 `/Library/Developer/CommandLineTools`**，纯净 shell 下 `xcodebuild` 依旧报 "requires Xcode" | 两条等价写法：① 一次性（需密码，**留给用户执行**）`sudo xcode-select -s /Volumes/Rock/Xcode.app/Contents/Developer` —— **不能**指向 `/Applications/Xcode.app`（壳，无 `Contents/Developer`）；② 免 sudo、按命令生效（本仓库 CI/文档采用）：`DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer`。**外置卷未挂载时完整工具链不可用**（`swift test` 挂），CLT 路径仍可 `swift build`，代码不受影响。 |
 | **桌面端 key 与网页端互踢**（覆盖式轮换，一账号同时只有一把） | 覆写同一行 `user_api_keys.key_hash`（`user_api_key_service.py:69`）→ 桌面端已存 key **立即失效**；调用方不止桌面端：Web 登录（`frontend/lib/auth/options.ts:47`）与改密码重认证（`frontend/app/api/user/password/route.ts:36`）都打 `POST /api/v1/auth/login`。失效表现为 **403 `Invalid API key`**（`security.py:45-71`），**不是 401** | 已定契约（详见 §4.1.1）：**App 不打包/不内置 key**；**401/403 一律走「请重新登录」而非静默失败**（`APIError.requiresCredentialFix`，已实测生产 403 → 该信号）—— 只判 401 会漏掉最常发生的路径。「一账号多设备多把 key」是**唯一**可能需要改后端的点，**待 Yawei 拍板**；在拍板前不改后端 |
 | Apple Developer 账号缺失 | S7b/S7c 无法推进 | 需用户决策（是否购买）；在此之前以 ad-hoc `.app` 分发 |
