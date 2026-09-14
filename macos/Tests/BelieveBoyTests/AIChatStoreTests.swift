@@ -18,6 +18,9 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
         case failure(status: Int)
         /// 一直挂起，直到任务被取消 —— 用来观测 loading 中间态与取消行为。
         case hang
+        /// 「活流」：由用例用 `emit(_:)` 逐帧推送。用来造**帧在切换之后才到达**的竞态
+        /// （切会话 / 新建会话那一瞬间旧流还活着的窗口）——`.value` / `.hang` 都造不出来。
+        case live
     }
 
     /// 挂起源被取消时的记录器。
@@ -42,6 +45,10 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     private var usageRanges: [AIChatUsageRange] = []
     private var messagesRequests: [Int] = []
     private var streamRequests: [StreamRequest] = []
+    /// 后端 cancel 端点的回包延迟（默认 0）。
+    private var cancelDelayNanos: UInt64 = 0
+    /// 在飞的活流（`case live`）的 continuation，由 `emit(_:)` 推帧。
+    private var liveStreams: [UUID: AsyncThrowingStream<AIChatStreamFrame, Error>.Continuation] = [:]
 
     struct StreamRequest: Sendable {
         let conversationID: Int
@@ -82,6 +89,8 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     func setCreate(_ outcome: Outcome<AIChatConversation>) { withLock { createOutcome = outcome } }
     func setUpload(_ outcome: Outcome<AIFileUploadResponse>) { withLock { uploadOutcome = outcome } }
     func setStream(_ outcome: Outcome<[AIChatStreamFrame]>) { withLock { streamOutcome = outcome } }
+    /// 把 cancel 端点的回包拖慢 —— 用来造「上一轮的取消回包比下一轮晚到」的竞态。
+    func setCancelDelay(nanoseconds: UInt64) { withLock { cancelDelayNanos = nanoseconds } }
 
     // MARK: - 观测
 
@@ -95,6 +104,23 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     var requestedUsageRanges: [AIChatUsageRange] { withLock { usageRanges } }
     var loadedMessageConversationIDs: [Int] { withLock { messagesRequests } }
     var streams: [StreamRequest] { withLock { streamRequests } }
+
+    /// 向当前所有活流推帧。返回 `false` = 没有活流（流已被拆掉 / 已结束）。
+    @discardableResult
+    func emit(_ frames: [AIChatStreamFrame]) -> Bool {
+        let continuations = withLock { Array(liveStreams.values) }
+        guard !continuations.isEmpty else { return false }
+        for frame in frames {
+            for continuation in continuations { continuation.yield(frame) }
+        }
+        return true
+    }
+
+    /// 正常结束活流（不是取消）。
+    func finishLiveStreams() {
+        let continuations = withLock { Array(liveStreams.values) }
+        for continuation in continuations { continuation.finish() }
+    }
 
     // MARK: - AIChatDataProviding
 
@@ -168,6 +194,19 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
         }
 
         return AsyncThrowingStream { continuation in
+            if case .live = outcome {
+                let id = UUID()
+                withLock { liveStreams[id] = continuation }
+                // 活流不主动结束：由用例 emit / finishLiveStreams；被取消时按 `.hang` 同口径记账。
+                let holder = Task { try? await Task.sleep(nanoseconds: 30_000_000_000) }
+                continuation.onTermination = { [weak self] reason in
+                    holder.cancel()
+                    guard let self else { return }
+                    self.withLock { self.liveStreams[id] = nil }
+                    if case .cancelled = reason { self.cancellation.markCancelled() }
+                }
+                return
+            }
             let task = Task { [cancellation] in
                 switch outcome {
                 case .value(let frames):
@@ -188,6 +227,9 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
                         return
                     }
                     continuation.finish()
+                case .live:
+                    // 上面已经提前返回（活流不走这条 task）；这里只为穷举。
+                    continuation.finish()
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -195,7 +237,13 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     }
 
     func cancel(conversationID: Int) async throws -> AIChatCancelResponse {
-        withLock { cancelCalls.append(conversationID) }
+        let delay = withLock { () -> UInt64 in
+            cancelCalls.append(conversationID)
+            return cancelDelayNanos
+        }
+        // 默认 0：绝大多数用例不在乎取消回包的时机。设成非 0 才能造出「回包比下一轮晚」
+        // 的竞态（见 `CustomerServiceStoreTests`）。
+        if delay > 0 { try? await Task.sleep(nanoseconds: delay) }
         return AIChatCancelResponse(cancelled: true)
     }
 
@@ -234,6 +282,8 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
                 throw error
             }
             throw APIError.transport("stub 挂起源未在取消时退出")
+        case .live:
+            throw APIError.transport("stub 活流只用于流式端点")
         }
     }
 
@@ -453,6 +503,141 @@ final class AIChatStoreTests: XCTestCase {
         XCTAssertFalse(store.isStreaming)
         XCTAssertEqual(store.selectedConversationID, 8)
         XCTAssertEqual(provider.loadedMessageConversationIDs.last, 8)
+    }
+
+    /// **回归（Tia 复核阻塞项）**：SSE 在跑时点「新对话」—— 旧流的连接要被拆掉，且上一会话的
+    /// 草稿 / 游标 / 载荷不得留在新会话的页面上（口径 4：切会话取消在跑请求）。
+    ///
+    /// 用 `.live` 活流（而不是 `.hang`）才能让「旧流正在出字」这个前提成立：
+    /// `draft` 是 **store 级**的展示面，它没被作废时旧会话的半截回答会画在新会话上。
+    func testCreatingConversationCancelsRunningStreamAndDropsPreviousDraft() async {
+        let provider = ScriptedAIChatProvider(
+            conversations: .value([.fixture(id: 7)]),
+            messages: .value([]),
+            create: .value(.fixture(id: 99, title: "新会话")),
+            stream: .live
+        )
+        let store = makeStore()
+        let scope = makeScope()
+
+        await store.load(
+            using: provider, scope: scope, routeID: routeID, identity: .declared(userID: "1")
+        )
+        store.setText("旧会话的问题")
+        let sending = Task { await store.send(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        provider.emit([.event(.contentBlockDelta(index: 0, delta: .text("旧会话半句")), id: "7-0")])
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(store.streamingConversationID, 7)
+        XCTAssertEqual(store.draft.text, "旧会话半句")
+        XCTAssertEqual(store.resumeCursor, "7-0")
+
+        await store.createConversation(using: provider, scope: scope, routeID: routeID)
+        // 收尾让 `sending` 能等到（新码里流已拆，这一步是空操作；旧码里它让用例**失败**而
+        // 不是挂死 —— 「旧流永远不结束」本身就是回归点，但不该表现成测试卡住）。
+        provider.finishLiveStreams()
+        await sending.value
+
+        XCTAssertEqual(store.selectedConversationID, 99, "新会话要选中")
+        XCTAssertTrue(provider.cancellation.isCancelled, "点新对话必须拆掉旧会话的 SSE 连接")
+        XCTAssertNil(store.streamingConversationID, "旧流的归属要一并摘掉")
+        XCTAssertFalse(store.isStreaming)
+        XCTAssertEqual(store.draft.text, "", "上一会话的草稿不得画在新会话上")
+        XCTAssertEqual(store.draft.eventKinds, [])
+        XCTAssertNil(store.resumeCursor, "游标作废（不得拿旧会话的游标去续新会话的流）")
+        XCTAssertNil(store.lastSentPayload)
+        XCTAssertFalse(store.canResume)
+        XCTAssertNil(store.streamError, "切会话 / 新建会话不是错误态")
+    }
+
+    /// **回归（Tia 复核阻塞项）**：旧会话的 `done` 在「已经切到新会话」之后才到达时，
+    /// 不得把旧会话的标题 / token 写到新会话上。
+    ///
+    /// 两条防线各断言一次：（1）旧流被拆掉 —— 帧根本推不进去；（2）就算推进去了，归属守卫
+    /// 也会丢弃它（`applyCompletedTurnMetadata` 按**发起这一轮的会话**落地，而非当时的
+    /// `selectedConversationID`）。
+    func testLateDoneFromPreviousConversationDoesNotTouchNewConversation() async {
+        let provider = ScriptedAIChatProvider(
+            conversations: .value([.fixture(id: 7, title: "旧会话")]),
+            messages: .value([]),
+            create: .value(.fixture(id: 99, title: "新会话")),
+            stream: .live
+        )
+        let store = makeStore()
+        let scope = makeScope()
+
+        await store.load(
+            using: provider, scope: scope, routeID: routeID, identity: .declared(userID: "1")
+        )
+        store.setText("旧会话的问题")
+        let sending = Task { await store.send(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        await store.createConversation(using: provider, scope: scope, routeID: routeID)
+
+        let lateDone = AIChatStreamFrame.event(.done(
+            AIChatStreamDone(
+                assistantMessage: .fixture(
+                    id: 12, conversationID: 7, role: "assistant", content: "旧会话的回答"
+                ),
+                conversationTitle: "旧会话自动标题",
+                conversationTokenUsage: AIChatTokenUsage(
+                    promptTokens: 10, completionTokens: 20, totalTokens: 30
+                )
+            )
+        ))
+        // 切换之后立刻推一帧：此时取消可能已经生效、也可能还在传播，两条路径都必须无副作用。
+        _ = provider.emit([lateDone])
+        provider.finishLiveStreams()
+        await sending.value
+
+        XCTAssertTrue(provider.cancellation.isCancelled, "旧会话的 SSE 必须被拆掉")
+        XCTAssertFalse(provider.emit([lateDone]), "拆掉之后旧流的帧一律推不进去")
+        try? await Task.sleep(nanoseconds: 30_000_000)
+
+        XCTAssertEqual(
+            store.conversations.first { $0.id == 99 }?.title, "新会话",
+            "旧会话的标题不得写到新会话上"
+        )
+        XCTAssertEqual(
+            store.conversations.first { $0.id == 99 }?.totalTokens, 0,
+            "旧会话的 token 不得写到新会话上"
+        )
+        XCTAssertEqual(store.conversations.first?.id, 99, "列表顺序不变（旧会话没有「刚动过」）")
+        XCTAssertEqual(store.conversations.first { $0.id == 7 }?.title, "旧会话", "旧会话本身也没被凭空改名")
+        XCTAssertEqual(store.draft.text, "", "旧流的 done 不得留下草稿")
+    }
+
+    /// 切会话（不是新建）同样要作废上一会话的流式状态 —— 草稿/游标是 store 级的展示面。
+    func testSelectingConversationDropsPreviousDraftAndCursor() async {
+        let provider = ScriptedAIChatProvider(
+            conversations: .value([.fixture(id: 7), .fixture(id: 8)]),
+            messages: .value([]),
+            stream: .live
+        )
+        let store = makeStore()
+        let scope = makeScope()
+
+        await store.load(
+            using: provider, scope: scope, routeID: routeID, identity: .declared(userID: "1")
+        )
+        store.setText("旧会话的问题")
+        let sending = Task { await store.send(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        provider.emit([.event(.contentBlockDelta(index: 0, delta: .text("旧半句")), id: "7-0")])
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(store.draft.text, "旧半句")
+
+        await store.selectConversation(id: 8, using: provider, scope: scope, routeID: routeID)
+        provider.finishLiveStreams()
+        await sending.value
+
+        XCTAssertTrue(provider.cancellation.isCancelled)
+        XCTAssertEqual(store.selectedConversationID, 8)
+        XCTAssertEqual(store.draft.text, "", "切过去的会话不该看到上一会话的草稿")
+        XCTAssertNil(store.resumeCursor)
+        XCTAssertFalse(store.canResume)
+        XCTAssertNil(store.streamError)
     }
 
     /// 取消（切模块）不落错误态，也不把已有列表清掉。

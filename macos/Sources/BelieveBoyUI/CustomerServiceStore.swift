@@ -51,6 +51,12 @@ public final class CustomerServiceStore {
     public private(set) var error: String?
     /// 本次生成用的会话 id（新建后即记住；停止生成要它）。
     public private(set) var conversationID: Int?
+    /// 本轮流式请求的唯一标记（`nil` = 没有在跑的流）。
+    ///
+    /// 与 `AIChatStore.StreamLease` 同口径：取消是**异步**的 —— `stop` 之后用户能立即再
+    /// 生成一次，而上一次生成的残帧 / 收尾 / 后端 cancel 回包都还可能跑到主 actor 上。
+    /// 归属一旦摘掉，它们就写不动任何状态（不会把上一轮的错误、游标清空或收尾落到新一轮）。
+    private var generationToken: UUID?
     public private(set) var lastEventKinds: [String] = []
     public private(set) var resumeCursor: String?
     public private(set) var lastPayload: AIChatSendPayload?
@@ -228,15 +234,20 @@ public final class CustomerServiceStore {
             isStopping = false
             generationCount += 1
             let cursor = resumeCursor
+            let token = UUID()
+            generationToken = token
             let task = scope.run(key: TaskPurpose.key(routeID, TaskPurpose.generate)) { [weak self] in
                 await self?.consume(
                     provider: provider,
                     conversationID: conversationID,
                     payload: payload,
-                    resumeFrom: cursor
+                    resumeFrom: cursor,
+                    token: token
                 )
             }
             await task.value
+            guard ownsGeneration(token) else { return }
+            generationToken = nil
             isGenerating = false
             isStopping = false
             return
@@ -264,13 +275,15 @@ public final class CustomerServiceStore {
         isGenerating = true
         isStopping = false
         generationCount += 1
+        let token = UUID()
+        generationToken = token
 
         let task = scope.run(key: TaskPurpose.key(routeID, TaskPurpose.generate)) { [weak self] in
             guard let self else { return }
             let created = await AIChatStore.capture {
                 try await provider.createConversation(title: "客服交流")
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self.ownsGeneration(token) else { return }
             switch created {
             case .success(let conversation):
                 self.conversationID = conversation.id
@@ -283,20 +296,28 @@ public final class CustomerServiceStore {
                 provider: provider,
                 conversationID: conversationID,
                 payload: payload,
-                resumeFrom: nil
+                resumeFrom: nil,
+                token: token
             )
         }
         await task.value
+        // 只在「还是这一轮」时收尾：`stop` 已经把归属摘掉，那之后 `isGenerating` 属于下一轮。
+        guard ownsGeneration(token) else { return }
+        generationToken = nil
         isGenerating = false
         isStopping = false
     }
 
+    /// 这一次生成还是「当前这一次」吗？
+    private func ownsGeneration(_ token: UUID) -> Bool { generationToken == token }
+
     /// 消费一条流（与 `AIChatStore.consume` 同形：共用累加器与收尾判定）。
-    func consume(
+    private func consume(
         provider: AIChatDataProviding,
         conversationID: Int,
         payload: AIChatSendPayload,
-        resumeFrom cursor: String?
+        resumeFrom cursor: String?,
+        token: UUID
     ) async {
         do {
             for try await frame in provider.send(
@@ -305,6 +326,8 @@ public final class CustomerServiceStore {
                 lastEventID: cursor
             ) {
                 try Task.checkCancellation()
+                // 已摘归属（`stop` / 又开了一轮）：上一轮的帧一律丢弃。
+                guard ownsGeneration(token) else { return }
                 output.apply(frame.event, lastEventID: frame.eventID)
                 lastEventKinds = output.eventKinds
                 if frame.eventID != nil { resumeCursor = frame.eventID }
@@ -317,15 +340,18 @@ public final class CustomerServiceStore {
             // 停止生成 / 切场景 / 切模块：取消不落错误态（口径 4）。
             return
         } catch let apiError as APIError {
+            guard ownsGeneration(token) else { return }
             error = AIChatStore.message(for: apiError)
             return
         } catch {
+            guard ownsGeneration(token) else { return }
             self.error = error.localizedDescription
             return
         }
 
         // 消费方被取消（停止 / 切场景 / 切模块）时同样要提前退出（同上一条竞态）。
         if Task.isCancelled { return }
+        guard ownsGeneration(token) else { return }
 
         switch output.outcome {
         case .completed, .stoppedWithoutDone:
@@ -345,15 +371,22 @@ public final class CustomerServiceStore {
     ) {
         guard isGenerating, let conversationID else { return }
         isStopping = true
+        // 先摘归属再拆流：取消是异步的，摘掉之后上一轮的残帧与收尾都写不动状态。
+        generationToken = nil
         scope.cancel(key: TaskPurpose.key(routeID, TaskPurpose.generate))
         isGenerating = false
+        // 停止后端也就把游标作废了：从已取消的流上续传没有意义（后端那条流已经不在了）。
+        // 同步清掉而不是等回包 —— 否则「停止后立即再生成」会把新一轮的游标与载荷误清。
+        resumeCursor = nil
+        lastPayload = nil
         scope.run(key: TaskPurpose.key(routeID, TaskPurpose.cancel)) { [weak self] in
             let outcome = await AIChatStore.capture { try await provider.cancel(conversationID: conversationID) }
             guard let self, !Task.isCancelled else { return }
-            self.resumeCursor = nil
-            self.lastPayload = nil
+            // 已经开了新一轮：这一轮的回包不得改它的状态。
+            guard self.generationToken == nil, self.isStopping else { return }
             self.isStopping = false
             if case .failure(let failure) = outcome {
+                // 取消失败**不**显示成生成失败：用户要的是停下，本地流已经拆了。
                 self.error = "后端取消请求失败（\(failure.message)）；本地流已断开。"
             }
         }

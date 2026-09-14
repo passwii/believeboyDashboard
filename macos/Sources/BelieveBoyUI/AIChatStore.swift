@@ -65,6 +65,27 @@ public final class AIChatStore {
     public private(set) var draft = AIChatTurnAccumulator()
     public private(set) var isStreaming = false
     public private(set) var isStopping = false
+
+    /// 一条流的身份：归属会话 + 唯一 token。
+    ///
+    /// **为什么需要它**：取消是异步的 —— 切会话 / 新建会话 / 停止生成之后，旧流的帧
+    /// （甚至带 `done` 的那一帧）仍可能到达，而 `draft` / `resumeCursor` / `streamError`
+    /// 是**当前页面**的展示面。归属一旦摘掉，旧流的任何回调都不再被采信，跨会话串写
+    /// （旧会话的标题 / token 落到新会话、旧草稿画在新会话上）就无从发生。
+    ///
+    /// token 不能省：同一个 `conversationID` 会有先后两条流（切走再切回来重发），只比
+    /// 会话 id 会把「旧流的收尾」误认成「新流的收尾」，从而改写新流的状态。
+    private struct StreamLease: Equatable {
+        let conversationID: Int
+        let token: UUID
+    }
+
+    /// 当前这条流的归属（`nil` = 没有在跑的流）。**只有它**能写流式状态。
+    private var streamLease: StreamLease?
+
+    /// 这条流属于哪个会话（`nil` = 没有在跑的流）。视图与用例用它判断归属。
+    public var streamingConversationID: Int? { streamLease?.conversationID }
+
     /// 流式失败的一次性提示（生成中的传输错误 / 后端 `error` 事件）。
     public private(set) var streamError: String?
     /// 已收帧的续传游标（Redis Stream entry id）；`nil` = 还没有可续的游标。
@@ -346,7 +367,9 @@ public final class AIChatStore {
         routeID: String
     ) async {
         guard selectedConversationID != id else { return }
-        cancelStream(scope: scope, routeID: routeID)
+        // 先拆掉上一会话的流**并作废它的流式状态**：只拆连接不够 —— 旧会话的半截回答会
+        // 画在新会话上，`resume` 还可能把旧会话的载荷续到新会话的流上。
+        discardStreamState(scope: scope, routeID: routeID)
         selectedConversationID = id
         messages = []
         messagesPhase = .idle
@@ -409,6 +432,10 @@ public final class AIChatStore {
             guard !Task.isCancelled else { return }
             switch outcome {
             case .success(let created):
+                // **切换前**先把上一会话的流与流式状态收掉（口径 4：切会话取消在跑请求）。
+                // 放在「提交切换」处而不是「请求发出」处：新建失败时不该把用户正在看的那
+                // 一轮生成白白掐掉。
+                self.discardStreamState(scope: scope, routeID: routeID)
                 self.conversations.insert(created, at: 0)
                 self.conversationsPhase = .loaded
                 self.conversationsRefreshFailure = nil
@@ -464,7 +491,7 @@ public final class AIChatStore {
                 self.conversations.removeAll { $0.id == id }
                 self.conversationsRefreshFailure = nil
                 if self.selectedConversationID == id {
-                    self.cancelStream(scope: scope, routeID: routeID)
+                    self.discardStreamState(scope: scope, routeID: routeID)
                     self.selectedConversationID = nil
                     self.messages = []
                     self.messagesPhase = .idle
@@ -634,6 +661,9 @@ public final class AIChatStore {
             resumeCursor = nil
         }
         streamError = nil
+        // 这一轮的归属：之后所有流式状态的写入都要先验它（见 `StreamLease`）。
+        let lease = StreamLease(conversationID: conversationID, token: UUID())
+        streamLease = lease
         isStreaming = true
         isStopping = false
         let resumeFrom = resume ? resumeCursor : nil
@@ -643,30 +673,38 @@ public final class AIChatStore {
         let task = scope.run(key: TaskPurpose.key(routeID, TaskPurpose.stream)) { [weak self] in
             await self?.consume(
                 provider: provider,
-                conversationID: conversationID,
+                lease: lease,
                 payload: payload,
                 resumeFrom: resumeFrom
             )
         }
         await task.value
+        // 只在「这条流还是当前那条」时收尾：切会话 / 新建会话 / 停止生成都已经摘掉了归属，
+        // 那之后 `isStreaming` 属于**下一条**流，旧流的收尾不能再改写它。
+        guard streamLease == lease else { return }
+        streamLease = nil
         isStreaming = false
         isStopping = false
     }
 
     /// 真正消费一条流：逐帧折进 `draft`，按 `outcome` 收尾。
-    func consume(
+    private func consume(
         provider: AIChatDataProviding,
-        conversationID: Int,
+        lease: StreamLease,
         payload: AIChatSendPayload,
         resumeFrom cursor: String?
     ) async {
         do {
             for try await frame in provider.send(
-                conversationID: conversationID,
+                conversationID: lease.conversationID,
                 payload: payload,
                 lastEventID: cursor
             ) {
                 try Task.checkCancellation()
+                // 这条流已被摘掉归属（切会话 / 新建会话 / 停止生成 / 又发了一轮）：它的帧
+                // 一律丢弃 —— 不写草稿、不动游标、不落错误。取消是异步的，这一步才是
+                // 「旧流的帧不会影响当前页」的保证（口径 4）。
+                guard ownsStream(lease) else { return }
                 draft.apply(frame.event, lastEventID: frame.eventID)
                 lastEventKinds = draft.eventKinds
                 if frame.eventID != nil { resumeCursor = frame.eventID }
@@ -679,9 +717,11 @@ public final class AIChatStore {
             // 取消（停止生成 / 切会话 / 切模块）不是错误（口径 4）。
             return
         } catch let error as APIError {
+            guard ownsStream(lease) else { return }
             streamError = Self.message(for: error)
             return
         } catch {
+            guard ownsStream(lease) else { return }
             streamError = error.localizedDescription
             return
         }
@@ -690,13 +730,16 @@ public final class AIChatStore {
         // 但有一条竞态 —— 内层流可能先以「正常结束」收尾，于是循环平静退出。
         // 不在这里补一道判断，它会被当成「连接提前结束」而落成错误态（口径 4 不允许）。
         if Task.isCancelled { return }
+        // 同上：归属已摘掉的流平静退出时，`draft` 已经是别人的了，不能再按它的收尾判定
+        // 写 `streamError` 或触发回读。
+        guard ownsStream(lease) else { return }
 
         switch draft.outcome {
         case .completed, .stoppedWithoutDone:
             // `.completed` = 拿到 `done`；`.stoppedWithoutDone` = 续传路径的合法收尾
             // （`_resume_stream` 不合成 `done`，`ai_chat_v2.py:213`）。两者**都有产物**，
             // 收尾动作相同 —— 区别只在「能不能从载荷里拿到消息 id 与用量」。
-            await finalizeTurn(conversationID: conversationID, using: provider)
+            await finalizeTurn(lease: lease, using: provider)
         case .failed(let message):
             streamError = message
         case .running:
@@ -714,38 +757,46 @@ public final class AIChatStore {
     ///
     /// **回读成功且非空才丢掉草稿**：回读失败（或返回空表）时保留草稿 —— 否则刚生成的回答
     /// 会从界面上凭空消失（用户看到的比库里的少，比多一条更糟）。
-    private func finalizeTurn(conversationID: Int, using provider: AIChatDataProviding) async {
+    /// 收尾**只作用于发起这一轮流式请求的会话**（`lease.conversationID`），不作用于
+    /// 「此刻选中的会话」：两者在流跑的过程中会分叉（切会话 / 新建会话），拿后者会把旧会话
+    /// 的产物写进新会话。归属已摘掉时整段跳过。
+    private func finalizeTurn(lease: StreamLease, using provider: AIChatDataProviding) async {
+        guard ownsStream(lease) else { return }
         composer.text = ""
         composer.attachment = .none
-        applyCompletedTurnMetadata()
+        applyCompletedTurnMetadata(conversationID: lease.conversationID)
 
-        await loadMessages(conversationID: conversationID, using: provider)
+        await loadMessages(conversationID: lease.conversationID, using: provider)
+        // `loadMessages` 有挂起（5s 档）——期间归属可能被摘掉，回来时不能再动展示面。
+        guard ownsStream(lease), selectedConversationID == lease.conversationID else { return }
         if messagesRefreshFailure == nil, !messages.isEmpty {
             draft = AIChatTurnAccumulator()
         }
     }
 
     /// 标题 / token / 列表排序的本地补齐（**服务端仍是权威**，这里只为少一次列表回读）。
-    private func applyCompletedTurnMetadata() {
-        if let title = draft.conversationTitle, let id = selectedConversationID {
-            if let index = conversations.firstIndex(where: { $0.id == id }) {
-                let old = conversations[index]
-                conversations[index] = AIChatConversation(
-                    id: old.id,
-                    title: title,
-                    createdAt: old.createdAt,
-                    updatedAt: old.updatedAt,
-                    totalPromptTokens: draft.done?.conversationTokenUsage?.promptTokens ?? old.totalPromptTokens,
-                    totalCompletionTokens: draft.done?.conversationTokenUsage?.completionTokens ?? old.totalCompletionTokens,
-                    totalTokens: draft.done?.conversationTokenUsage?.totalTokens ?? old.totalTokens
-                )
-            }
+    ///
+    /// 按**发起这一轮的会话 id** 落地，而不是 `selectedConversationID`。
+    private func applyCompletedTurnMetadata(conversationID: Int) {
+        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else {
+            // 列表里还没有它（新建后尚未回读列表）→ 不动列表。
+            return
+        }
+        if let title = draft.conversationTitle {
+            let old = conversations[index]
+            conversations[index] = AIChatConversation(
+                id: old.id,
+                title: title,
+                createdAt: old.createdAt,
+                updatedAt: old.updatedAt,
+                totalPromptTokens: draft.done?.conversationTokenUsage?.promptTokens ?? old.totalPromptTokens,
+                totalCompletionTokens: draft.done?.conversationTokenUsage?.completionTokens ?? old.totalCompletionTokens,
+                totalTokens: draft.done?.conversationTokenUsage?.totalTokens ?? old.totalTokens
+            )
         }
         // 会话列表排序在 Web 上按 updated_at desc（后端已排序）→ 本地把刚动过的挪到最前。
-        if let id = selectedConversationID, let index = conversations.firstIndex(where: { $0.id == id }) {
-            let conversation = conversations.remove(at: index)
-            conversations.insert(conversation, at: 0)
-        }
+        let conversation = conversations.remove(at: index)
+        conversations.insert(conversation, at: 0)
     }
 
     /// 用量的一次加载（`load` 的第三段，也是区间切换 / 手动刷新的入口）。
@@ -785,11 +836,36 @@ public final class AIChatStore {
     }
 
     /// 拆掉在跑的 SSE 连接（取消 `:stream` 子 key 的那条任务）。
+    ///
+    /// **先摘归属再取消**：`scope.cancel` 只发出取消信号，旧流的残帧与收尾仍可能跑到主
+    /// actor 上 —— 归属一摘，它们就写不动任何流式状态了。
+    ///
+    /// 草稿**保留**（停止生成时用户要看到已生成的那半截）；切会话要连草稿一起作废，
+    /// 用 `discardStreamState`。
     private func cancelStream(scope: ModuleTaskScope, routeID: String) {
+        streamLease = nil
         scope.cancel(key: TaskPurpose.key(routeID, TaskPurpose.stream))
         isStreaming = false
         isStopping = false
     }
+
+    /// 切会话 / 新建会话 / 删掉当前会话：拆连接 **+ 整份作废上一会话的流式状态**。
+    ///
+    /// 为什么不能只 `cancelStream`：`draft` / `resumeCursor` / `lastSentPayload` /
+    /// `streamError` 都是「当前页面」的展示面。留着它们，上一会话的半截回答会画在新会话
+    /// 上（`AIChatDraftRow` 画的是 store 级的那一份），`resume` 还可能拿上一会话的载荷去
+    /// 续新会话的流。
+    private func discardStreamState(scope: ModuleTaskScope, routeID: String) {
+        cancelStream(scope: scope, routeID: routeID)
+        draft = AIChatTurnAccumulator()
+        lastEventKinds = []
+        streamError = nil
+        resumeCursor = nil
+        lastSentPayload = nil
+    }
+
+    /// 这条流还是「当前那条」吗？
+    private func ownsStream(_ lease: StreamLease) -> Bool { streamLease == lease }
 
     /// 续传（口径 2）：与上一次发送**同一个 POST 路径、同一份 body**，只多一个
     /// `Last-Event-ID` 头。

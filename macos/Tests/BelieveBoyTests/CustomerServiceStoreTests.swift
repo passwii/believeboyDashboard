@@ -261,6 +261,45 @@ final class CustomerServiceStoreTests: XCTestCase {
         XCTAssertNil(store.resumeCursor)
     }
 
+    /// **回归（Tia 复核阻塞项）**：停止生成后**立即**再生成一次时，上一轮的后端 cancel 回包
+    /// （它晚于下一轮到达）不得把下一轮的游标 / 载荷清掉。
+    ///
+    /// 与 `AIChatStore` 同口径：取消是异步的，所以收尾只能作用于**发起该轮的这一次生成**
+    /// （`generationToken`），不能作用于「当前这一次」。
+    func testStopThenImmediateRegenerateKeepsTheNewTurnsCursor() async {
+        let provider = configuredProvider(stream: .hang)
+        provider.setCancelDelay(nanoseconds: 200_000_000)
+        let store = CustomerServiceStore()
+        let scope = makeScope()
+        await store.load(using: provider, scope: scope, routeID: routeID)
+        store.setFreeText("长文")
+
+        let generating = Task { await store.generate(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertTrue(store.isGenerating)
+
+        store.stop(using: provider, scope: scope, routeID: routeID)
+        await generating.value
+        XCTAssertNil(store.resumeCursor, "停止即作废游标（不等回包）")
+        XCTAssertNil(store.lastPayload)
+
+        // 立即再生成一轮（此时上一轮的 cancel 回包还在路上）。
+        provider.setStream(.value([
+            .event(.contentBlockDelta(index: 0, delta: .text("新一轮")), id: "9-0"),
+            .event(.messageStop, id: "9-0"),
+        ]))
+        await store.generate(using: provider, scope: scope, routeID: routeID)
+        XCTAssertTrue(store.canResume, "新一轮有自己的游标")
+        XCTAssertEqual(store.outputText, "新一轮")
+
+        // 让上一轮的 cancel 回包落地：它不得碰新一轮的状态。
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertTrue(store.canResume, "上一轮的取消回包不得清掉新一轮的游标")
+        XCTAssertEqual(store.outputText, "新一轮")
+        XCTAssertNil(store.error)
+        XCTAssertFalse(store.isGenerating)
+    }
+
     func testResumeReusesSamePayloadAndCursor() async {
         let provider = configuredProvider(stream: .value([
             .event(.contentBlockDelta(index: 0, delta: .text("半句")), id: "5-0"),
