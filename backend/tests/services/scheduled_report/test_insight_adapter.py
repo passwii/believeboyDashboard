@@ -318,6 +318,11 @@ class TestSubmitRunForDelivery:
         assert submitted is True, message
         assert run_id is not None
         assert get_run(db, run_id).model_id == "GPT-5.6-Luna"
+        # 提交即置 generating：终态由 insights worker 的钩子写入，中间态不能
+        # 停在 pending（提交方不再等待 run）。
+        db.refresh(log)
+        assert log.ai_summary_status == AiSummaryStatus.GENERATING.value
+        assert log.ai_summary_model == "GPT-5.6-Luna"
 
     def test_submit_fails_when_subscription_missing(self, db: Session):
         """订阅外键失效（级联删除后残余行/悬挂引用）→ submitted=False +

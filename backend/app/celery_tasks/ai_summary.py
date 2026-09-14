@@ -5,9 +5,12 @@ BLF-1014：AI 摘要迁移到 ``schedule_report_summary.v1`` Insight run。本�
 
 1. 在 ``ai_summary`` 信号量内提交（或 replay）Insight run
    （幂等键 ``delivery:{log_id}``，同一 delivery 只扣一次费）。
-2. 阻塞等待 run 到终态（soft/hard time limit 兜底），把终态同步回
-   delivery_log 的 ``ai_summary_*`` 字段（completed→done / failed→failed /
-   cancelled→pending）。
+2. **提交即返回**：run 仍在跑就立刻结束，终态回写由 insights worker 的
+   终态钩子完成（``insights.run._sync_business_writeback``）。绝不在本任务
+   里等待——``believeboy-celery`` 是 ``--concurrency=1`` 且同吃 insights /
+   ai_summary 队列，等待会占住被等待任务唯一可用的槽位（生产实证：run
+   只能等等待方 soft_time_limit 自杀后才被接收）。
+   只有 replay 到**已终态**的 run（用户再次点击）才当场同步一次。
 3. 提交失败（订阅缺失、scope 不可用等）→ delivery_log 直接标 failed，
    不影响邮件主流程（邮件在 dispatch_one 里早已发送完毕）。
 
@@ -29,10 +32,6 @@ logger = logging.getLogger(__name__)
 
 
 TASK_NAME = "generate_delivery_summary"
-
-#: 等待 Insight run 终态的轮询参数：200ms 间隔；由任务的 soft_time_limit
-#: （120s）封顶——到点后任务重试（同 attempt resume）或耗尽后 park failed。
-_WAIT_INTERVAL_SEC = 0.2
 
 
 def _mark_ai_summary_failed(log_id: int, error_message: str) -> None:
@@ -88,43 +87,29 @@ def _record_summary_fallback(reason: str) -> None:
     )
 
 
-def _wait_for_terminal_and_sync(run_id: str) -> dict[str, Any]:
-    """轮询 run 行直到终态并同步 delivery_log（每次 tick 都尝试同步）。"""
-    import time
+def _sync_if_terminal(run_id: str) -> dict[str, Any] | None:
+    """run 已终态则当场回写 delivery_log；仍在跑返回 None。
 
-    from sqlalchemy import select
-
+    只服务「replay 到已终态 run」这一种情况（用户再次点击、任务重投）：
+    常规交付由 insights worker 的终态钩子完成，本任务绝不等待。
+    """
     from app.db.session import SessionLocal
-    from app.models.scheduled_report import ScheduledReportDeliveryLog
+    from app.services.insight.lifecycle import TERMINAL_STATUSES
     from app.services.insight.runs import RunNotFound, get_run
     from app.services.scheduled_report.insight_adapter.sync import (
-        sync_delivery_log_from_run,
+        sync_delivery_log_for_run,
     )
 
     db = SessionLocal()
     try:
-        while True:
-            try:
-                run = get_run(db, run_id)
-            except RunNotFound:
-                return {"status": "run_not_found", "run_id": run_id}
-            log = db.execute(
-                select(ScheduledReportDeliveryLog).where(
-                    ScheduledReportDeliveryLog.insight_run_id == run_id
-                )
-            ).scalars().first()
-            if log is None:
-                # delivery_log 已被删除：run 继续与否都无落点，退出等待。
-                return {"status": "terminal_no_log", "run_id": run_id}
-            # sync 返回 True 即终态已写入（completed/failed/cancelled 三态
-            # 都算终态：cancelled 回写 pending 后同样结束等待）。
-            if sync_delivery_log_from_run(db, log, run):
-                return {
-                    "status": "terminal",
-                    "run_id": run_id,
-                    "run_status": run.status,
-                }
-            time.sleep(_WAIT_INTERVAL_SEC)
+        try:
+            run = get_run(db, run_id)
+        except RunNotFound:
+            return None
+        if run.status not in TERMINAL_STATUSES:
+            return None
+        sync_delivery_log_for_run(db, run)
+        return {"status": "terminal", "run_id": run_id, "run_status": run.status}
     finally:
         db.close()
 
@@ -134,8 +119,8 @@ def _wait_for_terminal_and_sync(run_id: str) -> dict[str, Any]:
     bind=True,
     acks_late=True,
     max_retries=2,
-    soft_time_limit=120,  # §4.8 LLM 调用常态 < 60s
-    time_limit=240,  # hard kill — anything past 4min should be retried, not blocking
+    soft_time_limit=120,  # 提交（含报告载荷构建）预算；不再等待 LLM
+    time_limit=240,
 )
 def generate_delivery_summary(
     self,
@@ -143,17 +128,23 @@ def generate_delivery_summary(
     ledger_key: str | None = None,
     override_ai_model: str | None = None,
 ) -> dict[str, Any]:
-    """Generate an AI summary for a sent delivery_log row (BLF-1014).
+    """Submit the AI summary Insight run for a sent delivery_log row (BLF-1014).
 
-    Submits (or replays) the ``schedule_report_summary.v1`` Insight run for
-    this delivery, then observes it to a terminal state and writes the
-    outcome back to the delivery_log's ``ai_summary_*`` fields. The LLM call
-    itself lives in the Insight executor (``execute_insight_run``), driven by
-    the server-side provider contract — never in this task body.
+    This task is the adapter's transport layer: it submits (or replays) the
+    ``schedule_report_summary.v1`` run and returns immediately. The LLM call
+    lives in the Insight executor (``execute_insight_run``) and the outcome is
+    written back to the delivery_log's ``ai_summary_*`` fields by that worker's
+    terminal hook (``insights.run._sync_business_writeback``).
+
+    Why not wait here: ``believeboy-celery`` runs ``--concurrency=1`` and
+    consumes both the ``insights`` and ``ai_summary`` queues, so polling for a
+    run from inside a task occupies the only slot and the awaited
+    ``execute_insight_run`` can never start (production-proven: the run was
+    only picked up after the waiter hit its soft time limit).
 
     Retries/redeliveries are safe: the run row's idempotency key
-    (``delivery:{log_id}``) makes a duplicate submit a replay, and a
-    terminal run is never re-executed.
+    (``delivery:{log_id}``) makes a duplicate submit a replay, and a terminal
+    run is never re-executed.
     """
     from app.services.scheduled_report.ledger_service import (
         generate_ai_summary_for_delivery_log,
@@ -190,10 +181,13 @@ def generate_delivery_summary(
                 _record_summary_fallback("submit_failed")
                 return {"status": "submit_failed", "log_id": log_id}
 
-            synced = _wait_for_terminal_and_sync(outcome["run_id"])
-            return {"status": synced.get("status", "terminal"), "log_id": log_id, **{
-                k: v for k, v in synced.items() if k != "status"
-            }}
+            run_id = outcome["run_id"]
+            # replay 到已终态的 run（用户再次点击）→ 当场回写；
+            # 仍在跑的 run 则立刻返回，交付交给 insights worker 的终态钩子。
+            terminal = _sync_if_terminal(run_id)
+            if terminal is not None:
+                return {"log_id": log_id, **terminal}
+            return {"status": "submitted", "log_id": log_id, "run_id": run_id}
     except Exception as exc:
         logger.exception(
             "generate_delivery_summary: log_id=%s failed unexpectedly",

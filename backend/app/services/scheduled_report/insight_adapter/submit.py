@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.scheduled_report import (
+    AiSummaryStatus,
     ScheduledReportDeliveryLog,
     ScheduledReportLedgerEntry,
     ScheduledReportSubscription,
@@ -340,13 +341,31 @@ def _submit_one(
             enqueue(run.run_id, run.attempt)
         log.insight_run_id = run.run_id
         db.commit()
+        _mark_generating(db, log.id, run.model_id)
         return True, run.run_id, (
             "AI 摘要已重新开始生成" if restarted else "AI 摘要生成已在进行中"
         )
 
     log.insight_run_id = run.run_id
     db.commit()
+    _mark_generating(db, log.id, run.model_id)
     return True, run.run_id, "AI 摘要生成已启动" if not replayed else "AI 摘要生成已在进行中"
+
+
+def _mark_generating(db: Session, log_id: int, model_id: str | None) -> None:
+    """提交成功即刻把 delivery_log 置 ``generating``。
+
+    提交方（``generate_delivery_summary``）不再等待 run，中间态必须在提交
+    这一刻落库，否则前端会从 ``pending`` 一直停到终态钩子写 ``done``。
+    终态（done/failed/pending）由 insights worker 的钩子写入。
+    """
+    from app.services.scheduled_report.subscription_service import (
+        update_delivery_log_ai_summary_status,
+    )
+
+    update_delivery_log_ai_summary_status(
+        db, log_id, AiSummaryStatus.GENERATING.value, ai_model=model_id
+    )
 
 
 def run_detail_for(db: Session, run_id: str) -> Any | None:

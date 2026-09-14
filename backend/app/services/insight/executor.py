@@ -588,8 +588,8 @@ def execute_run(
         role_instructions = instructions_for(role, slots)
     except Exception as exc:
         # prompt/指令构建在 provider try 之外：异常穿出 execute_run 会被
-        # Celery 当「任务异常」丢弃，run 行永远停在 generating，上游
-        # _wait_for_terminal_and_sync 空转到 soft limit（BLF-1014 复核阻塞 2）。
+        # Celery 当「任务异常」丢弃，run 行永远停在 generating，交付侧
+        # （schedule report 的终态回写）永远等不到终态（BLF-1014 复核阻塞 2）。
         # 载荷形状错误是确定性的，重试无意义 → 直接落 FAILED 终止态。
         logger.exception("Insight prompt build failed (run_id=%s)", run.run_id)
         return _fail(

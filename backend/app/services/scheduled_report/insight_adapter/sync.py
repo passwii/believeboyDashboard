@@ -6,7 +6,14 @@ Insight run 终态 → ``ScheduledReportDeliveryLog.ai_summary_*`` 的唯一回�
 - ``failed``    → status=failed、error=typed error 摘要（安全文本）
 - ``cancelled`` → status=pending（用户主动取消不算失败，可再次触发）
 
-调用方：Celery ``generate_delivery_summary``（提交后观察 run 到终态并回写）。
+调用方：
+
+- ``generate_delivery_summary``（提交方）：仅当 replay 到**已终态**的 run 时
+  当场回写一次；
+- ``celery_tasks/insights/run.py`` 的终态钩子（``sync_delivery_log_for_run``）：
+  run 到达终态时按 ``insight_run_id`` 反查 delivery_log 回写——这是常规交付
+  路径，提交方不再轮询等待（同 worker concurrency=1 下等待会死锁）。
+
 回写以 run 行为准、幂等：重复调用同值覆盖，不产生重复邮件/扣费。
 """
 
@@ -82,4 +89,23 @@ def sync_delivery_log_from_run(
     return False
 
 
-__all__ = ["sync_delivery_log_from_run"]
+def sync_delivery_log_for_run(db: Session, run: InsightRun) -> bool:
+    """按 run 反查它绑定的 delivery_log 并回写；没有绑定返回 False。
+
+    worker 侧终态钩子（``app/celery_tasks/insights/run.py``）用它完成交付：
+    delivery_log 只存 ``insight_run_id``，run 行才是权威状态源，反查即可。
+    非 schedule_report 的 run（广告 / 库存洞察）自然查不到行，是 no-op。
+    """
+    from sqlalchemy import select
+
+    log = db.execute(
+        select(ScheduledReportDeliveryLog).where(
+            ScheduledReportDeliveryLog.insight_run_id == run.run_id
+        )
+    ).scalars().first()
+    if log is None:
+        return False
+    return sync_delivery_log_from_run(db, log, run)
+
+
+__all__ = ["sync_delivery_log_for_run", "sync_delivery_log_from_run"]

@@ -679,3 +679,139 @@ def test_cancel_losing_to_retry_still_cancels_the_live_attempt(engine) -> None:
     stored = _fresh(engine, run_id)
     assert stored.attempt == 2
     assert stored.status == InsightStatus.CANCELLED.value
+
+
+# ---------------------------------------------------------------------------
+# BLF-1014：insight worker 到终态后的业务回写
+#
+# 生产实证：``generate_delivery_summary`` 在任务体内轮询等待 run 终态，
+# 而 ``believeboy-celery`` 是 ``--concurrency=1`` 且同吃 insights /
+# ai_summary 队列——等待方占住唯一槽位，被等待的 execute_insight_run
+# 永远排不上队，只能等等待方 soft_time_limit 自杀。改为 worker 终态钩子后，
+# 交付不再依赖任何等待方。
+# ---------------------------------------------------------------------------
+
+
+def _bind_delivery_log(engine, run_id: str) -> int:
+    """落一条已发送的 delivery_log，并把它绑到 run 上（回写目标）。"""
+    from app.models.scheduled_report import (
+        AiSummaryStatus,
+        DeliveryStatus,
+        ScheduledReportDeliveryLog,
+        ScheduledReportSubscription,
+    )
+
+    db = _session(engine)
+    sub = ScheduledReportSubscription(
+        user_id=1,
+        email="ops@example.com",
+        project_ids="15",
+        country="US",
+        frequency="weekly",
+        dispatch_hour=15,
+        dispatch_minute=0,
+        ai_model=None,
+        enabled=True,
+    )
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    log = ScheduledReportDeliveryLog(
+        subscription_id=sub.id,
+        frequency="weekly",
+        report_date="2026-09-07",
+        email=sub.email,
+        status=DeliveryStatus.SENT.value,
+        ai_summary_status=AiSummaryStatus.PENDING.value,
+        insight_run_id=run_id,
+    )
+    db.add(log)
+    db.commit()
+    log_id = log.id
+    db.close()
+    return log_id
+
+
+def _complete_run(engine, run_id: str, content: str):
+    """独立 session 把 run 推到 completed（模拟 executor 的终态写入）。"""
+    from app.schemas.insight import InsightOutput, InsightUsage
+    from app.services.insight.contracts import sha256_hex
+
+    db = _session(engine)
+    run = get_run(db, run_id)
+    transition(db, run, InsightStatus.FINALIZING)
+    transition(
+        db,
+        run,
+        InsightStatus.COMPLETED,
+        usage=InsightUsage(input_tokens=3, output_tokens=5, total_tokens=8),
+        outputs={
+            "main": InsightOutput(
+                content=content, content_sha256=sha256_hex(content.encode())
+            )
+        },
+        content=content,
+    )
+    db.commit()
+    db.close()
+
+
+def test_terminal_run_writes_back_to_bound_delivery_log(
+    engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run 到终态 → 绑定的 delivery_log 被回写 done（无等待方参与）。"""
+    import app.celery_tasks.insights.run as task_mod
+
+    _patch_task_db(monkeypatch, engine)
+    seed = _session(engine)
+    run = _create(seed, idempotency_key="blf-1014-writeback-1")
+    seed.commit()
+    run_id, attempt = run.run_id, run.attempt
+    seed.close()
+    log_id = _bind_delivery_log(engine, run_id)
+    content = "### 销售表现\n- 本周销量 48 件"
+
+    def _completed(**kwargs):
+        _complete_run(engine, run_id, content)
+        return _fresh(engine, run_id)
+
+    monkeypatch.setattr(task_mod, "execute_run", _completed)
+
+    out = _call_task(task_mod, _FakeSelf(0, 3), run_id, attempt)
+
+    assert out["status"] == InsightStatus.COMPLETED.value
+    from app.models.scheduled_report import (
+        AiSummaryStatus,
+        ScheduledReportDeliveryLog,
+    )
+
+    check = _session(engine)
+    log = check.get(ScheduledReportDeliveryLog, log_id)
+    assert log is not None
+    assert log.ai_summary_status == AiSummaryStatus.DONE.value
+    assert log.ai_summary == content
+    check.close()
+
+
+def test_terminal_run_without_delivery_log_is_a_noop(
+    engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """没有业务绑定的 run（如广告洞察）到终态时不得报错。"""
+    import app.celery_tasks.insights.run as task_mod
+
+    _patch_task_db(monkeypatch, engine)
+    seed = _session(engine)
+    run = _create(seed, idempotency_key="blf-1014-writeback-2")
+    seed.commit()
+    run_id, attempt = run.run_id, run.attempt
+    seed.close()
+
+    def _completed(**kwargs):
+        _complete_run(engine, run_id, "### 无绑定")
+        return _fresh(engine, run_id)
+
+    monkeypatch.setattr(task_mod, "execute_run", _completed)
+
+    out = _call_task(task_mod, _FakeSelf(0, 3), run_id, attempt)
+
+    assert out["status"] == InsightStatus.COMPLETED.value

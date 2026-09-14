@@ -80,6 +80,36 @@ def _record_observation(run_id: str) -> None:
         logger.warning("Insight observation degraded run_id=%s", run_id, exc_info=True)
 
 
+def _sync_business_writeback(run: InsightRun | Any) -> None:
+    """run 到终态后回写业务侧（当前：schedule report 的 delivery_log 摘要）。
+
+    这是 AI 摘要的常规交付路径（BLF-1014）。为什么放在 worker 而不是提交方
+    轮询：``believeboy-celery`` 是 ``--concurrency=1`` 且同时消费 ``insights``
+    与 ``ai_summary`` 队列——提交方在任务体内等待会占住唯一槽位，让被等待的
+    ``execute_insight_run`` 永远排不上队，只能等等待方 soft time limit 自杀
+    （生产实证）。旁路、吞异常：回写失败绝不能让 run 变成失败。
+    """
+    from app.services.insight.lifecycle import TERMINAL_STATUSES
+
+    if run.status not in TERMINAL_STATUSES:
+        return
+    try:
+        from app.db.session import SessionLocal
+        from app.services.scheduled_report.insight_adapter.sync import (
+            sync_delivery_log_for_run,
+        )
+
+        db = SessionLocal()
+        try:
+            sync_delivery_log_for_run(db, run)
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001 — 回写是旁路
+        logger.warning(
+            "Insight business write-back degraded run_id=%s", run.run_id, exc_info=True
+        )
+
+
 def _park_failed(
     run_id: str,
     attempt: int,
@@ -134,6 +164,7 @@ def _park_failed(
             except Exception:  # noqa: BLE001 — sink stays best-effort
                 logger.warning("Insight sink terminal degraded run_id=%s", run_id)
         _record_observation(run_id)
+        _sync_business_writeback(run)
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except Exception:
         db.rollback()
@@ -237,6 +268,7 @@ def execute_insight_run(self, run_id: str, attempt: int) -> dict[str, Any]:
             raise self.retry(exc=exc, countdown=countdown)
         db.commit()
         _record_observation(run_id)
+        _sync_business_writeback(run)
         return {"run_id": run.run_id, "attempt": run.attempt, "status": run.status}
     except RunNotFound:
         db.rollback()

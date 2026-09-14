@@ -1,10 +1,18 @@
 """BLF-1014：``generate_delivery_summary`` Celery 任务 e2e（不打真实网络）。
 
-任务链路：信号量内提交 Insight run（幂等）→ 轮询终态 → 回写 delivery_log。
+任务链路：信号量内提交 Insight run（幂等）→ **提交即返回**；run 终态的回写
+由 insights worker 的终态钩子完成（见 ``tests/insight/test_durability.py``）。
+任务只在「replay 到已终态 run」时当场同步一次。
+
+为什么任务不再等待：``believeboy-celery`` 是 ``--concurrency=1`` 且同时消费
+``insights`` 与 ``ai_summary`` 队列，在任务里轮询会占住唯一槽位，让被等待的
+``execute_insight_run`` 永远排不上队（生产实证：run 直到等待方 soft time
+limit 自杀后才被接收）。
+
 隔离方式：``app.db.session.SessionLocal`` 被 patch 到测试的内存 SQLite
 engine，任务体内开的 session 与测试共享同一份库；LLM 提交入口
 （``ledger_service.generate_ai_summary_for_delivery_log``）按场景替换为
-真实落行替身——Insight 执行器不进入，run 终态由替身直接推进。
+真实落行替身——Insight 执行器不进入。
 """
 
 from __future__ import annotations
@@ -71,8 +79,8 @@ def patch_session_local(
 
 @pytest.fixture()
 def fast_poll(monkeypatch: pytest.MonkeyPatch) -> None:
-    """等待循环不 sleep——终态由替身在提交时同步推进。"""
-    monkeypatch.setattr("app.celery_tasks.ai_summary._WAIT_INTERVAL_SEC", 0.0)
+    """兼容占位：任务已不轮询，保留 fixture 以免既有调用点报错。"""
+    return None
 
 
 def _add_subscription(db: Session) -> ScheduledReportSubscription:
@@ -136,6 +144,8 @@ def _add_queued_run(engine: Any, log_id: int) -> str:
         log = session.get(ScheduledReportDeliveryLog, log_id)
         assert log is not None
         log.insight_run_id = run.run_id
+        # 真实提交路径会顺手置 generating（adapter._mark_generating），替身对齐。
+        log.ai_summary_status = AiSummaryStatus.GENERATING.value
         session.commit()
         return run.run_id
 
@@ -209,7 +219,7 @@ def _patch_submit(
 
 
 class TestGenerateDeliverySummaryTask:
-    def test_submit_then_completed_syncs_delivery_log(
+    def test_replayed_completed_run_syncs_delivery_log(
         self,
         db: Session,
         engine: Any,
@@ -217,7 +227,7 @@ class TestGenerateDeliverySummaryTask:
         patch_session_local: None,
         fast_poll: None,
     ):
-        """提交成功 → run completed → delivery_log 摘要落库 done。"""
+        """replay 到已 completed 的 run → 当场回写 done（重复点击立即出摘要）。"""
         _patch_submit(
             monkeypatch, engine, terminal="completed", markdown="销量12单，库存300件"
         )
@@ -234,7 +244,7 @@ class TestGenerateDeliverySummaryTask:
         assert log.insight_run_id == outcome["run_id"]
         assert log.ai_summary_model == "test-model"
 
-    def test_run_failed_terminal_writes_typed_error(
+    def test_replayed_failed_run_writes_typed_error(
         self,
         db: Session,
         engine: Any,
@@ -242,7 +252,7 @@ class TestGenerateDeliverySummaryTask:
         patch_session_local: None,
         fast_poll: None,
     ):
-        """run 终态 failed → delivery_log failed + typed error 摘要。"""
+        """replay 到已 failed 的 run → delivery_log failed + typed error 摘要。"""
         _patch_submit(monkeypatch, engine, terminal="failed")
         sub = _add_subscription(db)
         log = _add_sent_log(db, sub)
@@ -253,6 +263,31 @@ class TestGenerateDeliverySummaryTask:
         db.refresh(log)
         assert log.ai_summary_status == AiSummaryStatus.FAILED.value
         assert "UPSTREAM_TIMEOUT" in (log.ai_summary_error or "")
+
+    def test_queued_run_returns_immediately_without_waiting(
+        self,
+        db: Session,
+        engine: Any,
+        monkeypatch: pytest.MonkeyPatch,
+        patch_session_local: None,
+        fast_poll: None,
+    ):
+        """run 还在排队 → 任务提交即返回（绝不占住 worker 槽位等待）。
+
+        回归生产死锁：concurrency=1 的 worker 同时消费 insights 与
+        ai_summary，任务内轮询会让被等待的 run 永远排不上队。
+        """
+        _patch_submit(monkeypatch, engine, terminal=None)
+        sub = _add_subscription(db)
+        log = _add_sent_log(db, sub)
+
+        outcome = _task().run(log_id=log.id)
+
+        assert outcome["status"] == "submitted"
+        assert outcome["run_id"]
+        assert "run_status" not in outcome
+        db.refresh(log)
+        assert log.ai_summary_status == AiSummaryStatus.GENERATING.value
 
     def test_submit_failed_marks_delivery_log_failed(
         self, db: Session, monkeypatch: pytest.MonkeyPatch, patch_session_local: None
