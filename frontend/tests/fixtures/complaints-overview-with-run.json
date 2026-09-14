@@ -1,0 +1,334 @@
+{
+  "date": "2026-09-12",
+  "metrics": {
+    "sla_due_soon": 0,
+    "sla_overdue": 1,
+    "total_needs_reply": 1,
+    "total_reported_unresolved": 0,
+    "total_resolved": 0
+  },
+  "projects": [
+    {
+      "check_status": "ok",
+      "country": "UK",
+      "needs_reply": 0,
+      "project_id": 1,
+      "project_name": "铨富",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "DE",
+      "needs_reply": 0,
+      "project_id": 1,
+      "project_name": "铨富",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 1,
+      "project_name": "铨富",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 2,
+      "project_name": "宝勒1店",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "UK",
+      "needs_reply": 0,
+      "project_id": 2,
+      "project_name": "宝勒1店",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 3,
+      "project_name": "宝勒2店",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 4,
+      "project_name": "玥涵",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 5,
+      "project_name": "博智1店",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 6,
+      "project_name": "博智2店",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 7,
+      "project_name": "骏成",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 8,
+      "project_name": "华洋泛航",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 9,
+      "project_name": "金石",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 10,
+      "project_name": "弥森",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 11,
+      "project_name": "润茗",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 14,
+      "project_name": "卡斯摩",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 15,
+      "project_name": "创酷",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 1,
+      "project_id": 16,
+      "project_name": "吕沃",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 1
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 17,
+      "project_name": "瑞迪特",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 18,
+      "project_name": "犀牛",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    },
+    {
+      "check_status": "ok",
+      "country": "US",
+      "needs_reply": 0,
+      "project_id": 19,
+      "project_name": "博朗姆",
+      "resolved": 0,
+      "sla_due_soon": 0,
+      "sla_overdue": 0
+    }
+  ],
+  "trend": [
+    {
+      "date": "2026-08-14",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-15",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-16",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-17",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-18",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-19",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-20",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-21",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-22",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-23",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-24",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-25",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-26",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-27",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-28",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-29",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-30",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-08-31",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-01",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-02",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-03",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-04",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-05",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-06",
+      "needs_reply": 1
+    },
+    {
+      "date": "2026-09-07",
+      "needs_reply": 1
+    },
+    {
+      "date": "2026-09-08",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-09",
+      "needs_reply": 1
+    },
+    {
+      "date": "2026-09-10",
+      "needs_reply": 0
+    },
+    {
+      "date": "2026-09-11",
+      "needs_reply": 1
+    },
+    {
+      "date": "2026-09-12",
+      "needs_reply": 1
+    }
+  ]
+}

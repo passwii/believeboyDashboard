@@ -13,6 +13,10 @@ import { encode } from 'next-auth/jwt'
 import path from 'node:path'
 
 import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
+// 客诉概览用**真实响应快照**(本地后端 + 生产库快照 BLF 抓取),而不是手写的最小 JSON:
+// 旧 fixture 曾把已废弃的 `shops` 形状固化下来,于是「今日产出·客诉」列恒为占位
+// 却全绿(BLF-1055)。真实响应里店铺行是 `projects`。
+import complaintsOverviewWithRun from '../fixtures/complaints-overview-with-run.json'
 
 const OUT_DIR = path.join(__dirname, '../../test-results/blf1027')
 
@@ -67,7 +71,7 @@ async function mockBackend(page: Page, opts: { summary: boolean } = { summary: t
     opts.summary ? route.fulfill({ json: DOMAIN_SUMMARY }) : route.fulfill({ status: 404, json: {} })
   )
   await page.route('**/api/backend/api/v1/complaints/overview**', (route) =>
-    route.fulfill({ json: { shops: [{ shop_id: 1 }], metrics: { total_needs_reply: 7 } } })
+    route.fulfill({ json: complaintsOverviewWithRun })
   )
   await page.route('**/api/backend/api/v1/inspections/periods/current**', (route) =>
     route.fulfill({ json: { id: 7 } })
@@ -148,6 +152,8 @@ test.describe('BLF-1027 业务域活动矩阵版式', () => {
     await mockBackend(page)
     await page.setViewportSize({ width: 1440, height: 900 })
     await waitTable(page)
+    // 客诉域「今日产出」列走真实响应形状(`projects`)→ 显示待回复数,而不是占位「—」
+    await expect(page.getByText('待回复 1').first()).toBeVisible()
     await page.screenshot({ path: path.join(OUT_DIR, 'desktop-1440-data.png'), fullPage: true })
     await page.locator(TABLE).first().screenshot({ path: path.join(OUT_DIR, 'desktop-table-data.png') })
 

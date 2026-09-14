@@ -1,26 +1,48 @@
 import { describe, expect, it } from 'vitest'
 
+import complaintsWithRunJson from '../../tests/fixtures/complaints-overview-with-run.json'
+import complaintsWithoutRunJson from '../../tests/fixtures/complaints-overview-without-run.json'
 import {
+  COMPLAINTS_OVERVIEW_KEYS,
   parseComplaintsOverview,
   parseInspectionOverview,
   usTodayYMD,
 } from './use-agent-production'
+import type { ComplaintsOverviewResponse } from './use-agent-production'
+
+/**
+ * 真实响应快照(`tests/fixtures/complaints-overview-*.json`)。
+ *
+ * 抓取口径与 S4 的 Swift 侧快照同一份:本地后端 + 生产库快照 `BLF` +
+ * 管理员账号上下文(见 `macos/Tests/BelieveBoyTests/AgentOpsFixtures.swift`
+ * 的 `complaintsWithRun` / `complaintsWithoutRun`,此处逐字节同值)。
+ *
+ * 注解为契约类型:快照刷新时若后端换了键名,类型不符会先在编译期报出来;
+ * 下方 `COMPLAINTS_OVERVIEW_KEYS` 断言再做一次运行期钉住。
+ */
+const complaintsWithRun: ComplaintsOverviewResponse = complaintsWithRunJson
+const complaintsWithoutRun: ComplaintsOverviewResponse = complaintsWithoutRunJson
 
 describe('parseComplaintsOverview(P2c-1 客诉产出)', () => {
-  it('有 run + 待回复数', () => {
-    expect(
-      parseComplaintsOverview({
-        shops: [{ shop_id: 's1' }],
-        metrics: { total_needs_reply: 3 },
-      })
-    ).toEqual({ hasRun: true, needsReply: 3 })
+  it('真实响应(有 run)→ hasRun=true + 实测待回复数', () => {
+    expect(parseComplaintsOverview(complaintsWithRun)).toEqual({ hasRun: true, needsReply: 1 })
   })
 
-  it('无 run(shops 空)→ hasRun=false', () => {
-    expect(parseComplaintsOverview({ shops: [], metrics: { total_needs_reply: 0 } })).toEqual({
+  it('真实响应(无 run,projects 为空)→ hasRun=false', () => {
+    expect(parseComplaintsOverview(complaintsWithoutRun)).toEqual({
       hasRun: false,
       needsReply: 0,
     })
+  })
+
+  it('形状断言:解析器读的键必须真存在于真实响应里(旧键 shops 已不存在)', () => {
+    for (const key of COMPLAINTS_OVERVIEW_KEYS) {
+      expect(Object.keys(complaintsWithRun)).toContain(key)
+      expect(Object.keys(complaintsWithoutRun)).toContain(key)
+    }
+    // BLF-981(#556)起店铺行改名为 projects;若哪天又快照回 shops,这条会红
+    expect(complaintsWithRun).not.toHaveProperty('shops')
+    expect(complaintsWithoutRun).not.toHaveProperty('shops')
   })
 
   it('非预期形状 → 容错返回无 run', () => {
@@ -29,6 +51,9 @@ describe('parseComplaintsOverview(P2c-1 客诉产出)', () => {
       hasRun: false,
       needsReply: null,
     })
+    expect(
+      parseComplaintsOverview({ projects: { project_id: 1 }, metrics: { total_needs_reply: 3 } })
+    ).toEqual({ hasRun: false, needsReply: 3 })
   })
 })
 

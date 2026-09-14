@@ -1,0 +1,12 @@
+{
+  "date": "2026-09-14",
+  "metrics": {
+    "sla_due_soon": 0,
+    "sla_overdue": 0,
+    "total_needs_reply": 0,
+    "total_reported_unresolved": 0,
+    "total_resolved": 0
+  },
+  "projects": [],
+  "trend": []
+}
