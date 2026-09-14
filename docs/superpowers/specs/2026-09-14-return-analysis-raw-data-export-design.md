@@ -84,7 +84,10 @@ ORDER BY row.return_date ASC, row.id ASC     -- 新增确定性排序
 
 - `sku` 为 `None` 时不加过滤，保持现有 `if sku:` 语义。
 - 抽出后 `build_return_analysis()` 与 `build_return_analysis_from_snapshot()` 的查询块替换为一次调用，**过滤条件零变化**（纯机械抽取）。
-- 排序对分析结果无影响（分析路径下游自行聚合/排序）；仅让新端点的输出确定可复现。
+- **排序副作用（终审修正）**：`ORDER BY return_date ASC, id ASC` 不是零副作用的。顺序会流入
+  `feedback_rows`，从而影响 `summary_text` 中「典型反馈」的取样；同时它把 reason / disposition /
+  status 三个分布里**同量值的并列项**从原来的堆序固定成日期序。所有聚合数值（合计、占比、比率）
+  不变，确定性本身是改进 —— 但「对分析结果无影响」的原说法不成立，验收时见 §8 第 8 条。
 - `query_return_analysis_raw()`（Agent R3）**本次不改**——它有分页/排序参数与 PII 剥离契约，改动会外溢到 Agent 契约。它的口径漂移作为已知问题记录在 §7，另行评估。
 
 ### 1.2 列口径（17 列，与 Excel / 页面共用）
@@ -389,7 +392,11 @@ Excel 表头/列宽/冻结行的视觉效果属业务验收项，交用户在真
 1. 选项目 + 站点 + 周期 → 切到「原始数据」Tab：能看见该周期亚马逊原始行，中文翻译列正确。
 2. 页内展示条数提示与 Excel 中实际行数**一致**（除非触发 200 行截断提示）。
 3. 导出 Excel：第 6 张 sheet 名为「亚马逊原始数据」，表头 17 列、顺序与 §1.2 一致，冻结首行、边框与字体与其余 sheet 一致。
-4. **对账**：Excel 原始 sheet 的「数量」合计 == 退货排行合计（`summary.total_quantity`），且 == 页面磁贴「退货总量」。
+4. **对账**：Excel 原始 sheet 的「数量」合计 == 页面磁贴「退货总量」（即 `summary.total_quantity`）。
+   **不要拿退货排行 sheet 对账**：排行行来自 `analysis_return_aggregates` 物化表，按设计可滞后至多 25h，
+   与原始行（直接读当前生效退货源文件）本就可能对不上，差额不是缺陷。
 5. 切换周期后再导出：sheet 内容为**新周期**数据，无旧周期残留。
 6. 现有 5 张 sheet 内容与改造前完全一致。
 7. 无权限项目访问：与改造前表现一致（拒绝）。
+8. reason / disposition / status 三张分布 sheet 里的**同量值并列顺序可能变化**（`ORDER BY return_date, id`
+   取代了此前的堆序）。占比与合计数值不变，同级项先后不同属**预期**，不作为回归处理。
