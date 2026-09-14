@@ -32,8 +32,10 @@ def query_current_return_rows(
     ``is_current`` 的 ``return_report`` 源文件下、``return_date`` 落在
     ``[start_date, end_date]`` 区间的行。
 
-    排序 ``return_date ASC, id ASC``：让原始数据导出可复现（分析路径下游
-    自行聚合/排序，不受影响）。
+    排序 ``return_date ASC, id ASC``：让原始数据导出结果确定可复现。它不改动
+    任何聚合数值，但会决定 ``feedback_rows`` 的先后（连带 ``summary_text`` 采样的
+    那条典型反馈），以及原因/处理方式/状态分布并列计数时的先后 —— 排序并非
+    无副作用。
 
     ``limit`` 为 ``None`` 时不加 LIMIT（分析路径的正确性依赖全量行做聚合，
     故两处分析调用点**都不传**）；只有原始行端点会传 ``MAX_RAW_ROWS + 1``，

@@ -170,7 +170,7 @@ def get_return_analysis_raw_rows(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="日期格式不合法，应为 YYYY-MM-DD",
         ) from exc
 
