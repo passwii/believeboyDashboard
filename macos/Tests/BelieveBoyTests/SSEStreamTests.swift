@@ -187,8 +187,13 @@ final class SSEStreamTests: XCTestCase {
         consumer.cancel()
         await fulfillment(of: [consumerFinished], timeout: 5)
 
-        let tornDown = await waitUntil { StubURLProtocol.stopLoadingCount > 0 }
+        // 等**断言的那个条件**本身，而不是它的先到信号：计数与路径是同一次中止的两个
+        // 观测面，只看计数会拿到「计数已加、路径还没记上」的中间态（实测 20 次偶发 1 次）。
+        let tornDown = await waitUntil {
+            StubURLProtocol.stoppedPaths == ["/api/v1/insight/runs/r-1/stream"]
+        }
         XCTAssertTrue(tornDown, "取消后 URLSession 任务必须被拆掉（stopLoading 已调用）")
+        XCTAssertEqual(StubURLProtocol.stopLoadingCount, 1, "一次取消只拆一次连接，不重复中止")
         XCTAssertEqual(StubURLProtocol.stoppedPaths, ["/api/v1/insight/runs/r-1/stream"])
     }
 

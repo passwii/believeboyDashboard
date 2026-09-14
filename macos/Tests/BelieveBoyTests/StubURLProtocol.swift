@@ -182,13 +182,17 @@ final class StubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {
+        // 计数与路径在**同一把锁**里一起记：两者是「同一次中止」的两个观测面，
+        // 分两次无锁写会让读者看到「计数已加、路径还是空」的中间态 —— 取消用例曾因此
+        // 偶发失败（20 次跑出 1 次）。
         stoppedLock.lock()
         let alreadyStopped = stopped
         stopped = true
+        if !alreadyStopped {
+            Self.stopLoadingCount += 1
+            Self.stoppedPaths.append(request.url?.path ?? "")
+        }
         stoppedLock.unlock()
-        guard !alreadyStopped else { return }
-        Self.stopLoadingCount += 1
-        Self.stoppedPaths.append(request.url?.path ?? "")
     }
 
     private var isStopped: Bool {

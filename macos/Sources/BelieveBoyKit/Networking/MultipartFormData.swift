@@ -46,18 +46,26 @@ public struct MultipartFormData: Sendable {
         public init(name: String, filename: String, mimeType: String, source: Source) {
             self.name = name
             self.filename = filename
-            self.mimeType = mimeType
+            // `mimeType` 会被拼进 part 的 `Content-Type:` 头行，故在**入口**就归一化
+            // （拼装处还会再兜一次，幂等）。属性因此可被信任为「安全头值」。
+            self.mimeType = MultipartFormData.sanitisedMimeType(mimeType)
             self.source = source
         }
     }
 
     /// 分隔串。测试可注入固定值，生产用随机值（同一请求体内须唯一）。
+    ///
+    /// 该值同时出现在请求头 `Content-Type`（`contentType`）与请求体的分隔行里，
+    /// 原样接收调用方字符串等于开一条头注入通道（`boundary` 完全可能来自文件名、
+    /// 上传批次号这类外部数据）。故构造期即按 RFC 2046 §5.1.1 的 `bchars` 归一化，
+    /// 见 `safeBoundary(_:)`。归一化只有一个出口 —— `boundary` 是 `let`，`contentType`
+    /// 与请求体读的都是它，天然同值，不存在「头干净、体脏」的分裂。
     public let boundary: String
     public private(set) var fields: [Field] = []
     public private(set) var fileParts: [FilePart] = []
 
     public init(boundary: String = MultipartFormData.randomBoundary()) {
-        self.boundary = boundary
+        self.boundary = MultipartFormData.safeBoundary(boundary)
     }
 
     // MARK: - 组装
@@ -90,7 +98,8 @@ public struct MultipartFormData: Sendable {
         )
     }
 
-    /// 请求头 `Content-Type` 的值。
+    /// 请求头 `Content-Type` 的值。`boundary` 已在构造期归一化（`safeBoundary(_:)`），
+    /// 故此处不含任何 CR / LF。
     public var contentType: String { "multipart/form-data; boundary=\(boundary)" }
 
     /// 上传体总字节数 —— 由文件系统元数据算出，**不读文件内容**。
@@ -157,7 +166,9 @@ public struct MultipartFormData: Sendable {
         }
         lines.append(disposition)
         if let mimeType {
-            lines.append("Content-Type: \(mimeType)")
+            // 再兜一次（`FilePart.init` 已归一化过，幂等）：`headerText` 是模块内可直调的
+            // 拼装点，头值的净化不能只依赖上游某一处记得清洗。
+            lines.append("Content-Type: \(Self.sanitisedMimeType(mimeType))")
         }
         // 两个空串 → 头部块之后正好一个空行（`\r\n\r\n` 收尾）。
         lines.append("")
@@ -191,6 +202,102 @@ public struct MultipartFormData: Sendable {
         }
         return out
     }
+
+    /// multipart 分隔串的安全形态。
+    ///
+    /// RFC 2046 §5.1.1 规定 boundary 是 1–70 个 `bchars`（数字 / 字母 / `'()+_,-./:=?`），
+    /// 该集合**不含** CR、LF、空格、`"`、`;` —— 这正是它不能被头注入利用的原因。
+    /// 过滤后为空或超过 70 字符时回落到随机分隔串：与其发出一个畸形边界让服务端按
+    /// 「找不到结束段」整请求失败，不如换一个必然合法的值（`contentType` 与请求体同源，
+    /// 不会因此失配）。
+    static func safeBoundary(_ raw: String) -> String {
+        var out = ""
+        out.unicodeScalars.reserveCapacity(raw.unicodeScalars.count)
+        for scalar in raw.unicodeScalars where boundaryCharacters.contains(scalar) {
+            out.unicodeScalars.append(scalar)
+        }
+        guard !out.isEmpty, out.unicodeScalars.count <= maxBoundaryLength else {
+            return randomBoundary()
+        }
+        return out
+    }
+
+    /// multipart 分隔串合法字符集（RFC 2046 `bcharsnospace`）。
+    private static let boundaryCharacters = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'()+_,-./:=?"
+    )
+
+    /// 分隔串长度上限（RFC 2046 §5.1.1）。
+    static let maxBoundaryLength = 70
+
+    /// 头值的安全形态：先剔除 CR / LF 与其余控制字符（头注入的载体），再去掉首尾空白。
+    ///
+    /// 与 `sanitised(_:)` 同样按 `unicodeScalars` 遍历 —— Swift 里 `"\r\n"` 是**一个**
+    /// 扩展字形簇，按 `Character` 遍历时 `case "\r"` 根本不会命中它（本 PR 的 filename
+    /// 修复就是踩到这个）。
+    static func sanitisedHeaderValue(_ raw: String) -> String {
+        var out = ""
+        out.unicodeScalars.reserveCapacity(raw.unicodeScalars.count)
+        for scalar in raw.unicodeScalars where !isHeaderControl(scalar) {
+            out.unicodeScalars.append(scalar)
+        }
+        return out.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 控制字符（含 CR / LF / NUL / DEL）：头字段值里一律不允许出现。
+    private static func isHeaderControl(_ scalar: Unicode.Scalar) -> Bool {
+        scalar == "\r" || scalar == "\n" || scalar.value < 0x20 || scalar.value == 0x7F
+    }
+
+    /// `Content-Type` 头值的安全形态。
+    ///
+    /// 两道防线：① 剔除 CR / LF 与其余控制字符；② 校验它确实是
+    /// `type/subtype[; 参数]` 这一 RFC 7231 媒体类型形态（字符集按 RFC 7230 的 `token`）。
+    /// 不合形态一律回落到 `application/octet-stream`。
+    ///
+    /// 只做 ① 不够：`"text/csv\r\nX-Evil: 1"` 剔掉换行后会拼成
+    /// `Content-Type: text/csvX-Evil: 1` —— 不再是注入，但仍是一个谁也解析不了的垃圾
+    /// media type，把 part header 的语义搅坏。
+    static func sanitisedMimeType(_ raw: String) -> String {
+        let cleaned = sanitisedHeaderValue(raw)
+        return isValidMediaType(cleaned) ? cleaned : fallbackMimeType
+    }
+
+    /// 形态不合法的 MIME 回落值。
+    static let fallbackMimeType = "application/octet-stream"
+
+    /// `type/subtype[; 参数]` 形态校验（不解析语义，只保证「拼进头行是安全的、可解析的」）。
+    static func isValidMediaType(_ value: String) -> Bool {
+        let components = value.split(separator: ";", omittingEmptySubsequences: false)
+        guard let type = components.first?.trimmingCharacters(in: .whitespaces) else { return false }
+        let halves = type.split(separator: "/", omittingEmptySubsequences: false)
+        guard halves.count == 2, halves.allSatisfy({ isToken($0) }) else { return false }
+        return components.dropFirst().allSatisfy { isValidParameter($0) }
+    }
+
+    /// `; name=value` 里的 `name=value`（参数值允许 `token` 或 `"quoted-string"`）。
+    private static func isValidParameter(_ raw: Substring) -> Bool {
+        let text = raw.trimmingCharacters(in: .whitespaces)
+        guard let equals = text.firstIndex(of: "=") else { return false }
+        let name = text[text.startIndex..<equals].trimmingCharacters(in: .whitespaces)
+        let value = text[text.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+        guard isToken(name) else { return false }
+        if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+            // `quoted-string`：内部不得再出现裸 `"`、反斜杠转义与控制字符。
+            return value.dropFirst().dropLast().unicodeScalars
+                .allSatisfy { $0 != "\"" && $0 != "\\" && !isHeaderControl($0) }
+        }
+        return isToken(value)
+    }
+
+    /// RFC 7230 `token` 字符集。
+    private static func isToken<S: StringProtocol>(_ text: S) -> Bool {
+        !text.isEmpty && text.unicodeScalars.allSatisfy { tokenCharacters.contains($0) }
+    }
+
+    private static let tokenCharacters = CharacterSet(
+        charactersIn: "!#$%&'*+-.^_`|~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    )
 
     /// `quoted-string` 里的安全形态：先去 CR/LF（头注入），再转义 `\` 与 `"`。
     static func quoted(_ raw: String) -> String {

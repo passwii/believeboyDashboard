@@ -64,6 +64,131 @@ final class MultipartFormDataTests: XCTestCase {
         XCTAssertTrue(header.contains(#"filename="a\"bX-Injected: 1\\.xlsx""#), "引号与反斜杠要转义。实际：\(header)")
     }
 
+    // MARK: - 边界与 MIME 的头注入
+
+    /// 回归：`boundary` 是**公开初始化参数**，它会同时进请求头 `Content-Type` 与请求体
+    /// 的分隔行 —— 含 CR/LF 时既能污染请求头，也能在体里伪造分隔。必须在构造期归一化，
+    /// 且头与体读同一个值（不存在「头干净、体脏」的分裂）。
+    func testBoundaryWithCRLFIsNeutralisedBeforeItReachesHeaderOrBody() throws {
+        var form = MultipartFormData(boundary: "BOUND\r\nX-Injected: 1")
+
+        XCTAssertEqual(
+            form.boundary,
+            "BOUNDX-Injected:1",
+            "CR/LF 与空格等非 bchars 字符应被剔除，其余合法字符保留"
+        )
+        XCTAssertFalse(form.contentType.contains("\r"))
+        XCTAssertFalse(form.contentType.contains("\n"))
+        XCTAssertEqual(form.contentType, "multipart/form-data; boundary=\(form.boundary)")
+
+        form.addField("country", "US")
+        let body = String(decoding: try readAll(form.makeBodyStream()), as: UTF8.self)
+        XCTAssertTrue(body.hasPrefix("--\(form.boundary)\r\n"), "体里的分隔行必须用同一个值")
+        XCTAssertTrue(body.hasSuffix("--\(form.boundary)--\r\n"), "结束段亦然")
+        XCTAssertNoInjectedHeader(in: body)
+        XCTAssertNoInjectedHeader(in: form.headerText(name: "file", filename: "a.csv", mimeType: nil))
+    }
+
+    /// 归一化后为空（或超长）时回落到随机分隔串：宁可换一个必然合法的值，也不发出一个
+    /// 会让服务端「找不到结束段」的畸形边界。
+    func testUnsalvageableOrOverlongBoundaryFallsBackToRandom() {
+        let hosts = [
+            "\r\n",
+            "",
+            "   ",
+            String(repeating: "A", count: MultipartFormData.maxBoundaryLength + 1),
+        ]
+        for hostile in hosts {
+            let form = MultipartFormData(boundary: hostile)
+            XCTAssertFalse(form.boundary.isEmpty, "分隔串不能为空：\(hostile.debugDescription)")
+            XCTAssertNotEqual(form.boundary, hostile)
+            XCTAssertLessThanOrEqual(
+                form.boundary.unicodeScalars.count,
+                MultipartFormData.maxBoundaryLength,
+                "RFC 2046 §5.1.1 的上限"
+            )
+            XCTAssertEqual(
+                MultipartFormData.safeBoundary(form.boundary),
+                form.boundary,
+                "归一化必须幂等：已是安全值时不得再变"
+            )
+            XCTAssertFalse(form.contentType.contains("\r"))
+            XCTAssertFalse(form.contentType.contains("\n"))
+        }
+    }
+
+    /// 回归：`mimeType` 原样拼进 part 的 `Content-Type:` 行时，等于多一个头字段注入点。
+    /// 含 CR/LF 的值必须先剔除换行，再因「形态不合法」回落到 `application/octet-stream`。
+    func testMimeTypeHeaderInjectionIsNeutralised() {
+        let form = MultipartFormData(boundary: "BOUND")
+        let header = form.headerText(
+            name: "file",
+            filename: "a.csv",
+            mimeType: "text/csv\r\nX-Injected: 1"
+        )
+
+        let lines = header.components(separatedBy: "\r\n")
+        XCTAssertEqual(
+            lines,
+            [
+                "--BOUND",
+                #"Content-Disposition: form-data; name="file"; filename="a.csv"; filename*=UTF-8''a.csv"#,
+                "Content-Type: application/octet-stream",
+                "",
+                "",
+            ],
+            "注入新行会让行数变多。实际：\(header.debugDescription)"
+        )
+        XCTAssertNoInjectedHeader(in: header)
+    }
+
+    /// 合法 MIME（含参数）照旧放行；不合法的一律回落 —— 不要为了保护「异常输入」而把
+    /// 正常调用方的 `text/csv` 也改掉。
+    func testValidMimeTypeIsPreservedAndMalformedOneFallsBack() {
+        let preserved = [
+            "text/csv",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "  text/csv; charset=utf-8  ",
+            "text/plain; charset=\"utf-8\"",
+        ]
+        for value in preserved {
+            XCTAssertTrue(MultipartFormData.isValidMediaType(MultipartFormData.sanitisedHeaderValue(value)))
+            XCTAssertEqual(
+                MultipartFormData.sanitisedMimeType(value),
+                MultipartFormData.sanitisedHeaderValue(value),
+                "合法值只去掉首尾空白，不改变内容"
+            )
+        }
+
+        let rejected = [
+            "text",
+            "text/",
+            "/csv",
+            "not a mime",
+            "\r\n",
+            "",
+            "text/csv\r\nX-Injected: 1",
+            "text/plain; charset",
+            "text/plain; charset=\"utf-8",
+        ]
+        for value in rejected {
+            XCTAssertEqual(
+                MultipartFormData.sanitisedMimeType(value),
+                MultipartFormData.fallbackMimeType,
+                "形态不合法必须回落而不是原样拼进头行：\(value.debugDescription)"
+            )
+        }
+
+        // `FilePart` 在入口就归一化，公开属性本身可被信任为安全头值。
+        let part = MultipartFormData.FilePart(
+            name: "file",
+            filename: "a.csv",
+            mimeType: "text/csv\r\nX-Injected: 1",
+            source: .data(Data("x".utf8))
+        )
+        XCTAssertEqual(part.mimeType, MultipartFormData.fallbackMimeType)
+    }
+
     // MARK: - 长度与流式产出
 
     func testContentLengthMatchesActualBodyBytes() throws {
@@ -229,7 +354,46 @@ final class MultipartFormDataTests: XCTestCase {
         }
     }
 
+    /// 真实请求上再验一次：恶意 boundary / mimeType 在网络上不得变成额外头行。
+    func testUploadWithHostileBoundaryAndMimeTypeInjectsNoHeaderLine() async throws {
+        let session = StubURLProtocol.session(routes: [
+            "/api/v1/ad-upload/upload": .json(200, #"{"ok":true}"#),
+        ])
+
+        var form = MultipartFormData(boundary: "BOUND\r\nX-Injected: 1")
+        form.addFile(
+            "file",
+            filename: "a.csv",
+            mimeType: "text/csv\r\nX-Injected: 2",
+            data: Data("x".utf8)
+        )
+
+        let client = APIClient(baseURL: baseURL, apiKey: "blf_test", session: session)
+        let reply: [String: Bool] = try await client.upload("/ad-upload/upload", form: form)
+        XCTAssertEqual(reply["ok"], true)
+
+        let recorded = try XCTUnwrap(StubURLProtocol.log.first)
+        let contentType = try XCTUnwrap(recorded.header("Content-Type"))
+        XCTAssertFalse(contentType.contains("\r"))
+        XCTAssertFalse(contentType.contains("\n"))
+        XCTAssertEqual(contentType, "multipart/form-data; boundary=\(form.boundary)")
+        XCTAssertNoInjectedHeader(in: try XCTUnwrap(recorded.body))
+    }
+
     // MARK: - 工具
+
+    /// 断言文本里没有「凭空多出来的头行」：注入的载体是一行以字段名开头的新行，
+    /// 而不是被过滤后仍可能残留在分隔串里的子串。
+    private func XCTAssertNoInjectedHeader(
+        in text: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let injected = text
+            .components(separatedBy: "\r\n")
+            .filter { $0.hasPrefix("X-Injected") || $0.hasPrefix("X-Evil") }
+        XCTAssertTrue(injected.isEmpty, "文本里出现注入的头行：\(injected)", file: file, line: line)
+    }
 
     private func formWithFile(at url: URL) -> MultipartFormData {
         var form = MultipartFormData(boundary: "BOUND")
