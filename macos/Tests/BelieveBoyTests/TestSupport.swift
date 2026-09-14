@@ -1,6 +1,59 @@
 import BelieveBoyKit
 import Foundation
 
+/// 内存外壳状态存储：测试专用（理由同 `InMemorySessionStore`：不要把开发机的真实
+/// `UserDefaults` 卷进来，也不要让用例之间互相污染）。
+final class InMemoryShellPreferencesStore: ShellPreferencesStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: ShellPreferences?
+    private var saveCount = 0
+
+    init(seeded: ShellPreferences? = nil) {
+        stored = seeded
+    }
+
+    var preferences: ShellPreferences? { withLock { stored } }
+    /// 写入次数 —— 用于断言「值没变就不重复写」。
+    var saveCalls: Int { withLock { saveCount } }
+
+    func loadPreferences() -> ShellPreferences? { withLock { stored } }
+
+    func savePreferences(_ preferences: ShellPreferences) {
+        withLock {
+            stored = preferences
+            saveCount += 1
+        }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+/// 取消事件记录器：跨 actor 写、断言里读，故加锁。
+///
+/// 不用 `XCTestExpectation`：它要在 `@Sendable` 的 `onCancel` 闭包里被捕获，
+/// Swift 6 严格并发下会直接报错，而这里只需要一个 bool。
+final class CancellationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var isCancelled: Bool { withLock { count > 0 } }
+    var cancellationCount: Int { withLock { count } }
+
+    func markCancelled() {
+        withLock { count += 1 }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
 /// 内存会话存储：测试专用。
 ///
 /// 为什么不用真钥匙串跑单测：`swift test` 常在没有签名 / GUI 会话的环境里跑，

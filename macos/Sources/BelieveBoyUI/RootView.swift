@@ -10,15 +10,30 @@ import SwiftUI
 /// 闪给已登录用户。
 public struct RootView: View {
     private let model: AppModel
+    private let navigation: NavigationStore
+    /// 启动时窗口已按恢复的尺寸就位（由进程引导决定）→ 首次渲染不再按登录态改尺寸，
+    /// 否则用户上次调好的窗口大小会被「登录后自动放大」顶掉。
+    private let adoptsRestoredWindowFrame: Bool
 
-    public init(model: AppModel) {
+    public init(
+        model: AppModel,
+        navigation: NavigationStore = NavigationStore(),
+        adoptsRestoredWindowFrame: Bool = false
+    ) {
         self.model = model
+        self.navigation = navigation
+        self.adoptsRestoredWindowFrame = adoptsRestoredWindowFrame
     }
 
     public var body: some View {
         content
-            // 窗口尺寸随登录态切换：登录页紧凑、主界面宽敞（离屏渲染时无窗口，空操作）。
-            .background(WindowSizingProbe(style: model.isSignedIn ? .regular : .compact))
+            // 窗口尺寸随登录态切换：登录页紧凑、外壳宽敞（离屏渲染时无窗口，空操作）。
+            .background(
+                WindowSizingProbe(
+                    style: model.isSignedIn ? .regular : .compact,
+                    skipsFirstApplication: adoptsRestoredWindowFrame
+                )
+            )
     }
 
     @ViewBuilder
@@ -29,7 +44,7 @@ public struct RootView: View {
         case .signedOut:
             LoginView(model: model)
         case .signedIn:
-            HealthView(model: model)
+            ShellView(model: model, navigation: navigation)
         }
     }
 

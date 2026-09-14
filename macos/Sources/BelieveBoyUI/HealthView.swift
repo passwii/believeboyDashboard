@@ -1,10 +1,14 @@
 import BelieveBoyKit
 import SwiftUI
 
-/// 登录后的主界面：账号信息 + 后端地址 + 连接检查。
+/// 登录后主界面里的「连接与身份」概览：账号信息 + 连接检查。
 ///
-/// 三栏导航外壳属 Stage 3（见 PLAN.md §8），此处刻意不做 —— 先证明"能起、
-/// 能连、以谁的身份连"，再谈信息架构。
+/// S3 起它是**外壳详情栏的空选中态**（`ShellView` 未选分组 / 未选页面时显示）：
+/// 启动即就位并顺手跑一次连接检查（保持 S1/S2 的观感与 `⌘R` 语义），点侧栏条目后
+/// 详情栏换成模块占位视图，工具栏「连接与身份」可随时回到这里。
+///
+/// 后端地址（生产 / 本地）不在这里：它已收编进外壳的**偏好设置**浮层
+/// （`PreferencesPanel`），不再占连接检查那一屏的层级 —— 本 stage 不新增能力。
 ///
 /// 视图不使用 `@State` / `@Bindable` 等属性包装器宏（工具链约束，见 Package.swift
 /// 顶部说明）：`model` 以普通常量持有，`@Observable` 自带的读取追踪负责失效重绘，
@@ -19,17 +23,18 @@ public struct HealthView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                AppBrandHeader(subtitle: "Stage 2 · 登录与会话")
+                AppBrandHeader(subtitle: "连接与身份")
                 accountSection
-                endpointSection
                 connectionSection
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minWidth: 640, minHeight: 520)
+        // 尺寸交给三栏外壳（详情栏多窄它就多窄），这里只保底一个可读宽度。
+        .frame(minWidth: 420, minHeight: 360)
         // 冷启动带有效凭据时，本视图直接就位，`.task` 顺手发起首次探测 ——
-        // 用户看不到登录页，也不需要手动点一下。
+        // 用户看不到登录页，也不需要手动点一下。任务由 SwiftUI 绑定视图生命周期，
+        // 视图销毁（切到别的模块）时自动取消，不会留下在跑的请求。
         .task { await model.checkConnection() }
     }
 
@@ -82,51 +87,6 @@ public struct HealthView: View {
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    // MARK: - 后端地址
-
-    /// 后端地址是次要配置：日常就是生产地址，**默认折叠**（与登录页同一条约定）。
-    private var endpointSection: some View {
-        DisclosureGroup(isExpanded: model.binding(for: \.isServerOptionsExpanded)) {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    Picker("环境", selection: model.binding(for: \.environment)) {
-                        ForEach(AppConfig.Environment.allCases) { environment in
-                            Text(environment.shortName).tag(environment)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .disabled(model.customBaseURL.trimmedNonEmpty != nil)
-                    .onChange(of: model.environment) { _, _ in
-                        Task { await model.checkConnection() }
-                    }
-
-                    HStack(spacing: 8) {
-                        TextField(
-                            "自定义地址（根地址、不含路径；留空则用上方环境）",
-                            text: model.binding(for: \.customBaseURL)
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        Button("清除") { model.customBaseURL = "" }
-                            .disabled(model.customBaseURL.isEmpty)
-                    }
-
-                    LabeledContent("请求前缀") {
-                        Text(model.effectiveBaseURL.absoluteString + APIClient.apiPrefix)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-                }
-                .padding(6)
-            }
-            .padding(.top, 10)
-        } label: {
-            Text("后端地址：\(model.serverDisplayName)")
-                .font(.callout.weight(.medium))
         }
     }
 
