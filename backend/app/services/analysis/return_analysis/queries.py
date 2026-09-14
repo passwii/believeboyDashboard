@@ -24,6 +24,7 @@ def query_current_return_rows(
     start_date: str,
     end_date: str,
     sku: str | None = None,
+    limit: int | None = None,
 ) -> list[AnalysisReturnRow]:
     """当前生效版本的退货原始行（退货分析口径唯一真相源）。
 
@@ -33,6 +34,10 @@ def query_current_return_rows(
 
     排序 ``return_date ASC, id ASC``：让原始数据导出可复现（分析路径下游
     自行聚合/排序，不受影响）。
+
+    ``limit`` 为 ``None`` 时不加 LIMIT（分析路径的正确性依赖全量行做聚合，
+    故两处分析调用点**都不传**）；只有原始行端点会传 ``MAX_RAW_ROWS + 1``，
+    把「读多少」也一起收口 —— 否则上限只挡响应、不挡 DB 读取。
     """
     query = (
         db.query(AnalysisReturnRow)
@@ -52,13 +57,14 @@ def query_current_return_rows(
     if sku:
         query = query.filter(AnalysisReturnRow.sku == sku)
 
-    return (
-        query.order_by(
-            AnalysisReturnRow.return_date.asc(),
-            AnalysisReturnRow.id.asc(),
-        )
-        .all()
+    query = query.order_by(
+        AnalysisReturnRow.return_date.asc(),
+        AnalysisReturnRow.id.asc(),
     )
+    if limit is not None:
+        query = query.limit(limit)
+
+    return query.all()
 
 
 __all__ = ["query_current_return_rows"]

@@ -291,7 +291,11 @@ class TestRawRowsEndpoint:
     def test_exceeds_max_rows_400(
         self, client, project_id, db_session, admin_headers, monkeypatch
     ):
-        """超上限显式 400，不返回任何部分数据（拒绝静默截断）。"""
+        """超上限显式 400，不返回任何部分数据（拒绝静默截断）。
+
+        「读侧上限」为 ``MAX_RAW_ROWS + 1``：多于 1 条即判超限，故 detail 不再
+        声称精确总数（真实总数可能远大于读到的 ``MAX_RAW_ROWS + 1``）。
+        """
         from app.api.v1.endpoints import return_analysis as ra_module
 
         monkeypatch.setattr(ra_module, "MAX_RAW_ROWS", 1)
@@ -311,5 +315,28 @@ class TestRawRowsEndpoint:
         resp = client.get(_qs(project_id), headers=admin_headers)
 
         assert resp.status_code == 400
-        assert "上限" in resp.json()["detail"]
+        # 读侧 limit 生效后 len(rows) 恒为 MAX_RAW_ROWS + 1，不再等于真实总数，
+        # 故文案只报上限、不报条数（spec §2.4 的措辞）。
+        assert resp.json()["detail"] == (
+            "所选周期原始退货行超过上限 1 条，请缩小日期范围后重试"
+        )
         assert "rows" not in resp.json()
+
+    def test_malformed_date_is_422_not_500(
+        self, client, project_id, db_session, admin_headers
+    ):
+        """10 字符但非法的日期（2026-13-99）→ 422 客户端错误，不是 500。
+
+        长度校验拦不住「格式对、值非法」的输入，非法值只会在共享查询里
+        ``date.fromisoformat`` 处炸开；端点必须把它转成显式的 422。
+        """
+        _, end = default_return_window()
+
+        resp = client.get(
+            f"/api/v1/return-analysis/raw-rows?project_id={project_id}"
+            f"&country=US&start_date=2026-13-99&end_date={end}",
+            headers=admin_headers,
+        )
+
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["detail"] == "日期格式不合法，应为 YYYY-MM-DD"

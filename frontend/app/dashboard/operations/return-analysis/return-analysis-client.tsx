@@ -556,18 +556,22 @@ export default function ReturnAnalysisPage() {
 
   const handleExportExcel = useCallback(async () => {
     if (!data) return
-    // 原始行按需拉取：失败即中止导出，不产出缺 sheet 的「假完整包」（spec §3.4）
-    const raw = rawRows ?? (await loadRawRows())
-    if (!raw) {
-      notify({
-        type: 'error',
-        title: '导出失败',
-        message: '原始数据加载失败，已中止导出',
-      })
-      return
-    }
+    // 先置忙再预取：导出按钮的 disabled 依赖 exporting，若等预取回来才置忙，
+    // 预取期间第二次点击会并发起第二次导出 → 两份下载。
     setExporting(true)
     try {
+      // 原始行按需拉取：失败即中止导出，不产出缺 sheet 的「假完整包」（spec §3.4）
+      // 预取必须消费粘性 force 旗标：原始数据 Tab 关着时的全局刷新也会置 true，
+      // 不传就会命中 2min 客户端缓存，导出到与新鲜分析数字对不上的旧原始行。
+      const raw = rawRows ?? (await loadRawRows(rawForceRef.current))
+      if (!raw) {
+        notify({
+          type: 'error',
+          title: '导出失败',
+          message: '原始数据加载失败，已中止导出',
+        })
+        return
+      }
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       workbook.creator = 'BelieveBoy Dashboard'

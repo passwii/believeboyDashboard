@@ -129,4 +129,10 @@ describe('退货分析原始行端点：stats 档（15s）', () => {
     expect(getProxyTimeoutMs('api/v1/return-analysis', null)).toBe(5_000)
     expect(getProxyTimeoutMs('api/v1/return-analysis?period=30d', null)).toBe(5_000)
   })
+
+  it('不误伤 raw-rows 的更长子路径（锁死 `$` 锚）', () => {
+    // 该档位依赖 `$` 锚定：去掉锚点后下面这条会被误提到 15s（未来若新增
+    // /raw-rows/<id> 等分页子路径，它们应当各自评估而非沾光提档）。
+    expect(getProxyTimeoutMs('api/v1/return-analysis/raw-rows/extra', null)).toBe(5_000)
+  })
 })

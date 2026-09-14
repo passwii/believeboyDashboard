@@ -253,6 +253,9 @@ let rawReleasePending: (() => void) | null = null
 let rawGeneratedRowCount: number | null = null
 
 let lastForce: boolean | undefined
+// 原始行请求单独记录 force：lastForce 会被主分析请求覆盖，无法鉴别预取是否
+// 继承了「全局刷新」的粘性旗标（A 项回归用例依赖这个独立的观测点）。
+let lastRawForce: boolean | undefined
 vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ops-client-cache')>()
   return {
@@ -260,6 +263,7 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
     fetchOpsJsonCached: vi.fn().mockImplementation((url: string, opts?: { force?: boolean }) => {
       lastForce = opts?.force
       if (url.includes('/return-analysis/raw-rows')) {
+        lastRawForce = opts?.force
         rawRequestCount += 1
         if (rawShouldFail) return Promise.reject(new Error('原始数据加载失败'))
         const payload = rawRowsEmpty
@@ -319,6 +323,7 @@ afterEach(() => {
   capturedRefreshHandler = null
   capturedRefreshLoading = undefined
   lastForce = undefined
+  lastRawForce = undefined
   rawRequestCount = 0
   rawShouldFail = false
   rawRowCountOverride = null
@@ -620,5 +625,46 @@ describe('导出 Excel：亚马逊原始数据 sheet', () => {
       )
     )
     expect(excelCapture.sheetNames).toEqual([])
+  })
+
+  it('导出 sheet 携带全部行，不随页内 200 行截断', async () => {
+    // 生成超过页内上限的行数，且全程停留 rankings Tab（页内不渲染原始表格，
+    // 唯一的截断风险点就是导出自身若误用 RAW_DISPLAY_LIMIT 切片）。
+    rawGeneratedRowCount = RAW_DISPLAY_LIMIT + 5
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    // 1 行表头 + 全部 205 行数据（导出若回归为切片，这里只剩 201 行）
+    await vi.waitFor(() =>
+      expect(excelCapture.rowsBySheet['亚马逊原始数据']).toHaveLength(
+        RAW_DISPLAY_LIMIT + 6
+      )
+    )
+    expect(excelCapture.rowsBySheet['亚马逊原始数据']![1]![2]).toBe('ORDER-RAW-1')
+    expect(excelCapture.rowsBySheet['亚马逊原始数据']![RAW_DISPLAY_LIMIT + 5]![2]).toBe(
+      `ORDER-RAW-${RAW_DISPLAY_LIMIT + 5}`
+    )
+  })
+
+  it('原始数据 Tab 未打开时刷新，导出预取仍继承 force 旗标（不吃 2min 缓存）', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(rawRequestCount).toBe(0)
+
+    // 全局刷新：原始数据 Tab 关着，rawForceRef 被置 true 且粘性保留（未被消费）
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+    await vi.waitFor(() => expect(lastForce).toBe(true))
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+    expect(rawRequestCount).toBe(0)
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    // 预取必须带 force:true —— 否则导出会回落到 2min 客户端缓存里的旧原始行
+    expect(lastRawForce).toBe(true)
   })
 })

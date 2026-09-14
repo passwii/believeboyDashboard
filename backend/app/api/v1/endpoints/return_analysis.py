@@ -151,20 +151,34 @@ def get_return_analysis_raw_rows(
         is_admin=bool(is_admin),
     )
 
-    rows = query_current_return_rows(
-        db,
-        project_id=project_id,
-        country=country,
-        start_date=start_date,
-        end_date=end_date,
-        sku=sku,
-    )
+    # 这一段刻意写成行内注释而不是 docstring：FastAPI 会把路由 docstring 当作
+    # OpenAPI description 输出，任何增删都会让 openapi.json 漂移。
+    # - limit=MAX_RAW_ROWS + 1：把上限也压在 DB 读取侧（多读 1 条只为判定「超了」，
+    #   不会进响应），避免超限周期把整表行 materialize 到内存。
+    # - 日期长度已由 Query(min_length/max_length) 卡住，但 ``2026-13-99`` 这类
+    #   10 字符非法日期要靠 date.fromisoformat 才会暴露 —— 那是客户端输入错误，
+    #   转 422 而不是让它冒泡成 500。
+    try:
+        rows = query_current_return_rows(
+            db,
+            project_id=project_id,
+            country=country,
+            start_date=start_date,
+            end_date=end_date,
+            sku=sku,
+            limit=MAX_RAW_ROWS + 1,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="日期格式不合法，应为 YYYY-MM-DD",
+        ) from exc
 
     if len(rows) > MAX_RAW_ROWS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"所选周期原始退货行 {len(rows)} 条，超过上限 {MAX_RAW_ROWS} 条，"
+                f"所选周期原始退货行超过上限 {MAX_RAW_ROWS} 条，"
                 "请缩小日期范围后重试"
             ),
         )

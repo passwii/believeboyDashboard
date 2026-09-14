@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
+import {
+  RAW_DISPLAY_LIMIT,
+  RETURN_RAW_COLUMNS,
+  type ReturnRawRow,
+} from './return-raw-columns'
 
 /** spec §1.2 的 17 列表头（顺序即契约：原值列后紧跟中文翻译列）。 */
 const EXPECTED_LABELS = [
@@ -28,6 +32,10 @@ const EXPECTED_LABELS = [
  * 一一对应，顺序即后端 schema 顺序 —— 这是列配置的核心契约：
  * key 决定取哪一列数据，label 只是表头，两者必须成对绑定。
  * 后端 counterpart：backend/tests/api/test_return_analysis_raw_rows.py。
+ *
+ * `satisfies readonly (keyof ReturnRawRow)[]`：把「纯字符串数组」升级为「必须
+ * 是 ReturnRawRow 的字段名」的类型级约束 —— 拼错一个 key 或后端改名/删字段
+ * 都会变成编译错误（tsc --noEmit），而不只是运行时断言失败。
  */
 const EXPECTED_KEYS = [
   'return_date',
@@ -47,7 +55,7 @@ const EXPECTED_KEYS = [
   'status_display',
   'license_plate_number',
   'customer_comment',
-]
+] satisfies readonly (keyof ReturnRawRow)[]
 
 describe('退货原始数据列配置', () => {
   it('17 列，key 与表头均唯一', () => {
