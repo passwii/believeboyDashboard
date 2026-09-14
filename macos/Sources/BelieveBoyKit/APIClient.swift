@@ -127,11 +127,16 @@ public struct APIClient: Sendable {
     ///   - body: `Encodable` 请求体，用 `JSONEncoder` 编码（键名按模型原样发送）。
     ///   - tier: 超时分层。登录要等密码哈希校验 + 建会话，`.detail`(10s) 比列表档合理。
     ///   - authenticated: 是否附加 `X-API-Key`。登录必须传 `false` —— 此刻还没有 key。
+    ///   - headers: 额外请求头。用于「此刻还没有凭据、但后端按头分派」的契约头，
+    ///     如登录的 `X-Client-Id`（设备槽标识，见 `ClientIdentifier`）。凭据与账号上下文
+    ///     不由此传 —— 它们由 `authenticated` 分支按客户端自己的状态注入，且优先级高于
+    ///     这里（调用方覆盖不了 `X-API-Key`）。
     public func post<Body: Encodable & Sendable, T: Decodable & Sendable>(
         _ path: String,
         body: Body,
         tier: RequestTier = .detail,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        headers: [String: String] = [:]
     ) async throws -> T {
         let payload: Data
         do {
@@ -145,7 +150,8 @@ public struct APIClient: Sendable {
             query: [:],
             body: payload,
             tier: tier,
-            authenticated: authenticated
+            authenticated: authenticated,
+            headers: headers
         )
         return try await send(request)
     }
@@ -177,7 +183,8 @@ public struct APIClient: Sendable {
         query: [String: String],
         body: Data?,
         tier: RequestTier,
-        authenticated: Bool
+        authenticated: Bool,
+        headers: [String: String] = [:]
     ) throws -> URLRequest {
         let url = try Self.url(baseURL: baseURL, path: path, query: query)
 
@@ -190,6 +197,11 @@ public struct APIClient: Sendable {
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = body
+        }
+        // 额外头先写：`authenticated` 分支随后的 `setValue` 会盖掉同名头，凭据因此
+        // 不可能被调用方替换掉。
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
         }
         if authenticated {
             guard let apiKey, let trimmed = apiKey.trimmedNonEmpty else {

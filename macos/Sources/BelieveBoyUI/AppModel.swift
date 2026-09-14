@@ -91,6 +91,13 @@ public final class AppModel {
 
     private let sessionStore: SessionStore
     private let rememberedLogins: RememberedLoginStore
+    /// 本机设备标识（BLF-1060）：登录时作为 `X-Client-Id` 发给后端，决定这把新 key
+    /// 落在哪个设备槽。构造时解析一次并**在进程内固定** —— 每次登录重新解析会掩盖
+    /// 「钥匙串读写失败」这类退化（每次拿到的可能是不同值）。
+    private let clientIdentifier: ClientIdentifier
+    /// 设备标识的退化原因（非 `nil` = 本次进程内有效但没与钥匙串对上）。单独留一份，
+    /// 是为了能在「登录成功后」重新提示 —— `sessionNotice` 会被登录流程重置。
+    private let deviceIdentifierNotice: String?
     /// 进程环境变量（`BELIEVEBOY_BASE_URL` / `BELIEVEBOY_API_KEY`）。
     /// 注意与 `environment`（配置里选的生产/本地）不是一回事，故单独命名。
     private let processEnvironment: [String: String]
@@ -99,12 +106,17 @@ public final class AppModel {
     public init(
         sessionStore: SessionStore = KeychainSessionStore(),
         rememberedLogins: RememberedLoginStore = KeychainRememberedLoginStore(),
+        clientIdentifiers: ClientIdentifierStore = KeychainClientIdentifierStore(),
         appEnvironment: AppConfig.Environment = .production,
         processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         urlSession: URLSession = .shared
     ) {
         self.sessionStore = sessionStore
         self.rememberedLogins = rememberedLogins
+        // 设备标识先解析：它是登录请求的必需输入，且解析本身不发任何请求。
+        let identifier = ClientIdentifier.resolve(store: clientIdentifiers)
+        self.clientIdentifier = identifier
+        self.deviceIdentifierNotice = identifier.persistenceWarning
         self.processEnvironment = processEnvironment
         self.urlSession = urlSession
         self.environment = appEnvironment
@@ -119,6 +131,9 @@ public final class AppModel {
         // 冷启动先把「记住密码」的勾选态与回填准备好：勾选态取自钥匙串是否真有凭据，
         // 不另存一个开关，免得两者漂移（勾着却没有凭据、或反过来）。
         prefillRememberedLogin()
+        // 设备标识没与钥匙串对上（被锁 / 权限被拒）时先说清楚：本次登录仍会带上它、
+        // **网页端那把 key 因此仍是安全的**，代价是重启后换一个槽。
+        if let notice = deviceIdentifierNotice { note(notice) }
     }
 
     // MARK: - 派生值
@@ -267,6 +282,7 @@ public final class AppModel {
                 email: emailDraft,
                 password: passwordDraft,
                 baseURL: effectiveBaseURL,
+                clientID: clientIdentifier.value,
                 session: urlSession
             )
             // 先落「记住密码」（要用到草稿里的原密码），再用毕即清 —— 草稿本身
@@ -275,6 +291,9 @@ public final class AppModel {
             passwordDraft = ""
             persist(authSession)
             sessionState = .signedIn(authSession)
+            // 登录流程开头的重置会清掉启动时的设备标识提示，而它恰好在这时仍然成立
+            // （这次登录确实带着临时标识发出去了），故补回一次。
+            if let notice = deviceIdentifierNotice { note(notice) }
             await checkConnection()
         } catch let error as AuthError {
             passwordDraft = ""
@@ -340,13 +359,16 @@ public final class AppModel {
 
     /// 401/403 → 用户可读的再登录理由。
     ///
-    /// 403 是最常发生的那条（网页端登录会覆写同一行 `user_api_keys`），文案里必须
-    /// 点明这个可能性，否则用户看到「无权限」只会去查权限。
+    /// 403 的具体成因在 BLF-1059/1060 之后变了：key 已按设备槽分区，**换一台设备登录
+    /// 不会再顶掉本机**，所以现在只剩三种：同一设备标识在别处登录（同槽轮换）、
+    /// 改密码后撤销了该账号全部设备的 key、以及槽数超上限时后端回收了最旧一把。
+    /// 文案仍要点出「别处登录过」这条 —— 它是用户自己做得出来的那一种；不能只说
+    /// 「无权限」，否则用户只会去查权限。
     static func credentialFailureReason(_ error: APIError) -> String {
         switch error {
         case .unauthorized(let status, _):
-            return "凭据已失效（HTTP \(status)）：该账号可能已在网页端重新登录过（旧凭据被替换）。"
-                + "请重新登录。"
+            return "凭据已失效（HTTP \(status)）：可能已在网页端或其他设备登录过（占用了同一个设备槽），"
+                + "也可能是改密码后撤销了全部设备凭据。请重新登录。"
         case .missingCredential:
             return "缺少凭据，请重新登录。"
         default:

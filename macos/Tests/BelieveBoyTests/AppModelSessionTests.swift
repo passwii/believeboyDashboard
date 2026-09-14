@@ -57,15 +57,24 @@ final class AppModelSessionTests: XCTestCase {
     private func makeModel(
         store: InMemorySessionStore = InMemorySessionStore(),
         remembered: InMemoryRememberedLoginStore = InMemoryRememberedLoginStore(),
+        clientIdentifiers: InMemoryClientIdentifierStore = InMemoryClientIdentifierStore(),
         session: URLSession,
         processEnvironment: [String: String] = [:]
     ) -> AppModel {
         AppModel(
             sessionStore: store,
             rememberedLogins: remembered,
+            clientIdentifiers: clientIdentifiers,
             processEnvironment: processEnvironment,
             urlSession: session
         )
+    }
+
+    /// 最后一次登录请求实际发出的设备槽标识（**看真实请求，不看内部状态**）。
+    private func loginClientIDHeader() -> String? {
+        StubURLProtocol.log
+            .last { $0.path == "/api/v1/auth/login" }?
+            .header("X-Client-Id")
     }
 
     private func fillCredentials(_ model: AppModel) {
@@ -216,8 +225,10 @@ final class AppModelSessionTests: XCTestCase {
 
     // MARK: - 验收 2：401 / 403 → 明确的再登录路径，不做无谓重试
 
-    /// 403 是**最常发生**的失效信号（用户在网页端登录一次就会覆写同一行
-    /// `user_api_keys`，桌面端手上那把立刻失效）—— PLAN §4.1.1。
+    /// 403 的具体成因在 BLF-1059/1060 之后变了：key 已按设备槽分区，**换一台设备登录
+    /// 不会再顶掉本机**，现在只剩「同一设备标识在别处登录（同槽轮换）」「改密码撤销
+    /// 全部设备」等。文案仍要点出「别处登录过」这条主路径（PLAN §4.1.1）—— 否则用户
+    /// 只会去查权限。
     func testForbiddenProbeBouncesToLoginWithoutRetry() async {
         let store = InMemorySessionStore()
         try? store.saveSession(AuthSession(apiKey: "blf_STALE", user: .fixtureAdmin))
@@ -230,7 +241,11 @@ final class AppModelSessionTests: XCTestCase {
         XCTAssertTrue(reason.contains("403"), "文案要点出状态码：\(reason)")
         XCTAssertTrue(
             reason.contains("网页端"),
-            "必须点明「可能已在网页端登录」这条主路径，否则用户只会去查权限：\(reason)"
+            "必须点明「可能已在网页端/其他设备登录」这条路径，否则用户只会去查权限：\(reason)"
+        )
+        XCTAssertTrue(
+            reason.contains("改密码"),
+            "按设备槽分区后，改密码撤销全部设备是最常见的成因，文案不能漏：\(reason)"
         )
         XCTAssertNil(store.session, "已失效的 key 不得留在钥匙串里反复撞 403")
         XCTAssertEqual(StubURLProtocol.callCount("/api/v1/health"), 1, "不得重试")
@@ -531,6 +546,144 @@ final class AppModelSessionTests: XCTestCase {
 
         XCTAssertEqual(StubURLProtocol.callCount("/api/v1/auth/login"), 1, "并发点登录只应发一次")
         XCTAssertEqual(store.saveCalls, 1)
+    }
+
+    // MARK: - 验收 1/2/3（BLF-1060）：登录真的带走设备标识
+
+    /// 登录请求确实带上了本机的设备标识（不是后端默认槽）—— 断的是**真实请求头**。
+    func testLoginSendsThePersistedDeviceIdentifier() async {
+        let clientIdentifiers = InMemoryClientIdentifierStore(seeded: "mac-01a09fa8-6311")
+        let model = makeModel(clientIdentifiers: clientIdentifiers, session: rotationSession())
+        fillCredentials(model)
+
+        await model.signIn()
+
+        XCTAssertEqual(
+            loginClientIDHeader(),
+            "mac-01a09fa8-6311",
+            "桌面端必须把本机标识发出去，否则后端按 default 槽下发 → 又变成顶掉网页端"
+        )
+        XCTAssertEqual(clientIdentifiers.saveCalls, 0, "已有标识不该在登录时被改写")
+    }
+
+    /// 首次启动（钥匙串里还没有标识）：登录前就生成并落盘，本次登录直接带上它。
+    func testFirstLaunchGeneratesTheDeviceIdentifierBeforeLogin() async {
+        let clientIdentifiers = InMemoryClientIdentifierStore()
+        let model = makeModel(clientIdentifiers: clientIdentifiers, session: rotationSession())
+        fillCredentials(model)
+
+        await model.signIn()
+
+        let header = try? XCTUnwrap(loginClientIDHeader())
+        XCTAssertEqual(header, clientIdentifiers.clientID, "生成的标识必须落盘，且就是本次发出的那个")
+        XCTAssertEqual(clientIdentifiers.saveCalls, 1)
+        XCTAssertNotNil(header)
+    }
+
+    /// **「重启进程后不变」**（验收 2）：两个 `AppModel` 实例（= 两次启动）共用同一份
+    /// 存储 → 登录用的是同一个设备槽；退出再登也不会换槽。
+    func testRestartReusesTheSameDeviceIdentifier() async {
+        let clientIdentifiers = InMemoryClientIdentifierStore()
+        // 「重启 + 记住密码」是用户实际走的那条路：凭据由钥匙串预填，一次点击即可重登。
+        let remembered = InMemoryRememberedLoginStore(
+            seeded: RememberedLogin(email: "test_admin@believeboy.com", password: "TestAdmin123")
+        )
+
+        // 第一次启动（钥匙串里还没有设备标识）：生成标识并登录。
+        let firstLaunch = makeModel(
+            remembered: remembered,
+            clientIdentifiers: clientIdentifiers,
+            session: rotationSession()
+        )
+        fillCredentials(firstLaunch)
+        await firstLaunch.signIn()
+        XCTAssertTrue(firstLaunch.isSignedIn)
+        let firstHeader = loginClientIDHeader()
+        XCTAssertNotNil(firstHeader)
+
+        // 重启 + 退出再登（会话已清，凭据回填）。
+        firstLaunch.signOut()
+        let secondLaunch = makeModel(
+            remembered: remembered,
+            clientIdentifiers: clientIdentifiers,
+            session: rotationSession()
+        )
+        XCTAssertEqual(secondLaunch.emailDraft, "test_admin@believeboy.com", "预填才能只点一下重登")
+        await secondLaunch.signIn()
+        XCTAssertTrue(secondLaunch.isSignedIn, "重登失败则本用例什么都没证明")
+
+        XCTAssertEqual(loginClientIDHeader(), firstHeader, "同一台机器重启后必须复用同一个设备槽")
+        XCTAssertEqual(clientIdentifiers.saveCalls, 1, "重启不该重新生成标识")
+    }
+
+    /// 两个独立 install（各自一份钥匙串存储）→ 各自一把 key，标识不同（验收 3）。
+    func testSeparateInstallsGetTheirOwnDeviceIdentifiers() async {
+        let firstInstall = InMemoryClientIdentifierStore()
+        let secondInstall = InMemoryClientIdentifierStore()
+
+        let firstModel = makeModel(clientIdentifiers: firstInstall, session: rotationSession())
+        fillCredentials(firstModel)
+        await firstModel.signIn()
+        let firstHeader = loginClientIDHeader()
+
+        let secondModel = makeModel(clientIdentifiers: secondInstall, session: rotationSession())
+        fillCredentials(secondModel)
+        await secondModel.signIn()
+        let secondHeader = loginClientIDHeader()
+
+        XCTAssertNotNil(firstHeader)
+        XCTAssertNotEqual(firstHeader, secondHeader, "两个 install 必须是两个设备槽，否则仍会互相顶")
+        XCTAssertNotEqual(firstInstall.clientID, secondInstall.clientID)
+    }
+
+    /// 403 → 「记住密码」预填 → 重新登录：这条路径同样带设备标识（验收 3）。
+    func testReloginAfter403StillSendsTheSameDeviceIdentifier() async {
+        let store = InMemorySessionStore()
+        try? store.saveSession(AuthSession(apiKey: "blf_STALE", user: .fixtureAdmin))
+        let remembered = InMemoryRememberedLoginStore(
+            seeded: RememberedLogin(email: "test_admin@believeboy.com", password: "TestAdmin123")
+        )
+        let clientIdentifiers = InMemoryClientIdentifierStore(seeded: "mac-restart-proof")
+        let model = makeModel(
+            store: store,
+            remembered: remembered,
+            clientIdentifiers: clientIdentifiers,
+            session: rotationSession()
+        )
+
+        await model.checkConnection()
+        XCTAssertTrue(model.sessionState.isSignedOut)
+
+        await model.signIn()
+
+        XCTAssertTrue(model.isSignedIn)
+        XCTAssertEqual(loginClientIDHeader(), "mac-restart-proof", "重登路径必须带上同一个设备标识")
+    }
+
+    /// 钥匙串写不进设备标识：**不挡登录**，且这次登录仍带上一个标识（于是网页端那把
+    /// key 依然安全），同时给出可见提示 —— 静默降级会让「重启后换槽」变成偶发灵异。
+    func testUnwritableDeviceIdentifierStoreStillLogsInAndWarns() async {
+        let clientIdentifiers = InMemoryClientIdentifierStore()
+        clientIdentifiers.failSaving(
+            with: CredentialStoreError.keychain(status: -34018, message: "Missing entitlement")
+        )
+        let model = makeModel(clientIdentifiers: clientIdentifiers, session: rotationSession())
+
+        XCTAssertNotNil(model.sessionNotice, "启动时就该把退化说清楚")
+        let notice = model.sessionNotice ?? ""
+        XCTAssertTrue(notice.contains("设备标识"), "提示要指明是设备标识的问题：\(notice)")
+
+        fillCredentials(model)
+        await model.signIn()
+
+        XCTAssertTrue(model.isSignedIn, "钥匙串写不进不得挡住登录")
+        let header = loginClientIDHeader()
+        XCTAssertNotNil(header, "退化也不得回退成「不带标识」—— 那会顶掉网页端")
+        XCTAssertTrue(ClientIdentifier.isValid(header ?? ""), "发出去的值必须合法：\(header ?? "nil")")
+        XCTAssertNotNil(
+            model.sessionNotice,
+            "登录流程会重置提示，设备标识的退化说明要在登录后补回：\(String(describing: model.sessionNotice))"
+        )
     }
 }
 
