@@ -1,7 +1,7 @@
 # 退货分析 · 亚马逊原始数据 Tab + Excel sheet 设计规格
 
-> **状态**：**设计定稿**（2026-09-14 三轮拍板：D1 原始数据范围＝仅退货报表原始行 / D2 前端形态＝新增「原始数据」Tab / D3 数据链路＝独立端点 + 懒加载 / D4 列口径＝原始列 + 中文翻译列；另定 D5 导出前必须拿到原始行，否则中止导出）。
-> **范围**：`/dashboard/operations/return-analysis` 页面新增「原始数据」Tab，导出 Excel 新增「亚马逊原始数据」sheet。**本 spec 只设计，不含实施**；实施计划另见 `docs/superpowers/plans/`。
+> **状态**：**设计定稿**（2026-09-14 三轮拍板：D1 原始数据范围＝仅退货报表原始行 / D2 前端形态＝新增「原始数据」Tab / D3 数据链路＝独立端点 + 懒加载 / D4 列口径＝原始列 + 中文翻译列；另定 D5 导出前必须拿到原始行，否则中止导出；详见 §0.3 的追加拍板——DTO 管道修复与契约重生成）。
+> **范围**：`/dashboard/operations/return-analysis` 页面新增「原始数据」Tab，导出 Excel 新增「亚马逊原始数据」sheet。**本 spec 只设计，不含实施**；实施计划见 [`docs/superpowers/plans/2026-09-14-return-analysis-raw-data-export.md`](../plans/2026-09-14-return-analysis-raw-data-export.md)。
 > **工单编号**：团队暂未分配；代码注释以「退货分析原始数据」描述，不臆造 BLF/BEL 编号。
 > **不动的东西**（约束，实施时逐条核对）：`/api/v1/return-analysis` 主响应与 Redis v2 缓存、`build_return_analysis()` 输出 schema、Agent 5 条退货路由、`/return-analysis-raw` 的 PII 白名单、现有 5 个 Excel sheet 的顺序与内容。
 
@@ -35,13 +35,25 @@
 
 第 3 份已被 Agent R3 使用。若新增的原始数据 sheet 也走它，导出的行会与页面分析数字**对不上**（含历史版本行）。因此本次把这份查询抽成**唯一共享函数**，新端点与两条分析路径都用它，并以对账测试锁死。
 
+### 0.3 补充拍板（2026-09-14 追加：DTO 管道）
+
+设计评审后实测发现一个**与本功能无关的既有 bug**：`make openapi-export` / `openapi-check` 自 BLF-657 懒路由改造后必崩——FastAPI 0.139 的 `_IncludedRouter` 懒物化机制要求 `app.openapi()` **之前**物化全部懒分组（`app/api/v1/lazy_router.py::preload_all_lazy_groups()` 的 docstring 已写明这一点），而 `backend/scripts/openapi_export.py` 漏调，直接抛
+`KeyError: (ModelField(field_info=Body(PydanticUndefined), name='payload', mode='validation'), 'validation')`。
+后果：已提交的 `frontend/types/api-generated/openapi.json` 因此漂移了 32 条别的功能加的路由，且没人能再同步。
+
+**追加拍板**（用户 2026-09-14 选择）：本分支内一并处理，但**拆成两个 commit**——
+(a) `fix(后端): openapi 导出前物化懒分组`（脚本修复 + 回归测试，随功能提交）；
+(b) `chore(契约): 同步 OpenAPI 与前端生成类型`（重生成 `openapi.json` + `api.d.ts`，会一并带上那 32 条漂移路由，可单独回滚）。
+
+理由：不修则契约管道永久瘫痪；只修不重生成，`make openapi-check` 会从「崩溃」变成「持续 drift 报红」，同样是坏信号。CI 只跑 `pnpm gen:api-types:check`（两个生成文件互相比对），故重生成不影响构建门禁，只是让契约回到诚实状态。
+
 ---
 
 ## 1. 数据口径
 
 ### 1.1 共享查询函数（新增，唯一真相源）
 
-位置：`backend/app/services/analysis/return_analysis/analysis.py`
+位置：**新建** `backend/app/services/analysis/return_analysis/queries.py`（该包已有 `analysis / models / parsers / persistence` 四模块拆分，读侧查询单独成模块，避免本已 1600+ 行的 `analysis.py` 继续膨胀；`queries.py` 只依赖 `app.models`，无循环导入）
 
 ```python
 def query_current_return_rows(
@@ -313,23 +325,31 @@ cd frontend && pnpm lint && pnpm build && pnpm test
 
 Excel 表头/列宽/冻结行的视觉效果属业务验收项，交用户在真实数据上人工确认。
 
+> 注：本次执行环境（DSH 沙箱）里 `pnpm` 不可用（corepack 需写工作区外的 `COREPACK_HOME`），执行时用等价直连二进制（`node_modules/.bin/vitest` / `.bin/eslint` / `node scripts/gen-api-types.mjs --check`），仓库标准命令由用户在健康环境复核。详见实施计划的「环境准备」节。
+
 ---
 
 ## 5. 改动清单
 
 | 文件 | 改动 |
 |---|---|
-| `backend/app/services/analysis/return_analysis/analysis.py` | 新增 `query_current_return_rows()`；两条分析路径替换为调用它；`__all__` 导出 |
+| `backend/app/services/analysis/return_analysis/queries.py` | **新增**：`query_current_return_rows()`（§1.1 唯一真相源） |
+| `backend/app/services/analysis/return_analysis/analysis.py` | 两条分析路径替换为调用共享函数；清理不再使用的 models import |
 | `backend/app/services/analysis/return_analysis/__init__.py` | 导出新函数 |
 | `backend/app/schemas/return_analysis.py` | 新增 `ReturnRawRowItem` / `ReturnRawRowsResponse` |
+| `backend/app/constants/return_thresholds.py` | 新增 `MAX_RAW_ROWS = 50_000` |
 | `backend/app/api/v1/endpoints/return_analysis.py` | 新增 `GET /return-analysis/raw-rows` |
 | `backend/tests/api/test_return_analysis_raw_rows.py` | 新增（§4.1） |
+| `backend/tests/services/analysis/return_analysis/test_shared_return_rows_query.py` | 新增（§4.1 共享函数 + 对账） |
+| `backend/scripts/openapi_export.py` | 修复：`build_app()` 内 `preload_all_lazy_groups()`（§0.3） |
+| `backend/tests/scripts/test_openapi_export.py` | 新增：schema 可生成 + 可复现 + 漂移守卫（§0.3） |
+| `frontend/types/api-generated/openapi.json` / `api.d.ts` | 重生成（独立 commit，§0.3） |
 | `frontend/app/dashboard/operations/return-analysis/return-raw-columns.ts` | 新增（§3.1） |
 | `frontend/app/dashboard/operations/return-analysis/return-raw-columns.test.ts` | 新增 |
 | `frontend/app/dashboard/operations/return-analysis/return-analysis-client.tsx` | Tab / 状态机 / 表格 / 导出 sheet（§3.2-§3.5） |
 | `frontend/app/dashboard/operations/return-analysis/return-analysis-client.test.tsx` | 扩展（§4.2） |
 | `frontend/lib/server/backend-proxy-timeout-policy.ts` + `.test.ts` | stats 档新增锚定模式（§2.5、§4.3） |
-| `docs/superpowers/plans/<日期>-return-analysis-raw-data-export.md` | 实施计划（下一步产出） |
+| `docs/superpowers/plans/2026-09-14-return-analysis-raw-data-export.md` | 实施计划（已产出） |
 
 **无数据库迁移**（不加表、不加列）。**无 API 破坏性变更**（纯新增端点）。
 
@@ -344,8 +364,10 @@ Excel 表头/列宽/冻结行的视觉效果属业务验收项，交用户在真
 | 页内渲染 200 行 × 17 列 | 低 | 截断到 200 行 + 完整数据走导出；如后续需要再上虚拟滚动 |
 | 顾客评论进导出文件 | 低（已知） | 与现有「顾客反馈」tab 同一暴露面，无新增权限面；如合规要求剥离，去掉第 17 列即可（列配置单点改动） |
 | 导出前多一次等待 | 低（已拍板 D3） | 仅未加载过原始行时发生；失败即中止并提示，不产出半成品文件 |
+| 契约重生成顺带带上 32 条历史漂移路由 | 低（已拍板 §0.3） | 独立 commit、纯新增路径（`removed 0`）、可单独回滚；重生成文件由脚本产出，不做人工编辑 |
+| 改 `openapi_export.py` 影响面 | 低 | 只加一次 `preload_all_lazy_groups()` 调用；回归测试锁 schema 可生成 + 可复现 + 无漂移；不影响运行时（只在导出脚本里跑） |
 
-**回滚**：三处独立 —— (a) 前端导出 sheet 与 Tab 可单独移除；(b) 新端点可单独下线路由；(c) 共享函数抽取可单独 revert。互不捆绑。
+**回滚**：四处独立 —— (a) 前端导出 sheet 与 Tab 可单独移除；(b) 新端点可单独下线路由；(c) 共享函数抽取可单独 revert；(d) 契约重生成是独立 commit，可单独 revert（脚本修复保留）。互不捆绑。
 
 ---
 
@@ -358,6 +380,7 @@ Excel 表头/列宽/冻结行的视觉效果属业务验收项，交用户在真
 5. **不做分页 / 虚拟滚动 / 服务端排序**：真实数据量不需要；安全阀已覆盖极端情况。
 6. **不做原始数据的上传 / 编辑**：`analysis_return_rows` 是 Amazon 报表来源的不可变事实，唯一写路径是文件上传通道。
 7. **不改** Agent 通道任何契约与 PII 白名单。
+8. **不重建懒路由机制本身**：`openapi_export.py` 只补一次 `preload_all_lazy_groups()`，不动 `lazy_router.py` 的懒加载策略（那会影响每个请求的内存/性能画像，属 BLF-657 领域）。
 
 ---
 
