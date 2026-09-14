@@ -14,14 +14,16 @@ final class BelieveBoyAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemVa
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
 
+        // 初始尺寸取登录页的紧凑尺寸：冷启动未登录时不会看到窗口先大后小地跳一下。
+        // 真正的尺寸由 `WindowSizingProbe` 按登录态决定（登录后自动放大）。
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 660),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 540),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "BelieveBoy"
-        window.minSize = NSSize(width: 640, height: 520)
+        window.contentMinSize = NSSize(width: 420, height: 480)
         window.contentView = NSHostingView(rootView: RootView(model: model))
         window.center()
         window.makeKeyAndOrderFront(nil)

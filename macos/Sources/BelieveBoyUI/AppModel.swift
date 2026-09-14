@@ -78,13 +78,19 @@ public final class AppModel {
     public private(set) var loginError: String?
     /// 会话已建但持久化失败等**非致命**提示（登录仍可用）。
     public private(set) var sessionNotice: String?
+    /// 「记住密码」勾选态。勾选后凭据在**登录成功时**才写入钥匙串；取消勾选立即删除。
+    public private(set) var rememberPassword = false
 
     /// 内置环境选择。自定义地址非空时由 `customBaseURL` 覆盖。
     public var environment: AppConfig.Environment
     public var customBaseURL: String = ""
+    /// 服务器选择区块是否展开。**默认折叠**：常态就是生产地址，把它摊在登录表单里
+    /// 只会和主操作抢层级（HIG《Disclosure controls》：高级项默认隐藏）。
+    public var isServerOptionsExpanded = false
     public private(set) var phase: ConnectionPhase = .idle
 
     private let sessionStore: SessionStore
+    private let rememberedLogins: RememberedLoginStore
     /// 进程环境变量（`BELIEVEBOY_BASE_URL` / `BELIEVEBOY_API_KEY`）。
     /// 注意与 `environment`（配置里选的生产/本地）不是一回事，故单独命名。
     private let processEnvironment: [String: String]
@@ -92,11 +98,13 @@ public final class AppModel {
 
     public init(
         sessionStore: SessionStore = KeychainSessionStore(),
+        rememberedLogins: RememberedLoginStore = KeychainRememberedLoginStore(),
         appEnvironment: AppConfig.Environment = .production,
         processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         urlSession: URLSession = .shared
     ) {
         self.sessionStore = sessionStore
+        self.rememberedLogins = rememberedLogins
         self.processEnvironment = processEnvironment
         self.urlSession = urlSession
         self.environment = appEnvironment
@@ -108,6 +116,9 @@ public final class AppModel {
             self.customBaseURL = resolvedURL.absoluteString
         }
         restoreSession()
+        // 冷启动先把「记住密码」的勾选态与回填准备好：勾选态取自钥匙串是否真有凭据，
+        // 不另存一个开关，免得两者漂移（勾着却没有凭据、或反过来）。
+        prefillRememberedLogin()
     }
 
     // MARK: - 派生值
@@ -122,6 +133,11 @@ public final class AppModel {
 
     /// 当前账号档案；环境变量凭据（无账号上下文）时为 `nil`。
     public var currentUser: AuthenticatedUser? { sessionState.session?.user }
+
+    /// 折叠标题里的服务器简称（自定义地址优先）。
+    public var serverDisplayName: String {
+        customBaseURL.trimmedNonEmpty != nil ? "自定义" : environment.shortName
+    }
 
     public var isSignedIn: Bool { sessionState.session != nil }
 
@@ -170,6 +186,73 @@ public final class AppModel {
         sessionState = .signedOut(reason: nil)
     }
 
+    // MARK: - 「记住密码」
+
+    /// 切换「记住密码」。
+    ///
+    /// 取消勾选 = 立刻删掉已保存的凭据（用户的意思就是「别再保存」）。勾上时**不立即写**：
+    /// 此刻草稿里可能是个错密码，写入只发生在**登录成功之后**。
+    public func setRememberPassword(_ remember: Bool) {
+        guard remember != rememberPassword else { return }
+        rememberPassword = remember
+        guard !remember else { return }
+        do {
+            try rememberedLogins.deleteLogin()
+        } catch let error as CredentialStoreError {
+            note("「记住密码」保存的凭据未能删除：\(error.displayMessage)")
+        } catch {
+            note("「记住密码」保存的凭据未能删除：\(error.localizedDescription)")
+        }
+    }
+
+    /// 读取已记住的凭据，并把勾选态对齐到「钥匙串里到底有没有」。
+    /// 读取失败不抛出：读不到只意味着没有可回填的东西，不该挡住登录。
+    @discardableResult
+    private func loadRememberedLogin() -> RememberedLogin? {
+        do {
+            let login = try rememberedLogins.loadLogin()
+            rememberPassword = login != nil
+            return login
+        } catch let error as CredentialStoreError {
+            note("未能读取「记住密码」保存的凭据：\(error.displayMessage)")
+        } catch {
+            note("未能读取「记住密码」保存的凭据：\(error.localizedDescription)")
+        }
+        return nil
+    }
+
+    /// 回到登录页时回填邮箱与密码。
+    ///
+    /// **只回填、不自动提交**：桌面端登录会轮换同一账号的 key，自动登录等于把用户
+    /// 刚在网页端建立的会话顶掉 —— 那一来一回就是 PLAN §4.1.1 推论三的互踢。是否
+    /// 承担这个代价由用户点一下「登录」来定。
+    private func prefillRememberedLogin() {
+        guard !isSignedIn else { return }
+        guard let login = loadRememberedLogin() else { return }
+        emailDraft = login.email
+        passwordDraft = login.password
+    }
+
+    /// 登录成功后写入（仅在勾选「记住密码」时）。
+    private func persistRememberedLogin(email: String, password: String) {
+        guard rememberPassword else { return }
+        guard let email = email.trimmedNonEmpty, !password.isEmpty else { return }
+        do {
+            try rememberedLogins.saveLogin(RememberedLogin(email: email, password: password))
+        } catch let error as CredentialStoreError {
+            note("已登录，但「记住密码」未能写入钥匙串（\(error.displayMessage)）。")
+        } catch {
+            note("已登录，但「记住密码」未能写入钥匙串（\(error.localizedDescription)）。")
+        }
+    }
+
+    /// 记录一条非致命提示。**不覆盖**已有提示：一次登录里可能同时发生两件事
+    /// （如登录成功但会话与「记住密码」双双写不进钥匙串），压掉前者会漏信息。
+    private func note(_ message: String) {
+        guard sessionNotice == nil else { return }
+        sessionNotice = message
+    }
+
     // MARK: - 登录 / 登出
 
     /// 登录：`POST /api/v1/auth/login` → 会话入库 → 进入主界面。
@@ -186,7 +269,9 @@ public final class AppModel {
                 baseURL: effectiveBaseURL,
                 session: urlSession
             )
-            // 密码用毕即清：不留在内存草稿里，也没有任何持久化路径会碰到它。
+            // 先落「记住密码」（要用到草稿里的原密码），再用毕即清 —— 草稿本身
+            // 不留在内存里，持久化只走钥匙串这一条路。
+            persistRememberedLogin(email: emailDraft, password: passwordDraft)
             passwordDraft = ""
             persist(authSession)
             sessionState = .signedIn(authSession)
@@ -220,9 +305,9 @@ public final class AppModel {
         do {
             try sessionStore.saveSession(session)
         } catch let error as CredentialStoreError {
-            sessionNotice = "已登录，但凭据未能写入钥匙串（\(error.displayMessage)），重启后需重新登录。"
+            note("已登录，但凭据未能写入钥匙串（\(error.displayMessage)），重启后需重新登录。")
         } catch {
-            sessionNotice = "已登录，但凭据未能写入钥匙串（\(error.localizedDescription)），重启后需重新登录。"
+            note("已登录，但凭据未能写入钥匙串（\(error.localizedDescription)），重启后需重新登录。")
         }
     }
 
@@ -232,6 +317,8 @@ public final class AppModel {
         loginError = nil
         phase = .idle
         sessionState = .signedOut(reason: reason)
+        // 被 403 顶回登录页时，「记住密码」能让这次重登只是一次点击。
+        prefillRememberedLogin()
     }
 
     /// 凭据失效（401/403）：清掉已知无效的 key、回到登录页，**不重试**。
@@ -251,8 +338,8 @@ public final class AppModel {
     static func credentialFailureReason(_ error: APIError) -> String {
         switch error {
         case .unauthorized(let status, _):
-            return "登录态已失效（HTTP \(status)）：该账号可能在网页端或其他设备重新登录过，"
-                + "旧凭据已被替换。请重新登录。"
+            return "凭据已失效（HTTP \(status)）：该账号可能已在网页端重新登录过（旧凭据被替换）。"
+                + "请重新登录。"
         case .missingCredential:
             return "缺少凭据，请重新登录。"
         default:

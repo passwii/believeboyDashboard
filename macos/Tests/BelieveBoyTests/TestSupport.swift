@@ -73,6 +73,52 @@ final class InMemorySessionStore: SessionStore, @unchecked Sendable {
     }
 }
 
+/// 内存「记住密码」存储：测试专用（理由同 `InMemorySessionStore`）。
+final class InMemoryRememberedLoginStore: RememberedLoginStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: RememberedLogin?
+    private var loadFailure: Error?
+    private var saveFailure: Error?
+    private var deleteCount = 0
+
+    init(seeded: RememberedLogin? = nil) {
+        stored = seeded
+    }
+
+    /// 注入读取失败（验证「钥匙串读不到」不得挡住登录）。
+    func failLoading(with error: Error) { withLock { loadFailure = error } }
+    /// 注入写入失败。
+    func failSaving(with error: Error) { withLock { saveFailure = error } }
+
+    var login: RememberedLogin? { withLock { stored } }
+    var deleteCalls: Int { withLock { deleteCount } }
+
+    func loadLogin() throws -> RememberedLogin? {
+        let failure = withLock { loadFailure }
+        if let failure { throw failure }
+        return withLock { stored }
+    }
+
+    func saveLogin(_ login: RememberedLogin) throws {
+        let failure = withLock { saveFailure }
+        if let failure { throw failure }
+        withLock { stored = login }
+    }
+
+    func deleteLogin() throws {
+        withLock {
+            deleteCount += 1
+            stored = nil
+        }
+    }
+
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
 extension AuthenticatedUser {
     /// 测试用管理员档案（字段取自测试库 `test_admin@believeboy.com` 的形态）。
     static let fixtureAdmin = AuthenticatedUser(

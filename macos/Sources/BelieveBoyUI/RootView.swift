@@ -16,6 +16,13 @@ public struct RootView: View {
     }
 
     public var body: some View {
+        content
+            // 窗口尺寸随登录态切换：登录页紧凑、主界面宽敞（离屏渲染时无窗口，空操作）。
+            .background(WindowSizingProbe(style: model.isSignedIn ? .regular : .compact))
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch model.sessionState {
         case .restoring:
             restoringPlaceholder
@@ -33,6 +40,6 @@ public struct RootView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
-        .frame(minWidth: 640, minHeight: 520)
+        .frame(minWidth: 420, minHeight: 480)
     }
 }

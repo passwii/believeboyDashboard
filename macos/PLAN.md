@@ -186,20 +186,21 @@ macos/
     │   ├── AuthService.swift      # POST /auth/login → AuthSession（HTTP 语义→登录语义）
     │   ├── AuthError.swift        # 登录失败的分类与文案
     │   ├── CredentialStore.swift  # key 协议 + 只读环境变量实现 + 凭据三态判定
-    │   ├── KeychainItem.swift     # kSecClassGenericPassword 条目 CRUD（两个条目共用）
+    │   ├── KeychainItem.swift     # kSecClassGenericPassword 条目 CRUD（key / 档案 / 「记住密码」三个条目共用）
     │   ├── KeychainCredentialStore.swift  # 账号专属 key（blf_）
     │   ├── SessionStore.swift     # 会话持久化协议（key + 账号档案）
     │   ├── KeychainSessionStore.swift     # 钥匙串实现：key + 档案（先档案后 key）
+    │   ├── RememberedLogin.swift  # 「记住密码」协议 + 钥匙串实现（opt-in，与 key / 档案分槽）
     │   ├── HealthProbe.swift      # live / full / snapshot（两步语义）
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       └── AuthModels.swift   # LoginRequest/Response、AuthenticatedUser、AuthSession、UserContext
     ├── BelieveBoyUI/          # SwiftUI 视图 + 视图状态（可离屏渲染，不需启动 GUI）
     │   ├── AppModel.swift         # @MainActor @Observable：登录态 + 连接配置 + 健康检查
-    │   ├── RootView.swift         # 按会话状态选页（restoring / 登录 / 主界面）
-    │   ├── LoginView.swift        # 登录表单 + 服务器选择
+    │   ├── RootView.swift         # 按会话状态选页（restoring / 登录 / 主界面）+ 窗口尺寸切换
+    │   ├── LoginView.swift        # 登录表单（窄栏居中，服务器选择默认折叠）
     │   ├── HealthView.swift       # 登录后的主界面（账号 + 后端地址 + 连接检查）
-    │   └── ViewSupport.swift      # 显式 Binding 助手 + 共用小组件
+    │   └── ViewSupport.swift      # 显式 Binding 助手 + 共用小组件 + 窗口尺寸探针
     └── BelieveBoyMac/         # 进程引导（薄壳）
         ├── main.swift             # NSApplication + setActivationPolicy(.regular)
         └── BelieveBoyAppDelegate.swift  # 窗口 + 主菜单（⌘R / ⌘⇧L 退出登录 / ⌘Q / 编辑菜单）
@@ -207,7 +208,7 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机用例）当前 **64 个用例**（其中 2 个真后端用例默认 skip），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机用例）当前 **77 个用例**（其中 2 个真后端用例默认 skip），`swift test` 需完整 Xcode，见 §9；`scripts/make-app.sh` 仍属 S7a。
 
 ---
 
@@ -219,7 +220,7 @@ macos/
 | --- | --- | --- | --- | --- | --- |
 | **S0** | 仓库清场 | 删除 `gui/`、`docs/gui-mvp-plan.md`、`.github/workflows/gui-windows-build.yml`；新建 `macos/`、`windows/` | `git ls-files \| grep '^gui/'` 为空；无残留 CI 引用 | — | **本 issue** |
 | S1 | 最小可运行骨架 | `macos/` SPM 工程（Kit + UI + 引导三层）：`AppConfig` + `APIClient` + Keychain 凭据 + 健康检查视图 + AppKit 引导与主菜单 + Kit 层 XCTest；`windows/README.md` 占位 | ① `swift build` 零错误（CLT 与完整 Xcode 两条工具链分别实测）；② Kit 层对真实后端端到端跑通（存活探针 / 鉴权探针 / snake_case 解码 / 缺凭据拦截 / 错误 key → 403 / 不可达 → transport / snapshot 短路）；③ App 启动建出窗口；④ 视图渲染出 `/health` 的 DB·副本·Redis·内存·环境名真实数据，失败态显示对应中文错误；⑤ `swift test` 11 用例全绿（需完整 Xcode，见 §9）；⑥ 生产直连验证见 §4.1 实测表 | S0 | 已完成（BLF-1041） |
-| **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页 | 冷启动凭据有效直进主界面；**401/403（含被网页端/其他设备登录顶掉导致 key 失效）→ 明确再登录路径，不做无谓重试**；App 不内置任何 key；密码不落盘 | S1 | 已完成（BLF-1044） |
+| **S2** | 登录与会话 | 登录表单 → `POST /api/v1/auth/login` → `api_key` 入 Keychain；登录态保持、`X-Operator`/`X-User-Id`/`X-Is-Admin` 注入；401/403 自动回登录页；「记住密码」（钥匙串，opt-in） | 冷启动凭据有效直进主界面；**401/403（含被网页端/其他设备登录顶掉导致 key 失效）→ 明确再登录路径，不做无谓重试**；App 不内置任何 key；密码不落盘（仅勾选「记住密码」时入钥匙串，且从不进 `UserDefaults`/账号档案/日志）；登录页精简（无说明性段落，服务器选择默认折叠） | S1 | 已完成（BLF-1044） |
 | **S3** | 应用外壳与导航 | `NavigationCatalog`（对齐 `sidebar-config.ts`）+ `NavigationSplitView` 三栏 + 模块占位视图 + 偏好设置（base URL 切 生产/本地） | 8 分组与二级项条目数与 `sidebar-config.ts` 一致；切换模块无泄漏 Task；窗口尺寸/侧栏折叠状态恢复 | S2 | 后续 issue |
 | **S4** | 首个真实业务模块 | 「运营 → 数据流总览」只读页（对齐 Web dashboard 首页信息密度） | 数据与 Web 同源同值（抽样比对）；加载/空/错误三态齐备；列表超时 5s / 统计 15s 分层生效 | S3 | 后续 issue |
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S4 | 后续多个 issue（每组一个） |

@@ -22,7 +22,13 @@ swift build              # 编译（CLT 或 Xcode 工具链均可）
 swift run BelieveBoyMac  # 启动（弹出窗口），默认连生产后端
 ```
 
-窗口内操作：选服务器（生产 / 本地 / 自定义）→ 填邮箱 + 密码 →「登录」→ 进主界面，自动跑一次连接检查（或 `⌘R` 手动重跑，`⌘⇧L` 退出登录）。
+窗口内操作：填邮箱 + 密码 →「登录」→ 进主界面，自动跑一次连接检查（或 `⌘R` 手动重跑，`⌘⇧L` 退出登录）。
+
+登录页默认只有表单与一个「记住密码」勾选框：
+
+- **服务器选择默认折叠**在页脚（`服务器：生产 ⌄`），本地调试才需要展开 —— 常态就是生产地址，不该与主操作抢层级（HIG《Disclosure controls》：高级项默认隐藏）。
+- **「记住密码」默认关**。勾上后，邮箱与密码在**登录成功时**写入钥匙串（`remembered-login` 条目，与 key、账号档案分槽），下次回到登录页自动回填，**但不会自动提交** —— 理由见下。取消勾选即删掉已存凭据。
+- 页面上不再有说明性段落：解释性内容收进折叠区、脚注或本文档；页面只留「为什么回到登录页」与「登录为什么失败」两类必需的提示。
 
 登录下发的 `blf_` key 存入 macOS 钥匙串，下次启动直接进主界面（不闪登录页）。
 不需登录的无人值守场景（开发 / CI / 无 GUI 排查）可以给环境变量凭据绕过登录页
@@ -54,15 +60,21 @@ swift run BelieveBoyMac
 
 「一账号多设备多把 key」需后端改动，是独立决策（详见 PLAN.md §4.1.1），本轮不改后端。
 
+**「记住密码」只回填、不自动登录**：桌面端登录会轮换同一账号的 key，自动提交等于把用户
+刚在网页端建立的会话顶掉 —— 那就成了「桌面端踢网页端 → 用户网页端重登 → 又踢回桌面端」
+的互踢循环（PLAN §4.1.1 推论三）。所以记住的凭据只用于预填表单，是否承担这个代价由用户
+点一下「登录」决定。真正的解法是「一账号多设备多把 key」（后端决策，见上）。
+
 > 生产 API key **不在仓库里**，App 也**不内置任何 key**：`blf_` key 只能由
 > `POST /api/v1/auth/login` 登录换取，**每次登录轮换、旧 key 立即失效、一个账号同时只有一把**。
-> 密码只随登录请求发一次（不落盘、不进日志）；key 与账号档案存 macOS 钥匙串。
+> 密码只随登录请求发一次（不进日志）；key 与账号档案存 macOS 钥匙串；
+> **密码只有勾上「记住密码」时才进钥匙串**，且从不进 `UserDefaults`、账号档案或日志。
 
 ## 验证
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 64 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 77 个用例（2 个真后端用例默认 skip）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
@@ -101,6 +113,8 @@ DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --filter Liv
 
 S2 新增用例：**登录请求形状**（POST / 无凭据头 / JSON 体 / 邮箱 trim 而密码原样）、**响应解码**（snake_case、`role_type` 兜底）、**失败分类**（401 密码错 / 401 账号停用 / 429 限流 / 200 但 `api_key` 为空）、**账号上下文注入**（`X-Operator` 中文 percent-encoding、非管理员显式 `false`、无档案时不发）、**登录态状态机**（冷启动直进主界面且零网络往返、登录成功入库、401/403 回登录页且不重试、轮换后重新登录即自愈、传输失败不登出、并发点登录只发一次）、**密码不落盘**、**真钥匙串往返**。
 
+S2 UI 精简新增用例：**「记住密码」默认关**（未勾选时一个字节都不写）、**登录成功才写**（勾选当下不写、失败不写）、**取消勾选即删**、**403 被顶掉后凭据仍预填**（一次点击即可重登）、**登出不删「记住密码」**、**密码不进 `UserDefaults` 与账号档案**、**「记住密码」读写失败只提示、不挡登录**、**服务器选择默认折叠**，以及 `RememberedLoginTests` 的真钥匙串往返与「条目写坏 → 当没记住」。
+
 浏览器/窗口截图之外的验证路径：`BelieveBoyUI` 是独立 target，可离屏渲染 ——
 `NSHostingView(rootView: RootView(model:))` + `bitmapImageRepForCachingDisplay`，
 无需启动 GUI 进程即可确认视图真实渲染结果。
@@ -121,10 +135,10 @@ S2 新增用例：**登录请求形状**（POST / 无凭据头 / JSON 体 / 邮�
 ```
 macos/
 ├── PLAN.md                     # 选型 + 架构 + stage 计划（权威文档）
-├── Package.swift               # 三层 target + BelieveBoyKitTests
-├── Tests/BelieveBoyKitTests/   # XCTest（离线打桩；需完整 Xcode）
+├── Package.swift               # 三层 target + BelieveBoyTests
+├── Tests/BelieveBoyTests/      # XCTest（离线打桩；需完整 Xcode）
 └── Sources/
-    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 健康探针（不 import SwiftUI）
+    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络 / 凭据 / 会话 / 健康探针（不 import SwiftUI）
     ├── BelieveBoyUI/           # SwiftUI 视图 + AppModel（可离屏渲染）
     └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口 + 菜单）
 ```

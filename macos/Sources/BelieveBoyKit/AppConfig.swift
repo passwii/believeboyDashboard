@@ -19,6 +19,14 @@ public struct AppConfig: Sendable, Equatable {
             }
         }
 
+        /// 分段控件与折叠标题里的简称（`displayName` 带域名，放进分段按钮会挤爆）。
+        public var shortName: String {
+            switch self {
+            case .production: return "生产"
+            case .local: return "本地"
+            }
+        }
+
         public var baseURL: URL {
             switch self {
             case .production: return URL(string: "https://dash-api.believeboy.com")!

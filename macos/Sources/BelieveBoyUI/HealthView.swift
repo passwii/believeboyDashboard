@@ -54,16 +54,14 @@ public struct HealthView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
-                    Text("请求会带上 X-Operator / X-User-Id / X-Is-Admin，后端据此按账号过滤可见数据。")
+                    Text("请求带 X-Operator / X-User-Id / X-Is-Admin，后端据此过滤可见数据。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     // 环境变量凭据（BELIEVEBOY_API_KEY）：有 key，没有账号档案。
                     NoticeRow(
                         kind: .warning,
-                        message: "当前凭据来自环境变量 BELIEVEBOY_API_KEY：可发请求，但没有账号上下文，"
-                            + "因此不发 X-Operator 一族请求头，后端会按「未声明操作员」过滤数据。"
-                            + "改用登录可拿到完整账号身份。"
+                        message: "凭据来自环境变量 BELIEVEBOY_API_KEY：无账号上下文，不发 X-Operator 请求头。"
                     )
                 }
 
@@ -77,7 +75,7 @@ public struct HealthView: View {
                     } label: {
                         Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
                     }
-                    Text("退出会清除钥匙串中的凭据。")
+                    Text("退出会清除钥匙串中的会话（「记住密码」保留）。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -89,38 +87,46 @@ public struct HealthView: View {
 
     // MARK: - 后端地址
 
+    /// 后端地址是次要配置：日常就是生产地址，**默认折叠**（与登录页同一条约定）。
     private var endpointSection: some View {
-        GroupBox("后端地址") {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker("环境", selection: model.binding(for: \.environment)) {
-                    ForEach(AppConfig.Environment.allCases) { environment in
-                        Text(environment.displayName).tag(environment)
+        DisclosureGroup(isExpanded: model.binding(for: \.isServerOptionsExpanded)) {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("环境", selection: model.binding(for: \.environment)) {
+                        ForEach(AppConfig.Environment.allCases) { environment in
+                            Text(environment.shortName).tag(environment)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .disabled(model.customBaseURL.trimmedNonEmpty != nil)
+                    .onChange(of: model.environment) { _, _ in
+                        Task { await model.checkConnection() }
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField(
+                            "自定义地址（根地址、不含路径；留空则用上方环境）",
+                            text: model.binding(for: \.customBaseURL)
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        Button("清除") { model.customBaseURL = "" }
+                            .disabled(model.customBaseURL.isEmpty)
+                    }
+
+                    LabeledContent("请求前缀") {
+                        Text(model.effectiveBaseURL.absoluteString + APIClient.apiPrefix)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
-                .pickerStyle(.segmented)
-                .disabled(model.customBaseURL.trimmedNonEmpty != nil)
-                .onChange(of: model.environment) { _, _ in
-                    Task { await model.checkConnection() }
-                }
-
-                HStack(spacing: 8) {
-                    TextField(
-                        "自定义地址（根地址、不含路径；留空则用上方环境）",
-                        text: model.binding(for: \.customBaseURL)
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    Button("清除") { model.customBaseURL = "" }
-                        .disabled(model.customBaseURL.isEmpty)
-                }
-
-                LabeledContent("请求前缀") {
-                    Text(model.effectiveBaseURL.absoluteString + APIClient.apiPrefix)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+                .padding(6)
             }
-            .padding(6)
+            .padding(.top, 10)
+        } label: {
+            Text("后端地址：\(model.serverDisplayName)")
+                .font(.callout.weight(.medium))
         }
     }
 
