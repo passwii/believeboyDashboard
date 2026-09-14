@@ -3,6 +3,8 @@
 背景：同一个「当前生效退货行」查询曾在三处各写一份（fallback / snapshot /
 Agent raw），Agent 那份漏了 ``is_current`` 过滤，口径已经漂移。本测试锁死
 共享函数的语义，并用「与分析 summary 对账」防止再次漂移。
+
+种子数据统一走 ``return_row_factories``（与 HTTP 层测试共用一份，防漂移）。
 """
 
 from __future__ import annotations
@@ -11,6 +13,12 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
+from return_row_factories import (
+    default_return_window,
+    purge_project_return_data,
+    seed_return_row,
+    seed_return_source,
+)
 from sqlalchemy import text
 
 from app.db.session import SessionLocal
@@ -47,106 +55,20 @@ def test_project(db_session):
     try:
         yield pid
     finally:
-        db_session.expire_all()
-        for table in (
-            "analysis_return_rows",
-            "analysis_sales_order_rows",
-            "analysis_source_files",
-            "analysis_return_aggregates",
-        ):
-            db_session.execute(
-                text(f"DELETE FROM {table} WHERE project_id = :pid"), {"pid": pid}
-            )
-        db_session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": pid})
-        db_session.commit()
-
-
-def _seed_source(
-    db_session,
-    project_id: int,
-    tag: str,
-    *,
-    is_current: bool = True,
-    version: int = 1,
-    country: str = "US",
-):
-    """建一张 return_report 源文件。
-
-    唯一键是 (project_id, report_type, country, period_start_date,
-    period_end_date, version) —— 同国家同周期要建第二张必须换 version。
-    """
-    from app.models import AnalysisSourceFile
-
-    sf = AnalysisSourceFile(
-        project_id=project_id,
-        country=country,
-        report_type="return_report",
-        upload_file_id=f"shared_{tag}_{project_id}",
-        upload_file_path=f"/tmp/shared_{tag}.csv",
-        original_filename=f"shared_{tag}.csv",
-        stored_filename=f"shared_{tag}.csv",
-        logical_filename=f"shared_{tag}.csv",
-        storage_key=f"shared/{tag}.csv",
-        period_start_date=date.today() - timedelta(days=30),
-        period_end_date=date.today(),
-        is_current=is_current,
-        version=version,
-        ingestion_status="success",
-    )
-    db_session.add(sf)
-    db_session.commit()
-    db_session.refresh(sf)
-    return sf
-
-
-def _add_row(
-    db_session,
-    *,
-    source_file_id: int,
-    project_id: int,
-    order_id: str,
-    sku: str,
-    return_date: date,
-    license_plate: str,
-    row_no: int,
-    country: str = "US",
-    quantity: int = 1,
-):
-    from app.models import AnalysisReturnRow
-
-    db_session.add(
-        AnalysisReturnRow(
-            project_id=project_id,
-            country=country,
-            source_file_id=source_file_id,
-            source_row_no=row_no,
-            return_date=return_date,
-            order_id=order_id,
-            sku=sku,
-            quantity=quantity,
-            detailed_disposition="SELLABLE",
-            reason="NOT_AS_DESCRIBED",
-            status="Unit returned to inventory",
-            license_plate_number=license_plate,
-            original_return_datetime=f"{return_date.isoformat()}T10:00:00+00:00",
-        )
-    )
-    db_session.commit()
-
-
-def _window() -> tuple[str, str]:
-    """近 7 天窗口（与 Agent 测试同口径：昨天为右端点）。"""
-    d = date.today() - timedelta(days=1)
-    return (d - timedelta(days=6)).isoformat(), d.isoformat()
+        purge_project_return_data(db_session, pid)
 
 
 def test_returns_only_current_source_file_rows(db_session, test_project):
     """非 current 的旧版本源文件行必须排除（Agent raw 端点曾漏掉这条）。"""
-    start, end = _window()
+    start, end = default_return_window()
     d = date.today() - timedelta(days=1)
-    current = _seed_source(db_session, test_project, "cur", is_current=True, version=1)
-    stale = _seed_source(db_session, test_project, "old", is_current=False, version=2)
-    _add_row(
+    current = seed_return_source(
+        db_session, test_project, tag="cur", is_current=True, version=1
+    )
+    stale = seed_return_source(
+        db_session, test_project, tag="old", is_current=False, version=2
+    )
+    seed_return_row(
         db_session,
         source_file_id=current.id,
         project_id=test_project,
@@ -156,7 +78,7 @@ def test_returns_only_current_source_file_rows(db_session, test_project):
         license_plate="LP-CUR",
         row_no=1,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=stale.id,
         project_id=test_project,
@@ -176,11 +98,11 @@ def test_returns_only_current_source_file_rows(db_session, test_project):
 
 def test_excludes_out_of_range_and_other_country(db_session, test_project):
     """日期范围外与别的国家的行都不出现。"""
-    start, end = _window()
+    start, end = default_return_window()
     d = date.today() - timedelta(days=1)
-    sf_us = _seed_source(db_session, test_project, "us")
-    sf_de = _seed_source(db_session, test_project, "de", country="DE")
-    _add_row(
+    sf_us = seed_return_source(db_session, test_project, tag="us")
+    sf_de = seed_return_source(db_session, test_project, tag="de", country="DE")
+    seed_return_row(
         db_session,
         source_file_id=sf_us.id,
         project_id=test_project,
@@ -190,7 +112,7 @@ def test_excludes_out_of_range_and_other_country(db_session, test_project):
         license_plate="LP-1",
         row_no=1,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf_us.id,
         project_id=test_project,
@@ -200,7 +122,7 @@ def test_excludes_out_of_range_and_other_country(db_session, test_project):
         license_plate="LP-2",
         row_no=2,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf_us.id,
         project_id=test_project,
@@ -210,7 +132,7 @@ def test_excludes_out_of_range_and_other_country(db_session, test_project):
         license_plate="LP-3",
         row_no=3,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf_de.id,
         project_id=test_project,
@@ -231,10 +153,10 @@ def test_excludes_out_of_range_and_other_country(db_session, test_project):
 
 def test_sku_filter(db_session, test_project):
     """传 sku 只回该 SKU；不传回全部。"""
-    start, end = _window()
+    start, end = default_return_window()
     d = date.today() - timedelta(days=1)
-    sf = _seed_source(db_session, test_project, "sku")
-    _add_row(
+    sf = seed_return_source(db_session, test_project, tag="sku")
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -244,7 +166,7 @@ def test_sku_filter(db_session, test_project):
         license_plate="LP-A",
         row_no=1,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -272,13 +194,23 @@ def test_sku_filter(db_session, test_project):
 
 
 def test_ordering_is_return_date_then_id(db_session, test_project):
-    """排序确定性：return_date 升序，同日按 id 升序（导出可复现的前提）。"""
-    start, end = _window()
+    """排序确定性：return_date 升序，同日按 id 升序（导出可复现的前提）。
+
+    鉴别力：只按 ``return_date`` 排序时，Postgres 对同日行返回的是**物理
+    （堆 / TID）顺序**，而普通插入的物理顺序恒等于 id 顺序 —— 那样即使删掉
+    ``queries.py`` 里的 ``AnalysisReturnRow.id.asc()`` 兜底，断言照样成立。
+
+    所以这里让两者刻意相反：``O-LATE-1`` 先插（拿到更小的 id），随后原值重写
+    一次（MVCC 下 UPDATE 会生成新的行版本、物理上挪到 ``O-LATE-2`` 之后），
+    于是同日两行的物理顺序是 ``[O-LATE-2, O-LATE-1]``，只有 id 兜底才能得到
+    期望的 ``[O-LATE-1, O-LATE-2]``。``source_row_no`` 同步按物理顺序编排。
+    """
+    start, end = default_return_window()
     end_date = date.today() - timedelta(days=1)
     earlier = end_date - timedelta(days=1)
-    sf = _seed_source(db_session, test_project, "ord")
+    sf = seed_return_source(db_session, test_project, tag="ord")
     # 故意先插较晚的两行，验证结果不是插入顺序
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -286,9 +218,9 @@ def test_ordering_is_return_date_then_id(db_session, test_project):
         sku="S-1",
         return_date=end_date,
         license_plate="LP-L1",
-        row_no=1,
+        row_no=2,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -296,9 +228,9 @@ def test_ordering_is_return_date_then_id(db_session, test_project):
         sku="S-1",
         return_date=end_date,
         license_plate="LP-L2",
-        row_no=2,
+        row_no=1,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -308,6 +240,15 @@ def test_ordering_is_return_date_then_id(db_session, test_project):
         license_plate="LP-E1",
         row_no=3,
     )
+    # 重写 O-LATE-1：让它的行版本落到 O-LATE-2 之后（物理顺序与 id 顺序解耦）
+    db_session.execute(
+        text(
+            "UPDATE analysis_return_rows SET customer_comments = :comment "
+            "WHERE project_id = :pid AND order_id = 'O-LATE-1'"
+        ),
+        {"comment": "ordering-tiebreak-probe", "pid": test_project},
+    )
+    db_session.commit()
 
     rows = query_current_return_rows(
         db_session, project_id=test_project, country="US", start_date=start, end_date=end
@@ -318,10 +259,10 @@ def test_ordering_is_return_date_then_id(db_session, test_project):
 
 def test_parity_with_analysis_summary_total_quantity(db_session, test_project):
     """对账：共享查询 quantity 合计 == 分析 summary.total_quantity（防口径漂移）。"""
-    start, end = _window()
+    start, end = default_return_window()
     d = date.today() - timedelta(days=1)
-    sf = _seed_source(db_session, test_project, "parity")
-    _add_row(
+    sf = seed_return_source(db_session, test_project, tag="parity")
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
@@ -332,7 +273,7 @@ def test_parity_with_analysis_summary_total_quantity(db_session, test_project):
         row_no=1,
         quantity=2,
     )
-    _add_row(
+    seed_return_row(
         db_session,
         source_file_id=sf.id,
         project_id=test_project,
