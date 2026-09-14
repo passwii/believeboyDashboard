@@ -40,3 +40,22 @@ def test_openapi_generation_is_deterministic():
     second = json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True)
 
     assert first == second
+
+
+def test_committed_openapi_matches_current_schema():
+    """契约不得漂移（BEL-29）——`make openapi-check` 的 pytest 版。
+
+    失败时的修法：`cd backend && make openapi-export` → `cd frontend &&
+    pnpm gen:api-types`（worktree 无 .venv 时用 `VENV=<绝对路径>/python make
+    openapi-export`），然后把两个生成文件一起提交。
+    """
+    from scripts.openapi_export import DEFAULT_OUT
+
+    app = build_app()
+    fresh = json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    committed = DEFAULT_OUT.read_text(encoding="utf-8")
+
+    assert committed == fresh, (
+        "frontend/types/api-generated/openapi.json 已漂移："
+        "cd backend && make openapi-export 后提交，再 cd frontend && pnpm gen:api-types"
+    )

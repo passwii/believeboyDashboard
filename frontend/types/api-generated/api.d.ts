@@ -225,6 +225,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-ops/domain-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Domain Summary */
+        get: operations["get_domain_summary_api_v1_agent_ops_domain_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-ops/employee-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Employee Summary
+         * @description 员工段活动聚合(P3b):按凭据(= 员工身份)分组,口径与 domain-summary 一致。
+         *
+         *     ``api_key_id IS NULL``(匿名 / master key / skip 流量)不计入任何员工。
+         *     前端以 ``listAgentApiKeys`` 花名册按 id join,未活动员工显示占位。
+         */
+        get: operations["get_employee_summary_api_v1_agent_ops_employee_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/account-health/history": {
         parameters: {
             query?: never;
@@ -238,6 +278,7 @@ export interface paths {
          *     compliance_total 派生）→ 按凭据 project_scope 过滤 → 白名单排序 → 分页。
          *
          *     ``order_by`` 非法 → 400 ``VALIDATION_FAILED``；空结果 → 200 + 空 items。
+         *     ``?country=``（BLF-956）：按 ``Project.country`` 过滤（多站点逗号分隔聚合）。
          */
         get: operations["get_history_api_v1_agent_account_health_history_get"];
         put?: never;
@@ -258,6 +299,9 @@ export interface paths {
         /**
          * List Periods
          * @description R1 周期列表：复用 ``inspection_service.list_periods``（纯读，零改造）。
+         *
+         *     ``?country=``（BLF-956）：按 ``Project.country`` 过滤 submitted_count
+         *     （周期本身全局共享，不过滤周期列表）。
          */
         get: operations["list_periods_api_v1_agent_account_health_periods_get"];
         put?: never;
@@ -280,6 +324,9 @@ export interface paths {
          * @description R2 当前周期：**纯读**（``inspection_service.get_current_period``，无建行
          *     副作用——内部 ``get_or_create_current_period`` 无周期时会 INSERT，Agent 通道
          *     不可复用）。无周期 → 404 ``RESOURCE_NOT_FOUND``。
+         *
+         *     ``?country=``（BLF-956）：周期为全局共享资源，country 仅做归一化校验
+         *     （非法值 → 400），不影响返回的周期。
          */
         get: operations["get_current_period_api_v1_agent_account_health_periods_current_get"];
         put?: never;
@@ -302,6 +349,9 @@ export interface paths {
          * @description R3 周期概览：复用 ``inspection_service.get_overview``（状态推导 / 逾期口径
          *     与内部端点一致）→ 逐店行拍平（§7.3 字段）→ 按凭据 project_scope 过滤 items，
          *     计数在过滤后重算。周期不存在 → 404 ``RESOURCE_NOT_FOUND``。
+         *
+         *     ``?country=``（BLF-956）：按 ``Project.country`` 过滤 items（多站点逗号
+         *     分隔聚合）。
          */
         get: operations["get_period_overview_api_v1_agent_account_health_periods__period_id__overview_get"];
         put?: never;
@@ -324,8 +374,68 @@ export interface paths {
          * @description R4 单店报告明细：复用 ``inspection_service.get_report``（纯读）+
          *     project_scope 语义——项目不在凭据范围 → 404；无报告 → 404。
          *     ``include_summary=true`` 才带 ``status_summary``。
+         *
+         *     ``?country=``（BLF-956）：提供时校验项目国家匹配（不匹配 → 404
+         *     ``RESOURCE_NOT_FOUND``，对齐 R4 直取语义）。
          */
         get: operations["get_project_report_api_v1_agent_account_health_periods__period_id__projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/complaint-center/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Upsert
+         * @description W1 批量 upsert：一次事务收全家（run + shop_checks + complaints）。
+         *
+         *     幂等：同一天 run_date 重复提交 → 更新原 run，不产生重复行。
+         *
+         *     BLF-1022 身份门禁与事务一致性（整批拒绝，不落库）：
+         *     * ``shop_checks`` 的 ``(project_id, country)`` 每批次最多一条；
+         *     * ``check_status=ok`` 必须 ``identity_check.verified=true``，
+         *       否则 422 ``IDENTITY_CHECK_REQUIRED``；
+         *     * ``identity_mismatch`` 配 ``verified=true`` → 422
+         *       ``IDENTITY_CHECK_CONTRADICTION``；
+         *     * ``verified=true`` 但 alias/country 重算不匹配 → 422
+         *       ``IDENTITY_CHECK_INVALID``；
+         *     * ``required=true`` 的店铺缺 ``expected_alias`` → 422
+         *       ``IDENTITY_EXPECTED_ALIAS_MISSING``；
+         *     * complaints 只接受同一批次中 ``ok && verified=true`` 的
+         *       ``(project_id, country)``，否则整批 422（``IDENTITY_CHECK_REQUIRED``）；
+         *       ``identity_mismatch``/``login_page``/``launch_fail`` 的店铺不得产生
+         *       complaints；complaint 明细只用 ``project_id + country``。
+         */
+        post: operations["batch_upsert_api_v1_agent_complaint_center_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/complaint-center/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Complaints
+         * @description R1 Agent 起草前读取最新状态（避免重复处理）。
+         */
+        get: operations["list_complaints_api_v1_agent_complaint_center_complaints_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -351,6 +461,120 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Report
+         * @description W1 填写 / 更新草稿：upsert 语义 + 显式字段合并 + 审计（不 confirm）。
+         *
+         *     周期不存在 → 404 ``RESOURCE_NOT_FOUND``；项目不在凭据范围 → 403
+         *     ``AGENT_PROJECT_OUT_OF_SCOPE``（``require_project_scope`` 直取）。
+         *     幂等：重复 PUT 更新同一条不新建。
+         */
+        put: operations["upsert_report_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}/screenshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Screenshot
+         * @description W3 上传截图：multipart ``file``，复用 ``inspection_service.upload_screenshot``
+         *     （压缩 + 缩略图 + R2 + 入库，0 改造）。**不 confirm**（纯增量新增对象可删）。
+         *
+         *     该 (period, project) 无草稿报告 → 404（先 W1 建档再传图，与前端流程一致）。
+         *     响应**不含 presigned URL**（D6）：只给 screenshot_id + 元数据。
+         */
+        post: operations["upload_screenshot_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__screenshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Report
+         * @description W2 提交报告：confirm 两步后 draft/overdue → submitted（不可逆）+ 审计。
+         *
+         *     ``submitted_by=<agent_id>``、``submitted_at`` 由 ``submit_report`` 写入；
+         *     响应透出 ``warnings``（阈值告警，Agent 可向用户汇报异常指标）。
+         */
+        post: operations["submit_report_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/platform-inspection/screenshots/{screenshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Screenshot
+         * @description W4 删除截图：confirm 两步后 R2 原图 + 缩略图 + DB 行（不可逆）+ 审计。
+         *
+         *     project 范围在 handler 内校验（spec §5：W4 只有 screenshot_id 稳定键 →
+         *     screenshot → report → project_id → scope）。
+         */
+        delete: operations["delete_screenshot_api_v1_agent_platform_inspection_screenshots__screenshot_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/platform-inspection/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Template
+         * @description R0 巡检表单模板：与内部 ``GET /inspections/template`` 同源引用共享常量。
+         */
+        get: operations["get_template_api_v1_agent_platform_inspection_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects": {
         parameters: {
             query?: never;
@@ -360,11 +584,11 @@ export interface paths {
         };
         /**
          * Get Agent Projects
-         * @description ``/agent/projects`` 列表：项目名 + id。
+         * @description ``/agent/projects`` 列表：项目名 + id + 站点国家/地区。
          *
-         *     复用 ``projects_query.list_projects``（与删除前的 external handler 同一
-         *     服务函数）；``?name=`` 精确过滤；受 scope 限制的 key 按 project_scope
-         *     白名单过滤 items。
+         *     BLF-1022：每个 shop 返回 ``shop_name``（KJVS 首选启动参数）与
+         *     ``seller_identity``（Seller Central 账户切换器 alias 对照）；
+         *     ``shop_id`` 保持稳定主键（关闭参数/日志关联/fallback）。
          */
         get: operations["get_agent_projects_api_v1_agent_projects_get"];
         put?: never;
@@ -1178,7 +1402,7 @@ export interface paths {
         };
         /**
          * Get Agent Inventory Ledger Summary
-         * @description 日水位行（Summary 视图）+ msku/location/disposition 过滤。
+         * @description 日水位行（Summary 视图）+ msku/location/disposition/country 过滤。
          */
         get: operations["get_agent_inventory_ledger_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get"];
         put?: never;
@@ -1313,6 +1537,10 @@ export interface paths {
         /**
          * Get Agent Pricing Snapshot As Of
          * @description 定价目录冻结：最近一次 ``snapshot_date ≤ as_of`` 的全 SKU 经济账。
+         *
+         *     BLF-1043：每行带三个派生列（``breakeven_advertising_rate`` /
+         *     ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate``）；快照明细行本身
+         *     存了全部费用拆项，故锚在服务端纯代数推导，不落库、零迁移。
          */
         get: operations["get_agent_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get"];
         put?: never;
@@ -1740,7 +1968,11 @@ export interface paths {
         };
         /**
          * Get Agent Shop Calculation History
-         * @description 当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平 15 列。
+         * @description 当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。
+         *
+         *     BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /
+         *     ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——
+         *     扁平行没有费用拆项，消费方自己算不出锚。
          */
         get: operations["get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get"];
         put?: never;
@@ -1761,6 +1993,8 @@ export interface paths {
         /**
          * Get Agent Shop Calculation Snapshots
          * @description append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
+         *
+         *     BLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。
          */
         get: operations["get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get"];
         put?: never;
@@ -1916,7 +2150,14 @@ export interface paths {
         get: operations["get_sku_info_detail_api_v1_agent_projects__project_id__sku_info__sku_record_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Sku Info
+         * @description W5 删除：confirm 两步后硬删除（crud ``delete_sku_record``）+ 审计 + 缓存失效。
+         *
+         *     对齐内部 ``DELETE /sku-info/{sku_record_id}`` 语义：不清理 R2 文件
+         *     （fnsku-label / product-image）；记录不存在或不属于该项目 → agent shell 404。
+         */
+        delete: operations["delete_sku_info_api_v1_agent_projects__project_id__sku_info__sku_record_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -1992,6 +2233,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/provisioning/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Keys
+         * @description 列出所有绑定了 agent_id 的 Key（最新靠前）。
+         */
+        get: operations["list_agent_keys_api_v1_agent_provisioning_keys_get"];
+        put?: never;
+        /**
+         * Provision Agent Key
+         * @description 自助签发一张 agent 凭据（confirm 两步后落库，明文仅此一次）。
+         */
+        post: operations["provision_agent_key_api_v1_agent_provisioning_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/provisioning/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Agent Key
+         * @description 编辑现有 agent 凭据的权限与业务范围（BLF-987）。
+         *
+         *     PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope / item_key）。
+         *     编辑即刻生效——鉴权路径（scope.py）每请求实时读列，无需重建凭据。
+         *     已删除 Key 不可编辑（404）。
+         */
+        patch: operations["update_agent_key_api_v1_agent_provisioning_keys__key_id__patch"];
+        trace?: never;
+    };
     "/api/v1/agent/report-upload-status": {
         parameters: {
             query?: never;
@@ -2009,6 +2298,56 @@ export interface paths {
         get: operations["get_report_upload_status_api_v1_agent_report_upload_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/upload/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Report Upload Agent
+         * @description 正式提交：复用现有 commit_report_upload 逻辑入库。
+         *
+         *     项目权限：按 agent key 的 ``project_scope`` 白名单校验 ``project_name``
+         *     （``*`` 全放行）；**不信任 ``X-Is-Admin`` 头**——agent 通道在路由层已
+         *     完成权限收紧，服务层以 is_admin=True 调用只复用其入库逻辑。
+         *
+         *     BLF-975 复测第 3 项（B 类不走 A 类兼容模式）：广告 B 表类型（``ad_*``）
+         *     走广告原生的 ``commit_ad_upload``（C 表：ad_upload_files /
+         *     ad_upload_promoted_product_rows），**不经** A 表 commit 的
+         *     ``normalize_report_type``（它会把 ``ad_report`` 旧值折叠成
+         *     ``ad_product_report`` → 400 Unsupported）。
+         */
+        post: operations["commit_report_upload_agent_api_v1_agent_upload_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/upload/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Report Upload
+         * @description Dry-run 校验：返回列匹配度、检测国家、行数估算 + temp_file_id，不入库。
+         */
+        post: operations["validate_report_upload_api_v1_agent_upload_validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2816,6 +3155,58 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Complaints */
+        get: operations["list_complaints_api_v1_complaints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/complaints/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Overview */
+        get: operations["get_overview_api_v1_complaints_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/complaints/{complaint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Complaint */
+        get: operations["get_complaint_api_v1_complaints__complaint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Complaint Endpoint */
+        patch: operations["patch_complaint_endpoint_api_v1_complaints__complaint_id__patch"];
         trace?: never;
     };
     "/api/v1/crm/audit-logs": {
@@ -3696,6 +4087,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daily-analysis/all-projects-countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Daily Analysis All Projects Countries
+         * @description 全部项目 × 全部国家站点聚合（BLF-913，USD 基准）。
+         *
+         *     对每个 (project, country) 组合装载 US/DE/UK metrics，金额字段按当月
+         *     汇率折算成 USD 后合并；响应同时给出 ``project_breakdown``（项目跨
+         *     国家合并）与 ``country_breakdown``（国家跨项目合并）。
+         */
+        get: operations["get_daily_analysis_all_projects_countries_api_v1_daily_analysis_all_projects_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/digital-display/{project_id}": {
         parameters: {
             query?: never;
@@ -4036,6 +4451,189 @@ export interface paths {
          *     Returns 503 if DB is unreachable, signaling orchestrator to stop routing traffic.
          */
         get: operations["health_ready_api_v1_health_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/ad-analysis/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Ad Analysis Run
+         * @description 广告分析：聚合冻结 → ``ad_analysis.v1`` run（幂等：同口径复用 run）。
+         */
+        post: operations["create_ad_analysis_run_api_v1_insight_ad_analysis_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/inventory-health/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Inventory Health Run
+         * @description 库存健康：补货分析快照 → ``inventory_health.v1`` run（无旧链路）。
+         */
+        post: operations["create_inventory_health_run_api_v1_insight_inventory_health_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/observation/gate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 观测窗口质量/成本门禁结论 */
+        get: operations["get_observation_gate_api_v1_insight_observation_gate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/observation/retirement-readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** legacy 写端点退役就绪度（缺失的票显式列出） */
+        get: operations["get_retirement_readiness_api_v1_insight_observation_retirement_readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Insight Run
+         * @description Create (or replay) a durable Insight run and enqueue the Celery task.
+         */
+        post: operations["create_insight_run_api_v1_insight_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Insight Run
+         * @description Authoritative run snapshot — page reopen, SSE expiry, post-completion.
+         */
+        get: operations["get_insight_run_api_v1_insight_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Insight Run
+         * @description Cancel the run: DB row is authoritative; stream registry consumed.
+         */
+        post: operations["cancel_insight_run_api_v1_insight_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/runs/{run_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Insight Run
+         * @description Bump the attempt on a failed/cancelled run and re-enqueue it.
+         */
+        post: operations["retry_insight_run_api_v1_insight_runs__run_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight/runs/{run_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Insight Run
+         * @description SSE stream of one run's events; replayable via Last-Event-ID.
+         *
+         *     A client disconnect does NOT cancel the run — the durable executor keeps
+         *     running; only the explicit cancel endpoint does (acceptance §3).
+         *
+         *     Redis outage surfaces as a typed retryable 503 *before* the stream
+         *     starts (review B3): the client's existing HTTP-error backoff path then
+         *     retries, and the run itself is unaffected — the detail endpoint stays
+         *     the authority. No in-stream ``failed`` frame is ever emitted for a
+         *     transport problem.
+         */
+        get: operations["stream_insight_run_api_v1_insight_runs__run_id__stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4434,6 +5032,9 @@ export interface paths {
          *     PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope）。
          *     项目范围与业务域范围变更即刻生效——鉴权路径（``scope.py``）每请求实时读列，
          *     无需重建凭据。已删除 Key 不可编辑（404），与 deactivate / activate 一致。
+         *
+         *     红线 B（BLF-847）：防止给存量 key 补授签发域造出第二张管理 Key——先算
+         *     出「结果 business_scope」做单例互斥校验，再落库。
          */
         patch: operations["update_api_key_api_v1_internal_api_keys__key_id__patch"];
         trace?: never;
@@ -4540,6 +5141,68 @@ export interface paths {
          *     所有日期一次性 commit，便于回填场景。
          */
         post: operations["trigger_return_analysis_refresh_api_v1_internal_jobs_return_analysis_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/user-api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List User Api Keys
+         * @description 列出所有用户 key（无明文；key_prefix 仅用于区分，不含密钥尾部）。
+         */
+        get: operations["list_user_api_keys_api_v1_internal_user_api_keys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/user-api-keys/{user_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Api Key
+         * @description 按 user_id 吊销该用户的专属 key（幂等；无 key 记录时返回 404）。
+         */
+        post: operations["revoke_user_api_key_api_v1_internal_user_api_keys__user_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/user-api-keys/{user_id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate User Api Key
+         * @description 按 user_id 轮换：旧 key 立即失效、签发新 key，明文仅本次返回一次。
+         *
+         *     未找到记录时返回 404（补发 key 的自然路径是登录下发）。
+         */
+        post: operations["rotate_user_api_key_api_v1_internal_user_api_keys__user_id__rotate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5387,6 +6050,30 @@ export interface paths {
         };
         /** List Orders */
         get: operations["list_orders_api_v1_order_info_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/live-stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Order Live Stream
+         * @description 今日出单流：按订单去重的最近 N 条出单事件（BLF-839）。
+         *
+         *     供终端 Inspector Live Stream 区块轮询（建议 30s–60s 间隔）。
+         *     字段最小集 ``id`` / ``title`` / ``time_label`` 对齐前端
+         *     ``LiveStreamItem`` 插槽（PR #425）；权限与 order-info 列表页同口径。
+         */
+        get: operations["get_order_live_stream_api_v1_order_info_live_stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6310,6 +6997,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/shops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Shops Endpoint */
+        get: operations["list_project_shops_endpoint_api_v1_projects__project_id__shops_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/shops/{country}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert Project Shop Endpoint */
+        put: operations["upsert_project_shop_endpoint_api_v1_projects__project_id__shops__country__put"];
+        post?: never;
+        /** Delete Project Shop Endpoint */
+        delete: operations["delete_project_shop_endpoint_api_v1_projects__project_id__shops__country__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/report-reconciliation/auto-reconcile": {
         parameters: {
             query?: never;
@@ -6570,6 +7292,33 @@ export interface paths {
          *        - 不新鲜：fallback 到 build_return_analysis() 现场跑
          */
         get: operations["get_return_analysis_api_v1_return_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/return-analysis/raw-rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Return Analysis Raw Rows
+         * @description 亚马逊退货报表原始行（该周期、当前生效版本）。
+         *
+         *     与 /return-analysis 同口径（共用 query_current_return_rows），供前端
+         *     「原始数据」Tab 与 Excel「亚马逊原始数据」sheet 使用。独立端点而非并入
+         *     主响应：主响应与 Redis v2 缓存保持零改动（spec §2.1）。
+         *
+         *     不做分页：真实数据量为单周期数十至数百行，上限 MAX_RAW_ROWS 兜底；
+         *     超限显式 400 而不是静默截断（spec §2.4）。
+         */
+        get: operations["get_return_analysis_raw_rows_api_v1_return_analysis_raw_rows_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8634,6 +9383,8 @@ export interface components {
             agent_id?: string | null;
             /** Api Key Id */
             api_key_id?: number | null;
+            /** Country */
+            country?: string | null;
             /** Created At */
             created_at: string;
             /** Id */
@@ -8924,10 +9675,167 @@ export interface components {
              * @default 1
              */
             storage_months: number;
+            /** Target Net Margin */
+            target_net_margin?: number | null;
             /** Usd To Rmb Rate */
             usd_to_rmb_rate?: number | null;
             /** Weight Kg */
             weight_kg: number;
+        };
+        /**
+         * AgentUploadCommitRequest
+         * @description agent 通道正式提交请求：同 ``ReportCommitRequest`` 契约。
+         *
+         *     继承保证 agent 调用可直接透传给 ``commit_report_upload``（服务层签名
+         *     只认 ``ReportCommitRequest``）；``dry_run`` 字段一并继承（agent 不用，
+         *     但服务层契约对齐）。
+         */
+        AgentUploadCommitRequest: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Original Filename */
+            original_filename?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Report Date */
+            report_date?: string | null;
+            /** Report End Date */
+            report_end_date?: string | null;
+            /** Report Start Date */
+            report_start_date?: string | null;
+            /**
+             * Report Type
+             * @enum {string}
+             */
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
+            /** Temp File Id */
+            temp_file_id: string;
+            /**
+             * Use Period Dates
+             * @default false
+             */
+            use_period_dates: boolean;
+        };
+        /**
+         * AgentUploadCommitResponse
+         * @description agent 通道正式提交响应：同 ``ReportCommitResponse`` 契约。
+         */
+        AgentUploadCommitResponse: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /** Duplicate Warnings */
+            duplicate_warnings?: {
+                [key: string]: unknown;
+            }[];
+            /** File Id */
+            file_id: string;
+            /** File Path */
+            file_path: string;
+            /** Message */
+            message: string;
+            /** Persisted Source Id */
+            persisted_source_id?: number | null;
+            /** Persisted Table */
+            persisted_table?: string | null;
+            /** Project Name */
+            project_name?: string | null;
+            /** Report Date */
+            report_date?: string | null;
+            /** Report End Date */
+            report_end_date?: string | null;
+            /** Report Start Date */
+            report_start_date?: string | null;
+            /**
+             * Report Type
+             * @enum {string}
+             */
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
+            /**
+             * Rows Ingested
+             * @description 实际入库行数（仅按行入库的报表类型非空）
+             */
+            rows_ingested?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "saved" | "persisted" | "skipped";
+        };
+        /**
+         * AgentUploadValidateResponse
+         * @description Dry-run 校验响应：列匹配度、检测国家、行数估算。
+         *
+         *     BLF-975 复测：``temp_file_id`` 必返回——validate 即临时文件登记步骤，
+         *     commit 用它两段式衔接（此前缺失导致 agent 流接不上）。
+         */
+        AgentUploadValidateResponse: {
+            /**
+             * Column Match Ratio
+             * @description 列匹配度 (0.0-1.0)
+             * @default 0
+             */
+            column_match_ratio: number;
+            /**
+             * Date Input Mode
+             * @default single_manual
+             * @enum {string}
+             */
+            date_input_mode: "single_manual" | "single_auto" | "single_detected" | "range_manual" | "range_auto" | "multi_auto";
+            /** Detected Countries */
+            detected_countries?: string[];
+            /** Detected Date */
+            detected_date?: string | null;
+            /** Detected End Date */
+            detected_end_date?: string | null;
+            /** Detected Start Date */
+            detected_start_date?: string | null;
+            /** Matched Columns */
+            matched_columns?: string[];
+            /** Missing Columns */
+            missing_columns?: string[];
+            /**
+             * Original Filename
+             * @default
+             */
+            original_filename: string;
+            /**
+             * Primary Country
+             * @default US
+             */
+            primary_country: string;
+            /**
+             * Report Type
+             * @enum {string}
+             */
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
+            /** Row Count Preview */
+            row_count_preview?: number | null;
+            /**
+             * Status
+             * @default valid
+             * @enum {string}
+             */
+            status: "valid" | "invalid" | "warning";
+            /**
+             * Suggested Report Type
+             * @description 列不匹配时建议的报表类型
+             */
+            suggested_report_type?: ("inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown") | null;
+            /** Temp File Id */
+            temp_file_id: string;
+            /** Warnings */
+            warnings?: string[];
         };
         /** AlertEventItem */
         AlertEventItem: {
@@ -9204,6 +10112,27 @@ export interface components {
             source: components["schemas"]["AnalysisSourceFileItem"];
         };
         /**
+         * AnchorBasis
+         * @description 锚所依据的汇率 / 观测时刻（自包含缓存所需）。
+         */
+        AnchorBasis: {
+            /**
+             * Observed At
+             * @description 本行快照的观测时刻（compute 试算无落库行，返回 null）
+             */
+            observed_at?: string | null;
+            /**
+             * Usd To Rmb Rate
+             * @description 锚所依据的 USD→RMB 汇率
+             */
+            usd_to_rmb_rate?: number | null;
+            /**
+             * Usd To Rmb Rate Source
+             * @description 汇率来源（manual / system:YYYY-MM 等）
+             */
+            usd_to_rmb_rate_source?: string | null;
+        };
+        /**
          * AnnualProgressItem
          * @description 年度完成进度项
          */
@@ -9248,6 +10177,11 @@ export interface components {
              */
             expires_at?: string | null;
             /**
+             * Item Key
+             * @description 外部 agent 平台身份引用（BLF-843，如 multica://<workspace>/agent/<id>）；仅标注不参与鉴权
+             */
+            item_key?: string | null;
+            /**
              * Label
              * @description 人类可读标识
              */
@@ -9279,6 +10213,8 @@ export interface components {
             expires_at: string | null;
             /** Id */
             id: number;
+            /** Item Key */
+            item_key?: string | null;
             /** Key Prefix */
             key_prefix: string;
             /** Label */
@@ -9319,6 +10255,8 @@ export interface components {
             id: number;
             /** Is Revoked */
             is_revoked: boolean;
+            /** Item Key */
+            item_key?: string | null;
             /** Key Prefix */
             key_prefix: string;
             /** Label */
@@ -9350,6 +10288,11 @@ export interface components {
              * @description 业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）
              */
             business_scope?: string | null;
+            /**
+             * Item Key
+             * @description 外部 agent 平台身份引用（空串清除标注）
+             */
+            item_key?: string | null;
             /**
              * Label
              * @description 人类可读标识
@@ -9661,6 +10604,18 @@ export interface components {
             /** Csv File */
             csv_file: string;
         };
+        /** Body_validate_report_upload_api_v1_agent_upload_validate_post */
+        Body_validate_report_upload_api_v1_agent_upload_validate_post: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /** File */
+            file: string;
+            /** Report Type */
+            report_type: string;
+        };
         /** CSVUploadResponse */
         CSVUploadResponse: {
             /** Csv File Id */
@@ -9760,6 +10715,75 @@ export interface components {
             warehouse_entry_date?: string | null;
             /** Weighted Dms */
             weighted_dms?: number | null;
+        };
+        /**
+         * CapabilityMetricsOut
+         * @description 一个 capability 桶在观测窗口内的聚合结果。
+         */
+        CapabilityMetricsOut: {
+            /** Avg Duration Ms */
+            avg_duration_ms: number | null;
+            /** Avg First Delta Ms */
+            avg_first_delta_ms: number | null;
+            /** Cancel Requested */
+            cancel_requested: number;
+            /** Cancel Succeeded */
+            cancel_succeeded: number;
+            /** Cancel Success Rate */
+            cancel_success_rate: number | null;
+            /** Cancelled */
+            cancelled: number;
+            /** Capability */
+            capability: string;
+            /** Completed */
+            completed: number;
+            /** Cost Anomalies */
+            cost_anomalies: string[];
+            /** Error Counts */
+            error_counts: {
+                [key: string]: number;
+            };
+            /** Error Rate */
+            error_rate: number;
+            /** Failed */
+            failed: number;
+            /** Fallback Events */
+            fallback_events: number;
+            /** Fallback Ratio */
+            fallback_ratio: number;
+            /** Max Duration Ms */
+            max_duration_ms: number | null;
+            /** Max First Delta Ms */
+            max_first_delta_ms: number | null;
+            /** Max Stream Memory Bytes */
+            max_stream_memory_bytes: number | null;
+            /** Max Stream Xlen */
+            max_stream_xlen: number | null;
+            /** P95 Duration Ms */
+            p95_duration_ms: number | null;
+            /** P95 First Delta Ms */
+            p95_first_delta_ms: number | null;
+            /**
+             * Reconnect Completed
+             * @description 续传后观测到终态帧的 run 数
+             */
+            reconnect_completed: number;
+            /** Reconnect Rate */
+            reconnect_rate: number;
+            /** Retried Runs */
+            retried_runs: number;
+            /** Runs */
+            runs: number;
+            /** Stream Bytes */
+            stream_bytes: number;
+            /** Stream Frames */
+            stream_frames: number;
+            /** Stream Opens */
+            stream_opens: number;
+            /** Stream Reconnects */
+            stream_reconnects: number;
+            /** Total Tokens */
+            total_tokens: number;
         };
         /**
          * CategoryBrief
@@ -10894,6 +11918,100 @@ export interface components {
             /** Year */
             year: string;
         };
+        /** ComplaintDetail */
+        ComplaintDetail: {
+            /** Buyer Name */
+            buyer_name: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "with_order" | "no_order_info" | "spam";
+            /** Country */
+            country: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Draft Path */
+            draft_path?: string | null;
+            /**
+             * First Message Date
+             * Format: date
+             */
+            first_message_date: string;
+            /** Handler Note */
+            handler_note?: string | null;
+            /** Has Order */
+            has_order: boolean;
+            /** Id */
+            id: number;
+            /** Message Body */
+            message_body: string;
+            /** Message Count */
+            message_count: number;
+            /**
+             * Message Date
+             * Format: date
+             */
+            message_date: string;
+            /** Messages */
+            messages?: unknown[];
+            order_info?: components["schemas"]["OrderInfo"] | null;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Reply Sent At */
+            reply_sent_at?: string | null;
+            /** Run Id */
+            run_id: number;
+            sla?: components["schemas"]["SlaInfo"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "drafted" | "replied" | "resolved" | "closed_no_response";
+            /** Status History */
+            status_history?: components["schemas"]["ComplaintStatusHistoryEntry"][];
+            /** Subject */
+            subject: string;
+            triage: components["schemas"]["Triage"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ComplaintPatchRequest */
+        ComplaintPatchRequest: {
+            /** Draft Path */
+            draft_path?: string | null;
+            /** Handler Note */
+            handler_note?: string | null;
+            /** Reply Sent At */
+            reply_sent_at?: string | null;
+            /** Status */
+            status?: ("pending" | "drafted" | "replied" | "resolved" | "closed_no_response") | null;
+        };
+        /** ComplaintStatusHistoryEntry */
+        ComplaintStatusHistoryEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by: string;
+            /** From */
+            from?: ("pending" | "drafted" | "replied" | "resolved" | "closed_no_response") | null;
+            /**
+             * To
+             * @enum {string}
+             */
+            to: "pending" | "drafted" | "replied" | "resolved" | "closed_no_response";
+        };
         /** ComplianceData */
         ComplianceData: {
             /** Food Product Safety */
@@ -10927,6 +12045,11 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /** Mismatch Count */
             mismatch_count: number;
             /**
@@ -11259,7 +12382,7 @@ export interface components {
         };
         /**
          * CustomerFeedbackItem
-         * @description 顾客反馈项
+         * @description 顾客反馈项（BLF-788：一条退货事件至多一行，多段评论去重后以「 | 」合并）
          */
         CustomerFeedbackItem: {
             /** Customer Comment */
@@ -11477,6 +12600,47 @@ export interface components {
             currency_note?: string | null;
             /** Detail Rows */
             detail_rows: components["schemas"]["DailyAnalysisDetailRow"][];
+            /** Summary Rows */
+            summary_rows: components["schemas"]["DailyAnalysisSummaryRow"][];
+        };
+        /**
+         * DailyAnalysisAllProjectsCountriesResponse
+         * @description 全部项目 × 全部国家站点的聚合响应（BLF-913）。
+         *
+         *     金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按
+         *     ``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段
+         *     （订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。
+         *     响应顶层 ``currency`` 字段固定为 ``"USD"``。
+         *     ``project_breakdown`` key 为项目 id（该项目跨 US/DE/UK 合并），
+         *     ``country_breakdown`` key 为国家码（该国家跨项目合并），均为 USD 口径。
+         */
+        DailyAnalysisAllProjectsCountriesResponse: {
+            /** Available Dates */
+            available_dates: {
+                [key: string]: unknown;
+            };
+            console: components["schemas"]["DailyAnalysisConsoleResponse"];
+            /** Country Breakdown */
+            country_breakdown: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Currency Note */
+            currency_note?: string | null;
+            /** Detail Rows */
+            detail_rows: components["schemas"]["DailyAnalysisDetailRow"][];
+            /** Project Breakdown */
+            project_breakdown: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
             /** Summary Rows */
             summary_rows: components["schemas"]["DailyAnalysisSummaryRow"][];
         };
@@ -11768,6 +12932,8 @@ export interface components {
             frequency: string;
             /** Id */
             id: number;
+            /** Insight Run Id */
+            insight_run_id?: string | null;
             /** Report Date */
             report_date: string;
             /** Report Month */
@@ -12010,11 +13176,69 @@ export interface components {
             /** Qty Eom */
             qty_eom: number;
         };
+        /** DomainSummaryItem */
+        DomainSummaryItem: {
+            /** Calls 24H */
+            calls_24h: number;
+            /** Calls 7D */
+            calls_7d: number;
+            /** Domain */
+            domain: string;
+            /** Errors 7D */
+            errors_7d: number;
+            /** Last Active At */
+            last_active_at?: string | null;
+            /** Writes 24H */
+            writes_24h: number;
+            /** Writes 7D */
+            writes_7d: number;
+        };
+        /** DomainSummaryResponse */
+        DomainSummaryResponse: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Items */
+            items: components["schemas"]["DomainSummaryItem"][];
+            /** Window Days */
+            window_days: number;
+        };
         /**
          * EmployeeStatusSchema
          * @enum {string}
          */
         EmployeeStatusSchema: "idle" | "running" | "succeeded" | "failed" | "suspended";
+        /** EmployeeSummaryItem */
+        EmployeeSummaryItem: {
+            /** Api Key Id */
+            api_key_id: number;
+            /** Calls 24H */
+            calls_24h: number;
+            /** Calls 7D */
+            calls_7d: number;
+            /** Errors 7D */
+            errors_7d: number;
+            /** Last Active At */
+            last_active_at?: string | null;
+            /** Writes 24H */
+            writes_24h: number;
+            /** Writes 7D */
+            writes_7d: number;
+        };
+        /** EmployeeSummaryResponse */
+        EmployeeSummaryResponse: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Items */
+            items: components["schemas"]["EmployeeSummaryItem"][];
+            /** Window Days */
+            window_days: number;
+        };
         /**
          * EmployeeTypeSchema
          * @enum {string}
@@ -12025,6 +13249,11 @@ export interface components {
          * @description SKU event flow response.
          */
         EventsResponse: {
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /**
              * Report Month
              * Format: date
@@ -12404,6 +13633,29 @@ export interface components {
             };
         };
         /**
+         * GateFindingOut
+         * @description 一条可审计的阈值结论（观测值 vs 阈值 + 严重级）。
+         */
+        GateFindingOut: {
+            /** Capability */
+            capability: string;
+            /** Code */
+            code: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Metric */
+            metric: string;
+            /** Observed */
+            observed: unknown;
+            /** Severity */
+            severity: string;
+            /** Threshold */
+            threshold: unknown;
+        };
+        /**
          * GetFnskuLabelsBySkusRequest
          * @description 通过 SKU 列表获取 FNSKU 标签信息的请求
          */
@@ -12568,6 +13820,11 @@ export interface components {
              * @default []
              */
             batches: components["schemas"]["IngestBatchInfo"][];
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /** Project Id */
             project_id: number;
         };
@@ -12618,6 +13875,40 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * InsightError
+         * @description Typed error：payload 绝不携带异常原文、上游响应、URL、凭据或 system policy.
+         */
+        InsightError: {
+            code: components["schemas"]["InsightErrorCode"];
+            /** Details */
+            details?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Field */
+            field?: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Partial Available
+             * @default false
+             */
+            partial_available: boolean;
+            /** Retry After Seconds */
+            retry_after_seconds?: number | null;
+            /**
+             * Retryable
+             * @default false
+             */
+            retryable: boolean;
+            /** Slot */
+            slot?: string | null;
+        };
+        /**
+         * InsightErrorCode
+         * @enum {string}
+         */
+        InsightErrorCode: "INVALID_REQUEST" | "UNKNOWN_ROLE" | "ROLE_VERSION_UNSUPPORTED" | "ROLE_NOT_AVAILABLE" | "UNKNOWN_SLOT" | "MISSING_REQUIRED_SLOT" | "SLOT_VALIDATION_FAILED" | "SCOPE_MISMATCH" | "PROJECT_NOT_FOUND" | "PROJECT_OUT_OF_SCOPE" | "COUNTRY_MISMATCH" | "REQUEST_TOO_LARGE" | "SLOT_TOO_LARGE" | "SYSTEM_PROMPT_NOT_ALLOWED" | "IDEMPOTENCY_KEY_REQUIRED" | "IDEMPOTENCY_KEY_CONFLICT" | "RUN_NOT_FOUND" | "RUN_TERMINAL" | "INVALID_STATE_TRANSITION" | "RESUME_CURSOR_INVALID" | "MODEL_NOT_ALLOWED" | "RATE_LIMITED" | "PROVIDER_UNAVAILABLE" | "UPSTREAM_TIMEOUT" | "CONTENT_FILTERED" | "CANCELLED";
         /** InsightGenerateRequest */
         InsightGenerateRequest: {
             /**
@@ -12697,12 +13988,191 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * InsightOutput
+         * @description 输出 slot：Markdown artifact + 小写 SHA-256 digest。
+         */
+        InsightOutput: {
+            /** Content */
+            content: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Format
+             * @default markdown
+             * @constant
+             */
+            format: "markdown";
+        };
+        /**
+         * InsightResumeInfo
+         * @description canonical cursor 可恢复性描述；不暴露 Redis entry / DB key / provider 信息。
+         */
+        InsightResumeInfo: {
+            /** Current Attempt */
+            current_attempt: number;
+            /** History Available */
+            history_available: boolean;
+            /** Latest Event Id */
+            latest_event_id?: string | null;
+        };
         /** InsightRetryResponse */
         InsightRetryResponse: {
             /** Insight Id */
             insight_id: number;
             /** Status */
             status: string;
+        };
+        /**
+         * InsightRunActionResponse
+         * @description cancel / retry 动作响应。
+         */
+        InsightRunActionResponse: {
+            /** Attempt */
+            attempt: number;
+            /** Detail Url */
+            detail_url: string;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
+            /**
+             * Run Id
+             * Format: uuid4
+             */
+            run_id: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            status: components["schemas"]["InsightStatus"];
+            /** Stream Url */
+            stream_url: string;
+        };
+        /**
+         * InsightRunDetail
+         * @description 权威 detail：页面重开、SSE 过期、后台完成后均可读取。
+         */
+        InsightRunDetail: {
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Attempt */
+            attempt: number;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Country
+             * @enum {string}
+             */
+            country: "US" | "DE" | "UK";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error?: components["schemas"]["InsightError"] | null;
+            /**
+             * Output Format
+             * @default markdown
+             * @constant
+             */
+            output_format: "markdown";
+            /** Outputs */
+            outputs?: {
+                [key: string]: components["schemas"]["InsightOutput"];
+            };
+            /** Progress Percent */
+            progress_percent: number;
+            /** Project Id */
+            project_id: number;
+            resume: components["schemas"]["InsightResumeInfo"];
+            /** Role Id */
+            role_id: string;
+            /** Role Version */
+            role_version: number;
+            /**
+             * Run Id
+             * Format: uuid4
+             */
+            run_id: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            stage: components["schemas"]["InsightStage"];
+            /** Started At */
+            started_at?: string | null;
+            status: components["schemas"]["InsightStatus"];
+            /** Title */
+            title?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            usage?: components["schemas"]["InsightUsage"] | null;
+        };
+        /**
+         * InsightRunResponse
+         * @description 创建 run 响应。不回显 key / URL / prompt，只给相对本产品 URL。
+         */
+        InsightRunResponse: {
+            /** Attempt */
+            attempt: number;
+            /** Cancel Url */
+            cancel_url: string;
+            /**
+             * Country
+             * @enum {string}
+             */
+            country: "US" | "DE" | "UK";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Detail Url */
+            detail_url: string;
+            /**
+             * Output Format
+             * @default markdown
+             * @constant
+             */
+            output_format: "markdown";
+            /** Project Id */
+            project_id: number;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
+            /** Retry Url */
+            retry_url: string;
+            /** Role Id */
+            role_id: string;
+            /** Role Version */
+            role_version: number;
+            /**
+             * Run Id
+             * Format: uuid4
+             */
+            run_id: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            status: components["schemas"]["InsightStatus"];
+            /** Stream Url */
+            stream_url: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * InsightScheduleCreate
@@ -12858,6 +14328,16 @@ export interface components {
             /** Model */
             model?: string | null;
         };
+        /**
+         * InsightStage
+         * @enum {string}
+         */
+        InsightStage: "queued" | "aggregating" | "generating" | "finalizing";
+        /**
+         * InsightStatus
+         * @enum {string}
+         */
+        InsightStatus: "queued" | "aggregating" | "generating" | "finalizing" | "completed" | "failed" | "cancelled";
         /** InsightStatusResponse */
         InsightStatusResponse: {
             /** Error Message */
@@ -12874,6 +14354,15 @@ export interface components {
              * @default
              */
             content: string;
+        };
+        /** InsightUsage */
+        InsightUsage: {
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
         };
         /** InspectionHistoryItem */
         InspectionHistoryItem: {
@@ -13133,6 +14622,11 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /** Mismatch Count */
             mismatch_count: number;
             /**
@@ -13804,6 +15298,9 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "running" | "success" | "failed";
+        JsonValue: boolean | number | string | components["schemas"]["JsonValue"][] | {
+            [key: string]: components["schemas"]["JsonValue"];
+        } | null;
         /** LeadCreate */
         LeadCreate: {
             /** Company */
@@ -13944,6 +15441,11 @@ export interface components {
          */
         LedgerDetailResponse: {
             /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
+            /**
              * Report Month
              * Format: date
              */
@@ -13957,46 +15459,101 @@ export interface components {
         /**
          * LedgerDetailRow
          * @description A single event-level row from the Amazon Detailed view.
+         *
+         *     字段英文列名 = Amazon Detailed 详细视图表头；中文 label 对照见
+         *     docs/superpowers/specs/2026-08-14-inventory-ledger-field-glossary.md。
          */
         LedgerDetailRow: {
-            /** Asin */
+            /**
+             * Asin
+             * @description ASIN
+             */
             asin?: string | null;
-            /** Batch Id */
+            /**
+             * Batch Id
+             * @description 上传批次 ID
+             */
             batch_id?: number | null;
-            /** Country */
+            /**
+             * Country
+             * @description 国家/地区
+             */
             country?: string | null;
             /**
              * Date
              * Format: date
+             * @description 日期
              */
             date: string;
-            /** Date And Time */
+            /**
+             * Date And Time
+             * @description 日期时间
+             */
             date_and_time?: string | null;
-            /** Disposition */
+            /**
+             * Disposition
+             * @description 处置状态
+             */
             disposition: string;
-            /** Event Type */
+            /**
+             * Event Type
+             * @description 事件类型
+             */
             event_type: string;
-            /** Fnsku */
+            /**
+             * Fnsku
+             * @description FNSKU
+             */
             fnsku?: string | null;
-            /** Fulfillment Center */
+            /**
+             * Fulfillment Center
+             * @description 履约中心
+             */
             fulfillment_center: string;
-            /** Id */
+            /**
+             * Id
+             * @description 记录 ID
+             */
             id: number;
-            /** Msku */
+            /**
+             * Msku
+             * @description MSKU
+             */
             msku: string;
-            /** Quantity */
+            /**
+             * Quantity
+             * @description 数量
+             */
             quantity: number;
-            /** Reason */
+            /**
+             * Reason
+             * @description 原因
+             */
             reason?: string | null;
-            /** Reconciled Quantity */
+            /**
+             * Reconciled Quantity
+             * @description 已对账数量
+             */
             reconciled_quantity?: number | null;
-            /** Reference Id */
+            /**
+             * Reference Id
+             * @description 参考编号
+             */
             reference_id?: string | null;
-            /** Store */
+            /**
+             * Store
+             * @description 店铺
+             */
             store?: string | null;
-            /** Title */
+            /**
+             * Title
+             * @description 品名
+             */
             title?: string | null;
-            /** Unreconciled Quantity */
+            /**
+             * Unreconciled Quantity
+             * @description 未对账数量
+             */
             unreconciled_quantity?: number | null;
         };
         /** LedgerItem */
@@ -14037,6 +15594,8 @@ export interface components {
             frequency: "daily" | "weekly" | "monthly";
             /** Id */
             id: number;
+            /** Insight Run Id */
+            insight_run_id?: string | null;
             /**
              * Last Checked At
              * Format: date-time
@@ -14076,6 +15635,8 @@ export interface components {
         LedgerRegenerateSummaryResponse: {
             /** Delivery Log Id */
             delivery_log_id?: number | null;
+            /** Insight Run Id */
+            insight_run_id?: string | null;
             /** Ledger Key */
             ledger_key: string;
             /** Message */
@@ -14120,6 +15681,11 @@ export interface components {
          */
         LedgerSummaryResponse: {
             /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
+            /**
              * Report Month
              * Format: date
              */
@@ -14136,98 +15702,143 @@ export interface components {
          *
          *     1 row = 1 (FNSKU × FC × Disposition × Date) snapshot. Sparse ledger:
          *     Amazon only emits a row when the combination changed that day.
+         *
+         *     字段英文列名 = Amazon Summary 一览视图表头；中文 label 对照见
+         *     docs/superpowers/specs/2026-08-14-inventory-ledger-field-glossary.md。
          */
         LedgerSummaryRow: {
-            /** Asin */
+            /**
+             * Asin
+             * @description ASIN
+             */
             asin?: string | null;
-            /** Batch Id */
+            /**
+             * Batch Id
+             * @description 上传批次 ID
+             */
             batch_id?: number | null;
             /**
              * Customer Returns
+             * @description 客户退货
              * @default 0
              */
             customer_returns: number;
             /**
              * Customer Shipments
+             * @description 客户发货
              * @default 0
              */
             customer_shipments: number;
             /**
              * Damaged
+             * @description 损坏
              * @default 0
              */
             damaged: number;
             /**
              * Date
              * Format: date
+             * @description 日期
              */
             date: string;
             /**
              * Disposed
+             * @description 报废
              * @default 0
              */
             disposed: number;
-            /** Disposition */
+            /**
+             * Disposition
+             * @description 处置状态
+             */
             disposition: string;
             /**
              * Ending Balance
+             * @description 期末库存
              * @default 0
              */
             ending_balance: number;
-            /** Fnsku */
+            /**
+             * Fnsku
+             * @description FNSKU
+             */
             fnsku?: string | null;
             /**
              * Found
+             * @description 盘盈
              * @default 0
              */
             found: number;
-            /** Id */
+            /**
+             * Id
+             * @description 记录 ID
+             */
             id: number;
             /**
              * In Transit Between
+             * @description 在途库存
              * @default 0
              */
             in_transit_between: number;
-            /** Location */
+            /**
+             * Location
+             * @description 仓库
+             */
             location: string;
             /**
              * Lost
+             * @description 盘亏
              * @default 0
              */
             lost: number;
-            /** Msku */
+            /**
+             * Msku
+             * @description MSKU
+             */
             msku: string;
             /**
              * Other Events
+             * @description 其他事件
              * @default 0
              */
             other_events: number;
             /**
              * Receipts
+             * @description 入库
              * @default 0
              */
             receipts: number;
             /**
              * Starting Balance
+             * @description 期初库存
              * @default 0
              */
             starting_balance: number;
-            /** Store */
+            /**
+             * Store
+             * @description 店铺
+             */
             store?: string | null;
-            /** Title */
+            /**
+             * Title
+             * @description 品名
+             */
             title?: string | null;
             /**
              * Unknown Events
+             * @description 未知事件
              * @default 0
              */
             unknown_events: number;
             /**
              * Vendor Returns
+             * @description 供应商退货
              * @default 0
              */
             vendor_returns: number;
             /**
              * Warehouse Transfer Io
+             * @description 仓库调拨
              * @default 0
              */
             warehouse_transfer_io: number;
@@ -14352,6 +15963,11 @@ export interface components {
          */
         LocationDetailResponse: {
             /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
+            /**
              * Report Month
              * Format: date
              */
@@ -14385,6 +16001,11 @@ export interface components {
         };
         /** LoginResponse */
         LoginResponse: {
+            /**
+             * Api Key
+             * @default
+             */
+            api_key: string;
             /** Email */
             email: string;
             /** Id */
@@ -14801,6 +16422,11 @@ export interface components {
          */
         MonthlySnapshotResponse: {
             /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
+            /**
              * Disposition Summary
              * @default []
              */
@@ -14826,6 +16452,11 @@ export interface components {
          * @description Available months list.
          */
         MonthsResponse: {
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /**
              * Months
              * @default []
@@ -15035,6 +16666,7 @@ export interface components {
         NewProductCalculationItem: {
             /** Advertising Rate */
             advertising_rate: number;
+            anchor?: components["schemas"]["PricingAnchor"] | null;
             /** Asin */
             asin?: string | null;
             /**
@@ -15234,6 +16866,77 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * ObservationGateResponse
+         * @description ``GET /insight/observation/gate`` —— 指标达标与否的唯一权威口径。
+         */
+        ObservationGateResponse: {
+            /**
+             * Blocking Count
+             * @description = len(retirement_reasons)，0 ⇔ 指标票通过
+             */
+            blocking_count: number;
+            /**
+             * Bucket Caps
+             * @description 各并发桶上限（观测值 vs 配置）
+             */
+            bucket_caps: {
+                [key: string]: number;
+            };
+            /** Buckets */
+            buckets: components["schemas"]["CapabilityMetricsOut"][];
+            /**
+             * Eligible For Retirement
+             * @description 指标票；不含调用方/演练两票
+             */
+            eligible_for_retirement: boolean;
+            /** Findings */
+            findings: components["schemas"]["GateFindingOut"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Retirement Reasons
+             * @description 指标票未通过原因（空窗口=insufficient_data:...；与 eligible 同源）
+             */
+            retirement_reasons: string[];
+            thresholds: components["schemas"]["ObservationThresholds"];
+            /** Window Days */
+            window_days: number;
+        };
+        /**
+         * ObservationThresholds
+         * @description 生效的门禁阈值（与 ``Settings`` 一一对应，便于审计「当时的判据」）。
+         */
+        ObservationThresholds: {
+            /**
+             * Cost Anomaly Multiplier
+             * @description 成本异常倍数（非仓库既有数字）
+             */
+            cost_anomaly_multiplier: number;
+            /**
+             * Duration Ms
+             * @description 单 run 总时长上限；0 = 不判定
+             */
+            duration_ms: number;
+            /**
+             * Fallback Ratio
+             * @description 降级比例上限；0 = 不判定
+             */
+            fallback_ratio: number;
+            /**
+             * First Delta Ms
+             * @description 首包延迟上限；0 = 不判定
+             */
+            first_delta_ms: number;
+            /**
+             * Stream Frames
+             * @description 单 run 事件帧上限；0 = 不判定
+             */
+            stream_frames: number;
+        };
         /** OperationAuditClientActionRequest */
         OperationAuditClientActionRequest: {
             /** Action */
@@ -15370,6 +17073,26 @@ export interface components {
             items?: components["schemas"]["OperatorPerformanceItem"][];
             /** Report Month */
             report_month: string;
+        };
+        /** OrderInfo */
+        OrderInfo: {
+            /** Asin */
+            asin: string;
+            /** Delivered At */
+            delivered_at?: string | null;
+            /** Order Id */
+            order_id: string;
+            /** Product Title */
+            product_title: string;
+            /** Purchased At */
+            purchased_at?: string | null;
+            /**
+             * Qty
+             * @default 1
+             */
+            qty: number;
+            /** Shipped At */
+            shipped_at?: string | null;
         };
         /**
          * OrderInfoExportRequest
@@ -15583,6 +17306,120 @@ export interface components {
             tracking_no?: string | null;
             /** Updated By */
             updated_by?: string | null;
+        };
+        /**
+         * OrderLiveStreamItem
+         * @description 今日出单流单条事件（BLF-839）。
+         *
+         *     对齐前端 ``TerminalInspector`` 的 ``LiveStreamItem`` 插槽契约
+         *     （PR #425：``{ id, title, timeLabel }``），并附带扩展上下文字段
+         *     （shell 层按需取用，多带不破坏最小集）：
+         *
+         *     * ``id`` → LiveStreamItem.id（唯一键，``{project}:{order}``）；
+         *     * ``title`` → LiveStreamItem.title（订单摘要，服务端拼好金额）；
+         *     * ``time_label`` → LiveStreamItem.timeLabel（北京时间 ``HH:MM``；
+         *       前端也可用 ``occurred_at`` 自行格式化）；
+         *     * ``occurred_at`` 强制以 UTC ISO 序列化（同 :class:`OrderInfoItem` 口径）。
+         */
+        OrderLiveStreamItem: {
+            /**
+             * Amount
+             * @default 0
+             */
+            amount: number;
+            /** Country */
+            country?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Id */
+            id: string;
+            /** Occurred At */
+            occurred_at: string;
+            /** Order Status */
+            order_status?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name?: string | null;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
+            /** Time Label */
+            time_label: string;
+            /** Title */
+            title: string;
+        };
+        /** OverviewMetrics */
+        OverviewMetrics: {
+            /**
+             * Sla Due Soon
+             * @default 0
+             */
+            sla_due_soon: number;
+            /**
+             * Sla Overdue
+             * @default 0
+             */
+            sla_overdue: number;
+            /**
+             * Total Needs Reply
+             * @default 0
+             */
+            total_needs_reply: number;
+            /**
+             * Total Reported Unresolved
+             * @default 0
+             */
+            total_reported_unresolved: number;
+            /**
+             * Total Resolved
+             * @default 0
+             */
+            total_resolved: number;
+        };
+        /** OverviewProjectRow */
+        OverviewProjectRow: {
+            /** Check Status */
+            check_status: string;
+            /** Country */
+            country: string;
+            /** Needs Reply */
+            needs_reply: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Resolved */
+            resolved: number;
+            /** Sla Due Soon */
+            sla_due_soon: number;
+            /** Sla Overdue */
+            sla_overdue: number;
+        };
+        /** OverviewResponse */
+        OverviewResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            metrics: components["schemas"]["OverviewMetrics"];
+            /** Projects */
+            projects: components["schemas"]["OverviewProjectRow"][];
+            /** Trend */
+            trend: components["schemas"]["OverviewTrendPoint"][];
+        };
+        /** OverviewTrendPoint */
+        OverviewTrendPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Needs Reply */
+            needs_reply: number;
         };
         /**
          * OwnerPerformance
@@ -16035,6 +17872,43 @@ export interface components {
             last_seen_at: string;
             /** User Id */
             user_id: string;
+        };
+        /**
+         * PricingAnchor
+         * @description 派生块：盈亏平衡广告费率 +（可选）目标广告费率。
+         */
+        PricingAnchor: {
+            basis?: components["schemas"]["AnchorBasis"];
+            /**
+             * Breakeven Advertising Rate
+             * @description 盈亏平衡广告费率（比率，非百分数）。sale_price_usd=0 时为 null；成本高于售价时可能 < 0（不 clamp）
+             */
+            breakeven_advertising_rate?: number | null;
+            /**
+             * Breakeven Advertising Rate After Vat
+             * @description 含 VAT 口径的盈亏平衡广告费率；无 VAT 站点（US）为 null
+             */
+            breakeven_advertising_rate_after_vat?: number | null;
+            /**
+             * Max Ad Spend Per Unit Usd
+             * @description 打平前每单可用广告费上限（sale_price_usd × breakeven_advertising_rate）
+             */
+            max_ad_spend_per_unit_usd?: number | null;
+            /**
+             * Non Ad Fee Usd
+             * @description 非广告费用（total_fee_usd − advertising_fee_usd）
+             */
+            non_ad_fee_usd?: number | null;
+            /**
+             * Target Advertising Rate
+             * @description 目标广告费率 = breakeven_advertising_rate − target_net_margin；未传 target_net_margin 为 null
+             */
+            target_advertising_rate?: number | null;
+            /**
+             * Target Net Margin
+             * @description 调用方传入的目标净利率（回显）；未传为 null
+             */
+            target_net_margin?: number | null;
         };
         /** PricingCalculationCostReverseRequest */
         PricingCalculationCostReverseRequest: {
@@ -17008,6 +18882,11 @@ export interface components {
             commission_basis?: string | null;
             /** Commission Rate */
             commission_rate?: number | null;
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
             /** Name */
             name: string;
             /** Project Operator */
@@ -17125,6 +19004,13 @@ export interface components {
             /** Commission Rate */
             commission_rate?: number | null;
             /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /** Country Name */
+            country_name?: string | null;
+            /**
              * Has Context
              * @default false
              */
@@ -17156,6 +19042,13 @@ export interface components {
         };
         /** ProjectOption */
         ProjectOption: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /** Country Name */
+            country_name?: string | null;
             /** Id */
             id?: number | null;
             /** Name */
@@ -17205,6 +19098,46 @@ export interface components {
             /** Items */
             items?: components["schemas"]["ProjectRoleAssignmentItem"][];
         };
+        /** ProjectShopItem */
+        ProjectShopItem: {
+            /** Country */
+            country: string;
+            /** Id */
+            id: number;
+            /** Seller Identity Aliases */
+            seller_identity_aliases?: string[];
+            /** Seller Identity Expected Alias */
+            seller_identity_expected_alias?: string | null;
+            /**
+             * Seller Identity Required
+             * @default true
+             */
+            seller_identity_required: boolean;
+            /** Seller Identity Source */
+            seller_identity_source?: string | null;
+            /** Shop Id */
+            shop_id: string;
+            /** Shop Name */
+            shop_name?: string | null;
+        };
+        /** ProjectShopUpsert */
+        ProjectShopUpsert: {
+            /** Seller Identity Aliases */
+            seller_identity_aliases?: string[];
+            /** Seller Identity Expected Alias */
+            seller_identity_expected_alias?: string | null;
+            /**
+             * Seller Identity Required
+             * @default true
+             */
+            seller_identity_required: boolean;
+            /** Seller Identity Source */
+            seller_identity_source?: string | null;
+            /** Shop Id */
+            shop_id: string;
+            /** Shop Name */
+            shop_name?: string | null;
+        };
         /** ProjectUpdate */
         ProjectUpdate: {
             /** Assistant Operator */
@@ -17215,6 +19148,8 @@ export interface components {
             commission_basis?: string | null;
             /** Commission Rate */
             commission_rate?: number | null;
+            /** Country */
+            country?: string | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Name */
@@ -17259,6 +19194,11 @@ export interface components {
              * @default []
              */
             clusters: components["schemas"]["ReceiptCluster"][];
+            /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
             /**
              * Report Month
              * Format: date
@@ -17460,7 +19400,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
             /** Temp File Id */
             temp_file_id: string;
             /**
@@ -17502,7 +19442,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
             /**
              * Rows Ingested
              * @description 实际入库行数（仅按行入库的报表类型非空）
@@ -17573,7 +19513,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
             /** Row Count Preview */
             row_count_preview?: number | null;
             /**
@@ -17602,7 +19542,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "ad_campaign_report" | "ad_budget_report" | "ad_invalid_traffic_report" | "ad_placement_report" | "ad_target_report" | "ad_time_trend_report" | "unknown";
             /** Source Table */
             source_table?: string | null;
             /**
@@ -17637,6 +19577,42 @@ export interface components {
             report_type: string;
             /** Status Source */
             status_source?: string | null;
+        };
+        /**
+         * RetirementReadiness
+         * @description 退役就绪度：把三票拆开显示，缺哪票一眼可见。
+         *
+         *     ``codegraph_verified`` 恒为 ``None``：调用方清零这一票只能来自审计脚本
+         *     的静态证据，接口不做任何推断。
+         */
+        RetirementReadiness: {
+            /** Blocking Count */
+            blocking_count: number;
+            /** Canonical Domains */
+            canonical_domains: string[];
+            /**
+             * Codegraph Verified
+             * @description 调用方清零票 —— 由脚本产出，接口不推断
+             */
+            codegraph_verified?: boolean | null;
+            /**
+             * Eligible
+             * @description metrics_ok 且 codegraph_verified 已通过
+             */
+            eligible: boolean;
+            /** Frozen Legacy Domains */
+            frozen_legacy_domains: string[];
+            /** Legacy Reads Preserved */
+            legacy_reads_preserved: boolean;
+            /** Metrics Ok */
+            metrics_ok: boolean;
+            /** Metrics Reasons */
+            metrics_reasons: string[];
+            /**
+             * Rollback Switch
+             * @description 清空 insight_canonical_domains 即回滚
+             */
+            rollback_switch: string;
         };
         /**
          * ReturnAnalysisRefreshRequest
@@ -17775,6 +19751,64 @@ export interface components {
             sku: string;
             /** Total Quantity */
             total_quantity: number;
+        };
+        /**
+         * ReturnRawRowItem
+         * @description 亚马逊退货报表原始行（原始数据 Tab / Excel sheet 的一行，共 17 字段）。
+         */
+        ReturnRawRowItem: {
+            /** Asin */
+            asin: string | null;
+            /** Customer Comment */
+            customer_comment: string | null;
+            /** Detailed Disposition */
+            detailed_disposition: string;
+            /** Disposition Display */
+            disposition_display: string;
+            /** Fnsku */
+            fnsku: string | null;
+            /** Fulfillment Center Id */
+            fulfillment_center_id: string | null;
+            /** License Plate Number */
+            license_plate_number: string | null;
+            /** Order Id */
+            order_id: string;
+            /** Original Return Datetime */
+            original_return_datetime: string;
+            /** Product Name */
+            product_name: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Reason */
+            reason: string;
+            /** Reason Display */
+            reason_display: string;
+            /** Return Date */
+            return_date: string;
+            /** Sku */
+            sku: string;
+            /** Status */
+            status: string;
+            /** Status Display */
+            status_display: string;
+        };
+        /**
+         * ReturnRawRowsResponse
+         * @description 退货原始行响应（独立端点 /return-analysis/raw-rows）。
+         */
+        ReturnRawRowsResponse: {
+            /** Country */
+            country: string;
+            /** End Date */
+            end_date: string;
+            /** Project Id */
+            project_id: number;
+            /** Row Count */
+            row_count: number;
+            /** Rows */
+            rows: components["schemas"]["ReturnRawRowItem"][];
+            /** Start Date */
+            start_date: string;
         };
         /**
          * ReturnReasonItem
@@ -18845,6 +20879,7 @@ export interface components {
             accounting_type: "profit_calc" | "eu_accounting";
             /** Advertising Rate */
             advertising_rate: number;
+            anchor?: components["schemas"]["PricingAnchor"] | null;
             /** Asin */
             asin?: string | null;
             /**
@@ -19388,6 +21423,16 @@ export interface components {
             /** Total */
             total?: number | null;
         };
+        /** SlaInfo */
+        SlaInfo: {
+            /**
+             * Expires Soon
+             * @default false
+             */
+            expires_soon: boolean;
+            /** Reply Deadline */
+            reply_deadline?: string | null;
+        };
         /** SourcePersistOutcomeSchema */
         SourcePersistOutcomeSchema: {
             /** Error Message */
@@ -19714,12 +21759,29 @@ export interface components {
          */
         TrendResponse: {
             /**
+             * Country
+             * @description 国家/地区（归一化）
+             */
+            country?: string | null;
+            /**
              * Months
              * @default []
              */
             months: components["schemas"]["TrendMonthItem"][];
             /** Project Id */
             project_id: number;
+        };
+        /** Triage */
+        Triage: {
+            /** Category */
+            category: string;
+            /** Has Order */
+            has_order: boolean;
+            /**
+             * Summary Zh
+             * @default
+             */
+            summary_zh: string;
         };
         /** TriggerDetectionResponse */
         TriggerDetectionResponse: {
@@ -19963,6 +22025,35 @@ export interface components {
         UpsertProjectRoleAssignmentsRequest: {
             /** Items */
             items?: components["schemas"]["UpsertProjectRoleAssignmentItem"][];
+        };
+        /** UserApiKeyItem */
+        UserApiKeyItem: {
+            /** Created At */
+            created_at?: string | null;
+            /** Id */
+            id: number;
+            /** Key Prefix */
+            key_prefix: string;
+            /** Revoked At */
+            revoked_at?: string | null;
+            /** User Id */
+            user_id: string;
+        };
+        /** UserApiKeyRevokeResponse */
+        UserApiKeyRevokeResponse: {
+            /** Revoked */
+            revoked: boolean;
+            /** User Id */
+            user_id: string;
+        };
+        /** UserApiKeyRotateResponse */
+        UserApiKeyRotateResponse: {
+            /** Key Prefix */
+            key_prefix: string;
+            /** Plaintext Key */
+            plaintext_key: string;
+            /** User Id */
+            user_id: string;
         };
         /** UserItem */
         UserItem: {
@@ -21261,6 +23352,78 @@ export interface operations {
             };
         };
     };
+    get_domain_summary_api_v1_agent_ops_domain_summary_get: {
+        parameters: {
+            query?: {
+                /** @description 大窗口天数(前端契约恒为 7) */
+                days?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_employee_summary_api_v1_agent_ops_employee_summary_get: {
+        parameters: {
+            query?: {
+                /** @description 大窗口天数(前端契约恒为 7) */
+                days?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_history_api_v1_agent_account_health_history_get: {
         parameters: {
             query?: {
@@ -21270,6 +23433,7 @@ export interface operations {
                 offset?: number;
                 order_by?: string;
                 order_dir?: string;
+                country?: string;
             };
             header?: never;
             path?: never;
@@ -21304,6 +23468,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                country?: string;
             };
             header?: never;
             path?: never;
@@ -21335,7 +23500,9 @@ export interface operations {
     };
     get_current_period_api_v1_agent_account_health_periods_current_get: {
         parameters: {
-            query?: never;
+            query?: {
+                country?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -21353,11 +23520,22 @@ export interface operations {
                     };
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_period_overview_api_v1_agent_account_health_periods__period_id__overview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                country?: string;
+            };
             header?: never;
             path: {
                 period_id: number;
@@ -21393,6 +23571,7 @@ export interface operations {
             query?: {
                 /** @description 可选：true 时返回 status_summary（默认不返回，覆盖率低） */
                 include_summary?: boolean;
+                country?: string;
             };
             header?: never;
             path: {
@@ -21425,7 +23604,226 @@ export interface operations {
             };
         };
     };
+    batch_upsert_api_v1_agent_complaint_center_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    list_complaints_api_v1_agent_complaint_center_complaints_get: {
+        parameters: {
+            query?: {
+                run_date?: string | null;
+                project_id?: number | null;
+                status_filter?: string | null;
+                category?: string | null;
+                country?: string | null;
+                keyword?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     agent_health_api_v1_agent_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    upsert_report_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_screenshot_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__screenshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_report_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_screenshot_api_v1_agent_platform_inspection_screenshots__screenshot_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                screenshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_api_v1_agent_platform_inspection_template_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -22702,6 +25100,8 @@ export interface operations {
             query?: {
                 /** @description Max batches to return */
                 limit?: number;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22738,6 +25138,8 @@ export interface operations {
             query: {
                 /** @description REQUIRED. Must resolve to a full calendar month. */
                 period: string;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22779,6 +25181,8 @@ export interface operations {
                 msku?: string | null;
                 fulfillment_center?: string | null;
                 event_type?: string | null;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22817,6 +25221,8 @@ export interface operations {
                 period: string;
                 start_date?: string | null;
                 end_date?: string | null;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22853,6 +25259,8 @@ export interface operations {
             query: {
                 /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). */
                 period: string;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22886,7 +25294,10 @@ export interface operations {
     };
     get_agent_inventory_ledger_months_api_v1_agent_projects__project_id__inventory_ledger_months_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
+            };
             header?: never;
             path: {
                 project_id: number;
@@ -22924,6 +25335,8 @@ export interface operations {
                 period: string;
                 start_date?: string | null;
                 end_date?: string | null;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -22962,6 +25375,8 @@ export interface operations {
                 period: string;
                 start_date?: string | null;
                 end_date?: string | null;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -23003,6 +25418,8 @@ export interface operations {
                 msku?: string | null;
                 location?: string | null;
                 disposition?: string | null;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -23039,6 +25456,8 @@ export interface operations {
             query?: {
                 /** @description Number of recent months */
                 months?: number;
+                /** @description OPTIONAL. 站点国家（US/DE/UK，归一化）；缺省不过滤。 */
+                country?: string;
             };
             header?: never;
             path: {
@@ -23256,6 +25675,8 @@ export interface operations {
                 /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot). */
                 as_of?: string | null;
                 country?: string;
+                /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043） */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24083,6 +26504,8 @@ export interface operations {
                 page_size?: number;
                 order_by?: string;
                 order_dir?: string;
+                /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin（BLF-1043） */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24124,6 +26547,8 @@ export interface operations {
                 /** @description Exact-match SKU filter (case-sensitive). */
                 sku?: string | null;
                 country?: string;
+                /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043） */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24161,6 +26586,10 @@ export interface operations {
                 country?: string | null;
                 page?: number;
                 page_size?: number;
+                /** @description 是否返回定价派生块 anchor（BLF-1043）；false 时响应与旧版逐字节一致 */
+                include_anchor?: boolean;
+                /** @description 目标净利率（可选，-1~1）；传入则 anchor 额外返回 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24266,6 +26695,10 @@ export interface operations {
         parameters: {
             query?: {
                 country?: string | null;
+                /** @description 是否返回定价派生块 anchor（BLF-1043）；false 时响应与旧版逐字节一致 */
+                include_anchor?: boolean;
+                /** @description 目标净利率（可选，-1~1）；传入则 anchor 额外返回 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24342,6 +26775,10 @@ export interface operations {
                 to?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description 是否返回定价派生块 anchor（BLF-1043）；false 时响应与旧版逐字节一致 */
+                include_anchor?: boolean;
+                /** @description 目标净利率（可选，-1~1）；传入则 anchor 额外返回 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin */
+                target_net_margin?: number | null;
             };
             header?: never;
             path: {
@@ -24455,6 +26892,39 @@ export interface operations {
             path: {
                 project_id: number;
                 sku_record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_sku_info_api_v1_agent_projects__project_id__sku_info__sku_record_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
             };
             cookie?: never;
         };
@@ -24618,6 +27088,72 @@ export interface operations {
             };
         };
     };
+    list_agent_keys_api_v1_agent_provisioning_keys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    provision_agent_key_api_v1_agent_provisioning_keys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    update_agent_key_api_v1_agent_provisioning_keys__key_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     get_report_upload_status_api_v1_agent_report_upload_status_get: {
         parameters: {
             query: {
@@ -24642,6 +27178,72 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_report_upload_agent_api_v1_agent_upload_commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentUploadCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUploadCommitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_report_upload_api_v1_agent_upload_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_validate_report_upload_api_v1_agent_upload_validate_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUploadValidateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26702,6 +29304,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryResearchTrendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_complaints_api_v1_complaints_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+                project_id?: number | null;
+                category?: string | null;
+                /** @description pending|drafted|replied|resolved|closed_no_response */
+                status?: string | null;
+                country?: string | null;
+                keyword?: string | null;
+                /** @description 首次咨询日期 YYYY-MM-DD */
+                first_message_date?: string | null;
+                /** @description sla_asc|sla_desc|date_asc|date_desc */
+                sort?: "sla_asc" | "sla_desc" | "date_asc" | "date_desc";
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_v1_complaints_overview_get: {
+        parameters: {
+            query?: {
+                /** @description 巡检日期，默认今天 */
+                date?: string | null;
+                /** @description 站点筛选 US|DE|UK */
+                country?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_complaint_api_v1_complaints__complaint_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                complaint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_complaint_endpoint_api_v1_complaints__complaint_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                complaint_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetail"];
                 };
             };
             /** @description Validation Error */
@@ -29055,12 +31822,14 @@ export interface operations {
     get_daily_analysis_all_api_v1_daily_analysis_all_get: {
         parameters: {
             query: {
-                /** @description comma-separated project IDs */
+                /** @description comma-separated project IDs, or 'all' for the caller's visible active projects (admin sees every active project) */
                 project_ids: string;
                 start_date: string;
                 end_date: string;
                 country?: string;
                 sku?: string | null;
+                /** @description false → detail_rows 与 project_breakdown[*].detail_rows 置为空列表（键保留、字段集合不变；只读 summary_rows /project_breakdown[*].summary_rows 的页面用，响应体约降 95%）；默认 true 返回完整明细，契约不变。两种形状缓存 key 独立，互不串体。 */
+                include_detail?: boolean;
                 api_key?: string | null;
             };
             header?: {
@@ -29122,6 +31891,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailyAnalysisAllCountriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_daily_analysis_all_projects_countries_api_v1_daily_analysis_all_projects_countries_get: {
+        parameters: {
+            query: {
+                /** @description comma-separated project IDs */
+                project_ids: string;
+                start_date: string;
+                end_date: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyAnalysisAllProjectsCountriesResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29980,6 +32790,347 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    create_ad_analysis_run_api_v1_insight_ad_analysis_runs_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_inventory_health_run_api_v1_insight_inventory_health_runs_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_observation_gate_api_v1_insight_observation_gate_get: {
+        parameters: {
+            query?: {
+                window_days?: number | null;
+                capability?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservationGateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_retirement_readiness_api_v1_insight_observation_retirement_readiness_get: {
+        parameters: {
+            query?: {
+                window_days?: number | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetirementReadiness"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_insight_run_api_v1_insight_runs_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_insight_run_api_v1_insight_runs__run_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_insight_run_api_v1_insight_runs__run_id__cancel_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_insight_run_api_v1_insight_runs__run_id__retry_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightRunActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_insight_run_api_v1_insight_runs__run_id__stream_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "Last-Event-ID"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -31199,6 +34350,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReturnAnalysisRefreshResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_api_keys_api_v1_internal_user_api_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserApiKeyItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_api_key_api_v1_internal_user_api_keys__user_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserApiKeyRevokeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_user_api_key_api_v1_internal_user_api_keys__user_id__rotate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserApiKeyRotateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -33261,6 +36513,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderInfoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_live_stream_api_v1_order_info_live_stream_get: {
+        parameters: {
+            query?: {
+                project_ids?: number[] | null;
+                countries?: string[] | null;
+                limit?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderLiveStreamItem"][];
                 };
             };
             /** @description Validation Error */
@@ -35652,6 +38944,131 @@ export interface operations {
             };
         };
     };
+    list_project_shops_endpoint_api_v1_projects__project_id__shops_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectShopItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_project_shop_endpoint_api_v1_projects__project_id__shops__country__put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectShopUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectShopItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_shop_endpoint_api_v1_projects__project_id__shops__country__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     perform_auto_reconcile_api_v1_report_reconciliation_auto_reconcile_post: {
         parameters: {
             query?: {
@@ -36154,6 +39571,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReturnAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_return_analysis_raw_rows_api_v1_return_analysis_raw_rows_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                start_date: string;
+                end_date: string;
+                country?: string;
+                sku?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnRawRowsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -38133,6 +41592,7 @@ export interface operations {
                 date_to?: string | null;
                 project_id?: number | null;
                 operation_type?: string | null;
+                country?: string | null;
             };
             header?: never;
             path?: never;
@@ -38171,6 +41631,7 @@ export interface operations {
                 date_to?: string | null;
                 project_id?: number | null;
                 operation_type?: string | null;
+                country?: string | null;
             };
             header?: never;
             path?: never;
