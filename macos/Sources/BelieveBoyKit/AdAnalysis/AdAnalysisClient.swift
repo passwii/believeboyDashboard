@@ -37,7 +37,7 @@ public struct AdAnalysisClient: AdAnalysisDataProviding {
     }
 
     public func projects() async throws -> [AdProject] {
-        try await client.get(AdAnalysisCatalog.projectsEndpoint, tier: .list)
+        try await client.get(AdSharedCatalog.projectsEndpoint, tier: .list)
     }
 
     public func payload(tab: AdAnalysisTab, query: AdAnalysisQuery) async throws -> AdAnalysisPayload {

@@ -20,87 +20,19 @@ import Observation
 /// 「切走再回来 = 重新拉、筛选被重置」（S4 结论，PLAN §3）。
 @MainActor
 @Observable
-public final class AdAnalysisStore {
-    /// 单格的加载阶段。
-    public enum Phase: Equatable {
-        case idle
-        case loading
-        case loaded
-        case failed(String)
+public final class AdAnalysisStore: AdFilterDriving {
+    /// 单格的加载阶段（共享类型，见 `AdLoadPhase`）。
+    public typealias Phase = AdLoadPhase
 
-        public var isLoading: Bool { self == .loading }
+    /// 项目列表这道闸门（共享类型，见 `AdProjectGate`）。
+    public typealias ProjectGate = AdProjectGate
 
-        public var failureMessage: String? {
-            if case .failed(let message) = self { return message }
-            return nil
-        }
-    }
+    /// 共享筛选条的值（共享类型，见 `AdFilters`）—— 与「广告数据」页用的是同一份实现，
+    /// 两页的筛选口径不许各写一份。
+    public typealias Filters = AdFilters
 
-    /// 项目列表这道闸门：明细要 `project_id`（必填），所以项目没就绪时不发明细请求。
-    public enum ProjectGate: Equatable {
-        /// 正在取项目列表。
-        case pending
-        /// 项目列表加载失败（可重试）。
-        case failed(String)
-        /// 项目列表取到了，但这个账号一个可见项目都没有。
-        case noProjects
-        case ready
-    }
-
-    /// 共享筛选条的值。
-    public struct Filters: Equatable, Sendable {
-        public var projectID: Int?
-        public var country: String
-        /// 「按日期筛选」开关。**默认关闭 = 不传日期**（口径 1）。
-        public var usesDateRange: Bool
-        public var dateFrom: String?
-        public var dateTo: String?
-
-        public init(
-            projectID: Int? = nil,
-            country: String = AdAnalysisCatalog.defaultCountry,
-            usesDateRange: Bool = false,
-            dateFrom: String? = nil,
-            dateTo: String? = nil
-        ) {
-            self.projectID = projectID
-            self.country = country
-            self.usesDateRange = usesDateRange
-            self.dateFrom = dateFrom
-            self.dateTo = dateTo
-        }
-
-        /// 真正会发出去的日期下界（未启用日期区间时为 nil）。
-        public var effectiveDateFrom: String? { usesDateRange ? dateFrom : nil }
-
-        /// 真正会发出去的日期上界（未启用日期区间时为 nil）。
-        public var effectiveDateTo: String? { usesDateRange ? dateTo : nil }
-
-        /// 查询签名（决定「这次筛选是否已经加载过」）。
-        public var signature: QuerySignature {
-            QuerySignature(
-                projectID: projectID,
-                country: country,
-                dateFrom: effectiveDateFrom,
-                dateTo: effectiveDateTo
-            )
-        }
-    }
-
-    /// 一次查询的筛选签名（不含 Tab 与刷新票号）。
-    public struct QuerySignature: Equatable, Sendable {
-        public let projectID: Int?
-        public let country: String
-        public let dateFrom: String?
-        public let dateTo: String?
-
-        public init(projectID: Int?, country: String, dateFrom: String?, dateTo: String?) {
-            self.projectID = projectID
-            self.country = country
-            self.dateFrom = dateFrom
-            self.dateTo = dateTo
-        }
-    }
+    /// 一次查询的筛选签名（共享类型，见 `AdQuerySignature`；不含 Tab 与刷新票号）。
+    public typealias QuerySignature = AdQuerySignature
 
     /// 视图 `.task(id:)` 的驱动器：Tab / 筛选 / 刷新票号任一变化即重跑一次加载。
     public struct LoadKey: Equatable, Sendable {
@@ -228,6 +160,27 @@ public final class AdAnalysisStore {
         }
         if let message = state.phase.failureMessage { return .failed(message) }
         return .loading
+    }
+
+    // MARK: - 共享筛选条的文案（`AdFilterDriving`）
+
+    /// 日期区间关掉时的口径说明 —— 广告分析**不传** `date_from` / `date_to`（口径 1）。
+    public var dateRangeOffNote: String { "未限定日期 → 不传日期参数（全量历史）" }
+
+    /// 当前**实际**发出的筛选条件（比对数值时照这行念）。
+    public var filterSummary: String {
+        let project = projects.first { $0.id == filters.projectID }?.name ?? "（未选）"
+        let country = AdCountries.label(code: filters.country)
+        var text = "查询：\(project) · \(country)"
+        if let from = filters.effectiveDateFrom, let to = filters.effectiveDateTo {
+            text += " · \(from) ~ \(to)"
+        } else {
+            text += " · 未传日期（全量历史）"
+        }
+        if let loadedAt = selectedTabState.loadedAt {
+            text += " · 本页数据 \(AgentOpsFormatting.clockTime(loadedAt)) 拉取"
+        }
+        return text
     }
 
     // MARK: - 筛选（口径 1：不传日期 ≠ 最近 N 天）

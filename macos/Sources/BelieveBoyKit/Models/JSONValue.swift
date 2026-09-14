@@ -3,7 +3,9 @@ import Foundation
 /// 任意 JSON 值。
 ///
 /// 后端有不少「形状由调用方决定」的字段：长任务的 `params` / `payload_json`、
-/// 动态筛选条件等。Swift 侧没有 `Any` 的 `Codable` 通道，用具体模型接会把每批
+/// 动态筛选条件、以及广告两页的 `list[dict[str, object]]` 行
+/// （`AdAnalysisValue` / 广告数据页的行值都收敛到本类型，见 `DynamicJSONRow`）。
+/// Swift 侧没有 `Any` 的 `Codable` 通道，用具体模型接会把每批
 /// 页面都卡住（模型对不上 = 解码失败 = 整页报错），故给一个显式的 JSON 值类型：
 /// **能编码、能解码、能判等、可 `Sendable`**，同时不假装知道业务形状。
 ///
@@ -67,6 +69,36 @@ public extension JSONValue {
     /// 对象成员取值（非对象返回 `nil`）；用于逐层取 `payload_json` 里的字段。
     subscript(key: String) -> JSONValue? {
         objectValue?[key]
+    }
+
+    // MARK: - 展示取值（表格单元格 / hover 提示用）
+
+    /// 文本形态（`null` 与对象没有文本 → `nil`，由调用方决定显示成什么）。
+    ///
+    /// 数字走 `NumberText.plain`（`48.0 → "48"`、`0.3434 → "0.3434"`），数组按「 · 」拼接
+    /// —— 与广告分析页原先的行内取值口径逐字一致（该类型就是从这里收敛过来的）。
+    var text: String? {
+        switch self {
+        case .string(let value): return value
+        case .number(let value): return NumberText.plain(value)
+        case .bool(let value): return value ? "true" : "false"
+        case .array(let values): return values.compactMap(\.text).joined(separator: " · ")
+        case .object: return nil
+        case .null: return nil
+        }
+    }
+
+    /// 数值形态（数字、可解析的字符串；其余 `nil`）。
+    ///
+    /// 字符串分支是刻意保留的：后端偶有把数值写成字符串的行（CSV 直传字段），
+    /// 表格按数值列排序 / 重算比率时按 `Double` 解读，拿不到就当缺位。
+    var number: Double? {
+        switch self {
+        case .number(let value): return value
+        case .string(let value): return Double(value)
+        case .bool(let value): return value ? 1 : 0
+        case .array, .object, .null: return nil
+        }
     }
 }
 

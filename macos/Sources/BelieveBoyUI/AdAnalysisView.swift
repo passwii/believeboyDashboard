@@ -119,7 +119,7 @@ public struct AdAnalysisView: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
-            AdAnalysisFilterBar(
+            AdFilterBar(
                 store: store,
                 isRefreshing: store.isRefreshing,
                 onRefresh: { store.requestRefresh() }

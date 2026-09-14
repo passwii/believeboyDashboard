@@ -62,6 +62,29 @@ final class JSONValueTests: XCTestCase {
         XCTAssertNil(value["payload_json"]?["file_id"]?.objectValue)
     }
 
+    // MARK: - 展示取值（S5.2 收敛：`AdAnalysisValue` 的 `text` / `number` 搬到这里）
+
+    /// 文本形态：数字走朴素格式（`48.0 → "48"`），数组按「 · 」拼接，对象 / null 无文本。
+    func testTextAccessorMatchesTheConvergedRowRendering() throws {
+        XCTAssertEqual(try decode("\"abc\"").text, "abc")
+        XCTAssertEqual(try decode("48").text, "48")
+        XCTAssertEqual(try decode("0.3434").text, "0.3434")
+        XCTAssertEqual(try decode("true").text, "true")
+        XCTAssertEqual(try decode(#"["a", 2]"#).text, "a · 2")
+        XCTAssertNil(try decode("{}").text, "对象没有单值文本")
+        XCTAssertNil(try decode("null").text, "缺位返回 nil，占位符由调用方决定")
+    }
+
+    /// 数值形态：数字原样，字符串尝试解析（后端偶有把数值写成字符串的行）。
+    func testNumberAccessorParsesNumericStringsButNotObjects() throws {
+        XCTAssertEqual(try decode("17.5").number, 17.5)
+        XCTAssertEqual(try decode("\"17.5\"").number, 17.5, "字符串形态的数值要能解读")
+        XCTAssertEqual(try decode("true").number, 1)
+        XCTAssertNil(try decode("\"abc\"").number)
+        XCTAssertNil(try decode("[1]").number)
+        XCTAssertNil(try decode("null").number)
+    }
+
     func testCompactDropsNilEntriesWithoutEmittingNulls() {
         let params = JSONValue.compact([
             "keep": .string("x"),
