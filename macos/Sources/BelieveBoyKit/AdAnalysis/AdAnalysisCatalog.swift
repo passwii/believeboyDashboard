@@ -19,19 +19,6 @@ public struct AdAnalysisTab: Sendable, Hashable, Identifiable {
     }
 }
 
-/// 站点选项（Web `top-filters.tsx` 的 `COUNTRY_OPTIONS`，三选一）。
-public struct AdCountryOption: Sendable, Hashable, Identifiable {
-    public let code: String
-    public let label: String
-
-    public var id: String { code }
-
-    public init(code: String, label: String) {
-        self.code = code
-        self.label = label
-    }
-}
-
 /// 「广告分析」页的端点目录与常量。
 public enum AdAnalysisCatalog {
     /// Web 路由 —— 同时是 `NavigationItem.id`，也是模块路由表的命中键。
@@ -66,23 +53,4 @@ public enum AdAnalysisCatalog {
         tabs.first { $0.key == key }
     }
 
-    /// 站点三选一（Web 常量）。
-    public static let countries: [AdCountryOption] = [
-        AdCountryOption(code: "US", label: "美国站 (US)"),
-        AdCountryOption(code: "DE", label: "德国站 (DE)"),
-        AdCountryOption(code: "UK", label: "英国站 (UK)"),
-    ]
-
-    public static let defaultCountry = "US"
-
-    public static func countryLabel(code: String) -> String {
-        countries.first { $0.code == code }?.label ?? code
-    }
-
-    /// 项目列表端点。
-    ///
-    /// 用 `/projects/manage` 而**不是** `/projects`：前者按 `X-Operator` 过滤可见项目
-    /// （`backend/app/api/v1/endpoints/projects.py:95`），后者会把别的运营的项目也列出来
-    /// —— 仓库 AGENTS.md 已把这条写成约定。
-    public static let projectsEndpoint = "/projects/manage"
 }

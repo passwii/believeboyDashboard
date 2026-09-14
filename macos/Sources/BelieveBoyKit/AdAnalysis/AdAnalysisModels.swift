@@ -1,8 +1,15 @@
 import Foundation
 
 // MARK: - 动态值（`list[dict]` 元素）
+// MARK: - 动态值（`list[dict]` 元素）
 
-/// ad-analysis 响应里 `list[dict[str, object]]` 元素的**动态值**。
+/// ad-analysis 响应里 `list[dict[str, object]]` 元素的**动态值** —— 就是 `JSONValue`。
+///
+/// 早前这里定义过一个形状完全相同的枚举（`AdAnalysisValue`），S5.2 的广告数据页也要解同类的
+/// 动态行（`list[dict[str, object]]`，行内还有一整列 `raw_row`），两者因此收敛到一个类型
+/// （BLF-1057 的收敛项）：同一个「任意 JSON 值」在代码库里只应该有一份实现 —— 两份的差异只会
+/// 在解码顺序 / 取值助手这类地方悄悄分叉。取值助手（`text` / `number`）现在挂在 `JSONValue`
+/// 上，行为与本类型收敛前逐字一致（`JSONValueTests` + `AdAnalysisDecodingTests` 双向钉住）。
 ///
 /// 为什么动态解析而不是逐 Tab 写一套强类型模型：后端这 10 个端点的行形状由各
 /// `build_*` 服务函数拼装（`backend/app/services/ad/*.py`），Pydantic 侧一律声明为
@@ -15,127 +22,15 @@ import Foundation
 /// 属性**对应的键，`[String: AdAnalysisValue]` 这种字典型解码保留原样（实测，
 /// 见 `AdAnalysisDecodingTests.testRowKeysKeepSnakeCaseInDictionaryDecoding`）——
 /// 所以这里读 `sales_7d` / `budget_utilization_rate` 等后端原字段名。
-public enum AdAnalysisValue: Sendable, Equatable {
-    case string(String)
-    case number(Double)
-    case bool(Bool)
-    case array([AdAnalysisValue])
-    case object([String: AdAnalysisValue])
-    case null
-}
-
-extension AdAnalysisValue: Decodable {
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            self = .null
-            return
-        }
-        // 顺序有意义：JSON 的 `true` 不会被解成 Double，故 Bool 先探；数字先于字符串，
-        // 免得把 48 解成 "48"。全部探测失败才算契约异常。
-        if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-            return
-        }
-        if let value = try? container.decode(Double.self) {
-            self = .number(value)
-            return
-        }
-        if let value = try? container.decode(String.self) {
-            self = .string(value)
-            return
-        }
-        if let value = try? container.decode([AdAnalysisValue].self) {
-            self = .array(value)
-            return
-        }
-        if let value = try? container.decode([String: AdAnalysisValue].self) {
-            self = .object(value)
-            return
-        }
-        throw DecodingError.dataCorruptedError(
-            in: container,
-            debugDescription: "ad-analysis 行内出现了无法识别的 JSON 值"
-        )
-    }
-}
-
-extension AdAnalysisValue {
-    /// 文本形态（缺位的 `null` 返回 nil，由调用方决定显示成什么）。
-    public var text: String? {
-        switch self {
-        case .string(let value): return value
-        case .number(let value): return AdAnalysisFormatting.plainNumber(value)
-        case .bool(let value): return value ? "true" : "false"
-        case .array(let values): return values.compactMap(\.text).joined(separator: " · ")
-        case .object: return nil
-        case .null: return nil
-        }
-    }
-
-    /// 数值形态（数字、可解析的字符串；其余 nil）。
-    public var number: Double? {
-        switch self {
-        case .number(let value): return value
-        case .string(let value): return Double(value)
-        case .bool(let value): return value ? 1 : 0
-        case .array, .object, .null: return nil
-        }
-    }
-}
+public typealias AdAnalysisValue = JSONValue
 
 // MARK: - 动态行
 
-/// 一条动态行（`items` / `summary` / `top_campaigns` 等列表的元素）。
-public struct AdAnalysisRow: Sendable, Equatable, Decodable {
-    public let fields: [String: AdAnalysisValue]
-
-    public init(fields: [String: AdAnalysisValue] = [:]) {
-        self.fields = fields
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        self.fields = try container.decode([String: AdAnalysisValue].self)
-    }
-
-    public subscript(key: String) -> AdAnalysisValue? { fields[key] }
-
-    public var keys: Set<String> { Set(fields.keys) }
-
-    public func string(_ key: String) -> String? {
-        guard let value = fields[key] else { return nil }
-        if case .null = value { return nil }
-        return value.text
-    }
-
-    /// 非空文本（空字符串视作缺位，与 Web 的 `x || '-'` 同口径）。
-    public func nonEmptyString(_ key: String) -> String? {
-        guard let text = string(key) else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    public func number(_ key: String) -> Double? {
-        fields[key]?.number
-    }
-
-    public func int(_ key: String) -> Int? {
-        guard let value = number(key) else { return nil }
-        return Int(value.rounded())
-    }
-
-    /// 字符串列表（`evidence` 这类；单值也接受）。
-    public func strings(_ key: String) -> [String] {
-        guard let value = fields[key] else { return [] }
-        switch value {
-        case .array(let values): return values.compactMap(\.text)
-        case .string(let text): return [text]
-        case .number(let number): return [AdAnalysisFormatting.plainNumber(number)]
-        case .bool, .object, .null: return []
-        }
-    }
-}
+/// 一条动态行（`items` / `summary` / `top_campaigns` 等列表的元素）—— 就是 `DynamicJSONRow`。
+///
+/// 与广告数据页的原始行是同一个东西：都是「形状由后端决定的一行」，取值助手（`string` /
+/// `nonEmptyString` / `number` / `int` / `strings`）现在只有一份实现。
+public typealias AdAnalysisRow = DynamicJSONRow
 
 // MARK: - 强类型卡片（后端 schema 里确实有名字与类型的部分）
 

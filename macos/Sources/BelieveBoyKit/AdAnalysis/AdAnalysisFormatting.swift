@@ -30,16 +30,15 @@ public enum AdAnalysisFieldFormat: Sendable, Equatable {
 /// 文本」，而 `NumberFormatter` 的千分位与小数点跟随系统区域，开发机是 `zh_CN` 时对得上、
 /// 换 `de_DE` 就变成 `1.234,56`。这里手写分组，输出与 Web 的 `zh-CN` / `toFixed` 一致。
 public enum AdAnalysisFormatting {
-    /// 缺位占位（与 Web 各表的 `-` / `—` 同义；统一用「—」）。
-    public static let missing = "—"
+    /// 缺位占位（与 Web 各表的 `-` / `—` 同义；本页统一用「—」）。
+    ///
+    /// 注意：如果 S5.2 广告数据页用 `-`（Web `formatAdDataValue` 的原文）—— 占位符是**页面
+    /// 口径**，数字原语（`NumberText`）不替它做决定。
+    public static let missing = NumberText.missing
 
     /// 无小数的整数形态（`48.0 → "48"`，`0.3434 → "0.3434"`）。
     public static func plainNumber(_ value: Double) -> String {
-        guard value.isFinite else { return missing }
-        if value == value.rounded(), abs(value) < 1e15 {
-            return String(Int64(value))
-        }
-        return String(value)
+        NumberText.plain(value)
     }
 
     public static func integer(_ value: Double) -> String {
@@ -52,8 +51,7 @@ public enum AdAnalysisFormatting {
 
     /// 两位小数（`String(format:)` 不注入 locale，故小数点恒为 `.`）。
     public static func fixed2(_ value: Double) -> String {
-        guard value.isFinite else { return missing }
-        return String(format: "%.2f", value)
+        NumberText.fixed2(value)
     }
 
     /// 带千分位的两位金额（`$1,234.56`）。
@@ -63,26 +61,12 @@ public enum AdAnalysisFormatting {
 
     /// 给「整数部分」插千分位（`"1234.56" → "1,234.56"`）。
     public static func grouped(_ text: String) -> String {
-        let negative = text.hasPrefix("-")
-        let body = negative ? String(text.dropFirst()) : text
-        guard let dotIndex = body.firstIndex(of: ".") else { return text }
-        let integerPart = String(body[body.startIndex..<dotIndex])
-        let fractionPart = String(body[dotIndex...])
-        guard integerPart.count > 3, integerPart.allSatisfy(\.isNumber) else { return text }
-
-        var grouped = ""
-        for (offset, character) in integerPart.reversed().enumerated() {
-            if offset > 0, offset % 3 == 0 { grouped.append(",") }
-            grouped.append(character)
-        }
-        let result = String(grouped.reversed()) + fractionPart
-        return negative ? "-" + result : result
+        NumberText.grouped(text)
     }
 
     /// 比率 → 百分比两位（`0.3434 → "34.34%"`）。
     public static func percent(_ ratio: Double) -> String {
-        guard ratio.isFinite else { return missing }
-        return String(format: "%.2f%%", ratio * 100)
+        NumberText.percent(ratio)
     }
 
     // MARK: - 日期（`YYYY-MM-DD` 纯日期串）

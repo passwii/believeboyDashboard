@@ -19,6 +19,8 @@ enum ModuleRegistry {
             return AnyView(AgentOverviewView(model: model, navigation: navigation))
         case AdAnalysisView.routeID:
             return AnyView(AdAnalysisView(model: model, navigation: navigation))
+        case AdDataView.routeID:
+            return AnyView(AdDataView(model: model, navigation: navigation))
         default:
             return nil
         }

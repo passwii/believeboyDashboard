@@ -144,8 +144,10 @@ final class AdAnalysisClientTests: XCTestCase {
     }
 
     /// 用的必须是 `/projects/manage`（按 `X-Operator` 过滤可见项目），不是 `/projects`。
+    ///
+    /// 该常量现在归 `AdSharedCatalog`（广告分析 / 广告数据两页共用同一份项目列表端点）。
     func testProjectsEndpointIsTheOperatorFilteredOne() throws {
-        XCTAssertEqual(AdAnalysisCatalog.projectsEndpoint, "/projects/manage")
+        XCTAssertEqual(AdSharedCatalog.projectsEndpoint, "/projects/manage")
     }
 
     // MARK: - 请求头
