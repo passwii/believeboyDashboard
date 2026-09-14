@@ -12,10 +12,14 @@ public struct AppConfig: Sendable, Equatable {
 
         public var id: String { rawValue }
 
-        public var displayName: String {
+        /// 分段控件与折叠标题里的环境简称。
+        ///
+        /// 不带域名：完整地址由相邻的「请求前缀」一行给出，而把
+        /// `生产（dash-api.believeboy.com）` 塞进分段按钮只会把控件挤爆。
+        public var shortName: String {
             switch self {
-            case .production: return "生产（dash-api.believeboy.com）"
-            case .local: return "本地（127.0.0.1:8100）"
+            case .production: return "生产"
+            case .local: return "本地"
             }
         }
 

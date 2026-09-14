@@ -47,20 +47,45 @@ public struct APIClient: Sendable {
 
     private let baseURL: URL
     private let apiKey: String?
+    /// 账号上下文（`X-Operator` / `X-User-Id` / `X-Is-Admin`）。`nil` = 无账号档案。
+    private let userContext: UserContext?
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
-    public init(baseURL: URL, apiKey: String?, session: URLSession = .shared) {
+    public init(
+        baseURL: URL,
+        apiKey: String?,
+        userContext: UserContext? = nil,
+        session: URLSession = .shared
+    ) {
         self.baseURL = baseURL
         self.apiKey = apiKey
+        self.userContext = userContext
         self.session = session
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         self.decoder = decoder
+        self.encoder = JSONEncoder()
     }
 
-    public init(config: AppConfig, session: URLSession = .shared) {
-        self.init(baseURL: config.baseURL, apiKey: config.apiKey, session: session)
+    public init(config: AppConfig, userContext: UserContext? = nil, session: URLSession = .shared) {
+        self.init(
+            baseURL: config.baseURL,
+            apiKey: config.apiKey,
+            userContext: userContext,
+            session: session
+        )
+    }
+
+    /// 由一次会话构造客户端：凭据与账号上下文都来自它，避免二者被分别传错。
+    public init(config: AppConfig, authSession: AuthSession, session: URLSession = .shared) {
+        self.init(
+            baseURL: config.baseURL,
+            apiKey: authSession.apiKey,
+            userContext: authSession.user.map(UserContext.from),
+            session: session
+        )
     }
 
     /// 该客户端是否带凭据（UI 据此提前拦截，避免无谓的 401 往返）。
@@ -79,7 +104,44 @@ public struct APIClient: Sendable {
         tier: RequestTier = .list,
         authenticated: Bool = true
     ) async throws -> T {
-        let request = try makeRequest(path: path, query: query, tier: tier, authenticated: authenticated)
+        let request = try makeRequest(
+            method: "GET",
+            path: path,
+            query: query,
+            body: nil,
+            tier: tier,
+            authenticated: authenticated
+        )
+        return try await send(request)
+    }
+
+    /// 发起 POST（JSON 请求体）并解码为 `T`。
+    ///
+    /// - Parameters:
+    ///   - path: API 相对路径，如 `/auth/login`。
+    ///   - body: `Encodable` 请求体，用 `JSONEncoder` 编码（键名按模型原样发送）。
+    ///   - tier: 超时分层。登录要等密码哈希校验 + 建会话，`.detail`(10s) 比列表档合理。
+    ///   - authenticated: 是否附加 `X-API-Key`。登录必须传 `false` —— 此刻还没有 key。
+    public func post<Body: Encodable & Sendable, T: Decodable & Sendable>(
+        _ path: String,
+        body: Body,
+        tier: RequestTier = .detail,
+        authenticated: Bool = true
+    ) async throws -> T {
+        let payload: Data
+        do {
+            payload = try encoder.encode(body)
+        } catch {
+            throw APIError.decoding("请求体编码失败：\(error.localizedDescription)")
+        }
+        let request = try makeRequest(
+            method: "POST",
+            path: path,
+            query: [:],
+            body: payload,
+            tier: tier,
+            authenticated: authenticated
+        )
         return try await send(request)
     }
 
@@ -89,7 +151,14 @@ public struct APIClient: Sendable {
         tier: RequestTier = .list,
         authenticated: Bool = true
     ) async throws -> (status: Int, body: String) {
-        let request = try makeRequest(path: path, query: [:], tier: tier, authenticated: authenticated)
+        let request = try makeRequest(
+            method: "GET",
+            path: path,
+            query: [:],
+            body: nil,
+            tier: tier,
+            authenticated: authenticated
+        )
         let (data, response) = try await transport(request)
         let http = try httpResponse(response, data: data)
         return (http.statusCode, String(data: data, encoding: .utf8) ?? "")
@@ -98,24 +167,35 @@ public struct APIClient: Sendable {
     // MARK: - 内部
 
     private func makeRequest(
+        method: String,
         path: String,
         query: [String: String],
+        body: Data?,
         tier: RequestTier,
         authenticated: Bool
     ) throws -> URLRequest {
         let url = try Self.url(baseURL: baseURL, path: path, query: query)
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         // 无论该档是否设限都显式写一次：不写不会「无超时」，只会拿到 Foundation 的
         // 60s 默认值。
         request.timeoutInterval = tier.timeout ?? RequestTier.unboundedTimeout
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+        }
         if authenticated {
             guard let apiKey, let trimmed = apiKey.trimmedNonEmpty else {
                 throw APIError.missingCredential
             }
             request.setValue(trimmed, forHTTPHeaderField: "X-API-Key")
+            // 账号上下文只在已鉴权请求上发：它描述「以谁的身份」，而登录请求本身
+            // 还没有身份可言（此时 userContext 也必然是 nil）。
+            for (field, value) in userContext?.headers ?? [:] {
+                request.setValue(value, forHTTPHeaderField: field)
+            }
         }
         return request
     }

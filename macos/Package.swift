@@ -34,6 +34,9 @@ let package = Package(
         .target(name: "BelieveBoyKit"),
         .target(name: "BelieveBoyUI", dependencies: ["BelieveBoyKit"]),
         .executableTarget(name: "BelieveBoyMac", dependencies: ["BelieveBoyUI"]),
-        .testTarget(name: "BelieveBoyKitTests", dependencies: ["BelieveBoyKit"]),
+        .testTarget(
+            name: "BelieveBoyTests",
+            dependencies: ["BelieveBoyKit", "BelieveBoyUI"]
+        ),
     ]
 )
