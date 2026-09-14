@@ -267,37 +267,115 @@ public struct MultipartFormData: Sendable {
     static let fallbackMimeType = "application/octet-stream"
 
     /// `type/subtype[; 参数]` 形态校验（不解析语义，只保证「拼进头行是安全的、可解析的」）。
+    ///
+    /// 按 RFC 7231 §3.1.1.1 的 `media-type = type "/" subtype *( OWS ";" OWS parameter )`
+    /// **扫描**，而不是 `split(separator: ";")` 硬切：参数值可以是 `quoted-string`，分号与
+    /// 反斜杠转义在其中都是合法内容（`text/plain; note="a;b"`、`text/plain; note="a\"b"`），
+    /// 硬切会把一个合法值切成碎片后误判为非法，错误回落到 `application/octet-stream`。
     static func isValidMediaType(_ value: String) -> Bool {
-        let components = value.split(separator: ";", omittingEmptySubsequences: false)
-        guard let type = components.first?.trimmingCharacters(in: .whitespaces) else { return false }
-        let halves = type.split(separator: "/", omittingEmptySubsequences: false)
-        guard halves.count == 2, halves.allSatisfy({ isToken($0) }) else { return false }
-        return components.dropFirst().allSatisfy { isValidParameter($0) }
+        var scanner = MediaTypeScanner(value)
+        return scanner.parse()
     }
 
-    /// `; name=value` 里的 `name=value`（参数值允许 `token` 或 `"quoted-string"`）。
-    private static func isValidParameter(_ raw: Substring) -> Bool {
-        let text = raw.trimmingCharacters(in: .whitespaces)
-        guard let equals = text.firstIndex(of: "=") else { return false }
-        let name = text[text.startIndex..<equals].trimmingCharacters(in: .whitespaces)
-        let value = text[text.index(after: equals)...].trimmingCharacters(in: .whitespaces)
-        guard isToken(name) else { return false }
-        if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-            // `quoted-string`：内部不得再出现裸 `"`、反斜杠转义与控制字符。
-            return value.dropFirst().dropLast().unicodeScalars
-                .allSatisfy { $0 != "\"" && $0 != "\\" && !isHeaderControl($0) }
+    /// 媒体类型的**结构**扫描器：只有 `quoted-string` 之外的分号才算参数分隔符。
+    ///
+    /// 逐码位推进，引号内的分号、引号内的转义反斜杠都不会影响切分。合法性判据取自
+    /// RFC 7230：`quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )` —— 反斜杠转义是
+    /// 合法内容，不是可疑字符；`quoted-string` 未闭合才是非法。
+    private struct MediaTypeScanner {
+        private let scalars: [Unicode.Scalar]
+        private var index = 0
+
+        init(_ value: String) {
+            scalars = Array(value.unicodeScalars)
         }
-        return isToken(value)
-    }
 
-    /// RFC 7230 `token` 字符集。
-    private static func isToken<S: StringProtocol>(_ text: S) -> Bool {
-        !text.isEmpty && text.unicodeScalars.allSatisfy { tokenCharacters.contains($0) }
-    }
+        /// `media-type = type "/" subtype *( OWS ";" OWS parameter )`。
+        mutating func parse() -> Bool {
+            guard parseToken(), consume("/"), parseToken() else { return false }
+            skipWhitespace()
+            while !isAtEnd {
+                guard consume(";") else { return false }
+                skipWhitespace()
+                guard parseToken() else { return false }
+                skipWhitespace()
+                guard consume("=") else { return false }
+                skipWhitespace()
+                guard parseParameterValue() else { return false }
+                skipWhitespace()
+            }
+            return true
+        }
 
-    private static let tokenCharacters = CharacterSet(
-        charactersIn: "!#$%&'*+-.^_`|~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    )
+        /// `parameter = token "=" ( token / quoted-string )`。
+        private mutating func parseParameterValue() -> Bool {
+            if isAt("\"") { return parseQuotedString() }
+            return parseToken()
+        }
+
+        /// `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE`。
+        private mutating func parseQuotedString() -> Bool {
+            guard consume("\"") else { return false }
+            while let scalar = current {
+                if scalar == "\"" {
+                    index += 1
+                    return true
+                }
+                if scalar == "\\" {
+                    index += 1
+                    guard let escaped = current, isQuotedPairCharacter(escaped) else { return false }
+                    index += 1
+                    continue
+                }
+                guard isQuotedTextCharacter(scalar) else { return false }
+                index += 1
+            }
+            return false  // 引号未闭合
+        }
+
+        /// `token`：1 个以上 RFC 7230 token 字符。
+        private mutating func parseToken() -> Bool {
+            let start = index
+            while let scalar = current, Self.tokenCharacters.contains(scalar) { index += 1 }
+            return index > start
+        }
+
+        /// `qdtext = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text`（VCHAR 去掉 `"` 与 `\`）。
+        private func isQuotedTextCharacter(_ scalar: Unicode.Scalar) -> Bool {
+            if scalar == "\t" || scalar == " " { return true }
+            if scalar.value >= 0x80 { return true }
+            return scalar.value >= 0x21 && scalar.value <= 0x7E && scalar != "\"" && scalar != "\\"
+        }
+
+        /// `quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )`。
+        private func isQuotedPairCharacter(_ scalar: Unicode.Scalar) -> Bool {
+            if scalar == "\t" || scalar == " " { return true }
+            if scalar.value >= 0x80 { return true }
+            return scalar.value >= 0x21 && scalar.value <= 0x7E
+        }
+
+        private var current: Unicode.Scalar? { index < scalars.count ? scalars[index] : nil }
+
+        private var isAtEnd: Bool { index >= scalars.count }
+
+        private func isAt(_ scalar: Unicode.Scalar) -> Bool { current == scalar }
+
+        private mutating func consume(_ scalar: Unicode.Scalar) -> Bool {
+            guard isAt(scalar) else { return false }
+            index += 1
+            return true
+        }
+
+        /// `OWS = *( SP / HTAB )`。
+        private mutating func skipWhitespace() {
+            while let scalar = current, scalar == " " || scalar == "\t" { index += 1 }
+        }
+
+        /// RFC 7230 `token` 字符集。
+        private static let tokenCharacters = CharacterSet(
+            charactersIn: "!#$%&'*+-.^_`|~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        )
+    }
 
     /// `quoted-string` 里的安全形态：先去 CR/LF（头注入），再转义 `\` 与 `"`。
     static func quoted(_ raw: String) -> String {

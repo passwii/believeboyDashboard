@@ -188,13 +188,49 @@ final class SSEStreamTests: XCTestCase {
         await fulfillment(of: [consumerFinished], timeout: 5)
 
         // 等**断言的那个条件**本身，而不是它的先到信号：计数与路径是同一次中止的两个
-        // 观测面，只看计数会拿到「计数已加、路径还没记上」的中间态（实测 20 次偶发 1 次）。
+        // 观测面，分开会拿到「计数已加、路径还没记上」的中间态（实测 20 次偶发 1 次）。
+        // 两者都从 `cancellations.snapshot` 取 —— 同一把锁下的一次性快照，读写同步。
+        let expected = StubURLProtocol.CancellationLog.Snapshot(
+            stopLoadingCount: 1,
+            stoppedPaths: ["/api/v1/insight/runs/r-1/stream"]
+        )
         let tornDown = await waitUntil {
-            StubURLProtocol.stoppedPaths == ["/api/v1/insight/runs/r-1/stream"]
+            StubURLProtocol.cancellations.snapshot == expected
         }
-        XCTAssertTrue(tornDown, "取消后 URLSession 任务必须被拆掉（stopLoading 已调用）")
-        XCTAssertEqual(StubURLProtocol.stopLoadingCount, 1, "一次取消只拆一次连接，不重复中止")
-        XCTAssertEqual(StubURLProtocol.stoppedPaths, ["/api/v1/insight/runs/r-1/stream"])
+        XCTAssertTrue(tornDown, "取消后 URLSession 任务必须被拆掉（stopLoading 已调用且只调用一次）")
+        let snapshot = StubURLProtocol.cancellations.snapshot
+        XCTAssertEqual(snapshot.stopLoadingCount, 1, "一次取消只拆一次连接，不重复中止")
+        XCTAssertEqual(snapshot.stoppedPaths, ["/api/v1/insight/runs/r-1/stream"])
+    }
+
+    /// 回归（复核意见 ②）：取消观测点是**读写共用同一把锁**的一致快照，重置也在锁内。
+    ///
+    /// 并发写 + 并发读压一遍：任何一次快照里，计数与路径都必须出自同一次中止。
+    /// 若退回「计数与路径各自为政的静态变量」，读者会拿到「计数已加、路径还空」的中间态，
+    /// 这个断言会直接接住（那正是取消用例曾经 20 次偶发 1 次的根因）。
+    func testCancellationSnapshotIsConsistentUnderConcurrentWriters() {
+        let log = StubURLProtocol.CancellationLog()
+        let writes = 400
+        let inconsistentSnapshots = LockedBox(0)
+
+        DispatchQueue.concurrentPerform(iterations: writes) { index in
+            log.record(path: "/p\(index % 4)")
+            let snapshot = log.snapshot
+            if snapshot.stoppedPaths.count != snapshot.stopLoadingCount {
+                inconsistentSnapshots.mutate { $0 += 1 }
+            }
+        }
+
+        XCTAssertEqual(inconsistentSnapshots.value, 0, "同一次快照里计数与路径必须同源")
+        XCTAssertEqual(log.snapshot.stopLoadingCount, writes)
+        XCTAssertEqual(log.snapshot.stoppedPaths.count, writes)
+
+        // 重置同样走这把锁：重置后读到的必须是一个干净快照，而不是半截状态。
+        log.reset()
+        XCTAssertEqual(
+            log.snapshot,
+            StubURLProtocol.CancellationLog.Snapshot(stopLoadingCount: 0, stoppedPaths: [])
+        )
     }
 
     /// 403（key 被 Web 端登录顶掉的主路径）必须以凭据问题呈现。

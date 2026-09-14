@@ -3,8 +3,11 @@ import XCTest
 
 /// 拦截所有请求的 URLProtocol 桩件 —— 测试离线运行，不碰真实后端。
 ///
-/// 静态状态不加锁：XCTest 在同一进程内串行执行同一 suite 的用例，每个用例在发起
-/// 请求前重设 `responder` 并清空 `log`（`swift test --parallel` 按 suite 分进程）。
+/// `responder` / `log` 是静态的且不加锁：XCTest 在同一进程内串行执行同一 suite 的用例，
+/// 每个用例在发起请求前重设 `responder` 并清空 `log`（`swift test --parallel` 按 suite
+/// 分进程）；两者的读写都在同一个「请求已 await 回来」的用例内，不存在并发读者。
+/// 唯一的例外是**取消观测点**（`stopLoading` 在 URLSession 队列上写、用例在断言里读，
+/// 写侧与读侧不同步），它走 `cancellations` 这个自带锁的快照对象。
 final class StubURLProtocol: URLProtocol {
     struct Response: Sendable {
         var status: Int
@@ -82,11 +85,47 @@ final class StubURLProtocol: URLProtocol {
 
     nonisolated(unsafe) static var responder: (@Sendable (URLRequest) -> Response)?
     nonisolated(unsafe) static var log: [RequestLog] = []
-    /// `stopLoading` 被调用的次数 —— 取消语义的观测点：URLSession 任务被拆掉时，
-    /// URLProtocol 会收到 `stopLoading`，这是「没有把连接和 Task 留在后台」的证据。
-    nonisolated(unsafe) static var stopLoadingCount = 0
-    /// 被中止的请求路径（按中止顺序）。
-    nonisolated(unsafe) static var stoppedPaths: [String] = []
+    /// 取消观测点：`stopLoading` 被调用的次数与被中止的路径（按中止顺序）。
+    ///
+    /// 「URLSession 任务被拆掉」只能从这里看出来，而 `stopLoading` 跑在 URLSession 自己的
+    /// 队列上 —— 写侧与读侧必须是**同一把锁**、读的必须是**同一次快照**。早前把计数与路径
+    /// 分别放在两个无锁静态变量里，即便只给写侧加实例锁，读者仍是无锁读，既不构成一致快照
+    /// （可能读到「计数已加、路径还空」）也仍是数据竞争（TSan 会报）。
+    static let cancellations = CancellationLog()
+
+    /// `stopLoading` 的两个观测面（计数 / 路径）的一致快照，写入、重置、读取共用一把锁。
+    final class CancellationLog: @unchecked Sendable {
+        struct Snapshot: Sendable, Equatable {
+            var stopLoadingCount: Int
+            var stoppedPaths: [String]
+        }
+
+        private let lock = NSLock()
+        private var count = 0
+        private var paths: [String] = []
+
+        /// 一次性取出两个观测面 —— 断言与等待都读它，不必分两次读。
+        var snapshot: Snapshot {
+            lock.lock()
+            defer { lock.unlock() }
+            return Snapshot(stopLoadingCount: count, stoppedPaths: paths)
+        }
+
+        func record(path: String) {
+            lock.lock()
+            defer { lock.unlock() }
+            count += 1
+            paths.append(path)
+        }
+
+        /// 重置也在同一把锁里 —— 否则新用例的重置会与上一个用例的在途 `stopLoading` 撞车。
+        func reset() {
+            lock.lock()
+            defer { lock.unlock() }
+            count = 0
+            paths = []
+        }
+    }
 
     private static let deliveryQueue = DispatchQueue(label: "StubURLProtocol.delivery")
     private let stoppedLock = NSLock()
@@ -109,8 +148,7 @@ final class StubURLProtocol: URLProtocol {
     static func session(handler: @escaping @Sendable (URLRequest) -> Response) -> URLSession {
         responder = handler
         log = []
-        stopLoadingCount = 0
-        stoppedPaths = []
+        cancellations.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         return URLSession(configuration: configuration)
@@ -182,17 +220,15 @@ final class StubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {
-        // 计数与路径在**同一把锁**里一起记：两者是「同一次中止」的两个观测面，
-        // 分两次无锁写会让读者看到「计数已加、路径还是空」的中间态 —— 取消用例曾因此
-        // 偶发失败（20 次跑出 1 次）。
+        // 先在实例锁里完成「本次是否首次中止」的判定，再把**同一次中止**的两个观测面
+        // 一起交给 `cancellations` —— 两个观测面在同一次 `record` 里落盘，读者不会
+        // 看到半截状态。
         stoppedLock.lock()
         let alreadyStopped = stopped
         stopped = true
-        if !alreadyStopped {
-            Self.stopLoadingCount += 1
-            Self.stoppedPaths.append(request.url?.path ?? "")
-        }
         stoppedLock.unlock()
+        guard !alreadyStopped else { return }
+        Self.cancellations.record(path: request.url?.path ?? "")
     }
 
     private var isStopped: Bool {

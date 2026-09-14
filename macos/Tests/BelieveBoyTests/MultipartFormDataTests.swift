@@ -150,6 +150,7 @@ final class MultipartFormDataTests: XCTestCase {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "  text/csv; charset=utf-8  ",
             "text/plain; charset=\"utf-8\"",
+            "text/plain; note=\"a;b\"",
         ]
         for value in preserved {
             XCTAssertTrue(MultipartFormData.isValidMediaType(MultipartFormData.sanitisedHeaderValue(value)))
@@ -170,6 +171,7 @@ final class MultipartFormDataTests: XCTestCase {
             "text/csv\r\nX-Injected: 1",
             "text/plain; charset",
             "text/plain; charset=\"utf-8",
+            "text/plain; note=a;b",
         ]
         for value in rejected {
             XCTAssertEqual(
@@ -187,6 +189,63 @@ final class MultipartFormDataTests: XCTestCase {
             source: .data(Data("x".utf8))
         )
         XCTAssertEqual(part.mimeType, MultipartFormData.fallbackMimeType)
+    }
+
+    /// 回归（复核意见 ①）：`quoted-string` 参数里的分号（`note="a;b"`）与 quoted-pair
+    /// 反斜杠转义（`note="a\"b"`）都是 RFC 7231 的**合法**内容。按 `;` 硬切、或一见 `\`
+    /// 就判非法，都会把一个合法媒体类型误判成「不合法」而错误回落为
+    /// `application/octet-stream` —— 调用方声明的类型被悄悄改掉，正是这条复核意见指出的
+    /// 缺陷。此处逐值断言「原样保留」，并确认拼出的头行仍只有一行。
+    func testQuotedStringMimeParametersArePreservedIntact() {
+        let preserved = [
+            #"text/plain; note="a;b""#,
+            #"text/plain; note="a\"b""#,
+            #"text/plain; note="a\\b""#,
+            #"application/pdf; filename="a;b.csv"; charset="utf-8""#,
+            #"application/vnd.ms-excel; name*=UTF-8''%E4%B8%AD; note="x;y""#,
+        ]
+        for value in preserved {
+            XCTAssertTrue(
+                MultipartFormData.isValidMediaType(value),
+                "quoted-string 参数是合法形态：\(value.debugDescription)"
+            )
+            XCTAssertEqual(
+                MultipartFormData.sanitisedMimeType(value),
+                value,
+                "合法 MIME 必须逐字符原样保留（含引号内的分号与转义反斜杠）：\(value.debugDescription)"
+            )
+        }
+
+        // 引号未闭合 / 反斜杠悬空 / 参数值裸用分号：仍是不合法形态，必须回落。
+        let rejected = [
+            #"text/plain; note="a;b"#,
+            #"text/plain; note="a\"#,
+            #"text/plain; note=a;b"#,
+        ]
+        for value in rejected {
+            XCTAssertFalse(
+                MultipartFormData.isValidMediaType(value),
+                "形态不合法不得被当成合法：\(value.debugDescription)"
+            )
+            XCTAssertEqual(
+                MultipartFormData.sanitisedMimeType(value),
+                MultipartFormData.fallbackMimeType,
+                "形态不合法必须回落：\(value.debugDescription)"
+            )
+        }
+
+        // 合法值拼进 part header 后仍是单独一行，且内容与声明一致。
+        let form = MultipartFormData(boundary: "BOUND")
+        let header = form.headerText(
+            name: "file",
+            filename: "a.csv",
+            mimeType: #"text/plain; note="a;b""#
+        )
+        XCTAssertTrue(
+            header.contains(#"Content-Type: text/plain; note="a;b""#),
+            "quoted-string 里的分号不得被当成参数分隔符而改动内容：\(header.debugDescription)"
+        )
+        XCTAssertNoInjectedHeader(in: header)
     }
 
     // MARK: - 长度与流式产出
