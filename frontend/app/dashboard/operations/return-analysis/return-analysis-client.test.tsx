@@ -60,6 +60,56 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useMobileFilterStrip: () => null,
 }))
 
+// exceljs 假实现：捕获 addWorksheet 顺序与每个 sheet 写入的行
+const excelCapture = vi.hoisted(() => ({
+  sheetNames: [] as string[],
+  rowsBySheet: {} as Record<string, unknown[][]>,
+}))
+
+vi.mock('exceljs', () => {
+  class FakeWorksheet {
+    name: string
+    views: unknown[] = []
+    columns: unknown[] = []
+    constructor(name: string) {
+      this.name = name
+    }
+    addRow(values: unknown) {
+      const cells = Array.isArray(values) ? values : [values]
+      const bucket = excelCapture.rowsBySheet[this.name] ?? []
+      bucket.push(cells)
+      excelCapture.rowsBySheet[this.name] = bucket
+      const cell = { font: {}, border: {}, fill: {}, alignment: {} }
+      return {
+        height: 0,
+        font: {},
+        eachCell: (cb: (c: typeof cell) => void) => cells.forEach(() => cb(cell)),
+      }
+    }
+    getRow() {
+      const cell = { font: {}, border: {}, fill: {}, alignment: {} }
+      return { eachCell: (cb: (c: typeof cell) => void) => cb(cell) }
+    }
+  }
+  class FakeWorkbook {
+    creator = ''
+    created: Date = new Date()
+    addWorksheet(name: string) {
+      excelCapture.sheetNames.push(name)
+      return new FakeWorksheet(name)
+    }
+    get xlsx() {
+      return { writeBuffer: () => Promise.resolve(new ArrayBuffer(8)) }
+    }
+  }
+  return { Workbook: FakeWorkbook, default: { Workbook: FakeWorkbook } }
+})
+
+// jsdom 未实现 blob URL 与锚点导航：导出用例只需不抛错
+window.URL.createObjectURL = () => 'blob:mock'
+window.URL.revokeObjectURL = () => {}
+HTMLAnchorElement.prototype.click = () => {}
+
 const SUMMARY = {
   total_returns: 42,
   total_quantity: 58,
@@ -277,6 +327,10 @@ afterEach(() => {
   rawReleasePending = null
   rawGeneratedRowCount = null
   mockParams = { project: '1', country: 'US', tab: 'rankings' }
+  excelCapture.sheetNames.length = 0
+  Object.keys(excelCapture.rowsBySheet).forEach((key) => {
+    delete excelCapture.rowsBySheet[key]
+  })
 })
 
 describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations header migration）', () => {
@@ -523,5 +577,48 @@ describe('原始数据 Tab（原始行懒加载）', () => {
     // 懒加载必须为新周期重取（无守卫时 rawRows 已为真，懒加载短路 → 永不重取）
     expect(await screen.findByText('ORDER-RAW-2')).toBeInTheDocument()
     await waitFor(() => expect(rawRequestCount).toBe(2))
+  })
+})
+
+describe('导出 Excel：亚马逊原始数据 sheet', () => {
+  it('未打开过原始数据 Tab 时，导出会先拉原始行并追加第 6 张 sheet', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(rawRequestCount).toBe(0)
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    await vi.waitFor(() =>
+      expect(excelCapture.sheetNames).toEqual([
+        '退货排行',
+        '退货原因',
+        '商品状态',
+        '库存状态',
+        '顾客反馈',
+        '亚马逊原始数据',
+      ])
+    )
+    const rawSheetRows = excelCapture.rowsBySheet['亚马逊原始数据']
+    expect(rawSheetRows).toHaveLength(2) // 表头 + 1 行数据
+    expect(rawSheetRows[0]).toHaveLength(17)
+    expect(rawSheetRows[0][0]).toBe('退货日期（站点时区）')
+    expect(rawSheetRows[1][2]).toBe('ORDER-RAW-1')
+    expect(rawSheetRows[1][12]).toBe('与描述不符')
+  })
+
+  it('原始行拉取失败时中止导出，不产出任何 sheet', async () => {
+    rawShouldFail = true
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() =>
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', title: '导出失败' })
+      )
+    )
+    expect(excelCapture.sheetNames).toEqual([])
   })
 })

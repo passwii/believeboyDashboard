@@ -401,6 +401,10 @@ export default function ReturnAnalysisPage() {
   const rawForceRef = useRef(false)
   // 原始行请求世代：loadData 作废旧周期数据时自增，用来丢弃「在途的旧周期响应」
   const rawRequestEpochRef = useRef(0)
+  // 原始行请求序号：只有「最后发起」的那次请求可以清 loading。
+  // 导出预取（handleExportExcel）与 Tab 懒加载可能同世代并发，旧请求若无条件清 loading，
+  // 会把新请求刚置上的 loading 提前打下去（调用方会误判请求已结束）。
+  const rawRequestSeqRef = useRef(0)
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
 
@@ -510,6 +514,7 @@ export default function ReturnAnalysisPage() {
       })
       // 记下发起时的世代：响应回来若世代已变（用户切了周期/项目/站点），整份结果直接丢弃
       const requestEpoch = rawRequestEpochRef.current
+      const requestSeq = (rawRequestSeqRef.current += 1)
       setRawLoading(true)
       setRawError(null)
       try {
@@ -530,7 +535,10 @@ export default function ReturnAnalysisPage() {
       } finally {
         // 世代未变才消费 force 旗标，否则会把新一轮强制刷新刚置上的旗标误清掉
         if (requestEpoch === rawRequestEpochRef.current) rawForceRef.current = false
-        setRawLoading(false)
+        // 只有最新一次请求能清 loading：被后发请求超越的旧请求不得提前清掉新请求的 loading。
+        // 不能收窄成「世代未变才清」——世代变更后若暂无新请求（Tab 懒加载被 rawLoading 挡住），
+        // loading 会永远悬停，新周期永不重取（「在途旧周期响应不覆盖新周期」用例会失败）。
+        if (requestSeq === rawRequestSeqRef.current) setRawLoading(false)
       }
     },
     [projectId, country, dateRange, session]
@@ -548,6 +556,16 @@ export default function ReturnAnalysisPage() {
 
   const handleExportExcel = useCallback(async () => {
     if (!data) return
+    // 原始行按需拉取：失败即中止导出，不产出缺 sheet 的「假完整包」（spec §3.4）
+    const raw = rawRows ?? (await loadRawRows())
+    if (!raw) {
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: '原始数据加载失败，已中止导出',
+      })
+      return
+    }
     setExporting(true)
     try {
       const ExcelJS = await import('exceljs')
@@ -722,6 +740,30 @@ export default function ReturnAnalysisPage() {
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
+      // ── Sheet 6: 亚马逊原始数据（spec §1.2 的 17 列，列配置与 Tab 共用）──
+      {
+        const ws = workbook.addWorksheet('亚马逊原始数据')
+        ws.columns = RETURN_RAW_COLUMNS.map((column) => ({ width: column.width }))
+        const headerRow = ws.addRow(RETURN_RAW_COLUMNS.map((column) => column.label))
+        headerRow.height = 22
+        styleHeaderRow(ws, 1)
+
+        raw.rows.forEach((row) => {
+          const r = ws.addRow(
+            RETURN_RAW_COLUMNS.map((column) => {
+              const value = row[column.key]
+              return value === null || value === undefined ? '' : value
+            })
+          )
+          r.font = { name: 'Microsoft YaHei' }
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
+        })
+
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
+      }
+
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -746,7 +788,7 @@ export default function ReturnAnalysisPage() {
     } finally {
       setExporting(false)
     }
-  }, [data, notify])
+  }, [data, notify, rawRows, loadRawRows])
 
   useEffect(() => {
     if (!projectId) return
