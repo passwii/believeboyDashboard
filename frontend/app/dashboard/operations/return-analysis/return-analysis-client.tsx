@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Boxes, Download, Loader2, MessageSquare, Package, Sparkles, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
+import { Boxes, Download, Loader2, MessageSquare, Package, Sparkles, Table2, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import {
   Bar,
@@ -41,6 +41,7 @@ import {
   TableHeader,
   TableRow,
   ColGroup,
+  STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
@@ -68,6 +69,11 @@ import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
+import {
+  RAW_DISPLAY_LIMIT,
+  RETURN_RAW_COLUMNS,
+  type ReturnRawRow,
+} from './return-raw-columns'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -80,6 +86,7 @@ type ViewTab =
   | 'inventory-status'
   | 'feedback'
   | 'summary'
+  | 'raw'
 const VIEW_TAB_ORDER: ViewTab[] = [
   'rankings',
   'reason',
@@ -88,6 +95,7 @@ const VIEW_TAB_ORDER: ViewTab[] = [
   'inventory-status',
   'feedback',
   'summary',
+  'raw',
 ]
 
 type ProjectOption = {
@@ -268,6 +276,15 @@ type ReturnAnalysisResponse = {
   multi_item_return_quantity: number
 }
 
+type ReturnRawRowsResponse = {
+  project_id: number
+  country: string
+  start_date: string
+  end_date: string
+  row_count: number
+  rows: ReturnRawRow[]
+}
+
 const TAB_LABELS: Record<ViewTab, string> = {
   rankings: '高退货排行',
   reason: '退货原因',
@@ -276,6 +293,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   'inventory-status': '库存状态',
   feedback: '顾客反馈',
   summary: 'AI 总结',
+  raw: '原始数据',
 }
 
 // BLF-883 全局统一：每个 tab 前置 icon
@@ -287,6 +305,7 @@ const TAB_ICONS: Record<ViewTab, LucideIcon> = {
   'inventory-status': Boxes,
   feedback: MessageSquare,
   summary: Sparkles,
+  raw: Table2,
 }
 
 const REASON_COLORS = [
@@ -363,12 +382,20 @@ export default function ReturnAnalysisPage() {
       'inventory-status',
       'feedback',
       'summary',
+      'raw',
     ],
   })
 
   const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+
+  // 原始行懒加载状态：只在切到「原始数据」Tab 或点导出时才发请求（spec §3.3）
+  const [rawRows, setRawRows] = useState<ReturnRawRowsResponse | null>(null)
+  const [rawLoading, setRawLoading] = useState(false)
+  const [rawError, setRawError] = useState<string | null>(null)
+  // 全局刷新（force）时把 force 语义传递给原始行请求，避免命中 2min 客户端缓存
+  const rawForceRef = useRef(false)
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
 
@@ -421,6 +448,11 @@ export default function ReturnAnalysisPage() {
       const startDate = formatYMD(effectiveRange.from)
       const endDate = formatYMD(effectiveRange.to)
 
+      // 周期切换防串数据：旧周期的原始行一律作废，等下次进 Tab/导出时重取
+      setRawRows(null)
+      setRawError(null)
+      if (force) rawForceRef.current = true
+
       setLoading(true)
       try {
         const search = new URLSearchParams({
@@ -447,6 +479,50 @@ export default function ReturnAnalysisPage() {
     },
     [projectId, country, dateRange, notify, session]
   )
+
+  // 原始行按需拉取：失败返回 null（由调用方决定提示方式），不抛异常
+  const loadRawRows = useCallback(
+    async (force = false) => {
+      const effectiveRange = normalizeDateRange(dateRange)
+      if (!effectiveRange?.from || !effectiveRange?.to || !projectId) return null
+
+      const search = new URLSearchParams({
+        project_id: projectId,
+        country,
+        start_date: formatYMD(effectiveRange.from),
+        end_date: formatYMD(effectiveRange.to),
+      })
+      setRawLoading(true)
+      setRawError(null)
+      try {
+        const payload = await fetchOpsJsonCached<ReturnRawRowsResponse>(
+          `${API_BASE}/return-analysis/raw-rows?${search.toString()}`,
+          { session, force, fallbackError: '原始数据加载失败' }
+        )
+        setRawRows(payload)
+        return payload
+      } catch (fetchError) {
+        setRawError(
+          fetchError instanceof Error ? fetchError.message : '原始数据加载失败'
+        )
+        return null
+      } finally {
+        rawForceRef.current = false
+        setRawLoading(false)
+      }
+    },
+    [projectId, country, dateRange, session]
+  )
+
+  // 只在切到「原始数据」Tab 时懒加载一次（已有数据不重复请求）。
+  // rawError 也参与守卫：失败后不自动重试（否则 rawLoading 回落会让 effect 无限重发），
+  // 由用户点「重试」显式再发一次。
+  useEffect(() => {
+    if (activeTab !== 'raw') return
+    if (!projectId || !data) return
+    if (rawRows || rawLoading || rawError) return
+    void loadRawRows(rawForceRef.current)
+  }, [activeTab, projectId, data, rawRows, rawLoading, rawError, loadRawRows])
 
   const handleExportExcel = useCallback(async () => {
     if (!data) return
@@ -795,7 +871,7 @@ export default function ReturnAnalysisPage() {
         className="w-full space-y-4"
       >
         <TabsMotionGroup id="return-analysis-tabs">
-          <TabsList variant="term" className="grid h-auto w-full grid-cols-3 lg:grid-cols-7">
+          <TabsList variant="term" className="grid h-auto w-full grid-cols-4 lg:grid-cols-8">
             {VIEW_TAB_ORDER.map((tab) => {
               const Icon = TAB_ICONS[tab]
               return (
@@ -1290,6 +1366,92 @@ export default function ReturnAnalysisPage() {
                         )}
                       </RefreshProgressBar>
                     </Table>
+                  </div>
+                )}
+
+                {activeTab === 'raw' && (
+                  <div className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold">亚马逊原始数据</h3>
+                      <span className="font-mono text-xs text-term-muted">
+                        {rawRows
+                          ? `${rawRows.start_date} 至 ${rawRows.end_date} · 共 ${rawRows.row_count.toLocaleString()} 条`
+                          : '—'}
+                      </span>
+                    </div>
+                    {rawRows && rawRows.row_count > RAW_DISPLAY_LIMIT && (
+                      <p className="font-mono text-xs text-term-warn">
+                        页内仅展示前 {RAW_DISPLAY_LIMIT} 条，完整{' '}
+                        {rawRows.row_count.toLocaleString()} 条请导出 Excel。
+                      </p>
+                    )}
+                    {rawError ? (
+                      <div className="flex flex-wrap items-center gap-3 border border-term-border bg-term-panel px-3 py-2">
+                        <span className="text-sm text-term-neg">{rawError}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void loadRawRows(true)}
+                          disabled={rawLoading}
+                        >
+                          重试
+                        </Button>
+                      </div>
+                    ) : (
+                      <Table
+                        className="min-w-[2280px] table-auto text-xs"
+                        containerClassName="max-h-[560px] overflow-auto bg-[hsl(var(--surface-panel))]/94"
+                      >
+                        <TableHeader>
+                          <TableRow className={STICKY_TOP_ROW}>
+                            {RETURN_RAW_COLUMNS.map((column) => (
+                              <TableHead key={column.key} className={column.minWidth}>
+                                {column.label}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
+                          {rawLoading || !rawRows ? (
+                            <TableSkeletonRows columns={RETURN_RAW_COLUMNS.length} rows={8} />
+                          ) : rawRows.rows.length ? (
+                            rawRows.rows.slice(0, RAW_DISPLAY_LIMIT).map((row, index) => (
+                              <TableRow key={`${row.order_id}-${row.sku}-${index}`}>
+                                {RETURN_RAW_COLUMNS.map((column) => {
+                                  const value = row[column.key]
+                                  const text =
+                                    value === null || value === undefined ? '' : String(value)
+                                  return (
+                                    <TableCell
+                                      key={column.key}
+                                      className={cn(
+                                        'text-term-muted',
+                                        column.key === 'quantity' &&
+                                          'text-right tabular-nums',
+                                        column.truncate && 'max-w-[320px] truncate'
+                                      )}
+                                      title={column.truncate ? text : undefined}
+                                    >
+                                      {text}
+                                    </TableCell>
+                                  )
+                                })}
+                              </TableRow>
+                            ))
+                          ) : (
+                            <EmptyTableState
+                              colSpan={RETURN_RAW_COLUMNS.length}
+                              message="所选周期无原始退货数据"
+                            />
+                          )}
+                        </RefreshProgressBar>
+                      </Table>
+                    )}
                   </div>
                 )}
 

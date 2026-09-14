@@ -153,13 +153,67 @@ function returnPayload(overrides?: Partial<Record<string, unknown>>) {
   }
 }
 
+const RAW_ROWS_PAYLOAD = {
+  project_id: 1,
+  country: 'US',
+  start_date: '2026-08-20',
+  end_date: '2026-08-26',
+  row_count: 1,
+  rows: [
+    {
+      return_date: '2026-08-22',
+      original_return_datetime: '2026-08-22T10:00:00+00:00',
+      order_id: 'ORDER-RAW-1',
+      sku: 'SKU-RAW-1',
+      asin: 'B0RAW00001',
+      fnsku: 'X00RAW',
+      product_name: '原始数据商品',
+      quantity: 2,
+      fulfillment_center_id: 'PGA1',
+      detailed_disposition: 'SELLABLE',
+      disposition_display: '可售',
+      reason: 'NOT_AS_DESCRIBED',
+      reason_display: '与描述不符',
+      status: 'Unit returned to inventory',
+      status_display: '退回库存',
+      license_plate_number: 'LP-RAW-1',
+      customer_comment: '原始评论',
+    },
+  ],
+}
+
+function rawRowsPayload(overrides?: Partial<Record<string, unknown>>) {
+  // order_id 带请求序号：让「切周期后旧行被替换」可观测（不是追加）
+  return {
+    ...RAW_ROWS_PAYLOAD,
+    rows: [{ ...RAW_ROWS_PAYLOAD.rows[0], order_id: `ORDER-RAW-${rawRequestCount}` }],
+    ...overrides,
+  }
+}
+
+let rawRequestCount = 0
+let rawShouldFail = false
+let rawRowCountOverride: number | null = null
+let rawRowsEmpty = false
+
 let lastForce: boolean | undefined
 vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ops-client-cache')>()
   return {
     ...actual,
-    fetchOpsJsonCached: vi.fn().mockImplementation((_url: string, opts?: { force?: boolean }) => {
+    fetchOpsJsonCached: vi.fn().mockImplementation((url: string, opts?: { force?: boolean }) => {
       lastForce = opts?.force
+      if (url.includes('/return-analysis/raw-rows')) {
+        rawRequestCount += 1
+        if (rawShouldFail) return Promise.reject(new Error('原始数据加载失败'))
+        if (rawRowsEmpty) {
+          return Promise.resolve({ ...rawRowsPayload(), rows: [], row_count: 0 })
+        }
+        if (rawRowCountOverride !== null) {
+          return Promise.resolve(rawRowsPayload({ row_count: rawRowCountOverride }))
+        }
+        return Promise.resolve(rawRowsPayload())
+      }
       return Promise.resolve(returnPayload())
     }),
   }
@@ -176,6 +230,10 @@ afterEach(() => {
   capturedRefreshHandler = null
   capturedRefreshLoading = undefined
   lastForce = undefined
+  rawRequestCount = 0
+  rawShouldFail = false
+  rawRowCountOverride = null
+  rawRowsEmpty = false
   mockParams = { project: '1', country: 'US', tab: 'rankings' }
 })
 
@@ -283,5 +341,85 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     render(<ReturnAnalysisClient />)
     await screen.findByText('多件退货')
     expect(screen.getByText('共 7 件')).toBeInTheDocument()
+  })
+})
+
+describe('原始数据 Tab（原始行懒加载）', () => {
+  it('默认停留在 rankings，不发 raw-rows 请求', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    expect(rawRequestCount).toBe(0)
+  })
+
+  it('切到原始数据 Tab 才请求一次，且 query 带项目/站点/周期', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('亚马逊原始数据')).toBeInTheDocument()
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    const rawCall = vi
+      .mocked(fetchOpsJsonCached)
+      .mock.calls.find(([url]) => url.includes('/return-analysis/raw-rows'))
+    expect(rawCall?.[0]).toContain('project_id=1')
+    expect(rawCall?.[0]).toContain('country=US')
+    expect(rawCall?.[0]).toContain('start_date=')
+    expect(rawCall?.[0]).toContain('end_date=')
+  })
+
+  it('渲染 17 列表头与中文翻译列', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('退货原因（中文）')).toBeInTheDocument()
+    expect(screen.getByText('商品状态（中文）')).toBeInTheDocument()
+    expect(screen.getByText('库存属性（中文）')).toBeInTheDocument()
+    expect(await screen.findByText('ORDER-RAW-1')).toBeInTheDocument()
+    expect(screen.getByText('原始数据商品')).toBeInTheDocument()
+  })
+
+  it('超过页内上限时提示走导出 Excel', async () => {
+    rawRowCountOverride = 4321
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText(/完整 4,321 条请导出 Excel/)).toBeInTheDocument()
+  })
+
+  it('空返回展示空态文案', async () => {
+    rawRowsEmpty = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('所选周期无原始退货数据')).toBeInTheDocument()
+  })
+
+  it('加载失败展示错误与重试按钮，重试会再发一次请求', async () => {
+    rawShouldFail = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('原始数据加载失败')).toBeInTheDocument()
+    expect(rawRequestCount).toBe(1)
+
+    rawShouldFail = false
+    await userEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(2))
+  })
+
+  it('切换周期后清空旧周期原始行（防串数据）', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+    // 首次懒加载拿到 ORDER-RAW-1
+    await screen.findByText('ORDER-RAW-1')
+
+    // 触发一次全局刷新：loadData 先清空 rawRows，随后懒加载重取（序号递增）
+    capturedRefreshHandler?.()
+
+    // 新 payload 是 ORDER-RAW-2 且旧行消失 —— 证明是「替换」不是「追加」
+    expect(await screen.findByText('ORDER-RAW-2')).toBeInTheDocument()
+    expect(screen.queryByText('ORDER-RAW-1')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(rawRequestCount).toBe(2))
   })
 })
