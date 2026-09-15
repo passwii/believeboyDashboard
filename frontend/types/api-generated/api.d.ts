@@ -19698,6 +19698,16 @@ export interface components {
             project_name: string;
             /** Ranking Rows */
             ranking_rows: components["schemas"]["ReturnRankingItem"][];
+            /**
+             * Ranking Total Count
+             * @default 0
+             */
+            ranking_total_count: number;
+            /**
+             * Ranking Truncated
+             * @default false
+             */
+            ranking_truncated: boolean;
             /** Reason Rows */
             reason_rows: components["schemas"]["ReturnReasonItem"][];
             /** Start Date */
@@ -19715,8 +19725,25 @@ export interface components {
         /**
          * ReturnAnalysisSummary
          * @description 退货分析汇总
+         *
+         *     BLF-1078 P1-5：新增 ``data_available`` / ``data_span`` 两个可信度字段，
+         *     用来区分「真的零退货」与「本窗口没有退货数据」。
+         *
+         *     * ``data_available is False`` → 本窗口与退货数据跨度无交集（或该店根本
+         *       没有退货数据），此时 ``overall_return_rate`` 不可信，调用方不应引用。
+         *       生产反例：犀牛 2025 有 8690 件销售、退货数据却自 2026-03-28 才开始，
+         *       曾被渲染为「0% 退货率、表现完美」。
+         *     * ``data_span`` 给出该店当前生效退货数据的实际范围（不受本窗口限制），
+         *       调用方可在同一响应内判断该数字是否可信。
+         *     * ``overall_return_rate`` 本身保持非空数值（见字段注释的兼容性取舍）。
          */
         ReturnAnalysisSummary: {
+            /**
+             * Data Available
+             * @default true
+             */
+            data_available: boolean;
+            data_span?: components["schemas"]["ReturnDataSpan"] | null;
             /**
              * Overall Return Rate
              * @default 0
@@ -19746,6 +19773,18 @@ export interface components {
             unique_skus: number;
         };
         /**
+         * ReturnDataSpan
+         * @description 当前生效退货数据的实际日期跨度（BLF-1078 P1-5）。
+         *
+         *     ``None`` 表示该店没有任何当前生效的退货数据。
+         */
+        ReturnDataSpan: {
+            /** Max Return Date */
+            max_return_date?: string | null;
+            /** Min Return Date */
+            min_return_date?: string | null;
+        };
+        /**
          * ReturnRankingItem
          * @description 高退货排行项
          */
@@ -19762,11 +19801,8 @@ export interface components {
             product_name: string | null;
             /** Return Count */
             return_count: number;
-            /**
-             * Return Rate
-             * @default 0
-             */
-            return_rate: number;
+            /** Return Rate */
+            return_rate?: number | null;
             /**
              * Sales Quantity
              * @default 0
@@ -19860,11 +19896,8 @@ export interface components {
             date: string;
             /** Return Count */
             return_count: number;
-            /**
-             * Return Rate
-             * @default 0
-             */
-            return_rate: number;
+            /** Return Rate */
+            return_rate?: number | null;
             /**
              * Sales Amount
              * @default 0
