@@ -148,9 +148,7 @@ def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
         "product_image_uploaded_by": getattr(row, "product_image_uploaded_by", None),
         # 产品文案（BLF-1080）：8 业务字段 + 2 溯源列。空串归一成 None，
         # 避免「写空串 → 读出 ""」的双态不一致。
-        **{
-            field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS
-        },
+        **{field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS},
         "listing_copy_updated_at": str(row.listing_copy_updated_at)
         if getattr(row, "listing_copy_updated_at", None)
         else None,
@@ -252,7 +250,7 @@ def create_or_update_sku_record(
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordUpsertResponse:
-    row, action = upsert_sku_record(db, payload, payload.source_file)
+    row, action = upsert_sku_record(db, payload, payload.source_file, operator=operator)
     snapshot = _serialize_sku_record(row)
     append_operation_audit_log(
         db,
@@ -289,6 +287,7 @@ def bulk_create_or_update_sku_records(
         payload.items,
         import_mode=import_mode,
         source_file=payload.source_file,
+        operator=operator,
     )
     project_names = {row.project_name for row in rows}
     append_operation_audit_log(
@@ -470,6 +469,7 @@ def import_sku_records_from_csv(
         items,
         import_mode=import_mode,
         source_file=file.filename,
+        operator=operator,
     )
     project_names = {row.project_name for row in rows}
     append_operation_audit_log(
@@ -723,7 +723,9 @@ def import_default_blf_basic_info(
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordBulkUpsertResponse:
     items, source_file = read_sku_record_csv_file()
-    rows, inserted, updated = bulk_upsert_sku_records(db, items, source_file)
+    rows, inserted, updated = bulk_upsert_sku_records(
+        db, items, source_file, operator=operator
+    )
     project_names = {row.project_name for row in rows}
     append_operation_audit_log(
         db,

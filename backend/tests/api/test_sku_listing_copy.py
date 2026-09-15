@@ -362,3 +362,181 @@ def test_model_has_ten_listing_columns():
     assert len(columns) == 10
     for name, column in columns.items():
         assert column.nullable is True, f"{name} 应为 nullable"
+
+
+# ---------------------------------------------------------------------------
+# 通用 CRUD 路径（P1 修复回归：schema 公开接受文案字段 → 必须真落库）
+# ---------------------------------------------------------------------------
+
+
+def test_generic_create_persists_listing_fields(client, admin_headers):
+    """POST /sku-info 接受文案 → 真落库（修复前静默丢弃）。"""
+    sku = "LISTING-SKU-CREATE"
+    response = client.post(
+        "/api/v1/sku-info",
+        json={
+            "project_name": TEST_PROJECT,
+            "sku": sku,
+            "asin": "B0LISTINGCRT",
+            "listing_title": "新建标题",
+            "listing_bullet_1": "新建第 1 点",
+            "listing_selling_points": "新建卖点",
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    item = body["item"]
+    assert item["listing_title"] == "新建标题"
+    assert item["listing_bullet_1"] == "新建第 1 点"
+    assert item["listing_selling_points"] == "新建卖点"
+    # 未提供的文案字段保持 NULL（未录入）
+    assert item["listing_bullet_2"] is None
+    assert item["listing_description"] is None
+    # 溯源列：有文案写入才盖
+    assert item["listing_copy_updated_at"] is not None
+
+    db = SessionLocal()
+    try:
+        row = db.get(SkuRecord, item["id"])
+        assert row is not None
+        assert row.listing_title == "新建标题"
+        assert row.listing_copy_updated_at is not None
+    finally:
+        db.close()
+
+
+def test_generic_create_without_listing_leaves_null(client, admin_headers):
+    """POST /sku-info 不带文案 → 10 列全 NULL，溯源列不盖（「未录入」语义）。"""
+    sku = "LISTING-SKU-CREATE-PLAIN"
+    response = client.post(
+        "/api/v1/sku-info",
+        json={
+            "project_name": TEST_PROJECT,
+            "sku": sku,
+            "asin": "B0LISTINGPLN",
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    item = response.json()["item"]
+    for field in (
+        "listing_title",
+        "listing_bullet_1",
+        "listing_bullet_2",
+        "listing_bullet_3",
+        "listing_bullet_4",
+        "listing_bullet_5",
+        "listing_description",
+        "listing_selling_points",
+    ):
+        assert item[field] is None, f"{field} 应为 NULL"
+    assert item["listing_copy_updated_at"] is None
+    assert item["listing_copy_updated_by"] is None
+
+
+def test_generic_patch_updates_listing_fields(client, admin_headers):
+    """PATCH /sku-info/{id} 接受文案 → 真落库，且只改显式提供项。"""
+    record_id = _ensure_sku(
+        sku="LISTING-SKU-PATCH",
+        listing_bullet_1="原有第 1 点",
+        listing_bullet_2="原有第 2 点",
+    )
+    response = client.patch(
+        f"/api/v1/sku-info/{record_id}",
+        json={"listing_title": "补丁标题"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["listing_title"] == "补丁标题"
+    # 未提供字段保持原值（不被清空）
+    assert body["listing_bullet_1"] == "原有第 1 点"
+    assert body["listing_bullet_2"] == "原有第 2 点"
+    assert body["listing_copy_updated_at"] is not None
+
+
+def test_generic_patch_explicit_null_clears_listing(client, admin_headers):
+    """PATCH 显式 null → 清空该文案字段，其它文案字段不动。"""
+    record_id = _ensure_sku(
+        sku="LISTING-SKU-PATCH-CLEAR",
+        listing_title="待清空",
+        listing_description="保留",
+    )
+    response = client.patch(
+        f"/api/v1/sku-info/{record_id}",
+        json={"listing_title": None},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["listing_title"] is None
+    assert body["listing_description"] == "保留"
+
+
+def test_generic_upsert_updates_existing_listing_fields(client, admin_headers):
+    """POST /sku-info 命中既有唯一键 → 更新分支同样落文案字段。"""
+    record_id = _ensure_sku(
+        sku="LISTING-SKU-UPSERT",
+        asin="B0LISTINGUPS",
+        listing_title="旧标题",
+    )
+    response = client.post(
+        "/api/v1/sku-info",
+        json={
+            "project_name": TEST_PROJECT,
+            "sku": "LISTING-SKU-UPSERT",
+            "asin": "B0LISTINGUPS",
+            "listing_title": "新标题",
+            "listing_bullet_3": "第 3 点",
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["action"] == "updated"
+    assert body["item"]["id"] == record_id
+    assert body["item"]["listing_title"] == "新标题"
+    assert body["item"]["listing_bullet_3"] == "第 3 点"
+
+
+def test_csv_export_listing_roundtrip_into_import(client, admin_headers):
+    """导出 listing 模板可直接回传导入（表头承诺的往返闭环）。"""
+    _ensure_sku(
+        sku="LISTING-SKU-ROUNDTRIP",
+        asin="B0LISTINGRT",
+        listing_title="往返标题",
+        listing_bullet_1="往返第 1 点",
+        listing_description="往返描述",
+    )
+    exported = _export_rows(
+        client,
+        admin_headers,
+        project_name=TEST_PROJECT,
+        sku="LISTING-SKU-ROUNDTRIP",
+        export_type="listing",
+    )
+    assert exported[0] == LISTING_HEADER
+
+    # 清空文案，再用导出的同一份 CSV 回传导入（update 模式）
+    record_id = _ensure_sku(sku="LISTING-SKU-ROUNDTRIP", asin="B0LISTINGRT")
+
+    csv_content = ("\r\n".join(exported) + "\r\n").encode("utf-8")
+    response = client.post(
+        "/api/v1/sku-info/import-csv",
+        params={"import_mode": "update"},
+        files={"file": ("listing.csv", csv_content, "text/csv")},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+
+    db = SessionLocal()
+    try:
+        row = db.get(SkuRecord, record_id)
+        assert row is not None
+        assert row.listing_title == "往返标题"
+        assert row.listing_bullet_1 == "往返第 1 点"
+        assert row.listing_description == "往返描述"
+        assert row.listing_copy_updated_at is not None
+    finally:
+        db.close()
