@@ -114,7 +114,7 @@ def _next_sort_order_for_project(db: Session, project_id: int) -> int:
             SkuRecord.project_id == project_id
         )
     ).scalar_one()
-    return int(value or 0) + 1
+    return cast(int, value or 0) + 1
 
 
 def _resolve_insert_sort_order(
@@ -423,7 +423,7 @@ def upsert_sku_record(
         existing.currency = normalized["currency"]
         existing.country = str(normalized["country"])
         if normalized["sort_order"] is not None:
-            existing.sort_order = int(normalized["sort_order"])
+            existing.sort_order = cast(int, normalized["sort_order"])
         if normalized["is_active"] is not None:
             existing.is_active = bool(normalized["is_active"])
         existing.source_file = normalized["source_file"]
@@ -472,7 +472,7 @@ def upsert_sku_record(
                 project_id=project_id,
                 project_name=project_name,
                 prioritized_row=row,
-                requested_sort_order=int(normalized["sort_order"]),
+                requested_sort_order=cast(int, normalized["sort_order"]),
             )
         action = "inserted"
 
@@ -750,8 +750,8 @@ def move_sku_record_sort_order(
         db.refresh(row)
         return row
 
-    row_sort_order = int(row.sort_order)
-    row.sort_order = int(target.sort_order)
+    row_sort_order = cast(int, row.sort_order)
+    row.sort_order = cast(int, target.sort_order)
     target.sort_order = row_sort_order
     db.flush()
     db.refresh(row)
