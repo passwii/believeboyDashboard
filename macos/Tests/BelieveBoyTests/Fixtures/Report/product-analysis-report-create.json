@@ -1,0 +1,7 @@
+{
+  "created_at": "2026-09-15T01:59:30.768422Z",
+  "job_id": 1,
+  "result_endpoint": "/api/v1/product-analysis-reports/tasks/1/result",
+  "status": "failed",
+  "status_endpoint": "/api/v1/product-analysis-reports/tasks/1"
+}

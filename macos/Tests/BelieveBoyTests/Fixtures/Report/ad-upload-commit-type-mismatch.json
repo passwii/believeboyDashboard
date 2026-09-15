@@ -1,0 +1,6 @@
+{
+  "body": {
+    "detail": "report_type does not match recognized report"
+  },
+  "status": 422
+}

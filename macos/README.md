@@ -127,7 +127,7 @@ swift run BelieveBoyMac
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 510 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 707 个用例（5 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 3）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
@@ -274,7 +274,7 @@ macos/
 ├── Package.swift               # 三层 target + BelieveBoyTests
 ├── Tests/BelieveBoyTests/      # XCTest（离线打桩 + 离屏渲染；需完整 Xcode）
 └── Sources/
-    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络（写 / 上传 / SSE / 下载 / 轮询）/ 凭据 / 会话 / 健康探针 / 导航目录与外壳状态 / 长任务 Jobs / 业务域（AgentOps）（不 import SwiftUI）
+    ├── BelieveBoyKit/          # 纯逻辑：配置 / 网络（写 / 上传 / SSE / 下载 / 轮询）/ 凭据 / 会话 / 健康探针 / 导航目录与外壳状态 / 长任务 Jobs / 业务域（AgentOps / AdAnalysis / Ads / Insights / AIChat / Reports）（不 import SwiftUI）
     ├── BelieveBoyUI/           # SwiftUI 视图 + store（可离屏渲染）
     └── BelieveBoyMac/          # 进程引导（NSApplication + 窗口尺寸恢复 + 菜单）
 ```

@@ -65,6 +65,17 @@ public final class NavigationStore {
     /// 「AI → AI 库存健康」的 canonical run 观察（库存域文案表）。
     public let inventoryRun: CanonicalRunStore
 
+    /// 「报表中心 → 产品分析」（S5.5）的模块 store：识别 → 确认 → 提交的写链路 +
+    /// 产品分析核算异步任务。
+    ///
+    /// 住在外壳里：识别结果、已提交的 `file_id`、核算任务的进度与下载结果都是「用户在这个
+    /// 页面上的位置」—— 切走再回来应当原处（也是「任务跑到一半切模块」能靠
+    /// `tasks.cancelTree` 收尾的前提）。
+    public let productAnalysis: ProductAnalysisStore
+
+    /// 「报表中心 → 报表自动化」（S5.5）的模块 store：RPA 状态矩阵 + 日期/站点/项目筛选。
+    public let reportAutomation: ReportAutomationStore
+
     public private(set) var selectedGroupID: String?
     public private(set) var selectedRouteID: String?
     public private(set) var columnVisibility: ShellColumnVisibility
@@ -89,7 +100,9 @@ public final class NavigationStore {
         adAnalysisRun: CanonicalRunStore = CanonicalRunStore(domain: .adAnalysis),
         inventoryRun: CanonicalRunStore = CanonicalRunStore(domain: .inventoryHealth),
         aiChat: AIChatStore = AIChatStore(),
-        customerService: CustomerServiceStore = CustomerServiceStore()
+        customerService: CustomerServiceStore = CustomerServiceStore(),
+        productAnalysis: ProductAnalysisStore = ProductAnalysisStore(),
+        reportAutomation: ReportAutomationStore = ReportAutomationStore()
     ) {
         self.groups = groups
         self.preferences = preferences
@@ -103,6 +116,8 @@ public final class NavigationStore {
         self.inventoryRun = inventoryRun
         self.aiChat = aiChat
         self.customerService = customerService
+        self.productAnalysis = productAnalysis
+        self.reportAutomation = reportAutomation
 
         // 落盘内容不可信（旧版本 / 手改）→ 先 sanitize 再采用，见 `ShellPreferences`。
         let restored = (preferences.loadPreferences() ?? ShellPreferences()).sanitized(catalog: groups)
