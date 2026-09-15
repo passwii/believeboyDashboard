@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -115,6 +114,38 @@ class TestR1Overview:
         assert data["summary"]["total_returns"] == 2
         assert data["summary"]["unique_skus"] == 1
         assert [r["sku"] for r in data["ranking_rows"]] == ["X-001"]
+
+    def test_fresh_snapshot_ranking_uses_current_raw_for_overview(
+        self, client, shipment_env
+    ):
+        """Fresh aggregate may be incomplete; R1 ranking must still match current raw."""
+        d = _today()
+        seed_return_analysis(
+            shipment_env["project_id"],
+            return_rows=[
+                {"return_date": d, "order_id": "RAW-1", "sku": "X-001", "quantity": 2},
+                {"return_date": d, "order_id": "RAW-2", "sku": "X-001", "quantity": 1},
+            ],
+            aggregate_rows=[
+                {
+                    "sku": "X-001",
+                    "data_date": d,
+                    "return_count": 1,
+                    "return_quantity": 1,
+                    "computed_at": datetime.now(timezone.utc),
+                }
+            ],
+        )
+
+        resp = client.get(
+            _url(shipment_env, "/overview") + _qs(),
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["summary"]["total_quantity"] == 3
+        assert data["ranking_rows"][0]["total_quantity"] == 3
+        assert data["ranking_rows"][0]["return_count"] == 2
 
     def test_missing_project_404(self, client, shipment_env):
         resp = client.get(
@@ -230,6 +261,38 @@ class TestR4SkuDetail:
         data = resp.json()["data"]
         assert data["summary"]["total_returns"] == 0
         assert data["ranking_rows"] == []
+
+    def test_fresh_snapshot_ranking_uses_current_raw_for_sku_detail(
+        self, client, shipment_env
+    ):
+        """R4 must not expose stale aggregate values for a single SKU either."""
+        d = _today()
+        seed_return_analysis(
+            shipment_env["project_id"],
+            return_rows=[
+                {"return_date": d, "order_id": "RAW-1", "sku": "X-001", "quantity": 2},
+                {"return_date": d, "order_id": "RAW-2", "sku": "X-001", "quantity": 1},
+            ],
+            aggregate_rows=[
+                {
+                    "sku": "X-001",
+                    "data_date": d,
+                    "return_count": 1,
+                    "return_quantity": 1,
+                    "computed_at": datetime.now(timezone.utc),
+                }
+            ],
+        )
+
+        resp = client.get(
+            _url(shipment_env, "/skus/X-001") + _qs(),
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["summary"]["total_quantity"] == 3
+        assert data["ranking_rows"][0]["total_quantity"] == 3
+        assert data["ranking_rows"][0]["return_count"] == 2
 
     def test_sku_missing_project_404(self, client, shipment_env):
         resp = client.get(

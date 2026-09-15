@@ -5,15 +5,15 @@ Extracted from return_analysis_service.py (phase 5 of backend refactor plan).
 
 from __future__ import annotations
 
+from copy import copy
 from datetime import date, datetime
-from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    SkuRecord,
     Project,
+    SkuRecord,
 )
 from app.services.analysis.return_analysis.queries import query_current_return_rows
 from app.services.sales_query import counted_sales_where
@@ -70,7 +70,7 @@ def _build_sales_aggregates(
         sku_sales: dict[sku] -> {"quantity": int, "amount": float}
         date_sales: dict[date_str] -> {"quantity": int, "amount": float}
     """
-    from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
+    from app.models import AnalysisSalesOrderRow
 
     # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     q = db.query(
@@ -311,11 +311,11 @@ def _build_summary_text(
         )
     elif total_returns > 0:
         parts.append(
-            f"ℹ️ 暂无同期销售数据，无法计算退货率。"
-            f"服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。"
+            "ℹ️ 暂无同期销售数据，无法计算退货率。"
+            "服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。"
         )
     else:
-        parts.append(f"ℹ️ 参考基准：服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。")
+        parts.append("ℹ️ 参考基准：服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。")
 
     if ranking_rows:
         top_sku = ranking_rows[0]
@@ -323,7 +323,7 @@ def _build_summary_text(
         sku_return_rate = getattr(top_sku, "return_rate", 0.0)
         rate_str = f"，退货率 {sku_return_rate}%" if sku_sales_qty > 0 else ""
         parts.append("")
-        parts.append(f"⚠️ 高退货 SKU（按退货量）")
+        parts.append("⚠️ 高退货 SKU（按退货量）")
         parts.append(
             f"Top1：{top_sku.sku}（{top_sku.total_quantity}件，退货{top_sku.return_count}单{rate_str}）"
         )
@@ -367,7 +367,7 @@ def _build_summary_text(
     if reason_rows:
         top_reason = reason_rows[0]
         parts.append("")
-        parts.append(f"🔍 退货原因分析")
+        parts.append("🔍 退货原因分析")
         parts.append(
             f"最主要原因：{top_reason.reason_display}，占全部退货的 {top_reason.percentage}%。"
         )
@@ -407,24 +407,24 @@ def _build_summary_text(
     if multi_item_return_count > 0:
         multi_qty_pct = round(multi_item_return_quantity / total_quantity * 100, 1)
         parts.append("")
-        parts.append(f"📦 多件退货分析")
+        parts.append("📦 多件退货分析")
         parts.append(
             f"本期内有 {multi_item_return_count} 笔退货涉及多件商品，"
             f"合计 {multi_item_return_quantity} 件，占总退货量的 {multi_qty_pct}%。"
         )
         if multi_item_rate > 20:
             parts.append(
-                f"⚡ 多件退货比例较高，可能存在批量质量或包装问题，建议抽检该批次产品。"
+                "⚡ 多件退货比例较高，可能存在批量质量或包装问题，建议抽检该批次产品。"
             )
         elif multi_item_rate > 10:
-            parts.append(f"多件退货比例偏高，值得关注是否为同批次产品存在系统性问题。")
+            parts.append("多件退货比例偏高，值得关注是否为同批次产品存在系统性问题。")
 
     if trend_rows:
         direction, change_str = calc_trend(trend_rows)
         peak_day = max(trend_rows, key=lambda r: r.return_count)
         low_day = min(trend_rows, key=lambda r: r.return_count)
         parts.append("")
-        parts.append(f"📈 退货趋势（按日）")
+        parts.append("📈 退货趋势（按日）")
         parts.append(f"整体趋势：{change_str}。")
         parts.append(
             f"退货高峰日：{peak_day.date}（{peak_day.return_count}单）；"
@@ -452,7 +452,7 @@ def _build_summary_text(
             WEEKDAY_NAMES[w.weekday] for w in weekday_rows if w.return_count > 0
         )
         parts.append("")
-        parts.append(f"🗓️ 星期分布")
+        parts.append("🗓️ 星期分布")
         parts.append(f"退货分布：{weekday_str}。")
         if peak_weekday.return_count > daily_avg * 1.5 and daily_avg > 0:
             parts.append(
@@ -469,15 +469,15 @@ def _build_summary_text(
             else 0
         )
         parts.append("")
-        parts.append(f"🏭 仓库分布")
+        parts.append("🏭 仓库分布")
         parts.append(
             f"退货涉及 {len(fulfillment_center_rows)} 个仓库，"
             f"其中 {top_fc.fulfillment_center_id} 退货最多（{top_fc.return_count}单，占比{fc_top_pct}%）。"
         )
         if fc_top_pct > 50:
             parts.append(
-                f"⚡ 该仓库退货集中度偏高，可能存在该仓库特有的存储、发货或操作问题，"
-                f"建议与仓库管理方沟通核查。"
+                "⚡ 该仓库退货集中度偏高，可能存在该仓库特有的存储、发货或操作问题，"
+                "建议与仓库管理方沟通核查。"
             )
         elif len(fulfillment_center_rows) > 1:
             parts.append(
@@ -498,7 +498,7 @@ def _build_summary_text(
             None,
         )
         parts.append("")
-        parts.append(f"📦 商品处理状态")
+        parts.append("📦 商品处理状态")
         if resellable:
             parts.append(
                 f"可售商品：{resellable.disposition_display}（{resellable.percentage}%），可直接回库再售。"
@@ -530,7 +530,7 @@ def _build_summary_text(
             None,
         )
         parts.append("")
-        parts.append(f"🏭 库存处理进度")
+        parts.append("🏭 库存处理进度")
         if completed:
             parts.append(
                 f"已完成处理：{completed.status_display}（{completed.percentage}%）。"
@@ -542,7 +542,7 @@ def _build_summary_text(
             )
             if pending.percentage > 30:
                 parts.append(
-                    f"⚡ 待处理比例超过 30%，库存积压风险较高，请加快处理节奏。"
+                    "⚡ 待处理比例超过 30%，库存积压风险较高，请加快处理节奏。"
                 )
 
     if feedback_rows:
@@ -731,11 +731,14 @@ def build_return_analysis(
     # Read-time Python dedup on (order_id, sku) is still needed below: the same
     # order+SKU can appear in multiple rows (different return_date / license_plate)
     # but counts as ONE return event for "return_count" metrics.
-    records = raw_records
+    # Copy ORM rows before normalizing dates; a snapshot request may follow a
+    # previous analysis request in the same session.
+    records = [copy(r) for r in raw_records]
 
     # Normalize return_date to string for downstream formatting
     for r in records:
-        r.return_date = r.return_date.isoformat()
+        if hasattr(r.return_date, "isoformat"):
+            r.return_date = r.return_date.isoformat()
 
     sku_sales, date_sales = _build_sales_aggregates(
         db, project_id, country, start_date, end_date
@@ -1187,412 +1190,17 @@ def build_return_analysis_from_snapshot(
     end_date: str,
     sku: str | None = None,
 ):
-    """Snapshot 路径：优先读 analysis_return_aggregates，分布行退回 raw.
+    """Build snapshot-path results from current raw return rows.
 
-    与 build_return_analysis() 保持 schema 完全一致：
-    - ranking_rows：来自 aggregate（重计算）
-    - summary / trend_rows / reason_rows / disposition_rows / status_rows / feedback_rows /
-      weekday_rows / fulfillment_center_rows：来自 raw（与 fallback 路径一致）
+    Freshness only selects this path. Aggregate rows may be fresh while
+    incomplete or older than the current report, so raw rows are the source
+    of truth for both summary and ranking.
     """
-    from app.utils.stats import compute_risk_level
-    from app.models import (
-        AnalysisReturnAggregate,
-        Project,
-    )
-    from app.constants.return_translations import (
-        translate_return_field,
-    )
-    from app.schemas.return_analysis import (
-        DispositionItem,
-        FulfillmentCenterItem,
-        ReturnAnalysisResponse,
-        ReturnAnalysisSummary,
-        ReturnRankingItem,
-        ReturnReasonItem,
-        ReturnTrendItem,
-        StatusItem,
-        WeekdayItem,
-    )
-
-    start = date.fromisoformat(start_date)
-    end = date.fromisoformat(end_date)
-
-    # 1) 从 aggregate 表读 (project, country, sku, date) 范围
-    agg_query = db.query(AnalysisReturnAggregate).filter(
-        AnalysisReturnAggregate.project_id == project_id,
-        AnalysisReturnAggregate.country == country,
-        AnalysisReturnAggregate.data_date >= start,
-        AnalysisReturnAggregate.data_date <= end,
-    )
-    if sku:
-        agg_query = agg_query.filter(AnalysisReturnAggregate.sku == sku)
-    aggregates: list = agg_query.all()
-
-    # 2) 从 raw 表读全部 (project, country, date 范围) 行（用于分布维）
-    records: list = query_current_return_rows(
+    return build_return_analysis(
         db,
         project_id=project_id,
         country=country,
         start_date=start_date,
         end_date=end_date,
         sku=sku,
-    )
-    for r in records:
-        # Snapshot 路径重跑时 r.return_date 可能是 date 或 str（取决于 session）
-        if hasattr(r.return_date, "isoformat"):
-            r.return_date = r.return_date.isoformat()
-
-    # 3) Sales 聚合（与 build_return_analysis 共用 helper）
-    sku_sales, date_sales = _build_sales_aggregates(
-        db, project_id, country, start_date, end_date
-    )
-
-    # 4) Ranking rows：从 aggregate 重聚合（这是 snapshot 的核心价值）
-    # aggregate 粒度是 (sku, date)，按 SKU 重聚合 return_count / return_quantity
-    # 与周期分布；sales 分母不用聚合表——聚合行只为「有退货的 SKU×日」写入，
-    # 对任何列求和都会漏掉无退货的销售日（BLF-806），一律取 raw 销售层的
-    # 窗口 counted sales（上方 sku_sales，与 summary / fallback 路径同源同口径）。
-    sku_agg: dict[str, dict] = {}
-    for a in aggregates:
-        if a.sku not in sku_agg:
-            sku_agg[a.sku] = {
-                "sku": a.sku,
-                "asin": a.asin,
-                "return_count": 0,
-                "return_quantity": 0,
-                "cycle_min": None,
-                "cycle_max": None,
-                "cycle_avg_sum": 0.0,
-                "cycle_avg_n": 0,
-                "reason_top1": None,
-                "reason_top1_pct": 0.0,
-                "reason_top1_display": None,
-                "disposition_top1": None,
-                "disposition_top1_display": None,
-                "dominant_fc_id": None,
-                "wilson_lower": None,
-            }
-        agg = sku_agg[a.sku]
-        agg["return_count"] += a.return_count
-        agg["return_quantity"] += a.return_quantity
-        if a.cycle_avg_days is not None:
-            agg["cycle_avg_sum"] += float(a.cycle_avg_days)
-            agg["cycle_avg_n"] += 1
-        if a.cycle_min_days is not None:
-            if agg["cycle_min"] is None or a.cycle_min_days < agg["cycle_min"]:
-                agg["cycle_min"] = a.cycle_min_days
-        if a.cycle_max_days is not None:
-            if agg["cycle_max"] is None or a.cycle_max_days > agg["cycle_max"]:
-                agg["cycle_max"] = a.cycle_max_days
-
-    ranking_rows: list[ReturnRankingItem] = []
-    for v in sku_agg.values():
-        # BLF-806: 分母与 fallback 路径同源（raw 窗口 counted sales），
-        # 不再依赖聚合表行——聚合行只覆盖有退货的 (SKU, 日)，任何基于
-        # 聚合行的销量口径都无法还原完整窗口销量。
-        s = sku_sales.get(v["sku"], {"quantity": 0})
-        sales_qty = s["quantity"]
-        return_qty = v["return_quantity"]
-        risk_level, wilson = compute_risk_level(return_qty, sales_qty)
-        cycle_avg = (
-            (v["cycle_avg_sum"] / v["cycle_avg_n"]) if v["cycle_avg_n"] > 0 else None
-        )
-        ranking_rows.append(
-            ReturnRankingItem(
-                sku=v["sku"],
-                asin=v["asin"],
-                product_name=None,  # 不存；保持空以便前端 fallback
-                total_quantity=return_qty,
-                return_count=v["return_count"],
-                sales_quantity=sales_qty,
-                return_rate=_safe_rate(return_qty, sales_qty),
-                avg_return_cycle_days=round(cycle_avg, 2) if cycle_avg else None,
-                min_return_cycle_days=v["cycle_min"],
-                max_return_cycle_days=v["cycle_max"],
-            )
-        )
-    ranking_rows.sort(key=lambda x: x.total_quantity, reverse=True)
-    ranking_rows = ranking_rows[:20]
-
-    # 5) 分布维仍走 raw（与 fallback 路径一致的逻辑）
-    # ── unique return events ──
-    unique_return_keys: set[tuple[str, str]] = set()
-    sku_unique_count: dict[str, int] = {}
-    reason_unique_count: dict[str, int] = {}
-
-    for r in records:
-        key = (r.order_id, r.sku)
-        if key not in unique_return_keys:
-            unique_return_keys.add(key)
-            sku_unique_count[r.sku] = sku_unique_count.get(r.sku, 0) + 1
-            reason_unique_count[r.reason] = reason_unique_count.get(r.reason, 0) + 1
-
-    total_returns = len(unique_return_keys)
-    total_quantity = sum(r.quantity for r in records)
-    unique_skus = len({r.sku for r in records})
-    total_sales_quantity = sum(v["quantity"] for v in sku_sales.values())
-    total_sales_amount = sum(v["amount"] for v in sku_sales.values())
-    overall_return_rate = _safe_rate(total_quantity, total_sales_quantity)
-
-    # 6) Reason rows
-    reason_data: dict[str, dict] = {}
-    for r in records:
-        if r.reason not in reason_data:
-            reason_data[r.reason] = {
-                "reason": r.reason,
-                "total_quantity": 0,
-                "return_count": 0,
-            }
-        reason_data[r.reason]["total_quantity"] += r.quantity
-        reason_data[r.reason]["return_count"] = reason_unique_count.get(r.reason, 0)
-
-    reason_rows = sorted(
-        [
-            ReturnReasonItem(
-                reason=k,
-                reason_display=translate_return_field("reason", k),
-                total_quantity=v["total_quantity"],
-                return_count=v["return_count"],
-                percentage=round(v["return_count"] / total_returns * 100, 2)
-                if total_returns > 0
-                else 0,
-            )
-            for k, v in reason_data.items()
-        ],
-        key=lambda x: x.return_count,
-        reverse=True,
-    )
-
-    # 7) Trend rows（按日期分，唯一 return events）
-    date_unique_keys: dict[str, set[tuple[str, str]]] = {}
-    for r in records:
-        date_unique_keys.setdefault(r.return_date, set()).add((r.order_id, r.sku))
-
-    date_data: dict[str, dict] = {}
-    for r in records:
-        if r.return_date not in date_data:
-            date_data[r.return_date] = {
-                "date": r.return_date,
-                "total_quantity": 0,
-                "return_count": 0,
-            }
-        date_data[r.return_date]["total_quantity"] += r.quantity
-    for d, keys in date_unique_keys.items():
-        if d in date_data:
-            date_data[d]["return_count"] = len(keys)
-
-    trend_rows = sorted(
-        [
-            ReturnTrendItem(
-                date=v["date"],
-                total_quantity=v["total_quantity"],
-                return_count=v["return_count"],
-                sales_quantity=date_sales.get(v["date"], {}).get("quantity", 0),
-                sales_amount=round(date_sales.get(v["date"], {}).get("amount", 0.0), 2),
-                return_rate=_safe_rate(
-                    v["total_quantity"],
-                    date_sales.get(v["date"], {}).get("quantity", 0),
-                ),
-            )
-            for v in date_data.values()
-        ],
-        key=lambda x: x.date,
-    )
-
-    # 8) Disposition rows
-    disp_unique_keys: dict[str, set[tuple[str, str]]] = {}
-    for r in records:
-        disp_unique_keys.setdefault(r.detailed_disposition, set()).add(
-            (r.order_id, r.sku)
-        )
-
-    disposition_data: dict[str, dict] = {}
-    for r in records:
-        if r.detailed_disposition not in disposition_data:
-            disposition_data[r.detailed_disposition] = {
-                "detailed_disposition": r.detailed_disposition,
-                "total_quantity": 0,
-                "return_count": 0,
-            }
-        disposition_data[r.detailed_disposition]["total_quantity"] += r.quantity
-    for d, keys in disp_unique_keys.items():
-        if d in disposition_data:
-            disposition_data[d]["return_count"] = len(keys)
-
-    disposition_rows = sorted(
-        [
-            DispositionItem(
-                detailed_disposition=k,
-                disposition_display=translate_return_field("disposition", k),
-                total_quantity=v["total_quantity"],
-                return_count=v["return_count"],
-                percentage=round(v["return_count"] / total_returns * 100, 2)
-                if total_returns > 0
-                else 0,
-            )
-            for k, v in disposition_data.items()
-        ],
-        key=lambda x: x.return_count,
-        reverse=True,
-    )
-
-    # 9) Status rows
-    status_unique_keys: dict[str, set[tuple[str, str]]] = {}
-    for r in records:
-        status_unique_keys.setdefault(r.status, set()).add((r.order_id, r.sku))
-
-    status_data: dict[str, dict] = {}
-    for r in records:
-        if r.status not in status_data:
-            status_data[r.status] = {
-                "status": r.status,
-                "total_quantity": 0,
-                "return_count": 0,
-            }
-        status_data[r.status]["total_quantity"] += r.quantity
-    for s, keys in status_unique_keys.items():
-        if s in status_data:
-            status_data[s]["return_count"] = len(keys)
-
-    status_rows = sorted(
-        [
-            StatusItem(
-                status=k,
-                status_display=translate_return_field("status", k),
-                total_quantity=v["total_quantity"],
-                return_count=v["return_count"],
-                percentage=round(v["return_count"] / total_returns * 100, 2)
-                if total_returns > 0
-                else 0,
-            )
-            for k, v in status_data.items()
-        ],
-        key=lambda x: x.return_count,
-        reverse=True,
-    )
-
-    # 10) Feedback rows（BLF-788：按退货事件去重，见 _build_feedback_rows）
-    feedback_rows = _build_feedback_rows(records)
-
-    # 11) Weekday rows
-    from collections import Counter
-
-    weekday_counter: Counter = Counter()
-    for r in records:
-        try:
-            dt = datetime.strptime(r.return_date, "%Y-%m-%d")
-            weekday_counter[dt.weekday()].add((r.order_id, r.sku))
-        except Exception:
-            pass
-    weekday_display_map = {
-        0: "周一",
-        1: "周二",
-        2: "周三",
-        3: "周四",
-        4: "周五",
-        5: "周六",
-        6: "周日",
-    }
-    weekday_rows = sorted(
-        [
-            WeekdayItem(
-                weekday=w,
-                weekday_display=weekday_display_map.get(w, str(w)),
-                return_count=len(c),
-                percentage=round(len(c) / total_returns * 100, 2)
-                if total_returns > 0
-                else 0,
-            )
-            for w, c in weekday_counter.items()
-        ],
-        key=lambda x: x.weekday,
-    )
-
-    # 12) Fulfillment center rows
-    fc_unique_keys: dict[str, set[tuple[str, str]]] = {}
-    fc_counter: dict[str, dict] = {}
-    for r in records:
-        fc = r.fulfillment_center_id or "未知仓库"
-        fc_unique_keys.setdefault(fc, set()).add((r.order_id, r.sku))
-        if fc not in fc_counter:
-            fc_counter[fc] = {"return_count": 0, "quantity": 0}
-        fc_counter[fc]["quantity"] += r.quantity
-    for fc, keys in fc_unique_keys.items():
-        if fc in fc_counter:
-            fc_counter[fc]["return_count"] = len(keys)
-
-    total_fc_returns = sum(v["return_count"] for v in fc_counter.values())
-    fulfillment_center_rows = sorted(
-        [
-            FulfillmentCenterItem(
-                fulfillment_center_id=k,
-                return_count=v["return_count"],
-                quantity=v["quantity"],
-                percentage=round(v["return_count"] / total_fc_returns * 100, 2)
-                if total_fc_returns > 0
-                else 0,
-            )
-            for k, v in fc_counter.items()
-        ],
-        key=lambda x: x.return_count,
-        reverse=True,
-    )
-
-    multi_item_return_count = sum(1 for r in records if r.quantity > 1)
-    multi_item_return_quantity = sum(r.quantity for r in records if r.quantity > 1)
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    project_name = project.project_name if project else ""
-
-    summary_text = _build_summary_text(
-        total_returns=total_returns,
-        total_quantity=total_quantity,
-        unique_skus=unique_skus,
-        ranking_rows=ranking_rows,
-        reason_rows=reason_rows,
-        trend_rows=trend_rows,
-        disposition_rows=disposition_rows,
-        status_rows=status_rows,
-        start_date=start_date,
-        end_date=end_date,
-        project_name=project_name,
-        weekday_rows=weekday_rows,
-        fulfillment_center_rows=fulfillment_center_rows,
-        multi_item_return_count=multi_item_return_count,
-        multi_item_return_quantity=multi_item_return_quantity,
-        feedback_rows=feedback_rows,
-        total_sales_quantity=total_sales_quantity,
-        total_sales_amount=round(total_sales_amount, 2),
-        overall_return_rate=overall_return_rate,
-    )
-
-    summary = ReturnAnalysisSummary(
-        total_returns=total_returns,
-        total_quantity=total_quantity,
-        unique_skus=unique_skus,
-        top_return_sku=ranking_rows[0].sku if ranking_rows else None,
-        top_return_reason=reason_rows[0].reason if reason_rows else None,
-        total_sales_quantity=total_sales_quantity,
-        total_sales_amount=round(total_sales_amount, 2),
-        overall_return_rate=overall_return_rate,
-    )
-
-    return ReturnAnalysisResponse(
-        project_id=project_id,
-        project_name=project_name,
-        country=country,
-        start_date=start_date,
-        end_date=end_date,
-        summary=summary,
-        summary_text=summary_text,
-        ranking_rows=ranking_rows,
-        reason_rows=reason_rows,
-        trend_rows=trend_rows,
-        disposition_rows=disposition_rows,
-        status_rows=status_rows,
-        feedback_rows=feedback_rows,
-        weekday_rows=weekday_rows,
-        fulfillment_center_rows=fulfillment_center_rows,
-        multi_item_return_count=multi_item_return_count,
-        multi_item_return_quantity=multi_item_return_quantity,
     )
