@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, cast
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from fastapi import HTTPException, status
@@ -214,7 +215,7 @@ def _apply_listing_copy_fields(
 
 def _normalize_item(
     item: SkuRecordCreate, source_file: str | None = None
-) -> dict[str, str | Decimal | bool | int | None]:
+) -> dict[str, Any]:
     provided_fields = set(item.model_fields_set)
 
     def optional_cost(
@@ -271,6 +272,12 @@ def _normalize_item(
         "sku_factory_info": item.sku_factory_info
         if "sku_factory_info" in provided_fields
         else None,
+        **{
+            field: _normalize_optional_text(getattr(item, field))
+            if field in provided_fields
+            else None
+            for field in LISTING_COPY_FIELDS
+        },
     }
 
 
@@ -352,7 +359,7 @@ def list_sku_records_all(
     if isinstance(is_active, bool):
         stmt = stmt.where(SkuRecord.is_active.is_(is_active))
 
-    return (
+    return list(
         db.execute(stmt.order_by(SkuRecord.sort_order.asc(), SkuRecord.id.asc()))
         .scalars()
         .all()
@@ -492,7 +499,11 @@ def update_sku_record_by_id(
         )
 
     sku = _normalize_text(payload.sku, "sku") if payload.sku is not None else row.sku
-    asin = _normalize_optional_text(payload.asin) or ""
+    asin = (
+        (_normalize_optional_text(payload.asin) or "")
+        if "asin" in payload.model_fields_set
+        else row.asin
+    )
     fnsku = (
         ((payload.fnsku or "").strip() or None)
         if "fnsku" in payload.model_fields_set
@@ -560,7 +571,11 @@ def update_sku_record_by_id(
         if payload.units_per_carton is not None
         else row.units_per_carton
     )
-    country = normalize_country(payload.country)
+    country = (
+        normalize_country(payload.country)
+        if "country" in payload.model_fields_set
+        else row.country
+    )
     sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or "").strip() or None
 
@@ -587,17 +602,17 @@ def update_sku_record_by_id(
     row.asin = asin
     row.fnsku = fnsku
     row.product_name = product_name
-    row.fob_unit_cost = fob_unit_cost
-    row.first_leg_cost_rmb = first_leg_cost_rmb
-    row.package_length_cm = package_length_cm
-    row.package_width_cm = package_width_cm
-    row.package_height_cm = package_height_cm
-    row.weight_kg = weight_kg
-    row.carton_length_cm = carton_length_cm
-    row.carton_width_cm = carton_width_cm
-    row.carton_height_cm = carton_height_cm
-    row.carton_weight_kg = carton_weight_kg
-    row.units_per_carton = units_per_carton
+    row.fob_unit_cost = cast(float, fob_unit_cost)
+    row.first_leg_cost_rmb = cast(float, first_leg_cost_rmb)
+    row.package_length_cm = cast(float, package_length_cm)
+    row.package_width_cm = cast(float, package_width_cm)
+    row.package_height_cm = cast(float, package_height_cm)
+    row.weight_kg = cast(float, weight_kg)
+    row.carton_length_cm = cast(float, carton_length_cm)
+    row.carton_width_cm = cast(float, carton_width_cm)
+    row.carton_height_cm = cast(float, carton_height_cm)
+    row.carton_weight_kg = cast(float, carton_weight_kg)
+    row.units_per_carton = cast(int, units_per_carton)
     row.currency = RMB_CURRENCY
     row.country = country
     if sort_order is not None:
@@ -608,7 +623,8 @@ def update_sku_record_by_id(
             prioritized_row=row,
             requested_sort_order=sort_order,
         )
-    row.is_active = bool(payload.is_active)
+    if "is_active" in payload.model_fields_set:
+        row.is_active = bool(payload.is_active)
     row.source_file = normalized_source_file
 
     if "sku_factory_info" in payload.model_fields_set:

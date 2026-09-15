@@ -395,6 +395,7 @@ def test_generic_create_persists_listing_fields(client, admin_headers):
     assert item["listing_description"] is None
     # 溯源列：有文案写入才盖
     assert item["listing_copy_updated_at"] is not None
+    assert item["listing_copy_updated_by"] is not None
 
     db = SessionLocal()
     try:
@@ -454,6 +455,7 @@ def test_generic_patch_updates_listing_fields(client, admin_headers):
     assert body["listing_bullet_1"] == "原有第 1 点"
     assert body["listing_bullet_2"] == "原有第 2 点"
     assert body["listing_copy_updated_at"] is not None
+    assert body["listing_copy_updated_by"] is not None
 
 
 def test_generic_patch_explicit_null_clears_listing(client, admin_headers):
@@ -472,6 +474,26 @@ def test_generic_patch_explicit_null_clears_listing(client, admin_headers):
     body = response.json()
     assert body["listing_title"] is None
     assert body["listing_description"] == "保留"
+    assert body["listing_copy_updated_at"] is not None
+    assert body["listing_copy_updated_by"] is not None
+
+
+def test_generic_patch_empty_string_clears_listing(client, admin_headers):
+    """PATCH 显式空串 → 清空该文案字段。"""
+    record_id = _ensure_sku(
+        sku="LISTING-SKU-PATCH-EMPTY",
+        listing_title="待清空",
+    )
+    response = client.patch(
+        f"/api/v1/sku-info/{record_id}",
+        json={"listing_title": "   "},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["listing_title"] is None
+    assert body["listing_copy_updated_at"] is not None
+    assert body["listing_copy_updated_by"] is not None
 
 
 def test_generic_upsert_updates_existing_listing_fields(client, admin_headers):
