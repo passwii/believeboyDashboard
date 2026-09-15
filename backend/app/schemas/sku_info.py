@@ -3,6 +3,20 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+#: 产品文案字段组（BLF-1080）。8 个业务字段——**不含** listing_copy_updated_{at,by}
+#: 溯源列（由服务端写入，不接受客户端传值）。服务层 / 导出 / Agent schema 共用
+#: 这唯一事实源，新增文案字段时只改这里。
+LISTING_COPY_FIELDS: tuple[str, ...] = (
+    "listing_title",
+    "listing_bullet_1",
+    "listing_bullet_2",
+    "listing_bullet_3",
+    "listing_bullet_4",
+    "listing_bullet_5",
+    "listing_description",
+    "listing_selling_points",
+)
+
 
 class SkuRecordItem(BaseModel):
     id: int
@@ -37,6 +51,17 @@ class SkuRecordItem(BaseModel):
     product_image_thumbnail_r2_url: str | None = None
     product_image_uploaded_at: datetime | None = None
     product_image_uploaded_by: str | None = None
+    # 产品文案（Listing Copy，BLF-1080）：8 个业务字段 + 2 个溯源列。
+    listing_title: str | None = None
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
+    listing_copy_updated_at: datetime | None = None
+    listing_copy_updated_by: str | None = None
     # Canonical Amazon product-detail URL derived from (country, asin) via
     # app.utils.marketplace_url.build_marketplace_url; None when the country
     # is empty or not a known marketplace.
@@ -74,6 +99,14 @@ class SkuRecordCreate(BaseModel):
     is_active: bool = True
     source_file: str | None = None
     sku_factory_info: dict | None = None
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
 
 
 class SkuRecordUpdate(BaseModel):
@@ -98,6 +131,14 @@ class SkuRecordUpdate(BaseModel):
     is_active: bool = True
     source_file: str | None = None
     sku_factory_info: dict | None = None
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
 
 
 class SkuRecordSortMove(BaseModel):
@@ -232,3 +273,42 @@ class SkuProductImageDeleteResponse(BaseModel):
 
     sku_record_id: int
     deleted: bool
+
+
+class BatchUpdateListingCopyItem(BaseModel):
+    """单行文案更新：id 必填，文案字段按需提供（只写显式提供项）。"""
+
+    id: int = Field(..., description="SKU 记录 ID")
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class BatchUpdateListingCopyRequest(BaseModel):
+    """批量更新产品文案请求（BLF-1080）。
+
+    语义对齐 ``BatchUpdateFactoryInfoRequest``：按 id 逐条更新，未知 / 缺失 id
+    计入 skipped（不整批失败）。文案字段按 ``model_fields_set`` 判定——未提供
+    的字段保持原值；显式传 ``null`` / 空串表示清空该字段。
+    """
+
+    items: list[BatchUpdateListingCopyItem] = Field(
+        ..., min_length=1, max_length=500, description="文案更新项"
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class BatchUpdateListingCopyResponse(BaseModel):
+    """批量更新产品文案响应。"""
+
+    updated: int = Field(..., description="更新记录数")
+    skipped: int = Field(..., description="跳过记录数（id 缺失或不存在）")
+    updated_ids: list[int] = Field(..., description="已更新的 SKU ID 列表")

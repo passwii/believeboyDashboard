@@ -556,6 +556,14 @@ L1_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = (
         required_decorator=DECORATOR_L1, decorator_applied=True,
         rationale="SKU 主数据转移项目；L1 best_effort", issue_ref="BLF-668",
     ),
+    WriteEndpointSpec(
+        domain="sku_info", layer="L1",
+        module="app.api.v1.endpoints.sku_info",
+        function="batch_update_listing_copy_endpoint", method="POST",
+        path="/sku-info/batch-update-listing-copy",
+        required_decorator=DECORATOR_L1, decorator_applied=True,
+        rationale="SKU 产品文案批量更新；L1 best_effort", issue_ref="BLF-1080",
+    ),
     # return_analysis（Celery 任务，_celery 装饰器）
 
 )

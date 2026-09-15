@@ -26,13 +26,18 @@ from app.api.deps import (
     get_request_operator,
     protected,
 )
-from app.models.sku_info import SkuRecord
 from app.models.project import Project
+from app.models.sku_info import SkuRecord
 from app.schemas.sku_info import (
+    LISTING_COPY_FIELDS,
     BatchFnskuLabelDownloadRequest,
     BatchUpdateFactoryInfoRequest,
     BatchUpdateFactoryInfoResponse,
+    BatchUpdateListingCopyRequest,
+    BatchUpdateListingCopyResponse,
+    FnskuLabelsResponse,
     FnskuLabelUploadResponse,
+    GetFnskuLabelsBySkusRequest,
     ParseFactoryInfoRequest,
     ParseFactoryInfoResponse,
     SkuProductImageDeleteResponse,
@@ -48,9 +53,9 @@ from app.schemas.sku_info import (
     SkuRecordsPage,
     SkuRecordUpdate,
     SkuRecordUpsertResponse,
-    FnskuLabelsResponse,
-    GetFnskuLabelsBySkusRequest,
 )
+from app.services import project_service
+from app.services.ai.factory_info_parser import parse_factory_info_sync
 from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
@@ -68,15 +73,14 @@ from app.services.data.sku_info import (
     update_sku_record_by_id,
     upsert_sku_record,
 )
+from app.services.data.sku_info_batch import (
+    batch_update_factory_info,
+    batch_update_listing_copy,
+    get_sku_records_by_ids,
+)
 from app.services.infra import invalidate_financial_series_cache
 from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.services.shipment import sync_first_leg_cost_from_shipment_summary
-from app.services.ai.factory_info_parser import parse_factory_info_sync
-from app.services.data.sku_info_batch import (
-    batch_update_factory_info,
-    get_sku_records_by_ids,
-)
-from app.services import project_service
 from app.utils.country import get_country_label_cn
 from app.utils.marketplace_url import build_marketplace_url
 
@@ -142,6 +146,15 @@ def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
         if getattr(row, "product_image_uploaded_at", None)
         else None,
         "product_image_uploaded_by": getattr(row, "product_image_uploaded_by", None),
+        # 产品文案（BLF-1080）：8 业务字段 + 2 溯源列。空串归一成 None，
+        # 避免「写空串 → 读出 ""」的双态不一致。
+        **{
+            field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS
+        },
+        "listing_copy_updated_at": str(row.listing_copy_updated_at)
+        if getattr(row, "listing_copy_updated_at", None)
+        else None,
+        "listing_copy_updated_by": getattr(row, "listing_copy_updated_by", None),
         "marketplace_url": build_marketplace_url(row.country, row.asin),
     }
 
@@ -541,7 +554,10 @@ def export_product_costs_csv(
             .replace(">", "-")
             .replace("|", "-")
         )
-    tab_segment = "尺寸管理" if normalized_export_type == "dimension" else "成本管理"
+    tab_segment = {
+        "dimension": "尺寸管理",
+        "listing": "产品文案",
+    }.get(normalized_export_type, "成本管理")
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -596,6 +612,44 @@ def export_product_costs_csv(
                 float(row.carton_weight_kg),
                 round(float(row.carton_weight_kg) * 2.20462, 2),
                 int(row.units_per_carton),
+            ]
+            for row in rows
+        ]
+        filename = f"{safe_project_name}_{station_segment}-SKU信息-{tab_segment}批量修改模板-{timestamp}.csv"
+    elif normalized_export_type == "listing":
+        # 产品文案模板（BLF-1080）：可直接回传导入，与成本/尺寸模板同风格。
+        headers = [
+            "project_name",
+            "SKU",
+            "ASIN(可留空)",
+            "FNSKU(可留空)",
+            "品名(可留空)",
+            "国家",
+            "标题",
+            "五点描述1",
+            "五点描述2",
+            "五点描述3",
+            "五点描述4",
+            "五点描述5",
+            "Description",
+            "卖点提炼",
+        ]
+        csv_rows = [
+            [
+                row.project_name,
+                row.sku,
+                row.asin or "",
+                row.fnsku or "",
+                row.product_name or "",
+                row.country,
+                row.listing_title or "",
+                row.listing_bullet_1 or "",
+                row.listing_bullet_2 or "",
+                row.listing_bullet_3 or "",
+                row.listing_bullet_4 or "",
+                row.listing_bullet_5 or "",
+                row.listing_description or "",
+                row.listing_selling_points or "",
             ]
             for row in rows
         ]
@@ -847,6 +901,59 @@ def batch_update_factory_info_endpoint(
     )
 
 
+@router.post(
+    "/sku-info/batch-update-listing-copy",
+    response_model=BatchUpdateListingCopyResponse,
+)
+@invalidate_cache_on_commit_l1(domains=["sku_info"], project_id_from="global")
+def batch_update_listing_copy_endpoint(
+    payload: BatchUpdateListingCopyRequest,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> BatchUpdateListingCopyResponse:
+    """批量更新 SKU 产品文案（标题 / 5 点 / Description / 卖点）。
+
+    只写显式提供的字段（未提供保持原值；显式 null / 空串清空）；
+    未知 id 计入 skipped，不整批失败。
+    """
+    updates = [
+        {
+            "id": item.id,
+            **{
+                field: getattr(item, field)
+                for field in LISTING_COPY_FIELDS
+                if field in item.model_fields_set
+            },
+        }
+        for item in payload.items
+    ]
+
+    updated, skipped, updated_ids = batch_update_listing_copy(
+        db, updates, operator=operator
+    )
+
+    append_operation_audit_log(
+        db,
+        action="sku_info.batch_update_listing_copy",
+        target_type="sku_info",
+        operator=operator,
+        after={
+            "updated": updated,
+            "skipped": skipped,
+            "updated_ids": updated_ids,
+        },
+        request=request,
+    )
+    db.commit()
+
+    return BatchUpdateListingCopyResponse(
+        updated=updated,
+        skipped=skipped,
+        updated_ids=updated_ids,
+    )
+
+
 # ---------------------------------------------------------------------------
 # FNSKU Label PDF Upload / Download / Batch Download
 # ---------------------------------------------------------------------------
@@ -864,12 +971,11 @@ def upload_fnsku_label(
 ) -> FnskuLabelUploadResponse:
     """上传单个 SKU 的 FNSKU 标签 PDF。如已有旧标签则替换。上传时自动验证 PDF 中的 FNSKU。"""
     import uuid as _uuid
-    import io
 
     from app.core.config import get_settings
-    from app.services.r2_service import upload_bytes_to_r2, delete_file_from_r2
-    from app.services.upload_service import _safe_project_folder_name
     from app.services.fnsku_label_verifier import verify_fnsku_label
+    from app.services.r2_service import delete_file_from_r2, upload_bytes_to_r2
+    from app.services.upload_service import _safe_project_folder_name
 
     settings = get_settings()
     if not settings.r2_enabled:
@@ -966,7 +1072,7 @@ def upload_product_image(
 ) -> SkuProductImageUploadResponse:
     """上传或替换指定 SKU 的产品图（自动生成 1920x1920 主图 + 320x320 缩略图）。"""
     from app.core.config import get_settings
-    from app.services.r2_service import upload_bytes_to_r2, delete_file_from_r2
+    from app.services.r2_service import delete_file_from_r2, upload_bytes_to_r2
     from app.services.upload_service import _safe_project_folder_name
 
     settings = get_settings()

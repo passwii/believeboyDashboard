@@ -7811,6 +7811,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sku-info/batch-update-listing-copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Update Listing Copy Endpoint
+         * @description 批量更新 SKU 产品文案（标题 / 5 点 / Description / 卖点）。
+         *
+         *     只写显式提供的字段（未提供保持原值；显式 null / 空串清空）；
+         *     未知 id 计入 skipped，不整批失败。
+         */
+        post: operations["batch_update_listing_copy_endpoint_api_v1_sku_info_batch_update_listing_copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sku-info/bulk": {
         parameters: {
             query?: never;
@@ -10482,6 +10505,69 @@ export interface components {
              * @description 更新记录数
              */
             updated: number;
+        };
+        /**
+         * BatchUpdateListingCopyItem
+         * @description 单行文案更新：id 必填，文案字段按需提供（只写显式提供项）。
+         */
+        BatchUpdateListingCopyItem: {
+            /**
+             * Id
+             * @description SKU 记录 ID
+             */
+            id: number;
+            /** Listing Bullet 1 */
+            listing_bullet_1?: string | null;
+            /** Listing Bullet 2 */
+            listing_bullet_2?: string | null;
+            /** Listing Bullet 3 */
+            listing_bullet_3?: string | null;
+            /** Listing Bullet 4 */
+            listing_bullet_4?: string | null;
+            /** Listing Bullet 5 */
+            listing_bullet_5?: string | null;
+            /** Listing Description */
+            listing_description?: string | null;
+            /** Listing Selling Points */
+            listing_selling_points?: string | null;
+            /** Listing Title */
+            listing_title?: string | null;
+        };
+        /**
+         * BatchUpdateListingCopyRequest
+         * @description 批量更新产品文案请求（BLF-1080）。
+         *
+         *     语义对齐 ``BatchUpdateFactoryInfoRequest``：按 id 逐条更新，未知 / 缺失 id
+         *     计入 skipped（不整批失败）。文案字段按 ``model_fields_set`` 判定——未提供
+         *     的字段保持原值；显式传 ``null`` / 空串表示清空该字段。
+         */
+        BatchUpdateListingCopyRequest: {
+            /**
+             * Items
+             * @description 文案更新项
+             */
+            items: components["schemas"]["BatchUpdateListingCopyItem"][];
+        };
+        /**
+         * BatchUpdateListingCopyResponse
+         * @description 批量更新产品文案响应。
+         */
+        BatchUpdateListingCopyResponse: {
+            /**
+             * Skipped
+             * @description 跳过记录数（id 缺失或不存在）
+             */
+            skipped: number;
+            /**
+             * Updated
+             * @description 更新记录数
+             */
+            updated: number;
+            /**
+             * Updated Ids
+             * @description 已更新的 SKU ID 列表
+             */
+            updated_ids: number[];
         };
         /** Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post */
         Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post: {
@@ -21193,6 +21279,22 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+            /** Listing Bullet 1 */
+            listing_bullet_1?: string | null;
+            /** Listing Bullet 2 */
+            listing_bullet_2?: string | null;
+            /** Listing Bullet 3 */
+            listing_bullet_3?: string | null;
+            /** Listing Bullet 4 */
+            listing_bullet_4?: string | null;
+            /** Listing Bullet 5 */
+            listing_bullet_5?: string | null;
+            /** Listing Description */
+            listing_description?: string | null;
+            /** Listing Selling Points */
+            listing_selling_points?: string | null;
+            /** Listing Title */
+            listing_title?: string | null;
             /** Package Height Cm */
             package_height_cm?: number | null;
             /** Package Length Cm */
@@ -21296,6 +21398,26 @@ export interface components {
             id: number;
             /** Is Active */
             is_active: boolean;
+            /** Listing Bullet 1 */
+            listing_bullet_1?: string | null;
+            /** Listing Bullet 2 */
+            listing_bullet_2?: string | null;
+            /** Listing Bullet 3 */
+            listing_bullet_3?: string | null;
+            /** Listing Bullet 4 */
+            listing_bullet_4?: string | null;
+            /** Listing Bullet 5 */
+            listing_bullet_5?: string | null;
+            /** Listing Copy Updated At */
+            listing_copy_updated_at?: string | null;
+            /** Listing Copy Updated By */
+            listing_copy_updated_by?: string | null;
+            /** Listing Description */
+            listing_description?: string | null;
+            /** Listing Selling Points */
+            listing_selling_points?: string | null;
+            /** Listing Title */
+            listing_title?: string | null;
             /** Marketplace Url */
             marketplace_url?: string | null;
             /** Package Height Cm */
@@ -21381,6 +21503,22 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+            /** Listing Bullet 1 */
+            listing_bullet_1?: string | null;
+            /** Listing Bullet 2 */
+            listing_bullet_2?: string | null;
+            /** Listing Bullet 3 */
+            listing_bullet_3?: string | null;
+            /** Listing Bullet 4 */
+            listing_bullet_4?: string | null;
+            /** Listing Bullet 5 */
+            listing_bullet_5?: string | null;
+            /** Listing Description */
+            listing_description?: string | null;
+            /** Listing Selling Points */
+            listing_selling_points?: string | null;
+            /** Listing Title */
+            listing_title?: string | null;
             /** Package Height Cm */
             package_height_cm?: number | null;
             /** Package Length Cm */
@@ -40968,6 +41106,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchUpdateFactoryInfoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_update_listing_copy_endpoint_api_v1_sku_info_batch_update_listing_copy_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchUpdateListingCopyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchUpdateListingCopyResponse"];
                 };
             };
             /** @description Validation Error */
