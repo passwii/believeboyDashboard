@@ -196,6 +196,15 @@ idle → loading → (loaded | failed(APIError))
 > `user_id IS NULL`，后端对任何调用方都 404），所以会话 + 消息要经隔离库 `BLF_test` 复制出来；
 > SSE 三份由**后端自己的编码器**产出（线格式才是要钉的东西，AI 正文不逐字断言）。
 > 见 `Tests/BelieveBoyTests/Fixtures/AIChat/README.md`。
+> ⑨ **「取消」有两条异步回写路径，拆掉本地 SSE 只处理了其中一条**：另一条是后端
+> `POST .../cancel` 的**回包**，它可能落在「已经发了下一轮」甚至「下一轮已正常结束」之后 ——
+> 那一刻流的归属（`streamLease` / `generationToken`）本来就是 `nil`，按「当前这一轮」判定
+> 就会把新一轮的游标 / 载荷 / 错误提示当成自己的清理对象，且**四种收尾场景里没有一种会报错**。
+> 处置：游标与载荷改为**停止时同步作废**（不等回包），cancel 回包另持一份轮次 token
+> （`cancelToken`；新一轮发送、切会话 / 新建会话、清空产物都会换掉它）。查：
+> `AIChatStoreTests.testStopThenImmediateSendKeepsTheNewTurnsState`、
+> `AIChatStoreTests.testLateCancelFailureDoesNotLeakIntoAnotherConversation`、
+> `CustomerServiceStoreTests.testLateCancelFailureDoesNotComeBackAfterClearingOutput`。
 
 ---
 
@@ -401,15 +410,16 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **585 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **592 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
 >
 > **计数口径（S5.3 实测，2026-09-14）**：本批开工基线 = `origin/main`（`a2b2c593`，S5.2 交付侧）
 > **428 executed / 4 skipped / 0 failures**；AI 洞察三页 **+75** → **503 executed / 4 skipped /
 > 0 failures**。
 >
 > **计数口径（S5.4 实测，2026-09-15）**：本批开工基线 = `origin/main`（`564867fc`，含 S5.3 交付侧）
-> **503 executed / 4 skipped / 0 failures**；AI 会话片 **+82** → **585 executed / 4 skipped /
-> 0 failures**；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
+> **503 executed / 4 skipped / 0 failures**；AI 会话片 **+82** → **585 executed**，Tia 复核两轮
+> 的回归用例再 **+7**（+4 / +3）→ **592 executed / 4 skipped / 0 failures**；跑法
+> `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
 > 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339，
 > S5.2 广告数据页 +89 → 428，S5.3 AI 洞察三页 +75 → 503。`scripts/make-app.sh` 仍属 S7a。
 

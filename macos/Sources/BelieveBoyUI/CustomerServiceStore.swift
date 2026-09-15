@@ -57,6 +57,11 @@ public final class CustomerServiceStore {
     /// 生成一次，而上一次生成的残帧 / 收尾 / 后端 cancel 回包都还可能跑到主 actor 上。
     /// 归属一旦摘掉，它们就写不动任何状态（不会把上一轮的错误、游标清空或收尾落到新一轮）。
     private var generationToken: UUID?
+    /// **停止生成那一轮**的归属（`nil` = 没有在途的后端 cancel 回包）。
+    ///
+    /// 与 `AIChatStore.cancelToken` 同口径：只看 `generationToken == nil` 不够 ——
+    /// 「停完立即再生成、且新一轮已正常结束」时它同样是 `nil`，旧回包会被误认成当前这一轮。
+    private var cancelToken: UUID?
     public private(set) var lastEventKinds: [String] = []
     public private(set) var resumeCursor: String?
     public private(set) var lastPayload: AIChatSendPayload?
@@ -173,6 +178,8 @@ public final class CustomerServiceStore {
         error = nil
         resumeCursor = nil
         lastPayload = nil
+        // 用户把前面那次生成清掉了：在途的 cancel 回包（含「取消失败」提示）不得把它再写回来。
+        cancelToken = nil
     }
 
     public func clearError() {
@@ -236,6 +243,8 @@ public final class CustomerServiceStore {
             let cursor = resumeCursor
             let token = UUID()
             generationToken = token
+            // 新一轮开始了：上一轮的 cancel 回包从此与当前状态无关。
+            cancelToken = nil
             let task = scope.run(key: TaskPurpose.key(routeID, TaskPurpose.generate)) { [weak self] in
                 await self?.consume(
                     provider: provider,
@@ -277,6 +286,8 @@ public final class CustomerServiceStore {
         generationCount += 1
         let token = UUID()
         generationToken = token
+        // 同上：新一轮开始就与上一轮的 cancel 回包切割。
+        cancelToken = nil
 
         let task = scope.run(key: TaskPurpose.key(routeID, TaskPurpose.generate)) { [weak self] in
             guard let self else { return }
@@ -370,6 +381,8 @@ public final class CustomerServiceStore {
         routeID: String
     ) {
         guard isGenerating, let conversationID else { return }
+        let token = UUID()
+        cancelToken = token
         isStopping = true
         // 先摘归属再拆流：取消是异步的，摘掉之后上一轮的残帧与收尾都写不动状态。
         generationToken = nil
@@ -382,8 +395,9 @@ public final class CustomerServiceStore {
         scope.run(key: TaskPurpose.key(routeID, TaskPurpose.cancel)) { [weak self] in
             let outcome = await AIChatStore.capture { try await provider.cancel(conversationID: conversationID) }
             guard let self, !Task.isCancelled else { return }
-            // 已经开了新一轮：这一轮的回包不得改它的状态。
-            guard self.generationToken == nil, self.isStopping else { return }
+            // 已开新一轮 / 产物被清掉：这一轮的回包不得再写任何状态。
+            guard self.cancelToken == token else { return }
+            self.cancelToken = nil
             self.isStopping = false
             if case .failure(let failure) = outcome {
                 // 取消失败**不**显示成生成失败：用户要的是停下，本地流已经拆了。

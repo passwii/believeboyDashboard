@@ -83,6 +83,15 @@ public final class AIChatStore {
     /// 当前这条流的归属（`nil` = 没有在跑的流）。**只有它**能写流式状态。
     private var streamLease: StreamLease?
 
+    /// **停止生成那一轮**的归属（`nil` = 没有在途的后端 cancel 回包）。
+    ///
+    /// 为什么不能复用 `streamLease`：`stopGeneration` 在发 cancel 之前就把它摘掉了，而
+    /// 「停完立即再发」时新一轮会写入自己的 lease —— 只看 lease 无法回答「这条回包属于哪一轮」：
+    /// 新一轮正常结束时 lease 也是 `nil`，旧回包会被误认成「还是当前这一轮」而写进新一轮的状态。
+    /// 所以 cancel 回包自带一份 token：任何「新一轮开始 / 页面上下文切换」都会换掉它，
+    /// 换掉之后旧回包一律丢。
+    private var cancelToken: UUID?
+
     /// 这条流属于哪个会话（`nil` = 没有在跑的流）。视图与用例用它判断归属。
     public var streamingConversationID: Int? { streamLease?.conversationID }
 
@@ -664,6 +673,9 @@ public final class AIChatStore {
         // 这一轮的归属：之后所有流式状态的写入都要先验它（见 `StreamLease`）。
         let lease = StreamLease(conversationID: conversationID, token: UUID())
         streamLease = lease
+        // 新一轮开始了：上一轮停止生成的后端 cancel 回包（可能还在路上）从此与当前状态无关，
+        // 它若还认领「当前这一轮」，就会把新一轮的续传状态或错误提示清掉。
+        cancelToken = nil
         isStreaming = true
         isStopping = false
         let resumeFrom = resume ? resumeCursor : nil
@@ -816,20 +828,26 @@ public final class AIChatStore {
         routeID: String
     ) {
         guard let conversationID = selectedConversationID, isStreaming else { return }
+        let token = UUID()
+        cancelToken = token
         isStopping = true
         cancelStream(scope: scope, routeID: routeID)
+        // 停止后端也就把游标作废了：从已取消的流上续传没有意义（后端那条流已经不在了）。
+        // **同步作废、不等回包**：回包落地前用户可能已经发了下一轮，等它回来再清，清掉的
+        // 就是新一轮的续传状态（旧回包无从区分「谁的」游标）。
+        resumeCursor = nil
+        lastSentPayload = nil
         scope.run(key: TaskPurpose.key(routeID, TaskPurpose.cancel)) { [weak self] in
             let outcome = await Self.capture { try await provider.cancel(conversationID: conversationID) }
             guard let self, !Task.isCancelled else { return }
-            // 停止后端也就把游标作废了：从已取消的流上续传没有意义（后端那条流已经不在了）。
-            self.resumeCursor = nil
-            self.lastSentPayload = nil
-            switch outcome {
-            case .success:
-                self.isStopping = false
-            case .failure(let failure):
+            // 只认自己发起的那一轮停止：新一轮 `send`、切会话 / 新建会话都会换掉这个 token，
+            // 换掉之后这条回包不得再写任何状态（取消失败的提示也一样 —— 那时页面上已经是
+            // 另一个会话 / 另一轮生成了）。
+            guard self.cancelToken == token else { return }
+            self.cancelToken = nil
+            self.isStopping = false
+            if case .failure(let failure) = outcome {
                 // 取消失败**不**显示成生成失败：用户要的是停下，本地流已经拆了。
-                self.isStopping = false
                 self.messagesRefreshFailure = "后端取消请求失败（\(failure.message)）；本地流已断开。"
             }
         }
@@ -856,6 +874,9 @@ public final class AIChatStore {
     /// 上（`AIChatDraftRow` 画的是 store 级的那一份），`resume` 还可能拿上一会话的载荷去
     /// 续新会话的流。
     private func discardStreamState(scope: ModuleTaskScope, routeID: String) {
+        // 页面上下文换到了另一个会话：在途的 cancel 回包（含取消失败的提示）从此只属于
+        // 上一个会话，不得再写当前页。
+        cancelToken = nil
         cancelStream(scope: scope, routeID: routeID)
         draft = AIChatTurnAccumulator()
         lastEventKinds = []

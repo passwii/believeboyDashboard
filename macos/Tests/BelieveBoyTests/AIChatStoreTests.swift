@@ -47,6 +47,8 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     private var streamRequests: [StreamRequest] = []
     /// 后端 cancel 端点的回包延迟（默认 0）。
     private var cancelDelayNanos: UInt64 = 0
+    /// 后端 cancel 端点的失败状态码（默认 nil = 成功）。
+    private var cancelFailureStatus: Int?
     /// 在飞的活流（`case live`）的 continuation，由 `emit(_:)` 推帧。
     private var liveStreams: [UUID: AsyncThrowingStream<AIChatStreamFrame, Error>.Continuation] = [:]
 
@@ -91,6 +93,8 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     func setStream(_ outcome: Outcome<[AIChatStreamFrame]>) { withLock { streamOutcome = outcome } }
     /// 把 cancel 端点的回包拖慢 —— 用来造「上一轮的取消回包比下一轮晚到」的竞态。
     func setCancelDelay(nanoseconds: UInt64) { withLock { cancelDelayNanos = nanoseconds } }
+    /// 让 cancel 端点失败 —— 取消失败会写一条页面级提示，用它断言这条提示不会落到下一轮上。
+    func setCancelFailure(status: Int?) { withLock { cancelFailureStatus = status } }
 
     // MARK: - 观测
 
@@ -237,13 +241,16 @@ final class ScriptedAIChatProvider: AIChatDataProviding, @unchecked Sendable {
     }
 
     func cancel(conversationID: Int) async throws -> AIChatCancelResponse {
-        let delay = withLock { () -> UInt64 in
+        let (delay, failureStatus) = withLock { () -> (UInt64, Int?) in
             cancelCalls.append(conversationID)
-            return cancelDelayNanos
+            return (cancelDelayNanos, cancelFailureStatus)
         }
         // 默认 0：绝大多数用例不在乎取消回包的时机。设成非 0 才能造出「回包比下一轮晚」
-        // 的竞态（见 `CustomerServiceStoreTests`）。
+        // 的竞态（见 `CustomerServiceStoreTests` 与 `AIChatStoreTests`）。
         if delay > 0 { try? await Task.sleep(nanoseconds: delay) }
+        if let status = failureStatus {
+            throw APIError.http(status: status, body: "stub failure")
+        }
         return AIChatCancelResponse(cancelled: true)
     }
 
@@ -797,6 +804,87 @@ final class AIChatStoreTests: XCTestCase {
         XCTAssertFalse(store.isStreaming)
         XCTAssertNil(store.streamError, "停止不是错误")
         XCTAssertNil(store.resumeCursor, "停止后游标作废")
+    }
+
+    /// **回归（Tia 复核阻塞项）**：停止生成后**立即**再发一轮时，上一轮的后端 cancel 回包
+    /// （晚于下一轮到达）不得清掉新一轮的游标 / 载荷，也不得把取消失败的提示写到新一轮的页面上。
+    ///
+    /// 为什么要单独一条、不能只靠 `StreamLease`：`stopGeneration` 在发 cancel 之前就把 lease
+    /// 摘掉了，而「新一轮已正常结束」时 lease 同样是 `nil` —— 只看 lease 根本区分不出这条回包
+    /// 属于哪一轮。cancel 回包必须自带一份轮次归属（`cancelToken`），且游标 / 载荷要在停止时
+    /// **同步**作废，不能等回包。
+    func testStopThenImmediateSendKeepsTheNewTurnsState() async {
+        let provider = ScriptedAIChatProvider(
+            config: .value(AIChatConfig(providerConfigured: true, webSearchConfigured: false, models: ["m"], defaultModel: "m")),
+            conversations: .value([.fixture(id: 7)]),
+            stream: .hang
+        )
+        // 回包拖到 200ms 之后、且**失败** —— 失败才会写页面级提示，正好用来断言串写。
+        provider.setCancelDelay(nanoseconds: 200_000_000)
+        provider.setCancelFailure(status: 500)
+        let store = makeStore()
+        let scope = makeScope()
+
+        await store.load(using: provider, scope: scope, routeID: routeID, identity: .declared(userID: "1"))
+        store.setText("长回答")
+        let sending = Task { await store.send(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertTrue(store.isStreaming)
+
+        store.stopGeneration(using: provider, scope: scope, routeID: routeID)
+        await sending.value
+        XCTAssertNil(store.resumeCursor, "停止即作废游标（不等回包）")
+        XCTAssertNil(store.lastSentPayload)
+
+        // 立即再发一轮：它在上一轮的 cancel 回包（约 200ms 后）之前就跑完了 —— 于是回包落地时
+        // `streamLease` 又是 `nil`，正是「只比 lease」会误判的那个窗口。
+        provider.setStream(.value([
+            .event(.contentBlockDelta(index: 0, delta: .text("新一轮")), id: "9-0"),
+            .event(.messageStop, id: "9-1"),
+        ]))
+        store.setText("新一轮的问题")
+        await store.send(using: provider, scope: scope, routeID: routeID)
+        XCTAssertEqual(store.resumeCursor, "9-1", "新一轮有自己的游标")
+        XCTAssertNotNil(store.lastSentPayload)
+        XCTAssertTrue(store.canResume)
+
+        // 上一轮的 cancel 回包（失败）落地：它不得碰新一轮的任何状态。
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(store.resumeCursor, "9-1", "上一轮的取消回包不得清掉新一轮的游标")
+        XCTAssertNotNil(store.lastSentPayload, "载荷同理：续传要用的是新一轮的 body")
+        XCTAssertTrue(store.canResume)
+        XCTAssertNil(store.messagesRefreshFailure, "取消失败的提示不得落到新一轮的页面上")
+        XCTAssertNil(store.streamError)
+    }
+
+    /// 同一缺陷类的第二条路径：停止生成后在途的 cancel 回包，在切到另一个会话之后落地时，
+    /// 不得把取消失败的提示写到新会话的页面上（页面上下文换了，回包就失去了写权限）。
+    func testLateCancelFailureDoesNotLeakIntoAnotherConversation() async {
+        let provider = ScriptedAIChatProvider(
+            config: .value(AIChatConfig(providerConfigured: true, webSearchConfigured: false, models: ["m"], defaultModel: "m")),
+            conversations: .value([.fixture(id: 7), .fixture(id: 8)]),
+            stream: .hang
+        )
+        provider.setCancelDelay(nanoseconds: 200_000_000)
+        provider.setCancelFailure(status: 500)
+        let store = makeStore()
+        let scope = makeScope()
+
+        await store.load(using: provider, scope: scope, routeID: routeID, identity: .declared(userID: "1"))
+        store.setText("长回答")
+        let sending = Task { await store.send(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        store.stopGeneration(using: provider, scope: scope, routeID: routeID)
+        await sending.value
+        await store.selectConversation(id: 8, using: provider, scope: scope, routeID: routeID)
+
+        // 回包落地：它属于上一个会话的那一轮，不得写当前页。
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(store.selectedConversationID, 8)
+        XCTAssertNil(store.messagesRefreshFailure, "上一会话的取消失败提示不得落到新会话的页面上")
+        XCTAssertNil(store.resumeCursor)
+        XCTAssertNil(store.streamError)
     }
 
     /// 后端 `error` 事件：既保留已收到的正文，也给出可展示的错误。

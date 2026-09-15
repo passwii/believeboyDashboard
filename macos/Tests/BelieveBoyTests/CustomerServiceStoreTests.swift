@@ -300,6 +300,34 @@ final class CustomerServiceStoreTests: XCTestCase {
         XCTAssertFalse(store.isGenerating)
     }
 
+    /// **回归（同类缺陷的第二扇窗）**：`clearOutput` 之后，上一轮停止生成的后端 cancel 回包
+    /// （失败）不得把已清掉的产物区再写成错误态。
+    ///
+    /// 只看 `generationToken == nil && isStopping` 时这条会漏：清空产物并不重置 `isStopping`，
+    /// 于是旧回包仍自认为「还是当前这一轮」。
+    func testLateCancelFailureDoesNotComeBackAfterClearingOutput() async {
+        let provider = configuredProvider(stream: .hang)
+        provider.setCancelDelay(nanoseconds: 200_000_000)
+        provider.setCancelFailure(status: 500)
+        let store = CustomerServiceStore()
+        let scope = makeScope()
+        await store.load(using: provider, scope: scope, routeID: routeID)
+        store.setFreeText("长文")
+
+        let generating = Task { await store.generate(using: provider, scope: scope, routeID: routeID) }
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        store.stop(using: provider, scope: scope, routeID: routeID)
+        await generating.value
+
+        store.clearOutput()
+        XCTAssertNil(store.error)
+        // 回包落地：产物区已经被用户清空，这条失败提示不得再写回来。
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertNil(store.error, "清空产物后，上一轮的取消失败提示不得再写回来")
+        XCTAssertNil(store.resumeCursor)
+        XCTAssertFalse(store.isGenerating)
+    }
+
     func testResumeReusesSamePayloadAndCursor() async {
         let provider = configuredProvider(stream: .value([
             .event(.contentBlockDelta(index: 0, delta: .text("半句")), id: "5-0"),
