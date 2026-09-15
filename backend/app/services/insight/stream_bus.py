@@ -40,7 +40,7 @@ Sync vs async split:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import redis
@@ -389,7 +389,9 @@ class InsightStreamWriter:
         settings = get_settings()
         try:
             pipe = self._redis().pipeline()
-            pipe.hsetnx(metrics_key(run_id), field, value)
+            # redis-py 的 sync 存根把 ``hsetnx`` 的 value 标成 ``str``，而
+            # Redis 本身只存字节串（计数器就是整数）；这里就是它的真实用法。
+            cast(Any, pipe).hsetnx(metrics_key(run_id), field, value)
             pipe.expire(metrics_key(run_id), settings.insight_stream_ttl_seconds)
             pipe.execute()
         except redis.RedisError:
@@ -400,7 +402,7 @@ class InsightStreamWriter:
     def read_metrics(self, run_id: UUID | str) -> dict[str, int]:
         """Read the whole counter hash; ``{}`` on outage or a missing key."""
         try:
-            raw = self._redis().hgetall(metrics_key(run_id))
+            raw: Any = self._redis().hgetall(metrics_key(run_id))
         except redis.RedisError:
             logger.warning("Insight metrics read degraded (run=%s)", run_id)
             return {}
@@ -423,11 +425,12 @@ class InsightStreamWriter:
         memory: int | None = None
         key = stream_key(run_id)
         try:
-            length = int(self._redis().xlen(key))
+            # 存根把 ``xlen`` 标成泛型 ``ResponseT``；sync 客户端实际返回 int。
+            length = int(cast(Any, self._redis().xlen(key)))
         except (redis.RedisError, TypeError, ValueError):
             logger.warning("Insight stream xlen degraded (run=%s)", run_id)
         try:
-            raw = self._redis().memory_usage(key)
+            raw: Any = self._redis().memory_usage(key)
             memory = int(raw) if raw is not None else None
         except (redis.RedisError, TypeError, ValueError):
             memory = None

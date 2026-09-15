@@ -32,9 +32,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -61,6 +62,8 @@ from app.services.insight.provider import (
     InsightProviderError,
     InsightProviderErrorCode,
     classify_provider_error,
+    open_text_stream,
+    usage_tokens,
 )
 from app.services.insight.roles import (
     InsightRoleDefinition,
@@ -107,6 +110,21 @@ class InsightEventSink(Protocol):
     def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
         """A slice of generated Markdown; never persisted per token."""
 
+    def on_content_snapshot(
+        self, *, slot: str, content: str, content_sha256: str
+    ) -> None:
+        """Authoritative full content for one slot, sealing its delta stream.
+
+        Emitted once a streamed run succeeded, so the client's view of the
+        slot is pinned to the cleaned terminal Markdown (the deltas are raw
+        provider chunks and a role cleaner may rewrite them). It also makes a
+        redelivered attempt's duplicated deltas harmless: this frame replaces
+        the slot instead of appending, and the client applies it immediately.
+
+        The transport owns the envelope, so ``checkpoint_seq`` (the delta seq
+        this content covers) is filled in by the sink from its own seq chain.
+        """
+
     def on_terminal(self, detail: InsightRunDetail) -> None:
         """Exactly one terminal snapshot per attempt."""
 
@@ -126,6 +144,11 @@ class NullEventSink:
     def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
         return None
 
+    def on_content_snapshot(
+        self, *, slot: str, content: str, content_sha256: str
+    ) -> None:
+        return None
+
     def on_terminal(self, detail: InsightRunDetail) -> None:
         return None
 
@@ -136,7 +159,13 @@ class ListEventSink:
     def __init__(self) -> None:
         self.statuses: list[tuple[str, str, int]] = []
         self.deltas: list[tuple[str, str, str]] = []
+        self.content_snapshots: list[tuple[str, str]] = []
         self.terminals: list[InsightRunDetail] = []
+
+    @property
+    def streamed_text(self) -> str:
+        """Concatenation of every recorded delta (acceptance §1 helper)."""
+        return "".join(delta for _slot, _block, delta in self.deltas)
 
     def on_status(
         self,
@@ -150,8 +179,72 @@ class ListEventSink:
     def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
         self.deltas.append((slot, block_id, delta))
 
+    def on_content_snapshot(
+        self, *, slot: str, content: str, content_sha256: str
+    ) -> None:
+        self.content_snapshots.append((slot, content))
+
     def on_terminal(self, detail: InsightRunDetail) -> None:
         self.terminals.append(detail)
+
+
+#: Block id every delta of a run's single output slot shares (BLF-1071).
+#: Stable per attempt, so the client can append deltas by slot without
+#: caring about the transport's frame boundaries.
+STREAM_BLOCK_ID = "stream"
+#: Block id the legacy one-shot path stamps on its single whole-content delta.
+#: Kept so existing callers/tests observing that frame are not broken.
+LEGACY_BLOCK_ID = "final"
+
+#: 流式消费期间检查 cancel/retry 的最小间隔（秒）。
+#: 每个 delta 都查一次会把 DB 变成 per-token 负载；取消的响应性只需秒级。
+_STREAM_GUARD_INTERVAL_SECONDS = 1.0
+
+
+class _StreamAborted(Exception):
+    """A cancel/retry won mid-stream: stop consuming, write nothing.
+
+    Not an error — the winner (the canceling or retrying session) owns the
+    row. The executor returns the row untouched, exactly as the pre-streaming
+    ``_guard`` check did after the LLM call.
+    """
+
+
+def _consume_stream(
+    stream: StreamedGeneration,
+    *,
+    on_delta: Callable[[str], None],
+) -> None:
+    """Drive one provider stream to completion from sync code (BLF-1071).
+
+    ``execute_run`` is synchronous (Celery worker, no running event loop) and
+    bridges provider IO with ``asyncio.run`` — the same bridge
+    :func:`default_generate` has always used. Deltas are handed to
+    ``on_delta`` *as they arrive*: that is the whole point of streaming, and
+    it is why the sink, not this loop, owns framing.
+
+    The stream is closed in ``finally`` even when ``on_delta`` aborts the
+    iteration, so a cancel mid-answer tears down the provider connection
+    instead of quietly billing the rest of the response.
+    """
+
+    async def _drive() -> None:
+        try:
+            async for chunk in stream:
+                if isinstance(chunk, str) and chunk:
+                    on_delta(chunk)
+        finally:
+            close = cast(
+                "Callable[[], Awaitable[None]] | None",
+                getattr(stream, "aclose", None),
+            )
+            if callable(close):
+                try:
+                    await close()
+                except Exception:  # noqa: BLE001 — 关闭失败不改变已收到的正文
+                    logger.debug("Insight provider stream close failed")
+
+    asyncio.run(_drive())
 
 
 @dataclass(frozen=True)
@@ -163,8 +256,41 @@ class LLMResult:
     output_tokens: int = 0
 
 
+class StreamedGeneration(Protocol):
+    """A live provider text stream handed to the executor (BLF-1071).
+
+    :class:`~app.services.insight.provider.InsightTextStream` is the production
+    implementation; tests inject their own. Iterating yields real text deltas,
+    and the terminal facts are readable once iteration ended.
+    """
+
+    def __aiter__(self) -> AsyncIterator[str]: ...
+
+    @property
+    def finished(self) -> bool:
+        """Whether iteration ran to natural completion."""
+        ...
+
+    @property
+    def state(self) -> str | None:
+        """Provider response state, ``None`` when unreported."""
+        ...
+
+    @property
+    def truncated(self) -> bool:
+        """Whether the provider stopped before signalling completion."""
+        ...
+
+    @property
+    def usage_tokens(self) -> tuple[int, int]:
+        """``(input_tokens, output_tokens)``; ``(0, 0)`` unless finished."""
+        ...
+
+
 #: ``(agent, user_prompt) -> LLMResult``; injected fakes make tests hermetic.
 GenerateFunc = Callable[[Any, str], LLMResult]
+#: ``(agent, user_prompt) -> StreamedGeneration``; the true streaming seam.
+StreamGenerateFunc = Callable[[Any, str], StreamedGeneration]
 #: ``(role, validated_slots) -> user_prompt``; role-owned templates land in Stage 3.
 PromptBuilder = Callable[[InsightRoleDefinition, dict[str, Any]], str]
 #: ``(run_id, attempt) -> None``; production sends the Celery task.
@@ -231,37 +357,36 @@ def default_prompt_builder(
 
 
 def _usage_tokens(usage: Any) -> tuple[int, int]:
-    """读取 agent run 的 ``(input_tokens, output_tokens)``，兼容两代 pydantic-ai。
+    """Backwards-compatible alias for :func:`provider.usage_tokens`.
 
-    2.x：``result.usage`` 是**属性**，字段 ``input_tokens``/``output_tokens``；
-    旧版：``result.usage()`` 是方法，字段 ``request_tokens``/``response_tokens``。
-    取数失败一律按 0 计——usage 形状变化绝不能把一个已经成功的 run 判成失败
-    （生产实证：旧写法抛 TypeError 被 classify 成 PROVIDER_UNAVAILABLE 反复重试）。
+    取数口径（两代 pydantic-ai 字段名 + 失败按 0 计）是 provider 边界的事实，
+    流式与非流式两条路共用同一实现，这里只保留旧名字供既有测试引用。
     """
 
-    if callable(usage):
-        usage = usage()
-    if usage is None:
-        return 0, 0
-    input_tokens = getattr(usage, "input_tokens", None)
-    if input_tokens is None:
-        input_tokens = getattr(usage, "request_tokens", 0)
-    output_tokens = getattr(usage, "output_tokens", None)
-    if output_tokens is None:
-        output_tokens = getattr(usage, "response_tokens", 0)
-    return int(input_tokens or 0), int(output_tokens or 0)
+    return usage_tokens(usage)
 
 
 def default_generate(agent: Any, prompt: str) -> LLMResult:
-    """One-shot agent run with real usage; emits no per-token traffic."""
+    """One-shot agent run with real usage; emits no per-token traffic.
+
+    Kept as the non-streaming fallback/testing seam (acceptance: the existing
+    one-shot path and its callers stay intact). Production uses
+    :func:`default_stream`.
+    """
 
     result = asyncio.run(agent.run(prompt))
-    input_tokens, output_tokens = _usage_tokens(getattr(result, "usage", None))
+    input_tokens, output_tokens = usage_tokens(getattr(result, "usage", None))
     return LLMResult(
         markdown=result.output if isinstance(result.output, str) else str(result.output),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
     )
+
+
+def default_stream(agent: Any, prompt: str) -> StreamedGeneration:
+    """Production streaming seam: real per-token provider deltas (BLF-1071)."""
+
+    return open_text_stream(agent, prompt)
 
 
 #: ``(endpoint_id, model_id, role, settings) -> resolved server-side model``.
@@ -478,6 +603,7 @@ def execute_run(
     settings: Any = None,
     resolve: ModelResolverFunc | None = None,
     generate: GenerateFunc | None = None,
+    stream_generate: StreamGenerateFunc | None = None,
     build_prompt: PromptBuilder | None = None,
     sink: InsightEventSink | None = None,
 ) -> InsightRun:
@@ -490,6 +616,15 @@ def execute_run(
     so a cancel/retry committed by another session makes the stale worker
     stop instead of overwriting it — the database, not the refreshed
     snapshot, decides the winner.
+
+    Generation is **streaming by default** (BLF-1071): each provider text
+    delta is pushed to the sink as a ``content.delta`` frame while the full
+    Markdown accumulates in memory, so the client gets real typewriter data.
+    The DB is still written exactly once, at terminal state — no per-token
+    writes. Two injection seams keep tests and existing callers intact:
+    ``generate`` forces the legacy one-shot path (``LLMResult``), and
+    ``stream_generate`` overrides the streaming seam; passing neither means
+    production streaming.
     """
 
     active_sink: InsightEventSink = sink or NullEventSink()
@@ -607,8 +742,60 @@ def execute_run(
             attempt=attempt,
         )
     agent = create_insight_agent(selection, role_instructions=role_instructions)
+    markdown = ""
+    input_tokens = 0
+    output_tokens = 0
     try:
-        llm = (generate or default_generate)(agent, prompt)
+        if generate is not None:
+            # 一次性注入口（测试 / fake）：签名与行为逐字保留——仍发一帧覆盖
+            # 整段正文的 content.delta，不破坏既有调用方的观测。
+            llm = generate(agent, prompt)
+            markdown = llm.markdown or ""
+            input_tokens = llm.input_tokens
+            output_tokens = llm.output_tokens
+            try:
+                active_sink.on_content_delta(
+                    slot=role.output_slot, block_id=LEGACY_BLOCK_ID, delta=markdown
+                )
+            except Exception:  # noqa: BLE001 — sink 是旁路
+                logger.warning("Insight event sink failed (content.delta)")
+        else:
+            # BLF-1071：真流式路径——每个 provider delta 立即变成一帧
+            # content.delta。正文在内存累积，终态才落库（无 per-token 写）。
+            pieces: list[str] = []
+            stream = (stream_generate or default_stream)(agent, prompt)
+            last_guard = time.monotonic()
+
+            def _on_delta(chunk: str) -> None:
+                nonlocal last_guard
+                pieces.append(chunk)
+                try:
+                    active_sink.on_content_delta(
+                        slot=role.output_slot, block_id=STREAM_BLOCK_ID, delta=chunk
+                    )
+                except Exception:  # noqa: BLE001 — sink 是旁路
+                    logger.warning("Insight event sink failed (content.delta)")
+                # 取消/重试的响应性：按秒级抽检 DB，不能每个 delta 都查。
+                now = time.monotonic()
+                if now - last_guard >= _STREAM_GUARD_INTERVAL_SECONDS:
+                    last_guard = now
+                    if not _guard(db, run, attempt):
+                        raise _StreamAborted
+
+            _consume_stream(stream, on_delta=_on_delta)
+            markdown = "".join(pieces)
+            input_tokens, output_tokens = stream.usage_tokens
+            # 上游提前断开：迭代"正常"结束但供应商未发终止事件。
+            # 半截报告比失败更糟（会被当权威正文消费），故按可重试失败处理。
+            if stream.truncated:
+                raise InsightProviderError(
+                    InsightProviderErrorCode.UPSTREAM_ERROR,
+                    "Insight provider stream ended before completion",
+                    retryable=True,
+                )
+    except _StreamAborted:
+        # cancel/retry 已在流中途赢下：不写任何东西，返回胜者（对手）的状态。
+        return _reload(db, run)
     except RetryableFailure:
         raise
     except Exception as exc:  # noqa: BLE001 — classify, then retry or fail
@@ -624,7 +811,7 @@ def execute_run(
 
     if not _guard(db, run, attempt):
         return run
-    markdown = cleaner(role, (llm.markdown or "").strip())
+    markdown = cleaner(role, (markdown or "").strip())
     if not markdown:
         return _fail_or_retry(
             db,
@@ -644,17 +831,14 @@ def execute_run(
         )
     }
     usage = InsightUsage(
-        input_tokens=max(0, llm.input_tokens),
-        output_tokens=max(0, llm.output_tokens),
-        total_tokens=max(0, llm.input_tokens) + max(0, llm.output_tokens),
+        input_tokens=max(0, input_tokens),
+        output_tokens=max(0, output_tokens),
+        total_tokens=max(0, input_tokens) + max(0, output_tokens),
     )
-    try:
-        active_sink.on_content_delta(
-            slot=role.output_slot, block_id="final", delta=markdown
-        )
-    except Exception:  # noqa: BLE001
-        logger.warning("Insight event sink failed (content.delta)")
-
+    # 权威内容帧：把客户端的 slot 钉在清洗后的终稿上（cleaner 可能改写字节，
+    # delta 只是原始 provider 分片），并让重投重发的 delta 变成幂等替换。
+    # 放在**完成转移落库之后**：只有真的成为终态的 run 才能发布权威正文——
+    # 若在这之前发，取消/换代赢了的话客户端会先看到一份不属于任何终态的正文。
     if not _advance(
         db,
         run,
@@ -682,6 +866,12 @@ def execute_run(
         # COMPLETED over it.
         return run
     db.commit()
+    try:
+        active_sink.on_content_snapshot(
+            slot=role.output_slot, content=markdown, content_sha256=digest
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Insight event sink failed (content.snapshot)")
     # COMPLETED has no InsightStage member; the run keeps FINALIZING, which is
     # what the detail snapshot and the status timeline report.
     try:

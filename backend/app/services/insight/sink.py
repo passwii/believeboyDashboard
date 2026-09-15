@@ -38,6 +38,7 @@ from app.schemas.insight import (
 )
 from app.services.insight.events import (
     ContentDeltaEvent,
+    ContentSnapshotEvent,
     DoneEvent,
     ErrorEvent,
     InsightEvent,
@@ -126,6 +127,10 @@ class StreamEventSink:
         # 仍一致）；只在第一个 content.delta 上记一次（BLF-1018）。
         self._started_at: datetime | None = None
         self._first_delta_recorded = False
+        #: 本 attempt 已发布的最后一帧 delta 的 seq（0 = 还没有）。
+        #: 权威 content.snapshot 用它填 ``checkpoint_seq``：必须指向**delta 链**的
+        #: 尾部，而不是全局最后一帧——中途插进来的 status 帧不能算 checkpoint。
+        self._last_delta_seq = 0
 
     # ── lifecycle ───────────────────────────────────────────────────────
 
@@ -172,10 +177,16 @@ class StreamEventSink:
         self._writer.append_event(self._run_id, event)
 
     def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
+        """Record time-to-first-delta, then publish one typewriter frame.
+
+        BLF-1071: the executor streams真逐 token delta，所以这个 run 会发多帧；
+        ``_record_first_delta`` 只在第一帧记一次，因此该指标现在就是真首字时延。
+        """
         self._record_first_delta()
         seq = self._writer.next_seq(self._run_id, self._attempt)
         if seq is None:
             return
+        self._last_delta_seq = seq
         event = ContentDeltaEvent(
             schema_version=1,
             run_id=UUID(self._run_id),
@@ -184,6 +195,36 @@ class StreamEventSink:
             slot=slot,
             block_id=block_id,
             delta=delta,
+        )
+        self._writer.append_event(self._run_id, event)
+
+    def on_content_snapshot(
+        self, *, slot: str, content: str, content_sha256: str
+    ) -> None:
+        """Authoritative content for a slot; seals the deltas streamed for it.
+
+        Emitted once the executor finished cleaning the terminal Markdown, so
+        ``checkpoint_seq`` is simply the last seq allocated: a resume filter
+        that scans strictly after it skips this slot's deltas and re-syncs on
+        this full content instead. A no-op when no delta was ever allocated
+        (a first frame must not be mislabelled as a checkpoint) — the client
+        gets the same content in the closing snapshot / ``done`` frame.
+        """
+        last_delta_seq = self._last_delta_seq
+        if last_delta_seq <= 0:
+            return
+        seq = self._writer.next_seq(self._run_id, self._attempt)
+        if seq is None:
+            return
+        event = ContentSnapshotEvent(
+            schema_version=1,
+            run_id=UUID(self._run_id),
+            attempt=self._attempt,
+            seq=seq,
+            slot=slot,
+            content=content,
+            content_sha256=content_sha256,
+            checkpoint_seq=last_delta_seq,
         )
         self._writer.append_event(self._run_id, event)
 
@@ -243,20 +284,27 @@ class StreamEventSink:
     def _record_first_delta(self) -> None:
         """Record time-to-first(content.delta) once per sink instance.
 
-        执行器每个 run 只发一帧 content.delta（finalizing 阶段产出正文），
-        所以这个值等于「距 attempt 起点的产出时延」——命名按事实叫
-        first_delta_ms，不假装是逐 token 的首字。锚点由 ``open()``（重投时
-        run 已开跑）或首个 ``on_status``（新建 run）补齐；两者都没有的异常
-        行才跳过，不记 0 假数据。
+        BLF-1071 后执行器每个 run 发**多帧** content.delta（每个 provider delta
+        一帧），所以这个值就是真「首字时延」——距 attempt 起点到模型吐出的第一
+        个 token 到达的毫秒数，不再是一个整段产出时延。锚点由 ``open()``（重投
+        时 run 已开跑）或首个 ``on_status``（新建 run）补齐；两者都没有的异常
+        行才跳过，不记 0 假数据。HSETNX 保证重投不会覆盖已测到的首字。
         """
         if self._first_delta_recorded:
             return
         self._first_delta_recorded = True
         if self._started_at is None:
             return
-        delta_ms = int(
-            (datetime.now(timezone.utc) - self._started_at).total_seconds() * 1000
-        )
+        # 观测是旁路：即使时间戳形状异常（naive/aware 混用、时钟回拨）也不能抛到
+        # 执行器去；测不到就不记，绝不用 0 伪造一个首字。
+        try:
+            elapsed = datetime.now(timezone.utc) - self._started_at
+            delta_ms = int(elapsed.total_seconds() * 1000)
+        except (TypeError, ValueError, OverflowError, OSError):
+            logger.warning(
+                "Insight first-delta metric skipped (run=%s)", self._run_id
+            )
+            return
         self._writer.set_metric_if_absent(
             self._run_id, METRIC_FIRST_DELTA_MS, max(0, delta_ms)
         )
