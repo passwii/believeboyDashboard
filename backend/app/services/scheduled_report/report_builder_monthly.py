@@ -34,6 +34,7 @@ from app.services.scheduled_report.context_helpers import (
     fetch_multi_project_context,
 )
 from app.utils.country import get_today_for_country, normalize_country
+from app.constants.return_translations import translate_return_field
 
 from .ai_enhancer_monthly import (
     detect_monthly_anomalies,
@@ -625,7 +626,14 @@ def _get_monthly_returns(
             reason = r.reason or "未知"
             reason_qty[reason] = reason_qty.get(reason, 0) + r.quantity
         top_returns = sorted(
-            [{"reason": k, "qty": v} for k, v in reason_qty.items()],
+            [
+                {
+                    "reason": k,
+                    "reason_display": translate_return_field("reason", k),
+                    "qty": v,
+                }
+                for k, v in reason_qty.items()
+            ],
             key=lambda x: x["qty"], reverse=True,
         )[:5]
 

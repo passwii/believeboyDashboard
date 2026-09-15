@@ -2945,7 +2945,24 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
+        /**
+         * Login
+         * @description 登录并签发该设备槽的专属 API key（BLF-711 / BLF-1059）。
+         *
+         *     设备槽通过请求头 ``X-Client-Id`` 携带（可选）：一个账号可以有多把 key，
+         *     每个槽内只有一把有效 key；同一槽重登 = 轮换（旧 key 立即失效），**槽之间
+         *     互不影响**。不携带此头的调用方（网页端代理、拆分前发布的桌面端构建）落
+         *     ``default`` 槽，行为与拆分前完全一致，故网页端零改动。
+         *
+         *     选头而不选请求体字段的理由：不动 ``/auth/login`` 的 request/response
+         *     schema —— 已提交的契约文件（``frontend/types/api-generated/openapi.json``
+         *     与 ``api.d.ts``）保持同步，``pnpm build`` 的 ``gen:api-types:check`` 不受
+         *     影响，也不必为纯后端改动去做一次跨端契约导出；且本仓库的身份类入参本来就
+         *     走头（``X-Operator`` / ``X-Is-Admin`` / ``X-User-Id`` / ``X-API-Key``）。
+         *
+         *     形态非法（超 64 字符 / 含空白与控制字符）→ 400，而不是静默落 ``default``：
+         *     静默降级会让发错标识的设备与网页端共用一把 key，比报错更难排查。
+         */
         post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
@@ -5157,6 +5174,8 @@ export interface paths {
         /**
          * List User Api Keys
          * @description 列出所有用户 key（无明文；key_prefix 仅用于区分，不含密钥尾部）。
+         *
+         *     按 ``(user_id, client_id)`` 排序——同一账号的多个设备槽相邻好读。
          */
         get: operations["list_user_api_keys_api_v1_internal_user_api_keys_get"];
         put?: never;
@@ -5178,7 +5197,9 @@ export interface paths {
         put?: never;
         /**
          * Revoke User Api Key
-         * @description 按 user_id 吊销该用户的专属 key（幂等；无 key 记录时返回 404）。
+         * @description 吊销该用户的专属 key（幂等；无 key 记录时返回 404）。
+         *
+         *     ``client_id`` 缺省 → 该账号全部设备；给定 → 只失效那一台。
          */
         post: operations["revoke_user_api_key_api_v1_internal_user_api_keys__user_id__revoke_post"];
         delete?: never;
@@ -5198,8 +5219,10 @@ export interface paths {
         put?: never;
         /**
          * Rotate User Api Key
-         * @description 按 user_id 轮换：旧 key 立即失效、签发新 key，明文仅本次返回一次。
+         * @description 轮换：签发新 key，明文仅本次返回一次。
          *
+         *     ``client_id`` 缺省 → 一次重置该账号全部设备，新 key 发在 ``default`` 槽
+         *     （拆分前单 key 时代“轮换即旧 key 全失效”的语义）；给定 → 只轮换那一个槽。
          *     未找到记录时返回 404（补发 key 的自然路径是登录下发）。
          */
         post: operations["rotate_user_api_key_api_v1_internal_user_api_keys__user_id__rotate_post"];
@@ -19701,6 +19724,8 @@ export interface components {
             overall_return_rate: number;
             /** Top Return Reason */
             top_return_reason: string | null;
+            /** Top Return Reason Display */
+            top_return_reason_display?: string | null;
             /** Top Return Sku */
             top_return_sku: string | null;
             /** Total Quantity */
@@ -22028,6 +22053,8 @@ export interface components {
         };
         /** UserApiKeyItem */
         UserApiKeyItem: {
+            /** Client Id */
+            client_id: string;
             /** Created At */
             created_at?: string | null;
             /** Id */
@@ -22041,13 +22068,22 @@ export interface components {
         };
         /** UserApiKeyRevokeResponse */
         UserApiKeyRevokeResponse: {
+            /** Client Id */
+            client_id?: string | null;
             /** Revoked */
             revoked: boolean;
+            /**
+             * Revoked Count
+             * @default 0
+             */
+            revoked_count: number;
             /** User Id */
             user_id: string;
         };
         /** UserApiKeyRotateResponse */
         UserApiKeyRotateResponse: {
+            /** Client Id */
+            client_id: string;
             /** Key Prefix */
             key_prefix: string;
             /** Plaintext Key */
@@ -28817,7 +28853,9 @@ export interface operations {
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Client-Id"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -34396,7 +34434,9 @@ export interface operations {
     };
     revoke_user_api_key_api_v1_internal_user_api_keys__user_id__revoke_post: {
         parameters: {
-            query?: never;
+            query?: {
+                client_id?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-Operator"?: string | null;
@@ -34431,7 +34471,9 @@ export interface operations {
     };
     rotate_user_api_key_api_v1_internal_user_api_keys__user_id__rotate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                client_id?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-Operator"?: string | null;

@@ -19,6 +19,7 @@ from app.services.scheduled_report.context_helpers import (
     fetch_multi_project_context,
 )
 from app.utils.country import get_today_for_country, normalize_country
+from app.constants.return_translations import translate_return_field
 
 logger = logging.getLogger(__name__)
 
@@ -425,8 +426,14 @@ def build_report_email_data(
                 current = reason_counts.get(r.reason, (0, 0))
                 reason_counts[r.reason] = (current[0] + r.quantity, current[1] + 1)
 
+        # BLF-1074：``reason`` 保留 Amazon 原始 code（AI 载荷 / 契约不变），
+        # 另出 ``reason_display`` 供邮件模板直接渲染中文，避免邮件里裸露英文 code。
         top_returns = [
-            {"reason": reason, "qty": qty}
+            {
+                "reason": reason,
+                "reason_display": translate_return_field("reason", reason),
+                "qty": qty,
+            }
             for reason, (qty, _) in sorted(reason_counts.items(), key=lambda x: x[1][0], reverse=True)[:3]
         ]
     except Exception as e:
@@ -698,7 +705,13 @@ def _query_top_return_reasons(
         )
 
         return [
-            {"reason": row.reason or "未知", "qty": int(row.total_qty or 0)}
+            {
+                "reason": row.reason or "未知",
+                "reason_display": translate_return_field("reason", row.reason)
+                if row.reason
+                else "未知",
+                "qty": int(row.total_qty or 0),
+            }
             for row in query.all()
         ]
     except Exception as e:
