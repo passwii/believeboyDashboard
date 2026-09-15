@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from typing import Any, cast
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import SkuRecord, Project
-from app.schemas.sku_info import SkuRecordCreate, SkuRecordUpdate
+from app.models import Project, SkuRecord
+from app.schemas.sku_info import LISTING_COPY_FIELDS, SkuRecordCreate, SkuRecordUpdate
 from app.services.data.sku_info.cache import _resolve_project_id
 from app.utils.country import normalize_country
 
@@ -113,7 +114,7 @@ def _next_sort_order_for_project(db: Session, project_id: int) -> int:
             SkuRecord.project_id == project_id
         )
     ).scalar_one()
-    return int(value or 0) + 1
+    return cast(int, value or 0) + 1
 
 
 def _resolve_insert_sort_order(
@@ -170,9 +171,51 @@ def _resequence_project_sort_orders(
     db.flush()
 
 
+def _listing_copy_values(
+    item: SkuRecordCreate | SkuRecordUpdate,
+) -> dict[str, str | None]:
+    """收集**显式提供**的文案字段（BLF-1080 P1 修复）。
+
+    与通用 CRUD 既有语义一致：只有出现在 ``model_fields_set`` 里的字段才进入
+    结果——未提供 = 保持原值，显式 ``null`` / 空串 = 清空（归一成 ``None``）。
+    返回空 dict 表示本次调用完全没碰文案字段。
+    """
+    return {
+        field: _normalize_optional_text(getattr(item, field))
+        for field in LISTING_COPY_FIELDS
+        if field in item.model_fields_set
+    }
+
+
+def _apply_listing_copy_fields(
+    row: SkuRecord,
+    values: dict[str, str | None],
+    *,
+    operator: str | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """把已判定为「显式提供」的文案字段写到 ORM 行，并刷新溯源列。
+
+    调用方负责用 ``model_fields_set`` 判定显式提供（见 ``_listing_copy_values``）
+    —— 本函数只接收判定后的 ``values``；任一字段被提供即刷新
+    ``listing_copy_updated_at`` / ``listing_copy_updated_by``（对齐
+    ``batch_update_listing_copy`` 与 ``sku_factory_info_updated_{at,by}`` 先例）。
+
+    Returns:
+        是否发生了文案写入（用于调用方判断是否要顺带失效缓存等）。
+    """
+    if not values:
+        return False
+    for field, value in values.items():
+        setattr(row, field, value)
+    row.listing_copy_updated_at = now or datetime.now(timezone.utc)
+    row.listing_copy_updated_by = operator
+    return True
+
+
 def _normalize_item(
     item: SkuRecordCreate, source_file: str | None = None
-) -> dict[str, str | Decimal | bool | int | None]:
+) -> dict[str, Any]:
     provided_fields = set(item.model_fields_set)
 
     def optional_cost(
@@ -229,6 +272,12 @@ def _normalize_item(
         "sku_factory_info": item.sku_factory_info
         if "sku_factory_info" in provided_fields
         else None,
+        **{
+            field: _normalize_optional_text(getattr(item, field))
+            if field in provided_fields
+            else None
+            for field in LISTING_COPY_FIELDS
+        },
     }
 
 
@@ -251,9 +300,7 @@ def list_sku_records(
         stmt = stmt.where(SkuRecord.project_id.in_(managed_project_ids))
 
     if project_name:
-        stmt = stmt.join(Project).where(
-            Project.project_name.ilike(f"%{project_name}%")
-        )
+        stmt = stmt.join(Project).where(Project.project_name.ilike(f"%{project_name}%"))
 
     if sku:
         stmt = stmt.where(SkuRecord.sku.ilike(f"%{sku}%"))
@@ -301,9 +348,7 @@ def list_sku_records_all(
         stmt = stmt.where(SkuRecord.project_id.in_(managed_project_ids))
 
     if project_name:
-        stmt = stmt.join(Project).where(
-            Project.project_name.ilike(f"%{project_name}%")
-        )
+        stmt = stmt.join(Project).where(Project.project_name.ilike(f"%{project_name}%"))
 
     if sku:
         stmt = stmt.where(SkuRecord.sku.ilike(f"%{sku}%"))
@@ -314,7 +359,7 @@ def list_sku_records_all(
     if isinstance(is_active, bool):
         stmt = stmt.where(SkuRecord.is_active.is_(is_active))
 
-    return (
+    return list(
         db.execute(stmt.order_by(SkuRecord.sort_order.asc(), SkuRecord.id.asc()))
         .scalars()
         .all()
@@ -327,8 +372,10 @@ def upsert_sku_record(
     source_file: str | None = None,
     *,
     next_sort_order_cache: dict[str, int] | None = None,
+    operator: str | None = None,
 ) -> tuple[SkuRecord, str]:
     normalized = _normalize_item(item, source_file)
+    listing_values = _listing_copy_values(item)
     project_name = str(normalized["project_name"])
     project_id = _resolve_project_id(db, project_name)
 
@@ -376,12 +423,15 @@ def upsert_sku_record(
         existing.currency = normalized["currency"]
         existing.country = str(normalized["country"])
         if normalized["sort_order"] is not None:
-            existing.sort_order = int(normalized["sort_order"])
+            existing.sort_order = cast(int, normalized["sort_order"])
         if normalized["is_active"] is not None:
             existing.is_active = bool(normalized["is_active"])
         existing.source_file = normalized["source_file"]
         if "sku_factory_info" in item.model_fields_set:
             existing.sku_factory_info = normalized["sku_factory_info"]
+        # 产品文案：只写显式提供字段（未提供保持原值，显式 null/空串清空），
+        # 显式提供即刷新 listing_copy_updated_{at,by}。
+        _apply_listing_copy_fields(existing, listing_values, operator=operator)
         row = existing
     else:
         normalized["sort_order"] = _resolve_insert_sort_order(
@@ -413,13 +463,16 @@ def upsert_sku_record(
         row = SkuRecord(**normalized)
         db.add(row)
         db.flush()
+        # 新建时若有文案写入（显式提供任一文案字段）才盖溯源列；
+        # 未提供的字段保持 NULL —— 「未录入文案」语义。
+        _apply_listing_copy_fields(row, listing_values, operator=operator)
         if isinstance(normalized["sort_order"], int):
             _resequence_project_sort_orders(
                 db,
                 project_id=project_id,
                 project_name=project_name,
                 prioritized_row=row,
-                requested_sort_order=int(normalized["sort_order"]),
+                requested_sort_order=cast(int, normalized["sort_order"]),
             )
         action = "inserted"
 
@@ -446,7 +499,11 @@ def update_sku_record_by_id(
         )
 
     sku = _normalize_text(payload.sku, "sku") if payload.sku is not None else row.sku
-    asin = _normalize_optional_text(payload.asin) or ""
+    asin = (
+        (_normalize_optional_text(payload.asin) or "")
+        if "asin" in payload.model_fields_set
+        else row.asin
+    )
     fnsku = (
         ((payload.fnsku or "").strip() or None)
         if "fnsku" in payload.model_fields_set
@@ -514,7 +571,11 @@ def update_sku_record_by_id(
         if payload.units_per_carton is not None
         else row.units_per_carton
     )
-    country = normalize_country(payload.country)
+    country = (
+        normalize_country(payload.country)
+        if "country" in payload.model_fields_set
+        else row.country
+    )
     sort_order = _normalize_sort_order(payload.sort_order)
     normalized_source_file = (source_file or payload.source_file or "").strip() or None
 
@@ -541,17 +602,17 @@ def update_sku_record_by_id(
     row.asin = asin
     row.fnsku = fnsku
     row.product_name = product_name
-    row.fob_unit_cost = fob_unit_cost
-    row.first_leg_cost_rmb = first_leg_cost_rmb
-    row.package_length_cm = package_length_cm
-    row.package_width_cm = package_width_cm
-    row.package_height_cm = package_height_cm
-    row.weight_kg = weight_kg
-    row.carton_length_cm = carton_length_cm
-    row.carton_width_cm = carton_width_cm
-    row.carton_height_cm = carton_height_cm
-    row.carton_weight_kg = carton_weight_kg
-    row.units_per_carton = units_per_carton
+    row.fob_unit_cost = cast(float, fob_unit_cost)
+    row.first_leg_cost_rmb = cast(float, first_leg_cost_rmb)
+    row.package_length_cm = cast(float, package_length_cm)
+    row.package_width_cm = cast(float, package_width_cm)
+    row.package_height_cm = cast(float, package_height_cm)
+    row.weight_kg = cast(float, weight_kg)
+    row.carton_length_cm = cast(float, carton_length_cm)
+    row.carton_width_cm = cast(float, carton_width_cm)
+    row.carton_height_cm = cast(float, carton_height_cm)
+    row.carton_weight_kg = cast(float, carton_weight_kg)
+    row.units_per_carton = cast(int, units_per_carton)
     row.currency = RMB_CURRENCY
     row.country = country
     if sort_order is not None:
@@ -562,13 +623,18 @@ def update_sku_record_by_id(
             prioritized_row=row,
             requested_sort_order=sort_order,
         )
-    row.is_active = bool(payload.is_active)
+    if "is_active" in payload.model_fields_set:
+        row.is_active = bool(payload.is_active)
     row.source_file = normalized_source_file
 
     if "sku_factory_info" in payload.model_fields_set:
         row.sku_factory_info = payload.sku_factory_info
         row.sku_factory_info_updated_at = datetime.now(timezone.utc)
         row.sku_factory_info_updated_by = operator
+
+    # 产品文案（BLF-1080 P1）：与 sku_factory_info 同构——只写显式提供字段，
+    # 显式提供即刷新 listing_copy_updated_{at,by}。
+    _apply_listing_copy_fields(row, _listing_copy_values(payload), operator=operator)
 
     db.flush()
     db.refresh(row)
@@ -591,7 +657,11 @@ def delete_sku_record(db: Session, sku_record_id: int) -> SkuRecord:
 
 
 def bulk_upsert_sku_records(
-    db: Session, items: list[SkuRecordCreate], source_file: str | None = None
+    db: Session,
+    items: list[SkuRecordCreate],
+    source_file: str | None = None,
+    *,
+    operator: str | None = None,
 ) -> tuple[list[SkuRecord], int, int]:
     inserted = 0
     updated = 0
@@ -599,7 +669,11 @@ def bulk_upsert_sku_records(
     next_sort_order_cache: dict[str, int] = {}
     for item in items:
         row, action = upsert_sku_record(
-            db, item, source_file, next_sort_order_cache=next_sort_order_cache
+            db,
+            item,
+            source_file,
+            next_sort_order_cache=next_sort_order_cache,
+            operator=operator,
         )
         rows.append(row)
         if action == "inserted":
@@ -676,8 +750,8 @@ def move_sku_record_sort_order(
         db.refresh(row)
         return row
 
-    row_sort_order = int(row.sort_order)
-    row.sort_order = int(target.sort_order)
+    row_sort_order = cast(int, row.sort_order)
+    row.sort_order = cast(int, target.sort_order)
     target.sort_order = row_sort_order
     db.flush()
     db.refresh(row)

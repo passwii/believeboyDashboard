@@ -26,7 +26,7 @@ operator=NULL、agent_id/idempotency_key 归因；写后失效 PT4 财务汇总�
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from decimal import Decimal
 from typing import Any
 
@@ -54,16 +54,20 @@ from app.schemas.agent_sku_info import (
     AgentSkuRecordUpsertRequest,
     AgentSkuSource,
 )
-from app.schemas.sku_info import SkuRecordCreate, SkuRecordUpdate
+from app.schemas.sku_info import (
+    LISTING_COPY_FIELDS,
+    SkuRecordCreate,
+    SkuRecordUpdate,
+)
 from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log_for_targets,
 )
 from app.services.data.sku_info import (
+    delete_sku_record,
     list_sku_records,
     update_sku_record_by_id,
     upsert_sku_record,
-    delete_sku_record,
 )
 from app.services.data.sku_info.cache import invalidate_sku_financial_cache
 from app.utils.country import normalize_country
@@ -248,6 +252,12 @@ def _serialize_sku_record(row: SkuRecord) -> dict[str, Any]:
         "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by)
         if row.sku_factory_info_updated_by
         else None,
+        # 产品文案（Listing Copy，BLF-1080）：8 个业务字段 + 2 个溯源列。
+        **{field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS},
+        "listing_copy_updated_at": str(row.listing_copy_updated_at)
+        if getattr(row, "listing_copy_updated_at", None)
+        else None,
+        "listing_copy_updated_by": getattr(row, "listing_copy_updated_by", None),
         "fnsku_label_r2_url": getattr(row, "fnsku_label_r2_url", None),
         "product_image_r2_url": getattr(row, "product_image_r2_url", None),
         "product_image_thumbnail_r2_url": getattr(
@@ -466,7 +476,12 @@ async def upsert_sku_info(
         before_row = _find_existing_by_key(
             db, project_id, sku=req.sku, asin=req.asin, country=country
         )
-        row, action = upsert_sku_record(db, payload, source_file=f"agent:{agent_id}")
+        row, action = upsert_sku_record(
+            db,
+            payload,
+            source_file=f"agent:{agent_id}",
+            operator=agent_id,
+        )
         append_operation_audit_log(
             db,
             action="sku_info.upsert",
@@ -500,7 +515,7 @@ def _validate_update(body: dict, request: Request) -> None:
     sku_record_id = int(request.path_params["sku_record_id"])
 
     _check_source(body.get("source"))
-    req = _parse_update_request(body)  # extra=forbid：身份字段传值 → VALIDATION_FAILED
+    _parse_update_request(body)  # extra=forbid：身份字段传值 → VALIDATION_FAILED
 
     db = SessionLocal()
     try:
@@ -550,6 +565,7 @@ def _merge_update_payload(
         "units_per_carton",
         "sort_order",
         "sku_factory_info",
+        *LISTING_COPY_FIELDS,
     ):
         if field in provided:
             data[field] = getattr(req, field)
@@ -974,10 +990,8 @@ async def upload_sku_info_fnsku_label(
 
         # 删旧标签（失败不阻塞上传，对齐内部 upload_fnsku_label）
         if row.fnsku_label_r2_key:
-            try:
+            with suppress(Exception):
                 delete_file_from_r2(settings, row.fnsku_label_r2_key)
-            except Exception:
-                pass
 
         project_slug = _safe_project_folder_name(row.project_name)
         safe_sku = row.sku.replace("/", "_").replace("\\", "_").replace(" ", "_")

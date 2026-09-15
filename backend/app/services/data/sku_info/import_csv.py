@@ -10,20 +10,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import SkuRecord
-from app.schemas.sku_info import SkuRecordCreate
+from app.schemas.sku_info import LISTING_COPY_FIELDS, SkuRecordCreate
 from app.services.data.sku_info.cache import _resolve_project_id
 from app.services.data.sku_info.crud import (
-    DECIMAL_ZERO,
     RMB_CURRENCY,
+    WEIGHT_DECIMAL_QUANT,
+    _apply_listing_copy_fields,
+    _listing_copy_values,
     _normalize_cost,
     _normalize_decimal_value,
     _normalize_int,
     _normalize_optional_text,
     _normalize_sort_order,
     _normalize_text,
-    WEIGHT_DECIMAL_QUANT,
-    upsert_sku_record,
     _resequence_project_sort_orders,
+    upsert_sku_record,
 )
 from app.utils.country import normalize_country
 
@@ -139,7 +140,13 @@ def import_sku_records(
     *,
     import_mode: str,
     source_file: str | None = None,
+    operator: str | None = None,
 ) -> tuple[list[SkuRecord], int, int, int]:
+    """批量导入 SKU 记录（BLF-1080：同步落产品文案字段）。
+
+    ``items`` 是公开的 ``SkuRecordCreate``（JSON 批量端点），文案字段与
+    通用 CRUD 同语义：只写显式提供项，显式提供即刷新溯源列。
+    """
     normalized_mode = import_mode.strip().lower()
     if normalized_mode not in {"create", "update"}:
         raise HTTPException(
@@ -155,6 +162,8 @@ def import_sku_records(
 
     for item in items:
         normalized = _normalize_item_for_import(item, source_file)
+        # 产品文案（BLF-1080 P1）：只收集显式提供项，未提供的字段不进入 payload。
+        listing_values = _listing_copy_values(item)
         existing = _find_existing_for_import(
             db,
             normalized,
@@ -215,6 +224,13 @@ def import_sku_records(
                 source_file=str(normalized["source_file"])
                 if normalized["source_file"] is not None
                 else None,
+                # 文案字段：仅显式提供项进入构造（保 model_fields_set 语义），
+                # 由 upsert_sku_record 落列并盖 listing_copy_updated_{at,by}。
+                **(
+                    {field: listing_values[field] for field in LISTING_COPY_FIELDS}
+                    if listing_values
+                    else {}
+                ),
             )
             row, _ = upsert_sku_record(
                 db,
@@ -295,6 +311,8 @@ def import_sku_records(
             if normalized["source_file"] is not None
             else existing.source_file
         )
+        # 产品文案（BLF-1080 P1）：update 模式同样落显式提供的文案字段。
+        _apply_listing_copy_fields(existing, listing_values, operator=operator)
         db.flush()
         db.refresh(existing)
         rows.append(existing)
@@ -386,6 +404,23 @@ def parse_sku_record_csv(content: bytes) -> list[SkuRecordCreate]:
             normalized_row, "外箱重量(kg)"
         )
         units_value, units_present = _csv_value(normalized_row, "装箱数量")
+        # 产品文案（BLF-1080）：导出 `export_type=listing` 模板承诺「可直接回传导入」，
+        # 故同一批表头需能读回。仅当列**存在**时才进入 payload（保 model_fields_set
+        # 语义：列缺失 = 不动该字段）。
+        listing_values: dict[str, str | None] = {}
+        for field, *headers in (
+            ("listing_title", "标题"),
+            ("listing_bullet_1", "五点描述1"),
+            ("listing_bullet_2", "五点描述2"),
+            ("listing_bullet_3", "五点描述3"),
+            ("listing_bullet_4", "五点描述4"),
+            ("listing_bullet_5", "五点描述5"),
+            ("listing_description", "Description"),
+            ("listing_selling_points", "卖点提炼"),
+        ):
+            value, present = _csv_value(normalized_row, *headers, field)
+            if present:
+                listing_values[field] = value or None
         items.append(
             SkuRecordCreate(
                 project_name=(normalized_row.get("project_name") or "").strip(),
@@ -440,6 +475,7 @@ def parse_sku_record_csv(content: bytes) -> list[SkuRecordCreate]:
                     else {}
                 ),
                 **({"units_per_carton": units_value or 0} if units_present else {}),
+                **listing_values,
                 currency=RMB_CURRENCY,
                 country=(
                     normalized_row.get("国家") or normalized_row.get("country") or "US"

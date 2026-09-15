@@ -1,20 +1,26 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+
+if TYPE_CHECKING:
+    from app.models.project import Project
 
 
 class SkuRecord(Base):
@@ -103,6 +109,22 @@ class SkuRecord(Base):
         DateTime(timezone=True), nullable=True
     )
     sku_factory_info_updated_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    # ── 产品文案（Listing Copy，BLF-1080）─────────────────────────────
+    # 亚马逊 Listing 文案字段组：标题 + 5 点描述（拆 5 列，便于导出成列与
+    # 单点校验）+ Description + 卖点提炼；全部可空（未录入 = NULL）。
+    # updated_{at,by} 对齐 sku_factory_info_updated_{at,by} 溯源先例。
+    listing_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    listing_bullet_1: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_bullet_2: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_bullet_3: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_bullet_4: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_bullet_5: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_selling_points: Mapped[str | None] = mapped_column(Text, nullable=True)
+    listing_copy_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    listing_copy_updated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     fnsku_label_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     fnsku_label_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     product_image_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)

@@ -4753,6 +4753,162 @@
         "title": "BatchUpdateFactoryInfoResponse",
         "type": "object"
       },
+      "BatchUpdateListingCopyItem": {
+        "additionalProperties": false,
+        "description": "单行文案更新：id 必填，文案字段按需提供（只写显式提供项）。",
+        "properties": {
+          "id": {
+            "description": "SKU 记录 ID",
+            "title": "Id",
+            "type": "integer"
+          },
+          "listing_bullet_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 1"
+          },
+          "listing_bullet_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 2"
+          },
+          "listing_bullet_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 3"
+          },
+          "listing_bullet_4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 4"
+          },
+          "listing_bullet_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 5"
+          },
+          "listing_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Description"
+          },
+          "listing_selling_points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Selling Points"
+          },
+          "listing_title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Title"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "BatchUpdateListingCopyItem",
+        "type": "object"
+      },
+      "BatchUpdateListingCopyRequest": {
+        "additionalProperties": false,
+        "description": "批量更新产品文案请求（BLF-1080）。\n\n语义对齐 ``BatchUpdateFactoryInfoRequest``：按 id 逐条更新，未知 / 缺失 id\n计入 skipped（不整批失败）。文案字段按 ``model_fields_set`` 判定——未提供\n的字段保持原值；显式传 ``null`` / 空串表示清空该字段。",
+        "properties": {
+          "items": {
+            "description": "文案更新项",
+            "items": {
+              "$ref": "#/components/schemas/BatchUpdateListingCopyItem"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "BatchUpdateListingCopyRequest",
+        "type": "object"
+      },
+      "BatchUpdateListingCopyResponse": {
+        "description": "批量更新产品文案响应。",
+        "properties": {
+          "skipped": {
+            "description": "跳过记录数（id 缺失或不存在）",
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "updated": {
+            "description": "更新记录数",
+            "title": "Updated",
+            "type": "integer"
+          },
+          "updated_ids": {
+            "description": "已更新的 SKU ID 列表",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Updated Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "updated",
+          "skipped",
+          "updated_ids"
+        ],
+        "title": "BatchUpdateListingCopyResponse",
+        "type": "object"
+      },
       "Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post": {
         "properties": {
           "category_keyword_en": {
@@ -33804,6 +33960,95 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "listing_bullet_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 1"
+          },
+          "listing_bullet_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 2"
+          },
+          "listing_bullet_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 3"
+          },
+          "listing_bullet_4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 4"
+          },
+          "listing_bullet_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 5"
+          },
+          "listing_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Description"
+          },
+          "listing_selling_points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Selling Points"
+          },
+          "listing_title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Title"
+          },
           "package_height_cm": {
             "anyOf": [
               {
@@ -34153,6 +34398,117 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "listing_bullet_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 1"
+          },
+          "listing_bullet_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 2"
+          },
+          "listing_bullet_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 3"
+          },
+          "listing_bullet_4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 4"
+          },
+          "listing_bullet_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 5"
+          },
+          "listing_copy_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Copy Updated At"
+          },
+          "listing_copy_updated_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Copy Updated By"
+          },
+          "listing_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Description"
+          },
+          "listing_selling_points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Selling Points"
+          },
+          "listing_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Title"
+          },
           "marketplace_url": {
             "anyOf": [
               {
@@ -34461,6 +34817,95 @@
             "default": true,
             "title": "Is Active",
             "type": "boolean"
+          },
+          "listing_bullet_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 1"
+          },
+          "listing_bullet_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 2"
+          },
+          "listing_bullet_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 3"
+          },
+          "listing_bullet_4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 4"
+          },
+          "listing_bullet_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Bullet 5"
+          },
+          "listing_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Description"
+          },
+          "listing_selling_points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Selling Points"
+          },
+          "listing_title": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Title"
           },
           "package_height_cm": {
             "anyOf": [
@@ -96588,6 +97033,127 @@
           }
         },
         "summary": "Batch Update Factory Info Endpoint"
+      }
+    },
+    "/api/v1/sku-info/batch-update-listing-copy": {
+      "post": {
+        "description": "批量更新 SKU 产品文案（标题 / 5 点 / Description / 卖点）。\n\n只写显式提供的字段（未提供保持原值；显式 null / 空串清空）；\n未知 id 计入 skipped，不整批失败。",
+        "operationId": "batch_update_listing_copy_endpoint_api_v1_sku_info_batch_update_listing_copy_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchUpdateListingCopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchUpdateListingCopyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Batch Update Listing Copy Endpoint"
       }
     },
     "/api/v1/sku-info/bulk": {
