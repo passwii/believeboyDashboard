@@ -45,16 +45,19 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
       style={{ width: TERMINAL_RAIL_WIDTH }}
       className="hidden h-full shrink-0 flex-col rounded-none border-r border-term-border bg-term-panel shadow-none md:flex"
     >
-      {/* Logo 位：高度引用顶部基准带常量（BLF-832），与 Header / SubNav / Inspector 顶部分割线贯通 */}
+      {/* Logo 位：高度引用顶部基准带常量（BLF-832），与 Header / SubNav / Inspector 顶部分割线贯通。
+          BLF-1075：logo 块整格满铺（flex 容器不再居中留白，button 取 h-full w-full），
+          即 100% 占用「Rail 宽度 × 顶部基准带高度」的左上角方块，四周零 padding / margin。 */}
       <div
         style={{ height: TERMINAL_TOP_STRIP_HEIGHT }}
-        className="flex shrink-0 items-center justify-center border-b border-term-border"
+        className="flex shrink-0 border-b border-term-border"
       >
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
           aria-label="返回总览"
-          className="flex h-10 w-10 items-center justify-center rounded-none bg-term-accent font-mono text-base font-bold text-white shadow-none transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
+          data-testid="terminal-rail-logo"
+          className="flex h-full w-full items-center justify-center rounded-none bg-term-accent font-mono text-base font-bold text-white shadow-none transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
         >
           B
         </button>
