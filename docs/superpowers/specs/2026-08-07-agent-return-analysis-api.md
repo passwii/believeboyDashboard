@@ -146,7 +146,7 @@ GET /api/v1/agent/projects/{pid}/return-analysis/overview?country=US&start_date=
 - 参数与内部端点对齐：`project_id`(路径)、`start_date`/`end_date`(必填, `YYYY-MM-DD`)、`country`(默认 `US`)、`sku`(可选)。
 - 响应 `data` = `ReturnAnalysisResponse` 同构（`schemas/return_analysis.py:97`）：
   - `project_id / project_name / country / start_date / end_date`
-  - `summary`（total_returns/total_quantity/unique_skus/top_return_sku/top_return_reason/total_sales_quantity/total_sales_amount/overall_return_rate）
+  - `summary`（total_returns/total_quantity/unique_skus/top_return_sku/top_return_reason/top_return_reason_display/total_sales_quantity/total_sales_amount/overall_return_rate）——`top_return_reason` 是 Amazon 原始 code，`top_return_reason_display` 是同一原因的中文译文（BLF-1074 新增，与 `reason_rows[].reason_display` 同源；Agent 直接复述给用户时用后者）
   - `summary_text`（模板化文字总结——Agent 可直接复述给用户）
   - `ranking_rows`（sku/asin/product_name/total_quantity/return_count/sales_quantity/return_rate/avg·min·max_return_cycle_days）
   - `reason_rows` / `trend_rows` / `disposition_rows` / `status_rows` / `weekday_rows` / `fulfillment_center_rows` / `multi_item_return_count/_quantity`
