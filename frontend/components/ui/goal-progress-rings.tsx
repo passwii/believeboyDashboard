@@ -204,7 +204,11 @@ export function GoalProgressStat({
                     cx={size / 2}
                     cy={size / 2}
                     fill="none"
-                    initial={reduce ? { strokeDashoffset: dashOffset } : { strokeDashoffset: circumference }}
+                    initial={
+                      reduce
+                        ? { strokeDashoffset: dashOffset }
+                        : { strokeDashoffset: circumference }
+                    }
                     r={radius}
                     stroke={item.color}
                     strokeDasharray={circumference}
@@ -227,7 +231,10 @@ export function GoalProgressStat({
           <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
             目标进度
           </span>
-          <span className="text-term-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true">
+          <span
+            className="text-term-faint transition-transform group-hover:translate-x-0.5"
+            aria-hidden="true"
+          >
             →
           </span>
         </div>
@@ -318,7 +325,9 @@ export function GoalProgressRings({ items, className }: GoalProgressRingsProps) 
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{item.caption}</p>
                 {item.note ? (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{item.note}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">
+                    {item.note}
+                  </p>
                 ) : null}
               </div>
             </motion.div>

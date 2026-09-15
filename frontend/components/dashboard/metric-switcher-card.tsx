@@ -190,9 +190,9 @@ export function MetricSwitcherCard<K extends string>({
     const result: ChartConfig = {}
     // Terminal UI 风格：使用语义色（pos/warn/neg/accent）替代 chart-* CSS 变量
     const TERM_COLORS = [
-      'var(--term-pos)',   // 正向指标
-      'var(--term-warn)',  // 警告/中性指标
-      'var(--term-neg)',   // 负向指标
+      'var(--term-pos)', // 正向指标
+      'var(--term-warn)', // 警告/中性指标
+      'var(--term-neg)', // 负向指标
       'var(--term-accent)', // 强调指标
     ]
     for (const m of metrics) {
@@ -508,11 +508,7 @@ function ActiveMetricCell<K extends string>({
               isPositive ? METRIC_TONE_CLASS.pos : METRIC_TONE_CLASS.neg
             )}
           >
-            {isPositive ? (
-              <ArrowUp className="size-3" />
-            ) : (
-              <ArrowDown className="size-3" />
-            )}
+            {isPositive ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
             {Math.abs(change).toFixed(1)}%
           </span>
         )}

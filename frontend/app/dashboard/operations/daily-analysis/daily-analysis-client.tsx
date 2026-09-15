@@ -2,12 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import {
-  CalendarDays,
-  FileDown,
-  Loader2,
-  Package,
-} from 'lucide-react'
+import { CalendarDays, FileDown, Loader2, Package } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import {
@@ -28,12 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import {
-  DataTableCard,
-  DataTableCardHeader,
-  DataTableCardBody,
-} from '@/components/ui/data-card'
-import { COUNTRY_TIMEZONE_MAP, DateRangePicker, parseDateInputValue } from '@/components/ui/date-picker'
+  COUNTRY_TIMEZONE_MAP,
+  DateRangePicker,
+  parseDateInputValue,
+} from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
 import {
@@ -841,7 +836,9 @@ export default function DailyAnalysisPage() {
   // 否则「自动选第一个项目」effect 可能在头部 setProjectId 的 router.replace 回填 URL 之前
   // 抢跑覆盖（列表缓存命中时两帧内竞态），导致 head 显示 A、URL/请求却打到 B。
   const gfProjectOwnedRef = useRef(false)
-  const loadDataRef = useRef<((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null>(null)
+  const loadDataRef = useRef<
+    ((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null
+  >(null)
   const lastAppliedGfRef = useRef('')
   useEffect(() => {
     if (!globalFilter.ready) return
@@ -861,11 +858,7 @@ export default function DailyAnalysisPage() {
         setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
       }
     }
-    if (
-      gfCountry &&
-      ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) &&
-      gfCountry !== country
-    ) {
+    if (gfCountry && ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) && gfCountry !== country) {
       setCountry(gfCountry as CountryOption)
     }
     if (gfDateFrom && gfDateTo) {
@@ -1370,10 +1363,11 @@ export default function DailyAnalysisPage() {
       goalProgress.days_in_month,
       goalProgress.today_day
     )
-    const money = (value: number) => `${goalProgress.currency}${value.toLocaleString('zh-CN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`
+    const money = (value: number) =>
+      `${goalProgress.currency}${value.toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
 
     return [
       {
@@ -1382,7 +1376,7 @@ export default function DailyAnalysisPage() {
         value: goalProgress.completion_vs_daily,
         display: `${(goalProgress.completion_vs_daily * 100).toFixed(1)}%`,
         caption: `已完成 ${money(goalProgress.achieved_amount)} / 应完成 ${money(
-          goalProgress.target_amount * goalProgress.today_day / goalProgress.days_in_month
+          (goalProgress.target_amount * goalProgress.today_day) / goalProgress.days_in_month
         )}`,
         color: 'hsl(var(--chart-1))',
       },
@@ -1406,9 +1400,10 @@ export default function DailyAnalysisPage() {
   }, [goalProgress])
 
   const goalHref = `/dashboard/operations/project-goals?project=${projectId}&country=${country}`
-  const goalStatValue = goalProgress && goalProgress.target_amount > 0
-    ? `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`
-    : '未设置'
+  const goalStatValue =
+    goalProgress && goalProgress.target_amount > 0
+      ? `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`
+      : '未设置'
 
   const summaryRows = useMemo(
     () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
@@ -1423,8 +1418,7 @@ export default function DailyAnalysisPage() {
     return map
   }, [skuOptions])
   const detailRows = useMemo(() => {
-    const bucketed =
-      granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
+    const bucketed = granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
     if (!activeSkuMap) return bucketed
     return bucketed.filter((row) => activeSkuMap[row.sku] === true)
   }, [rawDetailRows, granularity, activeSkuMap])
@@ -1436,17 +1430,14 @@ export default function DailyAnalysisPage() {
     [rawComparisonSummaryRows, granularity]
   )
   // BLF-917：比较期明细同样只保留当前激活的 SKU，避免对比图混入历史 SKU。
-  const comparisonDetailRows = useMemo(
-    () => {
-      const bucketed =
-        granularity === 'monthly'
-          ? bucketDetailByMonth(rawComparisonDetailRows)
-          : rawComparisonDetailRows
-      if (!activeSkuMap) return bucketed
-      return bucketed.filter((row) => activeSkuMap[row.sku] === true)
-    },
-    [rawComparisonDetailRows, granularity, activeSkuMap]
-  )
+  const comparisonDetailRows = useMemo(() => {
+    const bucketed =
+      granularity === 'monthly'
+        ? bucketDetailByMonth(rawComparisonDetailRows)
+        : rawComparisonDetailRows
+    if (!activeSkuMap) return bucketed
+    return bucketed.filter((row) => activeSkuMap[row.sku] === true)
+  }, [rawComparisonDetailRows, granularity, activeSkuMap])
   const consoleData = data?.console ?? null
 
   const filteredDetailRows = useMemo(() => {
@@ -1705,8 +1696,7 @@ export default function DailyAnalysisPage() {
     projectId === 'all'
       ? '全部项目'
       : (projects.find((p) => String(p.id) === projectId)?.name ?? '')
-  const mobileCountryLabel =
-    country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
   const mobileDateLabel =
     dateRange?.from && dateRange?.to
       ? `${formatYMD(dateRange.from)} ~ ${formatYMD(dateRange.to)}`
@@ -1719,7 +1709,10 @@ export default function DailyAnalysisPage() {
         <SelectValue placeholder="选择项目" />
       </SelectTrigger>
       <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-        <SelectItem value="all" className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
+        <SelectItem
+          value="all"
+          className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+        >
           全部项目
         </SelectItem>
         {projects.map((p) =>
@@ -1943,18 +1936,40 @@ export default function DailyAnalysisPage() {
                               <TableCell className="font-medium text-foreground">
                                 {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                               </TableCell>
-                              <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
-                              <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>
+                                {row.order_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {formatMoney(row.sales_amount)}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.impressions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.clicks.toLocaleString('zh-CN')}
+                              </TableCell>
                               <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
-                              <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
-                              <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                              <TableCell className={numericCell}>
+                                {formatMoney(row.ad_spend)}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.ad_orders.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.available_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.page_views.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.units_ordered.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.sessions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {(row.conversion_rate * 100).toFixed(2)}%
+                              </TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -2025,14 +2040,30 @@ export default function DailyAnalysisPage() {
                                 <TableCell className="max-w-[200px] truncate text-muted-foreground">
                                   {productName || '--'}
                                 </TableCell>
-                                <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
-                                <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
-                                <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.order_qty.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.sales_amount)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.impressions.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.clicks.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.cpc)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.ad_spend)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.ad_orders.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.available_qty.toLocaleString('zh-CN')}
+                                </TableCell>
                                 <TableCell className={numericCell}>
                                   {row.in_transit_qty > 0 ? (
                                     <span className="font-medium text-blue-600 dark:text-blue-400">
@@ -2042,10 +2073,18 @@ export default function DailyAnalysisPage() {
                                     <span className="text-muted-foreground">--</span>
                                   )}
                                 </TableCell>
-                                <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.page_views.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.units_ordered.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.sessions.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {(row.conversion_rate * 100).toFixed(2)}%
+                                </TableCell>
                               </TableRow>
                             )
                           )
