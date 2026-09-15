@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 import pytest
@@ -218,6 +219,114 @@ def test_unfinished_stream_reports_no_usage():
 
     assert finished is False
     assert usage == (0, 0)
+
+
+def test_insight_text_stream_aclose_closes_source_once_and_is_idempotent():
+    """``InsightTextStream.aclose`` 是幂等的，且真的关到底层 async generator。
+
+    执行器在 ``_consume_stream`` 的 ``finally`` 里调它（消费被中止 / 取消 / 重试时），
+    所以这一层必须把关闭动作透传下去，重复调用也不能炸（重投的 attempt 可能关两次）。
+    """
+    from app.services.insight.provider import InsightTextStream
+
+    closed: list[str] = []
+
+    async def source():
+        try:
+            yield "a"
+            yield "b"
+        finally:
+            closed.append("closed")
+
+    async def drive() -> tuple[str, Any]:
+        stream = InsightTextStream(source(), None)
+        first = await stream.__anext__()
+        await stream.aclose()
+        await stream.aclose()  # 幂等：第二次必须是 no-op
+        return first, stream
+
+    first, stream = asyncio.run(drive())
+
+    assert first == "a"
+    assert closed == ["closed"]
+    # 提前关闭不等于「跑完」：终态事实仍按未完成上报。
+    assert stream.finished is False
+    assert stream.usage_tokens == (0, 0)
+
+
+def test_insight_text_stream_tolerates_a_source_without_aclose():
+    """裸 async iterator（无 ``aclose``）不能被包装层弄成异常。"""
+    from app.services.insight.provider import InsightTextStream
+
+    class _BareIterator:
+        def __init__(self) -> None:
+            self._items = ["x"]
+
+        def __aiter__(self) -> _BareIterator:
+            return self
+
+        async def __anext__(self) -> str:
+            if not self._items:
+                raise StopAsyncIteration
+            return self._items.pop(0)
+
+    async def drive() -> None:
+        stream = InsightTextStream(_BareIterator(), None)
+        assert [chunk async for chunk in stream] == ["x"]
+        await stream.aclose()
+
+    asyncio.run(drive())
+
+
+def test_aborted_consumption_exits_the_provider_async_context():
+    """消费中止时必须真的退出 ``agent.run_stream`` 的 async context。
+
+    回归（Tia 阻塞项）：执行器旧写法只对注入对象 duck-type 查 ``stream.aclose``，
+    而生产 wrapper 当时没有 ``aclose`` —— 生产路径下 ``_consume_stream`` 不会显式
+    关流，只能等异步生成器回收触发 ``GeneratorExit``，上游 HTTP 请求/计费得不到
+    及时释放。本用例走**真实** ``open_text_stream`` wrapper，只把 agent 换成替身，
+    断言 ``__aexit__`` 在消费中止时已被调用。
+    """
+    from app.services.insight.provider import open_text_stream
+
+    class _FakeRun:
+        def __init__(self) -> None:
+            self.response = None
+            self.usage = None
+
+        async def stream_text(self, delta: bool = True, debounce_by: Any = None):
+            yield "## 一\n"
+            yield "二\n"
+            yield "三\n"
+
+    class _RecordingAgent:
+        def __init__(self) -> None:
+            self.exited = False
+
+        @asynccontextmanager
+        async def run_stream(self, _prompt: str):
+            try:
+                yield _FakeRun()
+            finally:
+                self.exited = True
+
+    agent = _RecordingAgent()
+
+    async def drive() -> None:
+        stream = open_text_stream(agent, "prompt")
+        seen: list[str] = []
+        async for chunk in stream:
+            seen.append(chunk)
+            break  # 消费方中途放弃，就像 sink/guard 抛 _StreamAborted
+        # 尚未关闭：async context 由 aclose() 负责退出。
+        assert agent.exited is False
+        await stream.aclose()
+        await stream.aclose()  # 幂等
+        assert seen == ["## 一\n"]
+
+    asyncio.run(drive())
+
+    assert agent.exited is True
 
 
 def test_provider_advertised_models_extend_the_allowlist():

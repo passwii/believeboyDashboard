@@ -23,10 +23,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable, Iterable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import httpx
 from pydantic_ai import Agent
@@ -352,6 +359,7 @@ class InsightTextStream:
     ) -> None:
         self._iterator = iterator
         self._result = result if result is not None else InsightStreamResult()
+        self._closed = False
 
     def __aiter__(self) -> AsyncIterator[str]:
         return self
@@ -362,6 +370,32 @@ class InsightTextStream:
         except StopAsyncIteration:
             self._result.finished = True
             raise
+
+    async def aclose(self) -> None:
+        """Close the provider stream; safe to call repeatedly.
+
+        The sync executor calls this from ``_consume_stream``'s ``finally``, so
+        an aborted consumption (cancel/retry mid-answer, a sink that raises, a
+        role cleaner blowing up) tears down ``agent.run_stream``'s async
+        context *now* — the upstream HTTP request stops instead of billing the
+        rest of the response, and we do not have to hope async generator
+        collection gets around to ``GeneratorExit``.
+
+        Idempotent: a stream driven to its natural end and then closed is not
+        an error, and a redelivered attempt closing twice must not raise.
+        Closing does *not* mark the stream finished — a partially consumed
+        answer still reports ``finished=False`` and zero usage.
+        """
+
+        if self._closed:
+            return
+        self._closed = True
+        close = cast(
+            "Callable[[], Awaitable[None]] | None",
+            getattr(self._iterator, "aclose", None),
+        )
+        if callable(close):
+            await close()
 
     @property
     def finished(self) -> bool:

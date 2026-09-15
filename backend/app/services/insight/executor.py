@@ -33,9 +33,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -225,7 +225,11 @@ def _consume_stream(
 
     The stream is closed in ``finally`` even when ``on_delta`` aborts the
     iteration, so a cancel mid-answer tears down the provider connection
-    instead of quietly billing the rest of the response.
+    instead of quietly billing the rest of the response. ``aclose`` is part of
+    :class:`StreamedGeneration`, not a duck-typed extra: the production wrapper
+    (:class:`~app.services.insight.provider.InsightTextStream`) implements it,
+    so this close actually reaches ``agent.run_stream``'s async context rather
+    than waiting on async generator collection.
     """
 
     async def _drive() -> None:
@@ -234,15 +238,10 @@ def _consume_stream(
                 if isinstance(chunk, str) and chunk:
                     on_delta(chunk)
         finally:
-            close = cast(
-                "Callable[[], Awaitable[None]] | None",
-                getattr(stream, "aclose", None),
-            )
-            if callable(close):
-                try:
-                    await close()
-                except Exception:  # noqa: BLE001 — 关闭失败不改变已收到的正文
-                    logger.debug("Insight provider stream close failed")
+            try:
+                await stream.aclose()
+            except Exception:  # noqa: BLE001 — 关闭失败不改变已收到的正文
+                logger.debug("Insight provider stream close failed")
 
     asyncio.run(_drive())
 
@@ -262,9 +261,19 @@ class StreamedGeneration(Protocol):
     :class:`~app.services.insight.provider.InsightTextStream` is the production
     implementation; tests inject their own. Iterating yields real text deltas,
     and the terminal facts are readable once iteration ended.
+
+    ``aclose`` is required (not optional): the executor calls it from
+    ``_consume_stream``'s ``finally`` so an aborted consumption releases the
+    upstream request *now*. A stream that only iterates would leave that
+    resource to async generator collection, which is not timely enough to stop
+    provider billing.
     """
 
     def __aiter__(self) -> AsyncIterator[str]: ...
+
+    async def aclose(self) -> None:
+        """Close the provider stream; idempotent, safe after exhaustion."""
+        ...
 
     @property
     def finished(self) -> bool:

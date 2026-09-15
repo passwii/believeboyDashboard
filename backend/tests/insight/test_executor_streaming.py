@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from collections.abc import Iterator
@@ -702,6 +703,101 @@ def test_provider_stream_is_closed_when_consumer_aborts(db: Session) -> None:
     )
 
     assert captured and captured[0].closed is True
+
+
+def test_production_wrapper_closes_provider_context_on_mid_stream_cancel(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """回归（Tia 阻塞项）：真实生产 wrapper 在消费中止时真的关掉 provider context。
+
+    旧写法只在 executor 侧 duck-type 查 ``stream.aclose``，而 ``InsightTextStream``
+    当时没有这个方法 —— 生产路径下消费中止时不会显式关流（既有 ``FakeStream`` 自带
+    ``aclose``，正好掩住了这个缺口）。
+
+    为什么本用例必须把 ``shutdown_asyncgens`` 打掉：``asyncio.run`` 退出时会替所有未
+    收尾的异步生成器补一发 ``GeneratorExit``，顺带把 ``agent.run_stream`` 的 async
+    context 收掉 —— 不挡住它，测不出「显式关流」与「靠运行时回收」的区别（前者可预测、
+    且不依赖执行器恰好跑在一次性事件循环里）。挡住后，``__aexit__`` 只可能由
+    ``InsightTextStream.aclose`` 触发。
+
+    其余全走真链路：真 ``open_text_stream`` 包装、真 ``default_stream`` 接缝、
+    真 ``_consume_stream`` 与真 guard；只把秒级抽检间隔置 0，让首帧后的 guard 就发现取消。
+    """
+    from contextlib import asynccontextmanager
+
+    from app.services.insight import executor as executor_mod
+    from app.services.insight.provider import open_text_stream
+
+    run = _create(db)
+    monkeypatch.setattr(executor_mod, "_STREAM_GUARD_INTERVAL_SECONDS", 0.0)
+
+    async def _noop_shutdown_asyncgens(self: Any) -> None:
+        """不替本用例回收异步生成器（见 docstring）。"""
+
+    monkeypatch.setattr(
+        asyncio.BaseEventLoop, "shutdown_asyncgens", _noop_shutdown_asyncgens
+    )
+
+    class _FakeRun:
+        response = None
+        usage = None
+
+        async def stream_text(self, delta: bool = True, debounce_by: Any = None):
+            for piece in ("## 一\n", "二\n", "三\n"):
+                yield piece
+
+    class _RecordingAgent:
+        def __init__(self) -> None:
+            self.entered = 0
+            self.exited = 0
+
+        @asynccontextmanager
+        async def run_stream(self, _prompt: str):
+            self.entered += 1
+            try:
+                yield _FakeRun()
+            finally:
+                self.exited += 1
+
+    agents: list[_RecordingAgent] = []
+
+    def _factory(_agent: Any, prompt: str) -> Any:
+        agent = _RecordingAgent()
+        agents.append(agent)
+        return open_text_stream(agent, prompt)
+
+    class _CancellingSink(ListEventSink):
+        """首帧到达时取消 run（与 ``test_cancel_mid_stream_...`` 同一手法）。"""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._cancelled = False
+
+        def on_content_delta(self, *, slot: str, block_id: str, delta: str) -> None:
+            super().on_content_delta(slot=slot, block_id=block_id, delta=delta)
+            if not self._cancelled:
+                self._cancelled = True
+                cancel_run(db, run.run_id)
+                db.commit()
+
+    sink = _CancellingSink()
+    out = execute_run(
+        db=db,
+        run_id=run.run_id,
+        attempt=1,
+        resolve=_resolve,
+        sink=sink,
+        stream_generate=_factory,
+    )
+
+    # 取消方（对手）赢：本 worker 不写终态。
+    assert out.status == InsightStatus.CANCELLED.value
+    assert out.content_markdown is None
+    assert not sink.terminals
+    # 关键断言：真实 wrapper 的 aclose 把 provider async context 关掉。
+    assert agents, "provider stream 未被创建"
+    assert agents[0].entered == 1
+    assert agents[0].exited == 1, "消费中止后 provider async context 未被关闭"
 
 
 def _make_error(code: InsightErrorCode, message: str):
