@@ -29608,6 +29608,16 @@
             "title": "Ranking Rows",
             "type": "array"
           },
+          "ranking_total_count": {
+            "default": 0,
+            "title": "Ranking Total Count",
+            "type": "integer"
+          },
+          "ranking_truncated": {
+            "default": false,
+            "title": "Ranking Truncated",
+            "type": "boolean"
+          },
           "reason_rows": {
             "items": {
               "$ref": "#/components/schemas/ReturnReasonItem"
@@ -29671,8 +29681,23 @@
         "type": "object"
       },
       "ReturnAnalysisSummary": {
-        "description": "退货分析汇总",
+        "description": "退货分析汇总\n\nBLF-1078 P1-5：新增 ``data_available`` / ``data_span`` 两个可信度字段，\n用来区分「真的零退货」与「本窗口没有退货数据」。\n\n* ``data_available is False`` → 本窗口与退货数据跨度无交集（或该店根本\n  没有退货数据），此时 ``overall_return_rate`` 不可信，调用方不应引用。\n  生产反例：犀牛 2025 有 8690 件销售、退货数据却自 2026-03-28 才开始，\n  曾被渲染为「0% 退货率、表现完美」。\n* ``data_span`` 给出该店当前生效退货数据的实际范围（不受本窗口限制），\n  调用方可在同一响应内判断该数字是否可信。\n* ``overall_return_rate`` 本身保持非空数值（见字段注释的兼容性取舍）。",
         "properties": {
+          "data_available": {
+            "default": true,
+            "title": "Data Available",
+            "type": "boolean"
+          },
+          "data_span": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReturnDataSpan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "overall_return_rate": {
             "default": 0.0,
             "title": "Overall Return Rate",
@@ -29744,6 +29769,35 @@
         "title": "ReturnAnalysisSummary",
         "type": "object"
       },
+      "ReturnDataSpan": {
+        "description": "当前生效退货数据的实际日期跨度（BLF-1078 P1-5）。\n\n``None`` 表示该店没有任何当前生效的退货数据。",
+        "properties": {
+          "max_return_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Return Date"
+          },
+          "min_return_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Return Date"
+          }
+        },
+        "title": "ReturnDataSpan",
+        "type": "object"
+      },
       "ReturnRankingItem": {
         "description": "高退货排行项",
         "properties": {
@@ -29807,9 +29861,15 @@
             "type": "integer"
           },
           "return_rate": {
-            "default": 0.0,
-            "title": "Return Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Rate"
           },
           "sales_quantity": {
             "default": 0,
@@ -30059,9 +30119,15 @@
             "type": "integer"
           },
           "return_rate": {
-            "default": 0.0,
-            "title": "Return Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Rate"
           },
           "sales_amount": {
             "default": 0.0,

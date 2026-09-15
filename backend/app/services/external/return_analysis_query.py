@@ -55,52 +55,44 @@ Python-side approach keeps PG + SQLite test parity clean.
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
-from typing import Iterable
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisReturnAggregate, AnalysisReturnRow, AnalysisSalesOrderRow
+from app.constants.return_thresholds import MIN_SALES_FOR_RISK_LEVEL
+from app.models import (
+    AnalysisReturnRow,
+    AnalysisSalesOrderRow,
+    AnalysisSourceFile,
+)
 from app.services.sales_query import counted_sales_where
-from app.utils.stats import wilson_lower_bound, compute_risk_level
-
+from app.utils.stats import compute_risk_level, wilson_lower_bound
 
 # ---------------------------------------------------------------------------
-# Aggregate query — collapse daily snapshots to per-SKU rollups.
+# Aggregate query — collapse current raw return rows to per-SKU rollups.
 # ---------------------------------------------------------------------------
 
 
 _RISK_RANK = {"critical": 4, "warning": 3, "normal": 2, "no_data": 1}
 
 
-def _build_aggregate_filters(
-    *,
-    project_id: int,
-    country: str,
-    date_from: date,
-    date_to: date,
-    sku_substring: str | None,
-):
-    """Compose the WHERE clause for both the aggregate fetch and the
-    distinct-SKU count.
+def _as_int(value) -> int:
+    """Coerce a counter value to ``int``, treating ``None`` / junk as 0.
+
+    Values here come from our own aggregation layer, so this only guards the
+    ``None`` case rather than parsing untrusted text — but keeping the
+    coercion in one place makes the intent explicit and keeps the callers
+    free of bare ``int(...)``.
     """
-    conditions = [
-        AnalysisReturnAggregate.project_id == project_id,
-        AnalysisReturnAggregate.country == country,
-        AnalysisReturnAggregate.data_date >= date_from,
-        AnalysisReturnAggregate.data_date <= date_to,
-    ]
-    if sku_substring:
-        # Substring match, case-insensitive at the SQL level. The
-        # snapshot table stores SKU verbatim, so we lower() both sides
-        # to keep the query portable across PG / SQLite tests.
-        like = f"%{sku_substring.lower()}%"
-        conditions.append(func.lower(AnalysisReturnAggregate.sku).like(like))
-    return and_(*conditions)
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
-def _fetch_per_sku_per_day(
+def _fetch_window_return_rows(
     db: Session,
     *,
     project_id: int,
@@ -108,51 +100,46 @@ def _fetch_per_sku_per_day(
     date_from: date,
     date_to: date,
     sku_substring: str | None,
-) -> list[dict]:
-    """Fetch all (sku, data_date) rows within the window.
+) -> list[AnalysisReturnRow]:
+    """当前生效退货原始行（窗口内）—— R2 分子的唯一真相源（BLF-1078）。
 
-    Returned dicts carry the 12 fields we need to derive the
-    per-SKU rollup: return_count / return_quantity / sales_quantity /
-    return_rate / wilson_lower (per-day) / cycle_* / reason_top1 /
-    disposition_top1 / dominant_fc_id / risk_level.
+    过滤条件与 :func:`query_current_return_rows`（R1 口径唯一真相源）逐字一致：
+    只取 ``is_current`` 的 ``return_report`` 源文件下、``return_date`` 落在
+    ``[date_from, date_to]`` 的行。
+
+    分子曾经取自 ``analysis_return_aggregates`` 物化表——那是 raw 事实的缓存，
+    只为「每日任务处理过的 (SKU, 日)」落行，新入库的历史报表要等下一次刷新才
+    可见，于是 R2 会系统性低于 R1/R3（生产实测：铨富 43 vs 66）。改读 raw 后
+    三路口径按构造一致。
     """
-    filters = _build_aggregate_filters(
-        project_id=project_id,
-        country=country,
-        date_from=date_from,
-        date_to=date_to,
-        sku_substring=sku_substring,
-    )
-    stmt = select(
-        AnalysisReturnAggregate.sku,
-        AnalysisReturnAggregate.return_count,
-        AnalysisReturnAggregate.return_quantity,
-        AnalysisReturnAggregate.sales_quantity,
-        AnalysisReturnAggregate.cycle_avg_days,
-        AnalysisReturnAggregate.cycle_min_days,
-        AnalysisReturnAggregate.cycle_max_days,
-        AnalysisReturnAggregate.reason_top1,
-        AnalysisReturnAggregate.disposition_top1,
-        AnalysisReturnAggregate.dominant_fc_id,
-        AnalysisReturnAggregate.risk_level,
-    ).where(filters)
-    rows = db.execute(stmt).all()
-    return [
-        {
-            "sku": r.sku,
-            "return_count": int(r.return_count or 0),
-            "return_quantity": int(r.return_quantity or 0),
-            "sales_quantity": int(r.sales_quantity or 0),
-            "cycle_avg_days": r.cycle_avg_days,
-            "cycle_min_days": r.cycle_min_days,
-            "cycle_max_days": r.cycle_max_days,
-            "reason_top1": r.reason_top1,
-            "disposition_top1": r.disposition_top1,
-            "dominant_fc_id": r.dominant_fc_id,
-            "risk_level": (r.risk_level or "no_data").lower(),
-        }
-        for r in rows
+    conditions = [
+        AnalysisReturnRow.project_id == project_id,
+        AnalysisReturnRow.country == country,
+        AnalysisSourceFile.report_type == "return_report",
+        AnalysisSourceFile.is_current.is_(True),
+        AnalysisReturnRow.return_date >= date_from,
+        AnalysisReturnRow.return_date <= date_to,
     ]
+    if sku_substring:
+        # Substring match, case-insensitive. Raw rows store SKU verbatim,
+        # so we lower() both sides to stay portable across PG / SQLite.
+        conditions.append(
+            func.lower(AnalysisReturnRow.sku).like(
+                f"%{sku_substring.lower()}%"
+            )
+        )
+    return list(
+        db.execute(
+            select(AnalysisReturnRow)
+            .join(
+                AnalysisSourceFile,
+                AnalysisSourceFile.id == AnalysisReturnRow.source_file_id,
+            )
+            .where(*conditions)
+        )
+        .scalars()
+        .all()
+    )
 
 
 def _fetch_window_sales_by_sku(
@@ -172,37 +159,51 @@ def _fetch_window_sales_by_sku(
     returns, so summing any aggregate column can never reproduce the
     window's full counted sales — sales-only days would be dropped.
     """
-    q = db.query(
-        AnalysisSalesOrderRow.sku,
-        func.sum(AnalysisSalesOrderRow.quantity).label("qty"),
-    ).filter(
-        *counted_sales_where(
+    sales_conditions = [
+        counted_sales_where(
             project_id=project_id,
             country=country,
             date_from=date_from,
             date_to=date_to,
         )
-    )
+    ]
     if sku_substring:
-        like = f"%{sku_substring.lower()}%"
-        q = q.filter(func.lower(AnalysisSalesOrderRow.sku).like(like))
-    rows = q.group_by(AnalysisSalesOrderRow.sku).all()
-    return {(r.sku or ""): int(r.qty or 0) for r in rows}
+        # 同 :func:`_fetch_window_return_rows`：子串过滤在 SQL 侧大小写归一。
+        sales_conditions.append(
+            func.lower(AnalysisSalesOrderRow.sku).like(
+                f"%{sku_substring.lower()}%"
+            )
+        )
+    rows = db.execute(
+        select(
+            AnalysisSalesOrderRow.sku,
+            func.sum(AnalysisSalesOrderRow.quantity).label("qty"),
+        )
+        .where(*sales_conditions)
+        .group_by(AnalysisSalesOrderRow.sku)
+    ).all()
+    return {(r.sku or ""): _as_int(r.qty) for r in rows}
 
 
 def _collapse_to_per_sku(
-    rows: Iterable[dict],
+    records: list[AnalysisReturnRow],
     *,
     window_sales_by_sku: dict[str, int],
+    cycle_stats_by_sku: dict[str, dict] | None = None,
 ) -> list[dict]:
-    """Collapse per-(sku, data_date) rows into per-SKU rollups.
+    """Collapse current raw return rows into per-SKU rollups.
 
-    ``rows`` come from the return-aggregate table; ``window_sales_by_sku``
-    comes from :func:`_fetch_window_sales_by_sku` (raw layer).
+    ``records`` come from :func:`_fetch_window_return_rows` (the same source
+    and filters as R1/R3); ``window_sales_by_sku`` comes from
+    :func:`_fetch_window_sales_by_sku` (raw sales layer).
 
     For each SKU we:
 
-    * ``return_count`` / ``return_quantity`` — sum.
+    * ``return_count`` — number of **unique ``(order_id, sku)`` events within
+      the whole window**, matching R1's ``summary.total_returns``. The old
+      implementation summed a per-day unique count, which double-counted the
+      same order across two return dates and could exceed R1 (犀牛: 188 vs 187).
+    * ``return_quantity`` — sum of ``quantity``, matching R1/R3.
     * ``sales_quantity`` — taken verbatim from ``window_sales_by_sku``
       (BLF-806): the window's counted sales for that SKU, identical to
       the R1 overview denominator. (Historic notes: before BLF-806 this
@@ -210,84 +211,46 @@ def _collapse_to_per_sku(
       total that inflated every return_rate; the first BLF-806 attempt
       summed a daily column that only existed on days with returns,
       deflating it instead.)
-    * ``cycle_avg_days`` — weighted average by return_quantity
-      (matches the internal endpoint math, see BEL-373 observation
-      "Wilson 公式精确值" lesson).
-    * ``cycle_min_days`` — min across days.
-    * ``cycle_max_days`` — max across days.
-    * ``wilson_lower``   — recompute from the rollup totals using the
-      Python Wilson formula. This keeps the contract stable: agents
-      comparing snapshots over time see a value derived from the
-      combined window, not a noisy per-day pick.
-    * ``return_rate``    — recompute from rollup totals (same reason).
-    * ``risk_level``     — recompute from the rolled totals via
-      ``compute_risk_level`` (same rule as the internal endpoint).
-    * ``reason_top1``    — pick the row with the largest
-      ``return_quantity``; tiebreak by data_date (most recent first).
-      We don't carry ``data_date`` through because the schema only
-      exposes the rolled-up value, not which day it came from.
+    * ``cycle_avg_days`` / ``cycle_min_days`` / ``cycle_max_days`` — from
+      ``cycle_stats_by_sku`` (raw-derived; previously read off the aggregate
+      table, which never populated them — 0/1647 rows in production).
+    * ``wilson_lower`` / ``return_rate`` / ``risk_level`` — recomputed from
+      the rolled window totals, so agents comparing snapshots over time see a
+      value derived from the combined window rather than a noisy per-day pick
+      (``risk_level`` follows the same rule as the internal endpoint).
+    * ``reason_top1`` / ``disposition_top1`` / ``dominant_fc_id`` — window-wide
+      argmax by returned quantity (was: argmax of a single day's row). Ties are
+      broken by first appearance in ``return_date`` order, which the source
+      query already guarantees deterministically.
     """
+    cycle_stats_by_sku = cycle_stats_by_sku or {}
     by_sku: dict[str, dict] = {}
-    for r in rows:
-        sku = r["sku"]
-        if sku not in by_sku:
-            by_sku[sku] = {
+    for r in records:
+        sku = r.sku or ""
+        agg = by_sku.get(sku)
+        if agg is None:
+            agg = {
                 "sku": sku,
-                "return_count": 0,
+                "return_count_keys": set(),
                 "return_quantity": 0,
-                "_cycle_weighted_sum": 0.0,
-                "_cycle_min": None,
-                "_cycle_max": None,
-                "_reason_top1": None,
-                "_reason_top1_weight": -1,
-                "_disposition_top1": None,
-                "_disposition_top1_weight": -1,
-                "_dominant_fc_id": None,
-                "_dominant_fc_id_weight": -1,
-                "_risk_worst": "no_data",
+                "reason_weight": Counter(),
+                "disposition_weight": Counter(),
+                "fc_weight": Counter(),
             }
-        agg = by_sku[sku]
-        agg["return_count"] += r["return_count"]
-        agg["return_quantity"] += r["return_quantity"]
+            by_sku[sku] = agg
+        qty = _as_int(r.quantity)
+        agg["return_quantity"] += qty
+        agg["return_count_keys"].add((r.order_id, sku))
+        if r.reason:
+            agg["reason_weight"][r.reason] += qty
+        if r.detailed_disposition:
+            agg["disposition_weight"][r.detailed_disposition] += qty
+        if r.fulfillment_center_id:
+            agg["fc_weight"][r.fulfillment_center_id] += qty
 
-        # Weighted cycle avg: weight by return_quantity (matches the
-        # internal endpoint math).
-        if r["cycle_avg_days"] is not None and r["return_quantity"] > 0:
-            agg["_cycle_weighted_sum"] += (
-                float(r["cycle_avg_days"]) * r["return_quantity"]
-            )
-        if r["cycle_min_days"] is not None:
-            cur_min = agg["_cycle_min"]
-            agg["_cycle_min"] = (
-                r["cycle_min_days"]
-                if cur_min is None
-                else min(cur_min, r["cycle_min_days"])
-            )
-        if r["cycle_max_days"] is not None:
-            cur_max = agg["_cycle_max"]
-            agg["_cycle_max"] = (
-                r["cycle_max_days"]
-                if cur_max is None
-                else max(cur_max, r["cycle_max_days"])
-            )
+    def _top1(counter: Counter) -> str | None:
+        return counter.most_common(1)[0][0] if counter else None
 
-        # Argmax by return_quantity for top-1 picks.
-        weight = r["return_quantity"]
-        if weight > agg["_reason_top1_weight"] and r["reason_top1"]:
-            agg["_reason_top1"] = r["reason_top1"]
-            agg["_reason_top1_weight"] = weight
-        if weight > agg["_disposition_top1_weight"] and r["disposition_top1"]:
-            agg["_disposition_top1"] = r["disposition_top1"]
-            agg["_disposition_top1_weight"] = weight
-        if weight > agg["_dominant_fc_id_weight"] and r["dominant_fc_id"]:
-            agg["_dominant_fc_id"] = r["dominant_fc_id"]
-            agg["_dominant_fc_id_weight"] = weight
-
-        # Worst risk level (rank-based).
-        if _RISK_RANK.get(r["risk_level"], 0) > _RISK_RANK.get(agg["_risk_worst"], 0):
-            agg["_risk_worst"] = r["risk_level"]
-
-    # Finalize into the schema shape.
     out: list[dict] = []
     for sku, agg in by_sku.items():
         rq = agg["return_quantity"]
@@ -296,26 +259,33 @@ def _collapse_to_per_sku(
         # 不取"worst across daily rows"——逐日行独立判定会漏掉跨日累积的
         # 风险，且窗口口径下分母应以整个窗口为准。
         risk_level, _ = compute_risk_level(rq, sq)
-        cycle_avg = (
-            round(agg["_cycle_weighted_sum"] / rq, 2)
-            if rq > 0 and agg["_cycle_weighted_sum"] > 0
-            else None
-        )
+        return_rate = round(rq * 100.0 / sq, 3) if sq > 0 else 0.0
+        cycle = cycle_stats_by_sku.get(sku) or {}
         out.append(
             {
                 "sku": sku,
-                "return_count": agg["return_count"],
+                "return_count": len(agg["return_count_keys"]),
                 "return_quantity": rq,
                 "sales_quantity": sq,
-                "return_rate": round(rq * 100.0 / sq, 3) if sq > 0 else 0.0,
+                "return_rate": return_rate,
                 "wilson_lower": round(wilson_lower_bound(rq, sq), 3),
-                "cycle_avg_days": cycle_avg,
-                "cycle_min_days": agg["_cycle_min"],
-                "cycle_max_days": agg["_cycle_max"],
-                "reason_top1": agg["_reason_top1"],
-                "disposition_top1": agg["_disposition_top1"],
-                "dominant_fc_id": agg["_dominant_fc_id"],
+                "cycle_avg_days": cycle.get("avg"),
+                "cycle_min_days": cycle.get("min"),
+                "cycle_max_days": cycle.get("max"),
+                "reason_top1": _top1(agg["reason_weight"]),
+                "disposition_top1": _top1(agg["disposition_weight"]),
+                "dominant_fc_id": _top1(agg["fc_weight"]),
                 "risk_level": risk_level,
+                # BLF-1078 P2-6：``risk_level == "no_data"`` 表达的是「销量样本
+                # 不足以做 Wilson 判定」（sales_quantity < 15），不是「这条
+                # SKU 没有退货」——但调用方常用 risk_level 过滤高风险 SKU，
+                # 于是退货率极高的长尾单品（生产实例：JTZ-M35-78 200%、
+                # SMJ-6x9 53.85%）会被当作「无数据」直接滤掉。这里把
+                # 「样本量不足」拆到独立字段，让调用方能在保留原枚举语义的
+                # 前提下按 ``confidence`` 判断可信度。
+                "confidence": (
+                    "low" if sq < MIN_SALES_FOR_RISK_LEVEL else "high"
+                ),
             }
         )
     return out
@@ -384,7 +354,7 @@ def query_return_analysis_aggregate(
         field names. ``total`` — total SKU count matching the filter
         (independent of pagination).
     """
-    per_day = _fetch_per_sku_per_day(
+    per_day = _fetch_window_return_rows(
         db,
         project_id=project_id,
         country=country,
@@ -403,9 +373,57 @@ def query_return_analysis_aggregate(
         date_to=date_to,
         sku_substring=sku_substring,
     )
-    per_sku = _collapse_to_per_sku(
-        per_day, window_sales_by_sku=window_sales_by_sku
+    # BLF-1078：周期天（退货日期 - 原单日期）从 raw 销售层现算（R4 同源），
+    # 不再依赖聚合表的 cycle_* 列——生产 1647 行全为 NULL，R2 一直返回 null。
+    from app.services.analysis.return_analysis.analysis import (
+        _build_cycle_days_by_sku,
     )
+
+    cycle_stats_by_sku = _build_cycle_days_by_sku(
+        db,
+        project_id=project_id,
+        country=country,
+        records=per_day,
+    )
+    per_sku = _collapse_to_per_sku(
+        per_day,
+        window_sales_by_sku=window_sales_by_sku,
+        cycle_stats_by_sku=cycle_stats_by_sku,
+    )
+    # BLF-1078 P0-2：分母必须是窗口全店销量，而不是只有「本期发生过退货的 SKU」
+    # 的销量。零退货 SKU 只出现在销售层、不在退货层，所以仅由退货行走过的 SKU
+    # 集合永远是最小的那个；R1 overview 用全店销量做分母，两者差就是零退货 SKU
+    # 的销量，把 R2 的退货率系统性抬高（生产实测华洋泛航 +2.56pp、犀牛 +0.32pp、
+    # 短窗口下整店分母直接塔陷为 0）。这里把只有销售、零退货的 SKU 补回为
+    # 「零退货行」，让 R2 的 summary 与 R1 同分母。
+    returned_skus = {r["sku"] for r in per_sku}
+    for sku, sales_qty in window_sales_by_sku.items():
+        if sku in returned_skus or sales_qty <= 0:
+            continue
+        per_sku.append(
+            {
+                "sku": sku,
+                "return_count": 0,
+                "return_quantity": 0,
+                "sales_quantity": sales_qty,
+                "return_rate": 0.0,
+                "wilson_lower": 0.0,
+                "cycle_avg_days": None,
+                "cycle_min_days": None,
+                "cycle_max_days": None,
+                "reason_top1": None,
+                "disposition_top1": None,
+                "dominant_fc_id": None,
+                # 零退货但销量 ≥15 → normal；样本不足则 no_data，
+                # 与 :func:`_collapse_to_per_sku` 的口径保持一致。
+                "risk_level": "normal"
+                if sales_qty >= MIN_SALES_FOR_RISK_LEVEL
+                else "no_data",
+                "confidence": "high"
+                if sales_qty >= MIN_SALES_FOR_RISK_LEVEL
+                else "low",
+            }
+        )
     per_sku = _apply_post_filters(
         per_sku,
         min_return_rate=min_return_rate,
@@ -432,6 +450,15 @@ def query_return_analysis_raw(
 ) -> tuple[list[dict], date, date]:
     """Fetch one page of raw ``analysis_return_rows`` events.
 
+    BLF-1078 P2-7：本查询补上了 ``is_current`` 过滤（只取当前生效退货报表
+    源文件的行），与 :func:`query_current_return_rows` / R1 / R2 完全同口径。
+
+    此前它只按 ``project_id + country + return_date`` 过滤，把已被取代
+    （``is_current=False``）的历史报表版本一并返回，于是 R3 行数系统性高于
+    R1/R2（生产实测犀牛 230 vs 189、玥涵 58 vs 53、创酷 26 vs 21）。差异全部
+    来自被取代版本的行，不是「一笔退货多行明细」——现已证实不需要特殊口径
+    解释，三路只是过滤条件不一致。
+
     Returns
     -------
     (rows, min_date, max_date)
@@ -446,14 +473,26 @@ def query_return_analysis_raw(
         AnalysisReturnRow.country == country,
         AnalysisReturnRow.return_date >= date_from,
         AnalysisReturnRow.return_date <= date_to,
+        AnalysisSourceFile.report_type == "return_report",
+        AnalysisSourceFile.is_current.is_(True),
     )
-    stmt = select(AnalysisReturnRow).where(filters)
-    stmt = stmt.order_by(
-        order_column.asc() if order_dir == "asc" else order_column.desc()
+    rows = (
+        db.execute(
+            select(AnalysisReturnRow)
+            .join(
+                AnalysisSourceFile,
+                AnalysisSourceFile.id == AnalysisReturnRow.source_file_id,
+            )
+            .where(filters)
+            .order_by(
+                order_column.asc() if order_dir == "asc" else order_column.desc()
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
     )
-    stmt = stmt.limit(limit).offset(offset)
-
-    rows = db.execute(stmt).scalars().all()
 
     if rows:
         dates = [r.return_date for r in rows if r.return_date is not None]
@@ -505,9 +544,9 @@ def build_aggregate_summary(rows: list[dict]) -> dict:
     need dataset-wide totals should sum themselves from the full
     result set across pages.
     """
-    total_return_count = sum(int(r.get("return_count") or 0) for r in rows)
-    total_return_quantity = sum(int(r.get("return_quantity") or 0) for r in rows)
-    total_sales_quantity = sum(int(r.get("sales_quantity") or 0) for r in rows)
+    total_return_count = sum(_as_int(r.get("return_count")) for r in rows)
+    total_return_quantity = sum(_as_int(r.get("return_quantity")) for r in rows)
+    total_sales_quantity = sum(_as_int(r.get("sales_quantity")) for r in rows)
     overall_return_rate = (
         round(total_return_quantity * 100.0 / total_sales_quantity, 3)
         if total_sales_quantity > 0
@@ -537,7 +576,7 @@ def build_aggregate_summary(rows: list[dict]) -> dict:
 
 
 __all__ = [
+    "build_aggregate_summary",
     "query_return_analysis_aggregate",
     "query_return_analysis_raw",
-    "build_aggregate_summary",
 ]

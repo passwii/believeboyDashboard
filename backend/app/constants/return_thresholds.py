@@ -27,3 +27,10 @@ SNAPSHOT_STALENESS_HOURS = 25
 # 原始行端点单次返回上限（spec §2.4）：超限显式 400，禁止静默截断 ——
 # 静默截断会让「导出包含全部原始内容」变成假承诺。实测数据量距上限三个数量级。
 MAX_RAW_ROWS = 50_000
+
+# R1 overview 榜单行数硬上限（BLF-1078 P1-3）。
+# 超出部分不再静默丢弃：响应会带上 ``ranking_truncated: true`` +
+# ``ranking_total_count``，调用方可据此改用 R2（支持 limit/offset 分页）
+# 拿完整榜单。历史上该上限是裸的 ``[:20]``，SKU 数 >20 的项目（如犀牛 30 个 SKU）
+# 会无提示地丢掉尾部 SKU——而那些正是「单量小但退货率可能极高」的长尾单品。
+MAX_RANKING_ROWS = 20

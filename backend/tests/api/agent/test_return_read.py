@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import date, timedelta
 
 import pytest
+from conftest import seed_return_analysis
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.db.session import SessionLocal
 from app.main import app
 from app.models import OperationAuditLog
-
-from conftest import seed_return_analysis
 
 
 @pytest.fixture
@@ -243,45 +241,47 @@ class TestR4SkuDetail:
 class TestR2Aggregate:
     def _seed_aggregates(self, env) -> None:
         d = _today()
+        # BLF-1078：R2 分子改为读「当前生效 raw 退货行」（与 R1/R3 同源），
+        # 不再信任 analysis_return_aggregates 物化缓存——那份缓存只为每日
+        # 任务处理过的 (SKU, 日) 落行，新入库的历史报表要等下次刷新才可见，
+        # 曾导致 R2 系统性低于 R1（生产实测铨富 43 vs 66）。
+        #
         # 注意：query_return_analysis_aggregate 会用 compute_risk_level 重算
         # risk_level（销量门槛 15 + Wilson 下界）。sales_quantity 必须 ≥15，
         # 否则全部落 no_data。X-001: 30/100 → critical；X-002: 8/50 → warning。
-        # BLF-806：分母改从 raw 销售层取窗口 counted sales，所以这里要同步
-        # seed 同额销售行（100 / 50），否则分母为 0、risk_level 全落 no_data。
+        # BLF-806：分母仍从 raw 销售层取窗口 counted sales（100 / 50）。
         seed_return_analysis(
             env["project_id"],
+            return_rows=[
+                *[
+                    {
+                        "return_date": d,
+                        "order_id": f"R-X001-{i:02d}",
+                        "sku": "X-001",
+                        "quantity": 2,
+                        "reason": "NOT_AS_DESCRIBED",
+                        "detailed_disposition": "SELLABLE",
+                        "fulfillment_center_id": "PHX6",
+                    }
+                    for i in range(15)  # 15 单 × 2 件 = 30 件退货
+                ],
+                *[
+                    {
+                        "return_date": d,
+                        "order_id": f"R-X002-{i:02d}",
+                        "sku": "X-002",
+                        "quantity": 2,
+                        "reason": "DEFECTIVE",
+                        "detailed_disposition": "CARRIER_DAMAGED",
+                        "fulfillment_center_id": "LAX9",
+                    }
+                    for i in range(4)  # 4 单 × 2 件 = 8 件退货
+                ],
+            ],
             sales_rows=[
                 {"order_id": "S-X001-A", "purchase_date_pt": d, "sku": "X-001", "quantity": 60},
                 {"order_id": "S-X001-B", "purchase_date_pt": d, "sku": "X-001", "quantity": 40},
                 {"order_id": "S-X002-A", "purchase_date_pt": d, "sku": "X-002", "quantity": 50},
-            ],
-            aggregate_rows=[
-                {
-                    "sku": "X-001",
-                    "data_date": d,
-                    "return_count": 20,
-                    "return_quantity": 30,
-                    "sales_quantity": 100,
-                    "return_rate": 30.0,
-                    "risk_level": "critical",
-                    "reason_top1": "NOT_AS_DESCRIBED",
-                    "disposition_top1": "SELLABLE",
-                    "dominant_fc_id": "PHX6",
-                    "wilson_lower": 10.5,
-                },
-                {
-                    "sku": "X-002",
-                    "data_date": d,
-                    "return_count": 5,
-                    "return_quantity": 8,
-                    "sales_quantity": 50,
-                    "return_rate": 16.0,
-                    "risk_level": "warning",
-                    "reason_top1": "DEFECTIVE",
-                    "disposition_top1": "CARRIER_DAMAGED",
-                    "dominant_fc_id": "LAX9",
-                    "wilson_lower": 6.2,
-                },
             ],
         )
 

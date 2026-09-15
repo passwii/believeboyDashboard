@@ -5,25 +5,90 @@ Extracted from return_analysis_service.py (phase 5 of backend refactor plan).
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
-from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.constants.return_thresholds import MAX_RANKING_ROWS
 from app.models import (
-    SkuRecord,
     Project,
+    SkuRecord,
 )
 from app.services.analysis.return_analysis.queries import query_current_return_rows
 from app.services.sales_query import counted_sales_where
 from app.utils.sales_amount import sales_amount_expr
 
+logger = logging.getLogger(__name__)
 
-def _safe_rate(numerator: int, denominator: int) -> float:
-    """Safely calculate return rate as a percentage."""
-    if denominator <= 0:
+
+def _as_float(value) -> float:
+    """Coerce a numeric column to ``float``, treating ``None`` / junk as 0.0.
+
+    Values come from our own DB columns (Numeric / int), so this only guards
+    NULL and unexpected types rather than parsing untrusted text.
+    """
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
         return 0.0
+
+
+def _query_return_data_span(
+    db: Session, project_id: int, country: str
+) -> tuple[date | None, date | None]:
+    """该店当前生效退货数据的实际跨度（BLF-1078 P1-5）。
+
+    与 :func:`query_current_return_rows` 同一过滤层（``return_report`` +
+    ``is_current``），不受调用方窗口限制。
+    """
+    from app.services.analysis.return_analysis.queries import (
+        query_return_data_span,
+    )
+
+    return query_return_data_span(db, project_id=project_id, country=country)
+
+
+def _is_window_covered_by_span(
+    start_date: str,
+    end_date: str,
+    span: tuple[date | None, date | None],
+) -> bool:
+    """窗口是否与退货数据跨度有交集（BLF-1078 P1-5）。
+
+    没有交集（或根本没有数据）→ ``False``：该窗口的退货率不可信，
+    应返回 ``null`` 而不是 ``0.0``。犀牛 2025 年就是这一例：窗口
+    完全落在退货数据起点 2026-03-28 之前。
+    """
+    span_min, span_max = span
+    if span_min is None or span_max is None:
+        return False
+    window_start = date.fromisoformat(start_date)
+    window_end = date.fromisoformat(end_date)
+    return window_start <= span_max and span_min <= window_end
+
+
+def _format_span_hint(span: tuple[date | None, date | None]) -> str:
+    """把数据跨度格式化成人类可读区间（供 summary_text 提示用）。"""
+    span_min, span_max = span
+    if span_min is None or span_max is None:
+        return ""
+    return f"{span_min.isoformat()} ~ {span_max.isoformat()}"
+
+
+def _safe_rate(numerator: int, denominator: int) -> float | None:
+    """Safely calculate return rate as a percentage.
+
+    BLF-1078 P1-5：分母 ≤ 0 时返回 ``None`` 而不是 ``0.0``。
+
+    退货率的分母是本窗口销量；分母为 0 意味着「算不出来」，而
+    ``0.0`` 会被读成「退货率真的是 0%」——两者语义相反。真实的
+    反例：犀牛 2025 年有 8690 件销售但退货数据自 2026-03-28 才开始，
+    旧实现把「没有数据」渲染成 0.0%，看起来像「该店退货表现完美」。
+    """
+    if denominator <= 0:
+        return None
     return round(numerator / denominator * 100, 2)
 
 
@@ -50,7 +115,7 @@ def _build_sku_product_name_map(
             SkuRecord.project_id == project_id,
             SkuRecord.country == country,
             SkuRecord.sku.in_(skus),
-            SkuRecord.is_active == True,
+            SkuRecord.is_active.is_(True),
         )
         .all()
     )
@@ -63,42 +128,51 @@ def _build_sales_aggregates(
     country: str,
     start_date: str,
     end_date: str,
+    sku: str | None = None,
 ):
     """Query period sales data aggregated by SKU and date.
+
+    ``sku``（可选）把销量收敛到单个 SKU —— R4 单 SKU 钻取必须用它，否则
+    ``summary.total_sales_quantity`` 会错挂整店销量、把该 SKU 的退货率
+    稀释十几倍（BLF-1078 P1-4）。R1 不传，保持全店口径。
 
     Returns:
         sku_sales: dict[sku] -> {"quantity": int, "amount": float}
         date_sales: dict[date_str] -> {"quantity": int, "amount": float}
     """
-    from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
+    from app.models import AnalysisSalesOrderRow
 
     # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
-    q = db.query(
-        AnalysisSalesOrderRow.sku,
-        AnalysisSalesOrderRow.purchase_date_pt,
-        AnalysisSalesOrderRow.quantity,
-        sales_amount_expr(country).label("sales_amount"),
-    ).filter(
+    # 过滤条件收在 conditions 里，让 select(...) 能作为 db.execute 的单一参数。
+    conditions = [
         *counted_sales_where(
             project_id=project_id,
             country=country,
             date_from=date.fromisoformat(start_date),
             date_to=date.fromisoformat(end_date),
-        )
-    )
+        ),
+    ]
+    if sku:
+        conditions.append(AnalysisSalesOrderRow.sku == sku)
 
     sku_sales: dict[str, dict] = {}
     date_sales: dict[str, dict] = {}
 
-    for row in q.all():
-        sku = row.sku or ""
+    for row in db.execute(
+        select(
+            AnalysisSalesOrderRow.sku,
+            AnalysisSalesOrderRow.purchase_date_pt,
+            AnalysisSalesOrderRow.quantity,
+            sales_amount_expr(country).label("sales_amount"),
+        ).where(*conditions)
+    ).all():
+        row_sku = row.sku or ""
         date_str = row.purchase_date_pt.isoformat()
-        amount = float(row.sales_amount or 0)
-
-        if sku not in sku_sales:
-            sku_sales[sku] = {"quantity": 0, "amount": 0.0}
-        sku_sales[sku]["quantity"] += row.quantity
-        sku_sales[sku]["amount"] += amount
+        amount = _as_float(row.sales_amount)
+        if row_sku not in sku_sales:
+            sku_sales[row_sku] = {"quantity": 0, "amount": 0.0}
+        sku_sales[row_sku]["quantity"] += row.quantity
+        sku_sales[row_sku]["amount"] += amount
 
         if date_str not in date_sales:
             date_sales[date_str] = {"quantity": 0, "amount": 0.0}
@@ -156,7 +230,7 @@ def _build_cycle_days_by_sku(
             AnalysisSalesOrderRow.project_id == project_id,
             AnalysisSalesOrderRow.country == country,
             AnalysisSalesOrderRow.amazon_order_id.in_(order_ids),
-            AnalysisSalesOrderRow.is_counted_sales == True,
+            AnalysisSalesOrderRow.is_counted_sales.is_(True),
         )
         .all()
     )
@@ -169,6 +243,7 @@ def _build_cycle_days_by_sku(
 
     # 4) 计算每个 return row 的 cycle_days,按 sku 聚合
     sku_cycles: dict[str, list[int]] = {}
+    skipped_bad_dates = 0
     for r in records:
         pdate = purchase_lookup.get((r.order_id, r.sku))
         if not pdate or not r.return_date:
@@ -179,13 +254,20 @@ def _build_cycle_days_by_sku(
                 if isinstance(r.return_date, str)
                 else r.return_date
             )
-            days = (return_date - pdate).days
-            # 过滤异常数据:退货日期早于原单日期
-            if days < 0:
-                continue
-            sku_cycles.setdefault(r.sku, []).append(days)
-        except Exception:
+        except (TypeError, ValueError):
+            # 非法日期不影响其他维度，只跳过周期统计。
+            skipped_bad_dates += 1
             continue
+        days = (return_date - pdate).days
+        # 过滤异常数据:退货日期早于原单日期
+        if days < 0:
+            continue
+        sku_cycles.setdefault(r.sku, []).append(days)
+    if skipped_bad_dates:
+        logger.debug(
+            "return cycle stats: skipped %d rows with unparseable return_date",
+            skipped_bad_dates,
+        )
 
     # 5) 聚合
     return {
@@ -218,7 +300,9 @@ def _build_summary_text(
     feedback_rows: list,
     total_sales_quantity: int = 0,
     total_sales_amount: float = 0.0,
-    overall_return_rate: float = 0.0,
+    overall_return_rate: float | None = None,
+    data_available: bool = True,
+    data_span_hint: str = "",
 ) -> str:
     """Generate a human-readable summary text from return analysis data."""
 
@@ -304,26 +388,39 @@ def _build_summary_text(
         f"本周期内共产生 {total_returns} 笔退货，涉及 {total_quantity} 件商品，覆盖 {unique_skus} 个 SKU。"
         f"日均退货约 {daily_avg} 单。"
     )
-    if total_sales_quantity > 0:
+    if not data_available:
+        # BLF-1078 P1-5：退货数据未覆盖本窗口——不能把 0 件退货读成
+        # 「0% 退货率、表现完美」（生产实例：犀牛 2025 有 8690 件销售，
+        # 但退货数据自 2026-03-28 才开始；也有整店无退货数据的店）。
+        parts.append(
+            f"⚠️ 本周期退货数据不完整：该店退货记录仅覆盖"
+            f"{data_span_hint or '（无）'}，本窗口内无可用的退货数据，"
+            f"因此不计算退货率"
+            + (
+                f"（销售量 {total_sales_quantity} 件仅供参考）。"
+                if total_sales_quantity > 0
+                else "。"
+            )
+        )
+    elif total_sales_quantity > 0:
         parts.append(
             f"整体退货率约 {overall_return_rate}%（退货量 {total_quantity} / 销售量 {total_sales_quantity}），"
             f"参考基准：服装类 3%~8%，一般零售 < 5%。"
         )
     elif total_returns > 0:
         parts.append(
-            f"ℹ️ 暂无同期销售数据，无法计算退货率。"
-            f"服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。"
+            "ℹ️ 暂无同期销售数据，无法计算退货率。"
+            "服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。"
         )
     else:
-        parts.append(f"ℹ️ 参考基准：服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。")
-
+        parts.append("ℹ️ 参考基准：服装类行业平均退货率约 3%~8%，一般零售品平均 < 5%。")
     if ranking_rows:
         top_sku = ranking_rows[0]
         sku_sales_qty = getattr(top_sku, "sales_quantity", 0)
         sku_return_rate = getattr(top_sku, "return_rate", 0.0)
         rate_str = f"，退货率 {sku_return_rate}%" if sku_sales_qty > 0 else ""
         parts.append("")
-        parts.append(f"⚠️ 高退货 SKU（按退货量）")
+        parts.append("⚠️ 高退货 SKU（按退货量）")
         parts.append(
             f"Top1：{top_sku.sku}（{top_sku.total_quantity}件，退货{top_sku.return_count}单{rate_str}）"
         )
@@ -367,7 +464,7 @@ def _build_summary_text(
     if reason_rows:
         top_reason = reason_rows[0]
         parts.append("")
-        parts.append(f"🔍 退货原因分析")
+        parts.append("🔍 退货原因分析")
         parts.append(
             f"最主要原因：{top_reason.reason_display}，占全部退货的 {top_reason.percentage}%。"
         )
@@ -407,24 +504,24 @@ def _build_summary_text(
     if multi_item_return_count > 0:
         multi_qty_pct = round(multi_item_return_quantity / total_quantity * 100, 1)
         parts.append("")
-        parts.append(f"📦 多件退货分析")
+        parts.append("📦 多件退货分析")
         parts.append(
             f"本期内有 {multi_item_return_count} 笔退货涉及多件商品，"
             f"合计 {multi_item_return_quantity} 件，占总退货量的 {multi_qty_pct}%。"
         )
         if multi_item_rate > 20:
             parts.append(
-                f"⚡ 多件退货比例较高，可能存在批量质量或包装问题，建议抽检该批次产品。"
+                "⚡ 多件退货比例较高，可能存在批量质量或包装问题，建议抽检该批次产品。"
             )
         elif multi_item_rate > 10:
-            parts.append(f"多件退货比例偏高，值得关注是否为同批次产品存在系统性问题。")
+            parts.append("多件退货比例偏高，值得关注是否为同批次产品存在系统性问题。")
 
     if trend_rows:
         direction, change_str = calc_trend(trend_rows)
         peak_day = max(trend_rows, key=lambda r: r.return_count)
         low_day = min(trend_rows, key=lambda r: r.return_count)
         parts.append("")
-        parts.append(f"📈 退货趋势（按日）")
+        parts.append("📈 退货趋势（按日）")
         parts.append(f"整体趋势：{change_str}。")
         parts.append(
             f"退货高峰日：{peak_day.date}（{peak_day.return_count}单）；"
@@ -452,7 +549,7 @@ def _build_summary_text(
             WEEKDAY_NAMES[w.weekday] for w in weekday_rows if w.return_count > 0
         )
         parts.append("")
-        parts.append(f"🗓️ 星期分布")
+        parts.append("🗓️ 星期分布")
         parts.append(f"退货分布：{weekday_str}。")
         if peak_weekday.return_count > daily_avg * 1.5 and daily_avg > 0:
             parts.append(
@@ -469,15 +566,15 @@ def _build_summary_text(
             else 0
         )
         parts.append("")
-        parts.append(f"🏭 仓库分布")
+        parts.append("🏭 仓库分布")
         parts.append(
             f"退货涉及 {len(fulfillment_center_rows)} 个仓库，"
             f"其中 {top_fc.fulfillment_center_id} 退货最多（{top_fc.return_count}单，占比{fc_top_pct}%）。"
         )
         if fc_top_pct > 50:
             parts.append(
-                f"⚡ 该仓库退货集中度偏高，可能存在该仓库特有的存储、发货或操作问题，"
-                f"建议与仓库管理方沟通核查。"
+                "⚡ 该仓库退货集中度偏高，可能存在该仓库特有的存储、发货或操作问题，"
+                "建议与仓库管理方沟通核查。"
             )
         elif len(fulfillment_center_rows) > 1:
             parts.append(
@@ -498,7 +595,7 @@ def _build_summary_text(
             None,
         )
         parts.append("")
-        parts.append(f"📦 商品处理状态")
+        parts.append("📦 商品处理状态")
         if resellable:
             parts.append(
                 f"可售商品：{resellable.disposition_display}（{resellable.percentage}%），可直接回库再售。"
@@ -530,7 +627,7 @@ def _build_summary_text(
             None,
         )
         parts.append("")
-        parts.append(f"🏭 库存处理进度")
+        parts.append("🏭 库存处理进度")
         if completed:
             parts.append(
                 f"已完成处理：{completed.status_display}（{completed.percentage}%）。"
@@ -542,7 +639,7 @@ def _build_summary_text(
             )
             if pending.percentage > 30:
                 parts.append(
-                    f"⚡ 待处理比例超过 30%，库存积压风险较高，请加快处理节奏。"
+                    "⚡ 待处理比例超过 30%，库存积压风险较高，请加快处理节奏。"
                 )
 
     if feedback_rows:
@@ -590,7 +687,19 @@ def _build_summary_text(
                 "退货量呈上升趋势，建议密切关注近期待发货商品质量，必要时加强质检环节。"
             )
 
-    if status_rows and pending and pending.percentage > 30:
+    if status_rows:
+        pending = next(
+            (
+                s
+                for s in status_rows
+                if "待处理" in s.status_display or "pending" in s.status.lower()
+            ),
+            None,
+        )
+    else:
+        pending = None
+
+    if status_rows and pending is not None and pending.percentage > 30:
         suggestions.append(
             "待处理退货较多，库存积压风险上升，建议加快处理节奏，避免产生额外仓储成本。"
         )
@@ -710,6 +819,7 @@ def build_return_analysis(
         FulfillmentCenterItem,
         ReturnAnalysisResponse,
         ReturnAnalysisSummary,
+        ReturnDataSpan,
         ReturnRankingItem,
         ReturnReasonItem,
         ReturnTrendItem,
@@ -733,12 +843,23 @@ def build_return_analysis(
     # but counts as ONE return event for "return_count" metrics.
     records = raw_records
 
-    # Normalize return_date to string for downstream formatting
+    # Normalize return_date to string for downstream formatting.
+    #
+    # BLF-1078：这里必须先把行从 session 摘除再改属性。直接赋
+    # ``r.return_date = "2026-01-01"`` 会污染 session identity map 里的
+    # 持久对象（Date 列被改成 str）——同一 session 后续再做任何查询
+    # （例如同时调用 R3 raw）会拿到被改过的对象并抛
+    # ``AttributeError: 'str' object has no attribute 'isoformat'``；
+    # 若该 session 后来发生 flush，还会把 str 写回 Date 列。
+    # expunge 只解除跟踪，已加载的列属性仍可读，下游用法不变。
     for r in records:
+        db.expunge(r)
         r.return_date = r.return_date.isoformat()
 
+    # BLF-1078 P1-4：sku 贯通到销量层，R4 单 SKU 钴取的 summary 分母
+    # 才是该 SKU 的销量，而不是整店销量（后者会把退货率稀释十几倍）。
     sku_sales, date_sales = _build_sales_aggregates(
-        db, project_id, country, start_date, end_date
+        db, project_id, country, start_date, end_date, sku=sku
     )
 
     # ── Build unique return event tracker ──────────────────────────────────────
@@ -765,10 +886,10 @@ def build_return_analysis(
 
     total_returns = len(unique_return_keys)
     total_quantity = sum(r.quantity for r in records)
-    unique_skus = len(set(r.sku for r in records))
+    unique_skus = len({r.sku for r in records})
 
     # Build set of unique SKUs for product name lookup
-    unique_sku_list = list(set(r.sku for r in records))
+    unique_sku_list = list({r.sku for r in records})
     sku_product_name_map = _build_sku_product_name_map(
         db, project_id, country, unique_sku_list
     )
@@ -791,7 +912,12 @@ def build_return_analysis(
 
     total_sales_quantity = sum(v["quantity"] for v in sku_sales.values())
     total_sales_amount = sum(v["amount"] for v in sku_sales.values())
-    overall_return_rate = _safe_rate(total_quantity, total_sales_quantity)
+    # BLF-1078 P1-5：summary 级退货率保持非空数值（见 schema 注释：与内部 Web
+    # 路由共用 schema 与缓存，前端对它直调 .toFixed）。「无数据」由并列的
+    # data_available 表达，而不是把这个字段置空。
+    overall_return_rate = _safe_rate(total_quantity, total_sales_quantity) or 0.0
+    _data_span = _query_return_data_span(db, project_id, country)
+    data_available = _is_window_covered_by_span(start_date, end_date, _data_span)
 
     # 退货周期(天) 按 SKU 聚合:平均/最快/最慢
     sku_cycle_stats = _build_cycle_days_by_sku(db, project_id, country, records)
@@ -815,7 +941,10 @@ def build_return_analysis(
             )
         )
     ranking_rows.sort(key=lambda x: x.total_quantity, reverse=True)
-    ranking_rows = ranking_rows[:20]
+    ranking_total_count = len(ranking_rows)
+    # BLF-1078 P1-3：不再静默截断——截断时由响应层告知调用方。
+    ranking_truncated = ranking_total_count > MAX_RANKING_ROWS
+    ranking_rows = ranking_rows[:MAX_RANKING_ROWS]
 
     reason_data: dict[str, dict] = {}
     for r in records:
@@ -958,16 +1087,17 @@ def build_return_analysis(
 
     feedback_rows: list[CustomerFeedbackItem] = _build_feedback_rows(records)
 
-    # ── weekday-level unique return counts ───────────────────────────────────
-    from collections import Counter
+    # ── weekday-level unique return counts ───────────────────────────────
+    from collections import defaultdict
 
-    weekday_counter: dict[int, Counter] = Counter()
+    # 每个星期几一个「唯一 (order_id, sku) 事件」集合。此前写成
+    # ``Counter()`` 再用 ``.add(...)``：元素默认值是 int，对 int 调 .add()
+    # 必抛 AttributeError，又被 except 吞掉 → weekday_rows 永远为空
+    # （BLF-1078 实测生产恒为 []）。改用 defaultdict(set) 与语义一致。
+    weekday_counter: dict[int, set[tuple[str, str]]] = defaultdict(set)
     for r in records:
-        try:
-            dt = datetime.strptime(r.return_date, "%Y-%m-%d")
-            weekday_counter[dt.weekday()].add((r.order_id, r.sku))
-        except Exception:
-            pass
+        dt = datetime.strptime(r.return_date, "%Y-%m-%d")
+        weekday_counter[dt.weekday()].add((r.order_id, r.sku))
 
     weekday_display_map = {
         0: "周一",
@@ -1032,7 +1162,9 @@ def build_return_analysis(
     multi_item_return_count = sum(1 for r in records if r.quantity > 1)
     multi_item_return_quantity = sum(r.quantity for r in records if r.quantity > 1)
 
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = db.execute(
+        select(Project).where(Project.id == project_id)
+    ).scalars().first()
     project_name = project.project_name if project else ""
 
     summary_text = _build_summary_text(
@@ -1055,6 +1187,8 @@ def build_return_analysis(
         total_sales_quantity=total_sales_quantity,
         total_sales_amount=round(total_sales_amount, 2),
         overall_return_rate=overall_return_rate,
+        data_available=data_available,
+        data_span_hint=_format_span_hint(_data_span),
     )
 
     summary = ReturnAnalysisSummary(
@@ -1067,6 +1201,11 @@ def build_return_analysis(
         total_sales_quantity=total_sales_quantity,
         total_sales_amount=round(total_sales_amount, 2),
         overall_return_rate=overall_return_rate,
+        data_available=data_available,
+        data_span=ReturnDataSpan(
+            min_return_date=_data_span[0].isoformat() if _data_span[0] else None,
+            max_return_date=_data_span[1].isoformat() if _data_span[1] else None,
+        ),
     )
 
     return ReturnAnalysisResponse(
@@ -1078,6 +1217,8 @@ def build_return_analysis(
         summary=summary,
         summary_text=summary_text,
         ranking_rows=ranking_rows,
+        ranking_truncated=ranking_truncated,
+        ranking_total_count=ranking_total_count,
         reason_rows=reason_rows,
         trend_rows=trend_rows,
         disposition_rows=disposition_rows,
@@ -1124,14 +1265,12 @@ def get_snapshot_last_computed_at(
     """
     from app.models import AnalysisReturnAggregate
 
-    last = (
-        db.query(func.max(AnalysisReturnAggregate.computed_at))
-        .filter(
+    last = db.execute(
+        select(func.max(AnalysisReturnAggregate.computed_at)).where(
             AnalysisReturnAggregate.project_id == project_id,
             AnalysisReturnAggregate.country == country,
         )
-        .scalar()
-    )
+    ).scalar()
     return last
 
 
@@ -1195,39 +1334,44 @@ def build_return_analysis_from_snapshot(
     - summary / trend_rows / reason_rows / disposition_rows / status_rows / feedback_rows /
       weekday_rows / fulfillment_center_rows：来自 raw（与 fallback 路径一致）
     """
-    from app.utils.stats import compute_risk_level
+    from app.constants.return_translations import (
+        translate_return_field,
+    )
     from app.models import (
         AnalysisReturnAggregate,
         Project,
-    )
-    from app.constants.return_translations import (
-        translate_return_field,
     )
     from app.schemas.return_analysis import (
         DispositionItem,
         FulfillmentCenterItem,
         ReturnAnalysisResponse,
         ReturnAnalysisSummary,
+        ReturnDataSpan,
         ReturnRankingItem,
         ReturnReasonItem,
         ReturnTrendItem,
         StatusItem,
         WeekdayItem,
     )
+    from app.utils.stats import compute_risk_level
 
     start = date.fromisoformat(start_date)
     end = date.fromisoformat(end_date)
 
     # 1) 从 aggregate 表读 (project, country, sku, date) 范围
-    agg_query = db.query(AnalysisReturnAggregate).filter(
+    agg_conditions = [
         AnalysisReturnAggregate.project_id == project_id,
         AnalysisReturnAggregate.country == country,
         AnalysisReturnAggregate.data_date >= start,
         AnalysisReturnAggregate.data_date <= end,
-    )
+    ]
     if sku:
-        agg_query = agg_query.filter(AnalysisReturnAggregate.sku == sku)
-    aggregates: list = agg_query.all()
+        agg_conditions.append(AnalysisReturnAggregate.sku == sku)
+    aggregates: list = list(
+        db.execute(
+            select(AnalysisReturnAggregate).where(*agg_conditions)
+        ).scalars().all()
+    )
 
     # 2) 从 raw 表读全部 (project, country, date 范围) 行（用于分布维）
     records: list = query_current_return_rows(
@@ -1239,13 +1383,16 @@ def build_return_analysis_from_snapshot(
         sku=sku,
     )
     for r in records:
-        # Snapshot 路径重跑时 r.return_date 可能是 date 或 str（取决于 session）
+        # Snapshot 路径重跑时 r.return_date 可能是 date 或 str（取决于 session）。
+        # 同 fallback 路径：先摘除再改，避免污染 session identity map（BLF-1078）。
+        db.expunge(r)
         if hasattr(r.return_date, "isoformat"):
             r.return_date = r.return_date.isoformat()
 
     # 3) Sales 聚合（与 build_return_analysis 共用 helper）
+    # BLF-1078 P1-4：sku 贯通到销量层，R4 的 summary 分母才是该 SKU 的销量。
     sku_sales, date_sales = _build_sales_aggregates(
-        db, project_id, country, start_date, end_date
+        db, project_id, country, start_date, end_date, sku=sku
     )
 
     # 4) Ranking rows：从 aggregate 重聚合（这是 snapshot 的核心价值）
@@ -1277,14 +1424,16 @@ def build_return_analysis_from_snapshot(
         agg["return_count"] += a.return_count
         agg["return_quantity"] += a.return_quantity
         if a.cycle_avg_days is not None:
-            agg["cycle_avg_sum"] += float(a.cycle_avg_days)
+            agg["cycle_avg_sum"] += _as_float(a.cycle_avg_days)
             agg["cycle_avg_n"] += 1
-        if a.cycle_min_days is not None:
-            if agg["cycle_min"] is None or a.cycle_min_days < agg["cycle_min"]:
-                agg["cycle_min"] = a.cycle_min_days
-        if a.cycle_max_days is not None:
-            if agg["cycle_max"] is None or a.cycle_max_days > agg["cycle_max"]:
-                agg["cycle_max"] = a.cycle_max_days
+        if a.cycle_min_days is not None and (
+            agg["cycle_min"] is None or a.cycle_min_days < agg["cycle_min"]
+        ):
+            agg["cycle_min"] = a.cycle_min_days
+        if a.cycle_max_days is not None and (
+            agg["cycle_max"] is None or a.cycle_max_days > agg["cycle_max"]
+        ):
+            agg["cycle_max"] = a.cycle_max_days
 
     ranking_rows: list[ReturnRankingItem] = []
     for v in sku_agg.values():
@@ -1313,7 +1462,10 @@ def build_return_analysis_from_snapshot(
             )
         )
     ranking_rows.sort(key=lambda x: x.total_quantity, reverse=True)
-    ranking_rows = ranking_rows[:20]
+    # BLF-1078 P1-3：与 fallback 路径一致——截断不再静默。
+    ranking_total_count = len(ranking_rows)
+    ranking_truncated = ranking_total_count > MAX_RANKING_ROWS
+    ranking_rows = ranking_rows[:MAX_RANKING_ROWS]
 
     # 5) 分布维仍走 raw（与 fallback 路径一致的逻辑）
     # ── unique return events ──
@@ -1333,7 +1485,10 @@ def build_return_analysis_from_snapshot(
     unique_skus = len({r.sku for r in records})
     total_sales_quantity = sum(v["quantity"] for v in sku_sales.values())
     total_sales_amount = sum(v["amount"] for v in sku_sales.values())
-    overall_return_rate = _safe_rate(total_quantity, total_sales_quantity)
+    # 同 fallback 路径：summary 级保持非空数值，无数据由 data_available 表达。
+    overall_return_rate = _safe_rate(total_quantity, total_sales_quantity) or 0.0
+    _data_span = _query_return_data_span(db, project_id, country)
+    data_available = _is_window_covered_by_span(start_date, end_date, _data_span)
 
     # 6) Reason rows
     reason_data: dict[str, dict] = {}
@@ -1475,16 +1630,13 @@ def build_return_analysis_from_snapshot(
     # 10) Feedback rows（BLF-788：按退货事件去重，见 _build_feedback_rows）
     feedback_rows = _build_feedback_rows(records)
 
-    # 11) Weekday rows
-    from collections import Counter
+    # 11) Weekday rows —— 同 fallback 路径：defaultdict(set)（见上方注释）
+    from collections import defaultdict
 
-    weekday_counter: Counter = Counter()
+    weekday_counter: dict[int, set[tuple[str, str]]] = defaultdict(set)
     for r in records:
-        try:
-            dt = datetime.strptime(r.return_date, "%Y-%m-%d")
-            weekday_counter[dt.weekday()].add((r.order_id, r.sku))
-        except Exception:
-            pass
+        dt = datetime.strptime(r.return_date, "%Y-%m-%d")
+        weekday_counter[dt.weekday()].add((r.order_id, r.sku))
     weekday_display_map = {
         0: "周一",
         1: "周二",
@@ -1542,7 +1694,9 @@ def build_return_analysis_from_snapshot(
     multi_item_return_count = sum(1 for r in records if r.quantity > 1)
     multi_item_return_quantity = sum(r.quantity for r in records if r.quantity > 1)
 
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = db.execute(
+        select(Project).where(Project.id == project_id)
+    ).scalars().first()
     project_name = project.project_name if project else ""
 
     summary_text = _build_summary_text(
@@ -1565,6 +1719,8 @@ def build_return_analysis_from_snapshot(
         total_sales_quantity=total_sales_quantity,
         total_sales_amount=round(total_sales_amount, 2),
         overall_return_rate=overall_return_rate,
+        data_available=data_available,
+        data_span_hint=_format_span_hint(_data_span),
     )
 
     summary = ReturnAnalysisSummary(
@@ -1577,6 +1733,11 @@ def build_return_analysis_from_snapshot(
         total_sales_quantity=total_sales_quantity,
         total_sales_amount=round(total_sales_amount, 2),
         overall_return_rate=overall_return_rate,
+        data_available=data_available,
+        data_span=ReturnDataSpan(
+            min_return_date=_data_span[0].isoformat() if _data_span[0] else None,
+            max_return_date=_data_span[1].isoformat() if _data_span[1] else None,
+        ),
     )
 
     return ReturnAnalysisResponse(
@@ -1588,6 +1749,8 @@ def build_return_analysis_from_snapshot(
         summary=summary,
         summary_text=summary_text,
         ranking_rows=ranking_rows,
+        ranking_truncated=ranking_truncated,
+        ranking_total_count=ranking_total_count,
         reason_rows=reason_rows,
         trend_rows=trend_rows,
         disposition_rows=disposition_rows,
