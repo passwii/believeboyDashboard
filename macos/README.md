@@ -3,7 +3,7 @@
 BelieveBoy Dashboard 的原生 macOS 客户端。**直连生产后端**（`https://dash-api.believeboy.com`），复用 `backend/` 现有 API，不改后端、不经 Next.js 代理。
 
 - **技术路线 / stage 计划 / 工具链约束**：见 [PLAN.md](./PLAN.md)（权威）
-- **当前进度**：Stage 0–4 —— 骨架 + 登录与会话 + **应用外壳与导航**（三栏：8 个分组 → 56 个二级项）+ **首个真实业务模块「运营 → 数据流总览」**（只读、四端点、三态齐备）。其余 55 个二级项仍是占位视图（S5 起按分组继续搬）。
+- **当前进度**：Stage 0–4 —— 骨架 + 登录与会话 + **应用外壳与导航**（三栏：8 个分组 → 56 个二级项）+ 真实业务模块：**「运营 → 数据流总览」**（只读、四端点）、**「广告 → 广告分析 / 广告数据」**、**「AI 智能 → AI Chat / 客服交流」**（会话 CRUD + POST-SSE 流式 + 附件解析 + token 用量）。其余二级项仍是占位视图（S5 起按分组继续搬）。
 
 ## 环境要求
 
@@ -28,7 +28,7 @@ swift run BelieveBoyMac  # 启动（弹出窗口），默认连生产后端
 
 - **侧栏**：8 个分组（运营 / 报表中心 / 财务资金 / 广告 / AI 智能 / CRM / 工具箱 / 系统管理）——条目与顺序以 `frontend/lib/sidebar-config.ts` 为准；
 - **内容栏**：所选分组下的二级项（共 56 项）；
-- **详情栏**：**已搬运的模块**渲染真页面（当前只有「运营 → 数据流总览」，见下节），其余二级项仍是**占位视图**（分组 + 标题 + 对应 Web 路由 + 「未实现」）。占位视图**不发任何请求**，也**不列后端端点** —— 端点映射逐模块核对；CRM「待跟进」在 Web 上有动态徽标，占位期只保留语义位、不显示编造的数字；
+- **详情栏**：**已搬运的模块**渲染真页面（当前：数据流总览 / 广告分析 / 广告数据 / AI Chat / 客服交流），其余二级项仍是**占位视图**（分组 + 标题 + 对应 Web 路由 + 「未实现」）。占位视图**不发任何请求**，也**不列后端端点** —— 端点映射逐模块核对；CRM「待跟进」在 Web 上有动态徽标，占位期只保留语义位、不显示编造的数字；
 - **未选分组时**详情栏是「连接与身份」概览（账号 + 连接检查），工具栏「连接与身份」可随时回来；
 - **偏好设置**（工具栏齿轮 或 `⌘,`）：后端地址 生产 / 本地 + 自定义地址（与登录页页脚同一块 UI，只是收编到外壳里）；
 - 侧栏折叠（`⌘⌥S` 或拖分栏线）与**窗口尺寸**在下次启动时恢复：落盘的选中项、折叠态、窗口 frame 存在 `UserDefaults` 的 `shell.preferences.v1`（一条 JSON；**不含任何凭据**）。落盘内容会被清洗：条目已不在 catalog、尺寸不合理、窗口坐标跑到屏幕外（拔显示器）都会退回默认，不会“启动了但看不见”。
@@ -127,7 +127,7 @@ swift run BelieveBoyMac
 
 ```bash
 swift build      # 必须零错误（CLT / Xcode 两条工具链都过）
-swift test       # 256 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
+swift test       # 510 个用例（4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2）；需完整 Xcode，用上面的 DEVELOPER_DIR 形式
 curl -s https://dash-api.believeboy.com/api/v1/health/live   # 生产存活探针（免鉴权，200）
 curl -s https://dash-api.believeboy.com/api/v1/health/ready  # 就绪探针（免鉴权，200）
 curl -s -i https://dash-api.believeboy.com/api/v1/health     # 无 key → 401 Missing API key
@@ -235,6 +235,16 @@ for try await event in client.stream("/insight/runs/\(runID)/stream") {
     let delta = try event.decode(DeltaEvent.self)
 }
 
+// 3b) POST-SSE（S5.4 补：`method` / `body` 两个带默认值的参数，默认仍是 GET + 无体）
+//     AI 会话只有 POST 一条路；续传是**同一个 POST + 同一份 body** + `Last-Event-ID` 头。
+let body = try JSONEncoder().encode(MessageCreate(content: "你好"))
+for try await frame in client.stream(
+    "/ai/conversations/\(conversationID)/messages/stream",
+    method: .post, body: body, lastEventID: resumeCursor
+) {
+    let event = AIChatStreamDecoder.decode(frame)   // 未知事件不报错，记成 `.unknown`
+}
+
 // 4) 长任务轮询 + 结果下载（退避 + 上限，不会无限打后端；落盘是流式的）
 let jobs = JobClient(client: client)
 let job = try await jobs.submit(jobType: "report_upload_ingest", fileID: "f-1")
@@ -245,6 +255,7 @@ let file = try await jobs.downloadResult(job.id, to: destination) // 流式落�
 约定：
 
 - **超时档**沿用 Web 代理那张表（`RequestTier`）—— 上传默认 `.report`（60s）、SSE 用 `.stream`（`unboundedTimeout`）、普通写默认 `.detail`（10s）。
+- **POST-SSE**：`stream(_:method:body:…)` 是同一个消费者（帧解析 / 超时档 / `Accept` / 取消语义全部共用），只多了「方法与请求体」两项；**续传时必须重发 body**。
 - **错误分类**统一走 `APIError`：401/403 → `requiresCredentialFix == true`（回登录页）；传输失败 / 轮询超时 / 任务失败 / 本地文件 I/O **都不是**凭据问题，不得把用户赶回登录页。
 - **取消**：`stream`、轮询、下载都响应 `Task` 取消，取消时不留后台 Task、不留半成品文件（下载写临时文件再原子替换）。
 

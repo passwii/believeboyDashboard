@@ -1,0 +1,41 @@
+id: 1789407552049-0
+data: {"type":"message_start","message_id":"msg_3196","model":"capture","role":"assistant","created_at":0}
+
+id: 1789407552050-0
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+
+id: 1789407552050-1
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"我来帮你查询一下qwen3.6 plus模型的相关信息。\n根据最新的搜索信息，我来为您介绍 Qwen3.6-Plus 模型的情况：\n\n## Qwen3.6-Plus 概述\n\nQwen3.6-Plus 是阿里巴巴于2026年发布的新一代大语言模型，属于通义千问系列的高端版本。该模型在2026年3月3"}}
+
+id: 1789407552050-2
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"0日通过 OpenRouter 上线预览版，4月2日正式发布。\n\n## 主要特点\n\n### 1. 强大的上下文处理能力\n- **100万 Token 上下文窗口**：这是通义千问系列首次将上下文窗口拉到 100 万 token，可以输入完整文档或多轮对话历史\n- 适用于知识库问答、长文档分析等场景"}}
+
+id: 1789407552050-3
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n### 2. 卓越的编程能力\n- **Agentic Coding 能力显著增强**：在编程代理和自动化任务领域实现突破\n- 展现出强大的实际工程性能，被认为是\"通义千问的新王炸\"\n\n### 3. 深度推理能力\n- 提供深度思考和链式思考能力\n- 在复杂推理任务中表现优异\n\n### 4. 多模"}}
+
+id: 1789407552050-4
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"态能力\n- 属于 Qwen3.6 原生视觉语言系列\n- 在 OCR、物体定位、万物识别等方面能力增强\n\n## 开源情况\n\n根据搜索结果显示：\n\n- **Qwen3.6-Plus 目前不是完全开源的**，它主要通过商业平台提供服务\n- 已上架**阿里云百炼**平台，提供 API 调用服务，价格为每百"}}
+
+id: 1789407552051-0
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"万 Tokens 输入最低 2 元\n- 同时登陆了悟空、千问 APP 等阿里 AI 应用和平台\n\n**注意**：虽然 Qwen3 系列在2026年4月29日凌晨开源了8款模型（包括 Qwen3-235B-A22B 等），但 **Qwen3.6-Plus 似乎是作为商业模型提供的**，并未列入开源系"}}
+
+id: 1789407552051-1
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"列。\n\n## 可用性\n\n开发者和个人用户可以通过以下渠道体验：\n- 阿里云百炼平台（API 调用）\n- 悟空 APP\n- 千问 APP\n- OpenRouter（预览版）\n\n总的来说，Qwen3.6-Plus 更像是一个商业化的专业版本，而非开源模型。如果您需要使用，可能需要通过阿里云的商业服务来"}}
+
+id: 1789407552051-2
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"访问。"}}
+
+id: 1789407552051-3
+data: {"type":"content_block_stop","index":0}
+
+id: 1789407552051-3
+data: {"type":"message_delta","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0},"stop_reason":"end_turn"}
+
+id: 1789407552051-3
+data: {"type":"message_stop"}
+
+id: 1789407552051-3
+data: {"type":"ping"}
+
+data: {"type":"done","user_message":{"id":6041,"conversation_id":3196,"role":"user","content":"我需要了解一下最新的qwen3.6 plus模型，这是开源还是？","search_sources":[],"search_time_range":null,"is_complete":false,"prompt_tokens":0,"completion_tokens":0,"total_tokens":0,"duration_ms":null,"created_at":"2026-04-03T12:05:55.357968+08:00"},"assistant_message":{"id":6042,"conversation_id":3196,"role":"assistant","content":"我来帮你查询一下qwen3.6 plus模型的相关信息。\n根据最新的搜索信息，我来为您介绍 Qwen3.6-Plus 模型的情况：\n\n## Qwen3.6-Plus 概述\n\nQwen3.6-Plus 是阿里巴巴于2026年发布的新一代大语言模型，属于通义千问系列的高端版本。该模型在2026年3月30日通过 OpenRouter 上线预览版，4月2日正式发布。\n\n## 主要特点\n\n### 1. 强大的上下文处理能力\n- **100万 Token 上下文窗口**：这是通义千问系列首次将上下文窗口拉到 100 万 token，可以输入完整文档或多轮对话历史\n- 适用于知识库问答、长文档分析等场景\n\n### 2. 卓越的编程能力\n- **Agentic Coding 能力显著增强**：在编程代理和自动化任务领域实现突破\n- 展现出强大的实际工程性能，被认为是\"通义千问的新王炸\"\n\n### 3. 深度推理能力\n- 提供深度思考和链式思考能力\n- 在复杂推理任务中表现优异\n\n### 4. 多模态能力\n- 属于 Qwen3.6 原生视觉语言系列\n- 在 OCR、物体定位、万物识别等方面能力增强\n\n## 开源情况\n\n根据搜索结果显示：\n\n- **Qwen3.6-Plus 目前不是完全开源的**，它主要通过商业平台提供服务\n- 已上架**阿里云百炼**平台，提供 API 调用服务，价格为每百万 Tokens 输入最低 2 元\n- 同时登陆了悟空、千问 APP 等阿里 AI 应用和平台\n\n**注意**：虽然 Qwen3 系列在2026年4月29日凌晨开源了8款模型（包括 Qwen3-235B-A22B 等），但 **Qwen3.6-Plus 似乎是作为商业模型提供的**，并未列入开源系列。\n\n## 可用性\n\n开发者和个人用户可以通过以下渠道体验：\n- 阿里云百炼平台（API 调用）\n- 悟空 APP\n- 千问 APP\n- OpenRouter（预览版）\n\n总的来说，Qwen3.6-Plus 更像是一个商业化的专业版本，而非开源模型。如果您需要使用，可能需要通过阿里云的商业服务来访问。","search_sources":[{"title":"Qwen3.6-Plus: Towards Real World Agents","url":"https://qwen.ai/blog?id=qwen3.6","snippet":"Language Qwen3.6-Plus achieves comprehensive improvements in coding agents, general agents, and tool usage by deeply integrating reasoning, memory, and execution capabilities. In the field of coding agents, Qwen3.6-Plus demonstrates strong practical engineering performance.","domain":"qwen.ai","score":0.9},{"title":"Qwen3.6-Plus深度测评：通义千问的新王炸，能打几分？ - 知乎","url":"https://zhuanlan.zhihu.com/p/2023322325056062743","snippet":"2026 年 3 月 30 日，阿里千问悄无声息地在 OpenRouter 上线了新一代大模型 Qwen3.6-Plus 预览版。没有盛大的发布会，没有铺天盖地的通稿，就这么静静地躺在 OpenRouter 的模型列表里，免费供人使用。 但圈内人一眼就看出了门道： 这是 通义千问 系列首次将上下文窗口拉到 100 万 token，而且在编程能力评测 ...","domain":"zhuanlan.zhihu.com","score":0.85},{"title":"Qwen 3.6 Plus API 接口、模型参数 & 代码示例 - 万码云 ...","url":"https://wcode.net/model/qwen3.6-plus","snippet":"Qwen 3.6 原生视觉语言系列 Plus 模型，展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果相较 Qwen 3.5 系列显著提升。模型在 Agentic coding、前端编程、Vibe coding 等代码能力、多模态万物识别、OCR、物体定位等能力上显著增强。","domain":"wcode.net","score":0.8},{"title":"Qwen3.6-Plus_百度百科","url":"https://baike.baidu.com/item/Qwen3.6-Plus/67570073","snippet":"Qwen3.6-Plus是阿里巴巴于2026年4月2日发布的千问新一代大语言模型。已上架阿里云百炼，每百万Tokens（词元）输入最低2元；同时，Qwen3.6-Plus已登陆悟空、千问APP等阿里AI应用和平台，开发者和个人用户可第一时间体验最新模型。千问3.6整体性能较3.5进步显著，并且涌现出极强的智能体编程能力，在系列 ...","domain":"baike.baidu.com","score":0.75},{"title":"Qwen 3.6 Plus Preview 评测结果与参数详情 | DataLearnerAI","url":"https://www.datalearner.com/ai-models/pretrained-models/qwen-3.6-plus-preview","snippet":"Qwen 3.6 Plus Preview是阿里巴巴Qwen团队于2026年3月31日发布的下一代大型语言模型，属于Qwen Plus系列的最新预览版本。该模型作为Qwen 3.5 Plus的继任者，旨在强化Agentic Coding能力和复杂推理能力，在编程代理和自动化任务领域实现突破 [citation:1]。 在架构与技术规格方面，Qwen 3.6 Plus Preview采用先进的混合 ...","domain":"www.datalearner.com","score":0.7},{"title":"Qwen3.6-Plus - 阿里通义推出的Agent 编程能力增强型的 ...","url":"https://ai-bio.cn/qwen3-6-plus/","snippet":"Qwen3.6-Plus的核心功能 长上下文处理能力： Qwen3.6-Plus 支持约1M上下文长度，在实际应用中可输入完整文档或多轮对话历史，通过API传入长文本并设置最大输出长度参数，模型能够生成结构化总结或回答复杂问题，适用于知识库问答与长文档分析等场景。 深度推理与链式思考： Qwen3.6-Plus 提供深度思考 ...","domain":"ai-bio.cn","score":0.65}],"search_time_range":null,"is_complete":false,"prompt_tokens":0,"completion_tokens":0,"total_tokens":0,"duration_ms":null,"created_at":"2026-04-03T12:05:55.357968+08:00"},"conversation_title":"[BLF-1065 夹具] Qwen3.6 Plus免费版解析","token_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"conversation_token_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"duration_ms":1234,"title_regenerated":false}
+

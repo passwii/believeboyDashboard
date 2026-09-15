@@ -138,7 +138,7 @@ idle → loading → (loaded | failed(APIError))
 > （实测该项目该站点 current 文件 1405 份、端点上限 500），照抄 Web 的「不在列表里就置灰」会把
 > 已有 1321 行数据的「搜索词」显示成「暂无数据」。桌面端改成「全部类型可选 + 可用性看 raw 响应
 > 是否为空」，附属端点只用来显示「最近一次入库」。查：`AdDataDecodingTests.testUploadFilesSnapshotDocumentsTruncation`。
-
+>
 > **S5.3 探针结论（2026-09-14，BLF-1062，AI 洞察三页）**：
 > ① **同一个「SSE」在三页里是两种传输**：旧链路（`/ai-insights/{id}/stream`）**不发 `id:`**、
 > 后端**不认 `Last-Event-ID`**（只 `insight_runs.py` / `ai_chat_v2.py` 读这个头），每 2s 轮询 DB、
@@ -163,6 +163,48 @@ idle → loading → (loaded | failed(APIError))
 > ⑥ **`strategy_metadata` 是 JSON 字符串，解析必须用 `convertFromSnakeCase`**：里面的键名是
 > 后端原样写进去的 `evolution_metadata` / `dimensions_analyzed`，默认策略下全部取不到 ——
 > 维度面板会**静默消失**而不是报错。查：`InsightPanelMappingTests.testDimensionCoverageParsesEvolutionMetadata`。
+> **S5.4 探针结论（2026-09-15，BLF-1065，AI 会话片）**：
+> ① **`message_stop` 不是终态，`done` 才是** —— 项目的 `done` 扩展**跟在 `message_stop`
+> 后面**（`ai_chat_v2.py:206`，`_encode_done_sse`）。累加器若把 `message_stop` 当终态，
+> `done` 连同里面的用量 / 消息 id / 会话标题会被**整个丢掉**，而现象只是「标题没自动改、
+> token 不显示」——不像报错，最难发现。查：`AIChatTurnAccumulator.hasReachedTerminalState`
+> 与 `AIChatDecodingTests.testFramesAfterTerminalAreIgnored`。
+> ② **续传的 `message_stop` 没有 `done`，而这是合法的**（`_resume_stream` 只转发 Redis 原始帧、
+> 不合成 `done`）。Web 把它当错误（它从不主动续传），桌面端会真发续传请求，因此必须落成
+> 「已完成但没有持久化载荷」。查：`AIChatDecodingTests.testResumeFramesWithoutDoneAreLegitimate`。
+> ③ **续传在同一个 POST 上**：`Last-Event-ID` 只决定「从哪之后续传」，`payload: MessageCreate`
+> 仍是必填 —— 少了游标会从头重放，少了 body 直接 422。「重连重拉全量」不是可选方案。
+> 查：`AIChatClientTests.testResumeRequestKeepsBodyAndAddsLastEventIDHeader`。
+> ④ **空态有两种成因，后端响应一模一样**：缺 `X-User-Id` 时 `list_conversations` **静默返回空表**
+> （`services/ai/chat.py:35`），与「这个账号真的没有会话」无法从响应上区分。桌面端因此把
+> 归属判定单独做成一类空态（`AIChatInboxState.undeclaredAccount`），并在界面上给出「重新登录」
+> 而不是「暂无会话」。查：`AIChatStoreTests.testUndeclaredAccountIsDistinctFromNoConversations`
+> 与 `AIChatRenderingTests.testUndeclaredAccountEmptyStateIsPainted`。
+> ⑤ **一个模块可以有多条互不相干的在跑任务，且必须既能各自取消又能整体取消**：AI Chat 同时有
+> 会话列表、消息历史、用量、上传、一条可能活很久的 SSE。`ModuleTaskScope` 因此补了
+> `cancelTree(key:)`（子 key 写法 `"<route id>:<用途>"`）—— 原来只按 route id 精确取消，
+> 多条任务要么互相取消（同一 key）要么都收不掉（不同 key）。对 S5.1~S5.3 那些只用 route id
+> 单 key 的模块，行为与原先完全一致。查：`AIChatStoreTests.testCancelTreeOnlyAffectsItsOwnSubtree`。
+> ⑥ **取消存在一条竞态：内层流可能先以「正常结束」收尾**，于是 `for try await` 平静退出、
+> `catch CancellationError` 根本不会被触发，状态机接着按「连接提前结束」落成错误态。
+> 处置：循环之后补一道 `if Task.isCancelled { return }`。查：
+> `AIChatStoreTests.testStopGenerationTearsDownStreamAndCallsCancel`。
+> ⑦ **回复落地后要回读历史，而不是本地插入**：`done` 只给两条消息，而 `regenerate` 会删掉旧的
+> assistant 行；同时「回读失败 / 返回空表时**保留草稿**」——否则刚生成的回答会从界面上凭空
+> 消失（用户看到的比库里少，比多一条更糟）。查：`AIChatStore.finalizeTurn`。
+> ⑧ 夹具口径：快照库 `BLF` 里「归属账号」与「有消息」**互不相容**（有消息的会话
+> `user_id IS NULL`，后端对任何调用方都 404），所以会话 + 消息要经隔离库 `BLF_test` 复制出来；
+> SSE 三份由**后端自己的编码器**产出（线格式才是要钉的东西，AI 正文不逐字断言）。
+> 见 `Tests/BelieveBoyTests/Fixtures/AIChat/README.md`。
+> ⑨ **「取消」有两条异步回写路径，拆掉本地 SSE 只处理了其中一条**：另一条是后端
+> `POST .../cancel` 的**回包**，它可能落在「已经发了下一轮」甚至「下一轮已正常结束」之后 ——
+> 那一刻流的归属（`streamLease` / `generationToken`）本来就是 `nil`，按「当前这一轮」判定
+> 就会把新一轮的游标 / 载荷 / 错误提示当成自己的清理对象，且**四种收尾场景里没有一种会报错**。
+> 处置：游标与载荷改为**停止时同步作废**（不等回包），cancel 回包另持一份轮次 token
+> （`cancelToken`；新一轮发送、切会话 / 新建会话、清空产物都会换掉它）。查：
+> `AIChatStoreTests.testStopThenImmediateSendKeepsTheNewTurnsState`、
+> `AIChatStoreTests.testLateCancelFailureDoesNotLeakIntoAnotherConversation`、
+> `CustomerServiceStoreTests.testLateCancelFailureDoesNotComeBackAfterClearingOutput`。
 
 ---
 
@@ -293,7 +335,8 @@ macos/
 ├── Tests/
 │   └── BelieveBoyTests/       # XCTest：Kit 逻辑 + UI 状态机（离线，打桩 URLProtocol）
 │       ├── Fixtures/AdAnalysis/  # 广告分析 10 个端点的真实响应快照 + manifest（sha256 / 抓取时点）
-│       └── Fixtures/AdData/      # 广告数据 11 个端点的真实响应快照 + manifest（同上；抓取脚本见 macos/scripts/）
+│       ├── Fixtures/AdData/      # 广告数据 11 个端点的真实响应快照 + manifest（同上；抓取脚本见 macos/scripts/）
+│       └── Fixtures/AIChat/      # AI 会话片 4 条读端点 + 3 份 SSE 帧快照（同上；账号与消息来自生产快照的复制）
 │                              #   S2 起同时覆盖 BelieveBoyUI（登录态状态机），故不再叫 *KitTests
 └── Sources/
     ├── BelieveBoyKit/         # 纯逻辑层，不 import SwiftUI
@@ -344,6 +387,14 @@ macos/
     │   │   ├── AdDataFormatting.swift     # 单元格口径（对齐 Web formatAdDataValue，占位「-」）
     │   │   ├── AdDataTablePipeline.swift  # 客户端「搜索 → 排序 → 翻页」纯函数流水线
     │   │   └── AdDataClient.swift         # 项目 5s + 入库文件 5s + 10 个原始行端点 15s
+    │   ├── AIChat/                # 「AI 会话片」两个页面的共用底座（S5.4，不 import SwiftUI）
+    │   │   ├── AIChatCatalog.swift        # 12 条端点目录 + prompt / 场景预设（复刻 lib/server/ai-chat.ts）
+    │   │   ├── AIChatModels.swift         # 配置 / 会话 / 消息 / 搜索来源 / 发送体 / 用量 / 上传响应
+    │   │   ├── AIChatStream.swift         # Anthropic 风格 SSE 事件模型 + 宽容解码（未知事件不报错）
+    │   │   ├── AIChatTurn.swift           # 流事件 → 草稿的纯逻辑累加器（终态是 done，不是 message_stop）
+    │   │   ├── AIChatMarkdown.swift       # 复用 S5.3 的 `InsightMarkdown`（解析复用、呈现分叉）
+    │   │   ├── AIChatPageState.swift      # 加载档 / 空态两种成因 / 归属 / 附件 / 输入区 / 二次确认
+    │   │   └── AIChatClient.swift         # 10 条元数据（5s）+ 上传（60s）+ 用量（15s）+ POST-SSE 流
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json / 广告两页的动态行值）
@@ -369,6 +420,11 @@ macos/
     │   ├── AdDataStore.swift             # 「广告数据」状态机（10 种类型三态 + 客户端搜索/排序/翻页/展开）
     │   ├── AdDataView.swift              # 「广告数据」只读页（筛选条 + 类型选择 + 搜索 + 原始行表 + 翻页）
     │   ├── AdDataComponents.swift        # 广告数据共用件（类型选择 / 搜索 / 原始行表 / raw_row 详情 / 翻页条）
+    │   ├── AIChatStore.swift             # 「AI Chat」状态机（会话 / 消息 / POST-SSE 草稿 / 续传 / 取消 / 用量）
+    │   ├── AIChatView.swift              # 「AI Chat」页（会话列表 + 消息流 + 输入区 + 用量面板）
+    │   ├── AIChatComponents.swift        # AI 会话片共用件（Markdown 正文 / 消息行 / 来源卡 / 草稿 / 用量）
+    │   ├── CustomerServiceStore.swift    # 「客服交流」状态机（场景 / 语气 / 引导字段 → 一次生成）
+    │   ├── CustomerServiceView.swift     # 「客服交流」页（场景标签 + 输入栏 + 产物区 + 导出 .md）
     │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
     │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
     │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
@@ -380,13 +436,18 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **256 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **592 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
 >
 > **计数口径（S5.3 实测，2026-09-14）**：本批开工基线 = `origin/main`（`a2b2c593`，S5.2 交付侧）
 > **428 executed / 4 skipped / 0 failures**；AI 洞察三页 **+75** → **503 executed / 4 skipped /
-> 0 failures**；跑法 `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
+> 0 failures**。
+>
+> **计数口径（S5.4 实测，2026-09-15）**：本批开工基线 = `origin/main`（`564867fc`，含 S5.3 交付侧）
+> **503 executed / 4 skipped / 0 failures**；AI 会话片 **+82** → **585 executed**，Tia 复核两轮
+> 的回归用例再 **+7**（+4 / +3）→ **592 executed / 4 skipped / 0 failures**；跑法
+> `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
 > 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339，
-> S5.2 广告数据页 +89 → 428。`scripts/make-app.sh` 仍属 S7a。
+> S5.2 广告数据页 +89 → 428，S5.3 AI 洞察三页 +75 → 503。`scripts/make-app.sh` 仍属 S7a。
 
 ---
 
@@ -405,6 +466,7 @@ macos/
 | **S5** | 业务模块分批搬运 | 按分组切片，每批 1 组（运营 → 报表中心 → 财务 → 广告 → AI → CRM → 工具箱 → 系统） | 每组：端点覆盖对照表 + 抽样数值与 Web 一致 + 该组内只读能力 100% 可达 | S5.0 | 后续多个 issue（每组一个） |
 | **S5.2** | S5 广告分组第二批 | 「广告 → 广告数据」只读页：报表类型选择 + 共享筛选条 + 原始行表格（搜索 / 排序 / 客户端翻页 / 行内 `raw_row` 中文列详情） | 11 个端点全部接通、固定参数下数值与 Web 一致（切片与全量响应同 id 逐字段一致）；加载/空/错误三态齐备，刷新失败保留旧表；切类型 / 改筛选 / 切模块取消在跑请求且不落错误态；单发 `limit=10000` + `pageSize=100` 客户端翻页并给「可能截断」提示（不做 offset 翻页）；11 个端点各有真实响应快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 428 用例全绿 | S5.1 | 已完成（BLF-1057） |
 | **S5.3** | S5 AI 分组（AI 洞察三页） | 「AI → AI 洞察 / AI 广告分析 / AI 库存健康」三页只读 + 流式观察：6 个端点（含 2 条 SSE）、Markdown + 图表围栏降级、流式草稿切分、维度面板、canonical run 观察 | 6 个端点全部接通、可达（给「端点 → macos 消费点」对照表）；AI 文本按「同源同结构」（状态机 + 事件序列 + 数值字段）；三态齐备（空态显式画出「暂无洞察/暂无运行记录」）；切页/改筛选/切模块取消在跑请求（含拆 SSE 连接）且不落错误态；run detail + 事件序列各一份真实快照入 `Fixtures/Insight/`（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 503 用例全绿 | S5.2 | 已完成（BLF-1062） |
+| **S5.4** | S5 AI 分组第二批（会话片） | 「AI 智能 → AI Chat」+「客服交流」两页：12 条端点（读 4 + 写 8，含 1 条 **POST-SSE**）+ 会话 CRUD + 消息编辑/删除 + 附件解析 + token 用量；两页共用同一份底座（`AIChatClient` / `AIChatTurnAccumulator` / 预设目录） | 12 条端点全部接通、可达（端点 → macos 消费点对照表在 PR）；POST-SSE 用例断言**真实请求属性**（方法 = POST、JSON body、`Accept: text/event-stream`、续传带 `Last-Event-ID` **且带 body**）；跨端可见性：同账号的会话可见可续聊，「未声明账号」与「无会话」两种空态可区分；三态齐备 + 取消（含拆 SSE）不落错误态；会话列表 / 消息列表 / 事件序列各一份真实快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 585 用例全绿 | S5.0 | 已完成（BLF-1065） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
 | **S8** | 自动更新与系统集成 | Sparkle appcast；菜单栏角标（告警/长任务）；系统通知 | 旧版本可收到新版本提示并完成升级；通知点击可深链到对应模块 | S7 | 后续 issue（可选） |

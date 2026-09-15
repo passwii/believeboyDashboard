@@ -27,6 +27,10 @@ enum ModuleRegistry {
             return AnyView(AIAdAnalysisView(model: model, navigation: navigation))
         case AIInventoryHealthView.routeID:
             return AnyView(AIInventoryHealthView(model: model, navigation: navigation))
+        case AIChatView.routeID:
+            return AnyView(AIChatView(model: model, navigation: navigation))
+        case CustomerServiceView.routeID:
+            return AnyView(CustomerServiceView(model: model, navigation: navigation))
         default:
             return nil
         }
