@@ -137,6 +137,9 @@ export interface MetricSwitcherCardProps<K extends string> {
   /** 是否在顶部 KPI grid 右侧显示形态切换 segmented control（默认 false） */
   showChartKindToggle?: boolean
 
+  /** 追加一个与 metric cell 同规格的业务统计项（例如目标进度）。 */
+  extraContent?: React.ReactNode
+
   /** 计算模式：传入 tooltip formatter */
   tooltipFormatter?: (value: number, metricKey: K) => React.ReactNode
   /** 计算模式：传入 y 轴 formatter；不传则用 metric.format */
@@ -153,13 +156,13 @@ export function MetricSwitcherCard<K extends string>({
   defaultMetric,
   colors,
   heightClass = 'h-80',
-  showChange = true,
   xTickFormatter,
   getCurrent,
   getPrevious,
   renderLine,
   chartKind = 'auto',
   showChartKindToggle = false,
+  extraContent,
   tooltipFormatter,
   yAxisFormatter,
 }: MetricSwitcherCardProps<K>) {
@@ -200,29 +203,6 @@ export function MetricSwitcherCard<K extends string>({
     }
     return result
   }, [metrics, colors])
-
-  // 计算模式：直接用外部传入的函数；简单模式：data 求和
-  const { currentTotal, previousTotal } = React.useMemo(() => {
-    if (getCurrent) {
-      const cur = getCurrent(selected)
-      const prev = getPrevious?.(selected) ?? null
-      return { currentTotal: cur, previousTotal: prev ?? 0 }
-    }
-    if (data && data.length >= 2) {
-      const half = Math.floor(data.length / 2)
-      const sum = (slice: Array<Record<string, unknown>>) =>
-        slice.reduce((acc, row) => acc + Number(row[selected] ?? 0), 0)
-      return {
-        currentTotal: sum(data.slice(half)),
-        previousTotal: sum(data.slice(0, half)),
-      }
-    }
-    return { currentTotal: 0, previousTotal: 0 }
-  }, [data, selected, getCurrent, getPrevious])
-
-  const hasPrevious = previousTotal > 0
-  const change = previousTotal > 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : 0
-  const isPositive = metric.isNegativeBetter ? change < 0 : change > 0
 
   const chartData = React.useMemo(() => {
     if (renderLine) return renderLine(selected)
@@ -287,6 +267,7 @@ export function MetricSwitcherCard<K extends string>({
               />
             )
           })}
+          {extraContent}
         </div>
 
         {showChartKindToggle && (
@@ -633,7 +614,7 @@ function renderChart<K extends string>(
   selected: K,
   metric: MetricDef<K>,
   metrics: MetricDef<K>[],
-  config: ChartConfig,
+  _config: ChartConfig,
   xKey: string,
   xTickFormatter: ((value: string) => string) | undefined,
   yAxisFormatter: ((value: number, key: K) => string) | undefined,
@@ -872,7 +853,7 @@ function MetricSwitcherTooltip<K extends string>({
           const isCompare = rawKey === 'compareMetricValue'
           return (
             <div
-              key={`${rawKey}-${index}`}
+              key={`${rawKey}-${String(item.value)}`}
               className="flex w-full items-center justify-between gap-3"
             >
               <div className="flex min-w-0 items-center gap-2">
