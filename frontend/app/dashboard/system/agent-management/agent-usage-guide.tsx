@@ -125,7 +125,50 @@ function buildShopCalculationsGuide(opts: {
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
-【5. 试算（不落库，纯计算）】
+【5. 盈亏平衡广告费率（定价派生块 anchor，BLF-1043）】
+
+  R1/R2/R3 与试算的 calculation/snapshot 都带 anchor 块（读取时派生，不落库、无迁移）：
+
+    breakeven_advertising_rate            盈亏平衡广告费率（= 运营口径的盈亏平衡 ACOS；
+                                          比率非百分数，sale_price_usd=0 → null，
+                                          成本高于售价 → 负值，不 clamp）
+    non_ad_fee_usd                        非广告费用（total_fee_usd − advertising_fee_usd）
+    max_ad_spend_per_unit_usd             打平前每单可用广告费上限（看钱比看比率直观）
+    breakeven_advertising_rate_after_vat  US 为 null（不是 0，避免误读为美国有 VAT）
+    target_net_margin / target_advertising_rate   传入 target_net_margin 时才有值
+    basis                                 observed_at + usd_to_rmb_rate + 汇率来源
+
+  加 &target_net_margin=0.10（范围 -1~1，清库存档允许负值）：
+    target_advertising_rate = breakeven_advertising_rate − target_net_margin
+
+  自检恒等式：breakeven_advertising_rate ≡ advertising_rate + profit_rate
+  （残差 ≤ 约 0.01 / sale_price_usd；超出说明该行费用拆项本身不自洽）
+  锚依赖汇率而漂移，所以把 anchor（含 basis）当自包含对象缓存与版本化；
+  R1/R2/R3 可加 &include_anchor=false 让响应与旧版逐字节一致。
+
+【6. BI 扁平 3 条路由（无费用拆项，锚由服务端推成 3 个平铺列）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculation-history?country=US&target_net_margin=0.10" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculation/snapshots?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/pricing-snapshots?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  扁平行没有费用拆项、没有 advertising_rate/advertising_fee_usd，消费方自己算不出锚，
+  所以每行固定带三列：breakeven_advertising_rate / max_ad_spend_per_unit_usd /
+  target_advertising_rate（不传 target_net_margin 时第 3 列为 null）——**没有** anchor
+  嵌套块、**没有** include_anchor 开关。三条读路由的分工：history = 每 SKU 最新非删行
+  （当前态）；shop-calculation/snapshots = append-only 时间序列（可加
+  &from_date=&to_date=&sku=）；pricing-snapshots = 最近一次 snapshot_date ≤ ?as_of 的
+  全 SKU 经济账（country 默认 US）。
+
+【7. 试算（不落库，纯计算）】
 
   curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations/compute" \\
     -H "Authorization: Bearer ${key}" \\
@@ -133,7 +176,10 @@ function buildShopCalculationsGuide(opts: {
     -H "Content-Type: application/json" \\
     -d '{"sku":"X-001","country":"US","accounting_type":"profit_calc","sale_price_usd":19.99}'
 
-【6. 追加写（两步确认，第一次调用不会落库）】
+  返回的 calculation 与 snapshot 两块都带 anchor（与读路由同口径）；body 可加
+  "target_net_margin":0.10 一并拿目标广告费率。
+
+【8. 追加写（两步确认，第一次调用不会落库）】
 
   第一步（预览，返回 confirm_token）：
   curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations" \\
@@ -603,6 +649,15 @@ function buildNewProductCalculationsGuide(opts: {
     -d '{"mode":"profit_calc","sku":"X-001","country":"US","package_length_cm":10,"package_width_cm":8,"package_height_cm":5,"weight_kg":0.5,"fob_product_cost_rmb":20,"first_leg_cost_rmb":5,"sale_price_usd":19.99,"advertising_rate":0.12,"return_loss_rate":0.04,"storage_months":1}'
 
   返回 {mode, calculation, snapshot}；不写库、不落审计，可放心反复试算。
+
+  calculation 与 snapshot 两块都带 anchor（定价派生块，BLF-1043）：
+  breakeven_advertising_rate（盈亏平衡广告费率）/ non_ad_fee_usd /
+  max_ad_spend_per_unit_usd / breakeven_advertising_rate_after_vat（US 为 null）/
+  target_advertising_rate / basis。**本域没有**独立的目标净利率参数——目标净利率就是
+  行上已有的 target_profit_rate（即「给目标利润 → 反算广告费率」）；也**没有**
+  include_anchor 开关（R1/R2 读取时同样派生 anchor）。
+  自检：breakeven ≡ advertising_rate + profit_rate；不 clamp，负值是诊断信号
+  （成本已高于售价，不花广告费也亏）。
 
 【6. 快照落库（W1，两步确认，第一次调用不会落库）】
 
