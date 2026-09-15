@@ -118,6 +118,10 @@ class LazyGroupRouter(APIRouter):
 def preload_all_lazy_groups() -> None:
     """启动后首次 /openapi.json 或 /docs 时调用：一次性加载全部懒分组。
 
+    第三个调用方是 OpenAPI 导出脚本（``backend/scripts/openapi_export.py`` 的
+    ``build_app``）：它必须在 ``app.openapi()`` 之前预加载，否则导出的是缺懒
+    分组路由的残缺 schema，前端生成类型会随之漂移。
+
     必须赶在 openapi 生成**之前**完成：`_get_api_route_for_openapi` 返回的是
     `_EffectiveRouteContext` 克隆（每次 `from_api_route` 都会重建 body_field 等
     ModelField）。若生成过程中分组才被加载，`_get_routes_version()` 变化会让

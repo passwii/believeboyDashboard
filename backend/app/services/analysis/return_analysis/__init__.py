@@ -27,6 +27,7 @@ from app.services.analysis.return_analysis.parsers import (
 from app.services.analysis.return_analysis.persistence import (
     persist_return_report,
 )
+from app.services.analysis.return_analysis.queries import query_current_return_rows
 
 __all__ = [
     # parsers
@@ -38,6 +39,8 @@ __all__ = [
     "_split_customer_comments",
     # persistence
     "persist_return_report",
+    # queries
+    "query_current_return_rows",
     # analysis
     "_safe_rate",
     "_build_sales_aggregates",

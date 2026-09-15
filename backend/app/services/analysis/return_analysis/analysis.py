@@ -12,11 +12,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AnalysisReturnRow,
-    AnalysisSourceFile,
     SkuRecord,
     Project,
 )
+from app.services.analysis.return_analysis.queries import query_current_return_rows
 from app.services.sales_query import counted_sales_where
 from app.utils.sales_amount import sales_amount_expr
 
@@ -718,26 +717,15 @@ def build_return_analysis(
         WeekdayItem,
     )
 
-    # Try AnalysisReturnRow (new source linked to AnalysisSourceFile) first
-    new_records_query = (
-        db.query(AnalysisReturnRow)
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisReturnRow.source_file_id,
-        )
-        .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_type == "return_report",
-            AnalysisSourceFile.is_current == True,
-            AnalysisReturnRow.return_date >= date.fromisoformat(start_date),
-            AnalysisReturnRow.return_date <= date.fromisoformat(end_date),
-        )
+    # 当前生效（is_current）退货报表原始行 —— 与分析口径唯一真相源共用查询
+    raw_records: list = query_current_return_rows(
+        db,
+        project_id=project_id,
+        country=country,
+        start_date=start_date,
+        end_date=end_date,
+        sku=sku,
     )
-    if sku:
-        new_records_query = new_records_query.filter(AnalysisReturnRow.sku == sku)
-
-    raw_records: list = new_records_query.all()
 
     # DB uq_return_event (6-field) guarantees no duplicate rows per business key.
     # Read-time Python dedup on (order_id, sku) is still needed below: the same
@@ -1209,8 +1197,6 @@ def build_return_analysis_from_snapshot(
     from app.utils.stats import compute_risk_level
     from app.models import (
         AnalysisReturnAggregate,
-        AnalysisReturnRow,
-        AnalysisSourceFile,
         Project,
     )
     from app.constants.return_translations import (
@@ -1243,24 +1229,14 @@ def build_return_analysis_from_snapshot(
     aggregates: list = agg_query.all()
 
     # 2) 从 raw 表读全部 (project, country, date 范围) 行（用于分布维）
-    raw_query = (
-        db.query(AnalysisReturnRow)
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisReturnRow.source_file_id,
-        )
-        .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_type == "return_report",
-            AnalysisSourceFile.is_current == True,
-            AnalysisReturnRow.return_date >= start,
-            AnalysisReturnRow.return_date <= end,
-        )
+    records: list = query_current_return_rows(
+        db,
+        project_id=project_id,
+        country=country,
+        start_date=start_date,
+        end_date=end_date,
+        sku=sku,
     )
-    if sku:
-        raw_query = raw_query.filter(AnalysisReturnRow.sku == sku)
-    records: list = raw_query.all()
     for r in records:
         # Snapshot 路径重跑时 r.return_date 可能是 date 或 str（取决于 session）
         if hasattr(r.return_date, "isoformat"):

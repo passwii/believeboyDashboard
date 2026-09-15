@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react'
+import { act, render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,6 +59,56 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderSlot: (node: React.ReactNode) => null,
   useMobileFilterStrip: () => null,
 }))
+
+// exceljs 假实现：捕获 addWorksheet 顺序与每个 sheet 写入的行
+const excelCapture = vi.hoisted(() => ({
+  sheetNames: [] as string[],
+  rowsBySheet: {} as Record<string, unknown[][]>,
+}))
+
+vi.mock('exceljs', () => {
+  class FakeWorksheet {
+    name: string
+    views: unknown[] = []
+    columns: unknown[] = []
+    constructor(name: string) {
+      this.name = name
+    }
+    addRow(values: unknown) {
+      const cells = Array.isArray(values) ? values : [values]
+      const bucket = excelCapture.rowsBySheet[this.name] ?? []
+      bucket.push(cells)
+      excelCapture.rowsBySheet[this.name] = bucket
+      const cell = { font: {}, border: {}, fill: {}, alignment: {} }
+      return {
+        height: 0,
+        font: {},
+        eachCell: (cb: (c: typeof cell) => void) => cells.forEach(() => cb(cell)),
+      }
+    }
+    getRow() {
+      const cell = { font: {}, border: {}, fill: {}, alignment: {} }
+      return { eachCell: (cb: (c: typeof cell) => void) => cb(cell) }
+    }
+  }
+  class FakeWorkbook {
+    creator = ''
+    created: Date = new Date()
+    addWorksheet(name: string) {
+      excelCapture.sheetNames.push(name)
+      return new FakeWorksheet(name)
+    }
+    get xlsx() {
+      return { writeBuffer: () => Promise.resolve(new ArrayBuffer(8)) }
+    }
+  }
+  return { Workbook: FakeWorkbook, default: { Workbook: FakeWorkbook } }
+})
+
+// jsdom 未实现 blob URL 与锚点导航：导出用例只需不抛错
+window.URL.createObjectURL = () => 'blob:mock'
+window.URL.revokeObjectURL = () => {}
+HTMLAnchorElement.prototype.click = () => {}
 
 const SUMMARY = {
   total_returns: 42,
@@ -153,13 +203,90 @@ function returnPayload(overrides?: Partial<Record<string, unknown>>) {
   }
 }
 
+const RAW_ROWS_PAYLOAD = {
+  project_id: 1,
+  country: 'US',
+  start_date: '2026-08-20',
+  end_date: '2026-08-26',
+  row_count: 1,
+  rows: [
+    {
+      return_date: '2026-08-22',
+      original_return_datetime: '2026-08-22T10:00:00+00:00',
+      order_id: 'ORDER-RAW-1',
+      sku: 'SKU-RAW-1',
+      asin: 'B0RAW00001',
+      fnsku: 'X00RAW',
+      product_name: '原始数据商品',
+      quantity: 2,
+      fulfillment_center_id: 'PGA1',
+      detailed_disposition: 'SELLABLE',
+      disposition_display: '可售',
+      reason: 'NOT_AS_DESCRIBED',
+      reason_display: '与描述不符',
+      status: 'Unit returned to inventory',
+      status_display: '退回库存',
+      license_plate_number: 'LP-RAW-1',
+      customer_comment: '原始评论',
+    },
+  ],
+}
+
+function rawRowsPayload(overrides?: Partial<Record<string, unknown>>) {
+  // order_id 带请求序号：让「切周期后旧行被替换」可观测（不是追加）
+  return {
+    ...RAW_ROWS_PAYLOAD,
+    rows: [{ ...RAW_ROWS_PAYLOAD.rows[0], order_id: `ORDER-RAW-${rawRequestCount}` }],
+    ...overrides,
+  }
+}
+
+let rawRequestCount = 0
+let rawShouldFail = false
+let rawRowCountOverride: number | null = null
+let rawRowsEmpty = false
+// 让下一次 raw-rows 请求挂起（模拟「在途的旧周期请求」）：payload 在发起时就固化，
+// 由测试手动放行，用于复现「旧响应回来时覆盖新周期」的竞态。
+let rawHoldPending = false
+let rawReleasePending: (() => void) | null = null
+// 程序化生成超过页内上限的行数（验证 RAW_DISPLAY_LIMIT 截断，而不是只改 row_count）
+let rawGeneratedRowCount: number | null = null
+
 let lastForce: boolean | undefined
+// 原始行请求单独记录 force：lastForce 会被主分析请求覆盖，无法鉴别预取是否
+// 继承了「全局刷新」的粘性旗标（A 项回归用例依赖这个独立的观测点）。
+let lastRawForce: boolean | undefined
 vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ops-client-cache')>()
   return {
     ...actual,
-    fetchOpsJsonCached: vi.fn().mockImplementation((_url: string, opts?: { force?: boolean }) => {
+    fetchOpsJsonCached: vi.fn().mockImplementation((url: string, opts?: { force?: boolean }) => {
       lastForce = opts?.force
+      if (url.includes('/return-analysis/raw-rows')) {
+        lastRawForce = opts?.force
+        rawRequestCount += 1
+        if (rawShouldFail) return Promise.reject(new Error('原始数据加载失败'))
+        const payload = rawRowsEmpty
+          ? { ...rawRowsPayload(), rows: [], row_count: 0 }
+          : rawGeneratedRowCount !== null
+            ? rawRowsPayload({
+                rows: Array.from({ length: rawGeneratedRowCount }, (_, index) => ({
+                  ...RAW_ROWS_PAYLOAD.rows[0],
+                  order_id: `ORDER-RAW-${index + 1}`,
+                })),
+                row_count: rawGeneratedRowCount,
+              })
+            : rawRowCountOverride !== null
+              ? rawRowsPayload({ row_count: rawRowCountOverride })
+              : rawRowsPayload()
+        if (rawHoldPending) {
+          rawHoldPending = false
+          return new Promise((resolve) => {
+            rawReleasePending = () => resolve(payload)
+          })
+        }
+        return Promise.resolve(payload)
+      }
       return Promise.resolve(returnPayload())
     }),
   }
@@ -167,6 +294,26 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
 
 import ReturnAnalysisClient from './return-analysis-client'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
+import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
+
+/** 与组件同算法推导默认周期（站点时区下的今天往前 6 天），用于钉住请求里的实际日期 */
+function defaultRangeFor(country: 'US' | 'DE' | 'UK') {
+  const timeZone = {
+    US: 'America/Los_Angeles',
+    DE: 'Europe/Berlin',
+    UK: 'Europe/London',
+  }[country]
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone })
+    .format(new Date())
+    .split('-')
+    .map(Number)
+  const end = new Date(year!, month! - 1, day!)
+  const start = new Date(year!, month! - 1, day!)
+  start.setDate(start.getDate() - 6)
+  const ymd = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return { start: ymd(start), end: ymd(end) }
+}
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
@@ -176,7 +323,19 @@ afterEach(() => {
   capturedRefreshHandler = null
   capturedRefreshLoading = undefined
   lastForce = undefined
+  lastRawForce = undefined
+  rawRequestCount = 0
+  rawShouldFail = false
+  rawRowCountOverride = null
+  rawRowsEmpty = false
+  rawHoldPending = false
+  rawReleasePending = null
+  rawGeneratedRowCount = null
   mockParams = { project: '1', country: 'US', tab: 'rankings' }
+  excelCapture.sheetNames.length = 0
+  Object.keys(excelCapture.rowsBySheet).forEach((key) => {
+    delete excelCapture.rowsBySheet[key]
+  })
 })
 
 describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations header migration）', () => {
@@ -259,7 +418,9 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
       }
     )
 
-    capturedRefreshHandler?.()
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
     // loadData(true) 会以 force:true 重拉
     await vi.waitFor(() => expect(lastForce).toBe(true))
     // loading 状态上报给全局刷新按钮
@@ -283,5 +444,227 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     render(<ReturnAnalysisClient />)
     await screen.findByText('多件退货')
     expect(screen.getByText('共 7 件')).toBeInTheDocument()
+  })
+})
+
+describe('原始数据 Tab（原始行懒加载）', () => {
+  it('默认停留在 rankings，不发 raw-rows 请求', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    expect(rawRequestCount).toBe(0)
+  })
+
+  it('切到原始数据 Tab 才请求一次，且 query 带项目/站点/周期', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('亚马逊原始数据')).toBeInTheDocument()
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    const rawCall = vi
+      .mocked(fetchOpsJsonCached)
+      .mock.calls.find(([url]) => url.includes('/return-analysis/raw-rows'))
+    expect(rawCall?.[0]).toContain('project_id=1')
+    expect(rawCall?.[0]).toContain('country=US')
+    // 钉住实际周期值（默认周期 = 站点时区今天往前 6 天，与组件同算法推导），
+    // 避免 toContain('start_date=') 在空值时也通过
+    const expectedRange = defaultRangeFor('US')
+    expect(rawCall?.[0]).toContain(`start_date=${expectedRange.start}`)
+    expect(rawCall?.[0]).toContain(`end_date=${expectedRange.end}`)
+  })
+
+  it('渲染 17 列表头与中文翻译列', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    const { container } = render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('退货原因（中文）')).toBeInTheDocument()
+    expect(screen.getByText('商品状态（中文）')).toBeInTheDocument()
+    expect(screen.getByText('库存属性（中文）')).toBeInTheDocument()
+    expect(await screen.findByText('ORDER-RAW-1')).toBeInTheDocument()
+    expect(screen.getByText('原始数据商品')).toBeInTheDocument()
+    // 「17 列」是可数的契约：配置 17 列，实际渲染表头也是 17 个 th
+    expect(RETURN_RAW_COLUMNS).toHaveLength(17)
+    expect(container.querySelectorAll('thead th')).toHaveLength(RETURN_RAW_COLUMNS.length)
+  })
+
+  it('超过页内上限时提示走导出 Excel', async () => {
+    rawRowCountOverride = 4321
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText(/完整 4,321 条请导出 Excel/)).toBeInTheDocument()
+  })
+
+  it('超过 RAW_DISPLAY_LIMIT 时页内只渲染上限行数', async () => {
+    rawGeneratedRowCount = RAW_DISPLAY_LIMIT + 5
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    const { container } = render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('ORDER-RAW-1')).toBeInTheDocument()
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('tbody tr').length).toBe(RAW_DISPLAY_LIMIT)
+    })
+    // 行数上限提示同时出现（完整条数走导出）
+    expect(await screen.findByText(/完整 205 条请导出 Excel/)).toBeInTheDocument()
+  })
+
+  it('空返回展示空态文案', async () => {
+    rawRowsEmpty = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('所选周期无原始退货数据')).toBeInTheDocument()
+  })
+
+  it('主分析请求失败（data 为空）时展示诚实空态而非永久 skeleton', async () => {
+    vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('退货数据加载失败'))
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('请先加载退货分析数据')).toBeInTheDocument()
+    // data 为 null 时懒加载不会发原始行请求
+    expect(rawRequestCount).toBe(0)
+  })
+
+  it('加载失败展示错误与重试按钮，重试会再发一次请求', async () => {
+    rawShouldFail = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('原始数据加载失败')).toBeInTheDocument()
+    expect(rawRequestCount).toBe(1)
+
+    rawShouldFail = false
+    await userEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(2))
+  })
+
+  it('切换周期后清空旧周期原始行（防串数据）', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+    // 首次懒加载拿到 ORDER-RAW-1
+    await screen.findByText('ORDER-RAW-1')
+
+    // 触发一次全局刷新：loadData 先清空 rawRows，随后懒加载重取（序号递增）
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+
+    // 新 payload 是 ORDER-RAW-2 且旧行消失 —— 证明是「替换」不是「追加」
+    expect(await screen.findByText('ORDER-RAW-2')).toBeInTheDocument()
+    expect(screen.queryByText('ORDER-RAW-1')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(rawRequestCount).toBe(2))
+  })
+
+  it('在途旧周期原始请求返回时不覆盖新周期（请求世代守卫）', async () => {
+    rawHoldPending = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+
+    // 旧周期请求在途：payload 固化为 ORDER-RAW-1，但尚未返回
+    await waitFor(() => expect(rawRequestCount).toBe(1))
+    expect(rawReleasePending).not.toBeNull()
+    expect(screen.queryByText('ORDER-RAW-1')).not.toBeInTheDocument()
+
+    // 请求在途时切周期（全局刷新 → loadData 清空 rawRows 并作废在途响应）
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+
+    // 放行旧请求：其响应必须被整体丢弃
+    await act(async () => {
+      rawReleasePending?.()
+    })
+
+    // 旧周期行绝不进表格（无守卫时旧响应会把 ORDER-RAW-1 写回来）
+    expect(screen.queryByText('ORDER-RAW-1')).not.toBeInTheDocument()
+    // 懒加载必须为新周期重取（无守卫时 rawRows 已为真，懒加载短路 → 永不重取）
+    expect(await screen.findByText('ORDER-RAW-2')).toBeInTheDocument()
+    await waitFor(() => expect(rawRequestCount).toBe(2))
+  })
+})
+
+describe('导出 Excel：亚马逊原始数据 sheet', () => {
+  it('未打开过原始数据 Tab 时，导出会先拉原始行并追加第 6 张 sheet', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(rawRequestCount).toBe(0)
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    await vi.waitFor(() =>
+      expect(excelCapture.sheetNames).toEqual([
+        '退货排行',
+        '退货原因',
+        '商品状态',
+        '库存状态',
+        '顾客反馈',
+        '亚马逊原始数据',
+      ])
+    )
+    const rawSheetRows = excelCapture.rowsBySheet['亚马逊原始数据']
+    expect(rawSheetRows).toHaveLength(2) // 表头 + 1 行数据
+    expect(rawSheetRows[0]).toHaveLength(17)
+    expect(rawSheetRows[0][0]).toBe('退货日期（站点时区）')
+    expect(rawSheetRows[1][2]).toBe('ORDER-RAW-1')
+    expect(rawSheetRows[1][12]).toBe('与描述不符')
+  })
+
+  it('原始行拉取失败时中止导出，不产出任何 sheet', async () => {
+    rawShouldFail = true
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() =>
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', title: '导出失败' })
+      )
+    )
+    expect(excelCapture.sheetNames).toEqual([])
+  })
+
+  it('导出 sheet 携带全部行，不随页内 200 行截断', async () => {
+    // 生成超过页内上限的行数，且全程停留 rankings Tab（页内不渲染原始表格，
+    // 唯一的截断风险点就是导出自身若误用 RAW_DISPLAY_LIMIT 切片）。
+    rawGeneratedRowCount = RAW_DISPLAY_LIMIT + 5
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    // 1 行表头 + 全部 205 行数据（导出若回归为切片，这里只剩 201 行）
+    await vi.waitFor(() =>
+      expect(excelCapture.rowsBySheet['亚马逊原始数据']).toHaveLength(
+        RAW_DISPLAY_LIMIT + 6
+      )
+    )
+    expect(excelCapture.rowsBySheet['亚马逊原始数据']![1]![2]).toBe('ORDER-RAW-1')
+    expect(excelCapture.rowsBySheet['亚马逊原始数据']![RAW_DISPLAY_LIMIT + 5]![2]).toBe(
+      `ORDER-RAW-${RAW_DISPLAY_LIMIT + 5}`
+    )
+  })
+
+  it('原始数据 Tab 未打开时刷新，导出预取仍继承 force 旗标（不吃 2min 缓存）', async () => {
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+    expect(rawRequestCount).toBe(0)
+
+    // 全局刷新：原始数据 Tab 关着，rawForceRef 被置 true 且粘性保留（未被消费）
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+    await vi.waitFor(() => expect(lastForce).toBe(true))
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+    expect(rawRequestCount).toBe(0)
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+    // 预取必须带 force:true —— 否则导出会回落到 2min 客户端缓存里的旧原始行
+    expect(lastRawForce).toBe(true)
   })
 })
