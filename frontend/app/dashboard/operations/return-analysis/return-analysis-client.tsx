@@ -103,7 +103,7 @@ type ProjectOption = {
   name: string
 }
 
-// Translation helpers
+// Translation helpers（过渡期兜底，见下方 topReturnReasonDisplay）
 const RETURN_REASON_LABELS: Record<string, string> = {
   APPAREL_TOO_LARGE: '服装过大',
   APPAREL_TOO_SMALL: '服装过小',
@@ -127,6 +127,30 @@ const RETURN_REASON_LABELS: Record<string, string> = {
 
 function translateReason(value: string): string {
   return RETURN_REASON_LABELS[value] || value
+}
+
+/**
+ * Top 退货原因磁贴的展示值（BLF-1074）。
+ *
+ * 优先取后端 `summary.top_return_reason_display`——它由后端统一的
+ * `translate_return_field("reason", ...)` 产出，与 `reason_rows[].reason_display`
+ * 同源（含 `DAMAGED_BY_FC` / `NO_REASON_GIVEN` / `NOT_COMPATIBLE` 等本地表没有的 code）。
+ *
+ * 后端译文范围是**有界**的——FBA 生产库实测 code + FBA 文档补充项，
+ * **不是 Amazon 全集**：MFN / Buy with Prime / `TA-CR-*` / `UND-*` 等其他域 code
+ * 不在覆盖承诺内，会原样返回英文。边界以
+ * `backend/app/constants/return_translations.py` 的模块 docstring 为准；
+ * 本页面只透传后端结果，不为任何 code 自行造译文，「后端没译」不等于「这里漏译」。
+ *
+ * 本地 `RETURN_REASON_LABELS` 只覆盖 14 个 code，曾让其余 code 直接裸露英文，
+ * 此处仅作后端字段上线前的过渡兜底（后端 PR #625 部署后即可连同该表一起删除）。
+ * 字段可达时一律以它为准，本地表命中与否都不再参与决策。
+ */
+function topReturnReasonDisplay(summary: ReturnAnalysisSummary): string {
+  if (summary.top_return_reason_display) {
+    return summary.top_return_reason_display
+  }
+  return summary.top_return_reason ? translateReason(summary.top_return_reason) : '--'
 }
 
 const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
@@ -251,6 +275,8 @@ type ReturnAnalysisSummary = {
   unique_skus: number
   top_return_sku: string | null
   top_return_reason: string | null
+  /** BLF-1074：后端给出的中文译文（可选——旧后端无此字段时走本地表兜底） */
+  top_return_reason_display?: string | null
   total_sales_quantity: number
   total_sales_amount: number
   overall_return_rate: number
@@ -917,11 +943,7 @@ export default function ReturnAnalysisPage() {
           <SummaryTile label="涉及 SKU" value={data.summary.unique_skus.toLocaleString()} />
           <SummaryTile
             label="Top 退货原因"
-            value={
-              data.summary.top_return_reason
-                ? translateReason(data.summary.top_return_reason)
-                : '--'
-            }
+            value={topReturnReasonDisplay(data.summary)}
           />
           <SummaryTile
             label="多件退货"
