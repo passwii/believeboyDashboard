@@ -54,7 +54,11 @@ from app.schemas.agent_sku_info import (
     AgentSkuRecordUpsertRequest,
     AgentSkuSource,
 )
-from app.schemas.sku_info import SkuRecordCreate, SkuRecordUpdate
+from app.schemas.sku_info import (
+    LISTING_COPY_FIELDS,
+    SkuRecordCreate,
+    SkuRecordUpdate,
+)
 from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log_for_targets,
@@ -248,6 +252,12 @@ def _serialize_sku_record(row: SkuRecord) -> dict[str, Any]:
         "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by)
         if row.sku_factory_info_updated_by
         else None,
+        # 产品文案（Listing Copy，BLF-1080）：8 个业务字段 + 2 个溯源列。
+        **{field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS},
+        "listing_copy_updated_at": str(row.listing_copy_updated_at)
+        if getattr(row, "listing_copy_updated_at", None)
+        else None,
+        "listing_copy_updated_by": getattr(row, "listing_copy_updated_by", None),
         "fnsku_label_r2_url": getattr(row, "fnsku_label_r2_url", None),
         "product_image_r2_url": getattr(row, "product_image_r2_url", None),
         "product_image_thumbnail_r2_url": getattr(
@@ -555,6 +565,7 @@ def _merge_update_payload(
         "units_per_carton",
         "sort_order",
         "sku_factory_info",
+        *LISTING_COPY_FIELDS,
     ):
         if field in provided:
             data[field] = getattr(req, field)

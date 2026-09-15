@@ -57,6 +57,15 @@ class AgentSkuRecordUpsertRequest(BaseModel):
     is_active: bool = True
     sort_order: int | None = Field(default=None, ge=1)
     sku_factory_info: dict | None = None
+    # 产品文案（Listing Copy，BLF-1080）：与通用 SKU schema 对齐。
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
 
 
 class AgentSkuRecordUpdateRequest(BaseModel):
@@ -85,6 +94,15 @@ class AgentSkuRecordUpdateRequest(BaseModel):
     is_active: bool | None = None
     sort_order: int | None = Field(default=None, ge=1)
     sku_factory_info: dict | None = None
+    # 产品文案（Listing Copy，BLF-1080）：只处理显式提供字段；null/空串清空。
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
 
     model_config = {"extra": "forbid"}
 
