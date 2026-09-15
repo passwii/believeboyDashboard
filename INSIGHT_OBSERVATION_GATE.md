@@ -26,14 +26,14 @@ legacy `/ai-insights` 写端点、旧 URL、历史表**一律不删**。
 关键字段与它们的锚点（阈值不是拍脑袋，全部对齐仓库里已有的硬数字）：
 
 | 字段 | 含义 | 锚点 / 为什么是这个口径 |
-|------|------|------------------------|
-| `first_delta_ms` | attempt 起点 → 首帧 `content.delta` | 执行器**只发一帧** delta（finalizing 产出正文，`executor.py`），所以它是「距起点的产出时延」，不假装是逐 token 首字 |
+| ------ | ------ | ------------------------ |
+| `first_delta_ms` | attempt 起点 → 首帧 `content.delta` | BLF-1071 起执行器**真流式**：每个 provider token delta 就是一帧，所以这个值就是**真首字时延**（不再是整段产出时延）；重投时不覆盖（`set_metric_if_absent`） |
 | `duration_ms` | attempt 起点 → 终态 | 由 `runs.py:try_transition` 在终态写入 |
 | `input/output/total_tokens` | LLM 用量 | 执行器终态写入的 `usage_json` |
 | `attempts` / `retries` | 尝试次数 / 重试次数 | `attempts = attempt`，`retries = attempt - 1` |
 | `stream_opens` / `stream_reconnects` | SSE 连接次数 / 其中带游标的恢复次数 | 连接即 +1；`Last-Event-ID` 非空即计一次重连（`insight_runs.py` SSE handler） |
 | `reconnect_completed` | 重连后确实补到终态帧 | `stream_reconnects` 的闭环判据：只数「重连且拿到 `done/error`」的次数，光重连不算（同一个 SSE handler 记点） |
-| `stream_frames` / `stream_bytes` / `stream_xlen` / `stream_memory_bytes` | 传输量 / 保留窗口水位 | `stream_frames`、`stream_bytes` 由 `append_event` 顺手 `hincrby`；`stream_xlen`、`stream_memory_bytes` 走 `XLEN` / `MEMORY USAGE` |
+| `stream_frames` / `stream_bytes` / `stream_xlen` / `stream_memory_bytes` | 传输量 / 保留窗口水位 | `stream_frames`、`stream_bytes` 由 `append_event` 顺手 `hincrby`；`stream_xlen`、`stream_memory_bytes` 走 `XLEN` / `MEMORY USAGE`。**BLF-1071 后 `stream_frames` 数量级上升**（每 token 一帧，见 §四） |
 | `cancel_requested` / `cancel_succeeded` | 取消请求数 / 真正落地数 | **同一个 run 里两者不等 = 取消失败**（`cancel_not_landed` 门禁项） |
 | `error_code` / `error_retryable` | 错误类型 | **只落错误码**，不落上游报文（见 §三） |
 | `fallback` / `fallback_reason` | 降级事件与原因 | 旧链路降级时打点，按 capability 分桶 |
@@ -58,7 +58,7 @@ legacy `/ai-insights` 写端点、旧 URL、历史表**一律不删**。
 ### 2.1 阈值（`Settings`，`backend/app/core/config.py`）
 
 | 配置 | 默认 | 锚点 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `insight_observation_enabled` | `True` | 观测总开关（关掉则不落账） |
 | `insight_observation_window_days` | `7` | 聚合窗口 |
 | `insight_gate_max_duration_ms` | `300_000` | = Celery `soft_time_limit=300s` |
@@ -131,7 +131,7 @@ cd backend && python scripts/insight_gate.py --json /tmp/insight-gate.json
 `all_scenarios()` 同时被 pytest 与门禁脚本消费，**发布的证据不可能与测过的漂移**：
 
 | 场景 | 断言的核心事实 |
-|------|----------------|
+| ------ | ---------------- |
 | `success` | 正常跑完：首字时延/时长/token/帧数落库，桶 error_rate = 0 |
 | `failure` | provider 不可用 → run FAILED，**只记错误码**（不记上游报文） |
 | `cancel` | 用户取消 → cancelled，取消成功率 1.0（请求真的落地） |
@@ -170,7 +170,7 @@ canonical 替代者：`POST /api/v1/insight/runs`（+ 域端点
 **写入口（HTTP）—— `backend/app/api/v1/endpoints/ai_insight.py`**
 
 | 行 | 端点 | 说明 |
-|----|------|------|
+| ---- | ------ | ------ |
 | `:141` | `POST /generate` | 建行 + `celery_generate_insight.delay`（`:180`） |
 | `:439` | `POST /schedules` | 建调度 |
 | `:464` | `PATCH /schedules/{id}` | 改调度 |
@@ -184,7 +184,7 @@ canonical 替代者：`POST /api/v1/insight/runs`（+ 域端点
 **派发点（Celery / 服务层）**
 
 | 位置 | 内容 |
-|------|------|
+| ------ | ------ |
 | `backend/app/api/v1/endpoints/ai_insight.py:180` | `celery_generate_insight.delay(None, insight_id=...)` |
 | `backend/app/api/v1/endpoints/ai_insight.py:662` | 同上（retry / run-now） |
 | `backend/app/services/insight_schedule_service.py:22` | `from ...generate import generate_insight` |
@@ -204,7 +204,7 @@ canonical 替代者：`POST /api/v1/insight/runs`（+ 域端点
 **前端 legacy 面（BLF-1017 / Seth，不在本 PR 范围）**
 
 | 位置 | 内容 |
-|------|------|
+| ------ | ------ |
 | `frontend/app/dashboard/ai/insights/page.tsx:1717,1781,1909,1953,1996,2271,2305,2331,3227,3232` | 旧列表/详情/SSE/重试/编辑/生成/调度写调用（`/api/backend/v1/ai-insights*`） |
 | `frontend/app/dashboard/ai/insights/page.tsx:2234` | **旧轮询**：`setInterval(loadInsights, 10_000)`（canonical 是 SSE，不再轮询） |
 | `frontend/app/dashboard/ai/ad-analysis/page.tsx:41,255,260` | 复用旧调度组件 / 旧调度写调用 |
@@ -218,7 +218,7 @@ canonical 链路尚未承接这三个业务面，冻结会直接打断定时报�
 （非目标：不改变未迁移业务的降级行为）：
 
 | 位置 | 内容 |
-|------|------|
+| ------ | ------ |
 | `backend/app/api/v1/endpoints/scheduled_reports.py:282` | `POST /scheduled-reports/ledger/{key}/ai-summary/regenerate`（`:286` 函数体，`:297` 调 ledger 服务） |
 | `backend/app/services/scheduled_report/ledger_service.py:430` | `regenerate_ledger_ai_summary_async()`（`:450` 内部 `enqueue_ai_summary_generation`） |
 | `backend/app/services/scheduled_report/ledger_service.py:309` | `generate_ai_summary_for_delivery_log()` |
@@ -266,7 +266,54 @@ canonical 链路尚未承接这三个业务面，冻结会直接打断定时报�
 
 ---
 
-## 六、已知限制
+## 六、真流式（BLF-1071）对门禁阈值的影响与结论
+
+**背景**：BLF-1071 把执行器从「一 run 一帧整段 delta」改成「每个 provider token 一帧
+`content.delta`」。两个门禁口径随之变化：
+
+| 指标 | 变化 | 结论 |
+|------|------|------|
+| `first_delta_ms` | 从「产出时延」变成**真首字时延** | 口径变严、数值变小。`il_gate_max_first_delta_ms`（90_000 = `ai_chat_timeout_seconds`）**不必调整**：首字必然早于整段产出，原阈值仍有充足余量，调小反而会把慢模型误判为超时 |
+| `stream_frames` | 每 run 从 ~1 帧升到 **O(输出 token 数)** | 数量级上升，但**不必调整阈值**（见下） |
+
+**`insight_stream_maxlen`（默认 10000）够不够？—— 够，建议维持默认。**
+
+关键事实：`stream_key(run_id)` 是 **per-run** 的（`bb:insight:stream:{run_id}`），所以
+`maxlen` 约束的是**单个 run 自己的窗口**，不是全库共享预算。按此实测：
+
+| delta 粒度 | 1540 字报告（三域 5 段中文分析的典型量级）的帧数 | 单 run 溢出窗口的正文长度 |
+|-----------|--------------------------------------|------------------------|
+| 1 字符/帧（最坏） | ~1540 | > 9994 字 |
+| 2 字符/帧 | ~770 | > 19988 字 |
+| 4 字符/帧 | ~385 | > 39976 字 |
+
+即：**只有当单次输出超过约 1 万字（最坏粒度）才会滚出窗口**，而三个域的 prompt 都要求
+「5 段结构化中文分析」，正常输出在 1.5–3k 字量级，距溢出还有 3× 以上余量。
+
+即使真的溢出，**降级路径是安全的**（BLF-1012 已建）：`content.snapshot` 帧 + snapshot
+checkpoint 让断线续传回退到「快照重建」而非丢内容（subscriber 的
+`_resume_snapshot` 分支），观感退化但数据不丢。
+
+**因此建议（不直接改阈值，按 issue 要求只给结论）**：
+
+1. `il_gate_max_stream_frames` 维持 `10000`。它原本锚定 `insight_stream_maxlen`（= 保留窗口
+   上限），而 BLF-1071 后 `stream_xlen` 仍以 maxlen 为上限，**锚定关系不变**；改小会误报
+   「保留窗口耗尽」。
+2. `il_gate_max_first_delta_ms` 维持 `90_000`。口径变了但阈值本来就锚定 provider 调用预算，
+   不是经验值，无需跟着动。
+3. 新增可选项（非本次改动）：如果运维想在溢出**发生前**预警，可把
+   `insight_gate_max_stream_frames` 设为 `insight_stream_maxlen` 的一个比例（如 8000），
+   把「接近窗口上限」变成 warning；默认仍是 10000（只在真触顶时报）。
+4. 若未来单次报告长度预期突破 1 万字，优先调 `insight_stream_maxlen`（它是 window 大小），
+   而不是放宽门禁。
+
+**观测期读法提醒**：唯一需要重新建立 baseline 的是 `stream_frames` / `stream_bytes`
+两列的**绝对量级**（会跳一个数量级）。观测窗口内做同比时，`first_delta_ms` 的改善与
+`stream_frames` 的跃升都是**预期行为**，不是回归。
+
+---
+
+## 七、已知限制
 
 1. **`frontend/types/api-generated/openapi.json` 无法在本栈重生成**：
    `python -m scripts.openapi_export` 全仓库失败（`KeyError` 落在首个路由

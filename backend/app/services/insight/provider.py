@@ -12,15 +12,28 @@ Insight run contract:
 Role/slot validation remains the responsibility of the Insight role registry.
 The registry can pass a role's default model policy to ``InsightModelResolver``
 without duplicating provider construction in each business adapter.
+
+Streaming (BLF-1071): the provider owns the *only* seam that sees real
+per-token text. :func:`open_text_stream` exposes it as an
+:class:`InsightTextStream` — an ``AsyncIterator[str]`` of deltas plus the
+terminal facts (token usage, provider response state) that the sync executor
+needs once the stream ended. Partial streams never look finished.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable, Iterable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import httpx
 from pydantic_ai import Agent
@@ -88,6 +101,39 @@ PROVIDER_MODELS_TIMEOUT_SECONDS = 10.0
 _provider_models_cache: tuple[str, float, frozenset[str]] | None = None
 
 
+def _clamp_timeout_seconds(raw: Any) -> int:
+    """Coerce a configured timeout to whole seconds within the listing cap.
+
+    Unreadable values fall back to the default; the result is floored at 1s so
+    a configured 0/negative never reaches the HTTP client as "no timeout".
+    """
+
+    try:
+        configured = float(raw or 30)
+    except (TypeError, ValueError):
+        configured = 30.0
+    try:
+        return int(max(1.0, min(configured, PROVIDER_MODELS_TIMEOUT_SECONDS)))
+    except (TypeError, ValueError, OverflowError):
+        return int(PROVIDER_MODELS_TIMEOUT_SECONDS)
+
+
+def _cached_models_for(
+    cached: tuple[str, float, frozenset[str]] | None, base_url: str
+) -> frozenset[str]:
+    """Last successful listing for this endpoint, else the empty set.
+
+    "Empty" is the honest answer for an unlisted endpoint: an outage must not
+    widen what the allowlist permits (see :func:`fetch_provider_model_ids`).
+    """
+
+    if cached is None:
+        return frozenset()
+    if cached[0] != base_url:
+        return frozenset()
+    return cached[2]
+
+
 def fetch_provider_model_ids(
     settings: _SettingsLike, *, ttl_seconds: int | None = None
 ) -> frozenset[str]:
@@ -121,22 +167,22 @@ def fetch_provider_model_ids(
 
     # 清单是一支小 GET，不占用 chat 的长超时预算：解析发生在提交 run 的
     # 请求/worker 路径上，不能因为代理挂住而拖住请求。
-    configured_timeout = float(
-        getattr(settings, "ai_chat_timeout_seconds", 30) or 30
+    configured_timeout = _clamp_timeout_seconds(
+        getattr(settings, "ai_chat_timeout_seconds", 30)
     )
     try:
         models = frozenset(
             ai_llm.fetch_models_from_provider(
                 base_url,
                 str(getattr(settings, "ai_chat_provider_api_key", "")).strip(),
-                max(1.0, min(configured_timeout, PROVIDER_MODELS_TIMEOUT_SECONDS)),
+                configured_timeout,
             )
         )
     except Exception:  # noqa: BLE001 — 供应商不可达不改变授权结论
         logger.warning(
             "Insight provider model listing failed; reusing cached allowlist"
         )
-        return cached[2] if cached is not None and cached[0] == base_url else frozenset()
+        return _cached_models_for(cached, base_url)
 
     _provider_models_cache = (base_url, now, models)
     return models
@@ -221,8 +267,223 @@ class InsightModelSelection:
 
 
 class _StreamAgent(Protocol):
-    def run_stream(self, user_prompt: str, **kwargs: Any) -> Any:
-        """Return an async context manager yielding a streamed run result."""
+    def run_stream(self, *args: Any, **kwargs: Any) -> Any:
+        """Return an async context manager yielding a streamed run result.
+
+        Deliberately permissive: this is an injection seam, and each
+        pydantic-ai generation spells ``run_stream`` differently (positional
+        vs keyword-only, extra optional params). Pinning the exact signature
+        here would reject the real ``Agent`` and buy nothing — callers only
+        ever pass a user prompt.
+        """
+
+
+#: 供应商响应的终态标记：正常收到终止事件才算完整；EOF 未终止事件时
+#: pydantic-ai 会把状态留在 ``incomplete``（截断的上游流）。
+_STREAM_INCOMPLETE_STATES = frozenset({"incomplete", "interrupted"})
+
+
+def _as_token_count(value: Any) -> int:
+    """Coerce one usage field to a non-negative int; unreadable shapes → 0.
+
+    usage 形状变化绝不能把一个已经成功的 run 判成失败（见 :func:`usage_tokens`）：
+    非数字/负值一律归零，而不是让 ``int()`` 抛出去被 classify 成供应商故障。
+    """
+
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def usage_tokens(usage: Any) -> tuple[int, int]:
+    """读取 agent run 的 ``(input_tokens, output_tokens)``，兼容两代 pydantic-ai。
+
+    2.x：``result.usage`` 是**属性**，字段 ``input_tokens``/``output_tokens``；
+    旧版：``result.usage()`` 是方法，字段 ``request_tokens``/``response_tokens``。
+    取数失败一律按 0 计——usage 形状变化绝不能把一个已经成功的 run 判成失败
+    （生产实证：旧写法抛 TypeError 被 classify 成 PROVIDER_UNAVAILABLE 反复重试）。
+    """
+
+    if callable(usage):
+        try:
+            usage = usage()
+        except Exception:  # noqa: BLE001 — 旧版是方法，调用本身也可能变
+            logger.warning("Insight usage accessor failed; counting 0 tokens")
+            return 0, 0
+    if usage is None:
+        return 0, 0
+    input_tokens = getattr(usage, "input_tokens", None)
+    if input_tokens is None:
+        input_tokens = getattr(usage, "request_tokens", 0)
+    output_tokens = getattr(usage, "output_tokens", None)
+    if output_tokens is None:
+        output_tokens = getattr(usage, "response_tokens", 0)
+    return _as_token_count(input_tokens), _as_token_count(output_tokens)
+
+
+@dataclass(slots=True)
+class InsightStreamResult:
+    """One provider text stream's terminal facts (BLF-1071).
+
+    ``finished`` is set by :class:`InsightTextStream` only when iteration
+    ended *naturally*: a stream that raised, or that the consumer abandoned,
+    keeps ``finished=False`` so partial text can never pass for a finished
+    answer. ``state`` mirrors the provider's own response state — an upstream
+    connection that EOF'd without a terminal event leaves ``incomplete``,
+    which the executor treats as a retryable failure instead of silently
+    persisting half a report. Token usage is only read once the stream
+    finished.
+    """
+
+    finished: bool = False
+    state: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+class InsightTextStream:
+    """Live provider text stream: deltas now, terminal facts once it ended.
+
+    Iterating yields real provider text deltas (``AsyncIterator[str]``). Callers
+    that drive it to exhaustion (the sync executor does, through a private
+    event loop) can then read :attr:`usage_tokens` / :attr:`state`; everything
+    else reports the stream as unfinished, and :attr:`usage_tokens` returns
+    ``(0, 0)`` rather than pretending a partial stream used no tokens.
+    """
+
+    def __init__(
+        self,
+        iterator: AsyncIterator[str],
+        result: InsightStreamResult | None = None,
+    ) -> None:
+        self._iterator = iterator
+        self._result = result if result is not None else InsightStreamResult()
+        self._closed = False
+
+    def __aiter__(self) -> AsyncIterator[str]:
+        return self
+
+    async def __anext__(self) -> str:
+        try:
+            return await self._iterator.__anext__()
+        except StopAsyncIteration:
+            self._result.finished = True
+            raise
+
+    async def aclose(self) -> None:
+        """Close the provider stream; safe to call repeatedly.
+
+        The sync executor calls this from ``_consume_stream``'s ``finally``, so
+        an aborted consumption (cancel/retry mid-answer, a sink that raises, a
+        role cleaner blowing up) tears down ``agent.run_stream``'s async
+        context *now* — the upstream HTTP request stops instead of billing the
+        rest of the response, and we do not have to hope async generator
+        collection gets around to ``GeneratorExit``.
+
+        Idempotent: a stream driven to its natural end and then closed is not
+        an error, and a redelivered attempt closing twice must not raise.
+        Closing does *not* mark the stream finished — a partially consumed
+        answer still reports ``finished=False`` and zero usage.
+        """
+
+        if self._closed:
+            return
+        self._closed = True
+        close = cast(
+            "Callable[[], Awaitable[None]] | None",
+            getattr(self._iterator, "aclose", None),
+        )
+        if callable(close):
+            await close()
+
+    @property
+    def finished(self) -> bool:
+        """Whether iteration ran to natural completion."""
+        return self._result.finished
+
+    @property
+    def state(self) -> str | None:
+        """Provider response state, ``None`` when the provider did not report one."""
+        return self._result.state
+
+    @property
+    def truncated(self) -> bool:
+        """Whether the provider stopped before signalling completion.
+
+        An upstream connection that EOF'd without a terminal event leaves
+        pydantic-ai's response state ``incomplete``; a cancelled stream reports
+        ``interrupted``. Either way the text we received is half an answer and
+        must not be persisted as one — the executor turns this into a
+        retryable failure. Unknown/absent state counts as complete: a provider
+        that reports nothing is not evidence of truncation, and failing a good
+        run on a telemetry gap is the worse error.
+        """
+
+        return self._result.state in _STREAM_INCOMPLETE_STATES
+
+    @property
+    def usage_tokens(self) -> tuple[int, int]:
+        """``(input_tokens, output_tokens)``; ``(0, 0)`` unless finished."""
+        if not self._result.finished:
+            return 0, 0
+        return self._result.input_tokens, self._result.output_tokens
+
+
+def _record_stream_result(run: Any, result: InsightStreamResult) -> None:
+    """Copy a finished streamed run's usage/state; never raises.
+
+    形状变化绝不能把一次成功的流判成失败（与 :func:`usage_tokens` 同一条规则）：
+    读不到 state 就当供应商没报，截断守卫随之让路；usage 读不到按 0 计。
+    """
+
+    try:
+        state = getattr(getattr(run, "response", None), "state", None)
+        if isinstance(state, str):
+            result.state = state
+        result.input_tokens, result.output_tokens = usage_tokens(
+            getattr(run, "usage", None)
+        )
+    except Exception:  # noqa: BLE001 — 终态读数失败不影响已收到的正文
+        logger.warning("Insight stream terminal facts unreadable")
+
+
+async def _iter_provider_text(
+    agent: Any,
+    user_prompt: str,
+    result: InsightStreamResult,
+) -> AsyncIterator[str]:
+    """Yield real text deltas and classify all provider failures.
+
+    The ``finally`` records usage/state *before* the ``async with`` exits, so
+    the executor can read them the moment iteration ends.
+    """
+
+    try:
+        async with agent.run_stream(user_prompt) as run:
+            try:
+                async for chunk in run.stream_text(delta=True, debounce_by=None):
+                    if isinstance(chunk, str) and chunk:
+                        yield chunk
+            finally:
+                _record_stream_result(run, result)
+    except InsightProviderError:
+        raise
+    except Exception as exc:
+        raise classify_provider_error(exc) from exc
+
+
+def open_text_stream(agent: Any, user_prompt: str) -> InsightTextStream:
+    """Open the provider's real per-token text stream (BLF-1071).
+
+    This is the production seam the executor consumes; it never imports
+    pydantic-ai itself, and every failure is classified through
+    :func:`classify_provider_error` so the executor can retry or fail on a
+    typed, secret-free value.
+    """
+
+    result = InsightStreamResult()
+    return InsightTextStream(_iter_provider_text(agent, user_prompt, result), result)
 
 
 ModelFactory = Callable[[str, str], Model]
@@ -404,15 +665,24 @@ class InsightModelResolver:
     ) -> AsyncIterator[str]:
         """Yield actual text deltas and classify all provider failures."""
 
-        try:
-            async with agent.run_stream(user_prompt) as result:
-                async for chunk in result.stream_text(delta=True, debounce_by=None):
-                    if isinstance(chunk, str) and chunk:
-                        yield chunk
-        except InsightProviderError:
-            raise
-        except Exception as exc:
-            raise classify_provider_error(exc) from exc
+        async for chunk in _iter_provider_text(
+            agent, user_prompt, InsightStreamResult()
+        ):
+            yield chunk
+
+    def open_text_stream(
+        self,
+        agent: _StreamAgent,
+        user_prompt: str,
+    ) -> InsightTextStream:
+        """Same stream as :meth:`stream_text`, plus terminal usage/state.
+
+        The executor needs the token usage of the *streamed* run (it persists
+        it once at terminal state); a plain ``AsyncIterator[str]`` cannot
+        carry that, so production consumes this handle instead.
+        """
+
+        return open_text_stream(agent, user_prompt)
 
     def _allowed_models(self) -> set[str]:
         """Build the server-side allowlist and then apply its blocklist."""
@@ -469,11 +739,7 @@ class InsightModelResolver:
             status_code = exc.response.status_code
             retry_after_value = _retry_after_from_headers(exc.response.headers)
 
-        retry_after = (
-            max(1, int(retry_after_value))
-            if retry_after_value is not None
-            else None
-        )
+        retry_after = _retry_after_seconds(retry_after_value)
         if status_code == 404:
             return InsightProviderError(
                 InsightProviderErrorCode.MODEL_UNAVAILABLE,
@@ -519,6 +785,24 @@ def classify_provider_error(exc: Exception) -> InsightProviderError:
         "Insight provider request failed",
         retryable=True,
     )
+
+
+def _retry_after_seconds(value: Any) -> int | None:
+    """Normalize a provider-supplied Retry-After to a positive second count.
+
+    Providers disagree on this header's type: pydantic-ai hands us a float,
+    the raw HTTP path hands us whatever ``int()`` could parse. A value we
+    cannot read is dropped (``None``) instead of raising out of error
+    classification — a malformed header must not turn a 429 into an
+    unhandled exception for the worker.
+    """
+
+    if value is None:
+        return None
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _retry_after_from_headers(headers: Mapping[str, str]) -> int | None:
