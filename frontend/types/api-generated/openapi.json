@@ -50465,6 +50465,52 @@
         ]
       }
     },
+    "/api/v1/agent/projects/{project_id}/sku-info/listing-copy/batch": {
+      "post": {
+        "description": "W6 批量文案写入：confirm 两步后一次事务写多 SKU 的文案字段。\n\n与 W2 共用同一套「只写显式提供字段」语义（``model_fields_set``）：未提供的\n字段保持原值，显式 ``null`` / 空串清空。身份字段与溯源列不可写（extra=forbid\n→ ``VALIDATION_FAILED``）；``listing_copy_updated_by`` 落 ``agent_id``。\n跨项目 / 不存在的 ``sku_record_id`` → 404（不静默跳过）。",
+        "operationId": "batch_update_sku_info_listing_copy_api_v1_agent_projects__project_id__sku_info_listing_copy_batch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Batch Update Sku Info Listing Copy Api V1 Agent Projects  Project Id  Sku Info Listing Copy Batch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Batch Update Sku Info Listing Copy",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      }
+    },
     "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}": {
       "delete": {
         "description": "W5 删除：confirm 两步后硬删除（crud ``delete_sku_record``）+ 审计 + 缓存失效。\n\n对齐内部 ``DELETE /sku-info/{sku_record_id}`` 语义：不清理 R2 文件\n（fnsku-label / product-image）；记录不存在或不属于该项目 → agent shell 404。",

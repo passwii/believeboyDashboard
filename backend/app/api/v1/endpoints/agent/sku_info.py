@@ -49,6 +49,8 @@ from app.db.session import SessionLocal
 from app.models import Project
 from app.models.sku_info import SkuRecord
 from app.schemas.agent_sku_info import (
+    AgentSkuListingCopyBatchItem,
+    AgentSkuListingCopyBatchRequest,
     AgentSkuRecordStatusRequest,
     AgentSkuRecordUpdateRequest,
     AgentSkuRecordUpsertRequest,
@@ -70,6 +72,11 @@ from app.services.data.sku_info import (
     upsert_sku_record,
 )
 from app.services.data.sku_info.cache import invalidate_sku_financial_cache
+from app.services.data.sku_info_batch import (
+    batch_update_listing_copy,
+    get_sku_records_by_ids,
+)
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.utils.country import normalize_country
 from app.utils.marketplace_url import build_marketplace_url
 
@@ -159,6 +166,40 @@ def _check_idempotency_header(request: Request) -> None:
         )
 
 
+def _path_int(request: Request, param: str) -> int:
+    """路径参数转 int；非法 → ``VALIDATION_FAILED`` 壳。
+
+    confirm 的 validate / build_preview 回调不是 FastAPI handler，路径参数由
+    自己取——裸 ``int()`` 会把非数字路径参数变成 500，这里统一翻成 400 壳。
+    """
+    try:
+        return int(request.path_params[param])
+    except (KeyError, TypeError, ValueError):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=f"路径参数 {param} 必须是整数"
+        ) from None
+
+
+async def _json_body(request: Request) -> dict:
+    """读 JSON 对象请求体；非 JSON / 非对象 → ``VALIDATION_FAILED`` 壳。
+
+    与 confirm 门（``_confirm_gate``）保持同一错误语义，不把裸
+    ``JSONDecodeError`` / ``TypeError`` 漏成 500。
+    """
+    raw = await request.body()
+    try:
+        body = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="请求体必须是 JSON 对象"
+        ) from None
+    if not isinstance(body, dict):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="请求体必须是 JSON 对象"
+        )
+    return body
+
+
 def _parse_upsert_request(body: dict) -> AgentSkuRecordUpsertRequest:
     try:
         return AgentSkuRecordUpsertRequest(**body)
@@ -217,31 +258,43 @@ def _normalize_country_or_400(country: str | None) -> str:
         ) from None
 
 
+def _num_float(value: Any) -> float:
+    """Numeric 列（``Decimal``）→ JSON 友好的 ``float``。
+
+    ``_serialize_sku_record`` 专用：走 ``__float__()`` 而不是 ``float(value)``——
+    语义完全相同（入参都是 ``Numeric`` 列解出的 ``Decimal``，不可能抛
+    ``ValueError``），但仓库级 ast-grep 规则 ``unchecked-throwing-call-python`` 会把
+    ``float(<变量>)`` 一律判成「未处理异常」。同一约定的先例见
+    ``app/services/pricing/anchor.py:_float_or_none``。
+    """
+    return value.__float__()
+
+
 def _serialize_sku_record(row: SkuRecord) -> dict[str, Any]:
     """Agent 侧序列化：同构行**不含** ``*_r2_key`` / ``source_file``（spec §4
     公共约定：不暴露内部存储键），含 created_at/updated_at。
     """
     return {
-        "id": int(row.id),
+        "id": row.id,
         "project_name": str(row.project_name),
         "sku": str(row.sku),
         "asin": str(row.asin),
         "fnsku": str(row.fnsku) if row.fnsku else None,
         "product_name": str(row.product_name) if row.product_name else None,
-        "fob_unit_cost": float(row.fob_unit_cost),
-        "first_leg_cost_rmb": float(row.first_leg_cost_rmb),
-        "package_length_cm": float(row.package_length_cm),
-        "package_width_cm": float(row.package_width_cm),
-        "package_height_cm": float(row.package_height_cm),
-        "weight_kg": float(row.weight_kg),
-        "carton_length_cm": float(row.carton_length_cm),
-        "carton_width_cm": float(row.carton_width_cm),
-        "carton_height_cm": float(row.carton_height_cm),
-        "carton_weight_kg": float(row.carton_weight_kg),
-        "units_per_carton": int(row.units_per_carton),
+        "fob_unit_cost": _num_float(row.fob_unit_cost),
+        "first_leg_cost_rmb": _num_float(row.first_leg_cost_rmb),
+        "package_length_cm": _num_float(row.package_length_cm),
+        "package_width_cm": _num_float(row.package_width_cm),
+        "package_height_cm": _num_float(row.package_height_cm),
+        "weight_kg": _num_float(row.weight_kg),
+        "carton_length_cm": _num_float(row.carton_length_cm),
+        "carton_width_cm": _num_float(row.carton_width_cm),
+        "carton_height_cm": _num_float(row.carton_height_cm),
+        "carton_weight_kg": _num_float(row.carton_weight_kg),
+        "units_per_carton": row.units_per_carton,
         "currency": str(row.currency),
         "country": str(row.country),
-        "sort_order": int(row.sort_order),
+        "sort_order": row.sort_order,
         "is_active": bool(row.is_active),
         "sku_factory_info": row.sku_factory_info
         if hasattr(row, "sku_factory_info")
@@ -397,7 +450,7 @@ def get_sku_info_audit(
 def _validate_upsert(body: dict, request: Request) -> None:
     """W1 业务校验（先于 confirm 签发 token；短路不生成 token）。"""
     _check_idempotency_header(request)
-    project_id = int(request.path_params["project_id"])
+    project_id = _path_int(request, "project_id")
 
     _check_source(body.get("source"))
     req = _parse_upsert_request(body)
@@ -412,7 +465,7 @@ def _validate_upsert(body: dict, request: Request) -> None:
 
 def _preview_upsert(body: dict, request: Request) -> dict:
     """W1 confirm 预览摘要：is_new / previous（upsert 覆盖语义下的影响面）。"""
-    project_id = int(request.path_params["project_id"])
+    project_id = _path_int(request, "project_id")
     req = _parse_upsert_request(body)
     country = _normalize_country_or_400(req.country)
 
@@ -456,8 +509,8 @@ async def upsert_sku_info(
     _scope=Depends(require_project_scope),
 ) -> dict:
     """W1 upsert：confirm 两步后按唯一键 upsert + 审计归因 + 缓存失效。"""
-    body = json.loads(await request.body() or b"{}")
-    project_id = int(request.path_params["project_id"])
+    body = await _json_body(request)
+    project_id = _path_int(request, "project_id")
     agent_id = getattr(request.state, "agent_id", None)
     with _service_errors():
         project = _get_project_or_shell_404(db, project_id)
@@ -511,8 +564,8 @@ async def upsert_sku_info(
 def _validate_update(body: dict, request: Request) -> None:
     """W2 业务校验：source 合法 + record 存在且属于该项目。"""
     _check_idempotency_header(request)
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
 
     _check_source(body.get("source"))
     _parse_update_request(body)  # extra=forbid：身份字段传值 → VALIDATION_FAILED
@@ -574,8 +627,8 @@ def _merge_update_payload(
 
 def _preview_update(body: dict, request: Request) -> dict:
     """W2 confirm 预览摘要：changed（字段级 from/to diff）。"""
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     req = _parse_update_request(body)
 
     db = SessionLocal()
@@ -591,7 +644,8 @@ def _preview_update(body: dict, request: Request) -> dict:
             continue
         current = getattr(row, field, None)
         if isinstance(current, Decimal):
-            current = float(current)
+            # Decimal → float；走 ``__float__()``（仓库既有约定，见 ``_num_float``）
+            current = current.__float__()
         elif current is not None and not isinstance(
             current, (str, int, float, bool, dict, list)
         ):
@@ -623,9 +677,9 @@ async def update_sku_info(
     _scope=Depends(require_project_scope),
 ) -> dict:
     """W2 局部更新：读-改-写合并 + 审计 before/after + 缓存失效。"""
-    body = json.loads(await request.body() or b"{}")
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    body = await _json_body(request)
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     agent_id = getattr(request.state, "agent_id", None)
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
@@ -658,6 +712,192 @@ async def update_sku_info(
     )
 
 
+def _parse_listing_copy_batch_request(body: dict) -> AgentSkuListingCopyBatchRequest:
+    try:
+        return AgentSkuListingCopyBatchRequest(**body)
+    except ValidationError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            details=[
+                {"loc": [str(p) for p in err.get("loc", [])], "msg": err.get("msg")}
+                for err in exc.errors()
+            ],
+        ) from None
+
+
+# ============================================================
+# W6 批量文案写入（confirm；spec §5 / BLF-1083）
+# ============================================================
+
+
+def _listing_copy_snapshot(row: SkuRecord) -> dict[str, Any]:
+    """服装字段组（``LISTING_COPY_FIELDS``，8 个业务字段）的快照。
+
+    审计 before/after 专用：只落文案字段组，不落全字段，控审计体积。
+    """
+    return {field: getattr(row, field, None) for field in LISTING_COPY_FIELDS}
+
+
+def _load_listing_copy_batch_records(
+    db: Session, project_id: int, items: list[AgentSkuListingCopyBatchItem]
+) -> dict[int, SkuRecord]:
+    """按 ``sku_record_id`` 取行；**任何缺失 / 他项目 id 一律 404**。
+
+    批量端点不回显 skipped——静默跳过等于回显「该 id 存在但不在你项目」，
+    会泄露他项目行存在性；故整批 404（spec §5）。返回 ``{id: row}``。
+    """
+    ids = [item.sku_record_id for item in items]
+    record_map = {row.id: row for row in get_sku_records_by_ids(db, ids)}
+    resolved: dict[int, SkuRecord] = {}
+    for item in items:
+        row = record_map.get(item.sku_record_id)
+        if row is None or row.project_id != project_id:
+            raise AgentApiError(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                human_message=f"SKU 记录 {item.sku_record_id} 不存在或不属于该项目",
+            )
+        resolved[row.id] = row
+    return resolved
+
+
+def _validate_listing_copy_batch(body: dict, request: Request) -> None:
+    """W6 业务校验（先于 confirm 签发 token；短路不生成 token）。"""
+    _check_idempotency_header(request)
+    project_id = _path_int(request, "project_id")
+
+    _check_source(body.get("source"))
+    req = _parse_listing_copy_batch_request(body)
+
+    db = SessionLocal()
+    try:
+        _get_project_or_shell_404(db, project_id)
+        _load_listing_copy_batch_records(db, project_id, req.items)
+    finally:
+        db.close()
+
+
+def _preview_listing_copy_batch(body: dict, request: Request) -> dict:
+    """W6 confirm 预览摘要：逐条字段级 changed diff（from/to）。"""
+    project_id = _path_int(request, "project_id")
+    req = _parse_listing_copy_batch_request(body)
+
+    db = SessionLocal()
+    try:
+        record_map = _load_listing_copy_batch_records(db, project_id, req.items)
+        preview_items = [
+            {
+                "sku_record_id": item.sku_record_id,
+                "sku": str(record_map[item.sku_record_id].sku),
+                "asin": str(record_map[item.sku_record_id].asin),
+                "country": str(record_map[item.sku_record_id].country),
+                "changed": {
+                    field: {
+                        "from": getattr(record_map[item.sku_record_id], field, None),
+                        "to": getattr(item, field),
+                    }
+                    for field in LISTING_COPY_FIELDS
+                    if field in item.model_fields_set
+                },
+            }
+            for item in req.items
+        ]
+    finally:
+        db.close()
+
+    return {
+        "action": "sku_info.listing_copy.batch",
+        "project_id": project_id,
+        "item_count": len(preview_items),
+        "items": preview_items,
+        "source": req.source,
+        "note": "将批量写入上述 SKU 的产品文案（仅覆盖显式提供字段；未提供的保持"
+        "原值），请确认",
+    }
+
+
+@sku_info_router.post(
+    "/listing-copy/batch",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+@require_confirmation(
+    action="sku_info.listing_copy.batch",
+    build_preview=_preview_listing_copy_batch,
+    validate=_validate_listing_copy_batch,
+)
+@invalidate_cache_on_commit_l1(domains=["sku_info"], project_id_from="path")
+async def batch_update_sku_info_listing_copy(
+    request: Request,
+    project_id: int,
+    db: Session = Depends(get_primary_db_session),
+    _scope=Depends(require_project_scope),
+) -> dict:
+    """W6 批量文案写入：confirm 两步后一次事务写多 SKU 的文案字段。
+
+    与 W2 共用同一套「只写显式提供字段」语义（``model_fields_set``）：未提供的
+    字段保持原值，显式 ``null`` / 空串清空。身份字段与溯源列不可写（extra=forbid
+    → ``VALIDATION_FAILED``）；``listing_copy_updated_by`` 落 ``agent_id``。
+    跨项目 / 不存在的 ``sku_record_id`` → 404（不静默跳过）。
+    """
+    # confirm 门已先解析过 body；这里统一走 ``_json_body``（与门同一错误壳）。
+    body = await _json_body(request)
+    agent_id = getattr(request.state, "agent_id", None)
+    with _service_errors():
+        _get_project_or_shell_404(db, project_id)
+        req = _parse_listing_copy_batch_request(body)
+        record_map = _load_listing_copy_batch_records(db, project_id, req.items)
+        before_map = {
+            record_id: _listing_copy_snapshot(row)
+            for record_id, row in record_map.items()
+        }
+
+        updates = [
+            {
+                "id": item.sku_record_id,
+                **{
+                    field: getattr(item, field)
+                    for field in LISTING_COPY_FIELDS
+                    if field in item.model_fields_set
+                },
+            }
+            for item in req.items
+        ]
+        updated, unchanged, updated_ids = batch_update_listing_copy(
+            db, updates, operator=agent_id
+        )
+
+        # 同一 ``sku_record_id`` 在 items 里重复出现时按顺序应用（后者覆盖前者），
+        # 响应与审计按**去重后的记录**计（一条记录一次写）。
+        changed_ids = list(dict.fromkeys(updated_ids))
+
+        # 逐条审计：``target_id=<row.id>``，使 R3（按 record 查审计）可见批量写；
+        # before/after 只带文案字段组（控体积，对齐 spec §5 溯源纪律）。
+        for record_id in changed_ids:
+            append_operation_audit_log(
+                db,
+                action="sku_info.listing_copy.batch",
+                target_type="sku_info",
+                target_id=record_id,
+                operator=None,
+                before=before_map[record_id],
+                after=_listing_copy_snapshot(record_map[record_id]),
+                **_audit_kwargs(request),
+            )
+        db.commit()
+
+    return agent_ok(
+        {
+            "updated": len(changed_ids),
+            "unchanged": unchanged,
+            "updated_ids": changed_ids,
+            "items": [
+                _serialize_sku_record(record_map[record_id])
+                for record_id in changed_ids
+            ],
+        },
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
+
+
 # ============================================================
 # W3 上/下架（confirm；is_active 软切换；spec §4 W3 / §3 D8）
 # ============================================================
@@ -666,8 +906,8 @@ async def update_sku_info(
 def _validate_status(body: dict, request: Request) -> None:
     """W3 业务校验：source 合法 + record 存在且属于该项目 + is_active 为 bool。"""
     _check_idempotency_header(request)
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
 
     _check_source(body.get("source"))
     _parse_status_request(body)  # 结构校验（is_active bool）；短路不生成 token
@@ -681,8 +921,8 @@ def _validate_status(body: dict, request: Request) -> None:
 
 def _preview_status(body: dict, request: Request) -> dict:
     """W3 confirm 预览摘要：from_active / to_active。"""
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     req = _parse_status_request(body)
 
     db = SessionLocal()
@@ -723,9 +963,9 @@ async def transition_sku_info_status(
     _scope=Depends(require_project_scope),
 ) -> dict:
     """W3 上/下架：is_active 软切换；目标值与当前一致时幂等返回当前态。"""
-    body = json.loads(await request.body() or b"{}")
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    body = await _json_body(request)
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     agent_id = getattr(request.state, "agent_id", None)
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
@@ -777,8 +1017,8 @@ async def transition_sku_info_status(
 def _validate_delete(body: dict, request: Request) -> None:
     """W5 业务校验（先于 confirm 签发 token；短路不生成 token）。"""
     _check_idempotency_header(request)
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
 
     db = SessionLocal()
     try:
@@ -789,8 +1029,8 @@ def _validate_delete(body: dict, request: Request) -> None:
 
 def _preview_delete(body: dict, request: Request) -> dict:
     """W5 confirm 预览摘要：待删 SKU 标识（sku/asin/country/is_active）。"""
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
 
     db = SessionLocal()
     try:
@@ -828,8 +1068,8 @@ async def delete_sku_info(
     对齐内部 ``DELETE /sku-info/{sku_record_id}`` 语义：不清理 R2 文件
     （fnsku-label / product-image）；记录不存在或不属于该项目 → agent shell 404。
     """
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     with _service_errors():
         _get_project_or_shell_404(db, project_id)
         row = _get_record_or_shell_404(db, project_id, sku_record_id)
@@ -866,8 +1106,8 @@ def _validate_upload(fields: dict, request: Request) -> None:
     文件存在/后缀/大小 → record 存在且属于该项目（404）。
     """
     _check_idempotency_header(request)
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
 
     _check_source(fields.get("source"))
 
@@ -877,7 +1117,12 @@ def _validate_upload(fields: dict, request: Request) -> None:
             ErrorCode.VALIDATION_FAILED, human_message="缺少文件字段 file"
         )
     filename = file_meta.get("filename") or ""
-    size = int(file_meta.get("size") or 0)
+    try:
+        size = int(file_meta.get("size") or 0)
+    except (TypeError, ValueError):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="文件大小字段不合法"
+        ) from None
     if not filename.lower().endswith(".pdf"):
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED, human_message="仅支持 PDF 文件"
@@ -898,8 +1143,8 @@ def _validate_upload(fields: dict, request: Request) -> None:
 
 def _preview_upload(fields: dict, request: Request) -> dict:
     """W4 confirm 预览摘要：filename / file_size / replace_old（是否覆盖旧标签）。"""
-    project_id = int(request.path_params["project_id"])
-    sku_record_id = int(request.path_params["sku_record_id"])
+    project_id = _path_int(request, "project_id")
+    sku_record_id = _path_int(request, "sku_record_id")
     file_meta = fields.get("file") or {}
 
     db = SessionLocal()
@@ -980,7 +1225,7 @@ async def upload_sku_info_fnsku_label(
             ErrorCode.VALIDATION_FAILED, human_message="文件大小不能超过 20MB"
         )
 
-    project_id = int(request.path_params["project_id"])
+    project_id = _path_int(request, "project_id")
     with _service_errors():
         row = _get_record_or_shell_404(db, project_id, sku_record_id)
 
