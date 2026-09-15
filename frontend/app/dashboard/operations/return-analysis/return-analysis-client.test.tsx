@@ -116,6 +116,7 @@ const SUMMARY = {
   unique_skus: 12,
   top_return_sku: 'SKU-TOP',
   top_return_reason: 'QUALITY_UNACCEPTABLE',
+  top_return_reason_display: '质量不合格',
   total_sales_quantity: 500,
   total_sales_amount: 12345,
   overall_return_rate: 8.4,
@@ -373,7 +374,7 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(card).not.toBeNull()
 
     // 外置契约：tab 条不在卡片内部，且整卡位于 tab 条之后（旧结构嵌在卡头内，此断言会失败）
-    expect(card).not.toContainElement(tabList)
+    expect(card).not.toContainElement(tabList as HTMLElement)
     expect(
       (tabList as Node).compareDocumentPosition(card as Node) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
@@ -444,6 +445,89 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     render(<ReturnAnalysisClient />)
     await screen.findByText('多件退货')
     expect(screen.getByText('共 7 件')).toBeInTheDocument()
+  })
+})
+
+describe('Top 退货原因磁贴译文来源（BLF-1074）', () => {
+  /** 取磁贴的数值单元格（SummaryTile 的值 span 带 title，便于区分标签 span） */
+  function tileValue(label: string): HTMLElement {
+    const tile = screen.getByText(label).closest('div')
+    const value = tile?.querySelector('span[title]')
+    expect(value).not.toBeNull()
+    return value as HTMLElement
+  }
+
+  it('后端 top_return_reason_display 优先：本地表未覆盖的 code 也显示中文', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({
+        summary: {
+          ...SUMMARY,
+          top_return_reason: 'DAMAGED_BY_FC',
+          top_return_reason_display: '仓库致损',
+        },
+      }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('Top 退货原因')
+
+    // `DAMAGED_BY_FC` 不在本地 14 项表内：修复前这里会裸露英文 code
+    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('仓库致损'))
+    expect(screen.queryByText('DAMAGED_BY_FC')).not.toBeInTheDocument()
+  })
+
+  it('后端字段与本地表冲突时以后端为准（单一翻译源，防两份表再次漂移）', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({
+        summary: {
+          ...SUMMARY,
+          top_return_reason: 'QUALITY_UNACCEPTABLE',
+          top_return_reason_display: '质量有瑕疵',
+        },
+      }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('Top 退货原因')
+
+    // 本地表把该 code 译作「质量不合格」；后端给了不同文案时仍取后端
+    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('质量有瑕疵'))
+    expect(screen.queryByText('质量不合格')).not.toBeInTheDocument()
+  })
+
+  it('旧后端缺字段（过渡窗口）：本地表命中则走兜底译文', async () => {
+    const legacySummary = { ...SUMMARY } as Record<string, unknown>
+    delete legacySummary.top_return_reason_display
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({ summary: legacySummary }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('Top 退货原因')
+
+    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('质量不合格'))
+  })
+
+  it('旧后端缺字段且 code 未被本地表覆盖：原样展示 code（宁可见英文也不猜语义）', async () => {
+    const legacySummary = { ...SUMMARY } as Record<string, unknown>
+    delete legacySummary.top_return_reason_display
+    legacySummary.top_return_reason = 'DAMAGED_BY_FC'
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({ summary: legacySummary }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('Top 退货原因')
+
+    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('DAMAGED_BY_FC'))
+  })
+
+  it('无退货原因时展示占位符 --', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({
+        summary: { ...SUMMARY, top_return_reason: null, top_return_reason_display: null },
+      }) as never
+    )
+    render(<ReturnAnalysisClient />)
+    await screen.findByText('Top 退货原因')
+
+    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('--'))
   })
 })
 
