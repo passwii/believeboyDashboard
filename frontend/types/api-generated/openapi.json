@@ -29689,6 +29689,17 @@
             ],
             "title": "Top Return Reason"
           },
+          "top_return_reason_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Return Reason Display"
+          },
           "top_return_sku": {
             "anyOf": [
               {
@@ -36310,6 +36321,10 @@
       },
       "UserApiKeyItem": {
         "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -36348,6 +36363,7 @@
         "required": [
           "id",
           "user_id",
+          "client_id",
           "key_prefix"
         ],
         "title": "UserApiKeyItem",
@@ -36355,9 +36371,25 @@
       },
       "UserApiKeyRevokeResponse": {
         "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
           "revoked": {
             "title": "Revoked",
             "type": "boolean"
+          },
+          "revoked_count": {
+            "default": 0,
+            "title": "Revoked Count",
+            "type": "integer"
           },
           "user_id": {
             "title": "User Id",
@@ -36373,6 +36405,10 @@
       },
       "UserApiKeyRotateResponse": {
         "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
           "key_prefix": {
             "title": "Key Prefix",
             "type": "string"
@@ -36388,6 +36424,7 @@
         },
         "required": [
           "user_id",
+          "client_id",
           "key_prefix",
           "plaintext_key"
         ],
@@ -55656,7 +55693,26 @@
     },
     "/api/v1/auth/login": {
       "post": {
+        "description": "登录并签发该设备槽的专属 API key（BLF-711 / BLF-1059）。\n\n设备槽通过请求头 ``X-Client-Id`` 携带（可选）：一个账号可以有多把 key，\n每个槽内只有一把有效 key；同一槽重登 = 轮换（旧 key 立即失效），**槽之间\n互不影响**。不携带此头的调用方（网页端代理、拆分前发布的桌面端构建）落\n``default`` 槽，行为与拆分前完全一致，故网页端零改动。\n\n选头而不选请求体字段的理由：不动 ``/auth/login`` 的 request/response\nschema —— 已提交的契约文件（``frontend/types/api-generated/openapi.json``\n与 ``api.d.ts``）保持同步，``pnpm build`` 的 ``gen:api-types:check`` 不受\n影响，也不必为纯后端改动去做一次跨端契约导出；且本仓库的身份类入参本来就\n走头（``X-Operator`` / ``X-Is-Admin`` / ``X-User-Id`` / ``X-API-Key``）。\n\n形态非法（超 64 字符 / 含空白与控制字符）→ 400，而不是静默落 ``default``：\n静默降级会让发错标识的设备与网页端共用一把 key，比报错更难排查。",
         "operationId": "login_api_v1_auth_login_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Client-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Client-Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -73316,7 +73372,7 @@
     },
     "/api/v1/internal/user-api-keys": {
       "get": {
-        "description": "列出所有用户 key（无明文；key_prefix 仅用于区分，不含密钥尾部）。",
+        "description": "列出所有用户 key（无明文；key_prefix 仅用于区分，不含密钥尾部）。\n\n按 ``(user_id, client_id)`` 排序——同一账号的多个设备槽相邻好读。",
         "operationId": "list_user_api_keys_api_v1_internal_user_api_keys_get",
         "parameters": [
           {
@@ -73364,7 +73420,7 @@
     },
     "/api/v1/internal/user-api-keys/{user_id}/revoke": {
       "post": {
-        "description": "按 user_id 吊销该用户的专属 key（幂等；无 key 记录时返回 404）。",
+        "description": "吊销该用户的专属 key（幂等；无 key 记录时返回 404）。\n\n``client_id`` 缺省 → 该账号全部设备；给定 → 只失效那一台。",
         "operationId": "revoke_user_api_key_api_v1_internal_user_api_keys__user_id__revoke_post",
         "parameters": [
           {
@@ -73374,6 +73430,22 @@
             "schema": {
               "title": "User Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
             }
           },
           {
@@ -73449,7 +73521,7 @@
     },
     "/api/v1/internal/user-api-keys/{user_id}/rotate": {
       "post": {
-        "description": "按 user_id 轮换：旧 key 立即失效、签发新 key，明文仅本次返回一次。\n\n未找到记录时返回 404（补发 key 的自然路径是登录下发）。",
+        "description": "轮换：签发新 key，明文仅本次返回一次。\n\n``client_id`` 缺省 → 一次重置该账号全部设备，新 key 发在 ``default`` 槽\n（拆分前单 key 时代“轮换即旧 key 全失效”的语义）；给定 → 只轮换那一个槽。\n未找到记录时返回 404（补发 key 的自然路径是登录下发）。",
         "operationId": "rotate_user_api_key_api_v1_internal_user_api_keys__user_id__rotate_post",
         "parameters": [
           {
@@ -73459,6 +73531,22 @@
             "schema": {
               "title": "User Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
             }
           },
           {

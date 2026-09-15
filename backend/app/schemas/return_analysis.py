@@ -97,6 +97,10 @@ class ReturnAnalysisSummary(BaseModel):
     unique_skus: int
     top_return_sku: str | None
     top_return_reason: str | None
+    # BLF-1074：与 reason_rows[].reason_display 同源的翻译值。前端 Top 磁贴此前
+    # 自带一份只覆盖 14 个 code 的重复对照表，遇到其余 16 个 code 就裸露英文
+    # （实测 3 个项目命中）。改为后端产出，前端不再重复翻译。
+    top_return_reason_display: str | None = None
     # 同期销售汇总
     total_sales_quantity: int = 0
     total_sales_amount: float = 0.0

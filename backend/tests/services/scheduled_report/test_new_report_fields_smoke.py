@@ -303,3 +303,80 @@ def test_monthly_ads_comparison_ad_ratio_all():
     assert ratio["current"] == 20.0   # 100 / 500 * 100
     assert ratio["prev"] == 25.0     # 100 / 400 * 100
     assert ratio["yoy"] == 40.0      # 100 / 250 * 100
+
+
+# ---------------------------------------------------------------------------
+# BLF-1074: 退货原因在邮件里必须是中文（不能裸露 Amazon 原始 code）
+# ---------------------------------------------------------------------------
+
+
+def _returns_data_with(raw_code: str) -> dict:
+    """构造带 top_returns 的日报 returns 段（``reason_display`` 由 builder 产出）。"""
+    from app.constants.return_translations import translate_return_field
+
+    return {
+        "qty": 12,
+        "rate": 1.5,
+        "top_returns": [
+            {
+                "reason": raw_code,
+                "reason_display": translate_return_field("reason", raw_code),
+                "qty": 12,
+            }
+        ],
+    }
+
+
+def test_daily_returns_section_renders_chinese_not_raw_code():
+    """日报「退货原因 TOP」渲染中文；未加 reason_display 前这里会裸露 code。"""
+    data = _daily_report_data()
+    # DAMAGED_BY_FC 是 BLF-1074 之前漏译的 code（旧前端表 / 旧常量表都没有）
+    data["returns"] = _returns_data_with("DAMAGED_BY_FC")
+
+    html = email_sender_daily._section_returns(data, "US")
+
+    assert "仓库致损" in html, "退货原因未渲染中文"
+    assert "DAMAGED_BY_FC" not in html, "邮件里仍裸露 Amazon 原始 code"
+
+
+def test_weekly_returns_section_renders_chinese_not_raw_code():
+    data = _daily_report_data()
+    data["returns_data"] = _returns_data_with("NO_REASON_GIVEN")
+
+    html = email_sender_weekly._section_week_returns(data, "US")
+
+    assert "未说明原因" in html
+    assert "NO_REASON_GIVEN" not in html
+
+
+def test_monthly_returns_section_renders_chinese_not_raw_code():
+    data = {
+        "country": "US",
+        "returns_data": _returns_data_with("NOT_COMPATIBLE"),
+        "inventory_summary": {
+            "total_available": 100,
+            "sku_count": 5,
+            "low_stock_count": 1,
+            "oos_count": 0,
+            "in_transit": 10,
+        },
+    }
+
+    html = email_sender_monthly._section_month_returns(data, "US")
+
+    assert "不兼容" in html
+    assert "NOT_COMPATIBLE" not in html
+
+
+def test_returns_section_falls_back_to_reason_when_display_missing():
+    """兼容旧载荷：缺 ``reason_display`` 时退回渲染 ``reason``，不崩、不吞掉行。"""
+    data = _daily_report_data()
+    data["returns"] = {
+        "qty": 3,
+        "rate": 0.5,
+        "top_returns": [{"reason": "DEFECTIVE", "qty": 3}],  # 无 reason_display
+    }
+
+    html = email_sender_daily._section_returns(data, "US")
+
+    assert "DEFECTIVE" in html

@@ -463,7 +463,7 @@ def _render_weekly_content_sections(
         if ret_top:
             for r in ret_top[:5]:
                 ret_reason_rows += f"""<tr>
-              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason", "—"))}</td>
+              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason_display") or r.get("reason", "—"))}</td>
               <td width="30%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: #DC2626;">{r.get("qty", 0)}</td>
             </tr>"""
             ret_reason_table = f"""
@@ -752,7 +752,7 @@ def _section_week_returns(report_data: dict[str, Any], country: str) -> str:
     if ret_top:
         for r in ret_top[:5]:
             ret_reason_rows += f"""<tr>
-              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason", "—"))}</td>
+              <td style="padding: 6px 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #F3F4F6;">{_safe_html(r.get("reason_display") or r.get("reason", "—"))}</td>
               <td width="30%" style="padding: 6px 12px; font-size: 13px; font-weight: 700; text-align: right; color: #DC2626;">{r.get("qty", 0)}</td>
             </tr>"""
     ret_reason_table = (
