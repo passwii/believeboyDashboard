@@ -72,6 +72,7 @@ import {
   generateMonthKeys,
 } from '@/lib/aggregate'
 import { useNotifications } from '@/components/notifications'
+import { useGoalProgress } from '@/lib/use-goal-progress'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
@@ -908,16 +909,7 @@ export default function DailyAnalysisPage() {
   }, [datePresetKey, dateRange])
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
 
-  const [goalProgress, setGoalProgress] = useState<{
-    target_amount: number
-    achieved_amount: number
-    completion_vs_monthly: number
-    completion_vs_daily: number
-    today_day: number
-    days_in_month: number
-    currency: string
-  } | null>(null)
-  const [goalLoading, setGoalLoading] = useState(false)
+  const { goalProgress, goalLoading } = useGoalProgress(projectId, country, session)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [rawComparisonSummaryRows, setComparisonSummaryRows] =
     useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
@@ -1322,42 +1314,6 @@ export default function DailyAnalysisPage() {
     if (!projectId) return
     void loadData()
   }, [loadData])
-
-  // Fetch current month goal progress
-  // BEL-423：goal progress 与"目标管理"页共用 project-goals/progress 端点，进 2min
-  // 客户端缓存；目标页写操作后会清缓存，这边下次 mount 自然拿到新值。
-  useEffect(() => {
-    if (!isGoalProgressScopeValid(projectId, country)) {
-      setGoalProgress(null)
-      return
-    }
-    const year = new Date().getFullYear()
-    const month = new Date().getMonth() + 1
-    setGoalLoading(true)
-    fetchOpsJsonCached<{
-      monthly_progress?: Array<{
-        month: number
-        target_amount: number
-        achieved_amount: number
-        completion_vs_monthly: number
-        completion_vs_daily: number
-        today_day: number
-        days_in_month: number
-        currency: string
-      }>
-    }>(
-      `${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`,
-      { session }
-    )
-      .then((data) => {
-        const monthly = (data.monthly_progress ?? []).find((m) => m.month === month)
-        if (monthly) setGoalProgress(monthly)
-      })
-      .catch(() => {
-        /* silently fail */
-      })
-      .finally(() => setGoalLoading(false))
-  }, [projectId, country, session])
 
   const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
