@@ -1,6 +1,6 @@
 ---
 name: believeboy-shop-calculation
-description: 调用 BelieveBoy Agent API 获取跨项目店铺测算数据（shop_calculations 域，business_scope shop_calculations，3 模块共 9 条路由：原生 shop-calculations 6 + BI 扁平 2 + 定价快照 1）。用于店铺测算当前态/历史/审计、追加快照、试算、定价目录冻结。Use when the user asks for 店铺测算 / 店铺核算 / shop calculation / 定价快照 / pricing snapshot / 试算, 或任何需要从 dash-api.believeboy.com 读取或写入店铺测算数据的任务。
+description: 调用 BelieveBoy Agent API 获取跨项目店铺测算数据（shop_calculations 域，business_scope shop_calculations，3 模块共 9 条路由：原生 shop-calculations 6 + BI 扁平 2 + 定价快照 1）。含定价派生块 anchor（盈亏平衡广告费率 / 目标广告费率，BLF-1043）。用于店铺测算当前态/历史/审计、追加快照、试算、定价目录冻结。Use when the user asks for 店铺测算 / 店铺核算 / shop calculation / 定价快照 / pricing snapshot / 试算 / 盈亏平衡广告费率 / breakeven ACOS, 或任何需要从 dash-api.believeboy.com 读取或写入店铺测算数据的任务。
 ---
 
 # BelieveBoy Agent API · 店铺测算（shop-calculation）
@@ -32,6 +32,8 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 ### 模块 A：原生 shop-calculations（BLF-442）
 
+（R1/R2/R3 行上另带定价派生块 `anchor`，W1 预览与 C1 也带 —— 见 §3）
+
 路径前缀：`/api/v1/agent/projects/{project_id}/shop-calculations`
 
 | # | 方法 | 路径 | 用途 |
@@ -45,11 +47,13 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 ### 模块 B：BI 扁平契约（BLF-582 原生化）
 
+（扁平行没有费用拆项，锚由服务端推成 3 个平铺列 —— 见 §3.1）
+
 路径前缀：`/api/v1/agent/projects/{project_id}`
 
 | # | 方法 | 路径 | 用途 |
 |---|---|---|---|
-| R5 | GET | `/shop-calculation-history` | 当前态列表：每 `(project_id, sku, country)` 组最新非删行，扁平 15 列 |
+| R5 | GET | `/shop-calculation-history` | 当前态列表：每 `(project_id, sku, country)` 组最新非删行，扁平 19 列（含 3 个 `anchor` 派生列） |
 | R6 | GET | `/shop-calculation/snapshots` | append-only 时间序列：同一 SKU/country 组跨多个 observed_at 快照 |
 
 ### 模块 C：定价快照（BLF-582 原生化）
@@ -70,10 +74,79 @@ curl -s -X POST "$BASE/projects/$PROJECT_ID/shop-calculations/compute" "${AUTH[@
   -H "Content-Type: application/json" -d '{...输入参数...}'
 ```
 
-## 3. 注意事项
+## 3. 定价派生块 `anchor`（BLF-1043）
+
+判定「广告效率好不好」要拿**盈亏平衡广告费率**当分母（运营口径的「盈亏平衡 ACOS」）。
+它在定价引擎里是纯代数（`advertising_rate` 只以 `sale_price_usd × advertising_rate`
+的线性项出现，不进任何费率阶梯），所以由 API 算一次、所有消费方共用同一口径，
+不要自己在本地用 `total_fee_usd` 二次减：
+
+```text
+non_ad_fee_usd            = total_fee_usd - advertising_fee_usd   # EU 三笔手动费已在 total_fee 内
+breakeven_advertising_rate = 1 - (non_ad_fee_usd + ddp_cost_usd + vat_usd) / sale_price_usd
+target_advertising_rate    = breakeven_advertising_rate - target_net_margin
+```
+
+免费自检恒等式：`breakeven_advertising_rate ≡ advertising_rate + profit_rate`
+（残差 ≤ 约 `0.01 / sale_price_usd`，是引擎 2 位金额 / 4 位比率的舍入地板，不是公式误差）。
+
+### 3.1 哪些路由带 `anchor`
+
+| 路由 | 形态 |
+|---|---|
+| R1 / R2 / R3 | 每行嵌套块 `anchor`；`?include_anchor=false` 关闭（响应与旧版逐字节一致，键消失不是置 null） |
+| W1 追加写 | **预览响应**带 `anchor`（写前就能看到锚，无需等落库）；确认后落库响应也带（该处 target 字段为 `null`） |
+| C1 `/compute` | `calculation` 与 `snapshot` 两块都带 `anchor` |
+| R5 / R6 / R7（BI 扁平） | 扁平行**没有费用拆项**，消费方自己算不出锚 —— 服务端推成三个平铺列：`breakeven_advertising_rate` / `max_ad_spend_per_unit_usd` / `target_advertising_rate` |
+
+### 3.2 字段
+
+```json
+{
+  "anchor": {
+    "breakeven_advertising_rate": 0.2980,
+    "non_ad_fee_usd": 15.60,
+    "max_ad_spend_per_unit_usd": 12.81,
+    "breakeven_advertising_rate_after_vat": null,
+    "target_net_margin": 0.10,
+    "target_advertising_rate": 0.1980,
+    "basis": {
+      "observed_at": "2026-09-13T08:00:00+00:00",
+      "usd_to_rmb_rate": 6.7894,
+      "usd_to_rmb_rate_source": "manual"
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `breakeven_advertising_rate` | 盈亏平衡广告费率（比率，非百分数）；低价 SKU 上 1pt 就是百分之几相对误差，**用满 4 位小数** |
+| `non_ad_fee_usd` | 锚的分母拆项 `total_fee_usd − advertising_fee_usd`；解释「为什么这个 SKU 锚只有 12.6%」必须看它 |
+| `max_ad_spend_per_unit_usd` | `sale_price_usd × breakeven_advertising_rate`，打平前每单可用广告费上限（看钱比看比率直观） |
+| `breakeven_advertising_rate_after_vat` | 含 VAT 口径；**US 返回 `null`**（不是 0，避免被误读成「美国有 VAT」） |
+| `target_net_margin` / `target_advertising_rate` | 仅当调用方传 `target_net_margin` 时才有值，否则 `null`（API 不替调用方拍业务默认值） |
+| `basis` | `observed_at` / `usd_to_rmb_rate` / `usd_to_rmb_rate_source` —— 锚随汇率漂移（实测同 SKU：fx 6.7894 → 29.80%，fx 6.7078 → 29.38%），**必须把 `anchor` 当自包含对象缓存与版本化** |
+
+### 3.3 参数 `target_net_margin`
+
+`ge=-1, le=1`（Query：R1/R2/R3 + R5/R6/R7；body：C1）。**不要传 `ge=0` 的思路**——
+「清库存」档允许目标净利率为负（−10pt）。不传 → `target_net_margin` /
+`target_advertising_rate` 均为 `null`。**W1 不接受该参数**（它不是快照字段）。
+
+### 3.4 注意事项
+
+- **派生量，不写库**：读时计算，零迁移，append-only 语义不变。
+- **不 clamp**：闭式解 ≤ 0（成本已高于售价，不花广告费也亏）**原样返回负值** —— 负值本身是诊断信号；≥ 1 原样返回。
+- `sale_price_usd == 0` → `null`（返回 0 会被读成「广告一分不能花」）。
+- 退货损失 `return_loss_usd` 是**期望值**，所以锚是「按当前退货率假设的期望锚」，不是「零退货锚」。
+- 锚派生自**该行自己的费用字段**（agent 可写）→ 恒等式残差超过 `0.01 / price` 说明这一行的费用拆项本身不自洽。
+
+## 4. 注意事项
 
 - 读路由不落审计；W1 写走 confirm 两步 + 写限流；C1 试算不落库不落审计
 - R2 多国家歧义 → 400 AMBIGUOUS：**必须显式传 country**
 - **5xx**：一次性报告给报告 owner（Yawei），不要盲目重试
 - 404 与空列表是设计；挂 `require_project_scope` + `business_scope("shop_calculations")`
-- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.4 + OpenAPI（模块 `agent/shop_calculations.py` / `agent/shop_calculation.py` / `agent/pricing_calculation_snapshots.py`）
+- 完整契约：believeboyDashboard [`backend/docs/agent-api.md`](../agent-api.md) §店铺测算域 + OpenAPI/Swagger（`/docs`）；
+  模块源码 `agent/shop_calculations.py` / `agent/shop_calculation.py` / `agent/pricing_calculation_snapshots.py`
