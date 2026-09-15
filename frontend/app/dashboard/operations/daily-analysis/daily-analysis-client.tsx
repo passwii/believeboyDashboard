@@ -12,6 +12,7 @@ import {
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
   GoalProgressStat,
+  isGoalProgressScopeValid,
   projectedMonthlyRate,
   type GoalRingItem,
 } from '@/components/ui/goal-progress-rings'
@@ -1319,7 +1320,7 @@ export default function DailyAnalysisPage() {
   // BEL-423：goal progress 与"目标管理"页共用 project-goals/progress 端点，进 2min
   // 客户端缓存；目标页写操作后会清缓存，这边下次 mount 自然拿到新值。
   useEffect(() => {
-    if (!projectId || isAllProjects || country === 'ALL') {
+    if (!isGoalProgressScopeValid(projectId, country)) {
       setGoalProgress(null)
       return
     }
@@ -1349,7 +1350,7 @@ export default function DailyAnalysisPage() {
         /* silently fail */
       })
       .finally(() => setGoalLoading(false))
-  }, [projectId, country, session, isAllProjects])
+  }, [projectId, country, session])
 
   const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
@@ -1399,6 +1400,7 @@ export default function DailyAnalysisPage() {
     ]
   }, [goalProgress])
 
+  const showGoalProgressStat = isGoalProgressScopeValid(projectId, country)
   const goalHref = `/dashboard/operations/project-goals?project=${projectId}&country=${country}`
   const goalStatValue =
     goalProgress && goalProgress.target_amount > 0
@@ -1806,12 +1808,14 @@ export default function DailyAnalysisPage() {
           }
           heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
           extraContent={
-            <GoalProgressStat
-              href={goalHref}
-              items={goalRingItems}
-              loading={goalLoading}
-              value={goalStatValue}
-            />
+            showGoalProgressStat ? (
+              <GoalProgressStat
+                href={goalHref}
+                items={goalRingItems}
+                loading={goalLoading}
+                value={goalStatValue}
+              />
+            ) : null
           }
           getCurrent={(k) => aggregateMetric(chartDataRows, k)}
           getPrevious={(k) =>

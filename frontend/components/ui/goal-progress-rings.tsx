@@ -149,6 +149,14 @@ export type GoalProgressStatProps = {
 }
 
 /**
+ * 目标进度只支持具体项目与单一站点，避免聚合筛选生成 project=all 或 country=ALL
+ * 这样的目标管理页无效上下文。
+ */
+export function isGoalProgressScopeValid(projectId: string, country: string): boolean {
+  return projectId !== '' && projectId !== 'all' && ['US', 'DE', 'UK'].includes(country)
+}
+
+/**
  * Stats 区使用的紧凑目标磁贴：沿用目标管理页的三环语义，但缩成一个
  * 与 MetricSwitcherCard 指标格同高的可点击入口，避免把完整说明面板挤进 KPI 行。
  */
