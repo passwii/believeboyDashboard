@@ -1,7 +1,11 @@
 # Auto Report Upload Service — Python dependencies
 psycopg2-binary>=2.9.9
 sqlalchemy>=2.0.0
-pandas>=2.0.0
+# 与 backend/requirements.txt 对齐（pandas>=3.0 起 Copy-on-Write 默认开启）。
+# 本服务直接 import backend/app/services/** 的共享 pandas 代码，
+# 两边 pandas 大版本必须一致，否则会出现 2.x 的链式赋值告警等行为差异。
+pandas>=3.0.0
+numpy>=2.3.0
 openpyxl>=3.1.0
 python-dotenv>=1.0.0
 slugify>=0.0.1
