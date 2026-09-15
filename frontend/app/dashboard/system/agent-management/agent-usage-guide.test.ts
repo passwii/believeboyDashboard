@@ -80,6 +80,25 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('/shipments?page_size=20')
   })
 
+  it('domain=shop_calculations 含定价派生块 anchor 与 BI 扁平 3 路由（BLF-1043）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'shop_calculations',
+    })
+    // 锚本身 + 自检恒等式 + 参数
+    expect(text).toContain('breakeven_advertising_rate')
+    expect(text).toContain('non_ad_fee_usd')
+    expect(text).toContain('max_ad_spend_per_unit_usd')
+    expect(text).toContain('target_net_margin')
+    expect(text).toContain('include_anchor')
+    expect(text).toContain('breakeven_advertising_rate ≡ advertising_rate + profit_rate')
+    // 实际在用的 BI 扁平 3 条路由（此前完全没列）
+    expect(text).toContain('/shop-calculation-history')
+    expect(text).toContain('/shop-calculation/snapshots')
+    expect(text).toContain('/pricing-snapshots')
+  })
+
   it('domain=return_analysis 输出退货分析示例（BLF-474）', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
@@ -202,6 +221,9 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).toContain('/new-product-calculations/compute')
     expect(text).toContain('confirm_token')
     expect(text).toContain('fbm_calc')
+    expect(text).toContain('anchor')
+    expect(text).toContain('breakeven_advertising_rate')
+    expect(text).toContain('target_profit_rate')
     expect(text).not.toContain('/shipments?page_size=20')
     expect(text).not.toContain('尚未接入 Agent API')
   })
