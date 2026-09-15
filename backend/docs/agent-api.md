@@ -125,11 +125,14 @@ breakeven_advertising_rate = 1 - (non_ad_fee_usd + ddp_cost_usd + vat_usd) / sal
 自检恒等式：`breakeven_advertising_rate ≡ advertising_rate + profit_rate`
 （两侧均含引擎的 2 位金额 / 4 位比率舍入，残差 ≤ 约 `0.01 / sale_price_usd`）。
 
-富契约（`shop-calculations*`、`new-product-calculations*`、`/compute` 的
-`calculation` 与 `snapshot`）挂嵌套块 `anchor`；BI 扁平契约
-（`shop-calculation-history`、`shop-calculation/snapshots`、`pricing-snapshots`）
+富契约挂嵌套块 `anchor`：R1/R2/R3（`shop-calculations*`）、W1 追加写的**预览响应**、
+新品域 R1/R2 与 C1（`new-product-calculations*`，读行 + 试算 `calculation` / `snapshot`）、
+以及店铺域 C1（`calculation` 与 `snapshot` 两块）。
+BI 扁平契约（`shop-calculation-history`、`shop-calculation/snapshots`、`pricing-snapshots`）
 没有费用拆项，改为**显式补三列**（服务端推）：`breakeven_advertising_rate` /
 `max_ad_spend_per_unit_usd` / `target_advertising_rate`。
+不带 `anchor` 的同类路由：`/skus/{sku}/audit`（审计轨迹，两域均是）——
+审计接口只回操作轨迹，无费用拆项，不派生锚。
 
 ```json
 {
@@ -153,11 +156,24 @@ Query / body 参数：
 
 | 参数 | 位置 | 默认 | 说明 |
 |---|---|---|---|
-| `include_anchor` | Query（富契约读路由） | `true` | `false` 时响应与旧版**逐字节一致**（键消失，不是置 null） |
-| `target_net_margin` | Query（读数、BI 扁平、`pricing-snapshots`）/ body（`/compute`） | 不传 | 目标净利率，校验 `ge=-1, le=1`（**清库存档允许亏**，不要收紧成 `ge=0`）；不传则两个 target 字段为 `null` |
+| `include_anchor` | Query（仅店铺域 R1/R2/R3） | `true` | `false` 时响应与旧版**逐字节一致**（键消失，不是置 null）。仅这三条路由有该开关 |
+| `target_net_margin` | Query（店铺域 R1/R2/R3 + R5/R6/R7）/ body（店铺域 C1） | 不传 | 目标净利率，校验 `ge=-1, le=1`（**清库存档允许亏**，不要收紧成 `ge=0`）；不传则两个 target 字段为 `null` |
 
 `target_advertising_rate = breakeven_advertising_rate - target_net_margin`。
-新品域没有独立参数：目标净利率即行上的 `target_profit_rate`。
+**新品域没有这两个参数**（没有 `include_anchor`、也没有 `target_net_margin`）：目标净利率
+即行上已有的 `target_profit_rate`。
+
+各路由字段差异一览：
+
+| 路由 | 形态 |
+|---|---|
+| R1 / R2 / R3（店铺） | 行嵌套 `anchor`，受 `include_anchor` 与 `target_net_margin` 控制 |
+| W1 店铺追加写 | **预览响应**带 `anchor`（`target_*` 为 `null` —— 不是快照字段）；确认落库后回的行同样带锚（target 仍为 `null`） |
+| C1 店铺 `/compute` | `calculation` 与 `snapshot` 两块都带 `anchor`（body 收 `target_net_margin`） |
+| R5 / R6 / R7（BI 扁平） | 三个平铺列（无嵌套块，无 `include_anchor`） |
+| 新品域 R1 / R2 | 行嵌套 `anchor`，target 取行上的 `target_profit_rate` |
+| 新品域 C1 | `calculation` 与 `snapshot` 两块都带 `anchor` |
+| 新品域 W1 | 预览不带 `anchor`（预览摘要只回 `is_new` / `previous` 影响面）；确认落库后回的行带锚（target 取行上 `target_profit_rate`） |
 
 消费注意：
 

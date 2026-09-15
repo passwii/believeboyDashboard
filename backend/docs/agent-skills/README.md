@@ -23,10 +23,10 @@
 | `believeboy-ad-analysis.md` | ad（广告，10 模块） | 29（纯读） | 每模块 aggregate + raw + 单数 alias；campaigns/budgets/targets/placements/promoted/time_trends/search_terms/shares/invalid/purchased |
 | `believeboy-shipments.md` | shipments（货件） | 11（读5+写6） | 列表/详情/SKU 汇总/箱规/审计；创建/items/改信息/状态/重算成本/删除（写全 confirm） |
 | `believeboy-sales.md` | sales（销售数据） | 1 | GET /sales/summary（group_by/多站点聚合/份额，BLF-569 迁移后唯一入口） |
-| `believeboy-shop-calculation.md` | shop_calculations（店铺测算，3 模块） | 9 | 原生 6（列表/详情/历史/审计/写/试算）+ BI 扁平 2 + 定价快照 1 |
+| `believeboy-shop-calculation.md` | shop_calculations（店铺测算，3 模块） | 9 | 原生 6（列表/详情/历史/审计/写/试算）+ BI 扁平 2 + 定价快照 1；含定价派生块 `anchor`（盈亏平衡/目标广告费率，BLF-1043） |
 | `believeboy-account-health.md` | account_health（合规健康） | 5（纯读） | periods/current/overview/单店报告/history（路径不带 project_id） |
 | `believeboy-inventory.md` | inventory（当前库存） | 1 | GET /inventory 当前库存快照（BLF-478，与台账/补货独立） |
-| `believeboy-new-product-calculation.md` | new_product_calculations（新品测算） | 5 | 读3（列表/详情/审计）+ 写1 + 试算1；4 种 calculation_type |
+| `believeboy-new-product-calculation.md` | new_product_calculations（新品测算） | 5 | 读3（列表/详情/审计）+ 写1 + 试算1；4 种 calculation_type；读与试算带 `anchor`（BLF-1043） |
 | `believeboy-return-analysis.md` | return_analysis（退货分析） | 5（纯读） | overview/聚合/raw（PII 剥离）/单 SKU/coverage；R2 country 必填 |
 | `believeboy-report-upload-status.md` | report_upload_status（报表上传状态） | 1 | GET /report-upload-status（report_date 必填；路径不带 project_id；BLF-486 缺报清单数据源） |
 | `believeboy-platform-inspection.md` | platform_inspection（平台巡检·写侧） | 5（读1+写4） | R0 模板 / W1 upsert 草稿 / W2 提交（confirm）/ W3 截图上传 / W4 截图删除（confirm）；读侧走 account-health |
