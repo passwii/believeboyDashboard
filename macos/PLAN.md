@@ -205,6 +205,49 @@ idle → loading → (loaded | failed(APIError))
 > `AIChatStoreTests.testStopThenImmediateSendKeepsTheNewTurnsState`、
 > `AIChatStoreTests.testLateCancelFailureDoesNotLeakIntoAnotherConversation`、
 > `CustomerServiceStoreTests.testLateCancelFailureDoesNotComeBackAfterClearingOutput`。
+>
+> **S5.5 探针结论（2026-09-15，BLF-1068，报表中心 · 上传与分析簇；本计划第一条写链路）**：
+> ① **后端给的端点带 `/api/v1` 前缀，而 `APIClient` 自己会再拼一次**：
+> `POST /product-analysis-reports` 的响应里 `status_endpoint` 的真实值是
+> `/api/v1/product-analysis-reports/tasks/1`（夹具原样记着，`endpoints/product_analysis_reports.py:118`
+> 就是这么拼的），跟着它直接请求会得到 `/api/v1/api/v1/...` → **404**。处置：
+> `ReportCatalog.clientPath(fromBackendEndpoint:)` 剥掉一层前缀，全仓目录常量统一到「不带前缀」
+> 的口径。查：`ReportDecodingTests.testTicketNormalisesBackendPrefixedEndpoints`。
+> ② **`/ad-upload/recognize` 与 `/report-upload/recognize` 是两套响应模型**（不是同一个形状换个
+> 前缀）：前者有 `matched_columns` / `detected_report_date`，后者有 `detected_date` /
+> `detected_countries` / `date_input_mode` / `primary_country`。照着一个写另一个会**静默少字段**
+> （Swift 侧既不报错也不解码失败）。查：`Fixtures/Report/README.md` 的形状差异表。
+> ③ **`product-analysis-reports` 的任务表是进程内字典**（
+> `analysis_report_runtime_service._TASKS`，不是 DB / Redis）：多 worker 部署下建任务与查任务可能
+> 落在不同进程 → 存在性失败会答 **404 `Task not found`**。客户端必须把它与「还在跑」分开说
+> （夹具里两份都抓了）。同时 `status` / `stage` / `progress` / `persistence_status` 是**四个不同的
+> 东西**：终态只看 `status`；`persistence_status` 是结果落库的进度，任务成功而落库失败是可能的。
+> 查：`ReportDecodingTests.testFailedTaskSnapshotShape`。
+> ④ **`dry_run` 是「不静默写入」的机械证据**：Web 两处手动核算面板的 `commit` 都是
+> `dry_run: true`（后端注释：不写 `ad_upload_files` / `ad_upload_promoted_product_rows`、不占版本号），
+> 真实响应是 `ingestion_status=skipped` + `id=0` + `version=0`。本批写链路的确认摘要里明写这一条，
+> 用户不会以为「点了确认就入库了」。查：`ReportDecodingTests.testCommitDryRunSnapshotIsSkippedAndNotPersisted`。
+> ⑤ **「已加载但列表为空」必须判成空态，而不是继续 loading**（两个 store 都踩到、都由用例拦下）：
+> 三态里只按「有数据 / 有错误」分支，漏掉「加载成功但 `items` 为空」这一支，该日期没有 RPA 数据时
+> 界面会**永远转圈**，那句「暂时没有可展示的报表状态」永远画不出来。查：
+> `ReportAutomationStoreTests.testEmptyResultIsExplicitEmptyState`、
+> `ProductAnalysisStoreTests.testLoadFetchesProjectsAndStatusesAndSelectsFirstProject`。
+> ⑥ **`/ad-upload/status` 顶到 `limit` 即可能被截断**（页面口径 `limit=50`，US 站点实测正好 50 条）：
+> 与 S5.2 的 `ad-upload-files` 同性质 —— 把它当「全部入库记录」会漏掉更早的版本。
+> 查：`ReportDecodingTests.testAdUploadStatusSnapshotShapeAndTruncation`。
+> ⑦ **`convertFromSnakeCase` 的 ID 命名坑（与 S4 的 `calls_24h → calls24H` 同一族）**：
+> `job_id → jobId`、`task_id → taskId`（**不是** `jobID` / `taskID`），而 `file_id → fileId`。
+> Swift 侧习惯写 `ID`，属性名对不上时编译通过、运行时整条响应报「缺少字段 taskID」。
+> 处置：这三处显式写 `CodingKeys`（`case taskID = "taskId"`）。查：
+> `ReportDecodingTests`（三条夹具解码用例）。
+> ⑧ **状态矩阵里「后端没报的那一列」不能画成红叉**：Web 的 `cell?.is_uploaded ?? false` 会把
+> 「后端没返回该类型」当成「没上传」。桌面端单独落成 `CellState.unreported`，且**完成度分母只数
+> 后端真的报了状态的格子** —— 否则后端少报一列会让 M/N 永远做不满。查：
+> `ReportDecodingTests.testCellStateMapsUploadedAndMissingAndUnreported`。
+> ⑨ 夹具口径：读侧（RPA 状态 / 广告入库状态）走生产快照库 `BLF`；写侧识别与 `commit`
+> 也走 `BLF`（`recognize` 不写任何表、`commit` 走 `dry_run`），只有 `POST /product-analysis-reports`
+> （会写一条审计日志）走隔离库 `BLF_test`。识别用的源文件是合成的（表头照抄识别规则、
+> SKU/ASIN 取真实行），**响应 100% 由后端产出**。见 `Tests/BelieveBoyTests/Fixtures/Report/README.md`。
 
 ---
 
@@ -395,6 +438,12 @@ macos/
     │   │   ├── AIChatMarkdown.swift       # 复用 S5.3 的 `InsightMarkdown`（解析复用、呈现分叉）
     │   │   ├── AIChatPageState.swift      # 加载档 / 空态两种成因 / 归属 / 附件 / 输入区 / 二次确认
     │   │   └── AIChatClient.swift         # 10 条元数据（5s）+ 上传（60s）+ 用量（15s）+ POST-SSE 流
+    │   ├── Reports/               # 「报表中心 · 上传与分析簇」的领域逻辑（S5.5，不 import SwiftUI）
+    │   │   ├── ReportCatalog.swift        # 8 条端点目录 + 报表类型标签（复刻 report-type-labels.ts）+ 后端端点前缀归一化 + 默认日期区间
+    │   │   ├── AdUploadModels.swift       # 识别 / 入库 / 入库状态三套模型（**与 /report-upload 不是同一个形状**）
+    │   │   ├── ProductAnalysisModels.swift # 异步核算任务的发起 / 状态模型（后端给的端点是带前缀的）
+    │   │   ├── ReportAutomationModels.swift # RPA 状态矩阵响应 + 15 列目录 + 完成度（unreported 不进分母）
+    │   │   └── ProductAnalysisClient.swift # 产品分析（识别 60s / 入库 60s / 状态 5s / 任务 5s / 结果 60s）+ 报表自动化（状态 15s）
     │   └── Models/
     │       ├── HealthModels.swift # /health 与 /health/live 响应
     │       ├── JSONValue.swift    # 任意 JSON 值（长任务 params / payload_json / 广告两页的动态行值）
@@ -425,6 +474,11 @@ macos/
     │   ├── AIChatComponents.swift        # AI 会话片共用件（Markdown 正文 / 消息行 / 来源卡 / 草稿 / 用量）
     │   ├── CustomerServiceStore.swift    # 「客服交流」状态机（场景 / 语气 / 引导字段 → 一次生成）
     │   ├── CustomerServiceView.swift     # 「客服交流」页（场景标签 + 输入栏 + 产物区 + 导出 .md）
+    │   ├── ProductAnalysisStore.swift     # 「产品分析」状态机（识别→确认→提交的写链路 + 核算任务轮询/取消/下载）
+    │   ├── ProductAnalysisView.swift      # 「产品分析」页（两个 Tab：识别与提交 / 产品分析核算）
+    │   ├── ProductAnalysisComponents.swift # 产品分析共用件（参数条 / 识别卡 / 入库状态表 / 状态徽标）
+    │   ├── ReportAutomationStore.swift    # 「报表自动化」状态机（RPA 状态矩阵 + 日期/站点/项目筛选 + 懒拉项目）
+    │   ├── ReportAutomationView.swift     # 「报表自动化」页（只读状态矩阵 10 × 15 + 完成度）
     │   ├── PreferencesPanel.swift # 偏好设置浮层：后端地址（生产 / 本地）+ 自定义地址
     │   ├── HealthView.swift       # 概览：账号 + 连接检查（外壳详情栏的空选中态）
     │   ├── WindowFrames.swift     # NSRect ↔ WindowFrame 桥接 + 屏幕可见区域取值
@@ -436,7 +490,7 @@ macos/
 
 分层铁律：`BelieveBoyMac → BelieveBoyUI → BelieveBoyKit`，**单向**；Kit 不 import SwiftUI（纯逻辑，可在 CLI/CI 复用）；UI 不依赖进程引导（可离屏渲染验证）。
 
-> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **592 个用例**（其中 4 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 2），`swift test` 需完整 Xcode，见 §9。
+> **旧计划项的当前状态**：`Tests/BelieveBoyTests/`（原 `BelieveBoyKitTests`，S2 起兼收 UI 状态机与离屏渲染用例）当前 **707 个用例**（其中 **5** 个真后端用例默认 skip：key 轮换 2 + 数据同源同值 3），`swift test` 需完整 Xcode，见 §9。
 >
 > **计数口径（S5.3 实测，2026-09-14）**：本批开工基线 = `origin/main`（`a2b2c593`，S5.2 交付侧）
 > **428 executed / 4 skipped / 0 failures**；AI 洞察三页 **+75** → **503 executed / 4 skipped /
@@ -448,6 +502,12 @@ macos/
 > `DEVELOPER_DIR=/Volumes/Rock/Xcode.app/Contents/Developer swift test --scratch-path .build/xcode-check`。
 > 历史：S5.1 基线 186 → 256（+70），PR #614 再 +75 → 331，PR #615 审查修复 +8 → 339，
 > S5.2 广告数据页 +89 → 428，S5.3 AI 洞察三页 +75 → 503。`scripts/make-app.sh` 仍属 S7a。
+>
+> **计数口径（S5.5 实测，2026-09-15）**：本批开工基线 = `origin/main`（`2b288d64`，含 S5.4 交付侧）
+> **612 executed / 5 skipped / 0 failures**；报表中心 · 上传与分析簇 **+95** →
+> **707 executed / 5 skipped / 0 failures**（5 个 skip 全部是 S2 起的真后端用例：key 轮换 2 +
+> 数据同源同值 3）；跑法同上。**本批的 `swift build` 在 CLT 下同样通过**（未引入任何
+> 属性包装器宏）。
 
 ---
 
@@ -467,6 +527,7 @@ macos/
 | **S5.2** | S5 广告分组第二批 | 「广告 → 广告数据」只读页：报表类型选择 + 共享筛选条 + 原始行表格（搜索 / 排序 / 客户端翻页 / 行内 `raw_row` 中文列详情） | 11 个端点全部接通、固定参数下数值与 Web 一致（切片与全量响应同 id 逐字段一致）；加载/空/错误三态齐备，刷新失败保留旧表；切类型 / 改筛选 / 切模块取消在跑请求且不落错误态；单发 `limit=10000` + `pageSize=100` 客户端翻页并给「可能截断」提示（不做 offset 翻页）；11 个端点各有真实响应快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 428 用例全绿 | S5.1 | 已完成（BLF-1057） |
 | **S5.3** | S5 AI 分组（AI 洞察三页） | 「AI → AI 洞察 / AI 广告分析 / AI 库存健康」三页只读 + 流式观察：6 个端点（含 2 条 SSE）、Markdown + 图表围栏降级、流式草稿切分、维度面板、canonical run 观察 | 6 个端点全部接通、可达（给「端点 → macos 消费点」对照表）；AI 文本按「同源同结构」（状态机 + 事件序列 + 数值字段）；三态齐备（空态显式画出「暂无洞察/暂无运行记录」）；切页/改筛选/切模块取消在跑请求（含拆 SSE 连接）且不落错误态；run detail + 事件序列各一份真实快照入 `Fixtures/Insight/`（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 503 用例全绿 | S5.2 | 已完成（BLF-1062） |
 | **S5.4** | S5 AI 分组第二批（会话片） | 「AI 智能 → AI Chat」+「客服交流」两页：12 条端点（读 4 + 写 8，含 1 条 **POST-SSE**）+ 会话 CRUD + 消息编辑/删除 + 附件解析 + token 用量；两页共用同一份底座（`AIChatClient` / `AIChatTurnAccumulator` / 预设目录） | 12 条端点全部接通、可达（端点 → macos 消费点对照表在 PR）；POST-SSE 用例断言**真实请求属性**（方法 = POST、JSON body、`Accept: text/event-stream`、续传带 `Last-Event-ID` **且带 body**）；跨端可见性：同账号的会话可见可续聊，「未声明账号」与「无会话」两种空态可区分；三态齐备 + 取消（含拆 SSE）不落错误态；会话列表 / 消息列表 / 事件序列各一份真实快照（sha256 + 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 585 用例全绿 | S5.0 | 已完成（BLF-1065） |
+| **S5.5** | S5 报表中心第一批（上传与分析簇，**本计划第一条写链路**） | 「报表中心 → 产品分析」+「报表自动化」两页：7 条端点 —— 识别（multipart）/ 入库（JSON，`dry_run`）/ 入库状态 / 异步核算任务（发起 + 状态 + 结果下载）/ RPA 上传完成度矩阵 | 写链路按 S6 口径：识别结果先呈现、**用户确认后才发 `commit`**、失败保留识别结果可重试、`dry_run` 明写在确认摘要里；multipart 用例断言**真实请求属性**（method / `Content-Type` 含 boundary / 体里 `name="file"` + `name="country"` / `Content-Length` 等于实发字节数）；异步任务用既有 `PollingPolicy`（退避 + 上限 + 可取消）与流式落盘，切页/切模块不泄漏 Task；三态齐备、刷新失败保留旧表；分层超时（列表 5s / 统计 15s / 报表 60s）；7 条端点各有真实快照（sha256 / 字节数 / 抓取时点入 manifest）；`swift build`（CLT）+ `swift test` 707 用例全绿 | S5.0 | 已完成（BLF-1068） |
 | **S6** | 写操作与确认流程 | 写端点接入 + 二次确认 UI + 操作审计提示（对齐 Web confirm 语义） | 写操作有确认、有失败回滚提示、有审计可查；破坏性操作默认不可一键完成 | S5 | 后续 issue（按需） |
 | **S7** | 打包 / 签名 / 公证 / 分发 | `make-app.sh`（.app）→ Developer ID 签名 + 公证 + `.dmg` → GitHub Actions 构建流水线 | 干净 Mac 上双击可开（无 Gatekeeper 警告）；`spctl -a` 通过；公证 ticket 可 staple | **Apple Developer 账号（外部阻塞）**；S3 | 后续 issue |
 | **S8** | 自动更新与系统集成 | Sparkle appcast；菜单栏角标（告警/长任务）；系统通知 | 旧版本可收到新版本提示并完成升级；通知点击可深链到对应模块 | S7 | 后续 issue（可选） |

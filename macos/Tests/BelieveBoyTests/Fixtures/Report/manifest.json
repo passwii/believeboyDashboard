@@ -1,0 +1,124 @@
+{
+  "auth": "X-API-Key（主 key）+ X-Is-Admin: true + X-Operator: admin",
+  "capture_script": "macos/scripts/capture-report-fixtures.py（无业务表写请求；commit 走 dry_run）",
+  "captured_at": "2026-09-15T09:59:30+0800",
+  "captured_by": "BLF-1068（macOS Stage 5.5 报表中心 · 上传与分析簇）",
+  "files": [
+    {
+      "bytes": 38849,
+      "endpoint": "GET /api/v1/rpa-reports/status",
+      "file": "rpa-status.json",
+      "note": "report_date=2026-09-14 country=US；项目 10 个、已上传格 133 个",
+      "sha256": "045c3c6937e9ba76ec79e287960713c6a2e7330f64615bdb972514da4a4a8b45"
+    },
+    {
+      "bytes": 30328,
+      "endpoint": "GET /api/v1/ad-upload/status",
+      "file": "ad-upload-status.json",
+      "note": "country=US limit=50；items=50（上限截断口径：顶到 limit 即可能被截断）",
+      "sha256": "8ca8e486855adf9b7d831ae56842b36281970b14e40d01efbd1ef827e52e9be9"
+    },
+    {
+      "bytes": 30181,
+      "endpoint": "GET /api/v1/ad-upload/status?project_name=&report_type=",
+      "file": "ad-upload-status-filtered.json",
+      "note": "project_name=犀牛 report_type=ad_promoted_product_report；items=50",
+      "sha256": "6aa0ed8c9bff5ad5f0002d559a8ead7e5a9b1cae2f9982e7be3553d9a7d49cc2"
+    },
+    {
+      "bytes": 1024,
+      "endpoint": "POST /api/v1/ad-upload/recognize",
+      "file": "ad-upload-recognize.json",
+      "note": "multipart（file + country=US）；合成表头来自真实识别规则 （ad_promoted_product_report），SKU/ASIN 取自真实项目「创酷」→ project_match.status=matched、row_count_preview=2",
+      "sha256": "a38e87ae62238bdb46394f747b93362190617a8f4c340914c7484fa09df2b2f1"
+    },
+    {
+      "bytes": 731,
+      "endpoint": "POST /api/v1/ad-upload/commit（dry_run=true）",
+      "file": "ad-upload-commit-dry-run.json",
+      "note": "ingestion_status=skipped（skipped = 未入库）、id=0、version=0；这是本批写链路 commit 的真实形状",
+      "sha256": "2d7f999ae3a3bea3c68b4f15d91c90240ed8a7d06c1bac52d0d3abbad06910b5"
+    },
+    {
+      "bytes": 105,
+      "endpoint": "POST /api/v1/ad-upload/recognize（.pdf）",
+      "file": "ad-upload-recognize-unsupported-extension.json",
+      "note": "真实 400（扩展名不在 ALLOWED_EXTENSIONS）；客户端据此提示「不支持的文件类型」",
+      "sha256": "be8b7e2415030bb1849ebb9cafa1e454f60be3c426305b8df1566294345157fd"
+    },
+    {
+      "bytes": 120,
+      "endpoint": "POST /api/v1/ad-upload/recognize（表头不命中规则）",
+      "file": "ad-upload-recognize-unknown-headers.json",
+      "note": "真实 400「未命中广告报表识别规则」；客户端据此把该文件标成识别失败而不是静默丢弃",
+      "sha256": "6d86ca1006235dc4d33573a2dfdb5a316d0a5975500d2c08b54608496dad27c2"
+    },
+    {
+      "bytes": 98,
+      "endpoint": "POST /api/v1/ad-upload/commit（report_type 与识别不一致）",
+      "file": "ad-upload-commit-type-mismatch.json",
+      "note": "真实 422；客户端把识别出的 report_type 原样回传，不该出现这一条 —— 留着钉契约",
+      "sha256": "6807793a2172799b6627d87c008d599d555b4aea4e1c30e70dfc92d5e8be7a5c"
+    },
+    {
+      "bytes": 224,
+      "endpoint": "POST /api/v1/product-analysis-reports",
+      "file": "product-analysis-report-create.json",
+      "note": "真实 202/200 形态（job_id=1）；file_id 刻意不存在 → 后台线程会以 FileNotFoundError 失败，故不写任何业务表",
+      "sha256": "3c3c4eed042c015119ea26c621c0b29c2d3b0c3be33437bc15678ca8d6a53fd1"
+    },
+    {
+      "bytes": 527,
+      "endpoint": "GET /api/v1/product-analysis-reports/tasks/{task_id}",
+      "file": "product-analysis-task-failed.json",
+      "note": "真实 failed 终态（缺文件 → FileNotFoundError）；progress/100、persistence_status=idle —— 客户端的状态机据此判终态",
+      "sha256": "844e71fd588d924307055704f22e45bc4d5424cc1f4b7ea46e64e695b1192ee6"
+    },
+    {
+      "bytes": 71,
+      "endpoint": "GET /api/v1/product-analysis-reports/tasks/{task_id}/result",
+      "file": "product-analysis-result-not-ready.json",
+      "note": "真实 409「Task not finished」；客户端据此拒绝下载并保留进度",
+      "sha256": "92dee4f585d899da0a109f920ce25a11954bb83a2deb95301072318b3634700c"
+    },
+    {
+      "bytes": 68,
+      "endpoint": "GET /api/v1/product-analysis-reports/tasks/{不存在的 id}",
+      "file": "product-analysis-task-not-found.json",
+      "note": "真实 404（任务表是**进程内字典**，多 worker 部署下会命中这一条）",
+      "sha256": "fb55bd7341826498f9013d7134a4c148e1ee0d8f263f3828888a1100c739dc4e"
+    }
+  ],
+  "normalization": "仅一处：响应文本里的仓库根绝对路径 → `<repo>`（`file_path` / `error_message` 带本机路径，归一化后夹具与机器无关；字段名 / 类型 / 数值一律原样）",
+  "params": {
+    "ad_upload_status_limit": 50,
+    "country": "US",
+    "rpa_report_date": "2026-09-14",
+    "synthetic_ad_report": {
+      "asin": "B0G1SPQL12",
+      "filename": "广告推广的商品报告-测试夹具.csv",
+      "project": "创酷",
+      "report_type": "ad_promoted_product_report",
+      "sku": "JDB-10PCS1-4"
+    }
+  },
+  "source_a": {
+    "database": "生产快照库 BLF（等价 backend/.env 的 DATABASE_URL）",
+    "endpoints": [
+      "GET /api/v1/rpa-reports/status",
+      "GET /api/v1/ad-upload/status",
+      "POST /api/v1/ad-upload/recognize",
+      "POST /api/v1/ad-upload/commit（dry_run=true）"
+    ],
+    "note": "与 S5.1~S5.3 同源（生产快照库）。识别的源文件是**合成**的（表头照抄识别规则、SKU/ASIN 取真实行），响应本身 100% 由后端识别器产出；commit 用 dry_run，识别 / 入库用的临时文件抓完即删，未写任何业务表。"
+  },
+  "source_b": {
+    "database": "隔离库 BLF_test（生产 URL 换库名）",
+    "endpoints": [
+      "POST /api/v1/product-analysis-reports",
+      "GET /api/v1/product-analysis-reports/tasks/{task_id}",
+      "GET /api/v1/product-analysis-reports/tasks/{task_id}/result"
+    ],
+    "note": "POST 会写一条 operation_audit_log（抓完即删，已记录删除的 id 数：1）；任务失败态是真跑出来的（缺文件），不是手写 JSON。"
+  }
+}

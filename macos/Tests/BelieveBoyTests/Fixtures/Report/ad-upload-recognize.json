@@ -1,0 +1,35 @@
+{
+  "country": "US",
+  "detected_end_date": "2026-09-07",
+  "detected_report_date": "2026-09-07",
+  "detected_start_date": "2026-09-07",
+  "extension": ".csv",
+  "matched_columns": [
+    "开始日期",
+    "结束日期",
+    "广告SKU",
+    "广告ASIN",
+    "广告活动名称",
+    "广告组名称"
+  ],
+  "original_filename": "广告推广的商品报告-测试夹具.csv",
+  "project_match": {
+    "candidate_projects": [
+      "创酷"
+    ],
+    "matched_by": "sku",
+    "matched_values": [
+      "JDB-10PCS1-4"
+    ],
+    "message": "已根据SKU自动匹配项目",
+    "project_name": "创酷",
+    "status": "matched"
+  },
+  "reason": "命中字段：开始日期 / 结束日期 / 广告SKU / 广告ASIN / 广告活动名称 / 广告组名称",
+  "report_label": "推广的商品",
+  "report_type": "ad_promoted_product_report",
+  "row_count_preview": 2,
+  "status": "recognized",
+  "temp_file_id": "7214efafa3ed4888b4a58b0ec0d58e33_yan-gao-tui-yan-de-shang-pin-bao-gao-ce-shi-jia-ju.csv",
+  "warnings": []
+}

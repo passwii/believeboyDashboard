@@ -1,0 +1,6 @@
+{
+  "body": {
+    "detail": "Unsupported extension: .pdf (expected: .csv, .xlsx)"
+  },
+  "status": 400
+}
