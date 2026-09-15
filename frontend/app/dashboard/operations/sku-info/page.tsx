@@ -18,11 +18,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { HoverCard } from '@/components/ui/hover-card'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
   HeaderSlotSelect,
   TERM_HEADER_W_MD,
@@ -52,6 +51,7 @@ import {
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import FactoryInfoSheet from '@/components/dashboard/sku-info/factory-info-sheet'
 import BatchFactoryInfoSheet from '@/components/dashboard/sku-info/batch-factory-info-sheet'
+import ListingCopySheet from '@/components/dashboard/sku-info/listing-copy-sheet'
 import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -84,6 +84,16 @@ export type ProductCostItem = {
   sku_factory_info: Record<string, unknown> | null
   sku_factory_info_updated_at: string | null
   sku_factory_info_updated_by: string | null
+  listing_title: string | null
+  listing_bullet_1: string | null
+  listing_bullet_2: string | null
+  listing_bullet_3: string | null
+  listing_bullet_4: string | null
+  listing_bullet_5: string | null
+  listing_description: string | null
+  listing_selling_points: string | null
+  listing_copy_updated_at: string | null
+  listing_copy_updated_by: string | null
   fnsku_label_r2_key?: string | null
   fnsku_label_r2_url?: string | null
   product_image_r2_key?: string | null
@@ -118,13 +128,12 @@ type ShipmentSkuSummaryResponse = {
   items: ShipmentSkuSummaryItem[]
 }
 
-type ActiveTab = 'cost' | 'dimension' | 'factory' | 'label' | 'image'
+type ActiveTab = 'cost' | 'dimension' | 'factory' | 'label' | 'image' | 'listing'
 type ImportMode = 'create' | 'update'
-const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label', 'image']
+const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label', 'image', 'listing']
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
-const PAGE_SIZE_OPTIONS = [20, 50, 100, 10000]
 const DEFAULT_PAGE_SIZE = 10000
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -320,12 +329,16 @@ function TableSkeletonRows({
   rows?: number
   cellWidth?: string
 }) {
+  const skeletonRows = Array.from({ length: rows }, (_, rowIndex) => ({
+    id: `table-skeleton-row-${rowIndex}`,
+    cells: Array.from({ length: columns }, (_, cellIndex) => `table-skeleton-cell-${rowIndex}-${cellIndex}`),
+  }))
   return (
     <>
-      {Array.from({ length: rows }).map((_, rowIndex) => (
-        <tr key={`table-skeleton-${rowIndex}`} className="border-b">
-          {Array.from({ length: columns }).map((__, cellIndex) => (
-            <td key={cellIndex} className="p-4">
+      {skeletonRows.map((row) => (
+        <tr key={row.id} className="border-b">
+          {row.cells.map((cellId) => (
+            <td key={cellId} className="p-4">
               <Skeleton className={`h-4 ${cellWidth}`} />
             </td>
           ))}
@@ -343,9 +356,8 @@ export default function SkuInfoPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('cost')
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE)
   const [total, setTotal] = useState(0)
-  const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -366,6 +378,8 @@ export default function SkuInfoPage() {
 
   const [factorySheetOpen, setFactorySheetOpen] = useState(false)
   const [factoryEditingRow, setFactoryEditingRow] = useState<ProductCostItem | null>(null)
+  const [listingSheetOpen, setListingSheetOpen] = useState(false)
+  const [listingEditingRow, setListingEditingRow] = useState<ProductCostItem | null>(null)
 
   // 批量编辑产品属性
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
@@ -377,7 +391,6 @@ export default function SkuInfoPage() {
   const [selectedLabelSkus, setSelectedLabelSkus] = useState<ProductCostItem[]>([])
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-  const visibleActiveCount = useMemo(() => items.filter((item) => item.is_active).length, [items])
   const pendingFirstLegSyncCount = useMemo(
     () =>
       items.filter((item) => {
@@ -504,7 +517,6 @@ export default function SkuInfoPage() {
         )
       )
       setTotal(Math.max(0, payload.total ?? 0))
-      setHasNextPage(payload.has_next)
       setPage(nextPage)
     } catch (loadError) {
       notify({
@@ -519,6 +531,10 @@ export default function SkuInfoPage() {
 
   // 从 URL search params 自动触发一次查询（关联跳转场景：从「订单信息」点击 SKU/ASIN 进入）
   // 仅触发一次；触发后用户再修改筛选条件走正常 onSearch 流程
+  // loadData intentionally uses the current submitted filters; this effect only runs for URL-driven entry.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // URL entry should run only when the route-derived filters change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (initialSearchTriggeredRef.current) return
     if (projectsLoading) return
@@ -547,7 +563,6 @@ export default function SkuInfoPage() {
     )
 
     initialSearchTriggeredRef.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectsLoading, projectLoadError, searchParams])
 
   const onSearch = async () => {
@@ -562,7 +577,6 @@ export default function SkuInfoPage() {
     setStatusFilter('all')
     setItems([])
     setTotal(0)
-    setHasNextPage(false)
     setPage(1)
   }
 
@@ -738,13 +752,6 @@ export default function SkuInfoPage() {
     />
   )
 
-  const onPageSizeChange = (value: string) => {
-    const nextPageSize = Number(value)
-    if (!PAGE_SIZE_OPTIONS.includes(nextPageSize)) return
-    setPageSize(nextPageSize)
-    setPage(1)
-  }
-
   const buildFilterSearchParams = () => {
     const search = new URLSearchParams()
     if (projectFilter.trim()) search.set('project_name', projectFilter.trim())
@@ -855,7 +862,8 @@ export default function SkuInfoPage() {
         countryFilter === 'all'
           ? '全部站点'
           : getCountryLabel(countryFilter).replace(/[\\/:*?"<>|]/g, '-')
-      const tabSegment = activeTab === 'cost' ? '成本管理' : '尺寸管理'
+      const tabSegment =
+        activeTab === 'cost' ? '成本管理' : activeTab === 'dimension' ? '尺寸管理' : '产品文案'
       link.download = `${safeProjectName}_${stationSegment}-SKU信息-${tabSegment}批量修改模板-${formatLocalTimestampForFilename()}.csv`
       link.click()
       URL.revokeObjectURL(url)
@@ -1092,6 +1100,15 @@ export default function SkuInfoPage() {
               >
                 <ImageIcon aria-hidden />
                 产品图片
+              </SlidingTabsTrigger>
+              <SlidingTabsTrigger
+                value="listing"
+                activeValue={activeTab}
+                layoutId="sku-cost-tab-indicator"
+                variant="term"
+              >
+                <FileText aria-hidden />
+                产品文案
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
@@ -1911,7 +1928,17 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-) : activeTab === 'label' ? (
+            ) : activeTab === 'listing' ? (
+              <ListingCopyTable
+                items={items}
+                loading={loading}
+                onExport={() => void handleExportCurrentFiltered()}
+                onEdit={(row) => {
+                  setListingEditingRow(row)
+                  setListingSheetOpen(true)
+                }}
+              />
+            ) : activeTab === 'label' ? (
                /* ── 产品标签 Tab ── */
                <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
                  <DataTableCardHeader className="px-6 py-5">
@@ -2163,6 +2190,22 @@ export default function SkuInfoPage() {
         </DirectionalTabTransition>
       </Tabs>
 
+      {listingEditingRow && (
+        <ListingCopySheet
+          open={listingSheetOpen}
+          row={listingEditingRow}
+          onClose={() => {
+            setListingSheetOpen(false)
+            setListingEditingRow(null)
+          }}
+          onSaved={() => {
+            setListingSheetOpen(false)
+            setListingEditingRow(null)
+            void loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+          }}
+        />
+      )}
+
       {factoryEditingRow && (
         <FactoryInfoSheet
           open={factorySheetOpen}
@@ -2195,6 +2238,97 @@ export default function SkuInfoPage() {
         }}
       />
     </div>
+  )
+}
+
+function ListingCopyTable({
+  items,
+  loading,
+  onExport,
+  onEdit,
+}: {
+  items: ProductCostItem[]
+  loading: boolean
+  onExport: () => void
+  onEdit: (row: ProductCostItem) => void
+}) {
+  const bulletFields = [
+    'listing_bullet_1',
+    'listing_bullet_2',
+    'listing_bullet_3',
+    'listing_bullet_4',
+    'listing_bullet_5',
+  ] as const
+
+  return (
+    <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+      <DataTableCardHeader className="px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold">产品文案</h2>
+            <p className="text-xs text-muted-foreground">复用当前查询结果，维护标题、五点描述与商品卖点。</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={onExport}>
+            <FileDown className="mr-2 h-4 w-4" />
+            导出批量修改模板
+          </Button>
+        </div>
+      </DataTableCardHeader>
+      <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+        {loading && items.length > 0 ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+            数据更新中...
+          </div>
+        ) : null}
+        <table className="w-full border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr className="border-b bg-term-raised">
+              {['SKU', 'ASIN', '品名', '标题', '五点描述', 'Description', '卖点提炼', '更新时间', '操作'].map((heading) => (
+                <th key={heading} className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {heading}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && items.length === 0 ? <TableSkeletonRows columns={9} cellWidth="w-24" /> : null}
+            {items.map((row) => {
+              const completedBullets = bulletFields.filter((field) => Boolean(row[field]?.trim())).length
+              return (
+                <tr key={row.id} className="border-b border-border/50 transition-colors hover:bg-term-raised">
+                  <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.sku}</td>
+                  <td className="border-b border-r border-border/60 p-4 align-top"><AsinLink row={row} /></td>
+                  <td className="border-b border-r border-border/60 p-4 align-top">{row.product_name || '-'}</td>
+                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
+                    <span className="block truncate" title={row.listing_title || undefined}>{row.listing_title || '-'}</span>
+                  </td>
+                  <td className="border-b border-r border-border/60 p-4 align-top">
+                    <Badge variant="outline" className={completedBullets > 0 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : undefined}>
+                      已填 {completedBullets}/5
+                    </Badge>
+                  </td>
+                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
+                    <span className="block truncate" title={row.listing_description || undefined}>{row.listing_description || '-'}</span>
+                  </td>
+                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
+                    <span className="block truncate" title={row.listing_selling_points || undefined}>{row.listing_selling_points || '-'}</span>
+                  </td>
+                  <td className="border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground">
+                    {row.listing_copy_updated_at ? new Date(row.listing_copy_updated_at).toLocaleString('zh-CN') : '-'}
+                  </td>
+                  <td className="border-b border-border/60 p-4 align-top">
+                    <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row)}>编辑</Button>
+                  </td>
+                </tr>
+              )
+            })}
+            {!loading && items.length === 0 ? (
+              <EmptyState colSpan={9} message="暂无产品文案，请输入项目名或 SKU/ASIN 进行查询。" />
+            ) : null}
+          </tbody>
+        </table>
+      </DataTableCardBody>
+    </DataTableCard>
   )
 }
 

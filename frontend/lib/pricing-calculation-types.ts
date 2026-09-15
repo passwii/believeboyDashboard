@@ -38,6 +38,16 @@ export type ProductCostItem = {
   country: string
   sort_order: number
   is_active: boolean
+  listing_title?: string | null
+  listing_bullet_1?: string | null
+  listing_bullet_2?: string | null
+  listing_bullet_3?: string | null
+  listing_bullet_4?: string | null
+  listing_bullet_5?: string | null
+  listing_description?: string | null
+  listing_selling_points?: string | null
+  listing_copy_updated_at?: string | null
+  listing_copy_updated_by?: string | null
 }
 
 export type ProductCostsResponse = {

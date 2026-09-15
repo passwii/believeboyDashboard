@@ -91,6 +91,16 @@ function skuItem(overrides?: Record<string, unknown>) {
     sku_factory_info: null,
     sku_factory_info_updated_at: null,
     sku_factory_info_updated_by: null,
+    listing_title: null,
+    listing_bullet_1: null,
+    listing_bullet_2: null,
+    listing_bullet_3: null,
+    listing_bullet_4: null,
+    listing_bullet_5: null,
+    listing_description: null,
+    listing_selling_points: null,
+    listing_copy_updated_at: null,
+    listing_copy_updated_by: null,
     ...overrides,
   }
 }
@@ -127,6 +137,7 @@ function defaultFetchImpl(url: string) {
 }
 
 import SkuInfoPage from './page'
+import { buildListingCopyPayload } from '@/components/dashboard/sku-info/listing-copy-sheet'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -159,12 +170,13 @@ afterEach(() => {
 describe('SkuInfoPage header 化渲染契约（operations header migration B3）', () => {
   it('渲染不崩溃：5 tabs 与 ActionsBar 保留，初始无自动查询（提交制）', async () => {
     render(<SkuInfoPage />)
-    // 5 tabs 保留（「成本管理」在 tab trigger 与卡头标题各出现一次）
+    // 6 tabs 保留（「成本管理」在 tab trigger 与卡头标题各出现一次）
     expect((await screen.findAllByText('成本管理')).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('尺寸管理')).toBeInTheDocument()
     expect(screen.getByText('产品属性')).toBeInTheDocument()
     expect(screen.getByText('产品标签')).toBeInTheDocument()
     expect(screen.getByText('产品图片')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '产品文案' })).toBeInTheDocument()
     // ActionsBar 保留（模板下载 / 批量导入 / 同步头程运费）；
     // 批量上新/批量修改是 asChild label（包隐藏 file input），按文本断言
     expect(screen.getByRole('button', { name: /下载上新模板/ })).toBeInTheDocument()
@@ -311,6 +323,49 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
       resolveFetch?.(jsonResponse(skuPagePayload()))
     })
     await waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('产品文案 Tab 复用已加载数据并显示五点完成计数', async () => {
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+
+    const listingTab = screen.getByRole('tab', { name: '产品文案' })
+    fireEvent.mouseDown(listingTab)
+    fireEvent.click(listingTab)
+    expect(await screen.findByText('已填 0/5')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出批量修改模板' })).toBeInTheDocument()
+  })
+
+  it('产品文案编辑只提交发生变化的字段', () => {
+    expect(
+      buildListingCopyPayload(
+        {
+          id: 1,
+          sku: 'SKU-001',
+          listing_title: '旧标题',
+          listing_bullet_1: '保留的五点',
+          listing_bullet_2: null,
+          listing_bullet_3: null,
+          listing_bullet_4: null,
+          listing_bullet_5: null,
+          listing_description: null,
+          listing_selling_points: null,
+        },
+        {
+          listing_title: '新标题',
+          listing_bullet_1: '保留的五点',
+          listing_bullet_2: '',
+          listing_bullet_3: '',
+          listing_bullet_4: '',
+          listing_bullet_5: '',
+          listing_description: '',
+          listing_selling_points: '',
+        }
+      )
+    ).toEqual({ items: [{ id: 1, listing_title: '新标题' }] })
   })
 
   it('重置按钮：清空查询条件与结果，且不发起请求', async () => {
