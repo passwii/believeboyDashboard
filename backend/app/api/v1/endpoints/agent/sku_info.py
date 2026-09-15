@@ -26,7 +26,7 @@ operator=NULL、agent_id/idempotency_key 归因；写后失效 PT4 财务汇总�
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from decimal import Decimal
 from typing import Any
 
@@ -60,10 +60,10 @@ from app.services.audit_log_service import (
     query_operation_audit_log_for_targets,
 )
 from app.services.data.sku_info import (
+    delete_sku_record,
     list_sku_records,
     update_sku_record_by_id,
     upsert_sku_record,
-    delete_sku_record,
 )
 from app.services.data.sku_info.cache import invalidate_sku_financial_cache
 from app.utils.country import normalize_country
@@ -466,7 +466,12 @@ async def upsert_sku_info(
         before_row = _find_existing_by_key(
             db, project_id, sku=req.sku, asin=req.asin, country=country
         )
-        row, action = upsert_sku_record(db, payload, source_file=f"agent:{agent_id}")
+        row, action = upsert_sku_record(
+            db,
+            payload,
+            source_file=f"agent:{agent_id}",
+            operator=agent_id,
+        )
         append_operation_audit_log(
             db,
             action="sku_info.upsert",
@@ -500,7 +505,7 @@ def _validate_update(body: dict, request: Request) -> None:
     sku_record_id = int(request.path_params["sku_record_id"])
 
     _check_source(body.get("source"))
-    req = _parse_update_request(body)  # extra=forbid：身份字段传值 → VALIDATION_FAILED
+    _parse_update_request(body)  # extra=forbid：身份字段传值 → VALIDATION_FAILED
 
     db = SessionLocal()
     try:
@@ -974,10 +979,8 @@ async def upload_sku_info_fnsku_label(
 
         # 删旧标签（失败不阻塞上传，对齐内部 upload_fnsku_label）
         if row.fnsku_label_r2_key:
-            try:
+            with suppress(Exception):
                 delete_file_from_r2(settings, row.fnsku_label_r2_key)
-            except Exception:
-                pass
 
         project_slug = _safe_project_folder_name(row.project_name)
         safe_sku = row.sku.replace("/", "_").replace("\\", "_").replace(" ", "_")

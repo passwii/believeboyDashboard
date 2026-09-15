@@ -4,14 +4,13 @@ import csv
 from decimal import Decimal
 from io import StringIO
 from pathlib import Path
-from typing import Any, cast
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import SkuRecord
-from app.schemas.sku_info import SkuRecordCreate
+from app.schemas.sku_info import LISTING_COPY_FIELDS, SkuRecordCreate
 from app.services.data.sku_info.cache import _resolve_project_id
 from app.services.data.sku_info.crud import (
     RMB_CURRENCY,
@@ -46,7 +45,7 @@ def _csv_value(
 def _normalize_item_for_import(
     item: SkuRecordCreate,
     source_file: str | None = None,
-) -> dict[str, Any]:
+) -> dict[str, str | Decimal | bool | int | None]:
     provided_fields = set(item.model_fields_set)
 
     def optional_cost(
@@ -107,7 +106,7 @@ def _normalize_item_for_import(
 
 def _find_existing_for_import(
     db: Session,
-    normalized: dict[str, Any],
+    normalized: dict[str, str | Decimal | bool | int | None],
     *,
     allow_multiple_matches: bool = False,
 ) -> SkuRecord | None:
@@ -176,56 +175,68 @@ def import_sku_records(
                 skipped += 1
                 continue
 
-            create_data: dict[str, Any] = {
-                "project_name": str(normalized["project_name"]),
-                "sku": str(normalized["sku"]),
-                "asin": str(normalized["asin"]),
-                "fnsku": (
-                    str(normalized["fnsku"])
-                    if normalized["fnsku"] is not None
-                    else None
-                ),
-                "product_name": (
-                    str(normalized["product_name"])
-                    if normalized["product_name"] is not None
-                    else None
-                ),
-                "fob_unit_cost": cast(float | None, normalized["fob_unit_cost"]),
-                "first_leg_cost_rmb": cast(
-                    float | None, normalized["first_leg_cost_rmb"]
-                ),
-                "package_length_cm": cast(float | None, normalized["package_length_cm"]),
-                "package_width_cm": cast(float | None, normalized["package_width_cm"]),
-                "package_height_cm": cast(float | None, normalized["package_height_cm"]),
-                "weight_kg": cast(float | None, normalized["weight_kg"]),
-                "carton_length_cm": cast(float | None, normalized["carton_length_cm"]),
-                "carton_width_cm": cast(float | None, normalized["carton_width_cm"]),
-                "carton_height_cm": cast(float | None, normalized["carton_height_cm"]),
-                "carton_weight_kg": cast(float | None, normalized["carton_weight_kg"]),
-                "units_per_carton": cast(int | None, normalized["units_per_carton"]),
-                "country": str(normalized["country"]),
-                "sort_order": cast(int | None, normalized["sort_order"]),
-                "is_active": (
-                    bool(normalized["is_active"])
-                    if normalized["is_active"] is not None
-                    else True
-                ),
-                "source_file": (
-                    str(normalized["source_file"])
-                    if normalized["source_file"] is not None
-                    else None
-                ),
+            create_item = SkuRecordCreate(
+                project_name=str(normalized["project_name"]),
+                sku=str(normalized["sku"]),
+                asin=str(normalized["asin"]),
+                fnsku=normalized["fnsku"],
+                product_name=normalized["product_name"],
+                fob_unit_cost=float(normalized["fob_unit_cost"])
+                if normalized["fob_unit_cost"] is not None
+                else None,
+                first_leg_cost_rmb=float(normalized["first_leg_cost_rmb"])
+                if normalized["first_leg_cost_rmb"] is not None
+                else None,
+                package_length_cm=float(normalized["package_length_cm"])
+                if normalized["package_length_cm"] is not None
+                else None,
+                package_width_cm=float(normalized["package_width_cm"])
+                if normalized["package_width_cm"] is not None
+                else None,
+                package_height_cm=float(normalized["package_height_cm"])
+                if normalized["package_height_cm"] is not None
+                else None,
+                weight_kg=float(normalized["weight_kg"])
+                if normalized["weight_kg"] is not None
+                else None,
+                carton_length_cm=float(normalized["carton_length_cm"])
+                if normalized["carton_length_cm"] is not None
+                else None,
+                carton_width_cm=float(normalized["carton_width_cm"])
+                if normalized["carton_width_cm"] is not None
+                else None,
+                carton_height_cm=float(normalized["carton_height_cm"])
+                if normalized["carton_height_cm"] is not None
+                else None,
+                carton_weight_kg=float(normalized["carton_weight_kg"])
+                if normalized["carton_weight_kg"] is not None
+                else None,
+                units_per_carton=int(normalized["units_per_carton"])
+                if normalized["units_per_carton"] is not None
+                else None,
+                country=str(normalized["country"]),
+                sort_order=int(normalized["sort_order"])
+                if normalized["sort_order"] is not None
+                else None,
+                is_active=bool(normalized["is_active"])
+                if normalized["is_active"] is not None
+                else True,
+                source_file=str(normalized["source_file"])
+                if normalized["source_file"] is not None
+                else None,
                 # 文案字段：仅显式提供项进入构造（保 model_fields_set 语义），
                 # 由 upsert_sku_record 落列并盖 listing_copy_updated_{at,by}。
-                **listing_values,
-            }
-            create_item = SkuRecordCreate.model_validate(create_data)
+                **(
+                    {field: listing_values[field] for field in LISTING_COPY_FIELDS}
+                    if listing_values
+                    else {}
+                ),
+            )
             row, _ = upsert_sku_record(
                 db,
                 create_item,
                 source_file,
                 next_sort_order_cache=next_sort_order_cache,
-                operator=operator,
             )
             rows.append(row)
             inserted += 1
@@ -260,31 +271,27 @@ def import_sku_records(
                 str(normalized["fnsku"]) if normalized["fnsku"] is not None else None
             )
         if "product_name" in item.model_fields_set:
-            existing.product_name = (
-                str(normalized["product_name"])
-                if normalized["product_name"] is not None
-                else None
-            )
+            existing.product_name = normalized["product_name"]
         if normalized["fob_unit_cost"] is not None:
-            existing.fob_unit_cost = float(normalized["fob_unit_cost"])
+            existing.fob_unit_cost = normalized["fob_unit_cost"]
         if normalized["first_leg_cost_rmb"] is not None:
-            existing.first_leg_cost_rmb = float(normalized["first_leg_cost_rmb"])
+            existing.first_leg_cost_rmb = normalized["first_leg_cost_rmb"]
         if normalized["package_length_cm"] is not None:
-            existing.package_length_cm = float(normalized["package_length_cm"])
+            existing.package_length_cm = normalized["package_length_cm"]
         if normalized["package_width_cm"] is not None:
-            existing.package_width_cm = float(normalized["package_width_cm"])
+            existing.package_width_cm = normalized["package_width_cm"]
         if normalized["package_height_cm"] is not None:
-            existing.package_height_cm = float(normalized["package_height_cm"])
+            existing.package_height_cm = normalized["package_height_cm"]
         if normalized["weight_kg"] is not None:
-            existing.weight_kg = float(normalized["weight_kg"])
+            existing.weight_kg = normalized["weight_kg"]
         if normalized["carton_length_cm"] is not None:
-            existing.carton_length_cm = float(normalized["carton_length_cm"])
+            existing.carton_length_cm = normalized["carton_length_cm"]
         if normalized["carton_width_cm"] is not None:
-            existing.carton_width_cm = float(normalized["carton_width_cm"])
+            existing.carton_width_cm = normalized["carton_width_cm"]
         if normalized["carton_height_cm"] is not None:
-            existing.carton_height_cm = float(normalized["carton_height_cm"])
+            existing.carton_height_cm = normalized["carton_height_cm"]
         if normalized["carton_weight_kg"] is not None:
-            existing.carton_weight_kg = float(normalized["carton_weight_kg"])
+            existing.carton_weight_kg = normalized["carton_weight_kg"]
         if normalized["units_per_carton"] is not None:
             existing.units_per_carton = int(normalized["units_per_carton"])
         if normalized["sort_order"] is not None:
@@ -421,57 +428,53 @@ def parse_sku_record_csv(content: bytes) -> list[SkuRecordCreate]:
                 asin=asin_value if asin_present else "",
                 fnsku=fnsku_value or None if fnsku_present else None,
                 **(
-                    {"product_name": str(product_name_value or "") or None}
+                    {"product_name": product_name_value or None}
                     if product_name_present
                     else {}
                 ),
                 **(
-                    {"first_leg_cost_rmb": float(first_leg_value or 0)}
+                    {"first_leg_cost_rmb": first_leg_value or 0}
                     if first_leg_present
                     else {}
                 ),
+                **({"fob_unit_cost": fob_value or 0} if fob_present else {}),
                 **(
-                    {"fob_unit_cost": float(fob_value or 0)}
-                    if fob_present
-                    else {}
-                ),
-                **(
-                    {"package_length_cm": float(package_length_value or 0)}
+                    {"package_length_cm": package_length_value or 0}
                     if package_length_present
                     else {}
                 ),
                 **(
-                    {"package_width_cm": float(package_width_value or 0)}
+                    {"package_width_cm": package_width_value or 0}
                     if package_width_present
                     else {}
                 ),
                 **(
-                    {"package_height_cm": float(package_height_value or 0)}
+                    {"package_height_cm": package_height_value or 0}
                     if package_height_present
                     else {}
                 ),
-                **({"weight_kg": float(weight_value or 0)} if weight_present else {}),
+                **({"weight_kg": weight_value or 0} if weight_present else {}),
                 **(
-                    {"carton_length_cm": float(carton_length_value or 0)}
+                    {"carton_length_cm": carton_length_value or 0}
                     if carton_length_present
                     else {}
                 ),
                 **(
-                    {"carton_width_cm": float(carton_width_value or 0)}
+                    {"carton_width_cm": carton_width_value or 0}
                     if carton_width_present
                     else {}
                 ),
                 **(
-                    {"carton_height_cm": float(carton_height_value or 0)}
+                    {"carton_height_cm": carton_height_value or 0}
                     if carton_height_present
                     else {}
                 ),
                 **(
-                    {"carton_weight_kg": float(carton_weight_value or 0)}
+                    {"carton_weight_kg": carton_weight_value or 0}
                     if carton_weight_present
                     else {}
                 ),
-                **({"units_per_carton": int(units_value or 0)} if units_present else {}),
+                **({"units_per_carton": units_value or 0} if units_present else {}),
                 **listing_values,
                 currency=RMB_CURRENCY,
                 country=(
