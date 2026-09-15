@@ -211,8 +211,8 @@ final class ReportRenderingTests: XCTestCase {
         let committed = try ReportFixtures.commitResult()
         XCTAssertEqual(
             store.form.adReportFileID,
-            committed.fileID,
-            "带入的是**后端返回的** file_id，不是客户端自己编的"
+            committed.productAnalysisFileID,
+            "带入的是后端可解析的标识（绝对 file_path），不是裸 file_id"
         )
         XCTAssertGreaterThan(opaqueSampleCount(try hosted.bitmap()), 0)
     }

@@ -254,6 +254,7 @@ extension AdUploadRecognition {
 extension AdUploadCommitResult {
     static func fixture(
         fileID: String = "file-1",
+        filePath: String? = nil,
         reportType: String = "ad_promoted_product_report",
         ingestionStatus: String = "skipped",
         id: Int = 0,
@@ -270,7 +271,7 @@ extension AdUploadCommitResult {
             reportStartDate: "2026-09-07",
             reportEndDate: "2026-09-07",
             fileID: fileID,
-            filePath: "/tmp/\(fileID)",
+            filePath: filePath ?? "/tmp/\(fileID)",
             version: version,
             isCurrent: false,
             message: "dry_run：未写入 ad_upload_files"
@@ -685,11 +686,19 @@ final class ProductAnalysisStoreTests: XCTestCase {
         XCTAssertEqual(store.items[0].result?.fileID, "file-2")
     }
 
-    /// 提交后把 `file_id` 带入核算表单（写链路 → 异步任务的唯一桥梁）。
+    /// 提交后把**后端可解析的标识**带入核算表单（写链路 → 异步任务的唯一桥梁）。
+    ///
+    /// 回归：曾经带入的是裸 `file_id`。实测（真后端）它必然让任务以
+    /// `Report file not found` 失败 —— `ad-upload/commit` 把文件锁在
+    /// `UPLOAD_ROOT/_ad_upload/<项目>/<类型>/`，而产品分析按
+    /// `UPLOAD_ROOT/<项目>/ad-product-report/` 找。所以这里钉住的是绝对 `file_path`。
     func testCommittedFileIDIsAdoptedIntoReportForm() async throws {
         let provider = ScriptedProductAnalysisProvider(
             recognize: [.value(.fixture())],
-            commit: [.value(.fixture(fileID: "file-ad-1"))]
+            commit: [.value(.fixture(
+                fileID: "file-ad-1",
+                filePath: "/srv/uploads/_ad_upload/博朗姆/ad-promoted-product-report/file-ad-1.xlsx"
+            ))]
         )
         let store = makeStore()
         let scope = ModuleTaskScope()
@@ -704,7 +713,16 @@ final class ProductAnalysisStoreTests: XCTestCase {
         store.requestCommit(reportType: "ad_promoted_product_report")
         await store.confirmPendingCommit(using: provider, scope: scope, routeID: routeID)
 
-        XCTAssertEqual(store.form.adReportFileID, "file-ad-1", "自动带入")
+        XCTAssertEqual(
+            store.form.adReportFileID,
+            "/srv/uploads/_ad_upload/博朗姆/ad-promoted-product-report/file-ad-1.xlsx",
+            "带入的是后端 build_upload_file_path 能直接解开的绝对路径"
+        )
+        XCTAssertNotEqual(
+            store.form.adReportFileID,
+            "file-ad-1",
+            "绝不能带入裸 file_id —— 它指向的目录与产品分析的解析目录不一致"
+        )
         store.setProject(name: "博朗姆")
         store.setFormFileID(.businessReport, "b-1")
         store.setFormFileID(.paymentReport, "p-1")

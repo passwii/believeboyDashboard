@@ -305,7 +305,6 @@ public struct ReportAutomationView: View {
             .overlay(alignment: .bottom) { Divider() }
     }
 
-    @ViewBuilder
     private func cellView(
         _ state: ReportAutomationCatalog.CellState,
         column: ReportAutomationColumn

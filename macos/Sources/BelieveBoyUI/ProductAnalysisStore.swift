@@ -574,13 +574,17 @@ public final class ProductAnalysisStore {
         droppedFiles = files
     }
 
-    /// 把某张卡片刚提交成功的 `file_id` 带入核算表单（广告报告这一项）。
+    /// 把某张卡片刚提交成功的广告报告标识带入核算表单（广告报告这一项）。
+    ///
+    /// 带入的是 `productAnalysisFileID`（= 响应的绝对 `file_path`）而不是裸 `fileID`：
+    /// 后端 `build_upload_file_path` 按 `<项目>/ad-product-report/` 找文件，与
+    /// `ad-upload/commit` 的 `<项目>/<类型>/` 并不是同一个目录，发裸文件名必然解不开。
     public func adoptCommittedFileID(from reportType: String) {
         guard reportType == Self.writableCard.reportType,
               let item = activeItem(for: reportType),
               let result = item.result
         else { return }
-        form.adReportFileID = result.fileID
+        form.adReportFileID = result.productAnalysisFileID
     }
 
     /// 没有可用凭据（未登录）：不发请求，只把闸门标红。

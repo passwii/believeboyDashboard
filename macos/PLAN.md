@@ -206,6 +206,25 @@ idle → loading → (loaded | failed(APIError))
 > `AIChatStoreTests.testLateCancelFailureDoesNotLeakIntoAnotherConversation`、
 > `CustomerServiceStoreTests.testLateCancelFailureDoesNotComeBackAfterClearingOutput`。
 >
+> ④ **`ad-upload/commit` 的 `file_id` 不能被产品分析任务解开 —— 必须传 `file_path`**（BLF-1068
+> 返工，2026-09-15）。产品分析端点用 `upload_service.build_upload_file_path(settings, project, 'ad_report', file_id)`
+> 拼出 `<UPLOAD_ROOT>/<项目>/ad-product-report/<file_id>`（`product_analysis_reports.py:70`），
+> 而 `ad-upload/commit` 的 `finalize_ad_upload_temp_file` 把文件落在
+> `<UPLOAD_ROOT>/_ad_upload/<项目>/<report_type>/<file_id>`；两处目录不一致，且 `ad_report`
+> 归一化为 `ad_product_report`（非 `ad_promoted_product_report`）。实测（真后端 + 真文件）：
+> 同一份广告文件发裸 `file_id` → 任务终态 `failed: Report file not found`；
+> 发响应里的**绝对 `file_path`** → 任务 `success` 且 `tasks/{id}/result` 可下载。
+> 业务 / 付款两侧不受影响：`finalize_report_upload_temp_file` 落的目录与解析目录一致，实测可解开。
+> 处置：`AdUploadCommitResult.productAnalysisFileID` 优先取 `filePath`（`build_upload_file_path`
+> 拼前缀时会被绝对路径取代），`ProductAnalysisStore.adoptCommittedFileID` 用它。
+> 查：`ReportDecodingTests.testProductAnalysisFileIDUsesResolvableAbsolutePath`、
+> `ProductAnalysisStoreTests.testCommittedFileIDIsAdoptedIntoReportForm`。
+> **另有一层独立不在此批范围**：产品分析的 `_read_ad_report` 要求
+> `展示量/点击量/花费/7天总销售额/7天总销售量(#)`，而 ad-upload 的 `ad_promoted_product_report`
+> 规格只要求 `开始日期/结束日期/广告SKU/广告ASIN/广告活动名称/广告组名称`——
+> 实测**只带规格列的文件即使路径正确也会以缺列失败**，带全指标列才 `success`。
+> 两者是否应统一由**后端契约**决定（规格放宽 / 解析器兼容），属跨端事项，已另报 Damon。
+>
 > **S5.5 探针结论（2026-09-15，BLF-1068，报表中心 · 上传与分析簇；本计划第一条写链路）**：
 > ① **后端给的端点带 `/api/v1` 前缀，而 `APIClient` 自己会再拼一次**：
 > `POST /product-analysis-reports` 的响应里 `status_endpoint` 的真实值是

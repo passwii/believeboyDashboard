@@ -228,6 +228,59 @@ final class ReportDecodingTests: XCTestCase {
         XCTAssertTrue(result.message.contains("未写入 ad_upload_files"), "后端明说没入库：\(result.message)")
     }
 
+    /// 回归（BLF-1068 阻塞 1）：交给 `POST /product-analysis-reports` 的广告报告标识
+    /// 必须是后端 `build_upload_file_path` 能解开的那个。
+    ///
+    /// 真实夹具（`ad-upload-commit-dry-run.json`）里 `file_id` 是裸文件名、`file_path` 是
+    /// `UPLOAD_ROOT/_ad_upload/<项目>/<类型>/<该文件名>` 的绝对路径 —— 后者才能被
+    /// 产品分析端点解析（实测：发裸 file_id → `Report file not found`；发 file_path → success）。
+    func testProductAnalysisFileIDUsesResolvableAbsolutePath() throws {
+        let result = try ReportFixtures.commitResult()
+        XCTAssertTrue(
+            result.fileID.contains("/") == false,
+            "file_id 是裸文件名（不含目录）：\(result.fileID)"
+        )
+        XCTAssertTrue(
+            result.filePath.contains("/_ad_upload/"),
+            "file_path 是广告域临时区的完整路径：\(result.filePath)"
+        )
+        XCTAssertTrue(
+            result.filePath.contains("/\(result.fileID)"),
+            "file_path 以 file_id 结尾 —— 两者是同一份文件的两个标识"
+        )
+        XCTAssertEqual(
+            result.productAnalysisFileID,
+            result.filePath,
+            "优先用完整 file_path（产品分析能直接解开）"
+        )
+        XCTAssertNotEqual(
+            result.productAnalysisFileID,
+            result.fileID,
+            "裸 file_id 指向 `_ad_upload/<项目>/<类型>/`，与产品分析的 `<项目>/ad-product-report/` 不一致"
+        )
+    }
+
+    /// 回退分支：响应缺 `file_path`（后端该字段非可选，正常不出现）时退回 `file_id`，
+    /// 而不是把空串发出去 —— 空串会被后端当成「没填」。
+    func testProductAnalysisFileIDFallsBackToFileIDWhenPathMissing() {
+        let result = AdUploadCommitResult(
+            id: 0,
+            reportType: "ad_promoted_product_report",
+            reportLabel: "推广的商品",
+            ingestionStatus: "skipped",
+            projectName: "创酷",
+            country: "US",
+            reportStartDate: "2026-09-07",
+            reportEndDate: "2026-09-07",
+            fileID: "only-name.xlsx",
+            filePath: "",
+            version: 0,
+            isCurrent: false,
+            message: "dry_run"
+        )
+        XCTAssertEqual(result.productAnalysisFileID, "only-name.xlsx")
+    }
+
     // MARK: - 异步核算任务（`product-analysis-reports`）
 
     /// 发起响应的两个端点是后端给的**带 `/api/v1` 的绝对路径** —— 客户端要把它归一化成

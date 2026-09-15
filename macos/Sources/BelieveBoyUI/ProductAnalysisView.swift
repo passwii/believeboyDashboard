@@ -308,8 +308,9 @@ public struct ProductAnalysisView: View {
             Text("报表来源（file_id）")
                 .font(.callout.weight(.semibold))
             Text(
-                "`POST /product-analysis-reports` 需要业务 / 付款 / 广告三份报表的 `file_id`。"
-                    + "广告报告那一份可以直接从上面的识别结果带入（提交成功后才有 `file_id`）；"
+                "`POST /product-analysis-reports` 需要业务 / 付款 / 广告三份报表的 `file_id`，"
+                    + "后端按 `<上传根目录>/<项目>/<报表类型>/<file_id>` 去磁盘找文件。"
+                    + "广告报告那一份可以直接从上面的识别结果带入（提交成功后才有）；"
                     + "业务与付款报告在 Web 侧走 `/report-upload`（A 表）链路，本批未搬，需手工填入。"
             )
             .font(.caption)
@@ -319,14 +320,17 @@ public struct ProductAnalysisView: View {
             fileIDField(.businessReport, "业务报告 file_id", placeholder: "如 3f2c…_business.csv")
             fileIDField(.paymentReport, "付款报告 file_id", placeholder: "如 3f2c…_payment.csv")
             HStack(spacing: 8) {
-                fileIDField(.adReport, "广告报告 file_id", placeholder: "可点右侧「带入」")
+                // 代入的是响应里的**完整路径**而不是裸文件名：`ad-upload/commit` 把文件落在
+                // `_ad_upload/<项目>/<类型>/`，而产品分析按 `<项目>/ad-product-report/` 找，
+                // 两者目录不同 —— 发裸文件名实测必然 `Report file not found`。
+                fileIDField(.adReport, "广告报告路径", placeholder: "可点右侧「带入」")
                 Button {
                     store.adoptCommittedFileID(from: ProductAnalysisStore.writableCard.reportType)
                 } label: {
                     Label("带入广告报告", systemImage: "arrow.down.doc")
                 }
                 .disabled(store.recognition(for: ProductAnalysisStore.writableCard.reportType) == nil)
-                .help("把广告报告一次成功提交得到的 file_id 填进来")
+                .help("把广告报告一次成功提交得到的完整文件路径填进来")
             }
             fileIDField(.inventoryReport, "库存报告 file_id（可选）", placeholder: "留空 = 不传")
 

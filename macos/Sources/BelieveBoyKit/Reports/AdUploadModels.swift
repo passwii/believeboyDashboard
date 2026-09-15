@@ -404,6 +404,24 @@ public struct AdUploadCommitResult: Decodable, Sendable, Equatable {
 
     /// `dry_run` 走过（后端回 `skipped` + `id=0`）—— UI 据此把「已写入」改成「已识别（不入库）」。
     public var isDryRun: Bool { ingestionStatus == "skipped" || id == 0 }
+
+    /// 交给 `POST /product-analysis-reports` 的 `ad_report_file_id`。
+    ///
+    /// **为什么不是 `fileID`**：那个字段是「锁盘后的文件名」，只对**同名目录**有意义，
+    /// 而两端的目录并不一致 —— 产品分析用 `build_upload_file_path(.., 'ad_report', ..)`
+    /// 去 `UPLOAD_ROOT/<项目>/ad-product-report/`（以及遗留的 `ad-report/`）找文件，
+    /// 而 `ad-upload/commit` 把文件锁在 `UPLOAD_ROOT/_ad_upload/<项目>/<类型>/`。
+    /// 把裸文件名发过去必然解不开（实测：任务以 `Report file not found` 终态失败）。
+    ///
+    /// `file_path` 是该响应的**绝对路径**，`build_upload_file_path` 拼上项目 / 类型前缀时
+    /// 会被绝对路径直接取代（`Path(a)/b/.../""` 语义），于是 `exists()` 为真、原样返回。
+    /// 实测同一份广告文件：发 `fileID` → 失败；发 `filePath` → 任务 `success` 且结果可下载。
+    ///
+    /// 回退到 `fileID` 只为兼容缺 `file_path` 的响应形状（后端该字段是非可选的，
+    /// 正常不会走到）；真要走到，后面提交会被后端以「文件不存在」快失败，而不会静默写错。
+    public var productAnalysisFileID: String {
+        filePath.trimmedNonEmpty ?? fileID
+    }
 }
 
 // MARK: - 入库状态（`GET /ad-upload/status`）
