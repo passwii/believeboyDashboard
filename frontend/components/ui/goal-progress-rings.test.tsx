@@ -7,6 +7,7 @@ import {
   clampRingValue,
   GoalProgressRings,
   GoalProgressStat,
+  isGoalProgressScopeValid,
   projectedMonthlyRate,
   type GoalRingItem,
 } from './goal-progress-rings'
@@ -153,6 +154,21 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
   it('items 为空时不渲染', () => {
     const { container } = render(<GoalProgressRings items={[]} />)
     expect(container.firstChild).toBeNull()
+  })
+})
+
+describe('isGoalProgressScopeValid（daily-analysis 目标入口范围）', () => {
+  it('仅允许具体项目与 US/DE/UK 单站点', () => {
+    expect(isGoalProgressScopeValid('7', 'US')).toBe(true)
+    expect(isGoalProgressScopeValid('42', 'DE')).toBe(true)
+    expect(isGoalProgressScopeValid('9', 'UK')).toBe(true)
+  })
+
+  it('聚合项目、聚合站点和空项目不允许展示目标入口', () => {
+    expect(isGoalProgressScopeValid('all', 'US')).toBe(false)
+    expect(isGoalProgressScopeValid('7', 'ALL')).toBe(false)
+    expect(isGoalProgressScopeValid('', 'US')).toBe(false)
+    expect(isGoalProgressScopeValid('all', 'ALL')).toBe(false)
   })
 })
 
