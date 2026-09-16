@@ -339,6 +339,7 @@ class TestBiFlatContract:
             headers=shipment_env["headers"],
         ).json()["data"]["data"][0]
         assert row["breakeven_advertising_rate"] == BASE_BREAKEVEN
+        assert row["non_ad_fee_usd"] == BASE_NON_AD_FEE
         assert row["max_ad_spend_per_unit_usd"] == BASE_MAX_AD_SPEND
         assert row["target_advertising_rate"] is None
 
@@ -363,6 +364,7 @@ class TestBiFlatContract:
             headers=shipment_env["headers"],
         ).json()["data"]["data"][0]
         assert row["breakeven_advertising_rate"] == BASE_BREAKEVEN
+        assert row["non_ad_fee_usd"] == BASE_NON_AD_FEE
         assert row["max_ad_spend_per_unit_usd"] == BASE_MAX_AD_SPEND
 
 
@@ -408,6 +410,7 @@ class TestPricingSnapshot:
             assert resp.status_code == 200, resp.text
             rows = resp.json()["data"]["data"]
             assert rows[0]["breakeven_advertising_rate"] == BASE_BREAKEVEN
+            assert rows[0]["non_ad_fee_usd"] == BASE_NON_AD_FEE
             assert rows[0]["max_ad_spend_per_unit_usd"] == BASE_MAX_AD_SPEND
 
             targeted = client.get(

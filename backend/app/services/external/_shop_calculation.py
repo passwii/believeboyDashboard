@@ -158,6 +158,7 @@ def _flatten_history_row(item) -> ShopCalculationHistoryRow:
         breakeven_advertising_rate=(
             anchor.breakeven_advertising_rate if anchor is not None else None
         ),
+        non_ad_fee_usd=(anchor.non_ad_fee_usd if anchor is not None else None),
         max_ad_spend_per_unit_usd=(
             anchor.max_ad_spend_per_unit_usd if anchor is not None else None
         ),
