@@ -150,9 +150,9 @@ def get_agent_shop_calculation_history(
 ) -> dict:
     """当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。
 
-    BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /
-    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——
-    扁平行没有费用拆项，消费方自己算不出锚。
+    BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` / ``non_ad_fee_usd`` /
+    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 四列（服务端推）——
+    扁平行没有费用拆项，消费方自己算不出锚；``include_anchor=false`` 时四列省略。
     """
     with _service_errors():
         try:
@@ -235,7 +235,7 @@ def get_agent_shop_calculation_snapshots(
 ) -> dict:
     """append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
 
-    BLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。
+    BLF-1043：每行额外带四个派生列（口径同 ``/shop-calculation-history``）。
     """
     with _service_errors():
         try:

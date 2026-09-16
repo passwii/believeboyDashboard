@@ -1,6 +1,6 @@
 # Agent 扁平锚列契约补齐 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 为 R5/R6/R7 补齐可关闭的锚列、`non_ad_fee_usd` 解释字段和 OpenAPI 显式响应类型。
 
@@ -33,7 +33,7 @@
 - Consumes: `PricingAnchor.non_ad_fee_usd: float | None`
 - Produces: `ShopCalculationHistoryRow.non_ad_fee_usd: float | None`
 
-- [ ] **Step 1: 写失败测试，锁定三个扁平路由都返回 `non_ad_fee_usd`**
+- [x] **Step 1: 写失败测试，锁定三个扁平路由都返回 `non_ad_fee_usd`**
 
 在 `TestBiFlatContract.test_flat_history_exposes_breakeven_column` 的锚断言后增加：
 
@@ -54,7 +54,7 @@
             assert rows[0]["non_ad_fee_usd"] == BASE_NON_AD_FEE
 ```
 
-- [ ] **Step 2: 运行测试并确认因字段缺失失败**
+- [x] **Step 2: 运行测试并确认因字段缺失失败**
 
 Run:
 
@@ -68,7 +68,7 @@ cd backend && pytest \
 
 Expected: FAIL，三个测试均因响应字典没有 `non_ad_fee_usd` 触发 `KeyError`。
 
-- [ ] **Step 3: 给扁平 row schema 增加字段**
+- [x] **Step 3: 给扁平 row schema 增加字段**
 
 在 `backend/app/schemas/external/shop_calculation.py` 的
 `ShopCalculationHistoryRow` 中，将锚列段改为：
@@ -88,7 +88,7 @@ Expected: FAIL，三个测试均因响应字典没有 `non_ad_fee_usd` 触发 `K
     # 服务端显式补四个派生列：breakeven / non_ad_fee / max_ad_spend / target。
 ```
 
-- [ ] **Step 4: 在两个扁平化服务里映射字段**
+- [x] **Step 4: 在两个扁平化服务里映射字段**
 
 在 `backend/app/services/external/_shop_calculation.py` 的
 `_flatten_history_row()` 中，在 `breakeven_advertising_rate` 参数后增加：
@@ -105,7 +105,7 @@ Expected: FAIL，三个测试均因响应字典没有 `non_ad_fee_usd` 触发 `K
                 non_ad_fee_usd=anchor.non_ad_fee_usd,
 ```
 
-- [ ] **Step 5: 运行聚焦测试并确认通过**
+- [x] **Step 5: 运行聚焦测试并确认通过**
 
 Run:
 
@@ -119,7 +119,7 @@ cd backend && pytest \
 
 Expected: `3 passed`。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add \
@@ -147,7 +147,7 @@ git commit -m "feat(Agent锚列): 扁平行补齐非广告费用字段"
 - Consumes: `ShopCalculationHistoryResponse`、`ShopCalculationSnapshotsResponse`
 - Produces: `render_flat_anchor_response(value: BaseModel, *, include_anchor: bool) -> dict[str, Any]`
 
-- [ ] **Step 1: 写三个失败测试，锁定关闭后四列完全缺席**
+- [x] **Step 1: 写三个失败测试，锁定关闭后四列完全缺席**
 
 在 `backend/tests/api/agent/test_shop_calc_anchor.py` 顶部的常量区增加：
 
@@ -211,7 +211,7 @@ FLAT_ANCHOR_FIELDS = {
             self._cleanup(snapshot_id)
 ```
 
-- [ ] **Step 2: 运行测试并确认参数尚未生效**
+- [x] **Step 2: 运行测试并确认参数尚未生效**
 
 Run:
 
@@ -225,7 +225,7 @@ cd backend && pytest \
 
 Expected: FAIL，响应仍包含四个锚列。
 
-- [ ] **Step 3: 在共享 helper 中实现统一过滤**
+- [x] **Step 3: 在共享 helper 中实现统一过滤**
 
 在 `backend/app/api/v1/endpoints/agent/_helpers.py` 增加：
 
@@ -262,7 +262,7 @@ def render_flat_anchor_response(
 
 保留文件原有 `parse_country` / `parse_countries`，不要改动其行为。
 
-- [ ] **Step 4: R5/R6 增加参数并统一走 helper**
+- [x] **Step 4: R5/R6 增加参数并统一走 helper**
 
 在 `backend/app/api/v1/endpoints/agent/shop_calculation.py`：
 
@@ -295,7 +295,7 @@ def render_flat_anchor_response(
     )
 ```
 
-- [ ] **Step 5: R7 增加参数并统一走 helper**
+- [x] **Step 5: R7 增加参数并统一走 helper**
 
 在 `backend/app/api/v1/endpoints/agent/pricing_calculation_snapshots.py`：
 
@@ -320,7 +320,7 @@ def render_flat_anchor_response(
     )
 ```
 
-- [ ] **Step 6: 运行聚焦测试并确认通过**
+- [x] **Step 6: 运行聚焦测试并确认通过**
 
 Run:
 
@@ -333,7 +333,7 @@ cd backend && pytest \
 
 Expected: 全部 PASS。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add \
@@ -360,7 +360,7 @@ git commit -m "feat(Agent锚列): 扁平路由支持关闭锚列"
 - Consumes: `ShopCalculationHistoryResponse`、`ShopCalculationSnapshotsResponse`
 - Produces: `AgentOkResponse[T]`，OpenAPI `data` 指向具体扁平模型
 
-- [ ] **Step 1: 写 OpenAPI 失败测试**
+- [x] **Step 1: 写 OpenAPI 失败测试**
 
 创建 `backend/tests/api/agent/test_shop_calculation_flat_openapi.py`：
 
@@ -422,7 +422,7 @@ def test_flat_anchor_routes_expose_explicit_openapi_schema() -> None:
         assert data_ref.endswith(f"/{data_schema_name}")
 ```
 
-- [ ] **Step 2: 运行测试并确认响应仍是通用 object**
+- [x] **Step 2: 运行测试并确认响应仍是通用 object**
 
 Run:
 
@@ -434,7 +434,7 @@ cd backend && pytest \
 
 Expected: FAIL，`responses.200.schema` 没有 `$ref`，仍是 `additionalProperties: true`。
 
-- [ ] **Step 3: 增加泛型 Agent 成功壳 schema**
+- [x] **Step 3: 增加泛型 Agent 成功壳 schema**
 
 在 `backend/app/schemas/external/shop_calculation.py` 顶部导入区增加：
 
@@ -455,7 +455,7 @@ class AgentOkResponse(BaseModel, Generic[T]):
     data: T
 ```
 
-- [ ] **Step 4: R5/R6 声明响应模型**
+- [x] **Step 4: R5/R6 声明响应模型**
 
 在 `backend/app/api/v1/endpoints/agent/shop_calculation.py` 导入：
 
@@ -483,7 +483,7 @@ from app.schemas.external.shop_calculation import AgentOkResponse
 )
 ```
 
-- [ ] **Step 5: R7 声明响应模型**
+- [x] **Step 5: R7 声明响应模型**
 
 在 `backend/app/api/v1/endpoints/agent/pricing_calculation_snapshots.py` 导入：
 
@@ -501,7 +501,7 @@ from app.schemas.external.shop_calculation import AgentOkResponse
 )
 ```
 
-- [ ] **Step 6: 运行 OpenAPI 与行为测试**
+- [x] **Step 6: 运行 OpenAPI 与行为测试**
 
 Run:
 
@@ -515,7 +515,7 @@ cd backend && pytest \
 
 Expected: 全部 PASS；关闭锚时四列仍完全缺席。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add \
@@ -544,7 +544,7 @@ git commit -m "feat(Agent锚列): 声明扁平响应 OpenAPI 模型"
 - Consumes: Task 1-3 的最终 API 行为与 OpenAPI schema
 - Produces: 与生产接口一致的用户文档、技能文档和生成类型
 
-- [ ] **Step 1: 更新契约与技能文档**
+- [x] **Step 1: 更新契约与技能文档**
 
 在 `backend/docs/agent-api.md` 中，把 R5/R6/R7 的说明改为：
 
@@ -565,7 +565,7 @@ R5/R6/R7 是恒定的扁平锚列契约，但支持 include_anchor=false 显式�
 
 同时删除旧的“扁平行没有 include_anchor 开关”表述。
 
-- [ ] **Step 2: 更新前端接入指南与断言**
+- [x] **Step 2: 更新前端接入指南与断言**
 
 在 `frontend/app/dashboard/system/agent-management/agent-usage-guide.tsx`
 的扁平路由说明中加入：
@@ -584,7 +584,7 @@ expect(text).toContain('non_ad_fee_usd')
 expect(text).toContain('include_anchor=false')
 ```
 
-- [ ] **Step 3: 运行前端聚焦测试**
+- [x] **Step 3: 运行前端聚焦测试**
 
 Run:
 
@@ -595,7 +595,7 @@ cd frontend && pnpm test -- \
 
 Expected: PASS。
 
-- [ ] **Step 4: 重新生成后端 OpenAPI 与前端类型**
+- [x] **Step 4: 重新生成后端 OpenAPI 与前端类型**
 
 Run:
 
@@ -611,7 +611,7 @@ Expected:
 - `ShopCalculationHistoryRow` 包含四个锚列。
 - `api.d.ts` 同步更新。
 
-- [ ] **Step 5: 运行后端完整相关回归**
+- [x] **Step 5: 运行后端完整相关回归**
 
 Run:
 
@@ -626,7 +626,7 @@ cd backend && pytest tests/api/agent/test_shop_calc_anchor.py \
 
 Expected: 全部 PASS。
 
-- [ ] **Step 6: 运行前端质量门**
+- [x] **Step 6: 运行前端质量门**
 
 Run:
 
@@ -638,7 +638,7 @@ cd frontend && pnpm test
 
 Expected: 全部 PASS；如出现与本改动无关的既有失败，必须记录具体文件并证明在改动前同样失败。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add \

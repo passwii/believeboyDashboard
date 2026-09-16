@@ -97,6 +97,7 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).toContain('/shop-calculation-history')
     expect(text).toContain('/shop-calculation/snapshots')
     expect(text).toContain('/pricing-snapshots')
+    expect(text).toContain('include_anchor=false')
   })
 
   it('domain=return_analysis 输出退货分析示例（BLF-474）', () => {

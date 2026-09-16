@@ -146,7 +146,7 @@ function buildShopCalculationsGuide(opts: {
   锚依赖汇率而漂移，所以把 anchor（含 basis）当自包含对象缓存与版本化；
   R1/R2/R3 可加 &include_anchor=false 让响应与旧版逐字节一致。
 
-【6. BI 扁平 3 条路由（无费用拆项，锚由服务端推成 3 个平铺列）】
+【6. BI 扁平 3 条路由（无费用拆项，锚由服务端推成 4 个平铺列）】
 
   curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculation-history?country=US&target_net_margin=0.10" \\
     -H "Authorization: Bearer ${key}" \\
@@ -161,12 +161,12 @@ function buildShopCalculationsGuide(opts: {
     -H "X-Agent-Id: ${agentId}"
 
   扁平行没有费用拆项、没有 advertising_rate/advertising_fee_usd，消费方自己算不出锚，
-  所以每行固定带三列：breakeven_advertising_rate / max_ad_spend_per_unit_usd /
-  target_advertising_rate（不传 target_net_margin 时第 3 列为 null）——**没有** anchor
-  嵌套块、**没有** include_anchor 开关。三条读路由的分工：history = 每 SKU 最新非删行
-  （当前态）；shop-calculation/snapshots = append-only 时间序列（可加
-  &from_date=&to_date=&sku=）；pricing-snapshots = 最近一次 snapshot_date ≤ ?as_of 的
-  全 SKU 经济账（country 默认 US）。
+  所以每行固定带四列：breakeven_advertising_rate / non_ad_fee_usd /
+  max_ad_spend_per_unit_usd / target_advertising_rate（不传 target_net_margin 时
+  target_advertising_rate 为 null）。R5/R6/R7 均支持 &include_anchor=false，默认 true；
+  关闭后四列全部省略。三条读路由的分工：history = 每 SKU 最新非删行（当前态）；
+  shop-calculation/snapshots = append-only 时间序列（可加 &from_date=&to_date=&sku=）；
+  pricing-snapshots = 最近一次 snapshot_date ≤ ?as_of 的全 SKU 经济账（country 默认 US）。
 
 【7. 试算（不落库，纯计算）】
 

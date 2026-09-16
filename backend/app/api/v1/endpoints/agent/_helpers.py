@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from app.schemas.external.common import PeriodParseError
 from app.utils.country import normalize_country
 
-
 FLAT_ANCHOR_FIELDS = (
     "breakeven_advertising_rate",
     "non_ad_fee_usd",

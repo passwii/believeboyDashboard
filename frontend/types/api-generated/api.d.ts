@@ -1970,9 +1970,9 @@ export interface paths {
          * Get Agent Shop Calculation History
          * @description 当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。
          *
-         *     BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /
-         *     ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——
-         *     扁平行没有费用拆项，消费方自己算不出锚。
+         *     BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` / ``non_ad_fee_usd`` /
+         *     ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 四列（服务端推）——
+         *     扁平行没有费用拆项，消费方自己算不出锚；``include_anchor=false`` 时四列省略。
          */
         get: operations["get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get"];
         put?: never;
@@ -1994,7 +1994,7 @@ export interface paths {
          * Get Agent Shop Calculation Snapshots
          * @description append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
          *
-         *     BLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。
+         *     BLF-1043：每行额外带四个派生列（口径同 ``/shop-calculation-history``）。
          */
         get: operations["get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get"];
         put?: never;
@@ -9586,6 +9586,24 @@ export interface components {
             use_historical_shipping_cost: boolean;
             /** Weight Kg */
             weight_kg: number;
+        };
+        /** AgentOkResponse[ShopCalculationHistoryResponse] */
+        AgentOkResponse_ShopCalculationHistoryResponse_: {
+            data: components["schemas"]["ShopCalculationHistoryResponse"];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
+        /** AgentOkResponse[ShopCalculationSnapshotsResponse] */
+        AgentOkResponse_ShopCalculationSnapshotsResponse_: {
+            data: components["schemas"]["ShopCalculationSnapshotsResponse"];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
         };
         /** AgentOperationLogActionSummaryItem */
         AgentOperationLogActionSummaryItem: {
@@ -21036,6 +21054,115 @@ export interface components {
             total_fee_usd: number;
         };
         /**
+         * ShopCalculationHistoryResponse
+         * @description Wrapper for ``/shop-calculation-history`` (current-state list).
+         *
+         *     ``total`` is the total number of *current-state* rows for the
+         *     project (one per SKU/country group, with deleted rows excluded).
+         */
+        ShopCalculationHistoryResponse: {
+            /** Country */
+            country?: string | null;
+            /** Data */
+            data?: components["schemas"]["ShopCalculationHistoryRow"][];
+            /** Project Id */
+            project_id: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * ShopCalculationHistoryRow
+         * @description Single SKU row from ``shop_calculation`` flattened for BI consumption.
+         *
+         *     Used by:
+         *
+         *     * ``/shop-calculation-history`` — current-state list (per SKU latest
+         *       non-deleted row)
+         *     * ``/shop-calculation/snapshots`` — append-only time series filtered
+         *       by ``?from=&to=&sku=&country=``
+         *
+         *     The ``id`` is the underlying ``shop_calculation.id`` (PK). For the
+         *     current-state endpoint each row is the latest non-deleted id for
+         *     that ``(project_id, sku, country)`` group; for the history endpoint
+         *     the same id may appear multiple times across different ``observed_at``
+         *     snapshots.
+         */
+        ShopCalculationHistoryRow: {
+            /**
+             * Accounting Type
+             * @default profit_calc
+             */
+            accounting_type: string;
+            /** Asin */
+            asin?: string | null;
+            /** Breakeven Advertising Rate */
+            breakeven_advertising_rate?: number | null;
+            /** Country */
+            country: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Max Ad Spend Per Unit Usd */
+            max_ad_spend_per_unit_usd?: number | null;
+            /** Non Ad Fee Usd */
+            non_ad_fee_usd?: number | null;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Payout Usd
+             * @default 0
+             */
+            payout_usd: number;
+            /**
+             * Profit Rate
+             * @default 0
+             */
+            profit_rate: number;
+            /**
+             * Profit Usd
+             * @default 0
+             */
+            profit_usd: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Sale Price Usd
+             * @default 0
+             */
+            sale_price_usd: number;
+            /** Sku */
+            sku: string;
+            /**
+             * Source
+             * @default manual
+             */
+            source: string;
+            /** Target Advertising Rate */
+            target_advertising_rate?: number | null;
+            /**
+             * Total Fee Usd
+             * @default 0
+             */
+            total_fee_usd: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * ShopCalculationItem
          * @description 店铺测算详情
          */
@@ -21175,6 +21302,33 @@ export interface components {
              * @default 0
              */
             vat_usd: number;
+        };
+        /**
+         * ShopCalculationSnapshotsResponse
+         * @description Wrapper for ``/shop-calculation/snapshots`` (time-series).
+         *
+         *     The endpoint exposes the full append-only history filtered by
+         *     ``?from=&to=&sku=&country=``; no pagination is applied because
+         *     callers are expected to use the date filter to bound the result.
+         */
+        ShopCalculationSnapshotsResponse: {
+            /** Country */
+            country?: string | null;
+            /** Data */
+            data?: components["schemas"]["ShopCalculationHistoryRow"][];
+            /** From Date */
+            from_date?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Sku */
+            sku?: string | null;
+            /** To Date */
+            to_date?: string | null;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** ShopCalculationWeight */
         ShopCalculationWeight: {
@@ -25909,6 +26063,8 @@ export interface operations {
                 country?: string;
                 /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043） */
                 target_net_margin?: number | null;
+                /** @description 是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略 */
+                include_anchor?: boolean;
             };
             header?: never;
             path: {
@@ -25924,9 +26080,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AgentOkResponse_ShopCalculationSnapshotsResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -26738,6 +26892,8 @@ export interface operations {
                 order_dir?: string;
                 /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin（BLF-1043） */
                 target_net_margin?: number | null;
+                /** @description 是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略 */
+                include_anchor?: boolean;
             };
             header?: never;
             path: {
@@ -26753,9 +26909,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AgentOkResponse_ShopCalculationHistoryResponse_"];
                 };
             };
             /** @description Validation Error */
@@ -26781,6 +26935,8 @@ export interface operations {
                 country?: string;
                 /** @description 目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043） */
                 target_net_margin?: number | null;
+                /** @description 是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略 */
+                include_anchor?: boolean;
             };
             header?: never;
             path: {
@@ -26796,9 +26952,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AgentOkResponse_ShopCalculationSnapshotsResponse_"];
                 };
             };
             /** @description Validation Error */

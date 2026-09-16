@@ -44,9 +44,9 @@ def test_flat_anchor_routes_expose_explicit_openapi_schema() -> None:
         }
         assert "include_anchor" in parameter_names
 
-        response_schema = operation["responses"]["200"]["content"][
-            "application/json"
-        ]["schema"]
+        response_schema = operation["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
         assert "$ref" in response_schema
         wrapper = _resolve_ref(schema, response_schema["$ref"])
         ok_property = wrapper["properties"]["ok"]
