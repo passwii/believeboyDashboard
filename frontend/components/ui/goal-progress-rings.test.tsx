@@ -6,6 +6,8 @@ import { render, screen } from '@testing-library/react'
 import {
   clampRingValue,
   GoalProgressRings,
+  GoalProgressStat,
+  isGoalProgressScopeValid,
   projectedMonthlyRate,
   type GoalRingItem,
 } from './goal-progress-rings'
@@ -152,5 +154,39 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
   it('items 为空时不渲染', () => {
     const { container } = render(<GoalProgressRings items={[]} />)
     expect(container.firstChild).toBeNull()
+  })
+})
+
+describe('isGoalProgressScopeValid（daily-analysis 目标入口范围）', () => {
+  it('仅允许具体项目与 US/DE/UK 单站点', () => {
+    expect(isGoalProgressScopeValid('7', 'US')).toBe(true)
+    expect(isGoalProgressScopeValid('42', 'DE')).toBe(true)
+    expect(isGoalProgressScopeValid('9', 'UK')).toBe(true)
+  })
+
+  it('聚合项目、聚合站点和空项目不允许展示目标入口', () => {
+    expect(isGoalProgressScopeValid('all', 'US')).toBe(false)
+    expect(isGoalProgressScopeValid('7', 'ALL')).toBe(false)
+    expect(isGoalProgressScopeValid('', 'US')).toBe(false)
+    expect(isGoalProgressScopeValid('all', 'ALL')).toBe(false)
+  })
+})
+
+describe('GoalProgressStat（daily-analysis stats 目标入口）', () => {
+  it('展示紧凑三环并链接到目标管理页', () => {
+    render(<GoalProgressStat href="/dashboard/operations/project-goals?project=7&country=US" items={ITEMS} value="40.0%" />)
+
+    const link = screen.getByRole('link', { name: '查看目标管理' })
+    expect(link).toHaveAttribute('href', '/dashboard/operations/project-goals?project=7&country=US')
+    expect(screen.getByText('目标进度')).toBeInTheDocument()
+    expect(screen.getByText('40.0%')).toBeInTheDocument()
+    expect(link.querySelectorAll('svg')).toHaveLength(3)
+  })
+
+  it('加载中保留入口并显示加载状态', () => {
+    render(<GoalProgressStat href="/dashboard/operations/project-goals" items={[]} loading value="未设置" />)
+
+    expect(screen.getByRole('link', { name: '查看目标管理' })).toBeInTheDocument()
+    expect(screen.getByText('加载中')).toBeInTheDocument()
   })
 })

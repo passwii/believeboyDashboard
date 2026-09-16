@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import {
-  CalendarDays,
-  FileDown,
-  Loader2,
-  Package,
-  Target,
-} from 'lucide-react'
-import Link from 'next/link'
+import { CalendarDays, FileDown, Loader2, Package } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import {
@@ -17,6 +10,12 @@ import {
   SkuSearchField,
 } from '@/components/dashboard/daily-analysis-header-filters'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
+import {
+  GoalProgressStat,
+  isGoalProgressScopeValid,
+  projectedMonthlyRate,
+  type GoalRingItem,
+} from '@/components/ui/goal-progress-rings'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -25,12 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import {
-  DataTableCard,
-  DataTableCardHeader,
-  DataTableCardBody,
-} from '@/components/ui/data-card'
-import { COUNTRY_TIMEZONE_MAP, DateRangePicker, parseDateInputValue } from '@/components/ui/date-picker'
+  COUNTRY_TIMEZONE_MAP,
+  DateRangePicker,
+  parseDateInputValue,
+} from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { numericCell, numericHead } from '@/components/ui/table-presets'
 import {
@@ -68,6 +67,7 @@ import {
   generateMonthKeys,
 } from '@/lib/aggregate'
 import { useNotifications } from '@/components/notifications'
+import { useGoalProgress } from '@/lib/use-goal-progress'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
@@ -838,7 +838,9 @@ export default function DailyAnalysisPage() {
   // 否则「自动选第一个项目」effect 可能在头部 setProjectId 的 router.replace 回填 URL 之前
   // 抢跑覆盖（列表缓存命中时两帧内竞态），导致 head 显示 A、URL/请求却打到 B。
   const gfProjectOwnedRef = useRef(false)
-  const loadDataRef = useRef<((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null>(null)
+  const loadDataRef = useRef<
+    ((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null
+  >(null)
   const lastAppliedGfRef = useRef('')
   useEffect(() => {
     if (!globalFilter.ready) return
@@ -858,11 +860,7 @@ export default function DailyAnalysisPage() {
         setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
       }
     }
-    if (
-      gfCountry &&
-      ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) &&
-      gfCountry !== country
-    ) {
+    if (gfCountry && ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) && gfCountry !== country) {
       setCountry(gfCountry as CountryOption)
     }
     if (gfDateFrom && gfDateTo) {
@@ -904,16 +902,7 @@ export default function DailyAnalysisPage() {
   }, [datePresetKey, dateRange])
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
 
-  const [goalProgress, setGoalProgress] = useState<{
-    target_amount: number
-    achieved_amount: number
-    completion_vs_monthly: number
-    completion_vs_daily: number
-    today_day: number
-    days_in_month: number
-    currency: string
-  } | null>(null)
-  const [goalLoading, setGoalLoading] = useState(false)
+  const { goalProgress, goalLoading } = useGoalProgress(projectId, country, session)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [rawComparisonSummaryRows, setComparisonSummaryRows] =
     useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
@@ -1319,46 +1308,61 @@ export default function DailyAnalysisPage() {
     void loadData()
   }, [loadData])
 
-  // Fetch current month goal progress
-  // BEL-423：goal progress 与"目标管理"页共用 project-goals/progress 端点，进 2min
-  // 客户端缓存；目标页写操作后会清缓存，这边下次 mount 自然拿到新值。
-  useEffect(() => {
-    if (!projectId || isAllProjects || country === 'ALL') {
-      setGoalProgress(null)
-      return
-    }
-    const year = new Date().getFullYear()
-    const month = new Date().getMonth() + 1
-    setGoalLoading(true)
-    fetchOpsJsonCached<{
-      monthly_progress?: Array<{
-        month: number
-        target_amount: number
-        achieved_amount: number
-        completion_vs_monthly: number
-        completion_vs_daily: number
-        today_day: number
-        days_in_month: number
-        currency: string
-      }>
-    }>(
-      `${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`,
-      { session }
-    )
-      .then((data) => {
-        const monthly = (data.monthly_progress ?? []).find((m) => m.month === month)
-        if (monthly) setGoalProgress(monthly)
-      })
-      .catch(() => {
-        /* silently fail */
-      })
-      .finally(() => setGoalLoading(false))
-  }, [projectId, country, session, isAllProjects])
-
   const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
   // granularity === 'monthly' 时把 summary / detail 行按月汇总（详见 lib/aggregate.ts）。
   // KPI 卡片、图表、表格、Excel 导出都通过这两个变量读数，自动获得月度视图。
+  const goalRingItems = useMemo<GoalRingItem[]>(() => {
+    if (!goalProgress || goalProgress.target_amount <= 0) return []
+
+    const projected = projectedMonthlyRate(
+      goalProgress.completion_vs_monthly,
+      goalProgress.days_in_month,
+      goalProgress.today_day
+    )
+    const money = (value: number) =>
+      `${goalProgress.currency}${value.toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+
+    return [
+      {
+        key: 'pace',
+        label: '截止今日完成率',
+        value: goalProgress.completion_vs_daily,
+        display: `${(goalProgress.completion_vs_daily * 100).toFixed(1)}%`,
+        caption: `已完成 ${money(goalProgress.achieved_amount)} / 应完成 ${money(
+          (goalProgress.target_amount * goalProgress.today_day) / goalProgress.days_in_month
+        )}`,
+        color: 'hsl(var(--chart-1))',
+      },
+      {
+        key: 'monthly',
+        label: '实际月度进度',
+        value: goalProgress.completion_vs_monthly,
+        display: `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`,
+        caption: `已完成 ${money(goalProgress.achieved_amount)} / 目标 ${money(goalProgress.target_amount)}`,
+        color: 'hsl(var(--chart-2))',
+      },
+      {
+        key: 'projected',
+        label: '预估月度完成率',
+        value: projected,
+        display: `${(projected * 100).toFixed(1)}%`,
+        caption: '按当前完成节奏外推至月末',
+        color: 'hsl(var(--chart-3))',
+      },
+    ]
+  }, [goalProgress])
+
+  const showGoalProgressStat = isGoalProgressScopeValid(projectId, country)
+  const goalHref = `/dashboard/operations/project-goals?project=${projectId}&country=${country}`
+  const goalStatValue =
+    goalProgress && goalProgress.target_amount > 0
+      ? `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`
+      : '未设置'
+
   const summaryRows = useMemo(
     () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
     [rawSummaryRows, granularity]
@@ -1372,8 +1376,7 @@ export default function DailyAnalysisPage() {
     return map
   }, [skuOptions])
   const detailRows = useMemo(() => {
-    const bucketed =
-      granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
+    const bucketed = granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
     if (!activeSkuMap) return bucketed
     return bucketed.filter((row) => activeSkuMap[row.sku] === true)
   }, [rawDetailRows, granularity, activeSkuMap])
@@ -1385,17 +1388,14 @@ export default function DailyAnalysisPage() {
     [rawComparisonSummaryRows, granularity]
   )
   // BLF-917：比较期明细同样只保留当前激活的 SKU，避免对比图混入历史 SKU。
-  const comparisonDetailRows = useMemo(
-    () => {
-      const bucketed =
-        granularity === 'monthly'
-          ? bucketDetailByMonth(rawComparisonDetailRows)
-          : rawComparisonDetailRows
-      if (!activeSkuMap) return bucketed
-      return bucketed.filter((row) => activeSkuMap[row.sku] === true)
-    },
-    [rawComparisonDetailRows, granularity, activeSkuMap]
-  )
+  const comparisonDetailRows = useMemo(() => {
+    const bucketed =
+      granularity === 'monthly'
+        ? bucketDetailByMonth(rawComparisonDetailRows)
+        : rawComparisonDetailRows
+    if (!activeSkuMap) return bucketed
+    return bucketed.filter((row) => activeSkuMap[row.sku] === true)
+  }, [rawComparisonDetailRows, granularity, activeSkuMap])
   const consoleData = data?.console ?? null
 
   const filteredDetailRows = useMemo(() => {
@@ -1654,8 +1654,7 @@ export default function DailyAnalysisPage() {
     projectId === 'all'
       ? '全部项目'
       : (projects.find((p) => String(p.id) === projectId)?.name ?? '')
-  const mobileCountryLabel =
-    country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
   const mobileDateLabel =
     dateRange?.from && dateRange?.to
       ? `${formatYMD(dateRange.from)} ~ ${formatYMD(dateRange.to)}`
@@ -1668,7 +1667,10 @@ export default function DailyAnalysisPage() {
         <SelectValue placeholder="选择项目" />
       </SelectTrigger>
       <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-        <SelectItem value="all" className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text">
+        <SelectItem
+          value="all"
+          className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
+        >
           全部项目
         </SelectItem>
         {projects.map((p) =>
@@ -1746,64 +1748,6 @@ export default function DailyAnalysisPage() {
       {headerSlotPortal}
       {/* BLF-930：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
-      {goalProgress && goalProgress.target_amount > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border border-term-border bg-term-panel px-3 py-2">
-          <Target className="h-4 w-4 shrink-0 text-blue-500" />
-          <div className="text-xs font-medium text-foreground shrink-0">
-            {new Date().getMonth() + 1}月目标
-            <span className="ml-1.5 text-muted-foreground">
-              {goalProgress.today_day}/{goalProgress.days_in_month}日
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                  background: goalProgress.completion_vs_monthly >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-1))',
-                }}
-              />
-            </div>
-            <span className="text-xs font-semibold tabular-nums">
-              {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                  background: goalProgress.completion_vs_daily >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-7))',
-                }}
-              />
-            </div>
-            <span className="text-xs font-semibold tabular-nums">
-              {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
-            </span>
-          </div>
-          <span className="text-xs text-muted-foreground truncate">
-            {goalProgress.currency}
-            {goalProgress.achieved_amount.toLocaleString('zh-CN', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{' '}
-            / {goalProgress.currency}
-            {goalProgress.target_amount.toLocaleString('zh-CN', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-          <Link
-            href={`/dashboard/operations/project-goals?project=${projectId}&country=${country}`}
-            className="shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline"
-          >
-            目标详情 →
-          </Link>
-        </div>
-      )}
-
       {summaryRows.length || (selectedSku && filteredDetailRows.length) ? (
         // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
         // 不传 defaultMetric —— MetricSwitcherCard 内部 selected 用 metrics[0] = 'order_qty' 初始化。
@@ -1819,6 +1763,16 @@ export default function DailyAnalysisPage() {
             ) as Partial<Record<ChartMetricKey, string>>
           }
           heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+          extraContent={
+            showGoalProgressStat ? (
+              <GoalProgressStat
+                href={goalHref}
+                items={goalRingItems}
+                loading={goalLoading}
+                value={goalStatValue}
+              />
+            ) : null
+          }
           getCurrent={(k) => aggregateMetric(chartDataRows, k)}
           getPrevious={(k) =>
             comparisonDataRows.length > 0 ? aggregateMetric(comparisonDataRows, k) : null
@@ -1942,18 +1896,40 @@ export default function DailyAnalysisPage() {
                               <TableCell className="font-medium text-foreground">
                                 {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                               </TableCell>
-                              <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
-                              <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>
+                                {row.order_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {formatMoney(row.sales_amount)}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.impressions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.clicks.toLocaleString('zh-CN')}
+                              </TableCell>
                               <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
-                              <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
-                              <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                              <TableCell className={numericCell}>
+                                {formatMoney(row.ad_spend)}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.ad_orders.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.available_qty.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.page_views.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.units_ordered.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {row.sessions.toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell className={numericCell}>
+                                {(row.conversion_rate * 100).toFixed(2)}%
+                              </TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -2024,14 +2000,30 @@ export default function DailyAnalysisPage() {
                                 <TableCell className="max-w-[200px] truncate text-muted-foreground">
                                   {productName || '--'}
                                 </TableCell>
-                                <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
-                                <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
-                                <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
-                                <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.order_qty.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.sales_amount)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.impressions.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.clicks.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.cpc)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {formatMoney(row.ad_spend)}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.ad_orders.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.available_qty.toLocaleString('zh-CN')}
+                                </TableCell>
                                 <TableCell className={numericCell}>
                                   {row.in_transit_qty > 0 ? (
                                     <span className="font-medium text-blue-600 dark:text-blue-400">
@@ -2041,10 +2033,18 @@ export default function DailyAnalysisPage() {
                                     <span className="text-muted-foreground">--</span>
                                   )}
                                 </TableCell>
-                                <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.page_views.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.units_ordered.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {row.sessions.toLocaleString('zh-CN')}
+                                </TableCell>
+                                <TableCell className={numericCell}>
+                                  {(row.conversion_rate * 100).toFixed(2)}%
+                                </TableCell>
                               </TableRow>
                             )
                           )

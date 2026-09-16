@@ -23,6 +23,7 @@
  *   prefers-reduced-motion（降级为无动画直出）。
  */
 
+import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useId } from 'react'
 
@@ -139,6 +140,123 @@ type GoalProgressRingsProps = {
   className?: string
 }
 
+export type GoalProgressStatProps = {
+  items: GoalRingItem[]
+  href: string
+  value: string
+  loading?: boolean
+  className?: string
+}
+
+/**
+ * 目标进度只支持具体项目与单一站点，避免聚合筛选生成 project=all 或 country=ALL
+ * 这样的目标管理页无效上下文。
+ */
+export function isGoalProgressScopeValid(projectId: string, country: string): boolean {
+  return projectId !== '' && projectId !== 'all' && ['US', 'DE', 'UK'].includes(country)
+}
+
+/**
+ * Stats 区使用的紧凑目标磁贴：沿用目标管理页的三环语义，但缩成一个
+ * 与 MetricSwitcherCard 指标格同高的可点击入口，避免把完整说明面板挤进 KPI 行。
+ */
+export function GoalProgressStat({
+  items,
+  href,
+  value,
+  loading = false,
+  className,
+}: GoalProgressStatProps) {
+  const reduce = useReducedMotion()
+  const ringItems = items.slice(0, RING_SIZES.length)
+  const compactSizes = [56, 44, 32] as const
+
+  return (
+    <Link
+      aria-label="查看目标管理"
+      className={cn(
+        'group relative flex min-h-[112px] cursor-pointer items-center gap-3 p-4 text-start transition-colors duration-150 hover:bg-muted/40',
+        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
+        className
+      )}
+      href={href}
+    >
+      <div className="relative h-16 w-16 shrink-0" aria-hidden="true">
+        {loading ? (
+          <div className="h-16 w-16 animate-pulse rounded-full border-[5px] border-term-border" />
+        ) : ringItems.length > 0 ? (
+          ringItems.map((item, index) => {
+            const size = compactSizes[index] ?? compactSizes[compactSizes.length - 1]
+            const radius = (size - 5) / 2
+            const circumference = 2 * Math.PI * radius
+            const dashOffset = circumference * (1 - clampRingValue(item.value))
+            return (
+              <div className="absolute inset-0 flex items-center justify-center" key={item.key}>
+                <svg
+                  className="-rotate-90"
+                  height={size}
+                  viewBox={`0 0 ${size} ${size}`}
+                  width={size}
+                >
+                  <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    fill="none"
+                    r={radius}
+                    stroke="currentColor"
+                    strokeWidth={5}
+                    className="text-border/70 dark:text-border/60"
+                  />
+                  <motion.circle
+                    animate={{ strokeDashoffset: dashOffset }}
+                    cx={size / 2}
+                    cy={size / 2}
+                    fill="none"
+                    initial={
+                      reduce
+                        ? { strokeDashoffset: dashOffset }
+                        : { strokeDashoffset: circumference }
+                    }
+                    r={radius}
+                    stroke={item.color}
+                    strokeDasharray={circumference}
+                    strokeLinecap="round"
+                    strokeWidth={5}
+                    transition={{ duration: 0.8, delay: index * 0.08, ease: EASE.out }}
+                  />
+                </svg>
+              </div>
+            )
+          })
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-term-border text-[10px] text-term-faint">
+            —
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center justify-between gap-1.5">
+          <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
+            目标进度
+          </span>
+          <span
+            className="text-term-faint transition-transform group-hover:translate-x-0.5"
+            aria-hidden="true"
+          >
+            →
+          </span>
+        </div>
+        <div className="truncate font-mono text-base leading-6 tabular-nums text-term-text">
+          {loading ? '加载中' : value}
+        </div>
+        <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
+          {items.length > 0 ? '点击查看目标管理' : '查看目标设置'}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 /**
  * 合并式三环进度：左侧一个圆内嵌套 3 个同心环，右侧 3 个指标块
  * （指标名 / 大号百分比 / 说明）。桌面横排（右侧 3 列）、手机端上下堆叠。
@@ -215,7 +333,9 @@ export function GoalProgressRings({ items, className }: GoalProgressRingsProps) 
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{item.caption}</p>
                 {item.note ? (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{item.note}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">
+                    {item.note}
+                  </p>
                 ) : null}
               </div>
             </motion.div>
