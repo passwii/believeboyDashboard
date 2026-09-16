@@ -109,4 +109,28 @@ describe('useGoalProgress', () => {
     await waitFor(() => expect(result.current.goalLoading).toBe(false))
     expect(result.current.goalProgress).toBeNull()
   })
+
+  it('按站点时区计算当前年月', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T02:00:00.000Z'))
+    fetchGoal.mockResolvedValue({
+      monthly_progress: [progress(12, 0.4), progress(1, 0.8)],
+    })
+
+    try {
+      const { result } = renderHook(() => useGoalProgress('7', 'US', null))
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(fetchGoal).toHaveBeenCalledWith(
+        expect.stringContaining('year=2025'),
+        expect.objectContaining({ session: null })
+      )
+      expect(result.current.goalProgress?.month).toBe(12)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
