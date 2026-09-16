@@ -46,7 +46,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
-import { GoalProgressRings, projectedMonthlyRate } from '@/components/ui/goal-progress-rings'
+import { GoalProgressRings, achievementPaceRatio } from '@/components/ui/goal-progress-rings'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { clearOpsClientCaches, fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
@@ -335,6 +335,14 @@ export default function ProjectGoalsPage() {
   const currentMonthProgress = progressData?.monthly_progress.find(
     (m) => m.year === currentYear && m.month === currentMonth
   )
+  const currentMonthPaceRatio = currentMonthProgress
+    ? achievementPaceRatio(
+        currentMonthProgress.achieved_amount,
+        currentMonthProgress.target_amount,
+        currentMonthProgress.today_day,
+        currentMonthProgress.days_in_month
+      )
+    : null
 
   // Annual progress
   const annualProgress = progressData?.annual_progress
@@ -594,28 +602,24 @@ export default function ProjectGoalsPage() {
                         color: 'hsl(var(--chart-2))',
                       },
                       {
-                        key: 'projected',
-                        label: '预估月度完成率',
-                        value: projectedMonthlyRate(
-                          currentMonthProgress.completion_vs_monthly,
-                          currentMonthProgress.days_in_month,
-                          currentMonthProgress.today_day
-                        ),
-                        display: formatPercent(
-                          projectedMonthlyRate(
-                            currentMonthProgress.completion_vs_monthly,
-                            currentMonthProgress.days_in_month,
-                            currentMonthProgress.today_day
-                          )
-                        ),
+                        key: 'pace_ratio',
+                        label: '达成速度',
+                        value: currentMonthPaceRatio ?? 0,
+                        display:
+                          currentMonthProgress.target_amount <= 0
+                            ? '未设置'
+                            : currentMonthProgress.achieved_amount >=
+                                currentMonthProgress.target_amount
+                              ? '已达标'
+                              : formatPercent(currentMonthPaceRatio ?? 0),
                         caption:
                           currentMonthProgress.target_amount > 0
-                            ? '按当前完成节奏外推至月末'
+                            ? '当前日均 / 剩余所需日均'
                             : '未设置本月目标',
                         note:
                           currentMonthProgress.target_amount > 0 &&
                           currentMonthProgress.today_day > 0
-                            ? `线性预估（第 ${currentMonthProgress.today_day} / ${currentMonthProgress.days_in_month} 天）`
+                            ? '≥100% 表示按当前节奏可追平目标'
                             : '前往「目标管理」设置月度目标',
                         color: 'hsl(var(--chart-3))',
                       },

@@ -9,7 +9,6 @@ import {
   GoalProgressRings,
   GoalProgressStat,
   isGoalProgressScopeValid,
-  projectedMonthlyRate,
   type GoalRingItem,
 } from './goal-progress-rings'
 
@@ -80,23 +79,6 @@ describe('clampRingValue（环弧长 0-1 封顶）', () => {
   it('非有限数（NaN/Infinity）归 0', () => {
     expect(clampRingValue(Number.NaN)).toBe(0)
     expect(clampRingValue(Number.POSITIVE_INFINITY)).toBe(0)
-  })
-})
-
-describe('projectedMonthlyRate（预估月度完成率线性外推）', () => {
-  it('15 号完成整月目标 40% → 预估 80%', () => {
-    expect(projectedMonthlyRate(0.4, 30, 15)).toBeCloseTo(0.8)
-  })
-  it('10 号完成 50% → 预估 150%（30 天月）', () => {
-    expect(projectedMonthlyRate(0.5, 30, 10)).toBeCloseTo(1.5)
-  })
-  it('月末最后一天 → 预估等于实际进度', () => {
-    expect(projectedMonthlyRate(0.9, 30, 30)).toBeCloseTo(0.9)
-  })
-  it('非当前月（today_day=0）或无目标 → 0', () => {
-    expect(projectedMonthlyRate(0.5, 30, 0)).toBe(0)
-    expect(projectedMonthlyRate(0, 30, 15)).toBe(0)
-    expect(projectedMonthlyRate(Number.NaN, 30, 15)).toBe(0)
   })
 })
 

@@ -89,21 +89,6 @@ export function achievementPaceRatio(
 }
 
 /**
- * 预估月度完成率（线性外推 run-rate）：
- * 当前已完成 ÷ 已过天数 × 整月天数 ÷ 整月目标 = 实际月度进度 × (整月天数 ÷ 今日日序)。
- * 例如 15 号已完成整月目标的 40% → 40% × 30/15 = 80%。
- * today_day <= 0（非当前月）时不具备口径，返回 0。
- */
-export function projectedMonthlyRate(
-  completionVsMonthly: number,
-  daysInMonth: number,
-  todayDay: number
-): number {
-  if (!Number.isFinite(completionVsMonthly) || todayDay <= 0 || daysInMonth <= 0) return 0
-  return completionVsMonthly * (daysInMonth / todayDay)
-}
-
-/**
  * 同心环尺寸（外 → 内）：与 kokonutui 原版一致（200/160/120），
  * 叠放在同一圆形容器内，形成 Apple Watch 式合并三环。
  */

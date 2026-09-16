@@ -343,7 +343,7 @@ describe('ProjectGoalsPage header 化渲染契约（operations header migration 
     expect(await screen.findByText(/本月进度/)).toBeInTheDocument()
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('实际月度进度')).toBeInTheDocument()
-    expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
+    expect(screen.getByText('达成速度')).toBeInTheDocument()
     // 4 统计块
     expect(screen.getByText('年度完成率')).toBeInTheDocument()
     expect(screen.getByText('本月已达成')).toBeInTheDocument()
