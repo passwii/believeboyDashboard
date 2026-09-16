@@ -362,11 +362,13 @@ describe('ProjectGoalsPage header 化渲染契约（operations header migration 
     clearOpsClientCaches()
     const invalidDatePayload = progressPayloadWithCurrentMonth()
     invalidDatePayload.monthly_progress[0].today_day = 32
+    invalidDatePayload.monthly_progress[0].achieved_amount = 11000
     stubOpsFetch(invalidDatePayload)
     render(<ProjectGoalsPage />)
 
     expect(await screen.findByText('达成速度')).toBeInTheDocument()
     expect(screen.getByText('--')).toBeInTheDocument()
+    expect(screen.queryByText('已达标')).not.toBeInTheDocument()
     expect(screen.queryByText('0.0%')).not.toBeInTheDocument()
   })
 

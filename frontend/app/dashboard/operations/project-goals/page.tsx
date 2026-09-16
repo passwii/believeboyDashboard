@@ -608,11 +608,11 @@ export default function ProjectGoalsPage() {
                         display:
                           currentMonthProgress.target_amount <= 0
                             ? '未设置'
-                            : currentMonthProgress.achieved_amount >=
-                                currentMonthProgress.target_amount
-                              ? '已达标'
-                              : currentMonthPaceRatio === null
-                                ? '--'
+                            : currentMonthPaceRatio === null
+                              ? '--'
+                              : currentMonthProgress.achieved_amount >=
+                                  currentMonthProgress.target_amount
+                                ? '已达标'
                                 : formatPercent(currentMonthPaceRatio),
                         caption:
                           currentMonthProgress.target_amount > 0
