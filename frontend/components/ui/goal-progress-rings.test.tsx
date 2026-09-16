@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import {
+  achievementPaceRatio,
   clampRingValue,
   GoalProgressRings,
   GoalProgressStat,
   isGoalProgressScopeValid,
-  projectedMonthlyRate,
   type GoalRingItem,
 } from './goal-progress-rings'
 
@@ -37,6 +37,7 @@ const ITEMS: GoalRingItem[] = [
   {
     key: 'pace',
     label: '截止今日完成率',
+    shortLabel: '进度',
     value: 0.863,
     display: '86.3%',
     caption: '已完成 $1,700 / 应完成 $1,970',
@@ -45,6 +46,7 @@ const ITEMS: GoalRingItem[] = [
   {
     key: 'monthly',
     label: '实际月度进度',
+    shortLabel: '月度',
     value: 0.4,
     display: '40.0%',
     caption: '已完成 $1,700 / 目标 $4,250',
@@ -52,12 +54,13 @@ const ITEMS: GoalRingItem[] = [
     color: 'hsl(var(--chart-2))',
   },
   {
-    key: 'projected',
-    label: '预估月度完成率',
+    key: 'pace_ratio',
+    label: '达成速度',
+    shortLabel: '速度',
     value: 1.25,
     display: '125.0%',
-    caption: '按当前节奏预计月末达成',
-    note: '线性预估，仅供参考',
+    caption: '当前日均 / 剩余所需日均',
+    note: '≥100% 表示按当前节奏可追平目标',
     color: 'hsl(var(--chart-3))',
   },
 ]
@@ -79,20 +82,34 @@ describe('clampRingValue（环弧长 0-1 封顶）', () => {
   })
 })
 
-describe('projectedMonthlyRate（预估月度完成率线性外推）', () => {
-  it('15 号完成整月目标 40% → 预估 80%', () => {
-    expect(projectedMonthlyRate(0.4, 30, 15)).toBeCloseTo(0.8)
+describe('achievementPaceRatio（达成速度）', () => {
+  it('当前日均高于剩余所需日均时返回超额比例', () => {
+    expect(achievementPaceRatio(400, 1000, 10, 30)).toBeCloseTo(4 / 3)
   })
-  it('10 号完成 50% → 预估 150%（30 天月）', () => {
-    expect(projectedMonthlyRate(0.5, 30, 10)).toBeCloseTo(1.5)
+
+  it('当前日均低于剩余所需日均时返回实际比例', () => {
+    expect(achievementPaceRatio(200, 1000, 10, 30)).toBeCloseTo(0.5)
   })
-  it('月末最后一天 → 预估等于实际进度', () => {
-    expect(projectedMonthlyRate(0.9, 30, 30)).toBeCloseTo(0.9)
+
+  it('当前日均高于剩余所需日均时保留超出部分', () => {
+    expect(achievementPaceRatio(500, 1000, 10, 30)).toBeCloseTo(2)
   })
-  it('非当前月（today_day=0）或无目标 → 0', () => {
-    expect(projectedMonthlyRate(0.5, 30, 0)).toBe(0)
-    expect(projectedMonthlyRate(0, 30, 15)).toBe(0)
-    expect(projectedMonthlyRate(Number.NaN, 30, 15)).toBe(0)
+
+  it('已经完成目标时返回 100%', () => {
+    expect(achievementPaceRatio(1100, 1000, 10, 30)).toBe(1)
+  })
+
+  it('没有剩余天数且尚未达标时返回 0', () => {
+    expect(achievementPaceRatio(900, 1000, 30, 30)).toBe(0)
+  })
+
+  it('缺少有效目标或日期时返回 null', () => {
+    expect(achievementPaceRatio(100, 0, 10, 30)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 0, 30)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 10, 0)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 32, 31)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 10.5, 30)).toBeNull()
+    expect(achievementPaceRatio(Number.NaN, 1000, 10, 30)).toBeNull()
   })
 })
 
@@ -106,9 +123,9 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('86.3%')).toBeInTheDocument()
     expect(screen.getByText('已完成 $1,700 / 应完成 $1,970')).toBeInTheDocument()
-    expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
+    expect(screen.getByText('达成速度')).toBeInTheDocument()
     expect(screen.getByText('125.0%')).toBeInTheDocument()
-    expect(screen.getByText('线性预估，仅供参考')).toBeInTheDocument()
+    expect(screen.getByText('≥100% 表示按当前节奏可追平目标')).toBeInTheDocument()
   })
 
   it('合并式布局：一个圆形容器内嵌套 3 个同心环，右侧为指标说明（桌面 3 列横排）', () => {
@@ -124,7 +141,7 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
     // 右侧 3 个指标块
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('实际月度进度')).toBeInTheDocument()
-    expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
+    expect(screen.getByText('达成速度')).toBeInTheDocument()
   })
 
   it('右侧指标块桌面端为 3 列横排（BLF-595 调整），手机端单列', () => {
@@ -143,7 +160,7 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
     render(<GoalProgressRings items={ITEMS} />)
     expect(screen.getByRole('img', { name: '截止今日完成率：86.3%' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '实际月度进度：40.0%' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: '预估月度完成率：125.0%' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '达成速度：125.0%' })).toBeInTheDocument()
   })
 
   it('value >= 1 的指标显示「超额」徽标', () => {
@@ -173,18 +190,23 @@ describe('isGoalProgressScopeValid（daily-analysis 目标入口范围）', () =
 })
 
 describe('GoalProgressStat（daily-analysis stats 目标入口）', () => {
-  it('展示紧凑三环并链接到目标管理页', () => {
-    render(<GoalProgressStat href="/dashboard/operations/project-goals?project=7&country=US" items={ITEMS} value="40.0%" />)
+  it('展示三个百分比、简称并链接到目标管理页', () => {
+    render(<GoalProgressStat href="/dashboard/operations/project-goals?project=7&country=US" items={ITEMS} />)
 
     const link = screen.getByRole('link', { name: '查看目标管理' })
     expect(link).toHaveAttribute('href', '/dashboard/operations/project-goals?project=7&country=US')
     expect(screen.getByText('目标进度')).toBeInTheDocument()
+    expect(screen.getByText('进度')).toBeInTheDocument()
+    expect(screen.getByText('86.3%')).toBeInTheDocument()
+    expect(screen.getByText('月度')).toBeInTheDocument()
     expect(screen.getByText('40.0%')).toBeInTheDocument()
+    expect(screen.getByText('速度')).toBeInTheDocument()
+    expect(screen.getByText('125.0%')).toBeInTheDocument()
     expect(link.querySelectorAll('svg')).toHaveLength(3)
   })
 
   it('加载中保留入口并显示加载状态', () => {
-    render(<GoalProgressStat href="/dashboard/operations/project-goals" items={[]} loading value="未设置" />)
+    render(<GoalProgressStat href="/dashboard/operations/project-goals" items={[]} loading />)
 
     expect(screen.getByRole('link', { name: '查看目标管理' })).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()

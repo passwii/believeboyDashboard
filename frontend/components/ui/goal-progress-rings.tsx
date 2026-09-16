@@ -34,6 +34,8 @@ export type GoalRingItem = {
   key: string
   /** 指标名，如「截止今日完成率」 */
   label: string
+  /** Stats 紧凑磁贴使用的简称，如「进度」「月度」「速度」。 */
+  shortLabel?: string
   /** 完成率（小数）：0.86 = 86%；>1 表示超额（环按 100% 封顶，文案层提示） */
   value: number
   /** 展示文本，如 "86.3%" */
@@ -53,18 +55,40 @@ export function clampRingValue(value: number): number {
 }
 
 /**
- * 预估月度完成率（线性外推 run-rate）：
- * 当前已完成 ÷ 已过天数 × 整月天数 ÷ 整月目标 = 实际月度进度 × (整月天数 ÷ 今日日序)。
- * 例如 15 号已完成整月目标的 40% → 40% × 30/15 = 80%。
- * today_day <= 0（非当前月）时不具备口径，返回 0。
+ * 达成速度：当前日均销售额相对剩余所需日均销售额的比值。
+ * 1 表示按当前节奏可在月末刚好达标；大于 1 表示有余量，小于 1 表示需要提速。
  */
-export function projectedMonthlyRate(
-  completionVsMonthly: number,
-  daysInMonth: number,
-  todayDay: number
-): number {
-  if (!Number.isFinite(completionVsMonthly) || todayDay <= 0 || daysInMonth <= 0) return 0
-  return completionVsMonthly * (daysInMonth / todayDay)
+export function achievementPaceRatio(
+  achievedAmount: number,
+  targetAmount: number,
+  todayDay: number,
+  daysInMonth: number
+): number | null {
+  if (
+    !Number.isFinite(achievedAmount) ||
+    !Number.isFinite(targetAmount) ||
+    !Number.isFinite(todayDay) ||
+    !Number.isFinite(daysInMonth) ||
+    !Number.isInteger(todayDay) ||
+    !Number.isInteger(daysInMonth) ||
+    targetAmount <= 0 ||
+    todayDay <= 0 ||
+    daysInMonth <= 0 ||
+    todayDay > daysInMonth
+  ) {
+    return null
+  }
+
+  if (achievedAmount >= targetAmount) return 1
+
+  const remainingDays = daysInMonth - todayDay
+  if (remainingDays <= 0) return 0
+
+  const currentDaily = achievedAmount / todayDay
+  const requiredDaily = (targetAmount - achievedAmount) / remainingDays
+  if (requiredDaily <= 0) return 1
+
+  return Math.max(0, currentDaily / requiredDaily)
 }
 
 /**
@@ -143,7 +167,6 @@ type GoalProgressRingsProps = {
 export type GoalProgressStatProps = {
   items: GoalRingItem[]
   href: string
-  value: string
   loading?: boolean
   className?: string
 }
@@ -163,7 +186,6 @@ export function isGoalProgressScopeValid(projectId: string, country: string): bo
 export function GoalProgressStat({
   items,
   href,
-  value,
   loading = false,
   className,
 }: GoalProgressStatProps) {
@@ -246,9 +268,32 @@ export function GoalProgressStat({
             →
           </span>
         </div>
-        <div className="truncate font-mono text-base leading-6 tabular-nums text-term-text">
-          {loading ? '加载中' : value}
-        </div>
+        {loading ? (
+          <div className="font-mono text-[11px] leading-4 text-term-faint">加载中</div>
+        ) : ringItems.length > 0 ? (
+          <div className="space-y-0.5">
+            {ringItems.map((item) => (
+              <div key={item.key} className="flex min-w-0 items-center justify-between gap-2">
+                <span
+                  className="flex min-w-0 items-center gap-1.5 truncate font-mono text-[10px] leading-3 text-term-faint"
+                  title={item.label}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="truncate">{item.shortLabel ?? item.label}</span>
+                </span>
+                <span className="shrink-0 font-mono text-[11px] leading-3 tabular-nums text-term-text">
+                  {item.display}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="font-mono text-[11px] leading-4 text-term-faint">未设置目标</div>
+        )}
         <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
           {items.length > 0 ? '点击查看目标管理' : '查看目标设置'}
         </div>
