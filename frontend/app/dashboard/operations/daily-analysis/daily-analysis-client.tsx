@@ -12,8 +12,8 @@ import {
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
   GoalProgressStat,
+  achievementPaceRatio,
   isGoalProgressScopeValid,
-  projectedMonthlyRate,
   type GoalRingItem,
 } from '@/components/ui/goal-progress-rings'
 import { Button } from '@/components/ui/button'
@@ -1315,10 +1315,11 @@ export default function DailyAnalysisPage() {
   const goalRingItems = useMemo<GoalRingItem[]>(() => {
     if (!goalProgress || goalProgress.target_amount <= 0) return []
 
-    const projected = projectedMonthlyRate(
-      goalProgress.completion_vs_monthly,
-      goalProgress.days_in_month,
-      goalProgress.today_day
+    const paceRatio = achievementPaceRatio(
+      goalProgress.achieved_amount,
+      goalProgress.target_amount,
+      goalProgress.today_day,
+      goalProgress.days_in_month
     )
     const money = (value: number) =>
       `${goalProgress.currency}${value.toLocaleString('zh-CN', {
@@ -1330,6 +1331,7 @@ export default function DailyAnalysisPage() {
       {
         key: 'pace',
         label: '截止今日完成率',
+        shortLabel: '进度',
         value: goalProgress.completion_vs_daily,
         display: `${(goalProgress.completion_vs_daily * 100).toFixed(1)}%`,
         caption: `已完成 ${money(goalProgress.achieved_amount)} / 应完成 ${money(
@@ -1339,18 +1341,25 @@ export default function DailyAnalysisPage() {
       },
       {
         key: 'monthly',
-        label: '实际月度进度',
+        label: '实际月度完成率',
+        shortLabel: '月度',
         value: goalProgress.completion_vs_monthly,
         display: `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`,
         caption: `已完成 ${money(goalProgress.achieved_amount)} / 目标 ${money(goalProgress.target_amount)}`,
         color: 'hsl(var(--chart-2))',
       },
       {
-        key: 'projected',
-        label: '预估月度完成率',
-        value: projected,
-        display: `${(projected * 100).toFixed(1)}%`,
-        caption: '按当前完成节奏外推至月末',
+        key: 'pace_ratio',
+        label: '达成速度',
+        shortLabel: '速度',
+        value: paceRatio ?? 0,
+        display:
+          paceRatio === null
+            ? '--'
+            : goalProgress.achieved_amount >= goalProgress.target_amount
+              ? '已达标'
+              : `${(paceRatio * 100).toFixed(1)}%`,
+        caption: '当前日均 / 剩余所需日均',
         color: 'hsl(var(--chart-3))',
       },
     ]
@@ -1358,10 +1367,6 @@ export default function DailyAnalysisPage() {
 
   const showGoalProgressStat = isGoalProgressScopeValid(projectId, country)
   const goalHref = `/dashboard/operations/project-goals?project=${projectId}&country=${country}`
-  const goalStatValue =
-    goalProgress && goalProgress.target_amount > 0
-      ? `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`
-      : '未设置'
 
   const summaryRows = useMemo(
     () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
@@ -1769,7 +1774,6 @@ export default function DailyAnalysisPage() {
                 href={goalHref}
                 items={goalRingItems}
                 loading={goalLoading}
-                value={goalStatValue}
               />
             ) : null
           }

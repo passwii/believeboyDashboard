@@ -34,6 +34,8 @@ export type GoalRingItem = {
   key: string
   /** 指标名，如「截止今日完成率」 */
   label: string
+  /** Stats 紧凑磁贴使用的简称，如「进度」「月度」「速度」。 */
+  shortLabel?: string
   /** 完成率（小数）：0.86 = 86%；>1 表示超额（环按 100% 封顶，文案层提示） */
   value: number
   /** 展示文本，如 "86.3%" */
@@ -177,7 +179,6 @@ type GoalProgressRingsProps = {
 export type GoalProgressStatProps = {
   items: GoalRingItem[]
   href: string
-  value: string
   loading?: boolean
   className?: string
 }
@@ -197,7 +198,6 @@ export function isGoalProgressScopeValid(projectId: string, country: string): bo
 export function GoalProgressStat({
   items,
   href,
-  value,
   loading = false,
   className,
 }: GoalProgressStatProps) {
@@ -280,9 +280,32 @@ export function GoalProgressStat({
             →
           </span>
         </div>
-        <div className="truncate font-mono text-base leading-6 tabular-nums text-term-text">
-          {loading ? '加载中' : value}
-        </div>
+        {loading ? (
+          <div className="font-mono text-[11px] leading-4 text-term-faint">加载中</div>
+        ) : ringItems.length > 0 ? (
+          <div className="space-y-0.5">
+            {ringItems.map((item) => (
+              <div key={item.key} className="flex min-w-0 items-center justify-between gap-2">
+                <span
+                  className="flex min-w-0 items-center gap-1.5 truncate font-mono text-[10px] leading-3 text-term-faint"
+                  title={item.label}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="truncate">{item.shortLabel ?? item.label}</span>
+                </span>
+                <span className="shrink-0 font-mono text-[11px] leading-3 tabular-nums text-term-text">
+                  {item.display}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="font-mono text-[11px] leading-4 text-term-faint">未设置目标</div>
+        )}
         <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
           {items.length > 0 ? '点击查看目标管理' : '查看目标设置'}
         </div>
