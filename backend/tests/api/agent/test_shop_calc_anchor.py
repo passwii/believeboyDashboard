@@ -33,6 +33,12 @@ from app.services import pricing_calculation_snapshot_service
 BASE_BREAKEVEN = 0.3997
 BASE_NON_AD_FEE = 7.8
 BASE_MAX_AD_SPEND = 7.99
+FLAT_ANCHOR_FIELDS = {
+    "breakeven_advertising_rate",
+    "non_ad_fee_usd",
+    "max_ad_spend_per_unit_usd",
+    "target_advertising_rate",
+}
 
 
 @pytest.fixture
@@ -367,6 +373,32 @@ class TestBiFlatContract:
         assert row["non_ad_fee_usd"] == BASE_NON_AD_FEE
         assert row["max_ad_spend_per_unit_usd"] == BASE_MAX_AD_SPEND
 
+    def test_flat_history_include_anchor_false_omits_anchor_columns(
+        self, client, shipment_env
+    ):
+        seed_shop_calculation(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-001"
+        )
+        row = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}"
+            "/shop-calculation-history?include_anchor=false",
+            headers=shipment_env["headers"],
+        ).json()["data"]["data"][0]
+        assert FLAT_ANCHOR_FIELDS.isdisjoint(row)
+
+    def test_flat_snapshots_include_anchor_false_omits_anchor_columns(
+        self, client, shipment_env
+    ):
+        seed_shop_calculation(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-001"
+        )
+        row = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}"
+            "/shop-calculation/snapshots?sku=X-001&include_anchor=false",
+            headers=shipment_env["headers"],
+        ).json()["data"]["data"][0]
+        assert FLAT_ANCHOR_FIELDS.isdisjoint(row)
+
 
 class TestPricingSnapshot:
     def _seed_snapshot(self, env) -> tuple[int, str]:
@@ -421,6 +453,23 @@ class TestPricingSnapshot:
             assert (
                 targeted.json()["data"]["data"][0]["target_advertising_rate"] == 0.2997
             )
+        finally:
+            self._cleanup(snapshot_id)
+
+    def test_pricing_snapshot_include_anchor_false_omits_anchor_columns(
+        self, client, shipment_env
+    ):
+        seed_shop_calculation(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-001"
+        )
+        snapshot_id, as_of = self._seed_snapshot(shipment_env)
+        base = f"/api/v1/agent/projects/{shipment_env['project_id']}/pricing-snapshots"
+        try:
+            row = client.get(
+                f"{base}?as_of={as_of}&include_anchor=false",
+                headers=shipment_env["headers"],
+            ).json()["data"]["data"][0]
+            assert FLAT_ANCHOR_FIELDS.isdisjoint(row)
         finally:
             self._cleanup(snapshot_id)
 

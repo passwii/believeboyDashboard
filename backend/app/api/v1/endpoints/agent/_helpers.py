@@ -7,8 +7,37 @@ catch-block can return a uniform 400 envelope.
 
 from __future__ import annotations
 
+from typing import Any
+
+from pydantic import BaseModel
+
 from app.schemas.external.common import PeriodParseError
 from app.utils.country import normalize_country
+
+
+FLAT_ANCHOR_FIELDS = (
+    "breakeven_advertising_rate",
+    "non_ad_fee_usd",
+    "max_ad_spend_per_unit_usd",
+    "target_advertising_rate",
+)
+
+
+def render_flat_anchor_response(
+    value: BaseModel, *, include_anchor: bool
+) -> dict[str, Any]:
+    """Serialize a flat response and optionally remove all derived anchor fields."""
+    payload = value.model_dump(mode="json")
+    if include_anchor:
+        return payload
+    rows = payload.get("data", [])
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            for field in FLAT_ANCHOR_FIELDS:
+                row.pop(field, None)
+    return payload
 
 
 def parse_country(value: str | None) -> str:

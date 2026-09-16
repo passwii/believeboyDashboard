@@ -34,7 +34,10 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.agent._helpers import parse_country
+from app.api.v1.endpoints.agent._helpers import (
+    parse_country,
+    render_flat_anchor_response,
+)
 from app.api.v1.endpoints.agent._whitelist import parse_order_by
 from app.models import ShopCalculation
 from app.schemas.external.common import PeriodParseError
@@ -70,11 +73,6 @@ def _service_errors():
                 ErrorCode.RESOURCE_NOT_FOUND, human_message=detail
             ) from None
         raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail) from None
-
-
-def _to_json(value) -> dict:
-    """pydantic 模型 → JSON-safe dict。"""
-    return value.model_dump(mode="json")
 
 
 def _parse_iso_date(value: str | None, *, field: str) -> date_t | None:
@@ -138,6 +136,10 @@ def get_agent_shop_calculation_history(
             " = 盈亏平衡广告费率 − target_net_margin（BLF-1043）"
         ),
     ),
+    include_anchor: bool = Query(
+        default=True,
+        description=("是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略"),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
@@ -182,7 +184,7 @@ def get_agent_shop_calculation_history(
             total=total,
             data=rows,
         )
-    return agent_ok(_to_json(resp))
+    return agent_ok(render_flat_anchor_response(resp, include_anchor=include_anchor))
 
 
 # ============================================================
@@ -214,6 +216,10 @@ def get_agent_shop_calculation_snapshots(
             "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate"
             "（BLF-1043）"
         ),
+    ),
+    include_anchor: bool = Query(
+        default=True,
+        description=("是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略"),
     ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
@@ -258,4 +264,4 @@ def get_agent_shop_calculation_snapshots(
             total=len(rows),
             data=rows,
         )
-    return agent_ok(_to_json(resp))
+    return agent_ok(render_flat_anchor_response(resp, include_anchor=include_anchor))
