@@ -38,6 +38,7 @@ from app.api.v1.endpoints.agent._helpers import (
 )
 from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (
+    AgentOkResponse,
     ShopCalculationSnapshotsResponse,
 )
 from app.services.external import (
@@ -90,7 +91,11 @@ def _parse_iso_date(value: str | None, *, field: str) -> date_t | None:
 # ============================================================
 
 
-@pricing_snapshots_router.get("/pricing-snapshots")
+@pricing_snapshots_router.get(
+    "/pricing-snapshots",
+    response_model=AgentOkResponse[ShopCalculationSnapshotsResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_pricing_snapshot_as_of(
     project_id: int = Path(..., ge=1),
     as_of: str | None = Query(

@@ -32,8 +32,18 @@ Design notes:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
+
+T = TypeVar("T")
+
+
+class AgentOkResponse(BaseModel, Generic[T]):
+    """OpenAPI-visible success envelope for native Agent flat read routes."""
+
+    ok: bool = True
+    data: T
 
 
 class ShopCalculationHistoryRow(BaseModel):
@@ -120,7 +130,8 @@ class ShopCalculationSnapshotsResponse(BaseModel):
 
 
 __all__ = [
-    "ShopCalculationHistoryRow",
+    "AgentOkResponse",
     "ShopCalculationHistoryResponse",
+    "ShopCalculationHistoryRow",
     "ShopCalculationSnapshotsResponse",
 ]

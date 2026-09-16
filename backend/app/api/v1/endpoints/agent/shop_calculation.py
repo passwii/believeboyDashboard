@@ -42,6 +42,7 @@ from app.api.v1.endpoints.agent._whitelist import parse_order_by
 from app.models import ShopCalculation
 from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (
+    AgentOkResponse,
     ShopCalculationHistoryResponse,
     ShopCalculationSnapshotsResponse,
 )
@@ -119,7 +120,11 @@ def _apply_in_page_sort(rows, order_column, direction: str) -> None:
 # ============================================================
 
 
-@shop_calculation_router.get("/shop-calculation-history")
+@shop_calculation_router.get(
+    "/shop-calculation-history",
+    response_model=AgentOkResponse[ShopCalculationHistoryResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_shop_calculation_history(
     project_id: int = Path(..., ge=1),
     country: str = Query(default=""),
@@ -192,7 +197,11 @@ def get_agent_shop_calculation_history(
 # ============================================================
 
 
-@shop_calculation_router.get("/shop-calculation/snapshots")
+@shop_calculation_router.get(
+    "/shop-calculation/snapshots",
+    response_model=AgentOkResponse[ShopCalculationSnapshotsResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_shop_calculation_snapshots(
     project_id: int = Path(..., ge=1),
     from_date: str | None = Query(
