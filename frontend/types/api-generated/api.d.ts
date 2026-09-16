@@ -2136,6 +2136,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/sku-info/listing-copy/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Update Sku Info Listing Copy
+         * @description W6 批量文案写入：confirm 两步后一次事务写多 SKU 的文案字段。
+         *
+         *     与 W2 共用同一套「只写显式提供字段」语义（``model_fields_set``）：未提供的
+         *     字段保持原值，显式 ``null`` / 空串清空。身份字段与溯源列不可写（extra=forbid
+         *     → ``VALIDATION_FAILED``）；``listing_copy_updated_by`` 落 ``agent_id``。
+         *     跨项目 / 不存在的 ``sku_record_id`` → 404（不静默跳过）。
+         */
+        post: operations["batch_update_sku_info_listing_copy_api_v1_agent_projects__project_id__sku_info_listing_copy_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}": {
         parameters: {
             query?: never;
@@ -27060,6 +27085,39 @@ export interface operations {
         };
     };
     upsert_sku_info_api_v1_agent_projects__project_id__sku_info_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_update_sku_info_listing_copy_api_v1_agent_projects__project_id__sku_info_listing_copy_batch_post: {
         parameters: {
             query?: never;
             header?: never;

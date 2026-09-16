@@ -10,6 +10,10 @@ Agent 侧 asin 必填拍板）。
 读-改-写合并），**不含身份字段**（sku / asin / country——W2 禁改身份，spec §4）。
 
 ``AgentSkuRecordStatusRequest`` 是 W3 上/下架：``{"is_active": bool}`` + source。
+
+``AgentSkuListingCopyBatchRequest`` / ``...Item`` 是 W6 批量文案写入（BLF-1083）：
+一次事务写多 SKU 的文案字段，item 用 ``sku_record_id`` 定位（**不接受**批量
+insert，记录必须已存在且属于路径 ``project_id``）。
 """
 
 from __future__ import annotations
@@ -112,3 +116,39 @@ class AgentSkuRecordStatusRequest(BaseModel):
 
     is_active: bool
     source: AgentSkuSource
+
+
+class AgentSkuListingCopyBatchItem(BaseModel):
+    """W6 批量文案写入的单行项（BLF-1083，spec §5）。
+
+    ``sku_record_id`` 定位既有 SKU 行（必须属于路径 ``project_id``，否则整批
+    404——不回显 skipped，避免泄露他项目行存在性）。文案字段只写**显式提供**
+    的（``model_fields_set``）：未提供的保持原值，显式 ``null`` / 空串清空。
+    溯源列（``listing_copy_updated_*``）由服务端写入，``extra=forbid`` 拒绝。
+    """
+
+    sku_record_id: int = Field(..., description="SKU 记录 ID（须属于路径项目）")
+    listing_title: str | None = Field(default=None, max_length=500)
+    listing_bullet_1: str | None = None
+    listing_bullet_2: str | None = None
+    listing_bullet_3: str | None = None
+    listing_bullet_4: str | None = None
+    listing_bullet_5: str | None = None
+    listing_description: str | None = None
+    listing_selling_points: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class AgentSkuListingCopyBatchRequest(BaseModel):
+    """W6 批量文案写入请求（BLF-1083，spec §5）。
+
+    ``source`` 是全批共用的溯源枚举（D4：必填，禁 ``manual``）。
+    """
+
+    items: list[AgentSkuListingCopyBatchItem] = Field(
+        ..., min_length=1, max_length=500, description="文案更新项"
+    )
+    source: AgentSkuSource
+
+    model_config = {"extra": "forbid"}
