@@ -113,6 +113,7 @@ autoReportUpload/.env
 /frontend/build_out.txt
 /frontend/build_output.txt
 /frontend/next_build.log
+/frontend/.vitest*.log
 
 # Claude Code (local IDE config)
 /frontend/.claude/

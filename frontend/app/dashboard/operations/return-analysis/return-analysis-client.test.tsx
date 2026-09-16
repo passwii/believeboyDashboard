@@ -448,7 +448,7 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
   })
 })
 
-describe('Top 退货原因磁贴译文来源（BLF-1074）', () => {
+describe('Top 退货原因磁贴译文来源（BLF-1074 / BLF-1081）', () => {
   /** 取磁贴的数值单元格（SummaryTile 的值 span 带 title，便于区分标签 span） */
   function tileValue(label: string): HTMLElement {
     const tile = screen.getByText(label).closest('div')
@@ -457,7 +457,7 @@ describe('Top 退货原因磁贴译文来源（BLF-1074）', () => {
     return value as HTMLElement
   }
 
-  it('后端 top_return_reason_display 优先：本地表未覆盖的 code 也显示中文', async () => {
+  it('直接采用后端 top_return_reason_display（前端不再维护任何本地对照表）', async () => {
     vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
       returnPayload({
         summary: {
@@ -470,12 +470,12 @@ describe('Top 退货原因磁贴译文来源（BLF-1074）', () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('Top 退货原因')
 
-    // `DAMAGED_BY_FC` 不在本地 14 项表内：修复前这里会裸露英文 code
+    // 本地对照表已删除（BLF-1081）：译文完全来自后端，绝不裸露英文 code
     await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('仓库致损'))
     expect(screen.queryByText('DAMAGED_BY_FC')).not.toBeInTheDocument()
   })
 
-  it('后端字段与本地表冲突时以后端为准（单一翻译源，防两份表再次漂移）', async () => {
+  it('以后端译文为唯一来源：与 top_return_reason 可推导的文案不一致时仍取后端', async () => {
     vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
       returnPayload({
         summary: {
@@ -488,34 +488,9 @@ describe('Top 退货原因磁贴译文来源（BLF-1074）', () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('Top 退货原因')
 
-    // 本地表把该 code 译作「质量不合格」；后端给了不同文案时仍取后端
+    // 磁贴不得回退到用 top_return_reason 自行推导文案（单一翻译源，防两份表再次漂移）
     await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('质量有瑕疵'))
     expect(screen.queryByText('质量不合格')).not.toBeInTheDocument()
-  })
-
-  it('旧后端缺字段（过渡窗口）：本地表命中则走兜底译文', async () => {
-    const legacySummary = { ...SUMMARY } as Record<string, unknown>
-    delete legacySummary.top_return_reason_display
-    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
-      returnPayload({ summary: legacySummary }) as never
-    )
-    render(<ReturnAnalysisClient />)
-    await screen.findByText('Top 退货原因')
-
-    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('质量不合格'))
-  })
-
-  it('旧后端缺字段且 code 未被本地表覆盖：原样展示 code（宁可见英文也不猜语义）', async () => {
-    const legacySummary = { ...SUMMARY } as Record<string, unknown>
-    delete legacySummary.top_return_reason_display
-    legacySummary.top_return_reason = 'DAMAGED_BY_FC'
-    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
-      returnPayload({ summary: legacySummary }) as never
-    )
-    render(<ReturnAnalysisClient />)
-    await screen.findByText('Top 退货原因')
-
-    await waitFor(() => expect(tileValue('Top 退货原因')).toHaveTextContent('DAMAGED_BY_FC'))
   })
 
   it('无退货原因时展示占位符 --', async () => {
