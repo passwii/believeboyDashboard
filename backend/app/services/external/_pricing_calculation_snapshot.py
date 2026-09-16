@@ -92,6 +92,7 @@ def find_pricing_snapshot_as_of(
                 payout_usd=item.profit.payout_usd,
                 total_fee_usd=item.fees.total_fee_usd,
                 breakeven_advertising_rate=anchor.breakeven_advertising_rate,
+                non_ad_fee_usd=anchor.non_ad_fee_usd,
                 max_ad_spend_per_unit_usd=anchor.max_ad_spend_per_unit_usd,
                 target_advertising_rate=anchor.target_advertising_rate,
                 created_at=item.created_at,

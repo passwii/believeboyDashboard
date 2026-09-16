@@ -34,11 +34,15 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.agent._helpers import parse_country
+from app.api.v1.endpoints.agent._helpers import (
+    parse_country,
+    render_flat_anchor_response,
+)
 from app.api.v1.endpoints.agent._whitelist import parse_order_by
 from app.models import ShopCalculation
 from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (
+    AgentOkResponse,
     ShopCalculationHistoryResponse,
     ShopCalculationSnapshotsResponse,
 )
@@ -70,11 +74,6 @@ def _service_errors():
                 ErrorCode.RESOURCE_NOT_FOUND, human_message=detail
             ) from None
         raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail) from None
-
-
-def _to_json(value) -> dict:
-    """pydantic 模型 → JSON-safe dict。"""
-    return value.model_dump(mode="json")
 
 
 def _parse_iso_date(value: str | None, *, field: str) -> date_t | None:
@@ -121,7 +120,11 @@ def _apply_in_page_sort(rows, order_column, direction: str) -> None:
 # ============================================================
 
 
-@shop_calculation_router.get("/shop-calculation-history")
+@shop_calculation_router.get(
+    "/shop-calculation-history",
+    response_model=AgentOkResponse[ShopCalculationHistoryResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_shop_calculation_history(
     project_id: int = Path(..., ge=1),
     country: str = Query(default=""),
@@ -138,14 +141,18 @@ def get_agent_shop_calculation_history(
             " = 盈亏平衡广告费率 − target_net_margin（BLF-1043）"
         ),
     ),
+    include_anchor: bool = Query(
+        default=True,
+        description=("是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略"),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。
 
-    BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /
-    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——
-    扁平行没有费用拆项，消费方自己算不出锚。
+    BLF-1043：扁平行显式带 ``breakeven_advertising_rate`` / ``non_ad_fee_usd`` /
+    ``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 四列（服务端推）——
+    扁平行没有费用拆项，消费方自己算不出锚；``include_anchor=false`` 时四列省略。
     """
     with _service_errors():
         try:
@@ -182,7 +189,7 @@ def get_agent_shop_calculation_history(
             total=total,
             data=rows,
         )
-    return agent_ok(_to_json(resp))
+    return agent_ok(render_flat_anchor_response(resp, include_anchor=include_anchor))
 
 
 # ============================================================
@@ -190,7 +197,11 @@ def get_agent_shop_calculation_history(
 # ============================================================
 
 
-@shop_calculation_router.get("/shop-calculation/snapshots")
+@shop_calculation_router.get(
+    "/shop-calculation/snapshots",
+    response_model=AgentOkResponse[ShopCalculationSnapshotsResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_shop_calculation_snapshots(
     project_id: int = Path(..., ge=1),
     from_date: str | None = Query(
@@ -215,12 +226,16 @@ def get_agent_shop_calculation_snapshots(
             "（BLF-1043）"
         ),
     ),
+    include_anchor: bool = Query(
+        default=True,
+        description=("是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略"),
+    ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
 ) -> dict:
     """append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
 
-    BLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。
+    BLF-1043：每行额外带四个派生列（口径同 ``/shop-calculation-history``）。
     """
     with _service_errors():
         try:
@@ -258,4 +273,4 @@ def get_agent_shop_calculation_snapshots(
             total=len(rows),
             data=rows,
         )
-    return agent_ok(_to_json(resp))
+    return agent_ok(render_flat_anchor_response(resp, include_anchor=include_anchor))

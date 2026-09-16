@@ -32,9 +32,13 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.agent._helpers import parse_country
+from app.api.v1.endpoints.agent._helpers import (
+    parse_country,
+    render_flat_anchor_response,
+)
 from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (
+    AgentOkResponse,
     ShopCalculationSnapshotsResponse,
 )
 from app.services.external import (
@@ -69,11 +73,6 @@ def _service_errors():
         raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail) from None
 
 
-def _to_json(value) -> dict:
-    """pydantic 模型 → JSON-safe dict。"""
-    return value.model_dump(mode="json")
-
-
 def _parse_iso_date(value: str | None, *, field: str) -> date_t | None:
     """Parse a YYYY-MM-DD string. None / empty returns None.
 
@@ -92,7 +91,11 @@ def _parse_iso_date(value: str | None, *, field: str) -> date_t | None:
 # ============================================================
 
 
-@pricing_snapshots_router.get("/pricing-snapshots")
+@pricing_snapshots_router.get(
+    "/pricing-snapshots",
+    response_model=AgentOkResponse[ShopCalculationSnapshotsResponse],
+    response_model_exclude_unset=True,
+)
 def get_agent_pricing_snapshot_as_of(
     project_id: int = Path(..., ge=1),
     as_of: str | None = Query(
@@ -111,6 +114,10 @@ def get_agent_pricing_snapshot_as_of(
             "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate"
             "（BLF-1043）"
         ),
+    ),
+    include_anchor: bool = Query(
+        default=True,
+        description=("是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略"),
     ),
     db: Session = Depends(get_read_db_session),
     _scope=Depends(require_project_scope),
@@ -159,4 +166,4 @@ def get_agent_pricing_snapshot_as_of(
             total=len(rows),
             data=rows,
         )
-    return agent_ok(_to_json(resp))
+    return agent_ok(render_flat_anchor_response(resp, include_anchor=include_anchor))

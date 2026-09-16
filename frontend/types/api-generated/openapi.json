@@ -2086,6 +2086,40 @@
         "title": "AgentNewProductCalculationComputeRequest",
         "type": "object"
       },
+      "AgentOkResponse_ShopCalculationHistoryResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ShopCalculationHistoryResponse"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AgentOkResponse[ShopCalculationHistoryResponse]",
+        "type": "object"
+      },
+      "AgentOkResponse_ShopCalculationSnapshotsResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ShopCalculationSnapshotsResponse"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AgentOkResponse[ShopCalculationSnapshotsResponse]",
+        "type": "object"
+      },
       "AgentOperationLogActionSummaryItem": {
         "properties": {
           "action": {
@@ -33216,6 +33250,185 @@
         "title": "ShopCalculationFees",
         "type": "object"
       },
+      "ShopCalculationHistoryResponse": {
+        "description": "Wrapper for ``/shop-calculation-history`` (current-state list).\n\n``total`` is the total number of *current-state* rows for the\nproject (one per SKU/country group, with deleted rows excluded).",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ShopCalculationHistoryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ShopCalculationHistoryResponse",
+        "type": "object"
+      },
+      "ShopCalculationHistoryRow": {
+        "description": "Single SKU row from ``shop_calculation`` flattened for BI consumption.\n\nUsed by:\n\n* ``/shop-calculation-history`` — current-state list (per SKU latest\n  non-deleted row)\n* ``/shop-calculation/snapshots`` — append-only time series filtered\n  by ``?from=&to=&sku=&country=``\n\nThe ``id`` is the underlying ``shop_calculation.id`` (PK). For the\ncurrent-state endpoint each row is the latest non-deleted id for\nthat ``(project_id, sku, country)`` group; for the history endpoint\nthe same id may appear multiple times across different ``observed_at``\nsnapshots.",
+        "properties": {
+          "accounting_type": {
+            "default": "profit_calc",
+            "title": "Accounting Type",
+            "type": "string"
+          },
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "breakeven_advertising_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breakeven Advertising Rate"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "max_ad_spend_per_unit_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ad Spend Per Unit Usd"
+          },
+          "non_ad_fee_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Non Ad Fee Usd"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "payout_usd": {
+            "default": 0.0,
+            "title": "Payout Usd",
+            "type": "number"
+          },
+          "profit_rate": {
+            "default": 0.0,
+            "title": "Profit Rate",
+            "type": "number"
+          },
+          "profit_usd": {
+            "default": 0.0,
+            "title": "Profit Usd",
+            "type": "number"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "sale_price_usd": {
+            "default": 0.0,
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
+            "type": "string"
+          },
+          "target_advertising_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Advertising Rate"
+          },
+          "total_fee_usd": {
+            "default": 0.0,
+            "title": "Total Fee Usd",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "sku",
+          "country",
+          "observed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ShopCalculationHistoryRow",
+        "type": "object"
+      },
       "ShopCalculationItem": {
         "description": "店铺测算详情",
         "properties": {
@@ -33557,6 +33770,76 @@
           "profit_rate"
         ],
         "title": "ShopCalculationProfit",
+        "type": "object"
+      },
+      "ShopCalculationSnapshotsResponse": {
+        "description": "Wrapper for ``/shop-calculation/snapshots`` (time-series).\n\nThe endpoint exposes the full append-only history filtered by\n``?from=&to=&sku=&country=``; no pagination is applied because\ncallers are expected to use the date filter to bound the result.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ShopCalculationHistoryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "from_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Date"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ShopCalculationSnapshotsResponse",
         "type": "object"
       },
       "ShopCalculationWeight": {
@@ -47526,6 +47809,18 @@
               "description": "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043）",
               "title": "Target Net Margin"
             }
+          },
+          {
+            "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+            "in": "query",
+            "name": "include_anchor",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+              "title": "Include Anchor",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -47533,9 +47828,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Agent Pricing Snapshot As Of Api V1 Agent Projects  Project Id  Pricing Snapshots Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgentOkResponse_ShopCalculationSnapshotsResponse_"
                 }
               }
             },
@@ -49484,7 +49777,7 @@
     },
     "/api/v1/agent/projects/{project_id}/shop-calculation-history": {
       "get": {
-        "description": "当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。\n\nBLF-1043：扁平行显式带 ``breakeven_advertising_rate`` /\n``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 三列（服务端推）——\n扁平行没有费用拆项，消费方自己算不出锚。",
+        "description": "当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平契约。\n\nBLF-1043：扁平行显式带 ``breakeven_advertising_rate`` / ``non_ad_fee_usd`` /\n``max_ad_spend_per_unit_usd`` / ``target_advertising_rate`` 四列（服务端推）——\n扁平行没有费用拆项，消费方自己算不出锚；``include_anchor=false`` 时四列省略。",
         "operationId": "get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get",
         "parameters": [
           {
@@ -49569,6 +49862,18 @@
               "description": "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate = 盈亏平衡广告费率 − target_net_margin（BLF-1043）",
               "title": "Target Net Margin"
             }
+          },
+          {
+            "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+            "in": "query",
+            "name": "include_anchor",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+              "title": "Include Anchor",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -49576,9 +49881,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Agent Shop Calculation History Api V1 Agent Projects  Project Id  Shop Calculation History Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgentOkResponse_ShopCalculationHistoryResponse_"
                 }
               }
             },
@@ -49604,7 +49907,7 @@
     },
     "/api/v1/agent/projects/{project_id}/shop-calculation/snapshots": {
       "get": {
-        "description": "append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。\n\nBLF-1043：每行额外带三个派生列（口径同 ``/shop-calculation-history``）。",
+        "description": "append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。\n\nBLF-1043：每行额外带四个派生列（口径同 ``/shop-calculation-history``）。",
         "operationId": "get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get",
         "parameters": [
           {
@@ -49699,6 +50002,18 @@
               "description": "目标净利率（可选，-1~1）；传入则每行额外带 target_advertising_rate（BLF-1043）",
               "title": "Target Net Margin"
             }
+          },
+          {
+            "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+            "in": "query",
+            "name": "include_anchor",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "是否返回四个扁平锚列（BLF-1043）；false 时四列全部省略",
+              "title": "Include Anchor",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -49706,9 +50021,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Agent Shop Calculation Snapshots Api V1 Agent Projects  Project Id  Shop Calculation Snapshots Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AgentOkResponse_ShopCalculationSnapshotsResponse_"
                 }
               }
             },

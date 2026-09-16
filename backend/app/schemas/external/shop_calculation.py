@@ -32,8 +32,18 @@ Design notes:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
+
+T = TypeVar("T")
+
+
+class AgentOkResponse(BaseModel, Generic[T]):
+    """OpenAPI-visible success envelope for native Agent flat read routes."""
+
+    ok: bool = True
+    data: T
 
 
 class ShopCalculationHistoryRow(BaseModel):
@@ -72,11 +82,13 @@ class ShopCalculationHistoryRow(BaseModel):
     payout_usd: float = 0.0
     total_fee_usd: float = 0.0
     # BLF-1043 定价派生列（服务端推，不改 append-only 语义）。
-    # 扁平行**没有**费用拆项、没有 advertising_rate/advertising_fee_usd，所以消费方
-    # 自己算不出锚 —— 必须由服务端显式补这一列。口径见
+    # 扁平行没有费用拆项，所以消费方算不出锚，也解释不了锚偏低的原因；
+    # 服务端显式补四个派生列：breakeven / non_ad_fee / max_ad_spend / target。
+    # 口径见
     # ``app/services/pricing/anchor.py``（比率 4 位小数；sale_price=0 → null；
     # 不 clamp，负值是诊断信号）。
     breakeven_advertising_rate: float | None = None
+    non_ad_fee_usd: float | None = None
     max_ad_spend_per_unit_usd: float | None = None
     target_advertising_rate: float | None = None
     created_at: datetime
@@ -118,7 +130,8 @@ class ShopCalculationSnapshotsResponse(BaseModel):
 
 
 __all__ = [
-    "ShopCalculationHistoryRow",
+    "AgentOkResponse",
     "ShopCalculationHistoryResponse",
+    "ShopCalculationHistoryRow",
     "ShopCalculationSnapshotsResponse",
 ]

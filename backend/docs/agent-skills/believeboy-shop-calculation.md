@@ -47,13 +47,13 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 ### 模块 B：BI 扁平契约（BLF-582 原生化）
 
-（扁平行没有费用拆项，锚由服务端推成 3 个平铺列 —— 见 §3.1）
+（扁平行没有费用拆项，锚由服务端推成 4 个平铺列 —— 见 §3.1）
 
 路径前缀：`/api/v1/agent/projects/{project_id}`
 
 | # | 方法 | 路径 | 用途 |
 |---|---|---|---|
-| R5 | GET | `/shop-calculation-history` | 当前态列表：每 `(project_id, sku, country)` 组最新非删行，扁平 19 列（含 3 个 `anchor` 派生列） |
+| R5 | GET | `/shop-calculation-history` | 当前态列表：每 `(project_id, sku, country)` 组最新非删行，扁平行含 4 个 `anchor` 派生列 |
 | R6 | GET | `/shop-calculation/snapshots` | append-only 时间序列：同一 SKU/country 组跨多个 observed_at 快照 |
 
 ### 模块 C：定价快照（BLF-582 原生化）
@@ -97,7 +97,7 @@ target_advertising_rate    = breakeven_advertising_rate - target_net_margin
 | R1 / R2 / R3 | 每行嵌套块 `anchor`；`?include_anchor=false` 关闭（响应与旧版逐字节一致，键消失不是置 null） |
 | W1 追加写 | **预览响应**带 `anchor`（写前就能看到锚，无需等落库）；确认后落库响应也带（该处 target 字段为 `null`） |
 | C1 `/compute` | `calculation` 与 `snapshot` 两块都带 `anchor` |
-| R5 / R6 / R7（BI 扁平） | 扁平行**没有费用拆项**，消费方自己算不出锚 —— 服务端推成三个平铺列：`breakeven_advertising_rate` / `max_ad_spend_per_unit_usd` / `target_advertising_rate` |
+| R5 / R6 / R7（BI 扁平） | 扁平行**没有费用拆项**，消费方自己算不出锚 —— 服务端推成四个平铺列：`breakeven_advertising_rate` / `non_ad_fee_usd` / `max_ad_spend_per_unit_usd` / `target_advertising_rate`；均支持 `?include_anchor=false`，默认 `true`，关闭时四列全部省略 |
 
 ### 3.2 字段
 
@@ -134,7 +134,13 @@ target_advertising_rate    = breakeven_advertising_rate - target_net_margin
 「清库存」档允许目标净利率为负（−10pt）。不传 → `target_net_margin` /
 `target_advertising_rate` 均为 `null`。**W1 不接受该参数**（它不是快照字段）。
 
-### 3.4 注意事项
+### 3.4 参数 `include_anchor`
+
+R1/R2/R3 与 R5/R6/R7 都支持 `?include_anchor=false`，默认 `true`。
+R1/R2/R3 关闭时移除嵌套 `anchor`；R5/R6/R7 关闭时移除四个扁平锚列。
+字段必须缺席，不是置为 `null`。
+
+### 3.5 注意事项
 
 - **派生量，不写库**：读时计算，零迁移，append-only 语义不变。
 - **不 clamp**：闭式解 ≤ 0（成本已高于售价，不花广告费也亏）**原样返回负值** —— 负值本身是诊断信号；≥ 1 原样返回。
