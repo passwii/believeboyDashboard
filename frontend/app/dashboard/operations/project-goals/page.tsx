@@ -611,16 +611,20 @@ export default function ProjectGoalsPage() {
                             : currentMonthProgress.achieved_amount >=
                                 currentMonthProgress.target_amount
                               ? '已达标'
-                              : formatPercent(currentMonthPaceRatio ?? 0),
+                              : currentMonthPaceRatio === null
+                                ? '--'
+                                : formatPercent(currentMonthPaceRatio),
                         caption:
                           currentMonthProgress.target_amount > 0
                             ? '当前日均 / 剩余所需日均'
                             : '未设置本月目标',
                         note:
                           currentMonthProgress.target_amount > 0 &&
-                          currentMonthProgress.today_day > 0
+                          currentMonthPaceRatio !== null
                             ? '≥100% 表示按当前节奏可追平目标'
-                            : '前往「目标管理」设置月度目标',
+                            : currentMonthProgress.target_amount > 0
+                              ? '当前日期口径无效'
+                              : '前往「目标管理」设置月度目标',
                         color: 'hsl(var(--chart-3))',
                       },
                     ]}

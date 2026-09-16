@@ -337,13 +337,14 @@ describe('ProjectGoalsPage header 化渲染契约（operations header migration 
 
   it('渲染不崩溃：三环进度与 4 统计块保留，双 tabs 出现，筛选控件已交入 header 插槽', async () => {
     stubOpsFetch(progressPayloadWithCurrentMonth())
-    render(<ProjectGoalsPage />)
+    const { unmount } = render(<ProjectGoalsPage />)
 
     // 三环进度区（本月进度标题 + 三环 label）
     expect(await screen.findByText(/本月进度/)).toBeInTheDocument()
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('实际月度进度')).toBeInTheDocument()
     expect(screen.getByText('达成速度')).toBeInTheDocument()
+    expect(screen.getByText('71.1%')).toBeInTheDocument()
     // 4 统计块
     expect(screen.getByText('年度完成率')).toBeInTheDocument()
     expect(screen.getByText('本月已达成')).toBeInTheDocument()
@@ -356,6 +357,17 @@ describe('ProjectGoalsPage header 化渲染契约（operations header migration 
     // 3 个筛选控件经 useHeaderSlot 上移（正文不再出现旧下拉占位文案）
     expect(capturedSlotNode).not.toBeNull()
     expect(screen.queryByText('选择项目')).not.toBeInTheDocument()
+
+    unmount()
+    clearOpsClientCaches()
+    const invalidDatePayload = progressPayloadWithCurrentMonth()
+    invalidDatePayload.monthly_progress[0].today_day = 32
+    stubOpsFetch(invalidDatePayload)
+    render(<ProjectGoalsPage />)
+
+    expect(await screen.findByText('达成速度')).toBeInTheDocument()
+    expect(screen.getByText('--')).toBeInTheDocument()
+    expect(screen.queryByText('0.0%')).not.toBeInTheDocument()
   })
 
   it('旧控制台已移除：无「控制台」/面板标题文案，无页内「刷新」按钮', async () => {

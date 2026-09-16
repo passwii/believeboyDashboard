@@ -69,9 +69,12 @@ export function achievementPaceRatio(
     !Number.isFinite(targetAmount) ||
     !Number.isFinite(todayDay) ||
     !Number.isFinite(daysInMonth) ||
+    !Number.isInteger(todayDay) ||
+    !Number.isInteger(daysInMonth) ||
     targetAmount <= 0 ||
     todayDay <= 0 ||
-    daysInMonth <= 0
+    daysInMonth <= 0 ||
+    todayDay > daysInMonth
   ) {
     return null
   }

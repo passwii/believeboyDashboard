@@ -107,6 +107,8 @@ describe('achievementPaceRatio（达成速度）', () => {
     expect(achievementPaceRatio(100, 0, 10, 30)).toBeNull()
     expect(achievementPaceRatio(100, 1000, 0, 30)).toBeNull()
     expect(achievementPaceRatio(100, 1000, 10, 0)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 32, 31)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 10.5, 30)).toBeNull()
     expect(achievementPaceRatio(Number.NaN, 1000, 10, 30)).toBeNull()
   })
 })
