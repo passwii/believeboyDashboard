@@ -200,19 +200,66 @@ export function InsightMarkdown({
     }
   }, [chartLanguages, renderChartBlock])
 
-  const showCaret = isStreaming && !reducedMotion
-  const caret = showCaret ? (
-    <span
-      aria-hidden
-      data-insight-caret
-      className="animate-cursor-blink ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] bg-primary"
-    />
-  ) : null
+  /**
+   * stable 段的渲染结果按元素身份缓存（BLF-1072）。逐字吐字时每帧变的只有 tail，
+   * stable 字符串只在「换行被吐出来」时变一次；元素身份不变时 React 整棵跳过这棵
+   * 子树，`react-markdown` 因此不会每帧重新解析全文（只重渲 tail）。
+   *
+   * 缓存命中的前提是 `components` 引用稳定（§依赖 `chartLanguages` / `renderChartBlock`）：
+   * 调用方用 useCallback / 模块常量传参，否则每帧换新会让缓存失效。
+   */
+  const stableTree = React.useMemo(
+    () => (
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
+        {stable}
+      </ReactMarkdown>
+    ),
+    [components, stable]
+  )
+
+  /**
+   * caret 也缓存：`isStreaming` 在整段流式期间恒为 true，逐帧换新元素虽然只是浅树，
+   * 但没有任何理由让它参与比较。
+   */
+  const caret = React.useMemo(
+    () =>
+      isStreaming && !reducedMotion ? (
+        <span
+          aria-hidden
+          data-insight-caret
+          className="animate-cursor-blink ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] bg-primary"
+        />
+      ) : null,
+    [isStreaming, reducedMotion]
+  )
+
+  /**
+   * tail 的函数体缓存：tail 每帧都在变，但「怎么渲染这段纯文本」不随内容变。
+   * 缓存后 `{tailView}` 每帧只换 children 文本，div 身份不变。
+   */
+  const tailView = React.useCallback(
+    (text: string) => (
+      <div
+        data-insight-tail
+        className={cn(
+          'break-words whitespace-pre-wrap',
+          /^ {0,3}(`{3,}|~{3,})/.test(text)
+            ? 'my-3 border border-term-border bg-term-raised p-3 font-mono text-[0.8125rem] leading-6'
+            : 'text-term-muted'
+        )}
+      >
+        {text}
+        {caret}
+      </div>
+    ),
+    [caret]
+  )
 
   return (
     <div className={cn('min-w-0 text-sm leading-6 text-term-text', className)} data-insight-markdown>
       {showRawActions && content.length > 0 ? (
         <div
+          role="group"
           className="mb-2 flex flex-wrap items-center justify-end gap-1"
           aria-label={text.rawActions}
           data-insight-raw-actions
@@ -251,25 +298,8 @@ export function InsightMarkdown({
           '[&_ul>li]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5'
         )}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
-          {stable}
-        </ReactMarkdown>
-        {tail ? (
-          <div
-            data-insight-tail
-            className={cn(
-              'break-words whitespace-pre-wrap',
-              /^ {0,3}(`{3,}|~{3,})/.test(tail)
-                ? 'my-3 border border-term-border bg-term-raised p-3 font-mono text-[0.8125rem] leading-6'
-                : 'text-term-muted'
-            )}
-          >
-            {tail}
-            {caret}
-          </div>
-        ) : (
-          caret
-        )}
+        {stableTree}
+        {tail ? tailView(tail) : caret}
       </div>
     </div>
   )

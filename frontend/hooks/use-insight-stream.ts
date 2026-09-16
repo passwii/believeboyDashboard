@@ -24,14 +24,32 @@ import {
   type InsightStreamStatus,
 } from '@/lib/insight/protocol'
 import { InsightClient } from '@/lib/insight/client'
+import {
+  advanceInsightReveal,
+  createInsightRevealState,
+  enqueueInsightRevealDelta,
+  normalizeInsightRevealOptions,
+  revealAllInsightOutputs,
+  revealedInsightOutputs,
+  setInsightRevealTarget,
+  type InsightRevealOptions,
+  type InsightRevealState,
+} from '@/lib/insight/reveal-queue'
+import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
+
 export type InsightStreamClientStatus = InsightStreamStatus
 
 export type UseInsightStreamOptions = {
   client?: InsightClient
   reconnectDelayMs?: number
   maxReconnectAttempts?: number
-  /** 客户端 delta 批处理窗口（毫秒），默认 64ms */
+  /** 客户端 delta 批处理窗口（毫秒），默认 32ms */
   batchWindowMs?: number
+  /**
+   * 吐字节奏器（BLF-1072）。`false` 关闭（到达即整段可见），传对象可覆写档位
+   * （见 `lib/insight/reveal-queue.ts`）。默认开启，`prefers-reduced-motion` 下自动关闭。
+   */
+  reveal?: false | Partial<InsightRevealOptions>
   onEvent?: (event: InsightEvent) => void
   onStatusChange?: (status: InsightStreamClientStatus) => void
 }
@@ -45,7 +63,12 @@ export type UseInsightStreamResult = {
   runId: string | null
   attempt: number | null
   lastEventId: string | null
+  /**
+   * 已到达的全量文本（权威内容优先）。终态 / 落库读这份：它不参与吐字节奏，
+   * 因此任何时刻都不会比服务端已经下发的正文少。
+   */
   drafts: InsightOutputs
+  /** 已吐字内容（节奏器逐帧推进的输出）；终态与权威内容到达时与 `drafts` 对齐 */
   partialDrafts: InsightOutputs
   snapshot: InsightSnapshot | null
   error: InsightErrorPayload | null
@@ -61,8 +84,39 @@ export type UseInsightStreamResult = {
 
 const DEFAULT_RECONNECT_DELAY_MS = 1_000
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 5
-const DEFAULT_BATCH_WINDOW_MS = 64
+
+/**
+ * 全量文本（`drafts`）的批处理窗口。BLF-1072：可见吐字已交给帧驱动的节奏器，
+ * 这个窗口只管「账面」——终态/落库要读的那份累积文本。32ms ≈ 2 帧，既让账面
+ * 追得上线上（每窗口合并 ≥ 8 个 token 一次渲染），又不与节奏器抢渲染帧。
+ */
+const DEFAULT_BATCH_WINDOW_MS = 32
 const BACKGROUND_CONTINUATION_MESSAGE = '已转入后台继续生成'
+
+function currentTimeMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+}
+
+/** 帧句柄：浏览器是 rAF 的 number，降级定时器是 setTimeout 的句柄。 */
+type FrameHandle = ReturnType<typeof setTimeout> | number
+
+/** 帧调度：浏览器用 rAF；无 rAF 的环境（SSR / 老测试环境）降级到 16ms 定时器。 */
+function scheduleFrame(callback: () => void): FrameHandle {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    return window.requestAnimationFrame(callback)
+  }
+  return setTimeout(callback, 16)
+}
+
+function cancelFrame(handle: FrameHandle): void {
+  if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+    window.cancelAnimationFrame(handle as number)
+    return
+  }
+  clearTimeout(handle)
+}
 
 export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsightStreamResult {
   const clientRef = useRef(options.client ?? new InsightClient())
@@ -71,6 +125,17 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS
   )
   const batchWindowRef = useRef(options.batchWindowMs ?? DEFAULT_BATCH_WINDOW_MS)
+  const reducedMotion = usePrefersReducedMotion()
+  /** 节奏器档位与开关；reduced-motion 下直接显示，不做 drip。 */
+  const revealOptionsRef = useRef<InsightRevealOptions>(normalizeInsightRevealOptions(null))
+  const revealDisabledRef = useRef(false)
+  revealOptionsRef.current = normalizeInsightRevealOptions(
+    options.reveal === false ? null : options.reveal
+  )
+  revealDisabledRef.current = options.reveal === false || reducedMotion
+  const revealStateRef = useRef<InsightRevealState>(createInsightRevealState())
+  const revealFrameRef = useRef<FrameHandle | null>(null)
+  const scheduleRevealRef = useRef<() => void>(() => {})
   const onEventRef = useRef(options.onEvent)
   const onStatusChangeRef = useRef(options.onStatusChange)
   onEventRef.current = options.onEvent
@@ -84,6 +149,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
   const [attempt, setAttempt] = useState<number | null>(null)
   const [lastEventId, setLastEventId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<InsightOutputs>({})
+  /** 已吐字内容（节奏器输出）；终态/权威内容到达时与 `drafts` 对齐 */
   const [partialDrafts, setPartialDrafts] = useState<InsightOutputs>({})
   const [snapshot, setSnapshot] = useState<InsightSnapshot | null>(null)
   const [error, setError] = useState<InsightErrorPayload | null>(null)
@@ -123,22 +189,60 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     abortRef.current = null
   }, [])
 
+  const cancelRevealFrame = useCallback(() => {
+    if (revealFrameRef.current === null) return
+    cancelFrame(revealFrameRef.current)
+    revealFrameRef.current = null
+  }, [])
+
   const resetContent = useCallback(() => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
     }
+    cancelRevealFrame()
+    revealStateRef.current = createInsightRevealState()
     hasPendingDraftsRef.current = false
     draftsRef.current = {}
     snapshotRef.current = null
     setDrafts({})
     setPartialDrafts({})
     setSnapshot(null)
-  }, [])
+  }, [cancelRevealFrame])
 
   /**
-   * 把累积的 delta 一次性发布给 React。真实 delta 仍逐条落到 ref，只在批处理
-   * 窗口（默认 64ms）结束时 setState，避免每个 token 触发一次渲染。
+   * 排一帧吐字（BLF-1072）。每个 rAF 调一次：按 `drainHorizonMs` 匀速推进
+   * 「已吐字」前缀，把成簇到达的 delta 摊平成连续吐字；余量没吐完就继续排帧，
+   * 吐完自然停住（不会空转）。
+   */
+  const scheduleReveal = useCallback(() => {
+    if (revealFrameRef.current !== null) return
+    revealFrameRef.current = scheduleFrame(() => {
+      revealFrameRef.current = null
+      const advanced = advanceInsightReveal(
+        revealStateRef.current,
+        currentTimeMs(),
+        revealOptionsRef.current
+      )
+      revealStateRef.current = advanced.state
+      if (advanced.changed) setPartialDrafts(advanced.revealed)
+      if (advanced.pending) scheduleRevealRef.current()
+    })
+  }, [])
+  scheduleRevealRef.current = scheduleReveal
+
+  /** 终态收尾：把节奏器里还没吐完的余量一次揭示，不让面板停在半句话上。 */
+  const finishReveal = useCallback(() => {
+    cancelRevealFrame()
+    const next = revealAllInsightOutputs(revealStateRef.current)
+    if (next === revealStateRef.current) return
+    revealStateRef.current = next
+    setPartialDrafts(revealedInsightOutputs(next))
+  }, [cancelRevealFrame])
+
+  /**
+   * 把累积的 delta 一次性发布给 React（账面 `drafts`）。可见吐字由节奏器逐帧给出，
+   * 这里只在批处理窗口（默认 32ms）结束时 setState，避免每个 token 触发一次渲染。
    */
   const flushDrafts = useCallback(() => {
     if (flushTimerRef.current) {
@@ -148,7 +252,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     if (!hasPendingDraftsRef.current) return
     hasPendingDraftsRef.current = false
     setDrafts(draftsRef.current)
-    setPartialDrafts(draftsRef.current)
+    // 关闭节奏器（reduced-motion / reveal:false）：可见内容跟着账面一起落地。
+    if (revealDisabledRef.current) setPartialDrafts(draftsRef.current)
   }, [])
 
   const mergeOutputs = useCallback(
@@ -156,8 +261,12 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       if (Object.keys(next).length === 0) return
       draftsRef.current = { ...draftsRef.current, ...next }
       hasPendingDraftsRef.current = true
-      // 权威内容（snapshot / done / content.snapshot）必须立刻可见，不等窗口。
+      // 权威内容（snapshot / done / detail 回读）必须立刻整段可见，不等窗口也不逐字吐。
+      for (const [slot, content] of Object.entries(next)) {
+        revealStateRef.current = setInsightRevealTarget(revealStateRef.current, slot, content)
+      }
       flushDrafts()
+      setPartialDrafts(revealedInsightOutputs(revealStateRef.current))
     },
     [flushDrafts]
   )
@@ -178,13 +287,26 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       const current = draftsRef.current[event.slot] ?? ''
       draftsRef.current = { ...draftsRef.current, [event.slot]: current + event.delta }
       hasPendingDraftsRef.current = true
+      // 到达只入队，不渲染：屏幕上吐多少字由节奏器逐帧决定（BLF-1072）。
+      revealStateRef.current = enqueueInsightRevealDelta(
+        revealStateRef.current,
+        event.slot,
+        event.delta,
+        currentTimeMs()
+      )
+      if (revealDisabledRef.current) {
+        // reduced-motion / 显式关闭：不 drip，交给账面窗口一起整段落地。
+        revealStateRef.current = revealAllInsightOutputs(revealStateRef.current)
+      } else {
+        scheduleReveal()
+      }
       if (flushTimerRef.current) return
       flushTimerRef.current = setTimeout(() => {
         flushTimerRef.current = null
         flushDrafts()
       }, batchWindowRef.current)
     },
-    [flushDrafts]
+    [flushDrafts, scheduleReveal]
   )
 
   const applyEvent = useCallback(
@@ -198,12 +320,15 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         setProgress(typeof event.progress_percent === 'number' ? event.progress_percent : null)
         if (event.status === 'failed') {
           terminalRef.current = true
+          finishReveal()
           setStatus('failed')
         } else if (event.status === 'cancelled') {
           terminalRef.current = true
+          finishReveal()
           setStatus('cancelled')
         } else if (event.status === 'completed') {
           terminalRef.current = true
+          finishReveal()
           setStatus('completed')
         } else if (event.status === 'queued' || event.status === 'pending') {
           setStatus('queued')
@@ -251,6 +376,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
         if (eventSnapshot) mergeSnapshot(eventSnapshot)
         const outputs = getInsightOutputs(event)
         if (outputs) mergeOutputs(outputs)
+        finishReveal()
         terminalRef.current = true
         setRunStatus('completed')
         setProgress(100)
@@ -261,13 +387,14 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
 
       if (isInsightEventType(event, 'error') && isInsightErrorPayload(event.error)) {
         terminalRef.current = true
+        finishReveal()
         const cancelled = event.status === 'cancelled' || event.error.code === 'CANCELLED'
         setRunStatus(cancelled ? 'cancelled' : 'failed')
         setError(event.error)
         setStatus(cancelled ? 'cancelled' : 'failed')
       }
     },
-    [appendDelta, mergeOutputs, mergeSnapshot, setStatus]
+    [appendDelta, finishReveal, mergeOutputs, mergeSnapshot, setStatus]
   )
 
   const fail = useCallback(
@@ -443,7 +570,11 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
       if (canonical === 'completed' || canonical === 'cancelled' || canonical === 'failed') {
         terminalRef.current = true
         setStatus(
-          canonical === 'completed' ? 'completed' : canonical === 'cancelled' ? 'cancelled' : 'failed'
+          canonical === 'completed'
+            ? 'completed'
+            : canonical === 'cancelled'
+              ? 'cancelled'
+              : 'failed'
         )
         return detail
       }
@@ -471,6 +602,8 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     ++generationRef.current
     terminalRef.current = true
     abortLocalStream()
+    // 已收到的正文一次性吐完：取消不是「停在一半」的理由。
+    finishReveal()
     // 本地取消对本消费端即权威：run 已进入终态，规范状态与传输状态一起落地，
     // 否则按规范状态取标签的调用方会一直显示「生成中」。
     setRunStatus('cancelled')
@@ -488,7 +621,7 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     } finally {
       setStatus('cancelled')
     }
-  }, [abortLocalStream, resetReconnectTimer, setStatus])
+  }, [abortLocalStream, finishReveal, resetReconnectTimer, setStatus])
 
   const retry = useCallback(async () => {
     const currentRunId = runIdRef.current
@@ -541,18 +674,32 @@ export function useInsightStream(options: UseInsightStreamOptions = {}): UseInsi
     resetReconnectTimer()
     ++generationRef.current
     abortLocalStream()
+    finishReveal()
     detachedRef.current = true
     setIsDetached(true)
     setBackgroundMessage(BACKGROUND_CONTINUATION_MESSAGE)
-  }, [abortLocalStream, resetReconnectTimer])
+  }, [abortLocalStream, finishReveal, resetReconnectTimer])
 
+  /**
+   * 挂载/卸载标记（BLF-1072）。
+   *
+   * 之前只在卸载时置 `true`，从不复位：React StrictMode（Next dev 默认开启）会把每个
+   * effect 挂载→卸载→再挂载跑两遍，于是**第一次挂载的清理**就把 ref 永久钉成
+   * `disposed`，之后 `connect()` / `attach()` 里的 `disposedRef.current` 守卫统统
+   * 直接 return —— 开发环境下流永远连不上，面板停在「准备提交分析任务」。
+   *
+   * 在挂载时的 effect 体里复位即可：effect 重跑（含 StrictMode 的再次挂载）会先执行
+   * 新 effect 体再执行下一次清理，语义仍是「当前这次挂载是否还活着」。
+   */
   useEffect(() => {
+    disposedRef.current = false
     return () => {
       resetReconnectTimer()
+      cancelRevealFrame()
       disposedRef.current = true
       abortLocalStream()
     }
-  }, [abortLocalStream, resetReconnectTimer])
+  }, [abortLocalStream, cancelRevealFrame, resetReconnectTimer])
 
   return {
     status,

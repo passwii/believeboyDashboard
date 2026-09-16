@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { InsightClient } from '@/lib/insight/client'
 import type { InsightEvent, InsightRunRequest, InsightRunStartResponse } from '@/lib/insight/protocol'
+import { insightRevealFrameCap, normalizeInsightRevealOptions } from '@/lib/insight/reveal-queue'
 import { useInsightStream } from './use-insight-stream'
 
 const CANONICAL_REQUEST: InsightRunRequest = {
@@ -243,7 +244,7 @@ describe('useInsightStream', () => {
     expect(result.current.error).toEqual(errorEvent.error)
   })
 
-  it('coalesces a burst of deltas into one published draft update', async () => {
+  it('把成簇到达的 delta 摊平成逐帧吐字，而账面全文照旧只在窗口落地', async () => {
     const stream = pushableSseResponse()
     const fetchMock = vi
       .fn()
@@ -275,7 +276,155 @@ describe('useInsightStream', () => {
     expect(result.current.partialDrafts.summary).toBeUndefined()
 
     await waitFor(() => expect(result.current.partialDrafts.summary).toBe('a'.repeat(30)))
-    expect(published.filter((value) => value.length > 0)).toEqual(['a'.repeat(30)])
+
+    // 节奏器把这 30 个字按帧摊开：多次「只比上一帧多一两个字」的发布，而不是一帧整块弹出。
+    const visible = published.filter((value) => value.length > 0)
+    expect(visible.length).toBeGreaterThan(2)
+    let previous = ''
+    let maxStep = 0
+    for (const value of visible) {
+      expect(value.startsWith(previous)).toBe(true)
+      maxStep = Math.max(maxStep, value.length - previous.length)
+      previous = value
+    }
+    // 单帧增量远小于整块：30 个字分多帧摊开，而不是一帧弹出。
+    expect(maxStep).toBeLessThanOrEqual(Math.ceil(30 / 3))
+    expect(previous).toBe('a'.repeat(30))
+    // 终态/落库读的账面全文不受节奏器影响。
+    await waitFor(() => expect(result.current.drafts).toEqual({ summary: 'a'.repeat(30) }))
+  })
+
+  it('高频 600 帧 delta 下渲染次数由帧率而非 token 数决定，且不丢字不回跳', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-burst', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const frames: string[] = []
+    const { result } = renderHook(() => {
+      const state = useInsightStream({ client })
+      frames.push(state.partialDrafts.summary ?? '')
+      return state
+    })
+
+    act(() => {
+      void result.current.start(CANONICAL_REQUEST)
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    const TOKENS = 600
+    const isCjk = (index: number) => index % 3 === 0
+    let expected = ''
+    for (let batch = 0; batch < 10; batch += 1) {
+      act(() => {
+        for (let index = 0; index < TOKENS / 10; index += 1) {
+          const tokenIndex = batch * (TOKENS / 10) + index
+          const delta = isCjk(tokenIndex) ? '库存' : tokenIndex % 3 === 1 ? 'ab' : ' '
+          expected += delta
+          stream.push(
+            event('content.delta', {
+              id: `delta-${tokenIndex}`,
+              seq: tokenIndex + 1,
+              slot: 'summary',
+              delta,
+            })
+          )
+        }
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+    }
+
+    // 吐字是逐字/逐小簇的：~1000 字按速率上限（180 字/秒）排空约需 5.6s，给足余量。
+    await waitFor(() => expect(result.current.partialDrafts.summary).toBe(expected), {
+      timeout: 20_000,
+    })
+
+    const visible = frames.filter((value) => value.length > 0)
+    // 实现层硬上限：速率上限 × 单帧最多计入的时长（maxTickMs）。jsdom 的 rAF 会抖动
+    // （一帧 30ms+），此时按 dt 多吐几个字是正确行为，所以最坏帧用实现硬上限卡，
+    // 「逐字吐」的观感用分位数断言。
+    const hardCap = insightRevealFrameCap(normalizeInsightRevealOptions(null), 100)
+    let previous = ''
+    const steps: number[] = []
+    for (const value of visible) {
+      // 逐帧只接续、不回跳、不整块弹出（上限 = 1 帧的吐字额度）。
+      expect(value.startsWith(previous)).toBe(true)
+      steps.push(value.length - previous.length)
+      previous = value
+    }
+    const maxStep = Math.max(...steps)
+    const sortedSteps = [...steps].sort((a, b) => a - b)
+    const stepAt = (q: number) => sortedSteps[Math.min(sortedSteps.length - 1, Math.floor(sortedSteps.length * q))] ?? 0
+    expect(maxStep).toBeLessThanOrEqual(hardCap)
+    // 典型帧只吐几个字：中位数与 p90 都很小（实测 60fps 下中位数 1、p90 3）。
+    expect(stepAt(0.5)).toBeLessThanOrEqual(4)
+    expect(stepAt(0.9)).toBeLessThanOrEqual(8)
+    // 「不整块弹出」的实质断言：任何一帧都不超过全文的 1/10。
+    expect(maxStep).toBeLessThan(expected.length / 10)
+    expect(previous).toBe(expected)
+    // 可见内容确实是分多帧吐出来的，不是一帧到位。
+    expect(visible.length).toBeGreaterThan(2)
+    // 渲染次数上界 = 可见字符数（每次渲染至少吐 1 字）：600 个 token / ~1000 字
+    // 解出的是「字数量级」的渲染，而不是「每个 token 一次渲染」。
+    expect(frames.length).toBeLessThanOrEqual(expected.length)
+    expect(frames.length).toBeLessThan(TOKENS)
+    expect(result.current.drafts).toEqual({ summary: expected })
+  }, 30_000)
+
+  it('reduced-motion 或显式关闭时不做 drip，到达即整段可见', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-instant', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client, reveal: false, batchWindowMs: 5 }))
+
+    act(() => {
+      void result.current.start(CANONICAL_REQUEST)
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    await act(async () => {
+      stream.push(
+        event('content.delta', { id: 'delta-1', seq: 1, slot: 'summary', delta: '整段立即可见' })
+      )
+    })
+
+    await waitFor(() => expect(result.current.partialDrafts.summary).toBe('整段立即可见'))
+  })
+
+  it('终态收尾把节奏器余量一次吐完，不把面板停在半句话上', async () => {
+    const stream = pushableSseResponse()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ run_id: 'run-tail', status: 'queued', attempt: 1 }))
+      .mockResolvedValueOnce(stream.response)
+    const client = new InsightClient({ fetch: fetchMock })
+    const { result } = renderHook(() => useInsightStream({ client }))
+
+    act(() => {
+      void result.current.start(CANONICAL_REQUEST)
+    })
+    await waitFor(() => expect(result.current.status).toBe('live'))
+
+    const long = '库存健康快照正文。'.repeat(40)
+    await act(async () => {
+      stream.push(event('content.delta', { id: 'delta-1', seq: 1, slot: 'summary', delta: long }))
+    })
+    // 余量按 240ms 摊平，此刻只吐出了前面一小段。
+    expect(result.current.partialDrafts.summary?.length ?? 0).toBeLessThan(long.length)
+
+    await act(async () => {
+      stream.push(event('done', { id: 'done-1', seq: 2, outputs: { summary: long } }))
+    })
+
+    expect(result.current.status).toBe('completed')
+    expect(result.current.partialDrafts.summary).toBe(long)
+    expect(result.current.drafts.summary).toBe(long)
   })
 
   it('publishes an authoritative content snapshot without waiting for the batch window', async () => {
