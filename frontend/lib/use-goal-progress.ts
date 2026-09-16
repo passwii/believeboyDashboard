@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from 'next-auth'
 
+import {
+  COUNTRY_TIMEZONE_MAP,
+  getTodayInTimezone,
+} from '@/components/ui/date-picker'
 import { isGoalProgressScopeValid } from '@/components/ui/goal-progress-rings'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 
@@ -51,8 +55,9 @@ export function useGoalProgress(
       }
     }
 
-    const year = new Date().getFullYear()
-    const month = new Date().getMonth() + 1
+    const today = getTodayInTimezone(COUNTRY_TIMEZONE_MAP[country] ?? 'UTC')
+    const year = today.getFullYear()
+    const month = today.getMonth() + 1
     setGoalProgress(null)
     setGoalLoading(true)
 
