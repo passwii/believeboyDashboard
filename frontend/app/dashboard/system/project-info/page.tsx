@@ -935,7 +935,7 @@ export default function ProjectInfoPage() {
                             <TableCell className="text-muted-foreground">{item.id}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                {item.has_context && (
+                                {item.is_active && item.has_context && (
                                   <span
                                     className="h-2 w-2 shrink-0 rounded-none bg-term-pos"
                                     title="已配置项目背景"
