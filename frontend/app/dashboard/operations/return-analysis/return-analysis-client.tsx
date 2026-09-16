@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { DateRange } from 'react-day-picker'
-import { Boxes, Download, Loader2, MessageSquare, Package, Sparkles, Table2, Tags, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
+import {
+  Boxes,
+  Download,
+  Loader2,
+  MessageSquare,
+  Package,
+  Sparkles,
+  Table2,
+  Tags,
+  TrendingUp,
+  Trophy,
+  type LucideIcon,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import {
   Bar,
@@ -69,11 +81,7 @@ import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
-import {
-  RAW_DISPLAY_LIMIT,
-  RETURN_RAW_COLUMNS,
-  type ReturnRawRow,
-} from './return-raw-columns'
+import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS, type ReturnRawRow } from './return-raw-columns'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -103,38 +111,12 @@ type ProjectOption = {
   name: string
 }
 
-// Translation helpers（过渡期兜底，见下方 topReturnReasonDisplay）
-const RETURN_REASON_LABELS: Record<string, string> = {
-  APPAREL_TOO_LARGE: '服装过大',
-  APPAREL_TOO_SMALL: '服装过小',
-  QUALITY_UNACCEPTABLE: '质量不合格',
-  DID_NOT_LIKE_FABRIC: '不喜欢面料',
-  NOT_AS_DESCRIBED: '与描述不符',
-  APPAREL_STYLE: '款式问题',
-  DEFECTIVE: '有缺陷',
-  UNDELIVERABLE_UNKNOWN: '无法投递',
-  NEVER_ARRIVED: '未收到',
-  UNWANTED_ITEM: '不需要',
-  CHANGED_MIND: '改变主意',
-  WRONG_ITEM: '错发商品',
-  LATE_ARRIVAL: '到货延迟',
-  OTHER: '其他',
-}
-
-// Reserved for future use - disposition/status translations
-// const DETAILED_DISPOSITION_LABELS: Record<string, string> = { ... }
-// const RETURN_STATUS_LABELS: Record<string, string> = { ... }
-
-function translateReason(value: string): string {
-  return RETURN_REASON_LABELS[value] || value
-}
-
 /**
- * Top 退货原因磁贴的展示值（BLF-1074）。
+ * Top 退货原因磁贴的展示值（BLF-1074，二段式收尾于 BLF-1081）。
  *
- * 优先取后端 `summary.top_return_reason_display`——它由后端统一的
+ * 只取后端 `summary.top_return_reason_display`——它由后端统一的
  * `translate_return_field("reason", ...)` 产出，与 `reason_rows[].reason_display`
- * 同源（含 `DAMAGED_BY_FC` / `NO_REASON_GIVEN` / `NOT_COMPATIBLE` 等本地表没有的 code）。
+ * 同源（含 `DAMAGED_BY_FC` / `NO_REASON_GIVEN` / `NOT_COMPATIBLE` 等 code）。
  *
  * 后端译文范围是**有界**的——FBA 生产库实测 code + FBA 文档补充项，
  * **不是 Amazon 全集**：MFN / Buy with Prime / `TA-CR-*` / `UND-*` 等其他域 code
@@ -142,15 +124,13 @@ function translateReason(value: string): string {
  * `backend/app/constants/return_translations.py` 的模块 docstring 为准；
  * 本页面只透传后端结果，不为任何 code 自行造译文，「后端没译」不等于「这里漏译」。
  *
- * 本地 `RETURN_REASON_LABELS` 只覆盖 14 个 code，曾让其余 code 直接裸露英文，
- * 此处仅作后端字段上线前的过渡兜底（后端 PR #625 部署后即可连同该表一起删除）。
- * 字段可达时一律以它为准，本地表命中与否都不再参与决策。
+ * 不在此处维护任何本地 code→中文对照表：曾有一份 14 项的本地表，只覆盖极少 code，
+ * 导致其余 code 裸露英文（BLF-1074）。既然后端两个构造点（`analysis.py`）在
+ * `reason_rows` 非空时总会同时填 `top_return_reason` 与 `top_return_reason_display`，
+ * 本地兜底分支恒不可达，故连同该表一并删除，避免日后被重新触达时静默重演旧 bug。
  */
 function topReturnReasonDisplay(summary: ReturnAnalysisSummary): string {
-  if (summary.top_return_reason_display) {
-    return summary.top_return_reason_display
-  }
-  return summary.top_return_reason ? translateReason(summary.top_return_reason) : '--'
+  return summary.top_return_reason_display ?? '--'
 }
 
 const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
@@ -275,7 +255,7 @@ type ReturnAnalysisSummary = {
   unique_skus: number
   top_return_sku: string | null
   top_return_reason: string | null
-  /** BLF-1074：后端给出的中文译文（可选——旧后端无此字段时走本地表兜底） */
+  /** BLF-1074：后端给出的中文译文（与 `reason_rows[].reason_display` 同源、单一翻译源） */
   top_return_reason_display?: string | null
   total_sales_quantity: number
   total_sales_amount: number
@@ -554,9 +534,7 @@ export default function ReturnAnalysisPage() {
       } catch (fetchError) {
         // 过期请求连错误都不上报：它描述的是已经不存在的周期
         if (requestEpoch !== rawRequestEpochRef.current) return null
-        setRawError(
-          fetchError instanceof Error ? fetchError.message : '原始数据加载失败'
-        )
+        setRawError(fetchError instanceof Error ? fetchError.message : '原始数据加载失败')
         return null
       } finally {
         // 世代未变才消费 force 旗标，否则会把新一轮强制刷新刚置上的旗标误清掉
@@ -941,10 +919,7 @@ export default function ReturnAnalysisPage() {
             valueClassName={returnRateTone(data.summary.overall_return_rate)}
           />
           <SummaryTile label="涉及 SKU" value={data.summary.unique_skus.toLocaleString()} />
-          <SummaryTile
-            label="Top 退货原因"
-            value={topReturnReasonDisplay(data.summary)}
-          />
+          <SummaryTile label="Top 退货原因" value={topReturnReasonDisplay(data.summary)} />
           <SummaryTile
             label="多件退货"
             value={data.multi_item_return_count.toLocaleString()}
@@ -981,9 +956,7 @@ export default function ReturnAnalysisPage() {
         </TabsMotionGroup>
         <DataTableCard className="relative">
           <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4 sm:px-6">
-            <div className="text-sm font-semibold text-foreground sm:text-base">
-              退货分析工作区
-            </div>
+            <div className="text-sm font-semibold text-foreground sm:text-base">退货分析工作区</div>
             <Button
               type="button"
               variant="outline"
@@ -1112,7 +1085,7 @@ export default function ReturnAnalysisPage() {
                               {row.sales_quantity.toLocaleString()}
                             </TableCell>
                             <TableCell
-                              className={`text-right font-semibold ${ row.return_rate > 8 ? 'text-term-neg' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500' }`}
+                              className={`text-right font-semibold ${row.return_rate > 8 ? 'text-term-neg' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500'}`}
                             >
                               {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
                             </TableCell>
@@ -1526,8 +1499,7 @@ export default function ReturnAnalysisPage() {
                                       key={column.key}
                                       className={cn(
                                         'text-term-muted',
-                                        column.key === 'quantity' &&
-                                          'text-right tabular-nums',
+                                        column.key === 'quantity' && 'text-right tabular-nums',
                                         column.truncate && 'max-w-[320px] truncate'
                                       )}
                                       title={column.truncate ? text : undefined}
