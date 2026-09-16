@@ -53,6 +53,40 @@ export function clampRingValue(value: number): number {
 }
 
 /**
+ * 达成速度：当前日均销售额相对剩余所需日均销售额的比值。
+ * 1 表示按当前节奏可在月末刚好达标；大于 1 表示有余量，小于 1 表示需要提速。
+ */
+export function achievementPaceRatio(
+  achievedAmount: number,
+  targetAmount: number,
+  todayDay: number,
+  daysInMonth: number
+): number | null {
+  if (
+    !Number.isFinite(achievedAmount) ||
+    !Number.isFinite(targetAmount) ||
+    !Number.isFinite(todayDay) ||
+    !Number.isFinite(daysInMonth) ||
+    targetAmount <= 0 ||
+    todayDay <= 0 ||
+    daysInMonth <= 0
+  ) {
+    return null
+  }
+
+  if (achievedAmount >= targetAmount) return 1
+
+  const remainingDays = daysInMonth - todayDay
+  if (remainingDays <= 0) return 0
+
+  const currentDaily = achievedAmount / todayDay
+  const requiredDaily = (targetAmount - achievedAmount) / remainingDays
+  if (requiredDaily <= 0) return 1
+
+  return Math.max(0, currentDaily / requiredDaily)
+}
+
+/**
  * 预估月度完成率（线性外推 run-rate）：
  * 当前已完成 ÷ 已过天数 × 整月天数 ÷ 整月目标 = 实际月度进度 × (整月天数 ÷ 今日日序)。
  * 例如 15 号已完成整月目标的 40% → 40% × 30/15 = 80%。

@@ -39,7 +39,7 @@ describe('achievementPaceRatio（达成速度）', () => {
   })
 
   it('当前日均低于剩余所需日均时返回实际比例', () => {
-    expect(achievementPaceRatio(175, 1000, 10, 30)).toBeCloseTo(0.5)
+    expect(achievementPaceRatio(200, 1000, 10, 30)).toBeCloseTo(0.5)
   })
 
   it('当前日均高于剩余所需日均时保留超额比例', () => {

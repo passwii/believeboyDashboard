@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import {
+  achievementPaceRatio,
   clampRingValue,
   GoalProgressRings,
   GoalProgressStat,
@@ -93,6 +94,35 @@ describe('projectedMonthlyRate（预估月度完成率线性外推）', () => {
     expect(projectedMonthlyRate(0.5, 30, 0)).toBe(0)
     expect(projectedMonthlyRate(0, 30, 15)).toBe(0)
     expect(projectedMonthlyRate(Number.NaN, 30, 15)).toBe(0)
+  })
+})
+
+describe('achievementPaceRatio（达成速度）', () => {
+  it('当前日均高于剩余所需日均时返回超额比例', () => {
+    expect(achievementPaceRatio(400, 1000, 10, 30)).toBeCloseTo(4 / 3)
+  })
+
+  it('当前日均低于剩余所需日均时返回实际比例', () => {
+    expect(achievementPaceRatio(200, 1000, 10, 30)).toBeCloseTo(0.5)
+  })
+
+  it('当前日均高于剩余所需日均时保留超额比例', () => {
+    expect(achievementPaceRatio(500, 1000, 10, 30)).toBeCloseTo(2)
+  })
+
+  it('已经完成目标时返回 100%', () => {
+    expect(achievementPaceRatio(1100, 1000, 10, 30)).toBe(1)
+  })
+
+  it('没有剩余天数且尚未达标时返回 0', () => {
+    expect(achievementPaceRatio(900, 1000, 30, 30)).toBe(0)
+  })
+
+  it('缺少有效目标或日期时返回 null', () => {
+    expect(achievementPaceRatio(100, 0, 10, 30)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 0, 30)).toBeNull()
+    expect(achievementPaceRatio(100, 1000, 10, 0)).toBeNull()
+    expect(achievementPaceRatio(Number.NaN, 1000, 10, 30)).toBeNull()
   })
 })
 
