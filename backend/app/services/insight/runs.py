@@ -112,15 +112,27 @@ class StaleRunWrite(Exception):
         )
 
 
-def _utcnow_naive() -> datetime:
-    """Naive UTC now: comparable with DB-returned datetimes on any backend."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+def _utcnow() -> datetime:
+    """Aware UTC now — the only shape safe to write into a ``timestamptz``.
+
+    ``insight_runs``/``insight_run_observations`` 的时间列是
+    ``TIMESTAMP WITH TIME ZONE``。naive 值交给 Postgres 会按**会话时区**解释，
+    而本地与生产 VPS 的会话时区都是 ``Asia/Shanghai``：naive UTC 因此被存成
+    8 小时前的瞬时，派生出的 ``duration_ms`` / ``first_delta_ms`` 全部 +8h
+    （BLF-1111，门禁据此误报未达标）。aware 值自带瞬时，不受会话时区影响。
+    """
+    return datetime.now(timezone.utc)
 
 
-def _as_naive_utc(value: datetime) -> datetime:
-    if value.tzinfo is not None:
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
-    return value
+def _as_utc(value: datetime) -> datetime:
+    """DB-returned datetime → aware UTC, whatever the backend hands back.
+
+    Postgres 回 aware；SQLite（单测 / 本地）丢偏移量回 naive UTC——两者都归一到
+    同一瞬时，所以 naive 只在这里被**解释**，不再被写出去。
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _timeline_of(run: InsightRun) -> list[dict[str, Any]]:
@@ -137,7 +149,9 @@ def _timeline_entry(
     return {
         "status": status.value,
         "attempt": attempt,
-        "at": now.isoformat(timespec="seconds") + "Z",
+        # 时间线对外固定 UTC ``...Z`` 形式：先归一成 UTC 再去掉偏移量，避免 aware
+        # 值序列化出 ``+00:00Z`` 这种双重标注。
+        "at": _as_utc(now).replace(tzinfo=None).isoformat(timespec="seconds") + "Z",
     }
 
 
@@ -200,7 +214,7 @@ def create_run(
         # 首条时间线与行本身在同一次 INSERT 里落库，建行即处于终态之外的确定
         # 状态；此后的每次状态变更都是 CAS UPDATE（见 try_transition）。
         status_timeline_json=json.dumps(
-            [_timeline_entry(InsightStatus.QUEUED, 1, _utcnow_naive())]
+            [_timeline_entry(InsightStatus.QUEUED, 1, _utcnow())]
         ),
     )
     db.add(run)
@@ -327,7 +341,7 @@ def try_transition(
     docstring): the ``UPDATE`` is issued here, the transaction stays open.
     """
 
-    now = _utcnow_naive()
+    now = _utcnow()
     values: dict[str, Any] = {
         "status": to.value,
         "updated_at": now,
@@ -360,7 +374,7 @@ def try_transition(
                 0,
                 int(
                     (
-                        now - _as_naive_utc(run.started_at)
+                        now - _as_utc(run.started_at)
                     ).total_seconds()
                     * 1000
                 ),
@@ -464,7 +478,7 @@ def retry_run(db: Session, run_id: UUID | str) -> InsightRun:
         current = InsightStatus(run.status)
         require_retryable(current)
         expected_attempt = run.attempt
-        now = _utcnow_naive()
+        now = _utcnow()
         attempt = next_attempt(run.attempt)
         if _cas_write(
             db,
@@ -511,7 +525,7 @@ def _parse_outputs(raw: str | None) -> dict[str, InsightOutput]:
 def to_detail(run: InsightRun) -> InsightRunDetail:
     """Authoritative snapshot for the detail endpoint and SSE transport."""
 
-    now = _utcnow_naive()
+    now = _utcnow()
     return InsightRunDetail(
         schema_version=1,
         run_id=UUID(run.run_id),
@@ -535,18 +549,18 @@ def to_detail(run: InsightRun) -> InsightRunDetail:
             current_attempt=run.attempt,
             history_available=False,
         ),
-        created_at=_as_naive_utc(run.created_at).replace(tzinfo=timezone.utc)
+        created_at=_as_utc(run.created_at)
         if run.created_at is not None
-        else now.replace(tzinfo=timezone.utc),
-        started_at=_as_naive_utc(run.started_at).replace(tzinfo=timezone.utc)
+        else now,
+        started_at=_as_utc(run.started_at)
         if run.started_at is not None
         else None,
-        completed_at=_as_naive_utc(run.completed_at).replace(tzinfo=timezone.utc)
+        completed_at=_as_utc(run.completed_at)
         if run.completed_at is not None
         else None,
-        updated_at=_as_naive_utc(run.updated_at).replace(tzinfo=timezone.utc)
+        updated_at=_as_utc(run.updated_at)
         if run.updated_at is not None
-        else now.replace(tzinfo=timezone.utc),
+        else now,
     )
 
 

@@ -215,6 +215,34 @@ class TestRecordRunSnapshot:
         assert row.cancel_succeeded is None
         assert row.fallback is False
 
+    def test_first_delta_clamped_to_duration(self, db: Session) -> None:
+        """BLF-1111：首字不可能晚于 run 时长。
+
+        取消路径的 ``completed_at``/``duration_ms`` 在取消落地时就写了，worker
+        到下一个 guard 才停，其后仍可能投出第一帧（生产实测：取消的 run 出现
+        first_delta_ms 28,806,485 > duration_ms 28,804,033）。那种帧描述的已不是
+        活跃 run，落库时夹进 duration_ms。
+        """
+        run = _run(db, status=InsightStatus.CANCELLED.value, duration_ms=4_000)
+        row = record_run_snapshot(
+            db, run, metrics=_metrics(**{METRIC_FIRST_DELTA_MS: 6_485})
+        )
+        db.commit()
+
+        assert row is not None
+        assert (row.first_delta_ms, row.duration_ms) == (4_000, 4_000)
+
+    def test_first_delta_under_duration_is_untouched(self, db: Session) -> None:
+        """夹取只在越界时生效，正常值不被改写。"""
+        run = _run(db, duration_ms=10_000)
+        row = record_run_snapshot(
+            db, run, metrics=_metrics(**{METRIC_FIRST_DELTA_MS: 1_500})
+        )
+        db.commit()
+
+        assert row is not None
+        assert row.first_delta_ms == 1_500
+
     def test_snapshot_is_idempotent_per_run_and_later_call_corrects_cancel(
         self, db: Session
     ) -> None:

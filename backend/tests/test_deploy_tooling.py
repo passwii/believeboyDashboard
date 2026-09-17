@@ -106,6 +106,47 @@ def test_beat_is_restarted_by_deploy_and_rollback():
     assert "believeboy-beat.service" in restart_cmd
 
 
+def test_workers_are_stopped_before_mutating_migration():
+    """BLF-1111：改数据的迁移必须「先停后台单元 → 迁 → 再起」，顺序本身要锁住。
+
+    为什么会漏一帧就出事：命令链末尾才重启 worker，在那之前旧 worker 还在跑旧
+    代码；窗口内落终态的 run 会把 naive 时间再写一遍（updated_at = 真值 - 8h），
+    而迁移已经跑完、`updated_at < created_at` 判据不会再命中 → 该行永久偏 8h、
+    `duration_ms ≈ 28.8M ms`。门禁按 max 判 blocking，一行就足以让窗口重新未达标。
+    """
+    commands = deploy_vps.DEPLOY_COMMANDS
+    stop_index = commands.index(deploy_vps.STOP_WORKERS_CMD)
+    migrate_index = next(
+        i for i, cmd in enumerate(commands) if "alembic upgrade head" in cmd
+    )
+    assert stop_index < migrate_index, "停后台单元必须排在 alembic upgrade 之前"
+
+    # 停的是三个后台单元（api 不沾这两个派生列的写入，且本链末尾会重启）
+    for unit in (
+        "believeboy-celery.service",
+        "believeboy-celery-scheduled.service",
+        "believeboy-beat.service",
+    ):
+        assert unit in deploy_vps.STOP_WORKERS_CMD, f"{unit} 未被停"
+    assert "believeboy-api" not in deploy_vps.STOP_WORKERS_CMD
+
+    # 「只停不起」是漏改：每个停过的单元都必须在本链里被 restart 起回来，
+    # 而且重启只能排在迁移之后（提前重启等于窗口还在）
+    for unit in deploy_vps.WORKER_UNITS.split():
+        restart_indexes = [
+            i
+            for i, cmd in enumerate(commands)
+            if f"systemctl restart {unit}" == cmd.strip()
+        ]
+        assert restart_indexes, f"{unit} 被停掉后没有 restart"
+        assert all(i > migrate_index for i in restart_indexes)
+
+    # 失败出口必须真去复机（否则一次迁移失败会留下「api 活着但没人消费」）
+    deploy_src = DEPLOY_PY.read_text(encoding="utf-8")
+    assert "run_ssh_command(START_WORKERS_CMD)" in deploy_src
+    assert "systemctl start" in deploy_vps.START_WORKERS_CMD
+
+
 def test_deploy_commands_have_no_nested_single_quotes():
     """SSH 命令串保持「无嵌套单引号」——让命令在两种传参形式下都无歧义。
 

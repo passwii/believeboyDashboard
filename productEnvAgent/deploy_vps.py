@@ -15,10 +15,11 @@ VPS 部署 Agent - BelieveBoy Dashboard
 1. SSH 连接到 VPS
 2. git pull 拉取最新代码
 3. 激活后端虚拟环境
-4. 运行 alembic 数据库迁移
- 5. 重启 believeboy-api 服务与两个 Celery worker（believeboy-celery / believeboy-celery-scheduled）
- 6. 验证服务运行状态
- 7. 获取并分析部署失败的日志
+4. 停三个后台单元（BLF-1111：改数据的迁移不得与旧 worker 并行）
+5. 运行 alembic 数据库迁移
+6. 重启 believeboy-api 服务与两个 Celery worker（believeboy-celery / believeboy-celery-scheduled）+ beat
+7. 验证服务运行状态
+8. 获取并分析部署失败的日志
 """
 
 import argparse
@@ -51,11 +52,32 @@ CHECK_MIGRATIONS_CMD = (
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python scripts/check_alembic.py"
 )
 
+# 三个后台单元：随代码部署重启，且在改数据的迁移前必须先停（BLF-1111）。
+# 顺序：'-'(0x2d) < '.'(0x2e)，与 backend/deploy/systemd 目录的字典序一致。
+WORKER_UNITS = (
+    "believeboy-celery.service believeboy-celery-scheduled.service "
+    "believeboy-beat.service"
+)
+STOP_WORKERS_CMD = f"systemctl stop {WORKER_UNITS}"
+START_WORKERS_CMD = f"systemctl start {WORKER_UNITS}"
+
 # 部署命令（在 VPS 上执行）
 # root 用户直跑 systemctl，无需 sudo；SSH 走密钥认证（无需密码）
 DEPLOY_COMMANDS = [
     f"cd {PROJECT_DIR} && git pull --ff-only",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
+    # --- BLF-1111：改数据的迁移必须先停后台单元，迁完再起 ---
+    # 为什么不能「先迁移、后重启」：重启发生在这段命令链的末尾，在那之前
+    # **旧 worker 仍在跑旧代码**。窗口内被旧 worker 落终态的 run 会把 naive
+    # 时间再写一遍（updated_at = 真值 - 8h），而迁移已经跑完、updated_at <
+    # created_at 判据不会再命中 → 该行永久偏 8h、duration_ms ≈ 28.8M ms；
+    # 门禁按 max 判 blocking（observation.gate_report），一行就足以让 7 天窗口
+    # 重新不达标。停掉三个单元后：in-flight run 由 acks_late + task_reject_
+    # on_worker_lost 重投给新 worker（读到的已是订正后的行），beat 停着不派新任务。
+    # 下面的 `systemctl restart` 会把停过的单元一并起回来；若这条链中途失败，
+    # deploy() 会 best-effort 复机（否则迁移失败会连带留下一个没有 worker 的
+    # 半死系统——比迁移失败本身更糟）。
+    STOP_WORKERS_CMD,
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
     # --- 一次性迁移：believeboy-worker* → believeboy-celery* ---
     # 停旧单元（不存在则跳过），禁用并删除旧 service 文件
@@ -553,15 +575,37 @@ def deploy(dry_run=False, auto_confirm=False):
 
     # 步骤 5: 运行数据库迁移 + 重启服务
     print("\n>>> 步骤 5: 运行数据库迁移并重启服务...")
+    workers_stopped = False
     for cmd in DEPLOY_COMMANDS[2:]:
         rc, out, err = run_ssh_command(cmd, dry_run=dry_run)
         print(out)
         if err and "active" not in out.lower():
             print(err)
+        if cmd == STOP_WORKERS_CMD:
+            workers_stopped = True
         # BLF-524：迁移/重启任一命令失败立即拦截（原逻辑只打印不判断 rc）
         if rc != 0 and not dry_run:
             print(f"✗ 命令失败 (exit {rc}): {cmd[:160]}")
             print(f"  错误: {err.strip()[:800] or out.strip()[:800]}")
+            if workers_stopped:
+                # BLF-1111：本链在改数据的迁移前停了三个后台单元，失败出口必须
+                # 把服务起回来（best-effort，失败也不阻断告警）：否则一次迁移失败
+                # 会连带留下「api 活着但没人消费」的半死系统，比迁移失败本身更糟。
+                print("  已停后台单元，best-effort 复机后再走失败出口...")
+                start_rc, start_out, start_err = run_ssh_command(START_WORKERS_CMD)
+                status_rc, status_out, status_err = run_ssh_command(
+                    f"systemctl is-active {WORKER_UNITS}"
+                )
+                print(f"    {START_WORKERS_CMD} -> exit {start_rc}")
+                states = (status_out or status_err).strip().splitlines()
+                for unit, state in zip(WORKER_UNITS.split(), states):
+                    print(f"      {unit}: {state}")
+                if start_rc != 0 or status_rc != 0:
+                    print(
+                        "    ⚠️ 复机未全部成功（exit "
+                        f"{start_rc}/{status_rc}: {(start_err or start_out).strip()[:200]}"
+                        "），请人工确认三个后台单元"
+                    )
             handle_deploy_failure(
                 "deploy commands (migrate/restart)", dry_run=dry_run, error=err
             )
