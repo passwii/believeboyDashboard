@@ -155,9 +155,9 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     code: 'sku_info',
     dashboardPath: '/dashboard/operations/sku-info',
     label: 'SKU 主数据',
-    description: '商品主数据读+写：列表/详情/审计 + 新建/改规格成本/上下架（confirm 流，BLF-579）+ FNSKU 标签上传（BLF-628）',
+    description: '商品主数据读+写：列表/详情/审计 + 新建/改规格成本/上下架（confirm 流，BLF-579）+ FNSKU 标签上传（BLF-628）+ Listing 文案批量写（W6，BLF-1083）',
     status: 'live',
-    routeCount: 7,
+    routeCount: 9,
     capabilities: { read: true, write: true },
   },
   {
