@@ -81,7 +81,19 @@ SEVERITY_INFO = "info"
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """Aware UTC now — a naive value would be re-interpreted in the session tz.
+
+    ``updated_at`` 是 ``TIMESTAMP WITH TIME ZONE``：naive UTC 交给 ``Asia/Shanghai``
+    会话会被存成 8 小时前的瞬时（BLF-1111），所以写入侧只发 aware 值。
+    """
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """DB-returned datetime → aware UTC（Postgres 回 aware，SQLite 回 naive）。"""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 # ── 记录 ────────────────────────────────────────────────────────────────
@@ -164,9 +176,15 @@ def record_run_snapshot(
     row.endpoint_id = run.endpoint_id
     row.model_id = run.model_id
     row.status = run.status
-    first_delta = _metric_int(metrics, METRIC_FIRST_DELTA_MS)
-    row.first_delta_ms = first_delta if first_delta > 0 else None
     row.duration_ms = run.duration_ms
+    # 首字时延不可能晚于 run 自身时长：取消路径的 ``completed_at``/``duration_ms``
+    # 在取消落地时就写了，而 worker 要到下一个 guard 才停，其后仍可能投出第一帧
+    # （BLF-1071 后的多帧 delta 会推高该值）——那种帧描述的已不是活跃 run，
+    # 所以夹在 duration_ms 内，保证 first_delta_ms <= duration_ms 这条不变量。
+    first_delta = _metric_int(metrics, METRIC_FIRST_DELTA_MS)
+    if first_delta > 0 and run.duration_ms is not None:
+        first_delta = min(first_delta, max(0, run.duration_ms))
+    row.first_delta_ms = first_delta if first_delta > 0 else None
     row.input_tokens = usage.input_tokens if usage else None
     row.output_tokens = usage.output_tokens if usage else None
     row.total_tokens = usage.total_tokens if usage else None
@@ -474,12 +492,14 @@ def aggregate_observations(
     now: datetime | None = None,
 ) -> list[CapabilityMetrics]:
     """Aggregate the observation window, one bucket per capability."""
-    cutoff = (now or _utcnow()) - timedelta(days=max(1, window_days))
-    stmt = select(InsightRunObservation).where(
-        InsightRunObservation.created_at >= cutoff
-    )
+    base = _as_utc(now) if now is not None else _utcnow()
+    cutoff = base - timedelta(days=max(1, window_days))
+    # 条件一次组好、`stmt` 只绑定一次（等价于 `.where(...).where(...)`，
+    # 只是让这条查询的构造一眼可读完）。
+    conditions = [InsightRunObservation.created_at >= cutoff]
     if capability:
-        stmt = stmt.where(InsightRunObservation.capability == capability)
+        conditions.append(InsightRunObservation.capability == capability)
+    stmt = select(InsightRunObservation).where(*conditions)
     rows = list(db.execute(stmt).scalars().all())
     buckets, samples = _aggregate_rows(rows)
     _finalize_buckets(buckets, samples, cost_multiplier=cost_multiplier)

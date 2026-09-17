@@ -28,8 +28,8 @@ the detail endpoint.
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
@@ -51,6 +51,9 @@ logger = logging.getLogger(__name__)
 _READ_BLOCK_MS = 2000
 
 #: Poll cadence for the DB-terminal check on an idle stream (s).
+#:
+#: 只节流**DB 回读**，不节流读流：帧投递的节拍由 ``XREAD BLOCK`` 自己给，
+#: 空闲时不许再睡（BLF-1111）。
 _DB_POLL_SECONDS = 5.0
 
 
@@ -151,15 +154,24 @@ class InsightStreamSubscriber:
           re-syncs full state before incremental frames resume.
 
         DB check cadence: an idle *non-terminal* stream re-reads the run row
-        every ``_DB_POLL_SECONDS`` so a run whose worker died mid-attempt
-        (stream stalled, row terminal via park-failed) still reaches the
-        client.
+        at most every ``_DB_POLL_SECONDS`` so a run whose worker died
+        mid-attempt (stream stalled, row terminal via park-failed) still
+        reaches the client.
+
+        That cadence is enforced on the **monotonic clock only** — never by
+        sleeping in the loop. Sleeping here used to stop the read path too:
+        live tail advanced on a ~7 s beat (2 s block + 5 s sleep), so every
+        frame published during the sleep was delivered in one batch on wake
+        (BLF-1111: first frame lagged 3.3 s and 100 frames landed in 0.0 s,
+        which is why the screen looked blank and then printed a whole
+        document at once).
         """
         from app.services.insight.lifecycle import is_terminal
 
         last_entry = "0-0"
         saw_any = False
         cursor_gap_snapshot_sent = False
+        last_db_check: float | None = None
 
         while True:
             try:
@@ -208,10 +220,18 @@ class InsightStreamSubscriber:
                         yield event
                 continue
 
-            # Idle tick: the row is the authority. A stream that went quiet
-            # while the row is terminal (worker died before publishing, or
-            # the frame was trimmed out of the window) must still reach the
-            # client — synthesize the terminal from the row.
+            # Idle tick: the row is the authority, but the read path must stay
+            # continuous — ``XREAD BLOCK`` already paces this loop, so an empty
+            # return means "nothing new right now", not "sleep". Only the DB
+            # re-read is throttled (monotonic clock), so frames published while
+            # we are idle still go out the moment they land (BLF-1111).
+            now_mono = time.monotonic()
+            if last_db_check is not None and now_mono - last_db_check < _DB_POLL_SECONDS:
+                continue
+            last_db_check = now_mono
+            # A stream that went quiet while the row is terminal (worker died
+            # before publishing, or the frame was trimmed out of the window)
+            # must still reach the client — synthesize the terminal from the row.
             fresh = await self._refresh_detail(detail)
             if fresh is not None:
                 detail = fresh
@@ -226,7 +246,6 @@ class InsightStreamSubscriber:
                 yield _synthesize_snapshot(detail)
                 yield _synthesize_terminal(detail)
                 return
-            await asyncio.sleep(_DB_POLL_SECONDS)
 
     async def _resume_snapshot(
         self,

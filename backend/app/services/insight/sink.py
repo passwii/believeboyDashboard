@@ -56,9 +56,9 @@ logger = logging.getLogger(__name__)
 def _as_aware(value: datetime | None) -> datetime | None:
     """首字时延的锚点统一成 aware UTC。
 
-    run 行的 ``started_at`` 在 DB 里是 naive UTC（``_utcnow_naive``），而
-    ``InsightRunDetail.started_at`` 是 aware；两处都归一化，避免相减时
-    naive/aware 混用被静默跳过（BLF-1018 观测期：这个指标不能悄悄丢）。
+    BLF-1111 后 ``started_at`` 写库/读回都是 aware UTC；naive 值仍会出现
+    （SQLite 单测、BLF-1111 之前落库的历史行），这里统一按 UTC 解释，避免相减
+    时 naive/aware 混用被静默跳过（BLF-1018 观测期：这个指标不能悄悄丢）。
     """
     if value is None:
         return None
