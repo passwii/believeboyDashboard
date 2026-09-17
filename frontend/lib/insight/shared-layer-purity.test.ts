@@ -27,6 +27,7 @@ const SHARED_MECHANISM_FILES = [
   'lib/insight/sse.ts',
   'lib/insight/protocol.ts',
   'lib/insight/stream-blocks.ts',
+  'lib/insight/reveal-queue.ts',
 ]
 
 /** 域 ∈ {"广告分析", "库存健康"} 的任一残留形态。 */

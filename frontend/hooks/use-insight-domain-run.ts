@@ -208,7 +208,9 @@ export function useInsightDomainRun<TInput>(
     progress: stream.progress,
     title,
     digest,
-    content: stream.drafts[slot] ?? '',
+    // 可见正文取「已吐字」那份（节奏器逐帧推进，BLF-1072）；终态与权威内容到达时
+    // 两者对齐，因此完成后的 `final` 正文与服务端定稿一致。
+    content: stream.partialDrafts[slot] ?? '',
     contentState: runStatus === 'completed' ? 'final' : 'draft',
     error: startError ?? streamError,
     // 提交失败时 run 根本不存在，backgroundMessage 语义不成立。
