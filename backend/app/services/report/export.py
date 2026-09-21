@@ -401,6 +401,7 @@ def _apply_excel_border(cell, color: str = "FFE2E8F0") -> None:
 
 def _apply_monthly_like_styles(workbook: Workbook) -> None:
     from openpyxl.styles import Alignment, Border, Font, NamedStyle, PatternFill, Side
+    from openpyxl.utils import get_column_letter
 
     """Apply consistent styling to all sheets in workbook.
 
