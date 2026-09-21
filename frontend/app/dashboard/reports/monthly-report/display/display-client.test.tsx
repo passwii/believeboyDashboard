@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 
 import DisplayTab, {
@@ -198,12 +199,31 @@ async function waitForMonthInSelect(monthLabel: string) {
 }
 
 async function switchToAccountingTab() {
-  fireEvent.click(await screen.findByRole('button', { name: '月度明细' }))
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('tab', { name: '月度明细' }))
 }
 
 // ── 测试 ─────────────────────────────────────────────────────────────────────
 
 describe('月度明细 tab 默认月份选择', () => {
+  it('使用统一 tab 样式并明确标记当前视图', async () => {
+    render(<DisplayTab />)
+    const user = userEvent.setup()
+
+    const summaryTab = await screen.findByRole('tab', { name: '月度汇总' })
+    const detailTab = screen.getByRole('tab', { name: '月度明细' })
+
+    expect(summaryTab).toHaveAttribute('aria-selected', 'true')
+    expect(detailTab).toHaveAttribute('aria-selected', 'false')
+
+    await user.click(detailTab)
+
+    await waitFor(() => {
+      expect(summaryTab).toHaveAttribute('aria-selected', 'false')
+      expect(detailTab).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+
   it('页面加载后默认选中最新有源报表的月份', async () => {
     render(<DisplayTab />)
     await switchToAccountingTab()
@@ -291,7 +311,7 @@ describe('月份窗口 URL 参数（fromMonth/toMonth/monthRange）', () => {
     nav.setParams('project=1')
     render(<DisplayTab />)
     // 数据加载完成（窗口已生效）
-    await screen.findByRole('button', { name: '月度明细' })
+    await screen.findByRole('tab', { name: '月度明细' })
 
     const expected = getBrowserDefaultMonthRange()
     await waitFor(() => {
@@ -331,7 +351,7 @@ describe('月份窗口 URL 参数（fromMonth/toMonth/monthRange）', () => {
     financialPayload = makePayload(['2026-05', '2026-06', '2026-07'])
 
     render(<DisplayTab />)
-    await screen.findByRole('button', { name: '月度明细' })
+    await screen.findByRole('tab', { name: '月度明细' })
 
     // 按 URL 的显式窗口请求（7 月被窗口排除）
     expectWindowCalled('2026-05', '2026-06')
@@ -355,7 +375,7 @@ describe('月份窗口 URL 参数（fromMonth/toMonth/monthRange）', () => {
 describe('BLF-962 头部插槽契约', () => {
   it('正文不再渲染筛选控件与刷新按钮，店铺/国家/起止月份注册进头部插槽', async () => {
     render(<DisplayTab />)
-    await screen.findByRole('button', { name: '月度明细' })
+    await screen.findByRole('tab', { name: '月度明细' })
     expect(headerCapture.slotNode).not.toBeNull()
     expect(headerCapture.refreshHandler).not.toBeNull()
 

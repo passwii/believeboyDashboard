@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarSkeleton } from '@/components/ui/table-skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -2181,22 +2182,20 @@ export default function DisplayTab() {
                 </Button>
               </>
             )}
-            <div className="inline-flex gap-0 rounded-none border border-term-border bg-term-panel p-0">
-              <button
-                type="button"
-                className={`h-8 rounded-none px-3 font-mono text-xs transition-colors ${activeTab === 'financial' ? 'bg-term-raised text-term-text' : 'text-term-muted hover:text-term-text'}`}
-                onClick={() => setActiveTab('financial')}
-              >
-                月度汇总
-              </button>
-              <button
-                type="button"
-                className={`h-8 rounded-none px-3 font-mono text-xs transition-colors ${activeTab === 'accounting' ? 'bg-term-raised text-term-text' : 'text-term-muted hover:text-term-text'}`}
-                onClick={() => setActiveTab('accounting')}
-              >
-                月度明细
-              </button>
-            </div>
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as FinancialViewTab)}
+              className="shrink-0"
+            >
+              <TabsList variant="term" className="w-fit justify-start">
+                <TabsTrigger value="financial" variant="term">
+                  月度汇总
+                </TabsTrigger>
+                <TabsTrigger value="accounting" variant="term">
+                  月度明细
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </DataTableCardHeader>
         <DataTableCardBody>
