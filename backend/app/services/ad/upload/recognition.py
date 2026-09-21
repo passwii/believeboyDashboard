@@ -7,10 +7,16 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+from typing import TYPE_CHECKING, Any
 import uuid
 
-# BLF-1036: pandas imported lazily inside the recognizer that parses dates;
-# this module loads at API boot via endpoints.ad_upload.
+if TYPE_CHECKING:
+    import pandas as pd
+
+    DataFrameType = pd.DataFrame
+else:
+    DataFrameType = Any
+
 from fastapi import HTTPException, UploadFile, status
 from slugify import slugify
 from sqlalchemy.orm import Session
@@ -120,7 +126,7 @@ def finalize_ad_upload_temp_file(
     }
 
 
-def _detect_report_spec(df: pd.DataFrame, extension: str) -> ReportSpec:
+def _detect_report_spec(df: DataFrameType, extension: str) -> ReportSpec:
     # Case-insensitive column matching (Amazon exports sometimes use mixed case,
     # e.g. "广告SKU" vs "广告sku"). Specs keep Amazon's official case; comparison
     # is done in lowercase.

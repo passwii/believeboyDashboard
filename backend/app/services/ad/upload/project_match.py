@@ -1,7 +1,14 @@
 from __future__ import annotations
 
-# BLF-1036: pandas import dropped — pd appears only in type annotations here,
-# which ``from __future__ import annotations`` keeps unevaluated at runtime.
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    DataFrameType = pd.DataFrame
+else:
+    DataFrameType = Any
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,7 +24,7 @@ from app.services.ad.upload.utils import _normalize_identifier
 def _build_project_match(
     db: Session,
     *,
-    df: pd.DataFrame,
+    df: DataFrameType,
     spec: ReportSpec,
     country: str,
     allowed_projects: set[str] | None = None,
