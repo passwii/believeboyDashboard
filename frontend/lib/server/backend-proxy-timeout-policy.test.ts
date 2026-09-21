@@ -42,6 +42,29 @@ describe('BEL-417: report-upload/commit timeout tier', () => {
   })
 })
 
+describe('月度核算明细导出 timeout tier', () => {
+  it('matches the report tier instead of the 5s default', () => {
+    expect(
+      getProxyTimeoutMs(
+        'api/v1/monthly-reports/financial-series/accounting-detail/export',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      )
+    ).toBe(60_000)
+  })
+
+  it('does not over-match neighboring accounting-detail paths', () => {
+    expect(
+      getProxyTimeoutMs('api/v1/monthly-reports/financial-series/accounting-detail', null)
+    ).toBe(5_000)
+    expect(
+      getProxyTimeoutMs(
+        'api/v1/monthly-reports/financial-series/accounting-detail/export/other',
+        null
+      )
+    ).toBe(5_000)
+  })
+})
+
 /**
  * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
  * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳

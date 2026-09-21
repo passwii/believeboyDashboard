@@ -5,10 +5,13 @@ Generates multi-sheet Excel workbooks for financial accounting details.
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import contextmanager
+from copy import copy
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
@@ -61,6 +64,42 @@ _ADMIN_ONLY_EXPORT_KEYS = {
     "payableTotalRmb",
     "exchangeRate",
 }
+
+_AccountingExportKey = tuple[int, str, str, bool]
+_accounting_export_registry_lock = Lock()
+_accounting_export_inflight: set[_AccountingExportKey] = set()
+
+
+@contextmanager
+def _accounting_export_guard(key: _AccountingExportKey):
+    """Serialize CPU-heavy exports and reject duplicate work in this process.
+
+    The production API currently runs with one Uvicorn worker. A process-local
+    guard is therefore sufficient to stop retries after a proxy timeout from
+    launching another workbook build while the first one is still running.
+    Serializing all accounting exports also prevents two different reports
+    from competing for the GIL during openpyxl workbook generation. If the API
+    is scaled to multiple processes, this must move to a shared lock or job
+    queue before relying on the same protection across workers.
+    """
+    with _accounting_export_registry_lock:
+        if _accounting_export_inflight:
+            if key in _accounting_export_inflight:
+                detail = "该报表正在导出，请稍后重试"
+                error_status = status.HTTP_409_CONFLICT
+            else:
+                detail = "当前有其他报表正在导出，请稍后重试"
+                error_status = status.HTTP_429_TOO_MANY_REQUESTS
+            raise HTTPException(
+                status_code=error_status,
+                detail=detail,
+            )
+        _accounting_export_inflight.add(key)
+    try:
+        yield
+    finally:
+        with _accounting_export_registry_lock:
+            _accounting_export_inflight.discard(key)
 
 _EXPORT_DETAIL_COLUMNS: list[dict[str, str]] = [
     {"key": "monthLabel", "title": "年月", "format": "text", "group": "基础信息"},
@@ -420,30 +459,51 @@ def _apply_monthly_like_styles(workbook: Workbook) -> None:
         start_color="FFF8FAFC", end_color="FFF8FAFC", fill_type="solid"
     )
 
-    existing_style_names: set[str] = set()
-    for style in workbook.named_styles:
-        if isinstance(style, str):
-            existing_style_names.add(style)
-        else:
-            name = getattr(style, "name", "")
-            if isinstance(name, str) and name:
-                existing_style_names.add(name)
-    if "sty1" not in existing_style_names:
-        sty1 = NamedStyle(name="sty1")
-        sty1.font = Font(name="等线", size=11, bold=True, color="FF0F172A")
-        sty1.alignment = Alignment(
-            horizontal="center", vertical="center", wrap_text=True
-        )
-        sty1.border = Border(top=medium, bottom=medium, left=thin, right=thin)
-        sty1.fill = header_fill
-        workbook.add_named_style(sty1)
+    body_font = Font(name="等线", size=10, color="FF334155")
+    body_alignment = Alignment(horizontal="left", vertical="center")
+    body_border = Border(top=thin, bottom=thin, left=thin, right=thin)
 
-    if "sty2" not in existing_style_names:
-        sty2 = NamedStyle(name="sty2")
-        sty2.font = Font(name="等线", size=10, color="FF334155")
-        sty2.alignment = Alignment(horizontal="left", vertical="center")
-        sty2.border = Border(top=thin, bottom=thin, left=thin, right=thin)
-        workbook.add_named_style(sty2)
+    def get_or_add_style(
+        name: str,
+        *,
+        font: Font,
+        alignment: Alignment,
+        border: Border,
+        fill: PatternFill,
+    ):
+        for named_style in workbook._named_styles:
+            if getattr(named_style, "name", None) == name:
+                return named_style._style
+
+        named_style = NamedStyle(name=name)
+        named_style.font = font
+        named_style.alignment = alignment
+        named_style.border = border
+        named_style.fill = fill
+        workbook.add_named_style(named_style)
+        return named_style._style
+
+    header_style = get_or_add_style(
+        "sty1",
+        font=Font(name="等线", size=11, bold=True, color="FF0F172A"),
+        alignment=Alignment(horizontal="center", vertical="center", wrap_text=True),
+        border=Border(top=medium, bottom=medium, left=thin, right=thin),
+        fill=header_fill,
+    )
+    even_body_style = get_or_add_style(
+        "sty2_even",
+        font=body_font,
+        alignment=body_alignment,
+        border=body_border,
+        fill=even_row_fill,
+    )
+    odd_body_style = get_or_add_style(
+        "sty2_odd",
+        font=body_font,
+        alignment=body_alignment,
+        border=body_border,
+        fill=odd_row_fill,
+    )
 
     core_sheets = {"报表核算"}
     legacy_financial_sheets = {"汇总", "月度财务明细"}
@@ -451,34 +511,32 @@ def _apply_monthly_like_styles(workbook: Workbook) -> None:
         if ws.title in legacy_financial_sheets:
             continue
         ws.freeze_panes = "A2"
+        for row_index, row in enumerate(ws.iter_rows(), start=1):
+            ws.row_dimensions[row_index].height = 28 if row_index == 1 else 24
+            style_array = (
+                header_style
+                if row_index == 1
+                else (even_body_style if row_index % 2 == 0 else odd_body_style)
+            )
+            for cell in row:
+                # Replace only the visual components. The export writers may
+                # have already assigned a number format (currency, rate, or
+                # percent), and replacing the complete StyleArray would reset
+                # that format to General. Copying the current array keeps
+                # number format/protection while reusing the four registered
+                # visual component IDs that make this loop fast.
+                cell_style = copy(cell._style or style_array)
+                cell_style.fontId = style_array.fontId
+                cell_style.fillId = style_array.fillId
+                cell_style.borderId = style_array.borderId
+                cell_style.alignmentId = style_array.alignmentId
+                cell._style = cell_style
+
         if ws.title in core_sheets:
-            for r in range(1, ws.max_row + 1):
-                row_fill = (
-                    header_fill
-                    if r == 1
-                    else (even_row_fill if r % 2 == 0 else odd_row_fill)
-                )
-                ws.row_dimensions[r].height = 24 if r > 1 else 28
-                for c in range(1, ws.max_column + 1):
-                    cell = ws.cell(r, c)
-                    cell.style = "sty1" if r == 1 else "sty2"
-                    if r > 1:
-                        cell.fill = row_fill
             _auto_width_for_report_sheet_service(ws)
         else:
-            ws.row_dimensions[1].height = 28
-            for c in range(1, ws.max_column + 1):
-                cell = ws.cell(1, c)
-                cell.style = "sty1"
-                cell.fill = header_fill
-            for r in range(2, ws.max_row + 1):
-                ws.row_dimensions[r].height = 24
-                row_fill = even_row_fill if r % 2 == 0 else odd_row_fill
-                for c in range(1, ws.max_column + 1):
-                    ws.cell(r, c).style = "sty2"
-                    ws.cell(r, c).fill = row_fill
-            for c in range(1, ws.max_column + 1):
-                ws.column_dimensions[get_column_letter(c)].width = 14
+            for column in range(1, ws.max_column + 1):
+                ws.column_dimensions[get_column_letter(column)].width = 14
 
 
 def _auto_width_for_report_sheet_service(ws) -> None:
@@ -633,6 +691,27 @@ def _style_financial_export_sheets(
 
 
 def export_financial_accounting_detail_workbook(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = "US",
+    report_month: str,
+    is_admin: bool = False,
+) -> tuple[str, bytes]:
+    """Build the accounting-detail workbook, rejecting duplicate work."""
+    month = _parse_report_month(report_month)
+    key = (project_id, country.strip().upper(), month, bool(is_admin))
+    with _accounting_export_guard(key):
+        return _build_financial_accounting_detail_workbook(
+            db,
+            project_id=project_id,
+            country=country,
+            report_month=month,
+            is_admin=is_admin,
+        )
+
+
+def _build_financial_accounting_detail_workbook(
     db: Session,
     *,
     project_id: int,

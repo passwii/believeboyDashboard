@@ -48,6 +48,8 @@ const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = ['text/event-stream', 'appli
 const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/scheduled-reports\/test-email$/,
   /\/scheduled-reports\/.+\/run$/,
+  // 月度核算明细会同步生成多工作表 Excel，不能走默认 5s 档。
+  /\/monthly-reports\/financial-series\/accounting-detail\/export$/,
   // BEL-417: `report-upload/commit` ingests large files (e.g. inventory ledger
   // monthly reports 30-50k rows). Bumping to 60s so 1× monthly upload survives
   // the 5s default. Pair with the `COPY FROM STDIN` rewrite of
