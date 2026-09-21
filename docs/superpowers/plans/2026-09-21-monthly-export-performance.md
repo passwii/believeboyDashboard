@@ -200,14 +200,14 @@ perf(月度报表): 优化核算明细导出并防止重复执行
 
 审查发现完整 `StyleArray` 替换会覆盖数字格式，且原并发测试覆盖不足；已改为保留非视觉样式字段，补充保存/重新加载、异常释放、线程竞争、真实导出函数和邻近路径反向匹配测试，并完成复审验证。
 
-- [ ] **Step 3: Cherry-pick the commit onto the clean `main` checkout**
+- [x] **Step 3: Cherry-pick the commit onto the clean `main` checkout**
 
-保留 `/Users/damon/DamonProjects/believeboyDashboard` 中用户已有的未提交改动，仅将本次 commit 应用到 main；若 cherry-pick 与用户改动冲突，停止并报告，不覆盖用户内容。
+保留 `/Users/damon/DamonProjects/believeboyDashboard` 中用户已有的未提交改动，仅将本次 commit 应用到 main；已无冲突，main 提交为 `7a1e55dd`，用户原有改动均保留。
 
-- [ ] **Step 4: Run `git deploy` from `main`**
+- [x] **Step 4: Run `git deploy` from `main`**
 
-按仓库规则执行 `git deploy`，让后端命中路径自动执行 VPS 拉取、Alembic 检查、服务重启和健康检查；前端 timeout policy 由 Vercel 自动部署。
+已按仓库规则从 `main` 执行 `git deploy`：VPS 拉取、Alembic 检查、API/Celery/Beat 重启和健康检查均成功；前端 timeout policy 由 Vercel 自动部署。
 
-- [ ] **Step 5: Verify production**
+- [x] **Step 5: Verify production**
 
-检查 VPS commit、`believeboy-api` active 状态、健康检查，并执行一次真实月度核算明细导出或读取生产导出日志，确认没有 `NameError`、500 或 timeout；记录新的耗时和响应状态。
+VPS commit 为 `7a1e55dd`，`believeboy-api`、两个 Celery worker 和 Beat 均为 active。生产只读导出验收：样式阶段 1.473 秒、总耗时 9.789 秒、1.83MB、18 张工作表、`交易一览` 3,739 行；部署后日志无 `NameError`、500 或 timeout。
