@@ -714,8 +714,8 @@ services:
     build:
       context: ./frontend
       dockerfile_inline: |
-        FROM node:20-alpine
-        RUN corepack enable && corepack prepare pnpm@10.18.0 --activate
+        FROM node:24-alpine
+        RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
         WORKDIR /app
         COPY package.json pnpm-lock.yaml ./
         RUN pnpm install --frozen-lockfile

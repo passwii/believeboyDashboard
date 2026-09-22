@@ -159,11 +159,11 @@ believeboyDashboard/
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 18+
+- Node.js 22+（前端 Next.js 16 要求 ≥ 20.9；Vercel 上落到 Node.js 24.x）
 - Python 3.9+
 - PostgreSQL 12+（本机 brew `postgresql@18`，常驻运行，本地库即生产快照，详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）
 - Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew)）
-- pnpm（推荐）
+- pnpm 12（前端 `frontend/package.json` 的 `packageManager: pnpm@12.4.2` 已固定版本）
 
 ### 前端设置
 

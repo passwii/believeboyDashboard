@@ -59,7 +59,7 @@ if (runsMobileSpec && fs.existsSync(ENV_FILE)) {
   })
 }
 
-// 多会话并行（多 Multica runtime 同时跑同一仓库）时各会话共用端口 3200 会互踩：
+// 多会话并行（多个 Agent runtime 同时跑同一仓库）时各会话共用端口 3200 会互踩：
 // A 会话的 dev server 可能被 B 会话的 playwright 复用，导致 B 看到 A 的旧代码。
 // 允许用 PLAYWRIGHT_PORT 指定专属端口，默认维持 3200 不变。
 const PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT || '3200'

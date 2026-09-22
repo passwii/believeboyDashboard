@@ -2,8 +2,9 @@
 
 ## 📋 环境要求
 
-- Node.js 18+
-- pnpm（推荐）或 npm
+- Node.js 22+（Vercel 上 `engines.node: ">=22.0.0"` 会落到默认的 Node.js 24.x）
+- pnpm 12（版本由 `package.json` 的 `packageManager: pnpm@12.4.2` 固定；本机装了 pnpm 12
+  后会自动切到该版本，也可以用 `corepack enable` 让 corepack 托管）
 
 ## 🚀 快速开始
 
@@ -57,6 +58,12 @@ pnpm start
 
 ### 部署到 Vercel
 
+> ⚠️ Vercel 自带的 pnpm 只支持到 10（按 `pnpm-lock.yaml` 的 `lockfileVersion` 推断），
+> 而本仓锁文件由 pnpm 12 生成并带 `packageManagerDependencies`，pnpm 9/10 读不了。
+> **Vercel 项目必须打开 Corepack 才能装依赖**：在 Project → Settings → Environment Variables
+> 里加 `ENABLE_EXPERIMENTAL_COREPACK=1`，Vercel 才会按 `packageManager` 用 pnpm 12.4.2。
+> 详见 `docs/REFERENCE.md` §前端部署（Vercel）。
+
 ```bash
 cd frontend
 vercel --prod
@@ -99,7 +106,7 @@ frontend/
 
 ## 🛠️ 技术栈
 
-- **Next.js 14** - React 框架，支持 App Router
+- **Next.js 16** - React 框架，支持 App Router
 - **TypeScript** - 类型安全的 JavaScript 超集
 - **Tailwind CSS** - 原子化 CSS 框架
 - **shadcn/ui** - 现代化 UI 组件库

@@ -1,0 +1,9 @@
+# pnpm 10+ 默认不执行依赖的 lifecycle scripts。pnpm 11 起用 allowBuilds 取代
+# onlyBuiltDependencies / ignoredBuiltDependencies（旧字段被静默忽略），pnpm 12
+# 更会把未决的构建脚本直接当错误（ERR_PNPM_IGNORED_BUILDS）挡下安装。
+# sharp：Next.js 图像优化用的原生库；unrs-resolver：eslint-config-next 依赖的
+# 原生模块解析器。两者必须放行，core-js 的 postinstall 只打印捐赠提示，明确拒绝。
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+  core-js: false

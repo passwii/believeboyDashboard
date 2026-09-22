@@ -57,6 +57,21 @@ python run.py --once     # 单次扫描
 
 > 本 VPS 只部署后端。前端在 Vercel / 外部平台，生产环境变量在平台 dashboard 配置（非 `frontend/.env.local`）。前端构建现已可在本地 / CI / VPS 跑（`pnpm -C frontend build`），但部署目标仍是外部平台。
 
+### 前端部署（Vercel）：pnpm 12 必须开 Corepack
+
+前端工具链已升到 **pnpm 12.4.2 + Next.js 16.3.5**（`frontend/package.json` 的 `packageManager` / 
+`dependencies.next`），`frontend/pnpm-lock.yaml` 仍是 `lockfileVersion: '9.0'`，但**多了 
+`packageManagerDependencies` 段**（pnpm 12 把项目固定的包管理器也写进锁文件）。
+
+- Vercel 自带 pnpm 只支持到 **10**，且是按锁文件 `lockfileVersion` 推断版本 → 会选 pnpm 9/10。
+- pnpm 9/10 读到 `packageManager` / `packageManagerDependencies: 12.4.2` 会尝试自装 pnpm 12，
+  然后失败（`@pnpm/linux-x64@12.4.2` 不存在，`ERR_PNPM_NO_MATCHING_VERSION`）→ **部署直接红**。
+- **解决**：Vercel 项目 → Settings → Environment Variables 加 `ENABLE_EXPERIMENTAL_COREPACK=1`。
+  开启后 Vercel 按 `package.json#packageManager` 用 pnpm 12.4.2 跑 install / build 命令。
+- 备选（不推荐）：把 `vercel.json` 的 install 与 build 命令都改成显式 `pnpm@12.4.2`，漏改一处就会在 build 阶段炸。
+- Node 版本：`engines.node: ">=22.0.0"` 在 Vercel 上落到默认的 **24.x**（Vercel 只按 major 解释该字段）。
+- 本地 / CI：CI 已固定 pnpm 12.4.2 + Node 24；本机用 pnpm ≥ 12 时会按 `packageManager` 自动切版本。
+
 ### 常见操作
 ```bash
 systemctl status believeboy-api.service
