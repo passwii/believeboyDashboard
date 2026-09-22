@@ -40,6 +40,7 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log,
 )
+from app.services.shipment import fba_template as fba_template_service
 from app.services.shipment import summary as shipment_summary_service
 from app.services.shipment.item import replace_shipment_schedule_items
 from app.services.shipment.serialization import (
@@ -379,6 +380,24 @@ def get_shipment_fba_box_detail(
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
     return agent_ok(response.model_dump())
+
+
+@shipments_router.get("/{shipment_no}/fba-delivery-template")
+def export_shipment_fba_delivery_template(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """导出 FBA 发货模板（BLF-1178，读路由：不落审计、不写库）。
+
+    复刻前端「编辑船期批次 → 导出 FBA 发货模板」的服务端版本：xlsx 以
+    base64 返回（``filename`` + ``content_base64``），agent 解码即得模板文件。
+    箱数取明细持久化 ``carton_count``；如需先改箱数走 W2 ``PUT .../items``。
+    """
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        payload = fba_template_service.build_fba_delivery_template(db, schedule)
+    return agent_ok(payload)
 
 
 @shipments_router.get("/{shipment_no}/audit")

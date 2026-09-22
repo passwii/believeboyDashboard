@@ -1,6 +1,6 @@
 ---
 name: believeboy-shipments
-description: 调用 BelieveBoy Agent API 查询与维护跨项目货件（shipments 域，business_scope shipments，11 条路由：读 5 + 写 6 全 confirm）。用于货件列表/详情/SKU 汇总/FBA 箱规/审计、创建货件、改货件信息、更新商品明细、改状态、重算成本、删除。Use when the user asks for 货件 / shipments / 货件查询 / 创建货件 / 货件状态 / 箱规 / FBA, 或任何需要从 dash-api.believeboy.com 读取或维护货件数据的任务。
+description: 调用 BelieveBoy Agent API 查询与维护跨项目货件（shipments 域，business_scope shipments，12 条路由：读 6 + 写 6 全 confirm）。用于货件列表/详情/SKU 汇总/FBA 箱规/审计/FBA 发货模板导出、创建货件、改货件信息、更新商品明细、改状态、重算成本、删除。Use when the user asks for 货件 / shipments / 货件查询 / 创建货件 / 货件状态 / 箱规 / FBA / FBA发货模板, 或任何需要从 dash-api.believeboy.com 读取或维护货件数据的任务。
 ---
 
 # BelieveBoy Agent API · 货件（shipments）
@@ -28,7 +28,7 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 项目名以系统为准（共 13 个），未命中先向派发方确认，不猜。
 
-## 2. 端点目录（11 条：读 5 + 写 6，business_scope "shipments"）
+## 2. 端点目录（12 条：读 6 + 写 6，business_scope "shipments"）
 
 路径前缀：`/api/v1/agent/projects/{project_id}/shipments`
 
@@ -41,6 +41,18 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 | R3 | GET | `/shipments/{shipment_no}/sku-summary` | 货件内 SKU 汇总 |
 | R4 | GET | `/shipments/{shipment_no}/fba-box-detail` | FBA 箱规明细 |
 | R5 | GET | `/shipments/{shipment_no}/audit?limit=` | 操作审计轨迹（limit 默认 50，≤200） |
+| R6 | GET | `/shipments/{shipment_no}/fba-delivery-template` | 导出 FBA 发货模板 xlsx（与前端「导出 FBA 发货模板」按钮同款） |
+
+**R6 导出 FBA 发货模板**（BLF-1178）：
+
+```bash
+curl -s "$BASE/projects/$PROJECT_ID/shipments/$SHIPMENT_NO/fba-delivery-template" "${AUTH[@]}" > resp.json
+echo "$resp" | jq -r '.data.content_base64' | base64 -d > "${SHIPMENT_NO}-fba-template.xlsx"
+```
+
+- **响应字段**：`content_base64`（xlsx 文件本体，base64 编码）/ `filename` / `content_type`（`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`）/ `sheet_name` / `unit_system`（`metric`=cm·kg，`imperial`=in·lb）/ `row_count`（明细行数）/ `shipment_no` / `project_name` / `country`。
+- **单位随站点**：DE / UK 走公制（cm、kg），其余站点（含 US）走英制（in、lb，÷2.54 / ×2.20462 保留 2 位）——与前端导出一致，字段单位看 `unit_system` 再解析。
+- **数据口径**：箱数取货件明细已落库的 `carton_count`（不含前端未保存的编辑）+ SKU 主数据外箱尺寸/毛重/装箱率（按 project_name + country 匹配，多条同 SKU 按 `sort_order, id` 后者覆盖）；明细为空的货件返回仅表头的空模板（与前端按钮行为一致，HTTP 200）。
 
 **R1 列表过滤参数**：`country` / `shipment_status` / `shipping_method` / `shipment_no`（子串）/ `created_date_from` / `created_date_to` / `etd_from` / `etd_to` / `eta_from` / `eta_to`（YYYY-MM-DD）+ `page`（默认1）/ `page_size`（默认20，≤100）。
 
