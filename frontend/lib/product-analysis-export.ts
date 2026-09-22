@@ -1,4 +1,5 @@
 import type { Cell, Worksheet } from 'exceljs'
+import { downloadBlob } from './download-blob'
 
 export type ExportCountryOption = 'US' | 'DE' | 'UK'
 
@@ -600,10 +601,5 @@ export async function exportProductAnalysisToExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${fileNamePrefix}-${projectName}-${country}-${startDate}~${endDate}.xlsx`
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, `${fileNamePrefix}-${projectName}-${country}-${startDate}~${endDate}.xlsx`)
 }

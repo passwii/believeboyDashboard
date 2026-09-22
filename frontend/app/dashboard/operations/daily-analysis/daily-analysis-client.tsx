@@ -71,6 +71,13 @@ import { useGoalProgress } from '@/lib/use-goal-progress'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { downloadBlob } from '@/lib/download-blob'
+import {
+  buildSkuScopeKey,
+  filterRowsBySkuScope,
+  isDailyAnalysisExportBusy,
+  shouldAcceptSkuOptions,
+} from '@/lib/daily-analysis-sku-scope'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -494,7 +501,7 @@ function formatRangeLabel(range?: DateRange) {
   return `${formatYMD(normalized.from)} ~ ${formatYMD(normalized.to)}`
 }
 
-async function exportDailyAnalysisToExcel(
+export async function exportDailyAnalysisToExcel(
   summaryRows: DailyAnalysisRow[],
   detailRows: DailyAnalysisDetailRow[],
   projectName: string,
@@ -756,14 +763,9 @@ async function exportDailyAnalysisToExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
   const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
-  link.href = url
-  link.download = `${safeProjectName}_${safeCountryLabel}-销售数据-${safeDate}.xlsx`
-  link.click()
-  window.URL.revokeObjectURL(url)
+  downloadBlob(blob, `${safeProjectName}_${safeCountryLabel}-销售数据-${safeDate}.xlsx`)
 }
 
 function lastSevenDaysRange(country: string): DateRange {
@@ -911,11 +913,19 @@ export default function DailyAnalysisPage() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
+  const [skuOptionsScope, setSkuOptionsScope] = useState<string | null>(null)
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
   const selectedSkuRef = useRef('')
+  const skuScopeRef = useRef<string | null>(null)
+  const skuRequestIdRef = useRef(0)
+  const skuOptionsRequestedRef = useRef(false)
   // 视图模式：BEL-144 已彻底移除 Bar/Line 旧版 (DailyMetricChart)，统一使用 MetricSwitcherCard
   const latestLoadRequestRef = useRef(0)
+  const currentSkuScope = useMemo(
+    () => buildSkuScopeKey(projectId, country),
+    [projectId, country]
+  )
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -1192,10 +1202,17 @@ export default function DailyAnalysisPage() {
 
   const loadProjectSkus = useCallback(
     async (projectIdText: string, countryValue: string) => {
+      const requestScope = buildSkuScopeKey(projectIdText, countryValue)
+      const requestId = skuRequestIdRef.current + 1
+      skuRequestIdRef.current = requestId
       const projectIdNum = Number(projectIdText)
       const projectName = projects.find((project) => project.id === projectIdNum)?.name
-      if (!projectName) {
-        setSkuOptions([])
+      if (!projectName || !requestScope || skuScopeRef.current !== requestScope) {
+        if (skuScopeRef.current === requestScope) {
+          setSkuOptions([])
+          setSkuOptionsScope(null)
+          setSkuLoading(false)
+        }
         return
       }
 
@@ -1252,36 +1269,52 @@ export default function DailyAnalysisPage() {
           hasNextPage = payload.has_next
           nextPage += 1
         }
+        if (!shouldAcceptSkuOptions(requestId, skuRequestIdRef.current, requestScope, skuScopeRef.current)) {
+          return
+        }
         setSkuOptions(allItems)
+        setSkuOptionsScope(requestScope)
       } catch (loadError) {
+        if (!shouldAcceptSkuOptions(requestId, skuRequestIdRef.current, requestScope, skuScopeRef.current)) {
+          return
+        }
         setSkuOptions([])
+        setSkuOptionsScope(null)
         notify({
           type: 'error',
           title: '项目 SKU 列表加载失败',
           message: loadError instanceof Error ? loadError.message : '加载失败',
         })
       } finally {
-        setSkuLoading(false)
+        if (shouldAcceptSkuOptions(requestId, skuRequestIdRef.current, requestScope, skuScopeRef.current)) {
+          setSkuLoading(false)
+        }
       }
     },
     [notify, projects]
   )
 
   useEffect(() => {
-    if (!projectId) return
+    skuScopeRef.current = currentSkuScope
+    skuRequestIdRef.current += 1
+    skuOptionsRequestedRef.current = false
+    setSkuOptions([])
+    setSkuOptionsScope(null)
+    setSkuLoading(false)
     selectedSkuRef.current = ''
     setSelectedSku('')
-  }, [projectId])
+  }, [currentSkuScope])
 
   // BEL-423 页内懒加载：SKU 列表从 mount 即分页拉取改为首打开 SKU 筛选器再拉取。
   // 默认不选 SKU 时主数据不需要它，选 SKU 前拉完即可。
-  const skuOptionsRequestedRef = useRef(false)
   const ensureSkuOptions = useCallback(() => {
     if (skuOptionsRequestedRef.current) return
     if (!projectId || country === 'ALL') return
+    const projectIdNum = Number(projectId)
+    if (!projects.some((project) => project.id === projectIdNum)) return
     skuOptionsRequestedRef.current = true
     void loadProjectSkus(projectId, country)
-  }, [projectId, country, loadProjectSkus])
+  }, [country, loadProjectSkus, projectId, projects])
 
   // BLF-925：切换到「SKU 明细」Tab 时确保 SKU 列表已加载——品名列依赖 skuOptions
   // 查品名（BEL-423 懒加载只在打开 SKU 筛选器时拉取，直接进明细 Tab 会显示 --）。
@@ -1290,18 +1323,6 @@ export default function DailyAnalysisPage() {
       ensureSkuOptions()
     }
   }, [activeTab, ensureSkuOptions])
-
-  useEffect(() => {
-    if (!projectId) return
-    // 全部站点跨国家聚合时，SKU 按国家过滤无意义，清空选项。
-    if (country === 'ALL') {
-      setSkuOptions([])
-      setSelectedSku('')
-      selectedSkuRef.current = ''
-    }
-    // 作用域变化后，下次打开筛选器需重新拉取。
-    skuOptionsRequestedRef.current = false
-  }, [projectId, country])
 
   useEffect(() => {
     if (!projectId) return
@@ -1372,19 +1393,12 @@ export default function DailyAnalysisPage() {
     () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
     [rawSummaryRows, granularity]
   )
-  // BLF-917：SKU 明细 Tab 按 SKU info 的 is_active 过滤；activeSkuMap 来自 skuOptions。
-  // 未拉取（skuOptions 仍空且不在加载中）时不强行过滤，避免首屏空白。
-  const activeSkuMap = useMemo<Record<string, true> | null>(() => {
-    if (skuOptions.length === 0) return null
-    const map: Record<string, true> = {}
-    for (const option of skuOptions) map[option.sku] = true
-    return map
-  }, [skuOptions])
+  // BLF-917：SKU 明细 Tab 按当前项目/国家作用域内的 SKU info.is_active 过滤。
+  // 作用域未匹配或 SKU 列表尚未加载时不强行过滤，避免旧请求把新明细筛空。
   const detailRows = useMemo(() => {
     const bucketed = granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows
-    if (!activeSkuMap) return bucketed
-    return bucketed.filter((row) => activeSkuMap[row.sku] === true)
-  }, [rawDetailRows, granularity, activeSkuMap])
+    return filterRowsBySkuScope(bucketed, skuOptions, skuOptionsScope, currentSkuScope)
+  }, [rawDetailRows, granularity, skuOptions, skuOptionsScope, currentSkuScope])
   const comparisonSummaryRows = useMemo(
     () =>
       granularity === 'monthly'
@@ -1398,9 +1412,14 @@ export default function DailyAnalysisPage() {
       granularity === 'monthly'
         ? bucketDetailByMonth(rawComparisonDetailRows)
         : rawComparisonDetailRows
-    if (!activeSkuMap) return bucketed
-    return bucketed.filter((row) => activeSkuMap[row.sku] === true)
-  }, [rawComparisonDetailRows, granularity, activeSkuMap])
+    return filterRowsBySkuScope(bucketed, skuOptions, skuOptionsScope, currentSkuScope)
+  }, [
+    rawComparisonDetailRows,
+    granularity,
+    skuOptions,
+    skuOptionsScope,
+    currentSkuScope,
+  ])
   const consoleData = data?.console ?? null
 
   const filteredDetailRows = useMemo(() => {
@@ -1551,8 +1570,14 @@ export default function DailyAnalysisPage() {
     : dateRange
       ? `${formatYMD(dateRange.from!)}${' ~ ' + formatYMD(dateRange.to!)}`
       : ''
+  const exportDisabled = isDailyAnalysisExportBusy({
+    exporting,
+    loading,
+    skuLoading,
+    hasData: Boolean(data),
+  })
   const handleExportExcel = async () => {
-    if (!data) return
+    if (exportDisabled) return
     setExporting(true)
     try {
       const exportSummaryRows = selectedSku ? filteredDetailRows : summaryRows
@@ -1823,7 +1848,7 @@ export default function DailyAnalysisPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void handleExportExcel()}
-                  disabled={exporting || !data}
+                  disabled={exportDisabled}
                   className="h-10 px-3 sm:px-4 w-full sm:w-auto"
                 >
                   {exporting ? (

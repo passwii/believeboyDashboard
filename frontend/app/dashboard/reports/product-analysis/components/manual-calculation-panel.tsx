@@ -45,6 +45,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 
 // =============================================================================
 // Types
@@ -832,12 +833,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, filename)
   }, [periods, projectName, country, startDate, endDate])
 
   // ── Render helpers ──

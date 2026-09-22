@@ -102,6 +102,7 @@ import {
   applyHeaderRowStyle,
   applyTotalRowStyle,
 } from '@/lib/excel-styles'
+import { downloadBlob } from '@/lib/download-blob'
 import type { Cell } from 'exceljs'
 import { ImageLightbox } from '@/components/dashboard/sku-info/image-lightbox'
 
@@ -2056,19 +2057,15 @@ export default function ShipmentManagementPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
-      link.href = url
-      link.download = `船期批次总览-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `船期批次总览-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'shipment_schedules.overview.export',
         targetType: 'shipment_schedule',
         after: {
           row_count: items.length,
-          filename: link.download,
+          filename,
           project_filter: projectFilter,
           country_filter: countryFilter,
           status_filter: statusFilter,
@@ -2195,19 +2192,15 @@ export default function ShipmentManagementPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
-      link.href = url
-      link.download = `发货费用-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `发货费用-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'shipment_schedules.costs.export',
         targetType: 'shipment_schedule',
         after: {
           row_count: items.length,
-          filename: link.download,
+          filename,
           project_filter: projectFilter,
           country_filter: countryFilter,
           status_filter: statusFilter,
@@ -2327,19 +2320,15 @@ export default function ShipmentManagementPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
-      link.href = url
-      link.download = `SKU汇总-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `SKU汇总-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'shipment_schedules.sku_summary.export',
         targetType: 'shipment_schedule',
         after: {
           row_count: skuSummaryItems.length,
-          filename: link.download,
+          filename,
           project_filter: projectFilter,
           country_filter: countryFilter,
         },
@@ -2593,8 +2582,6 @@ export default function ShipmentManagementPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
       const projectSegment =
         fbaBoxMeta.projectNames.length === 1
@@ -2604,17 +2591,15 @@ export default function ShipmentManagementPage() {
         fbaBoxMeta.countries.length === 1
           ? getCountryLabel(fbaBoxMeta.countries[0])
           : `${fbaBoxMeta.countries.length}个站点`
-      link.href = url
-      link.download = `${projectSegment}_${siteSegment}-FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${projectSegment}_${siteSegment}-FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'shipment_schedules.fba_box_details.export',
         targetType: 'shipment_schedule',
         after: {
           shipment_nos: fbaBoxMeta.shipmentNos,
           row_count: fbaBoxItems.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {
@@ -2775,14 +2760,10 @@ export default function ShipmentManagementPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
       const safeProjectName = (detail.project_name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
       const siteLabel = getCountryLabel(detail.country)
-      link.download = `${safeProjectName}_${siteLabel}-FBA发货模板-${detail.shipment_no}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${safeProjectName}_${siteLabel}-FBA发货模板-${detail.shipment_no}.xlsx`
+      downloadBlob(blob, filename)
 
       await logClientOperation({
         action: 'shipment_schedules.fba_delivery_template.export',
@@ -2790,7 +2771,7 @@ export default function ShipmentManagementPage() {
         after: {
           shipment_no: detail.shipment_no,
           row_count: detail.items.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {

@@ -20,6 +20,7 @@ import {
   type ShopCalculationPayload,
 } from '@/lib/pricing-calculation-api'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { downloadBlob } from '@/lib/download-blob'
 
 const API_BASE = '/api/backend'
 
@@ -768,12 +769,10 @@ export function ShopCalculationUsSection({
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `美国店铺SKU核算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      downloadBlob(
+        blob,
+        `美国店铺SKU核算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
+      )
 
       await logClientOperation({
         action: 'pricing_calculation.us_store_table.export',

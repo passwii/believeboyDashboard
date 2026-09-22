@@ -79,6 +79,7 @@ import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
+import { downloadBlob } from '@/lib/download-blob'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS, type ReturnRawRow } from './return-raw-columns'
@@ -776,15 +777,10 @@ export default function ReturnAnalysisPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeDateRange = `${data.start_date}_${data.end_date}`
       const safeProjectName = (data.project_name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = getCountryLabel(data.country).replace(/[\\/:*?"<>|]/g, '-')
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-退货分析-${safeDateRange}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      downloadBlob(blob, `${safeProjectName}_${safeCountryLabel}-退货分析-${safeDateRange}.xlsx`)
 
       notify({ type: 'success', title: '导出成功', message: '退货分析 Excel 已下载' })
     } catch (err) {

@@ -76,6 +76,7 @@ import {
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { downloadBlob } from '@/lib/download-blob'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -1299,13 +1300,11 @@ async function exportComparisonMatrixToExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const safeTimestamp = formatLocalTimestampForFilename()
-  link.href = url
-  link.download = `${prefix.replace(/[/\\?%*:|"<>]/g, '_')}-测算对比矩阵-${safeTimestamp}.xlsx`
-  link.click()
-  window.URL.revokeObjectURL(url)
+  downloadBlob(
+    blob,
+    `${prefix.replace(/[/\\?%*:|"<>]/g, '_')}-测算对比矩阵-${safeTimestamp}.xlsx`
+  )
 }
 
 async function exportStoreSkuTableToExcel(
@@ -1689,13 +1688,8 @@ async function exportStoreSkuTableToExcel(
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
   const safeTimestamp = formatLocalTimestampForFilename()
-  link.href = url
-  link.download = `店铺SKU核算表-${projectName}-${safeTimestamp}.xlsx`
-  link.click()
-  window.URL.revokeObjectURL(url)
+  downloadBlob(blob, `店铺SKU核算表-${projectName}-${safeTimestamp}.xlsx`)
 }
 
 export default function PricingCalculationPage() {

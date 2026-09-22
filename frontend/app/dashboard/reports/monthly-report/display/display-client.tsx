@@ -59,6 +59,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 import { getExcelNumFmt } from './excel-num-fmt'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import {
@@ -1146,12 +1147,7 @@ export default function DisplayTab() {
       }
       const blob = await response.blob()
       const filename = extractFilenameFromHeader(response.headers.get('Content-Disposition')) ?? ''
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.click()
-      window.URL.revokeObjectURL(url)
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'financial_data.accounting_detail.export',
         targetType: 'monthly_financial_accounting_detail',
@@ -1795,15 +1791,11 @@ export default function DisplayTab() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       const endMonthStr = formatMonth(data.end_month)
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-月度财务汇总分析-${endMonthStr}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${safeProjectName}_${safeCountryLabel}-月度财务汇总分析-${endMonthStr}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'financial_data.export',
         targetType: 'monthly_financial_analysis',
@@ -1815,7 +1807,7 @@ export default function DisplayTab() {
           start_month: startMonth,
           end_month: endMonth,
           row_count: exportDetailRows.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {

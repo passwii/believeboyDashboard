@@ -52,6 +52,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
@@ -1685,15 +1686,11 @@ export default function WeeklyProductAnalysisPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
       const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-按周产品分析-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${safeProjectName}_${safeCountryLabel}-按周产品分析-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'product_analysis.weekly.export',
         targetType: 'product_analysis_weekly',
@@ -1706,7 +1703,7 @@ export default function WeeklyProductAnalysisPage() {
           end_date: endDate,
           summary_count: summaryRows.length,
           detail_count: exportDetailRows.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {

@@ -40,6 +40,7 @@ import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -482,15 +483,11 @@ export default function InventoryAnalysisPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
       const safeProjectName = (selectedProject?.name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-库存分析-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${safeProjectName}_${safeCountryLabel}-库存分析-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'inventory_analysis.export',
         targetType: 'inventory_analysis',
@@ -500,7 +497,7 @@ export default function InventoryAnalysisPage() {
           project_name: projects.find((project) => project.id === currentProjectId)?.name ?? null,
           country,
           row_count: rows.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {

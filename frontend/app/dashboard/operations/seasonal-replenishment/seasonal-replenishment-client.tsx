@@ -42,6 +42,7 @@ import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 
@@ -528,17 +529,13 @@ export default function SeasonalReplenishmentPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
       const safeProjectName = (selectedProjectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       const fromStr = formatIsoDate(fromDate) ?? 'from'
       const toStr = formatIsoDate(toDate) ?? 'to'
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-季节性补货-${fromStr}_${toStr}${compareYear ? '-含同比' : ''}-${safeTimestamp}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      const filename = `${safeProjectName}_${safeCountryLabel}-季节性补货-${fromStr}_${toStr}${compareYear ? '-含同比' : ''}-${safeTimestamp}.xlsx`
+      downloadBlob(blob, filename)
       await logClientOperation({
         action: 'inventory_replenishment.seasonal.export',
         targetType: 'inventory_replenishment',
@@ -552,7 +549,7 @@ export default function SeasonalReplenishmentPage() {
           compare_year_offset: compareYearOffset,
           keyword: keyword.trim() || null,
           row_count: rows.length,
-          filename: link.download,
+          filename,
         },
       })
     } catch (exportError) {

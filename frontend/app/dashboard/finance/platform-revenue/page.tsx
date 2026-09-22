@@ -47,6 +47,7 @@ import {
 import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
+import { downloadBlob } from '@/lib/download-blob'
 import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
@@ -791,8 +792,6 @@ export default function PlatformRevenuePage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
       const date = new Date().toISOString().slice(0, 10)
       const projectName = filters.project_id
         ? projects.find((p) => p.id.toString() === filters.project_id)?.name || filters.project_id
@@ -802,10 +801,7 @@ export default function PlatformRevenuePage() {
         uniqueCountries.length === 1 ? getCountryLabel(uniqueCountries[0]) : '全部站点'
       const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = derivedCountryLabel.replace(/[\\/:*?"<>|]/g, '-')
-      link.href = url
-      link.download = `${safeProjectName}_${safeCountryLabel}-平台回款-${date}.xlsx`
-      link.click()
-      window.URL.revokeObjectURL(url)
+      downloadBlob(blob, `${safeProjectName}_${safeCountryLabel}-平台回款-${date}.xlsx`)
 
       notify({ type: 'success', title: `已导出 ${allRevenues.length} 条记录` })
     } catch (error) {

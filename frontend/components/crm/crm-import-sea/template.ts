@@ -1,5 +1,6 @@
 import { CRM_IMPORT_COLUMNS } from '@/lib/crm/constants/import-columns'
 import type { CustomerSeaImportFailItem, CustomerSeaImportRow } from '@/lib/crm/types'
+import { downloadBlob } from '@/lib/download-blob'
 
 const HEADERS = CRM_IMPORT_COLUMNS.map((c) => c.header)
 
@@ -7,14 +8,7 @@ function triggerDownload(buffer: BufferSource, filename: string): void {
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  downloadBlob(blob, filename)
 }
 
 /** 导入模板：表头 + 灰字提示行 + 2 行示例。 */
