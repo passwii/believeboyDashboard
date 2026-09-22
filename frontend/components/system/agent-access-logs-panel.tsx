@@ -38,8 +38,9 @@ import { Eye, Loader2, RefreshCw, Search } from 'lucide-react'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
-import { AGENT_DOMAINS, getAgentDomain } from '@/lib/agent-domains'
+import { AGENT_DOMAINS } from '@/lib/agent-domains'
 import { AgentIdentityCell, formatProjectRef } from '@/lib/agent-display'
+import { accessOperationLabel } from '@/lib/agent-operation-labels'
 
 const API_BASE = '/api/backend'
 
@@ -96,18 +97,6 @@ function formatDateTime(value: string | null): string {
 
 async function parseError(response: Response): Promise<string> {
   return parseResponseError(response, '请求失败')
-}
-
-/**
- * 操作类型 → 中文标签（BLF-845 精细化）。
- *
- * 与 AGENT_DOMAINS 注册表对齐：命中返回中文名；未注册的 code（后端新域
- * 尚未同步前端，或历史遗留值）显示原始 code 本身而非笼统「其他」，
- * 保证运维可辨识；title 悬浮提示说明这是未收录的业务域标识。
- */
-function operationTypeLabel(code: string | null): string {
-  if (!code) return '-'
-  return getAgentDomain(code)?.label ?? code
 }
 
 function statusMeta(code: number) {
@@ -397,7 +386,7 @@ export function AgentAccessLogsPanel() {
                 <TermHead className="w-[52px]" title="请求站点国家（后端字段就绪前显示 —，BLF-845）">
                   国家
                 </TermHead>
-                <TermHead className="w-[100px]">操作类型</TermHead>
+                <TermHead className="w-[100px]">操作</TermHead>
                 <TermHead className="w-[110px]">状态码</TermHead>
                 <TermHead className="w-[64px]" numeric>
                   耗时
@@ -441,12 +430,12 @@ export function AgentAccessLogsPanel() {
                       {row.country ?? '—'}
                     </TermCell>
                     <TermCell>
-                      {row.operation_type ? (
+                      {row.operation_type || row.path ? (
                         <span
-                          title={`业务域 ${row.operation_type}`}
+                          title={`${row.method} ${row.path}${row.operation_type ? ` · 业务域 ${row.operation_type}` : ''}`}
                           className="border border-term-accent/40 px-1 font-mono text-[10px] text-term-accent"
                         >
-                          {operationTypeLabel(row.operation_type)}
+                          {accessOperationLabel(row.method, row.path, row.operation_type)}
                         </span>
                       ) : (
                         <span className="text-term-faint">—</span>
@@ -656,11 +645,13 @@ export function AgentAccessLogsPanel() {
                   <span className="text-term-text">{activeRow.country ?? '—'}</span>
                 </p>
                 <p>
-                  <span className="text-term-muted">操作类型:</span>{' '}
+                  <span className="text-term-muted">操作:</span>{' '}
                   <span className="text-term-text">
-                    {activeRow.operation_type
-                      ? operationTypeLabel(activeRow.operation_type)
-                      : '-'}
+                    {accessOperationLabel(
+                      activeRow.method,
+                      activeRow.path,
+                      activeRow.operation_type
+                    )}
                   </span>
                 </p>
                 <p>

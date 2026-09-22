@@ -81,6 +81,27 @@ const otherRow = {
   operation_type: null,
   agent_id: null,
   key_label: null,
+  country: null,
+}
+
+const detailRow = {
+  ...readRow,
+  id: 3,
+  path: '/api/v1/agent/projects/12/shipments/SH-1',
+}
+
+const auditRow = {
+  ...readRow,
+  id: 4,
+  path: '/api/v1/agent/projects/12/shipments/SH-1/audit',
+}
+
+const inspectionSubmitRow = {
+  ...readRow,
+  id: 5,
+  method: 'POST',
+  path: '/api/v1/agent/platform-inspection/periods/3/projects/12/submit',
+  operation_type: 'platform_inspection',
 }
 
 function jsonResponse(payload: unknown): Response {
@@ -93,8 +114,8 @@ function jsonResponse(payload: unknown): Response {
 describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
   beforeEach(() => {
     const listResponse = {
-      items: [readRow, otherRow],
-      total: 2,
+      items: [readRow, otherRow, detailRow, auditRow, inspectionSubmitRow],
+      total: 5,
       page: 1,
       page_size: 50,
       has_next: false,
@@ -126,12 +147,11 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     vi.clearAllMocks()
   })
 
-  it('展示项目列与操作类型列（BLF-471 follow-up：Agent 中文名即 key_label，仅用项目名）', async () => {
+  it('展示项目列与操作列（BLF-471 follow-up：Agent 中文名即 key_label，仅用项目名）', async () => {
     render(<AgentAccessLogsPanel />)
 
     expect(await screen.findByText('项目')).toBeTruthy()
-    // 表头 + 筛选下拉占位都有「操作类型」→ 用 getAll
-    expect(screen.getAllByText('操作类型').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('操作')).toBeTruthy()
     // 有域的行 → 中文标签；无域的行 → '—'
     expect(screen.getAllByText('货件管理').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
@@ -191,5 +211,15 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
       expect(latestUrl).toContain('project_id=12')
       expect(latestUrl).toContain('operation_type=shipments')
     })
+  })
+
+  it('按具体方法与路径显示读写业务动作，而不是只显示业务域', async () => {
+    render(<AgentAccessLogsPanel />)
+
+    expect(await screen.findByText('查询货件列表')).toBeTruthy()
+    expect(screen.getByText('查询货件详情')).toBeTruthy()
+    expect(screen.getByText('查询货件审计')).toBeTruthy()
+    expect(screen.getByText('提交平台巡检')).toBeTruthy()
+    expect(screen.getByTitle(/POST \/api\/v1\/agent\/platform-inspection/)).toBeTruthy()
   })
 })

@@ -72,6 +72,16 @@ const failureRow = {
   error_message: '店铺不存在',
 }
 
+const localizedRows = [
+  { ...failureRow, id: 104, action: 'platform_inspection.upload_screenshot' },
+  { ...failureRow, id: 105, action: 'platform_inspection.save' },
+  { ...failureRow, id: 106, action: 'platform_inspection.submit' },
+  { ...failureRow, id: 107, action: 'complaint_center.batch_write' },
+  { ...failureRow, id: 108, action: 'sku_info.delete' },
+  { ...failureRow, id: 109, action: 'sku_info.listing_copy.batch' },
+  { ...failureRow, id: 110, action: 'agent_key.update' },
+]
+
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status: 200,
@@ -82,8 +92,8 @@ function jsonResponse(payload: unknown): Response {
 describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
   beforeEach(() => {
     const listResponse = {
-      items: [transitionRow, createRow, failureRow],
-      total: 3,
+      items: [transitionRow, createRow, failureRow, ...localizedRows],
+      total: 10,
       page: 1,
       page_size: 50,
       has_next: false,
@@ -100,6 +110,7 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
       top_actions: [
         { action: 'shipment.status.transition', count: 2 },
         { action: 'shop_calculation.append', count: 1 },
+        ...localizedRows.map(({ action }) => ({ action, count: 1 })),
       ],
     }
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -139,6 +150,13 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
     expect(screen.getAllByText('货件状态变更').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('新建货件')).toBeTruthy()
     expect(screen.getAllByText('追加店铺测算').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('上传巡检截图').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('保存平台巡检').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('提交平台巡检').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('批量写入客诉').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('删除 SKU 主数据').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('批量更新 Listing 文案').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('更新凭据权限').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('失败').length).toBeGreaterThanOrEqual(1)
   })
 
