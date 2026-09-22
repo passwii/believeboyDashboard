@@ -121,6 +121,15 @@ class AgentShopCalculationAppendRequest(BaseModel):
     # 补录历史价时用；缺省后端取 now()
     observed_at: datetime | None = None
 
+    @model_validator(mode="after")
+    def _mark_negative_profit(self) -> AgentShopCalculationAppendRequest:
+        """负利润是合法经营结果，但必须显式留痕，便于 Agent/审计追踪。"""
+        if (
+            self.profit_usd < 0 or self.profit_rate < 0
+        ) and "NEGATIVE_PROFIT" not in self.warnings:
+            self.warnings.append("NEGATIVE_PROFIT")
+        return self
+
 
 class AgentShopCalculationComputeRequest(BaseModel):
     """试算请求（C1）：双模式，纯计算不落库。"""

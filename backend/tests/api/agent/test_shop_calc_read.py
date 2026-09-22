@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import uuid
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.db.session import SessionLocal
 from app.main import app
 from app.services.audit_log_service import query_operation_audit_log_for_targets
-
 from conftest import seed_shop_calculation
+from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 
 @pytest.fixture
@@ -21,6 +21,112 @@ def client() -> TestClient:
 
 def _url(env, suffix: str = "") -> str:
     return f"/api/v1/agent/projects/{env['project_id']}/shop-calculations{suffix}"
+
+
+def _read_export(content: bytes) -> list[dict[str, object]]:
+    workbook = load_workbook(BytesIO(content), data_only=True)
+    rows = list(workbook.active.iter_rows(values_only=True))
+    header_index = next(index for index, row in enumerate(rows) if row[0] == "SKU")
+    headers = [str(value) for value in rows[header_index]]
+    return [
+        dict(zip(headers, row, strict=False))
+        for row in rows[header_index + 1 :]
+        if any(value is not None for value in row)
+    ]
+
+
+def _agent_headers(key: dict) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {key['plaintext']}",
+        "X-Agent-Id": key["agent_id"],
+    }
+
+
+class TestExport:
+    def test_export_current_returns_xlsx_all_skus_and_audits(
+        self, client, shipment_env
+    ):
+        seed_shop_calculation(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-001",
+            sale_price_usd=10.0,
+        )
+        seed_shop_calculation(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-001",
+            sale_price_usd=12.0,
+        )
+
+        response = client.get(
+            _url(shipment_env, "/export.xlsx?country=US"),
+            headers=shipment_env["headers"],
+        )
+        assert response.status_code == 200, response.text
+        assert response.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        assert "filename" in response.headers["content-disposition"]
+        rows = _read_export(response.content)
+        by_sku = {row["SKU"]: row for row in rows}
+        assert set(by_sku) == {"X-001", "X-002"}
+        assert by_sku["X-001"]["售价(USD)"] == 12.0
+        assert by_sku["X-002"]["warnings"] == "未核算/缺数据"
+
+        db = SessionLocal()
+        try:
+            audits = query_operation_audit_log_for_targets(
+                db,
+                target_type="shop_calculation",
+                target_ids=[shipment_env["project_id"]],
+            )
+            assert any(audit.action == "shop_calculation.export" for audit in audits)
+        finally:
+            db.close()
+
+    def test_export_supports_history_sku_as_of(self, client, shipment_env):
+        now = datetime.now(timezone.utc)
+        for price, observed_at in (
+            (10.0, now - timedelta(days=2)),
+            (11.0, now - timedelta(days=1)),
+            (12.0, now),
+        ):
+            seed_shop_calculation(
+                shipment_env["project_id"],
+                shipment_env["project_name"],
+                sku="X-001",
+                sale_price_usd=price,
+                observed_at=observed_at,
+            )
+
+        response = client.get(
+            _url(
+                shipment_env,
+                "/export.xlsx?country=US&sku=X-001&mode=history"
+                f"&as_of={(now - timedelta(hours=12)).isoformat().replace('+00:00', 'Z')}",
+            ),
+            headers=shipment_env["headers"],
+        )
+        assert response.status_code == 200, response.text
+        assert [row["售价(USD)"] for row in _read_export(response.content)] == [
+            11.0,
+            10.0,
+        ]
+
+    def test_export_requires_shop_calculation_business_scope(
+        self, client, shipment_env, make_api_key
+    ):
+        key = make_api_key(
+            agent_id="no-export-domain",
+            project_scope="*",
+            business_scope="shipments",
+        )
+        response = client.get(
+            _url(shipment_env, "/export.xlsx"), headers=_agent_headers(key)
+        )
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
 
 
 class TestR1List:
@@ -97,7 +203,7 @@ class TestR1List:
 
     def test_missing_project_404(self, client, shipment_env):
         resp = client.get(
-            f"/api/v1/agent/projects/99999999/shop-calculations",
+            "/api/v1/agent/projects/99999999/shop-calculations",
             headers=shipment_env["headers"],
         )
         assert resp.status_code == 404, resp.text

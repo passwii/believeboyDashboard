@@ -2069,6 +2069,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Shop Calculations
+         * @description 导出后端权威店铺测算快照，不在 Agent 侧重算。
+         */
+        get: operations["export_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_export_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}": {
         parameters: {
             query?: never;
@@ -27118,6 +27138,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_export_xlsx_get: {
+        parameters: {
+            query?: {
+                country?: string | null;
+                sku?: string | null;
+                as_of?: string | null;
+                mode?: string;
+                include_uncomputed?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
                 };
             };
             /** @description Validation Error */

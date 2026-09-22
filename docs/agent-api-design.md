@@ -201,6 +201,32 @@ Content-Type: application/json
 
 ---
 
+### 3.4 店铺测算导出与负利润写入（新增）
+
+店铺测算域提供后端权威 Excel 导出：
+
+```text
+GET /api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx
+  ?country=US&mode=current&sku=SKU-001&as_of=2026-09-22T00:00:00Z
+  &include_uncomputed=true
+```
+
+- 数据源复用 `shop_calculation` 的当前态/历史快照查询；`current` 按
+  `(project_id, sku, country)` 取最新有效行，`history` 返回有效历史行。
+- 默认保留项目内全部 active SKU；没有测算快照的 SKU 输出一行，`warnings` 包含
+  `未核算/缺数据`，不得静默漏掉。
+- `country`、`sku`、`as_of`、`include_uncomputed` 均为服务端筛选参数；Agent 不得
+  在客户端重新分类或重算金额。
+- 列保持前端店铺 SKU 测算 Excel 口径，末尾增加 `ASIN`、`source`、`observed_at`、
+  `warnings`；响应为标准 XLSX 文件流，文件名含项目、站点和导出时间。
+- 导出继承 `project_scope` + `business_scope=shop_calculations`，并写入
+  `operation_audit_logs`，动作名为 `shop_calculation.export`。
+
+Agent 追加写仍要求 `sale_price_usd > 0`、`total_fee_usd > 0`；`profit_usd` 与
+`profit_rate` 允许负数。负利润是合法经营结果，服务端自动在 `warnings` 增加
+`NEGATIVE_PROFIT`。confirm 预览必须同时回显负利润字段、该 warning 和
+`breakeven_advertising_rate`（盈亏平衡 ACOS），确认落库后保留同一 warning。
+
 ## 4. 数据模型（review 修订：复用 BEL-377 凭据基建）
 
 ### 4.1 关键决策：改名 + 扩展 `external_api_keys` → `agent_api_keys`，不新建表
