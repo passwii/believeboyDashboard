@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { operationActionLabel } from './agent-operation-labels'
+import { accessOperationLabel, operationActionLabel } from './agent-operation-labels'
 
 describe('operationActionLabel', () => {
   it('映射当前 Agent 全部写 action', () => {
@@ -38,5 +38,86 @@ describe('operationActionLabel', () => {
 
   it('未知 action 原样返回', () => {
     expect(operationActionLabel('mystery.op')).toBe('mystery.op')
+  })
+})
+
+describe('accessOperationLabel', () => {
+  it('区分同一业务域的列表、详情和审计读取', () => {
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/shipments',
+        'shipments'
+      )
+    ).toBe('查询货件列表')
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/shipments/SH-1',
+        'shipments'
+      )
+    ).toBe('查询货件详情')
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/shipments/SH-1/audit',
+        'shipments'
+      )
+    ).toBe('查询货件审计')
+  })
+
+  it('覆盖测算、巡检和客诉读接口', () => {
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/shop-calculations/skus/A-1/history',
+        'shop_calculations'
+      )
+    ).toBe('查询 SKU 测算历史')
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/platform-inspection/template',
+        'platform_inspection'
+      )
+    ).toBe('获取平台巡检模板')
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/complaint-center/complaints',
+        'complaint_center'
+      )
+    ).toBe('查询客诉列表')
+  })
+
+  it('访问日志中的写路径复用 action 语义', () => {
+    expect(
+      accessOperationLabel(
+        'POST',
+        '/api/v1/agent/projects/12/shipments/SH-1/recalculate-costs',
+        'shipments'
+      )
+    ).toBe('重算货件费用')
+    expect(
+      accessOperationLabel(
+        'POST',
+        '/api/v1/agent/platform-inspection/periods/3/projects/12/submit',
+        'platform_inspection'
+      )
+    ).toBe('提交平台巡检')
+  })
+
+  it('具体路径优先于通用路径，未知值回退可排查标识', () => {
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/shipments/SH-1/sku-summary',
+        'shipments'
+      )
+    ).toBe('查询货件 SKU 汇总')
+    expect(
+      accessOperationLabel('GET', '/api/v1/agent/unknown-resource', 'unknown_domain')
+    ).toBe('unknown_domain')
+    expect(accessOperationLabel('GET', '/api/v1/agent/unknown-resource', null)).toBe('-')
   })
 })

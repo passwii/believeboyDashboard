@@ -12,6 +12,8 @@
  * - 无 Idempotency-Key 的 agent 写调用，after 会附加 {risk: "no_idempotency"} 标记
  */
 
+import { operationActionLabel } from './agent-operation-labels'
+
 export type OperationChange = {
   /** 人类可读字段名（已映射，如「货件状态」） */
   field: string
@@ -86,8 +88,6 @@ function formatValue(value: unknown, key: string): string | null {
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
-
-import { operationActionLabel } from './agent-operation-labels'
 
 export { operationActionLabel }
 
