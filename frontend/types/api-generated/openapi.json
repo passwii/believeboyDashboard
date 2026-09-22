@@ -50317,6 +50317,118 @@
         ]
       }
     },
+    "/api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx": {
+      "get": {
+        "description": "导出后端权威店铺测算快照，不在 Agent 侧重算。",
+        "operationId": "export_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_export_xlsx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "current",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_uncomputed",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Uncomputed",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Shop Calculations",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      }
+    },
     "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}": {
       "get": {
         "description": "R2 SKU 详情：当前态最新行；country 缺省时多国家 → 400 AMBIGUOUS。",

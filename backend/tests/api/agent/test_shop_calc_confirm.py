@@ -5,8 +5,6 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.api.agent.confirm import (
     InMemoryConfirmStore,
     get_confirm_store,
@@ -15,8 +13,8 @@ from app.api.agent.confirm import (
 from app.db.session import SessionLocal
 from app.main import app
 from app.services.audit_log_service import query_operation_audit_log
-
 from conftest import seed_shop_calculation, shop_calc_body
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -219,13 +217,47 @@ class TestAppendValidation:
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "SHOP_CALCULATION_INVALID_SOURCE"
 
-    def test_non_positive_profit_rejected(
+    def test_negative_profit_is_accepted_and_warned(
         self, client, shipment_env, confirm_memory_store
     ):
-        body = shop_calc_body(sku="X-001", profit_usd=-1.0)
-        resp = _post(client, shipment_env, body)
-        assert resp.status_code == 400, resp.text
-        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        body = shop_calc_body(sku="X-001", profit_usd=-2.5, profit_rate=-0.125)
+        idem = f"negative-{uuid.uuid4().hex[:12]}"
+
+        preview = _post(client, shipment_env, body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        payload = preview.json()
+        assert payload["requires_confirmation"] is True
+        assert payload["preview"]["profit_usd"] == -2.5
+        assert payload["preview"]["profit_rate"] == -0.125
+        assert "NEGATIVE_PROFIT" in payload["preview"]["warnings"]
+        assert payload["preview"]["breakeven_advertising_rate"] is not None
+
+        replay = _post(
+            client,
+            shipment_env,
+            body,
+            token=payload["confirm_token"],
+            idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["data"]["profit"]["profit_usd"] == -2.5
+        assert "NEGATIVE_PROFIT" in replay.json()["data"]["warnings"]
+
+    def test_negative_profit_rate_is_not_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        body = shop_calc_body(sku="X-001", profit_usd=0.5, profit_rate=-0.01)
+        response = _post(client, shipment_env, body)
+        assert response.status_code == 200, response.text
+        assert "NEGATIVE_PROFIT" in response.json()["preview"]["warnings"]
+
+    def test_non_positive_sale_price_or_total_fee_is_still_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        for overrides in ({"sale_price_usd": 0}, {"total_fee_usd": 0}):
+            response = _post(client, shipment_env, shop_calc_body(**overrides))
+            assert response.status_code == 400, response.text
+            assert response.json()["error"]["code"] == "VALIDATION_FAILED"
 
     def test_future_observed_at_rejected(
         self, client, shipment_env, confirm_memory_store

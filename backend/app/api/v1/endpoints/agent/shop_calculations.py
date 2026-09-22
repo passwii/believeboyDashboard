@@ -1,6 +1,6 @@
 """Agent 店铺测算域路由（BLF-442；spec §2-§5）。
 
-在 ``/api/v1/agent/projects/{project_id}/shop-calculations/*`` 开放 6 条路由：
+在 ``/api/v1/agent/projects/{project_id}/shop-calculations/*`` 开放 7 条路由：
 
 * R1 列表 / R2 SKU 详情（country 消歧）/ R3 历史 / R4 审计 —— 读路由，
   不落审计、绕过 Redis 读缓存直查 DB；
@@ -18,8 +18,9 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -47,6 +48,15 @@ from app.services.audit_log_service import (
 )
 from app.services.pricing.anchor import _anchor_from_amounts, _anchor_from_computed
 from app.services.pricing.computation import _compute_eu_pricing, _compute_pricing
+from app.services.shop_calculation_export import (
+    XLSX_MEDIA_TYPE,
+    build_shop_calculation_export,
+)
+
+
+class _XLSXResponse(Response):
+    media_type = XLSX_MEDIA_TYPE
+
 
 shop_calculations_router = APIRouter(
     prefix="/projects/{project_id}/shop-calculations",
@@ -158,6 +168,12 @@ def _dump_item(item: object, *, include_anchor: bool) -> dict:
     return item.model_dump(mode="json", exclude=exclude)  # type: ignore[attr-defined]
 
 
+def _content_disposition(filename: str) -> str:
+    """构造兼容中文项目名的 RFC 5987 Content-Disposition。"""
+    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
 # ============================================================
 # 读路由
 # ============================================================
@@ -198,6 +214,61 @@ def list_shop_calculations(
             "page": page,
             "page_size": page_size,
         }
+    )
+
+
+@shop_calculations_router.get("/export.xlsx", response_class=_XLSXResponse)
+def export_shop_calculations(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    country: str | None = Query(default=None),
+    sku: str | None = Query(default=None),
+    as_of: str | None = Query(default=None),
+    mode: str = Query(default="current"),
+    include_uncomputed: bool = Query(default=True),
+    _scope=Depends(require_project_scope),
+) -> Response:
+    """导出后端权威店铺测算快照，不在 Agent 侧重算。"""
+    if mode not in {"current", "history"}:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="mode 必须是 current 或 history",
+        )
+    project = _get_project_or_shell_404(db, project_id)
+    result = build_shop_calculation_export(
+        db,
+        project_id=project_id,
+        project_name=str(project.project_name),
+        country=country,
+        sku=sku,
+        mode=mode,  # type: ignore[arg-type]
+        as_of=_parse_datetime(as_of),
+        include_uncomputed=include_uncomputed,
+    )
+    append_operation_audit_log(
+        db,
+        action="shop_calculation.export",
+        target_type="shop_calculation",
+        target_id=project_id,
+        operator=None,
+        after={
+            "project_id": project_id,
+            "country": country,
+            "sku": sku,
+            "mode": mode,
+            "as_of": as_of,
+            "include_uncomputed": include_uncomputed,
+            "row_count": result.row_count,
+            "countries": list(result.countries),
+        },
+        **_audit_kwargs(request),
+    )
+    db.commit()
+    return Response(
+        content=result.content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": _content_disposition(result.filename)},
     )
 
 
@@ -403,16 +474,17 @@ def _validate_append(body: dict, request: Request) -> None:
                 human_message="observed_at 不能晚于当前时间 24 小时",
             )
 
-    # 金额防脏数据（pydantic 已兜结构，这里是业务兜底）
-    if req.sale_price_usd <= 0 or req.profit_usd <= 0 or req.total_fee_usd <= 0:
+    # 金额防脏数据（pydantic 已兜结构，这里是业务兜底）。负利润是合法经营结果，
+    # 只保留售价与总费用为正的结构性校验。
+    if req.sale_price_usd <= 0 or req.total_fee_usd <= 0:
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
-            human_message="sale_price_usd / profit_usd / total_fee_usd 必须为正数",
+            human_message="sale_price_usd / total_fee_usd 必须为正数",
         )
-    if not (-1 < req.profit_rate < 1):
+    if req.profit_rate >= 1:
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
-            human_message="profit_rate 必须在 (-1, 1) 区间",
+            human_message="profit_rate 必须小于 1",
         )
 
 
@@ -456,6 +528,7 @@ def _preview_append(body: dict, request: Request) -> dict:
         usd_to_rmb_rate_source=req.usd_to_rmb_rate_source,
         observed_at=req.observed_at,
     )
+    anchor_payload = anchor.model_dump(mode="json")
     return {
         "action": "shop_calculation.append",
         "sku": req.sku,
@@ -465,11 +538,13 @@ def _preview_append(body: dict, request: Request) -> dict:
         "sale_price_usd": req.sale_price_usd,
         "profit_usd": req.profit_usd,
         "profit_rate": req.profit_rate,
+        "warnings": req.warnings,
+        "breakeven_advertising_rate": anchor_payload["breakeven_advertising_rate"],
         "observed_at": req.observed_at.isoformat() if req.observed_at else None,
         "overwrites_current": overwrites,
         "previous_sale_price_usd": previous_price,
         "warnings_count": len(req.warnings),
-        "anchor": anchor.model_dump(mode="json"),
+        "anchor": anchor_payload,
         "note": note,
     }
 

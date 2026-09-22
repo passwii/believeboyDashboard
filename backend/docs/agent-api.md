@@ -105,12 +105,32 @@ Query 参数：
     GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}
     GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/history
     GET    /api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/audit
+    GET    /api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx
     POST   /api/v1/agent/projects/{project_id}/shop-calculations                 （confirm）
     POST   /api/v1/agent/projects/{project_id}/shop-calculations/compute
     GET    /api/v1/agent/projects/{project_id}/shop-calculation-history          （BI 扁平）
     GET    /api/v1/agent/projects/{project_id}/shop-calculation/snapshots        （BI 扁平）
     GET    /api/v1/agent/projects/{project_id}/pricing-snapshots                 （BI 扁平）
     GET/POST /api/v1/agent/projects/{project_id}/new-product-calculations*       （同款派生）
+
+#### Shop-calculations Excel 导出
+
+`GET /api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx` 复用
+`shop_calculation` 当前态/历史快照查询，不在 Agent 或客户端重新分类、重算。
+端点继承 `project_scope` 与 `business_scope=shop_calculations`，每次导出写一条
+`operation_audit_logs`（`action=shop_calculation.export`）。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `country` | 无 | `US` / `DE` / `UK`；不传时导出项目内全部站点 |
+| `sku` | 无 | 精确筛选 SKU；不传时导出全部 SKU |
+| `mode` | `current` | `current` 按 `(project_id, sku, country)` 取最新有效快照；`history` 返回有效历史快照 |
+| `as_of` | 无 | ISO 时间；按 `observed_at <= as_of` 截止，支持 `Z` 时区写法 |
+| `include_uncomputed` | `true` | 是否保留没有测算快照的 SKU；保留时行内 `warnings` 为 `未核算/缺数据`，不静默漏行 |
+
+返回 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` 文件流，
+文件名包含项目、站点和 UTC 导出时间。Excel 列与前端店铺 SKU 测算导出一致，末尾
+追加 `ASIN`、`source`、`observed_at`、`warnings` 四列。
 
 **为什么有这个块**：判定「广告效率好不好」需要「盈亏平衡广告费率」（运营口径的
 盈亏平衡 ACOS）。`advertising_rate` 在定价引擎里只以线性项
