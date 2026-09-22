@@ -1891,6 +1891,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Shipment Fba Delivery Template
+         * @description 导出 FBA 发货模板（纯读：不写库、不落审计、不走 confirm）。
+         */
+        get: operations["export_shipment_fba_delivery_template_api_v1_agent_projects__project_id__shipments__shipment_no__fba_delivery_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/items": {
         parameters: {
             query?: never;
@@ -26749,6 +26769,40 @@ export interface operations {
         };
     };
     get_shipment_fba_box_detail_api_v1_agent_projects__project_id__shipments__shipment_no__fba_box_detail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                shipment_no: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_shipment_fba_delivery_template_api_v1_agent_projects__project_id__shipments__shipment_no__fba_delivery_template_get: {
         parameters: {
             query?: never;
             header?: never;

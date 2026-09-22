@@ -34,12 +34,13 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleUpdate,
 )
 from app.services import infra as redis_service
-from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.services import shipment as shipment_service
 from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log,
 )
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
+from app.services.shipment import fba_template as fba_template_service
 from app.services.shipment import summary as shipment_summary_service
 from app.services.shipment.item import replace_shipment_schedule_items
 from app.services.shipment.serialization import (
@@ -379,6 +380,19 @@ def get_shipment_fba_box_detail(
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
     return agent_ok(response.model_dump())
+
+
+@shipments_router.get("/{shipment_no}/fba-delivery-template")
+def export_shipment_fba_delivery_template(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """导出 FBA 发货模板（纯读：不写库、不落审计、不走 confirm）。"""
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        payload = fba_template_service.build_fba_delivery_template(db, schedule)
+    return agent_ok(payload)
 
 
 @shipments_router.get("/{shipment_no}/audit")

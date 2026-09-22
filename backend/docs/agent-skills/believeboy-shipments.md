@@ -1,6 +1,6 @@
 ---
 name: believeboy-shipments
-description: 调用 BelieveBoy Agent API 查询与维护跨项目货件（shipments 域，business_scope shipments，11 条路由：读 5 + 写 6 全 confirm）。用于货件列表/详情/SKU 汇总/FBA 箱规/审计、创建货件、改货件信息、更新商品明细、改状态、重算成本、删除。Use when the user asks for 货件 / shipments / 货件查询 / 创建货件 / 货件状态 / 箱规 / FBA, 或任何需要从 dash-api.believeboy.com 读取或维护货件数据的任务。
+description: 调用 BelieveBoy Agent API 查询与维护跨项目货件（shipments 域，business_scope shipments，12 条路由：读 6 + 写 6 全 confirm）。用于货件列表/详情/SKU 汇总/FBA 箱规/审计/FBA 发货模板导出、创建货件、改货件信息、更新商品明细、改状态、重算成本、删除。Use when the user asks for 货件 / shipments / 货件查询 / 创建货件 / 货件状态 / 箱规 / FBA / FBA发货模板, 或任何需要从 dash-api.believeboy.com 读取或维护货件数据的任务。
 ---
 
 # BelieveBoy Agent API · 货件（shipments）
@@ -28,7 +28,7 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 
 项目名以系统为准（共 13 个），未命中先向派发方确认，不猜。
 
-## 2. 端点目录（11 条：读 5 + 写 6，business_scope "shipments"）
+## 2. 端点目录（12 条：读 6 + 写 6，business_scope "shipments"）
 
 路径前缀：`/api/v1/agent/projects/{project_id}/shipments`
 
@@ -41,6 +41,18 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 | R3 | GET | `/shipments/{shipment_no}/sku-summary` | 货件内 SKU 汇总 |
 | R4 | GET | `/shipments/{shipment_no}/fba-box-detail` | FBA 箱规明细 |
 | R5 | GET | `/shipments/{shipment_no}/audit?limit=` | 操作审计轨迹（limit 默认 50，≤200） |
+| R6 | GET | `/shipments/{shipment_no}/fba-delivery-template` | 导出 FBA 发货模板 xlsx |
+
+**R6 导出 FBA 发货模板**：
+
+```bash
+curl -s "$BASE/projects/$PROJECT_ID/shipments/$SHIPMENT_NO/fba-delivery-template" "${AUTH[@]}" > resp.json
+jq -r '.data.content_base64' resp.json | base64 --decode > "${SHIPMENT_NO}-fba-template.xlsx"
+```
+
+- **响应字段**：`content_base64`（xlsx 文件本体，Base64 编码）、`filename`、`content_type`、`sheet_name`、`unit_system`（`metric`=cm·kg，`imperial`=in·lb）、`row_count`、`shipment_no`、`project_name`、`country`。
+- **单位口径**：DE / UK 使用公制 cm/kg；其他站点使用英制 in/lb，尺寸除以 2.54、重量乘以 2.20462，均保留 2 位小数。
+- **数据口径**：箱数取货件明细已持久化的 `carton_count`；装箱率、外箱尺寸和外箱重量按项目 + 站点 + SKU 查询。缺失主数据时对应单元格留空，仍返回合法模板。需要先修改箱数时，先调用 W2 保存明细，再调用 R6。
 
 **R1 列表过滤参数**：`country` / `shipment_status` / `shipping_method` / `shipment_no`（子串）/ `created_date_from` / `created_date_to` / `etd_from` / `etd_to` / `eta_from` / `eta_to`（YYYY-MM-DD）+ `page`（默认1）/ `page_size`（默认20，≤100）。
 
@@ -89,4 +101,4 @@ curl -X POST "$BASE/projects/$PROJECT_ID/shipments" "${AUTH[@]}" \
 - 删除/重算成本涉及不可逆/费用变更——确认流是强制安全门，务必给用户看预览再重放
 - **5xx**：一次性报告给报告 owner（Yawei），不要盲目重试
 - 404 与空列表是设计；所有路由挂 `require_project_scope` + `business_scope("shipments")`
-- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.4 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
+- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.10 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
