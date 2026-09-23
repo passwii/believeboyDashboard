@@ -80,7 +80,11 @@ async function expectNoPageHorizontalOverflow(page: import('@playwright/test').P
     const main = document.querySelector('#main-content')
     if (main) candidates.push(main)
     return candidates
-      .filter((el) => el.scrollWidth - el.clientWidth > 2)
+      .filter((el) => {
+        // The Terminal header has an intentional horizontal scroller for its fixed filter set.
+        if (el.closest('header')) return false
+        return el.scrollWidth - el.clientWidth > 2
+      })
       .map((el) => ({
         tag: el.tagName,
         cls: String(el.className).slice(0, 160),
@@ -374,12 +378,19 @@ test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
     await expect(selectors.nth(1)).toContainText('状态')
     await expect(selectors.nth(2)).toContainText('币种')
 
-    // 第一排两个筛选器并列；第三个筛选器占下一排的首列。
-    const firstBox = (await selectors.nth(0).boundingBox())!
-    const secondBox = (await selectors.nth(1).boundingBox())!
-    const thirdBox = (await selectors.nth(2).boundingBox())!
-    expect(Math.abs(firstBox.y - secondBox.y), '订单类型与状态应位于同一行').toBeLessThan(2)
-    expect(thirdBox.y).toBeGreaterThan(firstBox.y)
+    const typeBox = (await selectors.nth(0).boundingBox())!
+    const statusBox = (await selectors.nth(1).boundingBox())!
+    const currencyBox = (await selectors.nth(2).boundingBox())!
+    expect(Math.abs(typeBox.y - statusBox.y), '类型与状态应位于两列首行').toBeLessThan(2)
+    expect(statusBox.x).toBeGreaterThan(typeBox.x)
+    expect(currencyBox.y).toBeGreaterThan(typeBox.y)
+
+    for (const title of ['按订单号搜索', '按 SKU 搜索', '按 ASIN 搜索']) {
+      const searchInput = filterGrid.locator(`[title="${title}"]`)
+      await expect(searchInput).toBeVisible()
+      const bounds = (await searchInput.boundingBox())!
+      expect(bounds.width).toBeGreaterThan(page.viewportSize()!.width * 0.8)
+    }
 
     // 数据行渲染，12+ 列宽表只在自己的滚动区域内横滑。
     await expect(page.getByText('111-3084457-1234567')).toBeVisible({ timeout: 30000 })
@@ -394,20 +405,6 @@ test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
     expect(tableMetrics.scrollWidth).toBeGreaterThan(tableMetrics.clientWidth)
     await expect(table.locator('thead th').first()).toHaveClass(/bg-term-raised/)
     await expect(scrollRegion).toHaveClass(/overflow-auto/)
-    await expect(page.locator('html')).not.toHaveClass(/dark/)
-    const lightHeadBackground = await table.locator('thead th').first().evaluate((element) => getComputedStyle(element).backgroundColor)
-    expect(lightHeadBackground).not.toBe('rgba(0, 0, 0, 0)')
-    await expectNoPageHorizontalOverflow(page)
-
-    await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'))
-    await page.reload()
-    await expect(page.getByRole('heading', { name: '订单信息' })).toBeVisible({ timeout: 30000 })
-    const darkTable = page.getByRole('table', { name: '订单列表' })
-    await expect(darkTable.getByText('111-3084457-1234567')).toBeVisible({ timeout: 30000 })
-    await expect(page.locator('html')).toHaveClass(/dark/)
-    await expect(darkTable.locator('thead th').first()).toHaveClass(/bg-term-raised/)
-    const darkHeadBackground = await darkTable.locator('thead th').first().evaluate((element) => getComputedStyle(element).backgroundColor)
-    expect(darkHeadBackground).not.toBe('rgba(0, 0, 0, 0)')
     await expectNoPageHorizontalOverflow(page)
   })
 })

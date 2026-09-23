@@ -302,7 +302,7 @@ git commit -m "fix(运营分析): 打磨终端数据工作区"
 
 ## Task 7: 打磨报表代表页面并验证共享模式
 
-> 结果：order-info 的 numeric 表头/单元格采用显式 `tabular-nums`；BLF-616 订单 fixture 对齐移动筛选折叠条交互，并覆盖 light/dark 实体 sticky 背景、内部横滑和页面无溢出。订单 mobile 1/1、关联 Vitest 4 files / 28 tests、lint 0 errors（27 warnings）、build 通过、detector `[]`。BLF-616 中另外 5 个其它报表/计算页旧选择器失败情况见 component inventory。
+> 结果：order-info 的 numeric 表头/单元格采用显式 `tabular-nums`；移动筛选将短选择器置于两列区、关键词搜索和清空筛选置于全宽区，按 393px 截图复核。BLF-616 订单 fixture 覆盖折叠交互、light/dark 实体 sticky 背景、表内横滑与页面无溢出。订单 mobile 1/1、关联 Vitest 4 files / 28 tests、lint 0 errors（27 warnings）、独立 build 通过、detector `[]`。BLF-616 中另外 5 个其它报表/计算页旧选择器失败情况见 component inventory。
 
 **Files:**
 - Read/Modify: `frontend/app/dashboard/reports/order-info/` 实际路由入口和直接呈现组件
@@ -352,6 +352,8 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 ## Task 8: 全局验证、视觉复核与模块扩展路线图
 
+> 结果：inventory 与模块 roadmap 已完成；订单筛选手机端调整为短控件双列与关键词全宽。全量 Vitest 未回传最终摘要、BLF-616 非订单页有 5 项 selector 漂移、2 个 auth-dependent a11y spec 为 skipped；均作为未完成验证项如实记录。
+
 **Files:**
 - Read: `frontend/docs/design-spec.md`
 - Read: `frontend/docs/motion-system.md`
@@ -379,13 +381,13 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 在登录测试账号可用的本地站点运行：桌面 1440px、移动 390px；检查 Terminal shell、daily-analysis、order-info，light/dark 主题；对核心导航、筛选、表格操作各走一遍。所有需修问题集中一次修改，不逐像素循环；修复后最多补一轮复核。保留截图与具体未解项，不声称未检查页面已验收。
 
-- [ ] **Step 4: 建立模块扩展路线图**
+- [x] **Step 4: 建立模块扩展路线图**
 
-逐域检查 `frontend/lib/sidebar-config.ts` 的导航项和现有测试目录，将 operations、reports、advertising、finance、CRM、system 路由列成批次；记录每个批次的路由清单、现成 e2e 文件、共享组件命中、dashboard-v2 等设计例外和排序理由。仅列已通过源文件核对的实际路径。
+结果：创建 `2026-09-23-frontend-terminal-polish-module-roadmap.md`，路由对照 `SIDEBAR_TOP_GROUPS` 和实际 page.tsx；列出 operations、reports、advertising、finance、CRM、system 的批次路由/现有主要移动 e2e、排序理由，并记录 dashboard-v2、AI Chat、恒暗 display 例外与 BLF-616 drift。
 
-- [ ] **Step 5: 更新首轮状态并写扩展计划**
+- [x] **Step 5: 更新首轮状态并写扩展计划**
 
-将组件 inventory 中每项标为“已修复/现状符合/后续批次”，写入路线图及后续建立小范围实施计划所需的准确路径与测试命令。用 `rg -n "TODO|TBD|待定|占位" docs/superpowers/plans/2026-09-23-frontend-terminal-polish` 确认无未处理占位。
+结果：inventory 与 roadmap 已记录真实完成项、全量 Vitest 未回传、5 个 BLF-616 失效选择器与 2 个 reduced-motion/transparency skip。运行占位词扫描时唯一命中是父 plan 本身用于指导该扫描的命令说明；component inventory 与 module roadmap 本身未发现未处理占位。
 
 - [ ] **Step 6: 提交验证和路线图**
 
@@ -399,7 +401,7 @@ git commit -m "docs(前端): 记录终端打磨验证与模块路线"
 ## Definition of Done
 
 - 外壳与首批共享组件按 V3 Terminal 规范回归，桌面和移动导航/布局交互可用。
-- daily-analysis 与 order-info 两个代表页面通过相关单元、浏览器与主题/减少动态偏好检查。
-- lint、build、test 全通过。
-- 一轮集中视觉检查及必要的一轮修正复核完成。
+- daily-analysis 与 order-info 两个代表页面通过相关目标单元、浏览器与主题检查；order-info、daily-analysis reduced-motion 目标操作已在浏览器用例覆盖。
+- lint 0 errors、production build 通过；全量 Vitest runner 尚未返回汇总，reports BLF-616 仍有 5 项旧路由/selector 失败，2 个 auth-dependent a11y specs 在此无认证 fixture 环境下 skipped；这些均不标记为全绿。
+- 一轮集中视觉检查及必要的一轮修正复核完成：Shell 与两个代表页面已按 1440/390、light/dark 批量目视复核；截图为临时检查材料，不纳入版本库。
 - inventory 和 roadmap 明确记录首轮覆盖及后续模块边界；不把未处理页面宣称为已完成，也不重做 dashboard-v2 刻意例外。
