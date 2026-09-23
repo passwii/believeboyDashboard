@@ -101,7 +101,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
           className="flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
         >
-          {isDark ? <SunMedium className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} /> : <Moon className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} />}
+          {isDark ? <SunMedium className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} strokeWidth={1.75} /> : <Moon className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} strokeWidth={1.75} />}
         </button>
 
         <DropdownMenu>

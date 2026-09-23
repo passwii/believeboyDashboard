@@ -101,7 +101,10 @@ const GROUPS: SidebarTopGroup[] = [
   },
 ]
 
-function renderHeader(pathname: string) {
+function renderHeader(
+  pathname: string,
+  options: { subnavCollapsed?: boolean; inspectorOpen?: boolean } = {}
+) {
   currentPathname = pathname
   // BLF-826 起 TerminalHeader 依赖 TerminalHeaderSlotProvider（刷新按钮/插槽），
   // 测试统一在 Provider 内渲染，与 TerminalShell 真实接线一致。
@@ -111,9 +114,9 @@ function renderHeader(pathname: string) {
         groups={GROUPS}
         activeGroupId="operations"
         pathname={pathname}
-        subnavCollapsed={false}
+        subnavCollapsed={options.subnavCollapsed ?? false}
         onExpandSubnav={vi.fn()}
-        inspectorOpen={false}
+        inspectorOpen={options.inspectorOpen ?? false}
         onToggleInspector={vi.fn()}
       />
     </TerminalHeaderSlotProvider>
@@ -138,6 +141,42 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     const { container } = renderHeader('/dashboard/profile')
     const header = container.querySelector('header[style]') as HTMLElement
     expect(header.style.height).toBe(`${TERMINAL_HEADER_HEIGHT}px`)
+  })
+
+  it('子导航和 Inspector 控件的可访问名称与按压状态随布局状态同步', () => {
+    const { rerender } = render(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeader
+          groups={GROUPS}
+          activeGroupId="operations"
+          pathname="/dashboard/profile"
+          subnavCollapsed={false}
+          onExpandSubnav={vi.fn()}
+          inspectorOpen={false}
+          onToggleInspector={vi.fn()}
+        />
+      </TerminalHeaderSlotProvider>
+    )
+
+    expect(screen.getByRole('button', { name: '侧栏' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
+
+    rerender(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeader
+          groups={GROUPS}
+          activeGroupId="operations"
+          pathname="/dashboard/profile"
+          subnavCollapsed
+          onExpandSubnav={vi.fn()}
+          inspectorOpen
+          onToggleInspector={vi.fn()}
+        />
+      </TerminalHeaderSlotProvider>
+    )
+
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('移动导航入口和页面刷新入口可访问且状态可识别', () => {

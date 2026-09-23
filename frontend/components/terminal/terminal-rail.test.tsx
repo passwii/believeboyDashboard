@@ -79,6 +79,7 @@ describe('TerminalRail', () => {
     const themeIcon = container.querySelector('aside > div:last-child > button:first-child svg') as HTMLElement
     expect(themeIcon.style.height).toBe(`${TERMINAL_RAIL_ICON_SIZE}px`)
     expect(themeIcon.style.width).toBe(`${TERMINAL_RAIL_ICON_SIZE}px`)
+    expect(themeIcon.getAttribute('stroke-width')).toBe('1.75')
     // 常量已上档（BLF-887），不再是早期写死的 18px
     expect(TERMINAL_RAIL_ICON_SIZE).not.toBe(18)
   })
