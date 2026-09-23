@@ -53,23 +53,23 @@
 - Consumes: 现有外壳组件 props、`TERMINAL_*` 尺寸常量和 `useTerminalLayout` 状态接口。
 - Produces: 可锁定 rail/subnav/header/inspector/footer 的角色、可访问名称、展开/折叠状态与常量尺寸的回归断言；不改生产接口。
 
-- [ ] **Step 1: 读取现有外壳测试和源文件，记录当前真实交互**
+- [x] **Step 1: 读取现有外壳测试和源文件，记录当前真实交互**
 
 运行：`cd frontend && pnpm vitest run components/terminal/terminal-rail.test.tsx components/terminal/terminal-subnav.test.tsx components/terminal/terminal-header.test.tsx components/terminal/terminal-inspector.test.tsx components/terminal/terminal-footer.test.tsx components/terminal/use-terminal-layout.test.ts`
 
-预期：当前相关测试通过；若测试路径或名称有差异，按 `frontend/components/terminal/` 的实际同名测试替换命令，并把准确路径写入任务记录。
+结果：原有外壳测试通过；后新增 Header 高度/控制状态和 Footer 高度/可访问名测试，具体运行结果见 Step 3。
 
-- [ ] **Step 2: 为当前可见交互补充基线断言**
+- [x] **Step 2: 为当前可见交互补充基线断言**
 
 为每个目标组件只补缺失断言：主题/导航按钮有可访问名称；折叠按钮的 `aria-expanded` 与状态同步；当前导航项有当前状态语义；布局 hook 的 toggle 能往返切换；rail/subnav/header/inspector/footer 的尺寸引用 `terminal-constants.ts` 中对应常量，不在测试里硬编码另一个尺寸数值。
 
-- [ ] **Step 3: 运行目标测试确认基线通过**
+- [x] **Step 3: 运行目标测试确认基线通过**
 
 运行：`cd frontend && pnpm vitest run components/terminal/terminal-rail.test.tsx components/terminal/terminal-subnav.test.tsx components/terminal/terminal-header.test.tsx components/terminal/terminal-inspector.test.tsx components/terminal/terminal-footer.test.tsx components/terminal/use-terminal-layout.test.ts`
 
-预期：PASS；若新断言发现现状缺陷，保留失败作为 Task 2/3 的实现驱动用例。
+结果：6 个外壳测试文件、57 tests 全通过；Header 新增尺寸与 `aria-pressed` 状态契约、Footer 新增尺寸与状态区域名称契约。另在 Rail/Footer 图标笔画 1.75 契约新增后，Rail/Header/Footer 目标组 3 个测试文件、44 tests 通过。
 
-- [ ] **Step 4: 提交测试基线**
+- [x] **Step 4: 提交测试基线**
 
 ```bash
 git add frontend/components/terminal/terminal-rail.test.tsx frontend/components/terminal/terminal-subnav.test.tsx frontend/components/terminal/terminal-header.test.tsx frontend/components/terminal/terminal-inspector.test.tsx frontend/components/terminal/terminal-footer.test.tsx frontend/components/terminal/use-terminal-layout.test.ts
@@ -77,6 +77,8 @@ git commit -m "test(终端外壳): 补齐交互回归基线"
 ```
 
 ## Task 2: 打磨外壳对齐、密度与可访问状态
+
+> 首轮实际修正已完成：Footer `<footer>` 增加 `role="status" aria-label="全局状态栏"`；Rail/Footer 的 Lucide 图标显式使用规范 `strokeWidth={1.75}`。Header 尺寸和两个侧栏切换状态现由 Task 1 的契约测试覆盖，不需额外改生产接口。
 
 **Files:**
 - Modify: `frontend/components/terminal/terminal-constants.ts`
@@ -161,6 +163,8 @@ git commit -m "feat(终端外壳): 强化可访问的面板过渡"
 ```
 
 ## Task 4: 共享交互组件状态基线与缺口盘点
+
+> **设计边界：** `frontend/components/ui/tabs.tsx` 的 default variant 与 AI Chat V2 是登记的独立设计表面，保留既有圆角/渐变/投影。此任务只审查 `variant="term"` 与控件交互/可访问状态，不把 V3 Terminal 规范套用至该例外；`table.tsx` 中按规范用于 1px 表格分隔线的 inset shadow 也保留。
 
 **Files:**
 - Read/Modify: `frontend/components/ui/button.test.tsx`

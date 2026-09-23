@@ -67,6 +67,14 @@ describe('TerminalRail', () => {
     expect(logoSlot.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
   })
 
+  it('主题切换按钮通过标题提供具体动作名称', () => {
+    const { container } = render(
+      <TerminalRail groups={GROUPS} activeGroupId="operations" onGroupNavigate={vi.fn()} />
+    )
+    const themeButton = container.querySelector('aside > div:last-child > button:first-child')
+    expect(themeButton).toHaveAttribute('title', '切换暗色')
+  })
+
   it('BLF-850 Rail 图标尺寸引用单一常量 TERMINAL_RAIL_ICON_SIZE（内联 style，非动态类）', () => {
     const { container } = render(
       <TerminalRail groups={GROUPS} activeGroupId="operations" onGroupNavigate={vi.fn()} />

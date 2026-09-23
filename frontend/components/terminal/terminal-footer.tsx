@@ -443,7 +443,7 @@ export function TerminalFooter() {
       {/* 未读通知 */}
       {unreadCount > 0 && (
         <div className="flex shrink-0 items-center gap-1 border-l border-term-border px-3 text-term-text">
-          <Bell className="h-3.5 w-3.5" />
+          <Bell className="h-3.5 w-3.5" strokeWidth={1.75} />
           <span className="font-mono tabular-nums">{unreadCount}</span>
         </div>
       )}

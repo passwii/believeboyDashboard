@@ -356,6 +356,14 @@ describe('TerminalFooter', () => {
     expect(footer).toHaveAttribute('aria-label', '全局状态栏')
   })
 
+  it('页脚通知图标沿用 Terminal 图标 strokeWidth 1.75', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08' }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    render(<TerminalFooter />)
+    const bell = screen.getByTestId('terminal-footer').querySelector('svg.lucide-bell')
+    expect(bell).toHaveAttribute('stroke-width', '1.75')
+  })
+
   it('无数据时汇率与快报显示 "--" 占位且不报错', () => {
     mockTicker('loading', [{ currency: 'USD', rate: null, yearMonth: null }])
     mockBrief({ gmv: null, orders: null, pending: null }, 'error')
