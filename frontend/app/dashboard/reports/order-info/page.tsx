@@ -1105,8 +1105,8 @@ function OrderInfoPageInner() {
                           {item.product_name ?? '—'}
                         </span>
                       </TermCell>
-                      <TermCell numeric>{item.quantity}</TermCell>
-                      <TermCell numeric>
+                      <TermCell numeric className="tabular-nums">{item.quantity}</TermCell>
+                      <TermCell numeric className="tabular-nums">
                         <div className="flex flex-col leading-tight">
                           <span>
                             {fmtAmount(totalAmount)} {item.currency ?? ''}

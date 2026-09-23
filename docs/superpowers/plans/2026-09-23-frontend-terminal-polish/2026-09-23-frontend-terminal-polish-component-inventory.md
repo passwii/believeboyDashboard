@@ -43,6 +43,15 @@
 - `MetricSwitcherCard` 两种选择控件存在真实 V3 偏差：图表形态 segmented control 为 h-7 圆角/默认色，指标选择活跃态以透明 `bg-primary` 和圆形指示条表达，且无专用键盘 focus-visible ring。新增单测先失败，修正为 h-9 零圆角 term 控件、明确 `role=group`/label、`aria-pressed`、term accent focus ring、term-raised active surface 和方形 accent 指示条。
 - 验证：`PLAYWRIGHT_PORT=3248 pnpm exec playwright test tests/dashboard/mobile-filter-strip-pilot.spec.ts --project=mobile` **7 passed**，包含 dark reload 与 reduced-motion 下图表形态选择交互；截图已在同一次检查中目视对比，未保留临时文件。`pnpm exec vitest run components/dashboard/metric-switcher-card.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-client.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-excel-export.test.ts components/terminal/daily-analysis-table.test.tsx --pool=threads --maxWorkers=1 --reporter=dot` **4 files / 22 passed**；`pnpm lint` 0 errors / 27 warnings；单独重跑 `pnpm build` 通过（一次与并行 dev server 同跑时发生 font resolver 失败，未复现）；Impeccable detector 输出 `[]`。
 
+## order-info 代表页（Task 7）审计更新
+
+- 入口：`frontend/app/dashboard/reports/order-info/page.tsx` → `OrderInfoPage` → `OrderInfoPageInner`；`TermTable` / `TermTHead` 源自 `frontend/components/terminal/term-table.tsx`，共 20 个调用页面。具体 numeric 行仅修正 shared primitive 的 `numeric` 分支，保持 API 不变。
+- 页面表格已有实体 `bg-term-raised` sticky header、`term-panel` 面板、零圆角、内部滚动容器；新增 mobile fixture 检查手机端筛选折叠展开、2 列网格、宽表仅在自身区域横滑、页面不整体溢出，并在 light/dark 验证 sticky 背景不透明。
+- 发现并复现 shared 数字列缺口：`TermHead numeric` / `TermCell numeric` 只 `text-right`，没有显式 tabular number treatment。`page.test.tsx` 新契约先失败，分别捕获 header 与 cell 缺失；已在 primitive 两个 numeric 分支补齐 `tabular-nums`，金额与数量调用增加显式数值类。
+- BLF-616 订单移动端既有测试因直接寻找折叠面板中的项目 combobox 而基线超时；page snapshot 确认订单表已渲染、MobileFilterStrip 未展开。测试已适配 BLF-940 现状，检查真实的类型/状态/币种 3 个页面筛选项、表格内部横滑和页面无溢出。
+- 验证：订单移动浏览器用例在 mobile project **1/1 passed**（包含 light/dark reload、sticky header 实体背景、折叠筛选展开和表内横滑）；vitest `app/dashboard/reports/order-info/page.test.tsx components/dashboard/ad-data/ad-data-explorer.test.tsx app/dashboard/finance/exchange-rate/page.test.tsx components/terminal/daily-analysis-table.test.tsx` **4 files / 28 passed**；lint 0 errors / 27 warnings；单独运行 build 通过；Impeccable detector 输出 `[]`。
+- 同一 BLF-616 文件另外 5 个旧 report page 用例仍失败于缺失的旧标题/站点 Group 选择器，快照确认页面内容已渲染（如 heading 实为“可核对月报”/“核算参数”、站点以全局折叠条呈现）。它们不触及 OrderInfoPage/TermTable 修改，本批记为既有 e2e selector/路由假设漂移，不计入订单用例通过数。
+
 ## 后续组件修正准入
 
-目前首轮其余 Button/Input/term Tabs/Table/Dialog/Sheet 缺口没有经验证的 bug，因此不安排无目标的共享组件重写。daily-analysis / order-info 两个页面样板测试若能归因到共享组件，按具体调用方新增单一失败断言，再修共享源头并复核同类调用；default Tabs、dashboard-v2 与表格 separator 的既有例外继续保留。
+目前首轮其余 Button/Input/term Tabs/Table/Dialog/Sheet 缺口没有经验证的 bug，因此不安排无目标的共享组件重写。default Tabs、dashboard-v2 与表格 separator 的既有例外继续保留。

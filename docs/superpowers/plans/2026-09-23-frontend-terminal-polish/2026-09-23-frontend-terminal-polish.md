@@ -302,9 +302,11 @@ git commit -m "fix(运营分析): 打磨终端数据工作区"
 
 ## Task 7: 打磨报表代表页面并验证共享模式
 
+> 结果：order-info 的 numeric 表头/单元格采用显式 `tabular-nums`；BLF-616 订单 fixture 对齐移动筛选折叠条交互，并覆盖 light/dark 实体 sticky 背景、内部横滑和页面无溢出。订单 mobile 1/1、关联 Vitest 4 files / 28 tests、lint 0 errors（27 warnings）、build 通过、detector `[]`。BLF-616 中另外 5 个其它报表/计算页旧选择器失败情况见 component inventory。
+
 **Files:**
 - Read/Modify: `frontend/app/dashboard/reports/order-info/` 实际路由入口和直接呈现组件
-- Read/Modify: `frontend/components/terminal/term-table.tsx`（仅当调用图确认目标页使用该共享组件）
+- Read/Modify: `frontend/components/terminal/term-table.tsx`（CodeGraph 确认 order-info 页面使用；numeric 样式影响 20 个调用方，需验证 representative consumers）
 - Read: `frontend/components/terminal/daily-analysis-table.test.tsx`（当前仓库存在的共用数据表测试）
 - Modify: `frontend/tests/dashboard/reports-mobile-blf616.spec.ts`
 - Modify: 该页面现存的 Vitest 测试
@@ -313,31 +315,31 @@ git commit -m "fix(运营分析): 打磨终端数据工作区"
 - Consumes: Task 6 验证过的筛选带、数据表、加载/错误反馈模式；报表原有数据和导出行为。
 - Produces: order-info 报表响应式/主题/状态回归；既有查询、排序、导出、列含义不变。
 
-- [ ] **Step 1: 用 CodeGraph 定位 order-info 页面和共享依赖**
+- [x] **Step 1: 用 CodeGraph 定位 order-info 页面和共享依赖**
 
 运行：`codegraph files --path frontend/app/dashboard/reports`；按其入口真实 component 符号运行 `codegraph query <真实符号> --kind component` 和 `codegraph callers <真实符号>`；读取 `reports-mobile-blf616.spec.ts`、页面组件、`frontend/docs/table-spec.md`。
 
-预期：形成精确目标文件和回归清单；确认表格粘性表头实体不透明底色、数值对齐及移动端呈现要求。
+结果：`OrderInfoPage` → `OrderInfoPageInner` 使用 shared `TermTable / TermTHead / TermHead / TermCell`；页面里程碑测试为 `page.test.tsx` 与 `reports-mobile-blf616.spec.ts`。CodeGraph 显示 TermTable 共有 20 个调用方，代表测试取订单、ad-data、exchange-rate、daily-analysis 4 suite。sticky、数字和 mobile 约束依据 `frontend/docs/table-spec.md`。
 
-- [ ] **Step 2: 写一条针对目标偏差的失败测试**
+- [x] **Step 2: 写一条针对目标偏差的失败测试**
 
-覆盖报表首要任务在移动端可用/无横向页面溢出，或数据表格行列对齐与视觉 token 契约；不因截图文字差异而锁死纯装饰性细节。
+结果：新增 `page.test.tsx` numeric table contract（header 与数量/金额 cell 均右对齐、tabular nums）；更新 `reports-mobile-blf616.spec.ts` 订单 case 以先展开 BLF-940 filter strip，再断言页面 3 个 filter 与两列表格筛选布局、12+ 列表格内部横滑/light-dark sticky 背景。fixture 与业务 data rows 保持原状。
 
-- [ ] **Step 3: 运行 Playwright 用例确认失败**
+- [x] **Step 3: 运行 Playwright 用例确认失败**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/reports-mobile-blf616.spec.ts`
 
-预期：新增行为断言 FAIL，既有业务流程断言保持通过。
+结果：新增 numeric header 断言在 `TermHead numeric` 首次失败，准确指向缺失 `tabular-nums`；数量 cell 追加断言再确认 `TermCell numeric` 同样缺样式。BLF-616 旧订单断言曾因未打开折叠筛选条而失败，修正交互步骤后订单用例通过。
 
-- [ ] **Step 4: 修复目标页面或共享 term-table 层**
+- [x] **Step 4: 修复目标页面或共享 term-table 层**
 
-遵守 `table-spec.md`；粘性表头使用实体不透明 term token，数字用 mono/tabular-nums，边界保持 1px，无阴影/圆角回归。业务列、排序和导出不改。
+结果：`TermHead numeric` 与 `TermCell numeric` 统一添加 `text-right tabular-nums`；订单页数量/金额单元格显式标注数值 tabular 样式。sticky `TermHead` 使用 `bg-term-raised` 不透明底色并按既有 1px 边界显示；列含义、排序、导出与业务语义不变。
 
-- [ ] **Step 5: 运行页面与共享组件测试**
+- [x] **Step 5: 运行页面与共享组件测试**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/reports-mobile-blf616.spec.ts && pnpm vitest run app/dashboard/reports/order-info/page.test.tsx components/terminal/daily-analysis-table.test.tsx`
 
-预期：PASS，并检查桌面/移动、明暗主题与 reduced-motion。当前仓库没有 `term-table.test.tsx`，此处先覆盖已确认存在的报表页单测与共用终端数据表测试；如调用图确认另有报表表格测试，则追加其真实路径。
+结果：订单 mobile Playwright **1/1 passed**（light/dark reload，实体 sticky background，filter strip 和表内横滑）；目标及 3 个代表共享 consumer 的 Vitest **4 files / 28 passed**；`pnpm lint` 0 errors / 27 warnings；`pnpm build` 通过；Impeccable detector `[]`。整份 BLF-616 其它 5 个页面的 e2e selector/route 假设漂移见 inventory，不归入订单用例结果。
 
 - [ ] **Step 6: 提交报表页面批次**
 
@@ -346,7 +348,7 @@ git add frontend/app/dashboard/reports/order-info frontend/components/terminal/t
 git commit -m "fix(报表): 打磨终端订单信息页"
 ```
 
-只暂存本批实际变更文件。
+结果：已完成，实际提交文件见提交 `fix(报表): 打磨终端订单信息页`。
 
 ## Task 8: 全局验证、视觉复核与模块扩展路线图
 
