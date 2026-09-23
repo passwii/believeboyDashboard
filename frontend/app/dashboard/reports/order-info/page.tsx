@@ -51,7 +51,6 @@ import {
   TERM_HEADER_TRIGGER,
   TERM_HEADER_W_SM,
   TERM_HEADER_W_MD,
-  TERM_HEADER_W_LG,
 } from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'

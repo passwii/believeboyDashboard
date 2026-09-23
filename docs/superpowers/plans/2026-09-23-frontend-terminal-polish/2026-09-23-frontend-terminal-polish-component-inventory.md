@@ -46,7 +46,7 @@
 ## order-info 代表页（Task 7）审计更新
 
 - 入口：`frontend/app/dashboard/reports/order-info/page.tsx` → `OrderInfoPage` → `OrderInfoPageInner`；`TermTable` / `TermTHead` 源自 `frontend/components/terminal/term-table.tsx`，共 20 个调用页面。具体 numeric 行仅修正 shared primitive 的 `numeric` 分支，保持 API 不变。
-- 页面表格已有实体 `bg-term-raised` sticky header、`term-panel` 面板、零圆角、内部滚动容器；新增 mobile fixture 检查手机端筛选折叠展开、2 列网格、宽表仅在自身区域横滑、页面不整体溢出，并在 light/dark 验证 sticky 背景不透明。视觉复核另捕获四尺寸/主题截图；移动筛选调整为两列 filter 组 + 三条全宽搜索与清空按钮，避免固定 130/150px 触发器嵌在全局 2 列 grid 造成不均匀布局。
+- 页面表格已有实体 `bg-term-raised` sticky header、`term-panel` 面板、零圆角、内部滚动容器；新增 mobile fixture 检查手机端筛选折叠展开、2 列网格、宽表仅在自身区域横滑、页面不整体溢出，并在 light/dark 验证 sticky 背景不透明。截图复核捕获了移动筛选固定宽 Select 在全局两列网格中不匀称的结构；现将类型/状态分为两列、币种下一行、三条全宽搜索，订单移动测试涵盖该分组。
 - 发现并复现 shared 数字列缺口：`TermHead numeric` / `TermCell numeric` 只 `text-right`，没有显式 tabular number treatment。`page.test.tsx` 新契约先失败，分别捕获 header 与 cell 缺失；已在 primitive 两个 numeric 分支补齐 `tabular-nums`，金额与数量调用增加显式数值类。
 - BLF-616 订单移动端既有测试因直接寻找折叠面板中的项目 combobox 而基线超时；page snapshot 确认订单表已渲染、MobileFilterStrip 未展开。测试已适配 BLF-940 现状，检查真实的类型/状态/币种 3 个页面筛选项、两列短筛选、全宽关键词输入、表格内部横滑和页面无溢出；截图审查促使移动筛选控件按两列/全宽分组，避免固定宽 Select 撑出网格。
 - 验证：订单移动浏览器用例在 mobile project **1/1 passed**（包含 light/dark reload、sticky header 实体背景、折叠筛选展开和表内横滑）；vitest `app/dashboard/reports/order-info/page.test.tsx components/dashboard/ad-data/ad-data-explorer.test.tsx app/dashboard/finance/exchange-rate/page.test.tsx components/terminal/daily-analysis-table.test.tsx` **4 files / 28 passed**；lint 0 errors / 27 warnings；单独运行 build 通过；Impeccable detector 输出 `[]`。

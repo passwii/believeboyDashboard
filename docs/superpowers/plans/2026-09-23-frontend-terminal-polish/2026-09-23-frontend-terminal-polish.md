@@ -352,12 +352,13 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 ## Task 8: 全局验证、视觉复核与模块扩展路线图
 
-> 结果：inventory 与模块 roadmap 已完成；订单筛选手机端调整为短控件双列与关键词全宽。全量 Vitest 未回传最终摘要、BLF-616 非订单页有 5 项 selector 漂移、2 个 auth-dependent a11y spec 为 skipped；均作为未完成验证项如实记录。
+> 结果：inventory 与模块 roadmap 已完成；订单筛选手机端调整为短控件双列与关键词全宽。相关订单 Playwright、28 项目标 Vitest、lint 与独立 build 通过；全量 Vitest 未回传最终摘要、BLF-616 非订单页有 5 项 selector 漂移、2 个 auth-dependent a11y spec 为 skipped，均如实保留为未全绿项。
 
 **Files:**
 - Read: `frontend/docs/design-spec.md`
 - Read: `frontend/docs/motion-system.md`
 - Read: `frontend/docs/perf-budget.md`
+- Modify: `frontend/tests/dashboard/reports-mobile-blf616.spec.ts`（BLF-940 后移动订单控件分组 + header 横向 scroller 正确排除）
 - Modify: `docs/superpowers/plans/2026-09-23-frontend-terminal-polish/2026-09-23-frontend-terminal-polish-component-inventory.md`
 - Create: `docs/superpowers/plans/2026-09-23-frontend-terminal-polish/2026-09-23-frontend-terminal-polish-module-roadmap.md`
 
@@ -369,17 +370,17 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 运行：`cd frontend && pnpm lint && pnpm build && pnpm test`
 
-预期：三项全部 PASS。任何失败立即按故障源修复并重复相应命令；不因本轮 UI 变更而删减既有测试。
+结果：`pnpm lint` 0 errors / 27 warnings；`pnpm build` 单独运行通过（含 OpenAPI type check）；全量 `pnpm test -- --pool=threads --maxWorkers=4 --reporter=dot` 已启动后台 runner，当前仍未回传最终摘要，所以此 Step 保持未完成。
 
 - [ ] **Step 2: 跑本轮相关浏览器测试**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts tests/dashboard/reports-mobile-blf616.spec.ts tests/a11y/reduced-motion.spec.ts tests/a11y/reduced-transparency.spec.ts`
 
-预期：PASS，或将确认的外部 fixture/环境阻碍单独记录为未通过项。
+结果：已分别运行目标 suites；`operations-mobile-blf614.spec.ts --project=mobile` 为 2 passed / 3 失败（portfolio-overview 旧 Select 假设），`mobile-filter-strip-pilot.spec.ts --project=mobile` 7/7 passed，BLF-616 order-info mobile 单用例 1/1 通过而非订单另 5 项 selector 漂移，reduced-motion/transparency 的 auth-dependent 测试 skipped。此合并浏览器 Step 保持未完成，后续待修复旧用例并具备认证 fixture 后重跑。
 
-- [ ] **Step 3: 做一次桌面/移动批量截图检查并集中修复**
+- [x] **Step 3: 做一次桌面/移动批量截图检查并集中修复**
 
-在登录测试账号可用的本地站点运行：桌面 1440px、移动 390px；检查 Terminal shell、daily-analysis、order-info，light/dark 主题；对核心导航、筛选、表格操作各走一遍。所有需修问题集中一次修改，不逐像素循环；修复后最多补一轮复核。保留截图与具体未解项，不声称未检查页面已验收。
+结果：按 1440px/393px、light/dark 对外壳、daily-analysis、order-info 做一次合并截图 pass；修复了 daily-analysis term 表面、订单 Numeric 列，并将移动订单筛选改成短控件双列 + 全宽搜索。截图仅存在于临时目录并已目视复核、不保留仓库附件；移动横溢测试排除了 Header 自有 overflow-x-auto scroller。
 
 - [x] **Step 4: 建立模块扩展路线图**
 
@@ -389,12 +390,14 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 结果：inventory 与 roadmap 已记录真实完成项、全量 Vitest 未回传、5 个 BLF-616 失效选择器与 2 个 reduced-motion/transparency skip。运行占位词扫描时唯一命中是父 plan 本身用于指导该扫描的命令说明；component inventory 与 module roadmap 本身未发现未处理占位。
 
-- [ ] **Step 6: 提交验证和路线图**
+- [x] **Step 6: 提交验证和路线图**
 
 ```bash
 git add docs/superpowers/plans/2026-09-23-frontend-terminal-polish
 git commit -m "docs(前端): 记录终端打磨验证与模块路线"
 ```
+
+结果：Task 8 文档与订单移动筛选修正一并纳入本轮末尾提交 `docs(前端): 记录终端打磨验证与模块路线`。
 
 ---
 
