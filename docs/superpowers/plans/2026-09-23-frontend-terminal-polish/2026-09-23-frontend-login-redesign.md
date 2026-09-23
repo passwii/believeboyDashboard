@@ -217,17 +217,17 @@ git commit -m "test(登录页): 覆盖响应式主题与减少动态"
 
 运行：`cd frontend && pnpm lint && pnpm build && pnpm test`
 
-结果：`pnpm lint` 退出码 0（0 errors，27 条既有 warning）；`pnpm build` 成功（Next.js 16.2.4）；全量 `pnpm test` 在本地 runner 中分别以默认 pool、8/16 worker 和 2 worker 尝试，均在工具时限内未能结束。独立的 login Vitest suite 已通过 20/20。
+结果：`pnpm lint` 退出码 0（0 errors，27 条既有 warning）；`pnpm build` 成功（Next.js 16.2.4）；全量 `pnpm test` 在本地 runner 中分别以默认 pool、8/16 worker 和 2 worker 尝试，均在工具时限内未能结束。登录及 Auth.js 网络错误单测已通过 21/21。
 
 - [x] **Step 2: 跑 Playwright 登录回归**
 
 运行：`cd frontend && PLAYWRIGHT_PORT=3224 pnpm exec playwright test tests/login/login-responsive.spec.ts --project=chromium` 以及 `pnpm exec playwright test tests/dashboard/home-mobile-blf621.spec.ts --project=mobile -g '登录页'`
 
-结果：登录响应式/主题/reduced-motion 4/4 通过；BLF-621 登录触控/无横滚 1/1 通过。全文件包含另外 8 个旧后台页面用例，不纳入登录验证范围。
+结果：登录响应式/主题/reduced-motion/方形键盘焦点/对比度 6/6 通过；BLF-621 登录触控/无横滚 1/1 通过。全文件包含另外 8 个旧后台页面用例，不纳入登录验证范围。
 
 - [x] **Step 3: 批量检查桌面/移动、light/dark、正常/减少动态**
 
-已一次捕获并检查 1440px、390px 两个视口与 light/dark 两主题；桌面品牌主视觉、移动首屏表单、焦点/表单状态、loading 和错误语义均检查。根据检查与代码审查结果修复移动端首屏、占位对比度、按钮对比度和暗色阴影；收尾验证登录截图回归 4/4 通过。
+已一次捕获并检查 1440px、390px 两个视口与 light/dark 两主题；桌面品牌主视觉、移动首屏表单、焦点/表单状态、loading 和错误语义均检查。根据检查与代码审查结果修复移动端首屏、占位对比度、按钮对比度和暗色阴影；收尾验证登录响应式、主题、减少动态、焦点形状、语义顺序和实际对比度浏览器回归 6/6 通过。
 
 - [x] **Step 4: 运行 Impeccable detector 一次**
 
@@ -246,7 +246,7 @@ git commit -m "feat(登录页): 完成品牌入口重做"
 
 ## Definition of Done
 
-- `/login` 的品牌入口与认证主操作层级清楚，桌面和移动可用，明暗主题均可读。
+- `/login` 的品牌入口与认证主操作层级清楚，桌面只有一个品牌 H1（表单标题 H2），移动只有一个屏幕阅读器品牌 H1（可见表单标题 H2）；桌面和移动可用，明暗主题均可读。
 - 凭据认证、站内 callback、安全回退、认证网络错误 code、提交禁用和导航 loading 行为通过自动化测试。
 - 移除未确认的静态伪实时 boot 状态或延迟数据；没有虚构客户/结果/服务状态。
 - 减少动态偏好下页面核心内容立即可见且功能完整。
