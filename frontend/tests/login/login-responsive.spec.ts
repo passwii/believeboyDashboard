@@ -78,6 +78,8 @@ test.describe('BelieveBoy login responsive entry', () => {
     await expect(page.getByLabel('企业邮箱')).toHaveCSS('border-radius', '0px')
     await page.getByRole('button', { name: '显示密码' }).focus()
     await expect(page.getByRole('button', { name: '显示密码' })).toHaveCSS('border-radius', '0px')
+    await page.getByRole('button', { name: /登录工作区/ }).focus()
+    await expect(page.getByRole('button', { name: /登录工作区/ })).toHaveCSS('border-radius', '0px')
   })
 
   test('theme toggle switches the term color theme', async ({ page }) => {

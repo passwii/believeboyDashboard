@@ -106,7 +106,7 @@ const TerminalFormPanel = ({
         <button
           type="submit"
           disabled={submitting}
-          className="u-focus mt-2 flex h-12 w-full items-center justify-center gap-3 border border-term-action bg-term-action px-4 text-sm font-semibold text-term-action-text transition-[filter,transform] hover:brightness-95 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-2 flex h-12 w-full items-center justify-center gap-3 border border-term-action bg-term-action px-4 text-sm font-semibold text-term-action-text transition-[filter,transform] hover:brightness-95 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
             <>
