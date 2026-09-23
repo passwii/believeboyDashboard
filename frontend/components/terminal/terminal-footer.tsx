@@ -393,6 +393,8 @@ export function TerminalFooter() {
   return (
     <footer
       style={{ height: TERMINAL_FOOTER_HEIGHT }}
+      role="status"
+      aria-label="全局状态栏"
       data-testid="terminal-footer"
       className="hidden shrink-0 items-stretch overflow-hidden rounded-none border-t border-term-border bg-term-panel text-sm leading-none text-term-muted shadow-none sm:flex"
     >

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TerminalHeader } from './terminal-header'
 import { GLOBAL_FILTER_PILOT_PREFIXES } from './global-filter-context'
+import { TERMINAL_HEADER_HEIGHT } from './terminal-constants'
 import {
   HeaderSlotMount,
   TerminalHeaderSlotProvider,
@@ -133,6 +134,19 @@ afterEach(() => {
 })
 
 describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI 磁贴）', () => {
+  it('头部高度引用终端 Header 高度常量', () => {
+    const { container } = renderHeader('/dashboard/profile')
+    const header = container.querySelector('header[style]') as HTMLElement
+    expect(header.style.height).toBe(`${TERMINAL_HEADER_HEIGHT}px`)
+  })
+
+  it('移动导航入口和页面刷新入口可访问且状态可识别', () => {
+    renderHeader('/dashboard/profile')
+    expect(screen.getByRole('button', { name: '打开导航菜单' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新当前页数据' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('试点路由（销售数据）：渲染筛选四件套且不含 KPI 磁贴', () => {
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument()
