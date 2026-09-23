@@ -4,17 +4,15 @@ import React, { useRef, useEffect, useState, useMemo, useCallback, type FormEven
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import TerminalWindow from './terminal-window'
-import BootSequence from './boot-sequence'
+import { LoginThemeToggle } from './login-theme-toggle'
 import TerminalFormPanel from './terminal-form-panel'
 
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
 
 /**
- * Terminal 风格登录卡（BLF-965 重制）。
- * 登录逻辑（next-auth credentials + 全局 navigation loading + 错误映射）
- * 与旧版 sign-in-card 完全一致，仅表现层替换为终端窗口：
- * 左列 boot 输出 + 右列命令式表单，窄屏自动上下堆叠。
+ * BelieveBoy 登录表单与 credentials 流程。
+ * 认证、callback 安全校验和导航 loading 生命周期留在本组件，
+ * 品牌布局由 LoginEntry / LoginBrandPanel 独立负责。
  */
 const SignInCard = () => {
   const [email, setEmail] = useState('')
@@ -81,7 +79,7 @@ const SignInCard = () => {
       const signInError = typeof result === 'string' ? result : result?.error
       if (signInError) {
         setSubmitting(false)
-        const errorCode = signInError.toLowerCase()
+        const errorCode = typeof result === 'string' ? '' : result?.code?.toLowerCase()
         if (errorCode === 'network_error') {
           setError('无法连接到服务器，请检查后端服务是否启动。')
         } else {
@@ -90,8 +88,16 @@ const SignInCard = () => {
         return
       }
 
-      const fallbackPath = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
-      let nextPath = fallbackPath
+      let nextPath = '/dashboard'
+      try {
+        const callbackTarget = new URL(callbackUrl, window.location.origin)
+        if (callbackTarget.origin === window.location.origin) {
+          nextPath = `${callbackTarget.pathname}${callbackTarget.search}${callbackTarget.hash}`
+        }
+      } catch {
+        nextPath = '/dashboard'
+      }
+
       if (result.url) {
         try {
           const target = new URL(result.url, window.location.origin)
@@ -99,7 +105,7 @@ const SignInCard = () => {
             nextPath = `${target.pathname}${target.search}${target.hash}`
           }
         } catch {
-          nextPath = fallbackPath
+          // Keep the validated same-origin callback or dashboard fallback.
         }
       }
       // Hand off to the router. Start the navigation spinner only now —
@@ -115,41 +121,44 @@ const SignInCard = () => {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center sm:px-2 md:px-4 lg:px-0">
-      <TerminalWindow>
-        <div className="grid bg-term-panel md:grid-cols-[1fr_1.2fr]">
-          {/* 左：品牌 + boot 输出（窄屏隐藏 boot，保留品牌行） */}
-          <div className="border-b border-term-border p-6 md:border-b-0 md:border-r">
-            <p className="font-mono text-xs tracking-widest text-term-faint uppercase">
-              believeboy · 跨境增长终端
-            </p>
-            <h1 className="mt-2 text-2xl font-bold text-term-text">彼励扶跨境</h1>
-            <p className="mt-1 max-w-xs text-sm text-term-muted">
-              为跨境销售与全球推广团队提供高效、可执行的品牌增长支持
-            </p>
-            <div className="mt-6 hidden md:block">
-              <BootSequence />
-            </div>
-          </div>
-
-          {/* 右：命令式表单 */}
-          <div className="p-6 md:p-7">
-            <TerminalFormPanel
-              email={email}
-              setEmail={setEmail}
-              password={password}
-              setPassword={setPassword}
-              submitting={submitting}
-              error={error}
-              onSubmit={handleSignIn}
-            />
-            <p className="mt-5 border-t border-dashed border-term-border pt-3 text-center font-mono text-[11px] text-term-faint">
-              品牌跨境 · 连接全球
-            </p>
-          </div>
+    <section aria-labelledby="login-form-title" className="relative order-1 flex min-h-dvh flex-col bg-term-panel px-5 py-5 sm:px-8 sm:py-8 md:order-2 md:justify-between md:px-10 lg:px-14">
+      <h1 className="sr-only md:hidden">彼励扶跨境</h1>
+      <div className="flex items-center justify-between gap-3 md:justify-end">
+        <div role="img" aria-label="BelieveBoy" className="flex items-center gap-3 md:hidden">
+          <span aria-hidden="true" className="grid h-10 w-10 place-items-center border border-term-border-strong bg-term-raised font-mono text-sm font-semibold tracking-tight text-term-pos">
+            BB
+          </span>
+          <span className="font-mono text-sm font-semibold tracking-[0.12em] text-term-text">BelieveBoy</span>
         </div>
-      </TerminalWindow>
-    </div>
+        <LoginThemeToggle />
+      </div>
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-8 md:flex-none md:py-12">
+        <header className="mb-6 md:mb-8">
+          <h2 id="login-form-title" className="md:text-3xl md:font-semibold md:tracking-tight md:text-term-text md:sm:text-4xl">
+            登录工作区
+          </h2>
+          <p aria-hidden="true" className="text-3xl font-semibold tracking-tight text-term-text sm:text-4xl md:hidden">
+            登录工作区
+          </p>
+          <p className="mt-3 text-sm leading-6 text-term-muted">
+            使用企业邮箱和密码继续。
+          </p>
+        </header>
+        <TerminalFormPanel
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          submitting={submitting}
+          error={error}
+          onSubmit={handleSignIn}
+        />
+      </div>
+      <footer className="flex items-center justify-between gap-4 border-t border-term-border pt-4 text-xs text-term-muted">
+        <span>彼励扶跨境 · BelieveBoy</span>
+        <span className="font-mono tabular-nums">账号安全登录</span>
+      </footer>
+    </section>
   )
 }
 

@@ -349,8 +349,9 @@ test.describe('@mobile-blf621 主页/个人中心/杂项页手机端（BLF-621�
   test('登录页：表单单列 + 输入触摸目标 ≥44px + 无横滚', async ({ page, context }) => {
     // 登录页要求未登录：清掉伪造 session cookie，否则 /login 会重定向到 /dashboard
     await context.clearCookies()
+    await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/login')
-    await expect(page.getByText('欢迎登录')).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole('heading', { name: '登录工作区' })).toBeVisible({ timeout: 30000 })
 
     const email = page.getByLabel(/企业邮箱/)
     await expect(email).toBeVisible()
@@ -358,7 +359,7 @@ test.describe('@mobile-blf621 主页/个人中心/杂项页手机端（BLF-621�
     expect(eb.height, '登录输入框触摸目标 ≥44px（允许 DPR 舍入）').toBeGreaterThanOrEqual(43)
     expect(eb.width, '登录输入框全宽').toBeGreaterThan(300)
 
-    const submit = page.getByRole('button', { name: '立即登录' })
+    const submit = page.getByRole('button', { name: /登录工作区/ })
     await expect(submit).toBeVisible()
     const sb = (await submit.boundingBox())!
     expect(sb.width, '登录按钮全宽').toBeGreaterThan(300)
