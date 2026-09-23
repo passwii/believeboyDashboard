@@ -35,6 +35,14 @@
   **2 files / 4 tests passed**。
 - Footer 状态语义、Header 尺寸/pressed 状态与 L1/Footer stroke 缺口均先通过失败测试复现，再以最小生产代码修正；针对 Header/Footer/Rail 的最后一组 targeted tests **44 tests passed**。
 
+## daily-analysis 代表页（Task 6）审计更新
+
+- 入口：`frontend/app/dashboard/operations/daily-analysis/page.tsx` → `DailyAnalysisPage` → `daily-analysis-client.tsx` 中默认导出的页面组件。
+- 调用面：页面使用 `MetricSwitcherCard`、通用 `Table`/`table-presets`、`DataTableCard`、全局 Header 筛选槽及 `MobileFilterStrip`。`DailyAnalysisTable` CodeGraph callers 只有 dashboard-v2 主页，按例外不触及。
+- 可复现偏差：daily-analysis 汇总/明细表面仍使用 `surface-panel` 透明背景、`surface-soft/strong` 与 `--primary` 斑马行；SKU 日期 sticky header cell 未走实体 term 色。新增 `mobile-filter-strip-pilot.spec.ts` 的桌面契约先失败（收到 `bg-[hsl(var(--surface-panel))]/94...`），随后改为实体 `bg-term-panel/raised/hover`；移动筛选的旧 6/6 浏览器回归保持通过。
+- `MetricSwitcherCard` 两种选择控件存在真实 V3 偏差：图表形态 segmented control 为 h-7 圆角/默认色，指标选择活跃态以透明 `bg-primary` 和圆形指示条表达，且无专用键盘 focus-visible ring。新增单测先失败，修正为 h-9 零圆角 term 控件、明确 `role=group`/label、`aria-pressed`、term accent focus ring、term-raised active surface 和方形 accent 指示条。
+- 验证：`PLAYWRIGHT_PORT=3248 pnpm exec playwright test tests/dashboard/mobile-filter-strip-pilot.spec.ts --project=mobile` **7 passed**，包含 dark reload 与 reduced-motion 下图表形态选择交互；截图已在同一次检查中目视对比，未保留临时文件。`pnpm exec vitest run components/dashboard/metric-switcher-card.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-client.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-excel-export.test.ts components/terminal/daily-analysis-table.test.tsx --pool=threads --maxWorkers=1 --reporter=dot` **4 files / 22 passed**；`pnpm lint` 0 errors / 27 warnings；单独重跑 `pnpm build` 通过（一次与并行 dev server 同跑时发生 font resolver 失败，未复现）；Impeccable detector 输出 `[]`。
+
 ## 后续组件修正准入
 
 目前首轮其余 Button/Input/term Tabs/Table/Dialog/Sheet 缺口没有经验证的 bug，因此不安排无目标的共享组件重写。daily-analysis / order-info 两个页面样板测试若能归因到共享组件，按具体调用方新增单一失败断言，再修共享源头并复核同类调用；default Tabs、dashboard-v2 与表格 separator 的既有例外继续保留。

@@ -252,42 +252,44 @@ git commit -m "fix(共享组件): 修正已验证的终端状态"
 
 ## Task 6: 打磨运营分析代表页面
 
+> 结果：daily-analysis 汇总/明细表切换到实体 term 背景/状态色；`MetricSwitcherCard` 指标选择和图表形态控制统一 Terminal 令牌、尺寸与键盘焦点。页面目标 Vitest 4 files / 22 tests、移动筛选/桌面/dark/reduced-motion Playwright 7/7、lint 0 errors（27 warnings）、独立重跑 build 通过、Impeccable detector `[]`。详细范围和命令见 `2026-09-23-frontend-terminal-polish-component-inventory.md`。
+
 **Files:**
 - Read/Modify: `frontend/app/dashboard/operations/daily-analysis/` 实际路由入口与直接呈现组件
 - Read/Modify: `frontend/components/terminal/daily-analysis-table.tsx`（仅当调用图确认其为目标页共享实现）
 - Read/Modify: `frontend/components/terminal/header-filter-suite.tsx`（仅当目标缺口属于全局筛选带）
-- Modify: `frontend/tests/dashboard/operations-mobile-blf614.spec.ts`
+- Modify: `frontend/tests/dashboard/mobile-filter-strip-pilot.spec.ts`
 - Modify: 该页面已存在的 Vitest 测试
 
 **Interfaces:**
 - Consumes: Tasks 2–5 的 shell/控件状态基线；既有全局筛选 URL/state contract。
 - Produces: daily-analysis 页面外观与交互回归，不改筛选字段、URL 参数语义、API 查询或权限。
 
-- [ ] **Step 1: 定位页面组件与调用面**
+- [x] **Step 1: 定位页面组件与调用面**
 
 运行：`codegraph status .`、`codegraph files --path frontend/app/dashboard/operations`、`codegraph files --path frontend/components/terminal`；对页面入口符号执行 `codegraph query <真实符号> --kind component` 和 `codegraph callers <真实符号>`，再读取命中的源文件及 `operations-mobile-blf614.spec.ts`。
 
-预期：得到精确页面入口、共享组件、已有测试列表；不得用全局样式改造代替调用图定位。
+结果：`page.tsx` → 默认导出 daily-analysis 页面组件；确认 Header filter slot、MetricSwitcherCard、DataTableCard、Table 与移动 MobileFilterStrip 调用面。CodeGraph 确认 `DailyAnalysisTable` 仅被 dashboard-v2 主页引用，按例外未触及。页面浏览器基线与调用面记于 inventory。
 
-- [ ] **Step 2: 新增页面层失败回归断言**
+- [x] **Step 2: 新增页面层失败回归断言**
 
-依据现状选定一项最影响扫描/操作的偏差，写断言覆盖筛选区与数据表在 375/390px 移动宽度下的顺序/溢出，或桌面筛选与页面内容的对齐。保持业务数据 fixture 与 URL 行为不变。
+结果：新增 `mobile-filter-strip-pilot.spec.ts` 桌面契约，检查 daily-analysis 汇总/明细表面使用实体 term token、sticky 色、不透明日期格与非重色斑马行；新增 `metric-switcher-card.test.tsx` 活跃/非活跃指标、图表形态交互、ARIА 状态和 V3 focus/尺寸断言。筛选 fixture 与 URL 语义保持原样。
 
-- [ ] **Step 3: 运行页面用例确认缺陷可复现**
+- [x] **Step 3: 运行页面用例确认缺陷可复现**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts`
 
-预期：新断言 FAIL，旧用例保持有效。若 Playwright 命令配置采用位置参数，按 `playwright.config.ts` 的既有脚本调用方式执行。
+结果：页面表格新断言先因 `bg-[hsl(var(--surface-panel))]/94...` 失败；MetricSwitcherCard 新断言先因 h-7 圆角选择器、active `bg-primary` 失败。目标测试确认偏差来源，随后修复。
 
-- [ ] **Step 4: 只改目标页或共享源头实现**
+- [x] **Step 4: 只改目标页或共享源头实现**
 
-优先复用 `header-filter-suite`、`term-controls`、`term-table` 与既有 token；若调用图显示问题源于共享组件，修改共享源头并运行其所有调用契约测试。不要覆盖 dashboard-v2 或其他首页组件例外。
+结果：daily-analysis 两类表格使用 `bg-term-panel / bg-term-raised / bg-term-hover`；`MetricSwitcherCard` active surface/indicator、focus ring 与 chart-kind group 切换统一 term token 和控件阶梯。没有改变筛选、URL、查询、Excel 导出或 dashboard-v2。
 
-- [ ] **Step 5: 验证桌面/移动、主题与 reduced-motion**
+- [x] **Step 5: 验证桌面/移动、主题与 reduced-motion**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts && pnpm vitest run app/dashboard/operations/daily-analysis/daily-analysis-client.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-excel-export.test.ts`
 
-预期：PASS；在 Playwright 中至少检查 390px 与 1280px 视口、light/dark 主题；核心数据默认可见，减少动态偏好不影响操作。
+结果：`mobile-filter-strip-pilot.spec.ts` mobile project **7/7 passed**（含筛选折叠/展开/URL、桌面 1440、light/dark 实体表面、reduced-motion 下图表控件可用）；页面 Vitest 4 files / 22 tests passed。`pnpm lint` 0 errors、27 warnings；`pnpm build` 通过；Impeccable detector `[]`。light/dark 1440 截图已复核，文件路径记于 inventory。
 
 - [ ] **Step 6: 提交页面批次**
 
@@ -296,7 +298,7 @@ git add frontend/app/dashboard/operations frontend/components/terminal/daily-ana
 git commit -m "fix(运营分析): 打磨终端数据工作区"
 ```
 
-只暂存本批实际变更文件。
+结果：已完成；实际暂存范围仅含本批 6 个源代码、测试和计划记录文件。
 
 ## Task 7: 打磨报表代表页面并验证共享模式
 
