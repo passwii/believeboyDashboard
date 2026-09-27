@@ -11,6 +11,7 @@ from conftest import seed_schedule
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from app.api.v1.lazy_router import preload_all_lazy_groups
 from app.db.session import SessionLocal
 from app.main import app
 from app.models import Project, ShipmentScheduleItem
@@ -59,6 +60,17 @@ def _response_filename(response) -> str:
     disposition = response.headers["content-disposition"]
     encoded = disposition.split("filename*=UTF-8''", 1)[1].split(";", 1)[0]
     return unquote(encoded)
+
+
+def test_fba_template_openapi_declares_binary_xlsx_response():
+    preload_all_lazy_groups()
+    operation = app.openapi()["paths"][
+        "/api/v1/agent/projects/{project_id}/shipments/"
+        "{shipment_no}/fba-delivery-template"
+    ]["get"]
+    response = operation["responses"]["200"]["content"][XLSX_CONTENT_TYPE]
+
+    assert response["schema"] == {"type": "string", "format": "binary"}
 
 
 def _seed_custom_schedule(
@@ -349,6 +361,7 @@ def test_unknown_or_cross_project_shipment_returns_resource_not_found(
     )
     assert unknown.status_code == 404
     assert unknown.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+    assert unknown.headers["content-type"].startswith("application/json")
 
     shipment_no = f"SH-FBA-CROSS-{uuid.uuid4().hex[:8]}"
     seed_schedule(shipment_env["project_id"], shipment_no)
@@ -358,6 +371,15 @@ def test_unknown_or_cross_project_shipment_returns_resource_not_found(
     )
     assert cross_project.status_code == 404
     assert cross_project.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+    assert cross_project.headers["content-type"].startswith("application/json")
+
+
+def test_template_auth_error_remains_agent_json(client, shipment_env):
+    response = client.get(_url(shipment_env["project_id"], "SH-FBA-AUTH"))
+
+    assert response.status_code == 401
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["error"]["code"] == "AGENT_AUTH_FAILED"
 
 
 def test_template_requires_shipments_business_scope(client, shipment_env, make_api_key):

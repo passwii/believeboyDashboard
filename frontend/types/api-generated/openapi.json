@@ -49676,7 +49676,12 @@
         "responses": {
           "200": {
             "content": {
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
             },
             "description": "FBA 发货模板 XLSX 文件流"
           },
