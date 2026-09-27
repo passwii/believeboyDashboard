@@ -46,11 +46,13 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 **R6 导出 FBA 发货模板**：
 
 ```bash
-curl -s "$BASE/projects/$PROJECT_ID/shipments/$SHIPMENT_NO/fba-delivery-template" "${AUTH[@]}" > resp.json
-jq -r '.data.content_base64' resp.json | base64 --decode > "${SHIPMENT_NO}-fba-template.xlsx"
+curl -fLsS "$BASE/projects/$PROJECT_ID/shipments/$SHIPMENT_NO/fba-delivery-template" \
+  "${AUTH[@]}" \
+  -o "${SHIPMENT_NO}-fba-template.xlsx"
 ```
 
-- **响应字段**：`content_base64`（xlsx 文件本体，Base64 编码）、`filename`、`content_type`、`sheet_name`、`unit_system`（`metric`=cm·kg，`imperial`=in·lb）、`row_count`、`shipment_no`、`project_name`、`country`。
+- **成功响应**：直接返回 XLSX 二进制流，不包裹 `agent_ok` JSON，不使用 Base64；`Content-Type` 为 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`，`Content-Disposition` 提供 UTF-8 文件名。
+- **失败响应**：仍使用 Agent 标准 JSON 错误壳（例如鉴权失败、货件不存在）。
 - **单位口径**：DE / UK 使用公制 cm/kg；其他站点使用英制 in/lb，尺寸除以 2.54、重量乘以 2.20462，均保留 2 位小数。
 - **数据口径**：箱数取货件明细已持久化的 `carton_count`；装箱率、外箱尺寸和外箱重量按项目 + 站点 + SKU 查询。缺失主数据时对应单元格留空，仍返回合法模板。需要先修改箱数时，先调用 W2 保存明细，再调用 R6。
 
@@ -101,4 +103,4 @@ curl -X POST "$BASE/projects/$PROJECT_ID/shipments" "${AUTH[@]}" \
 - 删除/重算成本涉及不可逆/费用变更——确认流是强制安全门，务必给用户看预览再重放
 - **5xx**：一次性报告给报告 owner（Yawei），不要盲目重试
 - 404 与空列表是设计；所有路由挂 `require_project_scope` + `business_scope("shipments")`
-- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.10 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
+- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.11 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）

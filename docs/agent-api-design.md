@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.10 — shipments 新增 FBA 发货模板导出）
+# Agent API 设计文档（v0.11 — 文件资源改用二进制流）
 
-> **状态**：v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -607,9 +607,13 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 ## 修订记录
 
+- **v0.11（2026-09-27）**：文件型资源统一使用二进制流（BLF-1178）——
+  1. `GET /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template` 成功时直接返回 XLSX 二进制流，不再使用 `agent_ok` JSON 或 Base64；
+  2. 通过 `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` 与 RFC 5987 `Content-Disposition` 传递文件类型和文件名；
+  3. 鉴权、资源不存在等失败响应继续使用 Agent 标准 JSON 错误壳；接口仍属于 `shipments` scope，不走 confirm、不写库、不落操作审计。
 - **v0.10（2026-09-22）**：shipments 新增 FBA 发货模板导出（BLF-1178）——
   1. 新增 `GET /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template`，归属 `shipments` business scope；
-  2. 服务端用 `openpyxl` 生成与后台按钮一致的 xlsx，通过 `agent_ok` 返回 `content_base64`、文件名、MIME、Sheet、单位制和数据行数；
+  2. 服务端用 `openpyxl` 生成与后台按钮一致的 xlsx；
   3. 该接口是纯读路由，不走 confirm、不写库、不落操作审计；箱数取已持久化的 `carton_count`，DE/UK 使用公制，其余站点使用英制。
 - **v0.9（2026-08-12）**：report-upload-status 移除库存分类账状态（BLF-649）——
   1. `REPORT_TYPES` 删除 `inventory_ledger_summary` / `inventory_ledger_detail`（17 → 15 类）：分类账数据不来自 RPA 上传，其在 RPA 上传状态矩阵中的状态无意义（前端矩阵页自 BLF-482 起即不展示）；Agent 端点与内部 `/api/v1/rpa-reports/status` 的 `statuses` 同步收窄；

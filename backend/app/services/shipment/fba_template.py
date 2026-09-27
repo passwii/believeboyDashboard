@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import base64
 import re
+from dataclasses import dataclass
 from io import BytesIO
 
 from sqlalchemy import select
@@ -28,6 +28,15 @@ _HEADER_FILL = "FFE2E8F0"
 _BORDER_COLOR = "FFE2E8F0"
 _HEADER_BORDER_COLOR = "FFCBD5E1"
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
+
+
+@dataclass(frozen=True)
+class FbaTemplateArtifact:
+    """可直接作为 HTTP 文件响应返回的 FBA 模板。"""
+
+    filename: str
+    content: bytes
+    content_type: str = XLSX_CONTENT_TYPE
 
 
 def _headers(use_metric: bool) -> list[str]:
@@ -191,8 +200,8 @@ def _build_filename(*, project_name: str, country: str, shipment_no: str) -> str
     return f"{safe_project}_{site_label}-FBA发货模板-{shipment_no}.xlsx"
 
 
-def build_fba_delivery_template(db: Session, schedule) -> dict[str, object]:
-    """生成货件 FBA 发货模板，返回 Agent JSON payload。"""
+def build_fba_delivery_template(db: Session, schedule) -> FbaTemplateArtifact:
+    """生成货件 FBA 发货模板，返回可直接下载的二进制文件。"""
     row, sku_count, total_quantity = get_shipment_schedule_detail(db, schedule.id)
     detail = build_shipment_schedule_detail(row, sku_count, total_quantity)
     country = str(detail.country).strip().upper()
@@ -205,18 +214,11 @@ def build_fba_delivery_template(db: Session, schedule) -> dict[str, object]:
     )
     rows = _build_rows(detail, carton_info, use_metric)
     content = _render_xlsx(headers=_headers(use_metric), rows=rows)
-    return {
-        "shipment_no": str(detail.shipment_no),
-        "project_name": str(detail.project_name),
-        "country": country,
-        "unit_system": "metric" if use_metric else "imperial",
-        "sheet_name": SHEET_NAME,
-        "row_count": len(rows),
-        "filename": _build_filename(
+    return FbaTemplateArtifact(
+        filename=_build_filename(
             project_name=str(detail.project_name),
             country=country,
             shipment_no=str(detail.shipment_no),
         ),
-        "content_type": XLSX_CONTENT_TYPE,
-        "content_base64": base64.b64encode(content).decode("ascii"),
-    }
+        content=content,
+    )

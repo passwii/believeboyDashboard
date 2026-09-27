@@ -11,8 +11,10 @@ import json
 from contextlib import contextmanager
 from datetime import date as date_type
 from decimal import Decimal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -56,6 +58,13 @@ shipments_router = APIRouter(
     prefix="/projects/{project_id}/shipments",
     tags=["agent-shipments"],
 )
+
+
+def _content_disposition(filename: str) -> str:
+    """构造兼容中文文件名的 RFC 5987 下载响应头。"""
+    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
 # ============================================================
@@ -382,17 +391,34 @@ def get_shipment_fba_box_detail(
     return agent_ok(response.model_dump())
 
 
-@shipments_router.get("/{shipment_no}/fba-delivery-template")
+@shipments_router.get(
+    "/{shipment_no}/fba-delivery-template",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={
+        200: {
+            "description": "FBA 发货模板 XLSX 文件流",
+            "content": {fba_template_service.XLSX_CONTENT_TYPE: {}},
+        }
+    },
+)
 def export_shipment_fba_delivery_template(
     project_id: int,
     shipment_no: str,
     db: Session = Depends(get_read_db_session),
-) -> dict:
+) -> StreamingResponse:
     """导出 FBA 发货模板（纯读：不写库、不落审计、不走 confirm）。"""
     with _service_errors():
         schedule = _resolve_schedule(db, project_id, shipment_no)
-        payload = fba_template_service.build_fba_delivery_template(db, schedule)
-    return agent_ok(payload)
+        artifact = fba_template_service.build_fba_delivery_template(db, schedule)
+    return StreamingResponse(
+        iter([artifact.content]),
+        media_type=artifact.content_type,
+        headers={
+            "Content-Disposition": _content_disposition(artifact.filename),
+            "Content-Length": str(len(artifact.content)),
+        },
+    )
 
 
 @shipments_router.get("/{shipment_no}/audit")

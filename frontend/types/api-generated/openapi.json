@@ -49676,15 +49676,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Export Shipment Fba Delivery Template Api V1 Agent Projects  Project Id  Shipments  Shipment No  Fba Delivery Template Get",
-                  "type": "object"
-                }
-              }
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
             },
-            "description": "Successful Response"
+            "description": "FBA 发货模板 XLSX 文件流"
           },
           "422": {
             "content": {

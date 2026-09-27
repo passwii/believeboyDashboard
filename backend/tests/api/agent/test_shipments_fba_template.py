@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import base64
 import uuid
 from io import BytesIO
+from urllib.parse import unquote
 
 import pytest
 from conftest import seed_schedule
@@ -42,12 +42,23 @@ def _audit_count() -> int:
         db.close()
 
 
-def _load_workbook(data: dict):
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _load_workbook(response):
     from openpyxl import load_workbook
 
-    content = base64.b64decode(data["content_base64"])
+    assert response.headers["content-type"] == XLSX_CONTENT_TYPE
+    assert response.headers["content-disposition"].startswith("attachment;")
+    content = response.content
     assert content[:2] == b"PK"
     return load_workbook(BytesIO(content))
+
+
+def _response_filename(response) -> str:
+    disposition = response.headers["content-disposition"]
+    encoded = disposition.split("filename*=UTF-8''", 1)[1].split(";", 1)[0]
+    return unquote(encoded)
 
 
 def _seed_custom_schedule(
@@ -150,17 +161,9 @@ def test_us_template_returns_imperial_xlsx_and_persisted_carton_counts(
     )
 
     assert response.status_code == 200, response.text
-    data = response.json()["data"]
-    assert data["shipment_no"] == shipment_no
-    assert data["country"] == "US"
-    assert data["unit_system"] == "imperial"
-    assert data["row_count"] == 2
-    assert data["content_type"] == (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    assert data["filename"].endswith(f"-FBA发货模板-{shipment_no}.xlsx")
+    assert _response_filename(response).endswith(f"-FBA发货模板-{shipment_no}.xlsx")
 
-    worksheet = _load_workbook(data).active
+    worksheet = _load_workbook(response).active
     assert worksheet.title == "Create workflow – template"
     assert worksheet.freeze_panes == "A4"
     assert worksheet.sheet_view.showGridLines is False
@@ -209,10 +212,10 @@ def test_de_template_uses_metric_units(client, shipment_env):
     )
 
     assert response.status_code == 200, response.text
-    data = response.json()["data"]
-    assert data["unit_system"] == "metric"
-    assert data["filename"].endswith(f"德国站-FBA发货模板-{shipment_no}.xlsx")
-    worksheet = _load_workbook(data).active
+    assert _response_filename(response).endswith(
+        f"德国站-FBA发货模板-{shipment_no}.xlsx"
+    )
+    worksheet = _load_workbook(response).active
     assert [worksheet.cell(row=3, column=column).value for column in range(5, 9)] == [
         "Box length (cm)",
         "Box width (cm)",
@@ -248,9 +251,7 @@ def test_uk_template_uses_metric_units(client, shipment_env):
     )
 
     assert response.status_code == 200, response.text
-    data = response.json()["data"]
-    assert data["unit_system"] == "metric"
-    worksheet = _load_workbook(data).active
+    worksheet = _load_workbook(response).active
     assert [worksheet.cell(row=3, column=column).value for column in range(5, 9)] == [
         "Box length (cm)",
         "Box width (cm)",
@@ -289,9 +290,7 @@ def test_empty_shipment_returns_header_only_template(client, shipment_env):
     )
 
     assert response.status_code == 200, response.text
-    data = response.json()["data"]
-    assert data["row_count"] == 0
-    worksheet = _load_workbook(data).active
+    worksheet = _load_workbook(response).active
     assert worksheet["A3"].value == "Merchant SKU"
     assert worksheet["A4"].value is None
 
@@ -314,7 +313,7 @@ def test_missing_sku_data_leaves_optional_cells_blank(client, shipment_env):
     )
 
     assert response.status_code == 200, response.text
-    worksheet = _load_workbook(response.json()["data"]).active
+    worksheet = _load_workbook(response).active
     assert [worksheet.cell(row=4, column=column).value for column in range(1, 9)] == [
         "MISSING-SKU",
         24,
