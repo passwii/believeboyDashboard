@@ -21,7 +21,7 @@
 | `believeboy-inventory-ledger.md` | inventory-ledger（库存台账） | 10（纯读） | months/snapshot/events/receipt-clusters/integrity/trend/detail/summary/batches/consistency；含已知线上 bug 与规避 |
 | `believeboy-replenishment-analysis.md` | replenishment-analysis（补货分析） | 6 | R1 决策清单 / R2 单 SKU / R3 总览矩阵 / R4 覆盖度 / R5 设置读 / R6 设置写 confirm |
 | `believeboy-ad-analysis.md` | ad（广告，10 模块） | 29（纯读） | 每模块 aggregate + raw + 单数 alias；campaigns/budgets/targets/placements/promoted/time_trends/search_terms/shares/invalid/purchased |
-| `believeboy-shipments.md` | shipments（货件） | 11（读5+写6） | 列表/详情/SKU 汇总/箱规/审计；创建/items/改信息/状态/重算成本/删除（写全 confirm） |
+| `believeboy-shipments.md` | shipments（货件） | 12（读6+写6） | 列表/详情/SKU 汇总/箱规/FBA 模板/审计；创建/items/改信息/状态/重算成本/删除（写全 confirm） |
 | `believeboy-sales.md` | sales（销售数据） | 1 | GET /sales/summary（group_by/多站点聚合/份额，BLF-569 迁移后唯一入口） |
 | `believeboy-shop-calculation.md` | shop_calculations（店铺测算，3 模块） | 9 | 原生 6（列表/详情/历史/审计/写/试算）+ BI 扁平 2 + 定价快照 1；含定价派生块 `anchor`（盈亏平衡/目标广告费率，BLF-1043） |
 | `believeboy-account-health.md` | account_health（合规健康） | 5（纯读） | periods/current/overview/单店报告/history（路径不带 project_id） |
@@ -37,3 +37,7 @@
 2. **修改 skill**：Multica 更新后同步覆盖本目录文件；反向修改（改文件）后用 `multica skill update <id> --content-file` 回写
 3. **路由核对**：端点一律以 `backend/app/api/v1/endpoints/agent/` 源码为准（本仓库即权威），不凭记忆写
 4. 本目录只有 `.md` 纯文本，改动不触发后端部署逻辑；如 push 触发 pre-push 部署可加 `SKIP_POST_PUSH_DEPLOY=1`
+
+## Agent API 文件响应约定
+
+新增或修改 Agent 文件交付接口时，成功响应必须返回原始二进制流；不要使用 JSON + Base64 或 data URL。媒体类型、RFC 5987 文件名、OpenAPI 二进制声明、错误 JSON 和测试要求见仓库级 [Agent API 设计规范 §5.1](../../../docs/agent-api-design.md#文件型资源响应规范)。

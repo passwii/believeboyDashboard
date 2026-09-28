@@ -13,12 +13,14 @@ from datetime import date as date_type
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.agent.confirm import require_confirmation
 from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
 from app.api.deps import get_primary_db_session, get_read_db_session
@@ -382,17 +384,35 @@ def get_shipment_fba_box_detail(
     return agent_ok(response.model_dump())
 
 
-@shipments_router.get("/{shipment_no}/fba-delivery-template")
+@shipments_router.get(
+    "/{shipment_no}/fba-delivery-template",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={
+        200: {
+            "description": "FBA 发货模板 XLSX 文件流",
+            "content": {
+                fba_template_service.XLSX_CONTENT_TYPE: {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        }
+    },
+)
 def export_shipment_fba_delivery_template(
     project_id: int,
     shipment_no: str,
     db: Session = Depends(get_read_db_session),
-) -> dict:
+) -> StreamingResponse:
     """导出 FBA 发货模板（纯读：不写库、不落审计、不走 confirm）。"""
     with _service_errors():
         schedule = _resolve_schedule(db, project_id, shipment_no)
-        payload = fba_template_service.build_fba_delivery_template(db, schedule)
-    return agent_ok(payload)
+        artifact = fba_template_service.build_fba_delivery_template(db, schedule)
+    return agent_file_response(
+        artifact.content,
+        filename=artifact.filename,
+        media_type=artifact.content_type,
+    )
 
 
 @shipments_router.get("/{shipment_no}/audit")

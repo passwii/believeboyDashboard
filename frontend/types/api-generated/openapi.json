@@ -49676,15 +49676,14 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Export Shipment Fba Delivery Template Api V1 Agent Projects  Project Id  Shipments  Shipment No  Fba Delivery Template Get",
-                  "type": "object"
+                  "format": "binary",
+                  "type": "string"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "FBA 发货模板 XLSX 文件流"
           },
           "422": {
             "content": {
@@ -50405,11 +50404,12 @@
             "content": {
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
                 "schema": {
+                  "format": "binary",
                   "type": "string"
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "店铺测算 XLSX 文件流"
           },
           "422": {
             "content": {
