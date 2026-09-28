@@ -5,35 +5,41 @@
 
 ## 目标
 
-建立 Agent API 文件交付的统一二进制响应约定；让 FBA 模板使用共享 helper；用契约测试锁定成功与失败响应形状。
+建立 Agent API 文件交付的统一二进制响应约定；让 FBA 模板和既有店铺测算 XLSX 导出使用共享 helper；用契约测试锁定成功与失败响应形状。
 
 ## 实施步骤
 
 1. **先写测试（RED）**
    - 新增通用文件响应 helper 测试：二进制 body、媒体类型、RFC 5987 文件名、Content-Length。
    - 扩展 FBA 接口契约测试：响应 body 可作为 XLSX 打开、非 JSON、下载头正确；错误仍是 Agent JSON。
+   - 为既有店铺测算 XLSX 导出补充 OpenAPI 二进制 schema 契约测试。
    - 运行新增测试，确认 helper 尚不存在时失败。
 2. **实现共享 helper（GREEN）**
    - 新建 `backend/app/api/agent/file_response.py`。
    - 支持原始 bytes 文件载荷，使用 `StreamingResponse`、`Content-Length` 和安全的 RFC 5987 `Content-Disposition`。
-   - 更新 FBA 路由使用 helper，删除 shipments 模块中的私有文件名头构造函数。
+   - 更新 FBA 和店铺测算 XLSX 路由使用 helper，移除重复文件名头构造函数并为两者声明 OpenAPI 二进制 schema。
+   - 保留店铺测算导出现有审计记录与事务行为。
 3. **固化文档规范**
    - 在 `docs/agent-api-design.md` 响应契约部分增加 Agent 文件型资源规范及 v0.12 修订记录。
    - 在 `backend/docs/agent-skills/README.md` 写明文档指针，并将 shipments 路由数从 11 更正为 12。
 4. **验证**
    - 运行文件 helper 与 FBA 路由相关测试。
    - 运行 Agent 货件/OpenAPI 回归测试和 Alembic 静态检查。
-   - 检查生成的 OpenAPI / TypeScript 声明仍将 FBA 成功响应标记为 XLSX 媒体类型。
-   - 检查 diff，确认没有改动非 Agent 导出、前端或数据库迁移。
+   - 检查生成的 OpenAPI / TypeScript 声明将两条 XLSX 成功响应标记为二进制媒体类型。
+   - 检查 diff，确认没有改动非 Agent 导出、前端业务页面或数据库迁移；只更新生成的 OpenAPI / TypeScript 契约文件。
 
 ## 预期文件
 
 - `backend/app/api/agent/file_response.py`
 - `backend/app/api/v1/endpoints/agent/shipments.py`
+- `backend/app/api/v1/endpoints/agent/shop_calculations.py`
 - `backend/tests/unit/test_agent_file_response.py`
 - `backend/tests/api/agent/test_shipments_fba_template.py`
+- `backend/tests/api/agent/test_shop_calc_read.py`
 - `docs/agent-api-design.md`
 - `backend/docs/agent-skills/README.md`
+- `frontend/types/api-generated/openapi.json`
+- `frontend/types/api-generated/api.d.ts`
 
 ## 风险与处理
 
@@ -44,6 +50,7 @@
 ## 验证结果
 
 - helper + FBA 路由专项：13 passed。
+- 店铺测算导出 OpenAPI/文件回归：4 passed。
 - Agent 货件/OpenAPI 扩展回归：73 passed；Alembic 检查通过；OpenAPI 与 TypeScript 声明同步。
 - 前端 lint 通过、build 通过（含生成类型同步检查）。全量 Vitest 因单 worker 长时间高 CPU 且无进度而中断。
-- 后端完整测试曾以不完整 `.env.test` 配置运行；使用完整测试配置重跑失败用例后，25 项仍失败，均落在本次未改的巡检、云存储、CRM、库存和依赖版本相关测试中。详细类别见 `index.md`。
+- 后端完整测试在 PR 分支与 `origin/main` 基线上复跑结果一致：各为 3752 passed、25 failed、14 skipped；PR 上曾出现的额外 Insight 失败未能复现。25 个基线失败位于巡检、云存储、CRM、库存和依赖版本相关测试中，均不触及文件响应改动。详细类别见目录 `index.md`。

@@ -620,7 +620,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 ## 修订记录
 
-- **v0.12（2026-09-28）**：固化 Agent 文件型资源二进制响应规范——成功响应必须直接返回文件原始字节，通过 MIME 类型与 RFC 5987 `Content-Disposition` 描述文件；OpenAPI 声明二进制媒体类型；错误保持 Agent JSON。新增共享 helper `app/api/agent/file_response.py` 并由 FBA 模板复用；既有 Agent 路由审计未发现其他文件交付成功响应。
+- **v0.12（2026-09-28）**：固化 Agent 文件型资源二进制响应规范——成功响应必须直接返回文件原始字节，通过 MIME 类型与 RFC 5987 `Content-Disposition` 描述文件；OpenAPI 声明二进制媒体类型；错误保持 Agent JSON。新增共享 helper `app/api/agent/file_response.py`，由 FBA 模板和店铺测算 XLSX 导出复用；后者原先已直接返回二进制，本次补齐统一文件头和 OpenAPI 二进制 schema。
 - **v0.11（2026-09-27）**：文件型资源统一使用二进制流（BLF-1178）——
   1. `GET /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template` 成功时直接返回 XLSX 二进制流，不再使用 `agent_ok` JSON 或 Base64；
   2. 通过 `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` 与 RFC 5987 `Content-Disposition` 传递文件类型和文件名；

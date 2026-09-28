@@ -27166,7 +27166,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description 店铺测算 XLSX 文件流 */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -18,15 +18,16 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.agent.confirm import require_confirmation
 from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
@@ -52,11 +53,6 @@ from app.services.shop_calculation_export import (
     XLSX_MEDIA_TYPE,
     build_shop_calculation_export,
 )
-
-
-class _XLSXResponse(Response):
-    media_type = XLSX_MEDIA_TYPE
-
 
 shop_calculations_router = APIRouter(
     prefix="/projects/{project_id}/shop-calculations",
@@ -168,12 +164,6 @@ def _dump_item(item: object, *, include_anchor: bool) -> dict:
     return item.model_dump(mode="json", exclude=exclude)  # type: ignore[attr-defined]
 
 
-def _content_disposition(filename: str) -> str:
-    """构造兼容中文项目名的 RFC 5987 Content-Disposition。"""
-    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
-    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
-
-
 # ============================================================
 # 读路由
 # ============================================================
@@ -217,7 +207,21 @@ def list_shop_calculations(
     )
 
 
-@shop_calculations_router.get("/export.xlsx", response_class=_XLSXResponse)
+@shop_calculations_router.get(
+    "/export.xlsx",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={
+        200: {
+            "description": "店铺测算 XLSX 文件流",
+            "content": {
+                XLSX_MEDIA_TYPE: {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        }
+    },
+)
 def export_shop_calculations(
     project_id: int,
     request: Request,
@@ -228,7 +232,7 @@ def export_shop_calculations(
     mode: str = Query(default="current"),
     include_uncomputed: bool = Query(default=True),
     _scope=Depends(require_project_scope),
-) -> Response:
+) -> StreamingResponse:
     """导出后端权威店铺测算快照，不在 Agent 侧重算。"""
     if mode not in {"current", "history"}:
         raise AgentApiError(
@@ -265,10 +269,10 @@ def export_shop_calculations(
         **_audit_kwargs(request),
     )
     db.commit()
-    return Response(
-        content=result.content,
+    return agent_file_response(
+        result.content,
+        filename=result.filename,
         media_type=XLSX_MEDIA_TYPE,
-        headers={"Content-Disposition": _content_disposition(result.filename)},
     )
 
 

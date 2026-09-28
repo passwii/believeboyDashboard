@@ -7,7 +7,7 @@
 
 Agent API 的文件型资源应由调用方直接保存和处理。JSON + Base64 会扩大响应体，并把文件字节带入 Agent 的文本上下文。货件 FBA 模板已调整为 XLSX 二进制响应；需要把响应规则写入 Agent API 设计文档，并为后续文件接口提供统一实现。
 
-只读审计发现：当前 Agent 命名空间中，`GET /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template` 是唯一直接交付文件的成功响应。`platform-inspection/template` 是 JSON 输入 schema；巡检截图和 FNSKU PDF 是 multipart 上传输入；SKU 图片/PDF URL 是业务元数据。它们不是文件下载响应。
+只读审计发现：当前 Agent 命名空间有两条文件下载成功响应。`GET /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-delivery-template` 原先以 JSON + Base64 返回 XLSX，本次迁移为二进制；`GET /api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx` 原先已通过原始二进制 body 返回 XLSX，本次统一复用文件响应 helper 并补齐 OpenAPI 二进制 schema。`platform-inspection/template` 是 JSON 输入 schema；巡检截图和 FNSKU PDF 是 multipart 上传输入；SKU 图片/PDF URL 是业务元数据。它们不是文件下载响应。
 
 全局 API 中 `POST /api/v1/order-info/export` 仍返回 Base64 CSV，前端明确依赖该 JSON 结构。本次仅规定并统一 Agent API 文件交付，不变更这个非 Agent 接口。
 
@@ -23,12 +23,12 @@ Agent API 的文件型资源应由调用方直接保存和处理。JSON + Base64
 
 ### 统一实现
 
-新增 Agent 文件响应 helper，负责生成 RFC 5987 文件名头、设置媒体类型和可用的 `Content-Length`，以 `StreamingResponse` 返回原始 bytes。FBA 模板路由迁移到 helper，移除路由模块内的重复头部实现。
+新增 Agent 文件响应 helper，负责生成 RFC 5987 文件名头、设置媒体类型和可用的 `Content-Length`，以 `StreamingResponse` 返回原始 bytes。FBA 模板和店铺测算 XLSX 导出均复用 helper，并在 OpenAPI 中声明二进制响应；保留店铺测算导出原有审计日志行为。
 
 ### 验收测试
 
 - helper 测试验证原始 body、文件媒体类型、文件名编码和 Content-Length。
-- Agent FBA 路由测试验证 XLSX 的 ZIP 魔数和工作簿可读性，成功响应不是 JSON；鉴权、资源不存在等错误仍为 Agent JSON。
+- Agent FBA 与店铺测算导出测试验证 XLSX 原始字节和 OpenAPI `format: binary`；鉴权、资源不存在等错误仍为 Agent JSON，店铺测算导出继续写入原有审计记录。
 - 规范写入 `docs/agent-api-design.md`；本地 Agent skill 索引同步路由数，并注明规范位置。
 
 ## 边界
@@ -42,4 +42,4 @@ Agent API 的文件型资源应由调用方直接保存和处理。JSON + Base64
 
 - 用户已确认采用“文档规范 + 通用响应 helper + FBA 复用 + 契约测试”的实施方案。
 - 自审：范围只覆盖 Agent 文件交付路径；错误响应继续使用标准 Agent JSON；现存上传和元数据语义保持原样。
-- 实施完成：新增通用 helper，FBA 路由和 OpenAPI 已复用二进制契约；无其他 Agent 文件下载路由需要迁移。
+- 实施完成：新增通用 helper；FBA 模板和已是二进制的店铺测算 XLSX 导出统一使用该 helper，并在 OpenAPI 声明二进制 schema。

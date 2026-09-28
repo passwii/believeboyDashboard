@@ -43,6 +43,19 @@ def _agent_headers(key: dict) -> dict[str, str]:
 
 
 class TestExport:
+    def test_export_openapi_declares_binary_xlsx_response(self):
+        from app.api.v1.lazy_router import preload_all_lazy_groups
+
+        preload_all_lazy_groups()
+        operation = app.openapi()["paths"][
+            "/api/v1/agent/projects/{project_id}/shop-calculations/export.xlsx"
+        ]["get"]
+        response = operation["responses"]["200"]["content"][
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ]
+
+        assert response["schema"] == {"type": "string", "format": "binary"}
+
     def test_export_current_returns_xlsx_all_skus_and_audits(
         self, client, shipment_env
     ):
@@ -67,7 +80,11 @@ class TestExport:
         assert response.headers["content-type"].startswith(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        assert "filename" in response.headers["content-disposition"]
+        assert response.content[:2] == b"PK"
+        assert response.headers["content-length"] == str(len(response.content))
+        disposition = response.headers["content-disposition"]
+        assert disposition.startswith('attachment; filename="')
+        assert "filename*=UTF-8''" in disposition
         rows = _read_export(response.content)
         by_sku = {row["SKU"]: row for row in rows}
         assert set(by_sku) == {"X-001", "X-002"}
