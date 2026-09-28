@@ -78,6 +78,17 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 
+  it('品牌备案示例归入工具箱且 URL 唯一', () => {
+    const tools = urlsOf('tools')
+    expect(tools).toContain('/dashboard/tools/brand-registration-example')
+    expect(
+      flattenAllItems().filter((item) => item.url === '/dashboard/tools/brand-registration-example')
+    ).toHaveLength(1)
+    expect(
+      findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/tools/brand-registration-example')
+    ).toBe('tools')
+  })
+
   it('客户消息 /list 子页命中 operations 分组（matchPrefixes）', () => {
     expect(
       findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/complaint-center/list')

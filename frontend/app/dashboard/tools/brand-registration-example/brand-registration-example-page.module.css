@@ -1,0 +1,18 @@
+.layoutContainer {
+  container-name: brand-example;
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.layoutGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+@container brand-example (min-width: 768px) {
+  .layoutGrid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
