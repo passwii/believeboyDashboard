@@ -17,7 +17,6 @@ Auth 走 ``protected`` override + ``X-Is-Admin``，run 行落真实测试库
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import date, timedelta
 from typing import Any
 
@@ -91,10 +90,81 @@ def _project() -> tuple[int, str]:
     return int(row[0]), str(row[1] or "US")
 
 
-def _offsets() -> tuple[int, int]:
-    """幂等键含口径日期 → 每次跑用不同日期，避免命中上一轮的 run。"""
-    span = uuid.uuid4().int % 200
-    return span, span + 14
+def _select_available_offsets(
+    occupied_keys: set[str], project_id: int, country: str
+) -> tuple[int, int]:
+    """从持久化 InsightRun 的幂等键中避开已用日期窗口。"""
+    from app.services.ad.insight_adapter.submit import idempotency_key_for as ad_key_for
+    from app.services.inventory.insight_adapter.submit import (
+        idempotency_key_for as inventory_key_for,
+    )
+
+    normalized_country = country.strip().upper()
+    for span in range(366):
+        report_date = TODAY - timedelta(days=span)
+        ad_start = report_date - timedelta(days=14)
+        if (
+            ad_key_for(project_id, normalized_country, ad_start, report_date)
+            not in occupied_keys
+            and inventory_key_for(project_id, normalized_country, report_date)
+            not in occupied_keys
+        ):
+            return span, span + 14
+
+    raise AssertionError(
+        f"No unused Insight idempotency key window for project {project_id}"
+    )
+
+
+def _offsets(db_session, project_id: int, country: str) -> tuple[int, int]:
+    """为持久测试库中的 AD 与库存 run 选择未占用的日期窗口。"""
+    from sqlalchemy import or_
+
+    from app.models.insight_run import InsightRun
+
+    normalized_country = country.strip().upper()
+    ad_prefix = f"ad:{project_id}:{normalized_country}:%"
+    inventory_prefix = f"inventory:{project_id}:{normalized_country}:%"
+    occupied_keys = {
+        row[0]
+        for row in (
+            db_session.query(InsightRun.idempotency_key)
+            .filter(
+                InsightRun.project_id == project_id,
+                InsightRun.country == normalized_country,
+                or_(
+                    InsightRun.idempotency_key.like(ad_prefix),
+                    InsightRun.idempotency_key.like(inventory_prefix),
+                ),
+            )
+            .all()
+        )
+    }
+    return _select_available_offsets(occupied_keys, project_id, normalized_country)
+
+
+def test_select_available_offsets_skips_persisted_domain_keys():
+    from app.services.ad.insight_adapter.submit import idempotency_key_for as ad_key_for
+    from app.services.inventory.insight_adapter.submit import (
+        idempotency_key_for as inventory_key_for,
+    )
+
+    project_id, country = 123, "US"
+    occupied = {
+        ad_key_for(
+            project_id,
+            country,
+            TODAY - timedelta(days=14),
+            TODAY,
+        ),
+        inventory_key_for(
+            project_id,
+            country,
+            TODAY - timedelta(days=1),
+        ),
+    }
+
+    assert _select_available_offsets(occupied, project_id, country) == (2, 16)
 
 
 # --------------------------------------------------------------------------
@@ -280,7 +350,7 @@ def test_ad_run_creates_canonical_run_with_adapter_slots(
     from app.models.insight_run import InsightRun
 
     project_id, country = _project()
-    span, span_end = _offsets()
+    span, span_end = _offsets(db_session, project_id, country)
     start = TODAY - timedelta(days=span_end)
     end = TODAY - timedelta(days=span)
     _stub_aggregate(monkeypatch, _aggregate_payload(project_id, start, end))
@@ -330,6 +400,10 @@ def test_ad_run_creates_canonical_run_with_adapter_slots(
     assert again.json()["run_id"] == body["run_id"]
     assert again.json()["replayed"] is True
 
+    # API 提交会真实 commit；删除这条测试 run，避免污染后续全量测试。
+    db_session.delete(run)
+    db_session.commit()
+
 
 def test_ad_run_without_project_data_reports_project_not_found(
     client, enabled, monkeypatch
@@ -355,7 +429,9 @@ def test_inventory_run_creates_canonical_run_with_adapter_slots(
     from app.models.insight_run import InsightRun
 
     project_id, country = _project()
-    report_date = TODAY - timedelta(days=_offsets()[0])
+    report_date = TODAY - timedelta(
+        days=_offsets(db_session, project_id, country)[0]
+    )
     rows = [
         {
             "sku": "HTTP-SKU-1",
@@ -409,6 +485,10 @@ def test_inventory_run_creates_canonical_run_with_adapter_slots(
     assert payload["rows"][0]["sku"] == "HTTP-SKU-1"
     # 行里的 date 已转 ISO：slots_json 是 worker 唯一输入，必须可反序列化。
     assert payload["rows"][0]["sellout_date"] == (TODAY + timedelta(days=4)).isoformat()
+
+    # API 提交会真实 commit；删除这条测试 run，避免污染后续全量测试。
+    db_session.delete(run)
+    db_session.commit()
 
 
 # --------------------------------------------------------------------------

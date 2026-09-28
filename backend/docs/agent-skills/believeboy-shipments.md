@@ -103,4 +103,4 @@ curl -X POST "$BASE/projects/$PROJECT_ID/shipments" "${AUTH[@]}" \
 - 删除/重算成本涉及不可逆/费用变更——确认流是强制安全门，务必给用户看预览再重放
 - **5xx**：一次性报告给报告 owner（Yawei），不要盲目重试
 - 404 与空列表是设计；所有路由挂 `require_project_scope` + `business_scope("shipments")`
-- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.11 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
+- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.12 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）

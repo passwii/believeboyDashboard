@@ -1,7 +1,7 @@
 # Agent API 文件型资源二进制响应规范实施计划
 
 > 设计规格：[2026-09-28-agent-file-binary-contract-design.md](../../specs/2026-09-28-agent-file-binary-contract-design.md)
-> 状态：✅ 完成（相关回归通过；全量测试另有未改模块失败，见目录 `index.md`）
+> 状态：✅ 完成（文件响应回归通过；全量验证已复核，见目录 `index.md`）
 
 ## 目标
 
@@ -53,4 +53,5 @@
 - 店铺测算导出 OpenAPI/文件回归：4 passed。
 - Agent 货件/OpenAPI 扩展回归：73 passed；Alembic 检查通过；OpenAPI 与 TypeScript 声明同步。
 - 前端 lint 通过、build 通过（含生成类型同步检查）。全量 Vitest 因单 worker 长时间高 CPU 且无进度而中断。
-- 后端完整测试在 PR 分支与 `origin/main` 基线上复跑结果一致：各为 3752 passed、25 failed、14 skipped；PR 上曾出现的额外 Insight 失败未能复现。25 个基线失败位于巡检、云存储、CRM、库存和依赖版本相关测试中，均不触及文件响应改动。详细类别见目录 `index.md`。
+- 后端完整测试最终为 3754 passed、25 failed、14 skipped；25 项失败与此前 `origin/main` 基线记录的用例类别一致，涉及巡检、云存储、CRM、库存和依赖版本断言。
+- 复核时曾出现的 Insight 409 已定位为测试辅助函数只在 200 个日期窗口内随机选幂等键，与持久化 `BLF_test` 中已有 `InsightRun` 冲突。测试现查询已占用键并选取空闲窗口，同时清理自身创建的 queued run；此前可复现的相邻测试顺序 51 passed，完整套件不再出现该额外失败。

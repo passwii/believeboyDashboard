@@ -30,5 +30,6 @@
 - 店铺测算导出专项（含 OpenAPI 二进制声明）：4 passed。
 - Agent 货件/OpenAPI 扩展回归：73 passed；Alembic 静态检查通过。
 - 前端 lint、build 和 OpenAPI 类型同步检查通过。
-- 后端全量套件在 PR 与 `origin/main` 基线各运行后均为 3752 passed、25 failed、14 skipped；25 项完全相同，涵盖平台巡检 country 契约/项目校验、页面渲染/头像上传云存储配置、CRM/库存测试假对象形状及 `pydantic_ai` 版本断言。此前额外出现的 1 个 Insight 失败未能复现；FBA 新测试与该 Insight 用例顺序运行也通过。
+- 后端最终全量套件：3754 passed、25 failed、14 skipped；25 项失败仍与此前 `origin/main` 基线记录的失败类别一致（平台巡检契约、页面渲染/头像云存储配置、CRM/库存假对象形状、`pydantic_ai` 版本断言）。
+- Insight 测试曾因有限随机日期窗口与持久 `BLF_test` 中已提交的幂等键碰撞而返回 409。测试改为查询占用键、选择空闲窗口并清理自身 queued run；此前可复现的相邻测试顺序 51 passed，最终完整套件未再出现该失败。
 - 全量前端 Vitest 单 worker 长时间占用高 CPU 且无测试进度，已中断；未涉及前端业务逻辑文件。
