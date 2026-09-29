@@ -47616,6 +47616,69 @@
         ]
       }
     },
+    "/api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx": {
+      "get": {
+        "description": "按快照记录 ID 导出新品测算对比矩阵（XLSX 二进制流）。",
+        "operationId": "export_new_product_comparison_api_v1_agent_projects__project_id__new_product_calculations_export_xlsx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export New Product Comparison",
+        "tags": [
+          "agent",
+          "agent-new-product-calculations"
+        ]
+      }
+    },
     "/api/v1/agent/projects/{project_id}/new-product-calculations/skus/{sku}": {
       "get": {
         "description": "R2 SKU 详情：当前行（calculation_type 缺省 profit_calc）；不存在 → 404 壳。\n\ncountry 不在唯一键内（upsert 键为 (project_id, sku, calculation_type)），\n天然无歧义——与店铺域 R2 的 AMBIGUOUS_COUNTRY 不同。",
