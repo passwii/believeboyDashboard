@@ -111,7 +111,49 @@ Query 参数：
     GET    /api/v1/agent/projects/{project_id}/shop-calculation-history          （BI 扁平）
     GET    /api/v1/agent/projects/{project_id}/shop-calculation/snapshots        （BI 扁平）
     GET    /api/v1/agent/projects/{project_id}/pricing-snapshots                 （BI 扁平）
-    GET/POST /api/v1/agent/projects/{project_id}/new-product-calculations*       （同款派生）
+    GET    /api/v1/agent/projects/{project_id}/new-product-calculations
+    GET    /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx
+    GET    /api/v1/agent/projects/{project_id}/new-product-calculations/skus/{sku}
+    GET    /api/v1/agent/projects/{project_id}/new-product-calculations/skus/{sku}/audit
+    POST   /api/v1/agent/projects/{project_id}/new-product-calculations                 （confirm）
+    POST   /api/v1/agent/projects/{project_id}/new-product-calculations/compute
+
+#### New-product-calculations Excel 导出
+
+`GET /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx`
+按已保存快照记录导出前端同构的「测算对比矩阵」。端点继承 `project_scope` 与
+`business_scope=new_product_calculations`，不重新试算、不读取 pricing run。
+
+| 参数 | 位置 | 默认 | 说明 |
+|---|---|---|---|
+| `project_id` | path | 必填 | 当前项目 |
+| `snapshot_ids` | query，可重复 | 必填 | 1 到 12 个正整数；每个 ID 对应 Excel 中一列，顺序按请求顺序 |
+
+示例：
+
+```text
+GET /api/v1/agent/projects/1/new-product-calculations/export.xlsx
+  ?snapshot_ids=101&snapshot_ids=102
+```
+
+成功时直接返回 XLSX 二进制流，不包裹 `agent_ok`，不使用 Base64：
+
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="..."; filename*=UTF-8''...
+```
+
+规则：
+
+- `snapshot_ids` 缺失、重复、非正整数或超过 12 条 → `400 VALIDATION_FAILED`。
+- 任一快照不存在或不属于路径项目 → 整批失败，`details.missing_snapshot_ids`
+  返回缺失 ID，不生成部分文件。
+- Excel 五个分区依次为：货品数据 / DDP 成本 / 费用支出 / 售价与利润 / 核算规则。
+- 当前快照未持久化的竞品链接、头程单价(RMB/kg)、头程数量显示 `-`；
+  平台佣金率由 `referral_fee_usd / sale_price_usd` 反推。
+- 成功导出写 `operation_audit_logs`，action 为
+  `new_product_calculation.export`，记录 `snapshot_ids`、`row_count` 和
+  `column_count`，不记录文件内容。
 
 #### Shop-calculations Excel 导出
 

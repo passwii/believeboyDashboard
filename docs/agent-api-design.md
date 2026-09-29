@@ -227,6 +227,29 @@ Agent 追加写仍要求 `sale_price_usd > 0`、`total_fee_usd > 0`；`profit_us
 `NEGATIVE_PROFIT`。confirm 预览必须同时回显负利润字段、该 warning 和
 `breakeven_advertising_rate`（盈亏平衡 ACOS），确认落库后保留同一 warning。
 
+### 3.5 新品测算对比矩阵导出（新增）
+
+新品测算域提供按已保存快照记录导出对比矩阵的二进制 XLSX：
+
+```text
+GET /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx
+  ?snapshot_ids=101&snapshot_ids=102
+```
+
+- 数据源只读 `new_product_calculations` 已保存快照，不重新调用定价引擎、
+  不读取 `pricing_calculation_runs`。
+- `snapshot_ids` 必填且不超过 12 条；每个 ID 对应 Excel 中一列，列顺序严格
+  保持请求顺序。
+- 快照必须全部属于路径项目；任一记录缺失或跨项目时整批返回
+  `400 VALIDATION_FAILED`，不生成部分文件。
+- 导出分区与前端「测算对比矩阵」一致：货品数据 / DDP 成本 / 费用支出 /
+  售价与利润 / 核算规则。
+- 快照未持久化的竞品链接、头程单价(RMB/kg)、头程数量显示 `-`；平台佣金率
+  由已保存 `referral_fee_usd / sale_price_usd` 反推。
+- 成功响应为标准 XLSX 二进制流（不使用 `agent_ok` 或 Base64），带 RFC 5987
+  `Content-Disposition`；每次成功导出写 `new_product_calculation.export`
+  审计。
+
 ## 4. 数据模型（review 修订：复用 BEL-377 凭据基建）
 
 ### 4.1 关键决策：改名 + 扩展 `external_api_keys` → `agent_api_keys`，不新建表
