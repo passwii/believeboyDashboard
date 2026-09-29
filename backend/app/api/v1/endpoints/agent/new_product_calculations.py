@@ -23,8 +23,9 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -50,6 +51,11 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     query_operation_audit_log_for_targets,
 )
+from app.services.new_product_calculation_export import (
+    MAX_COMPARISON_SNAPSHOTS,
+    XLSX_MEDIA_TYPE,
+    build_new_product_comparison_export,
+)
 from app.services.pricing import _build_create_payload
 from app.services.pricing.anchor import _anchor_from_computed
 from app.services.pricing.computation import _compute_pricing
@@ -61,6 +67,11 @@ new_product_calculations_router = APIRouter(
     prefix="/projects/{project_id}/new-product-calculations",
     tags=["agent-new-product-calculations"],
 )
+
+
+class _XLSXResponse(Response):
+    media_type = XLSX_MEDIA_TYPE
+
 
 # Agent 写入允许的采集渠道（与 schema 枚举一致；validate 回调用）。
 ALLOWED_AGENT_SOURCES: tuple[str, ...] = tuple(
@@ -107,6 +118,35 @@ def _audit_kwargs(request: Request) -> dict:
         "idempotency_key": request.headers.get("idempotency-key") or None,
         "request": request,
     }
+
+
+def _content_disposition(filename: str) -> str:
+    """构造兼容中文项目名的 RFC 5987 Content-Disposition。"""
+    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+def _parse_snapshot_ids(snapshot_ids: list[int] | None) -> list[int]:
+    if not snapshot_ids:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="snapshot_ids 必填"
+        )
+    if len(snapshot_ids) > MAX_COMPARISON_SNAPSHOTS:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=f"snapshot_ids 最多 {MAX_COMPARISON_SNAPSHOTS} 条",
+        )
+    if any(snapshot_id <= 0 for snapshot_id in snapshot_ids):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="snapshot_ids 必须为正整数",
+        )
+    if len(set(snapshot_ids)) != len(snapshot_ids):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="snapshot_ids 不允许重复",
+        )
+    return snapshot_ids
 
 
 def _check_idempotency_header(request: Request) -> None:
@@ -166,6 +206,64 @@ def list_new_product_calculations(
             "page": page,
             "page_size": page_size,
         }
+    )
+
+
+@new_product_calculations_router.get("/export.xlsx", response_class=_XLSXResponse)
+def export_new_product_comparison(
+    project_id: int,
+    request: Request,
+    snapshot_ids: list[int] | None = Query(default=None),
+    db: Session = Depends(get_primary_db_session),
+    _scope=Depends(require_project_scope),
+) -> Response:
+    """按快照记录 ID 导出新品测算对比矩阵（XLSX 二进制流）。"""
+    selected_ids = _parse_snapshot_ids(snapshot_ids)
+    project = _get_project_or_shell_404(db, project_id)
+    rows = list(
+        db.scalars(
+            select(NewProductCalculation).where(
+                NewProductCalculation.project_id == project_id,
+                NewProductCalculation.id.in_(selected_ids),
+            )
+        )
+    )
+    by_id = {row.id: row for row in rows}
+    missing = [
+        snapshot_id for snapshot_id in selected_ids if snapshot_id not in by_id
+    ]
+    if missing:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            details={"missing_snapshot_ids": missing},
+        )
+
+    result = build_new_product_comparison_export(
+        [by_id[snapshot_id] for snapshot_id in selected_ids],
+        project_name=str(project.project_name),
+        snapshot_ids=selected_ids,
+    )
+    append_operation_audit_log(
+        db,
+        action="new_product_calculation.export",
+        target_type="new_product_calculation",
+        target_id=project_id,
+        operator=None,
+        after={
+            "snapshot_ids": selected_ids,
+            "row_count": len(selected_ids),
+            "column_count": result.column_count,
+        },
+        **_audit_kwargs(request),
+    )
+    db.commit()
+    return Response(
+        content=result.content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": _content_disposition(result.filename),
+            "Content-Length": str(len(result.content)),
+        },
     )
 
 

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import uuid
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.new_product_calculation import NewProductCalculation
 from app.services.audit_log_service import query_operation_audit_log_for_targets
 
 from conftest import seed_new_product_calculation
@@ -23,6 +26,11 @@ def _url(env, suffix: str = "") -> str:
     return (
         f"/api/v1/agent/projects/{env['project_id']}/new-product-calculations{suffix}"
     )
+
+
+def _export_url(env, ids: list[int]) -> str:
+    query = "&".join(f"snapshot_ids={snapshot_id}" for snapshot_id in ids)
+    return _url(env, f"/export.xlsx?{query}")
 
 
 class TestR1List:
@@ -191,6 +199,104 @@ class TestR2SkuDetail:
         )
         assert resp.status_code == 404, resp.text
         assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+class TestExportComparison:
+    def test_export_returns_binary_xlsx_in_requested_order(
+        self, client, shipment_env
+    ):
+        first = seed_new_product_calculation(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-001",
+        )
+        second = seed_new_product_calculation(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-002",
+        )
+
+        resp = client.get(
+            _export_url(shipment_env, [second, first]),
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        assert "filename" in resp.headers["content-disposition"]
+        assert int(resp.headers["content-length"]) == len(resp.content)
+
+        sheet = load_workbook(BytesIO(resp.content), data_only=True).active
+        assert sheet.cell(1, 3).value.endswith("X-002")
+        assert sheet.cell(1, 4).value.endswith("X-001")
+
+        db = SessionLocal()
+        try:
+            audits = query_operation_audit_log_for_targets(
+                db,
+                target_type="new_product_calculation",
+                target_ids=[shipment_env["project_id"]],
+            )
+            export_audits = [
+                row
+                for row in audits
+                if row.action == "new_product_calculation.export"
+            ]
+            assert len(export_audits) == 1
+            assert export_audits[0].after_json["snapshot_ids"] == [second, first]
+            assert export_audits[0].after_json["row_count"] == 2
+        finally:
+            db.close()
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "",
+            "snapshot_ids=1&snapshot_ids=1",
+            "snapshot_ids=0",
+            "&".join(f"snapshot_ids={index}" for index in range(1, 14)),
+        ],
+    )
+    def test_export_rejects_invalid_ids(self, client, shipment_env, query):
+        suffix = f"?{query}" if query else ""
+        resp = client.get(
+            _url(shipment_env, f"/export.xlsx{suffix}"),
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_export_rejects_missing_snapshot(self, client, shipment_env):
+        resp = client.get(
+            _export_url(shipment_env, [999999999]),
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        assert resp.json()["error"]["details"]["missing_snapshot_ids"] == [999999999]
+
+    def test_export_rejects_snapshot_of_other_project(self, client, shipment_env):
+        other_project_id = shipment_env["project_id"] + 100000
+        other_id = seed_new_product_calculation(
+            other_project_id, "other-project", sku="X-OTHER"
+        )
+        try:
+            resp = client.get(
+                _export_url(shipment_env, [other_id]),
+                headers=shipment_env["headers"],
+            )
+            assert resp.status_code == 400, resp.text
+            assert resp.json()["error"]["details"]["missing_snapshot_ids"] == [other_id]
+        finally:
+            db = SessionLocal()
+            try:
+                db.query(NewProductCalculation).filter(
+                    NewProductCalculation.id == other_id
+                ).delete()
+                db.commit()
+            finally:
+                db.close()
 
 
 class TestBusinessScope:
