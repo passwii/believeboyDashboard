@@ -12,6 +12,7 @@ describe('operationActionLabel', () => {
       'shipment.delete': '删除货件',
       'shop_calculation.append': '追加店铺测算',
       'new_product_calculation.upsert': '保存新品测算',
+      'new_product_calculation.export': '导出新品测算对比矩阵',
       'sku_info.upsert': '新建 SKU 主数据',
       'sku_info.update': '更新 SKU 主数据',
       'sku_info.status.transition': 'SKU 上下架',
@@ -67,6 +68,13 @@ describe('accessOperationLabel', () => {
   })
 
   it('覆盖测算、巡检和客诉读接口', () => {
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/projects/12/new-product-calculations/export.xlsx',
+        'new_product_calculations'
+      )
+    ).toBe('导出新品测算对比矩阵')
     expect(
       accessOperationLabel(
         'GET',
