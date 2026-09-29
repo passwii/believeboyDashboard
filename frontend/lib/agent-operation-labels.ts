@@ -13,6 +13,7 @@ const ACTION_TITLES: Record<string, string> = {
   // 测算域
   'shop_calculation.append': '追加店铺测算',
   'new_product_calculation.upsert': '保存新品测算',
+  'new_product_calculation.export': '导出新品测算对比矩阵',
   // SKU 主数据域
   'sku_info.upsert': '新建 SKU 主数据',
   'sku_info.update': '更新 SKU 主数据',
@@ -86,6 +87,7 @@ const ACCESS_ROUTE_LABELS: AccessRouteLabel[] = [
   route('GET', /\/projects\/\d+\/shop-calculations\/?$/, '查询店铺测算列表'),
   route('GET', /\/projects\/\d+\/shop-calculation-history\/?$/, '查询店铺测算历史'),
   route('GET', /\/projects\/\d+\/shop-calculation\/snapshots\/?$/, '查询店铺测算快照'),
+  route('GET', /\/projects\/\d+\/new-product-calculations\/export\.xlsx\/?$/, '导出新品测算对比矩阵'),
   route('GET', /\/projects\/\d+\/new-product-calculations\/skus\/[^/]+\/audit\/?$/, '查询 SKU 新品测算审计'),
   route('GET', /\/projects\/\d+\/new-product-calculations\/skus\/[^/]+\/?$/, '查询 SKU 新品测算'),
   route('POST', /\/projects\/\d+\/new-product-calculations\/compute\/?$/, '试算新品测算'),
