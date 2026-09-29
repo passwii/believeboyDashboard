@@ -35,7 +35,7 @@
   - `NewProductComparisonExportResult(content: bytes, filename: str, column_count: int)`
   - `build_new_product_comparison_export(rows: Sequence[NewProductCalculation], *, project_name: str, snapshot_ids: Sequence[int]) -> NewProductComparisonExportResult`
 
-- [ ] **Step 1: Write the failing service tests**
+- [x] **Step 1: Write the failing service tests**
 
 创建 `backend/tests/services/test_new_product_calculation_export.py`，使用
 根 conftest 的 `db_session` 和 `new_product_calculation_service.upsert_snapshot`
@@ -200,7 +200,7 @@ def test_export_supports_twelve_columns(db_session):
     assert result.column_count == 12
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -210,7 +210,7 @@ cd backend && pytest tests/services/test_new_product_calculation_export.py -q
 
 Expected: collection fails because `new_product_calculation_export` does not exist.
 
-- [ ] **Step 3: Implement the minimal export service**
+- [x] **Step 3: Implement the minimal export service**
 
 创建 `backend/app/services/new_product_calculation_export.py`。定义
 `XLSX_MEDIA_TYPE`、`MAX_COMPARISON_SNAPSHOTS`、结果 dataclass、与前端一致的
@@ -260,7 +260,7 @@ def build_new_product_comparison_export(
 `_commission_rate(row)` 返回
 `float(row.referral_fee_usd) / float(row.sale_price_usd)`，售价为 0 时返回 `-`。
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run:
 
@@ -270,7 +270,7 @@ cd backend && pytest tests/services/test_new_product_calculation_export.py -q
 
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/services/new_product_calculation_export.py \
@@ -295,7 +295,7 @@ git commit -m "feat(Agent): 新增新品测算对比矩阵导出服务"
   - 成功响应为 XLSX `Response`
   - 审计 action `new_product_calculation.export`
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 在 `TestBusinessScope` 前追加 `TestExportComparison`，覆盖二进制流、顺序、
 参数错误、缺失/跨项目与审计：
@@ -408,7 +408,7 @@ from openpyxl import load_workbook
 from app.models.new_product_calculation import NewProductCalculation
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -418,7 +418,7 @@ cd backend && pytest tests/api/agent/test_new_product_read.py -k export -q
 
 Expected: `/export.xlsx` is not found or returns the wrong response.
 
-- [ ] **Step 3: Implement the Agent route**
+- [x] **Step 3: Implement the Agent route**
 
 在 `new_product_calculations.py` 补入 `Response`、`quote`、导出服务和常量导入，
 并添加 `_XLSXResponse`、`_content_disposition`、`_parse_snapshot_ids`：
@@ -506,7 +506,7 @@ def export_new_product_comparison(
 `_content_disposition` 必须与店铺测算导出一致，使用 ASCII fallback +
 RFC 5987 `filename*=UTF-8''...`。
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run:
 
@@ -516,7 +516,7 @@ cd backend && pytest tests/api/agent/test_new_product_read.py -k export -q
 
 Expected: all export API tests PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/app/api/v1/endpoints/agent/new_product_calculations.py \
@@ -536,7 +536,7 @@ git commit -m "feat(Agent): 新增新品测算对比矩阵导出接口"
 - Consumes: Task 2 的 route contract。
 - Produces: Agent 可发现的导出端点、参数、二进制响应和审计说明。
 
-- [ ] **Step 1: Update the endpoint list**
+- [x] **Step 1: Update the endpoint list**
 
 在 `backend/docs/agent-api.md` 的新品测算路由列表加入：
 
@@ -547,7 +547,7 @@ GET    /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx
 并新增小节说明 `snapshot_ids`、1..12 上限、二进制流、缺失/跨项目整批失败、
 缺失字段 `-` 和 `new_product_calculation.export` 审计。
 
-- [ ] **Step 2: Update the design document**
+- [x] **Step 2: Update the design document**
 
 在 `docs/agent-api-design.md` 的店铺测算导出之后增加新品测算对比矩阵导出契约，
 明确：
@@ -560,7 +560,7 @@ GET /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx
 成功返回 XLSX 二进制流；最多 12 条；每 ID 一列并保持请求顺序；数据只读
 `new_product_calculations`；缺失字段显示 `-`；不调用定价引擎。
 
-- [ ] **Step 3: Verify documentation diff**
+- [x] **Step 3: Verify documentation diff**
 
 Run:
 
@@ -572,7 +572,7 @@ rg -n "new-product-calculations/export.xlsx|new_product_calculation.export" \
 
 Expected: 两条路径/action 均可检索到，diff 无空白错误。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/docs/agent-api.md docs/agent-api-design.md
@@ -590,7 +590,7 @@ git commit -m "docs(Agent): 补充新品测算导出接口说明"
 - Consumes: Tasks 1-3。
 - Produces: 可提交、已验证的完整功能。
 
-- [ ] **Step 1: Run targeted tests**
+- [x] **Step 1: Run targeted tests**
 
 Run:
 
@@ -602,7 +602,7 @@ cd backend && pytest \
 
 Expected: PASS。
 
-- [ ] **Step 2: Run the Agent API regression suite**
+- [x] **Step 2: Run the Agent API regression suite**
 
 Run:
 
@@ -612,7 +612,7 @@ cd backend && pytest tests/api/agent -q
 
 Expected: PASS；若本地数据库或环境依赖导致既有失败，记录准确失败项，不误报通过。
 
-- [ ] **Step 3: Run syntax validation**
+- [x] **Step 3: Run syntax validation**
 
 Run:
 
@@ -625,7 +625,7 @@ cd backend && python -m compileall -q \
 
 Expected: no syntax errors。
 
-- [ ] **Step 4: Inspect diff and update plan checkboxes**
+- [x] **Step 4: Inspect diff and update plan checkboxes**
 
 Run:
 
@@ -637,9 +637,22 @@ git diff --stat
 
 Expected: 只有本功能代码、测试、文档和计划变化；`.codex/` 保持未跟踪且未被修改。
 
-- [ ] **Step 5: Commit final plan/status updates**
+- [x] **Step 5: Commit final plan/status updates**
 
 ```bash
 git add docs/superpowers/plans/2026-09-29-agent-new-product-comparison-export
 git commit -m "docs(Agent): 记录新品测算导出实施计划"
 ```
+
+## 执行记录（2026-09-29）
+
+- 目标测试：
+  `pytest tests/services/test_new_product_calculation_export.py tests/api/agent/test_new_product_read.py -q`
+  → `21 passed`。
+- 新品域回归：
+  `pytest tests/api/agent/test_new_product_read.py tests/api/agent/test_new_product_confirm.py tests/api/agent/test_new_product_compute.py tests/api/agent/test_new_product_audit.py tests/services/test_new_product_calculation_export.py -q`
+  → `52 passed`。
+- 语法检查：`python -m compileall` → PASS。
+- Agent 全域回归：`698 passed, 1 skipped, 8 failed`。8 项失败全部位于既有的
+  `tests/api/agent/test_platform_inspection.py::TestCountryDimension`，与本功能
+  文件无交集，未在本次变更中修复。
