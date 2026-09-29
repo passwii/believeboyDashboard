@@ -26056,7 +26056,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description 新品测算对比矩阵 XLSX 文件流 */
             200: {
                 headers: {
                     [name: string]: unknown;

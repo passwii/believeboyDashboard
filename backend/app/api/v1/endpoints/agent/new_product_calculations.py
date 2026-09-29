@@ -23,15 +23,16 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.agent.confirm import require_confirmation
 from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
@@ -67,11 +68,6 @@ new_product_calculations_router = APIRouter(
     prefix="/projects/{project_id}/new-product-calculations",
     tags=["agent-new-product-calculations"],
 )
-
-
-class _XLSXResponse(Response):
-    media_type = XLSX_MEDIA_TYPE
-
 
 # Agent 写入允许的采集渠道（与 schema 枚举一致；validate 回调用）。
 ALLOWED_AGENT_SOURCES: tuple[str, ...] = tuple(
@@ -118,12 +114,6 @@ def _audit_kwargs(request: Request) -> dict:
         "idempotency_key": request.headers.get("idempotency-key") or None,
         "request": request,
     }
-
-
-def _content_disposition(filename: str) -> str:
-    """构造兼容中文项目名的 RFC 5987 Content-Disposition。"""
-    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
-    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
 def _parse_snapshot_ids(snapshot_ids: list[int] | None) -> list[int]:
@@ -209,14 +199,28 @@ def list_new_product_calculations(
     )
 
 
-@new_product_calculations_router.get("/export.xlsx", response_class=_XLSXResponse)
+@new_product_calculations_router.get(
+    "/export.xlsx",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={
+        200: {
+            "description": "新品测算对比矩阵 XLSX 文件流",
+            "content": {
+                XLSX_MEDIA_TYPE: {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        }
+    },
+)
 def export_new_product_comparison(
     project_id: int,
     request: Request,
     snapshot_ids: list[int] | None = Query(default=None),
     db: Session = Depends(get_primary_db_session),
     _scope=Depends(require_project_scope),
-) -> Response:
+) -> StreamingResponse:
     """按快照记录 ID 导出新品测算对比矩阵（XLSX 二进制流）。"""
     selected_ids = _parse_snapshot_ids(snapshot_ids)
     project = _get_project_or_shell_404(db, project_id)
@@ -257,13 +261,10 @@ def export_new_product_comparison(
         **_audit_kwargs(request),
     )
     db.commit()
-    return Response(
-        content=result.content,
+    return agent_file_response(
+        result.content,
+        filename=result.filename,
         media_type=XLSX_MEDIA_TYPE,
-        headers={
-            "Content-Disposition": _content_disposition(result.filename),
-            "Content-Length": str(len(result.content)),
-        },
     )
 
 
