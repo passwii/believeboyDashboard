@@ -80,7 +80,11 @@ async function expectNoPageHorizontalOverflow(page: import('@playwright/test').P
     const main = document.querySelector('#main-content')
     if (main) candidates.push(main)
     return candidates
-      .filter((el) => el.scrollWidth - el.clientWidth > 2)
+      .filter((el) => {
+        // The Terminal header has an intentional horizontal scroller for its fixed filter set.
+        if (el.closest('header')) return false
+        return el.scrollWidth - el.clientWidth > 2
+      })
       .map((el) => ({
         tag: el.tagName,
         cls: String(el.className).slice(0, 160),
@@ -359,20 +363,48 @@ test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
     await page.goto('/dashboard/reports/order-info')
     await expect(page.getByRole('heading', { name: '订单信息' })).toBeVisible({ timeout: 30000 })
 
-    // 筛选第一行 2 列网格：店铺（自动选中首项）/ 订单类型 同一行
-    const storeTrigger = page.getByRole('combobox').filter({ hasText: 'E2E 测试店铺' })
-    const typeTrigger = page.getByRole('combobox').filter({ hasText: 'FBA / FBM' })
-    await expect(storeTrigger).toBeVisible({ timeout: 30000 })
-    await expect(typeTrigger).toBeVisible()
-    await expect
-      .poll(async () =>
-        Math.abs((await storeTrigger.boundingBox())!.y - (await typeTrigger.boundingBox())!.y)
-      )
-      .toBeLessThan(2)
+    // BLF-940：手机端筛选折叠在摘要条内，先展开再检查 2 列筛选网格。
+    const filterToggle = page.getByRole('button', { name: '切换页面筛选' })
+    await expect(filterToggle).toHaveAttribute('aria-expanded', 'false')
+    await filterToggle.click()
+    await expect(filterToggle).toHaveAttribute('aria-expanded', 'true')
+    const filterGrid = page.locator('[data-testid="mobile-filter-strip-grid"]')
+    await expect(filterGrid).toBeVisible()
 
-    // 数据行渲染 + 12 列宽表仅内部横滑
+    // 本页移动筛选提供订单类型、状态、币种三个页面维度；项目/站点/日期由全局筛选器管理。
+    const selectors = filterGrid.getByRole('combobox')
+    await expect(selectors).toHaveCount(3)
+    await expect(selectors.nth(0)).toContainText('类型')
+    await expect(selectors.nth(1)).toContainText('状态')
+    await expect(selectors.nth(2)).toContainText('币种')
+
+    const typeBox = (await selectors.nth(0).boundingBox())!
+    const statusBox = (await selectors.nth(1).boundingBox())!
+    const currencyBox = (await selectors.nth(2).boundingBox())!
+    expect(Math.abs(typeBox.y - statusBox.y), '类型与状态应位于两列首行').toBeLessThan(2)
+    expect(statusBox.x).toBeGreaterThan(typeBox.x)
+    expect(currencyBox.y).toBeGreaterThan(typeBox.y)
+
+    for (const title of ['按订单号搜索', '按 SKU 搜索', '按 ASIN 搜索']) {
+      const searchInput = filterGrid.locator(`[title="${title}"]`)
+      await expect(searchInput).toBeVisible()
+      const bounds = (await searchInput.boundingBox())!
+      expect(bounds.width).toBeGreaterThan(page.viewportSize()!.width * 0.8)
+    }
+
+    // 数据行渲染，12+ 列宽表只在自己的滚动区域内横滑。
     await expect(page.getByText('111-3084457-1234567')).toBeVisible({ timeout: 30000 })
     await expect(page.getByText('JDB-4341-29PCS')).toBeVisible()
+    const table = page.getByRole('table', { name: '订单列表' })
+    const scrollRegion = table.locator('xpath=..')
+    await expect(table).toBeVisible()
+    const tableMetrics = await table.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.parentElement?.clientWidth ?? 0,
+    }))
+    expect(tableMetrics.scrollWidth).toBeGreaterThan(tableMetrics.clientWidth)
+    await expect(table.locator('thead th').first()).toHaveClass(/bg-term-raised/)
+    await expect(scrollRegion).toHaveClass(/overflow-auto/)
     await expectNoPageHorizontalOverflow(page)
   })
 })

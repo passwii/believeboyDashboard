@@ -1,7 +1,7 @@
 'use client'
 
 import React, { type FormEvent } from 'react'
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 
 interface TerminalFormPanelProps {
   email: string
@@ -14,10 +14,8 @@ interface TerminalFormPanelProps {
 }
 
 /**
- * 终端命令式登录表单（BLF-965）：
- * 中文标签 + mono 命令注释行 + 带前缀图标的输入框，
- * 提交按钮中文为主（`登录`），命令以注释形式点缀；错误以 `✗` 行内输出。
- * id 保持 email / password 不变，保证浏览器密码管理器与测试选择器兼容。
+ * Brand-led 登录入口中的账号密码表单。
+ * 稳定字段 id / autocomplete 保持浏览器密码管理器与自动化选择器兼容。
  */
 const TerminalFormPanel = ({
   email,
@@ -31,26 +29,19 @@ const TerminalFormPanel = ({
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
 
   const inputClass =
-    'w-full rounded-md border border-term-border-strong bg-term-bg py-2.5 pl-9 pr-10 text-sm text-term-text caret-term-pos placeholder:text-term-faint focus:border-term-pos focus:outline-none focus:ring-2 focus:ring-term-pos/25 disabled:cursor-not-allowed disabled:opacity-50'
+    'u-interactive [focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 h-12 w-full rounded-none border border-term-border-strong bg-term-bg pl-10 pr-10 text-sm text-term-text caret-term-pos placeholder:text-term-placeholder focus:border-term-pos focus:outline-none focus:ring-2 focus:ring-term-pos/25 disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
     <div className="text-sm">
-      <p className="mb-4 text-[13px] text-term-muted">
-        <span className="font-mono text-term-pos" aria-hidden="true">
-          $
-        </span>{' '}
-        登录到彼励扶终端{' '}
-        <span className="font-mono text-[12px] text-term-faint"># believeboy login</span>
-      </p>
-      <form onSubmit={onSubmit} noValidate={false}>
-        {/* 邮箱 */}
-        <div className="mb-3">
-          <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-term-text">
+      <form onSubmit={onSubmit} noValidate={false} className="space-y-5">
+        <div>
+          <label htmlFor="email" className="mb-2 block text-sm font-medium text-term-text">
             企业邮箱
           </label>
           <div className="relative">
             <Mail
-              size={15}
+              size={18}
+              strokeWidth={1.75}
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-term-faint"
             />
@@ -69,13 +60,14 @@ const TerminalFormPanel = ({
         </div>
 
         {/* 密码 */}
-        <div className="mb-1">
-          <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-term-text">
+        <div>
+          <label htmlFor="password" className="mb-2 block text-sm font-medium text-term-text">
             登录密码
           </label>
           <div className="relative">
             <Lock
-              size={15}
+              size={18}
+              strokeWidth={1.75}
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-term-faint"
             />
@@ -94,19 +86,19 @@ const TerminalFormPanel = ({
               type="button"
               onClick={() => setIsPasswordVisible(!isPasswordVisible)}
               aria-label={isPasswordVisible ? '隐藏密码' : '显示密码'}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-term-faint hover:text-term-text"
+              className="[focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 absolute right-0 top-0 flex h-12 w-12 items-center justify-center bg-transparent text-term-faint transition-[background-color,color,transform] hover:bg-term-hover hover:text-term-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent"
             >
-              {isPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+              {isPasswordVisible ? <EyeOff size={18} strokeWidth={1.75} /> : <Eye size={18} strokeWidth={1.75} />}
             </button>
           </div>
         </div>
 
-        {/* 错误输出行：保留空间避免布局抖动 */}
-        <div aria-live="polite" className="min-h-[1.75rem] py-1">
+        {/* 错误反馈固定占位，避免提交失败时表单跳动 */}
+        <div aria-live="polite" className="min-h-7">
           {error && (
-            <p className="animate-fade-slide-up text-[13px] text-term-neg">
-              <span aria-hidden="true">✗ </span>
-              {error}
+            <p className="animate-fade-slide-up flex items-start gap-2 text-sm leading-6 text-term-neg">
+              <span aria-hidden="true" className="font-mono">!</span>
+              <span>{error}</span>
             </p>
           )}
         </div>
@@ -114,20 +106,18 @@ const TerminalFormPanel = ({
         <button
           type="submit"
           disabled={submitting}
-          className="mt-1 flex min-h-touch w-full items-center justify-center gap-2 rounded-md bg-term-pos py-2.5 text-sm font-medium text-white transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-pos focus-visible:ring-offset-2 focus-visible:ring-offset-term-panel disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-2 flex h-12 w-full items-center justify-center gap-3 border border-term-action bg-term-action px-4 text-sm font-semibold text-term-action-text transition-[filter,transform] hover:brightness-95 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? (
             <>
-              <span aria-hidden="true" className="inline-block animate-spin">
-                ⠋
-              </span>
-              登录中…
+              <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin border-2 border-term-bg/40 border-t-term-bg" />
+              正在验证…
             </>
           ) : (
             <>
-              登录
-              <span aria-hidden="true" className="font-mono text-xs opacity-70">
-                $ auth
+              登录工作区
+              <span aria-hidden="true" className="font-mono text-xs opacity-80">
+                <ArrowRight size={16} strokeWidth={1.75} />
               </span>
             </>
           )}

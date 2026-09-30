@@ -1,13 +1,8 @@
-import NextAuth, { CredentialsSignin } from 'next-auth'
+import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
+import { NetworkAuthError } from '@/lib/auth/network-auth-error'
 import { backendFetchJson } from '@/lib/server/backend-api'
-
-class NetworkAuthError extends CredentialsSignin {
-  constructor() {
-    super('网络连接失败，请检查网络后重试')
-  }
-}
 
 type UserCredentials = Partial<Record<'email' | 'password', unknown>>
 

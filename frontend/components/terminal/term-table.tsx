@@ -58,7 +58,7 @@ export function TermHead({
       onClick={onClick}
       className={cn(
         HEAD_BASE,
-        numeric && 'text-right',
+        numeric && 'text-right tabular-nums',
         onClick && 'cursor-pointer select-none hover:text-term-text',
         className
       )}
@@ -137,7 +137,7 @@ export function TermCell({
       onClick={onClick}
       className={cn(
         CELL_CN,
-        numeric && 'text-right',
+        numeric && 'text-right tabular-nums',
         tone === 'pos' && 'text-term-pos',
         tone === 'warn' && 'text-term-warn',
         tone === 'neg' && 'text-term-neg',

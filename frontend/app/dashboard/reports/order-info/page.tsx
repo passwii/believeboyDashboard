@@ -51,10 +51,9 @@ import {
   TERM_HEADER_TRIGGER,
   TERM_HEADER_W_SM,
   TERM_HEADER_W_MD,
-  TERM_HEADER_W_LG,
 } from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -777,11 +776,12 @@ function OrderInfoPageInner() {
     void fetchData()
   }, { loading })
 
-  // 页面独有维度的 head slot 控件（不与 head 全局四件套重叠的部分）
-  const headerSlotControls = (
+  // 页面独有维度的 head slot 控件（不与 head 全局四件套重叠的部分）。
+  // 移动端使用明确的两列布局：类型/状态并排、币种独占一格，关键词输入整行铺开。
+  const pageFilterSelects = (
     <>
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
         options={filterOptions?.fulfillment_channels ?? []}
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
@@ -789,7 +789,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '类型 · 加载中…' : filterOptionsError ? '类型 · 加载失败，点开重试' : '类型 · FBA/FBM'}
       />
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
         options={filterOptions?.order_statuses ?? []}
         selected={orderStatuses}
         onChange={setOrderStatuses}
@@ -797,15 +797,19 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '状态 · 加载中…' : filterOptionsError ? '状态 · 加载失败，点开重试' : '状态 · 全部'}
       />
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM)}
+        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
         options={filterOptions?.currencies ?? []}
         selected={currencies}
         onChange={setCurrencies}
         onOpen={ensureFilterOptions}
         placeholder={filterOptionsLoading ? '币种 · 加载中…' : filterOptionsError ? '币种 · 加载失败，点开重试' : '币种 · 全部'}
       />
-      <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
-      <div className="relative shrink-0">
+    </>
+  )
+
+  const pageFilterSearches = (
+    <>
+      <div className="relative min-w-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
@@ -816,10 +820,10 @@ function OrderInfoPageInner() {
           placeholder="订单号 111-…"
           title="按订单号搜索"
           widthClass={TERM_HEADER_W_MD}
-          className="pl-7"
+          className="w-full pl-7"
         />
       </div>
-      <div className="relative shrink-0">
+      <div className="relative min-w-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
@@ -830,10 +834,10 @@ function OrderInfoPageInner() {
           placeholder="SKU"
           title="按 SKU 搜索"
           widthClass={TERM_HEADER_W_SM}
-          className="pl-7"
+          className="w-full pl-7"
         />
       </div>
-      <div className="relative shrink-0">
+      <div className="relative min-w-0">
         <Search
           className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
           aria-hidden
@@ -844,19 +848,54 @@ function OrderInfoPageInner() {
           placeholder="ASIN"
           title="按 ASIN 搜索"
           widthClass={TERM_HEADER_W_SM}
-          className="pl-7"
+          className="w-full pl-7"
         />
       </div>
-      <HeaderSlotButton
-        variant="muted"
-        onClick={handleResetFilters}
-        disabled={loading}
-        className="ml-auto"
-        title="清空全部筛选条件"
-      >
-        <X className="h-3 w-3" aria-hidden />
-        清空筛选
-      </HeaderSlotButton>
+    </>
+  )
+
+  const headerSlotControls = (
+    <>
+      <div className="hidden items-center gap-1.5 md:flex">
+        {pageFilterSelects}
+      </div>
+      <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
+      <div className="hidden items-center gap-1.5 md:flex">
+        {pageFilterSearches}
+        <HeaderSlotButton
+          variant="muted"
+          onClick={handleResetFilters}
+          disabled={loading}
+          className="ml-auto"
+          title="清空全部筛选条件"
+        >
+          <X className="h-3 w-3" aria-hidden />
+          清空筛选
+        </HeaderSlotButton>
+      </div>
+    </>
+  )
+
+  const mobilePageFilterControls = (
+    <>
+      <div className="col-span-2 grid grid-cols-2 gap-2">
+        {pageFilterSelects}
+      </div>
+      <MobileFilterWide>
+        <div className="grid grid-cols-1 gap-2">
+          {pageFilterSearches}
+          <HeaderSlotButton
+            variant="muted"
+            onClick={handleResetFilters}
+            disabled={loading}
+            className="w-full"
+            title="清空全部筛选条件"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            清空筛选
+          </HeaderSlotButton>
+        </div>
+      </MobileFilterWide>
     </>
   )
 
@@ -876,7 +915,7 @@ function OrderInfoPageInner() {
     asinKeyword,
   })
   const mobileFilterStrip = useMobileFilterStrip(
-    <MobileFilterStrip summary={mobileFilterSummary} controls={headerSlotControls} />
+    <MobileFilterStrip summary={mobileFilterSummary} controls={mobilePageFilterControls} />
   )
 
   // ====== 渲染 ======
@@ -1105,8 +1144,8 @@ function OrderInfoPageInner() {
                           {item.product_name ?? '—'}
                         </span>
                       </TermCell>
-                      <TermCell numeric>{item.quantity}</TermCell>
-                      <TermCell numeric>
+                      <TermCell numeric className="tabular-nums">{item.quantity}</TermCell>
+                      <TermCell numeric className="tabular-nums">
                         <div className="flex flex-col leading-tight">
                           <span>
                             {fmtAmount(totalAmount)} {item.currency ?? ''}

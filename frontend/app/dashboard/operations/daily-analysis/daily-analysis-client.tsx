@@ -1887,7 +1887,7 @@ export default function DailyAnalysisPage() {
               <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
                 <TabsContent forceMount value={activeTab} className="m-0">
                   {activeTab === 'summary' ? (
-                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96 max-h-[calc(100vh-16rem)] overflow-auto">
+                    <Table containerClassName="bg-term-panel max-h-[calc(100vh-16rem)] overflow-auto">
                       <TableHeader className={STICKY_TOP_ROW}>
                         <TableRow className="border-0 hover:bg-transparent">
                           <TableHead className="min-w-[120px]">日期</TableHead>
@@ -1918,8 +1918,7 @@ export default function DailyAnalysisPage() {
                             <TableRow
                               key={`${row.date}-${index}`}
                               className={cn(
-                                index % 2 === 0 &&
-                                  'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70'
+                                index % 2 === 0 && 'bg-term-raised'
                               )}
                             >
                               <TableCell className="font-medium text-foreground">
@@ -1970,10 +1969,10 @@ export default function DailyAnalysisPage() {
                       </TableBody>
                     </Table>
                   ) : (
-                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98 max-h-[calc(100vh-16rem)] overflow-auto">
+                    <Table containerClassName="bg-term-panel max-h-[calc(100vh-16rem)] overflow-auto">
                       <TableHeader className={STICKY_TOP_ROW}>
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]">
+                          <TableHead className="min-w-[120px] bg-term-raised">
                             日期
                           </TableHead>
                           <TableHead className="min-w-[200px]">SKU</TableHead>
@@ -2008,8 +2007,8 @@ export default function DailyAnalysisPage() {
                                 className={cn(
                                   'transition-colors',
                                   isTintedGroup
-                                    ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
-                                    : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40'
+                                    ? 'bg-term-raised hover:bg-term-hover'
+                                    : 'bg-term-panel hover:bg-term-hover'
                                 )}
                               >
                                 {showDate ? (
@@ -2017,9 +2016,7 @@ export default function DailyAnalysisPage() {
                                     rowSpan={rowSpan}
                                     className={cn(
                                       'align-middle text-center font-semibold text-foreground',
-                                      isTintedGroup
-                                        ? 'bg-[hsl(var(--primary))]/[0.1]'
-                                        : 'bg-[hsl(var(--surface-soft))]/0'
+                                      isTintedGroup ? 'bg-term-raised' : 'bg-term-panel'
                                     )}
                                   >
                                     {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}

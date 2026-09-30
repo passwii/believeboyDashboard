@@ -219,6 +219,30 @@ describe('订单信息页终端化（BLF-817）', () => {
     fetchMock.mockClear()
   })
 
+  it('订单表使用实体 term 表头、规范数值列与选中态语义', async () => {
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    const table = screen.getByRole('table', { name: '订单列表' })
+    const firstHeader = table.querySelector('thead th')
+    const quantityHeader = screen.getByRole('columnheader', { name: /数量/ })
+    const quantityCell = table.querySelector('tbody tr:first-child td:nth-child(6)')
+    const amountCell = table.querySelector('tbody tr:first-child td:nth-child(7)')
+
+    expect(firstHeader?.className).toContain('bg-term-raised')
+    expect(quantityHeader.className).toContain('text-right')
+    expect(quantityHeader.className).toContain('tabular-nums')
+    expect(quantityCell?.className).toContain('text-right')
+    expect(quantityCell?.className).toContain('tabular-nums')
+    expect(amountCell?.className).toContain('text-right')
+    expect(amountCell?.className).toContain('tabular-nums')
+    expect(table).toHaveClass('tabular-nums')
+  })
+
   it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
     render(
       <TerminalGlobalFilterProvider>

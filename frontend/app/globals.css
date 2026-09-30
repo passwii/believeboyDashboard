@@ -249,8 +249,11 @@
     --term-border-strong: #d0d0d8;
     --term-text: #1b1b1f;
     --term-muted: #71717a;
+    --term-placeholder: #707079;
     --term-faint: #a1a1aa;
     --term-pos: #16a34a;
+    --term-action: #16a34a;
+    --term-action-text: #1b1b1f;
     --term-warn: #d97706;
     --term-neg: #dc2626;
     --term-accent: #2563eb;
@@ -277,8 +280,11 @@
     --term-border-strong: #33333a;
     --term-text: #ededed;
     --term-muted: #888890;
+    --term-placeholder: #888890;
     --term-faint: #5c5c66;
     --term-pos: #22c55e;
+    --term-action: #22c55e;
+    --term-action-text: #0c0c0e;
     --term-warn: #f59e0b;
     --term-neg: #ef4444;
     --term-accent: #5b8def;

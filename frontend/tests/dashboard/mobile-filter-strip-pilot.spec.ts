@@ -313,6 +313,52 @@ test.describe('@mobile-blf930 daily-analysis 移动端折叠筛选条', () => {
 })
 
 test.describe('@mobile-blf930 桌面零回归（BLF-930）', () => {
+  test('daily-analysis 表格表面使用实体 Terminal 色令牌', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/dashboard/operations/daily-analysis?project=1&country=US')
+    await expect(page.getByText('销售数据工作区')).toBeVisible({ timeout: 30000 })
+
+    const table = page.locator('#main-content table').first()
+    const firstDataRow = table.locator('tbody tr').first()
+    await expect(firstDataRow).toBeVisible({ timeout: 30000 })
+
+    const assertTableUsesTerminalSurface = async (activeTable: import('@playwright/test').Locator) => {
+      const tableSurface = activeTable.locator('xpath=..')
+      const stickyHeader = activeTable.locator('thead').first()
+      const firstRow = activeTable.locator('tbody tr').first()
+      await expect(tableSurface).toHaveClass(/bg-term-panel/)
+      await expect(stickyHeader).toHaveClass(/bg-term-raised/)
+      await expect(firstRow).toHaveClass(/(^|\s)bg-term-raised(\s|$)/)
+      await expect(tableSurface).not.toHaveClass(/surface-panel/)
+      await expect(firstRow).not.toHaveClass(/surface-soft|surface-strong|bg-primary|bg-background/)
+      await expect(activeTable.locator('tbody tr').nth(1)).not.toHaveClass(/(^|\s)bg-term-raised(\s|$)/)
+    }
+
+    await assertTableUsesTerminalSurface(table)
+
+    await page.addInitScript(() => window.localStorage.setItem('theme', 'dark'))
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.reload()
+    await expect(page.getByText('销售数据工作区')).toBeVisible({ timeout: 30000 })
+    const chartKindGroup = page.getByRole('group', { name: '图表形态' })
+    await expect(chartKindGroup).toBeVisible()
+    const lineChartButton = chartKindGroup.getByRole('button', { name: /折线/ })
+    await lineChartButton.click()
+    await expect(lineChartButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(lineChartButton).toHaveClass(/bg-term-accent/)
+    const darkTable = page.locator('#main-content table').first()
+    await expect(darkTable.locator('tbody tr').first()).toBeVisible({ timeout: 30000 })
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await assertTableUsesTerminalSurface(darkTable)
+
+    await page.getByRole('tab', { name: /SKU 明细/ }).click()
+    const detailTable = page.locator('#main-content table').first()
+    await expect(detailTable.locator('tbody tr').first()).toBeVisible({ timeout: 30000 })
+    await assertTableUsesTerminalSurface(detailTable)
+    await expect(detailTable.locator('tbody tr').first().locator('td[rowspan]')).toHaveClass(/bg-term-raised/)
+    await expect(detailTable.locator('tbody tr').first()).not.toContainClass('surface-soft')
+  })
+
   test('daily-analysis 1440px：折叠条不渲染，header 插槽正常', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard/operations/daily-analysis?project=1&country=US')

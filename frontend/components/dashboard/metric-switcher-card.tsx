@@ -331,9 +331,8 @@ export function MetricSwitcherCard<K extends string>({
 /*   2. Sliding bottom accent indicator via `layoutId="metric-cell-indicator"`:*/
 /*      only the active cell renders the indicator span; framer-motion         */
 /*      tweens it between cells when the user picks a different metric.       */
-/*   3. Active-state visual: bg-primary/[0.04] tint + foreground-colored      */
-/*      digit + change Badge in success/destructive colors. Inactive cells    */
-/*      stay muted (text-muted-foreground/80) and dim their change Badge.     */
+/*   3. Active-state visual: term-raised surface + term-accent indicator;    */
+/*      inactive cells use the shared term hover surface and muted text.      */
 /* -------------------------------------------------------------------------- */
 
 interface MetricCellProps<K extends string> {
@@ -397,9 +396,9 @@ function MetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={false}
       className={cn(
-        'relative cursor-pointer p-4 text-start transition-colors duration-150',
+        'relative cursor-pointer p-4 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
         'min-h-[112px]',
-        'hover:bg-muted/40'
+        'hover:bg-term-hover'
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-1.5">
@@ -476,15 +475,15 @@ function ActiveMetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={true}
       className={cn(
-        'relative cursor-pointer p-4 text-start transition-colors duration-150',
+        'relative cursor-pointer p-4 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
         'min-h-[112px]',
-        'bg-primary/[0.04]'
+        'bg-term-raised'
       )}
     >
       <motion.span
         layoutId="metric-cell-indicator"
         aria-hidden
-        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary"
+        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-none bg-term-accent"
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       />
       <div className="mb-2 flex items-center justify-between gap-1.5">
@@ -544,8 +543,11 @@ function ChartKindToggle({
   const prefersReducedMotion = useReducedMotion()
   return (
     <div
+      role="group"
+      aria-label="图表形态"
+      data-testid="chart-kind-toggle"
       className={cn(
-        'inline-flex h-7 items-center rounded-full border border-border/70 bg-background/72 p-0.5 text-[11px]',
+        'inline-flex h-9 items-center rounded-none border border-term-border bg-term-panel p-0.5 font-mono text-xs',
         disabled && 'opacity-50'
       )}
     >
@@ -560,10 +562,8 @@ function ChartKindToggle({
             disabled={disabled}
             aria-pressed={isActive}
             className={cn(
-              'relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
-              // When reduced motion is on we skip the layoutId pill and fall
-              // back to Tailwind classes on the button itself.
-              isActive && prefersReducedMotion && 'bg-primary text-primary-foreground shadow-sm'
+              'relative inline-flex h-full min-w-11 items-center justify-center gap-1 rounded-none px-2 font-mono transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
+              isActive && prefersReducedMotion && 'bg-term-accent text-term-panel'
             )}
           >
             {/* Sliding pill — only the active option renders it; layoutId
@@ -572,7 +572,7 @@ function ChartKindToggle({
               <motion.span
                 layoutId="chart-kind-pill"
                 aria-hidden
-                className="absolute inset-0 -z-10 rounded-full bg-primary shadow-sm"
+                className="absolute inset-0 rounded-none border border-term-accent bg-term-accent shadow-none"
                 transition={{
                   type: 'spring',
                   stiffness: 380,
@@ -584,10 +584,8 @@ function ChartKindToggle({
               className={cn(
                 'relative z-10 inline-flex items-center gap-1 transition-colors',
                 isActive
-                  ? prefersReducedMotion
-                    ? 'text-primary-foreground'
-                    : 'text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'text-term-panel'
+                  : 'text-term-muted hover:text-term-text'
               )}
             >
               <Icon className="size-3" />

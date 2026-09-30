@@ -2,7 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TerminalFooter } from './terminal-footer'
-import { TERMINAL_TICKER } from './terminal-constants'
+import { TERMINAL_FOOTER_HEIGHT, TERMINAL_TICKER } from './terminal-constants'
 
 const { tickerMock } = vi.hoisted(() => ({ tickerMock: vi.fn() }))
 vi.mock('@/lib/hooks/use-exchange-rate-ticker', () => ({
@@ -347,6 +347,23 @@ describe('TerminalFooter BLF-967：本月至今 GMV vs 上月同期', () => {
 })
 
 describe('TerminalFooter', () => {
+  it('页脚高度引用终端 Footer 高度常量且提供状态区域名称', () => {
+    mockTicker('loading', [{ currency: 'USD', rate: null, yearMonth: null }])
+    mockBrief({ gmv: null, orders: null, pending: null }, 'error')
+    render(<TerminalFooter />)
+    const footer = screen.getByTestId('terminal-footer')
+    expect(footer.style.height).toBe(`${TERMINAL_FOOTER_HEIGHT}px`)
+    expect(footer).toHaveAttribute('aria-label', '全局状态栏')
+  })
+
+  it('页脚通知图标沿用 Terminal 图标 strokeWidth 1.75', () => {
+    mockTicker('ok', [{ currency: 'USD', rate: 7.16, yearMonth: '2026-08' }])
+    mockBrief({ gmv: 12345, orders: 42, pending: 3 })
+    render(<TerminalFooter />)
+    const bell = screen.getByTestId('terminal-footer').querySelector('svg.lucide-bell')
+    expect(bell).toHaveAttribute('stroke-width', '1.75')
+  })
+
   it('无数据时汇率与快报显示 "--" 占位且不报错', () => {
     mockTicker('loading', [{ currency: 'USD', rate: null, yearMonth: null }])
     mockBrief({ gmv: null, orders: null, pending: null }, 'error')

@@ -53,23 +53,23 @@
 - Consumes: 现有外壳组件 props、`TERMINAL_*` 尺寸常量和 `useTerminalLayout` 状态接口。
 - Produces: 可锁定 rail/subnav/header/inspector/footer 的角色、可访问名称、展开/折叠状态与常量尺寸的回归断言；不改生产接口。
 
-- [ ] **Step 1: 读取现有外壳测试和源文件，记录当前真实交互**
+- [x] **Step 1: 读取现有外壳测试和源文件，记录当前真实交互**
 
 运行：`cd frontend && pnpm vitest run components/terminal/terminal-rail.test.tsx components/terminal/terminal-subnav.test.tsx components/terminal/terminal-header.test.tsx components/terminal/terminal-inspector.test.tsx components/terminal/terminal-footer.test.tsx components/terminal/use-terminal-layout.test.ts`
 
-预期：当前相关测试通过；若测试路径或名称有差异，按 `frontend/components/terminal/` 的实际同名测试替换命令，并把准确路径写入任务记录。
+结果：原有外壳测试通过；后新增 Header 高度/控制状态和 Footer 高度/可访问名测试，具体运行结果见 Step 3。
 
-- [ ] **Step 2: 为当前可见交互补充基线断言**
+- [x] **Step 2: 为当前可见交互补充基线断言**
 
 为每个目标组件只补缺失断言：主题/导航按钮有可访问名称；折叠按钮的 `aria-expanded` 与状态同步；当前导航项有当前状态语义；布局 hook 的 toggle 能往返切换；rail/subnav/header/inspector/footer 的尺寸引用 `terminal-constants.ts` 中对应常量，不在测试里硬编码另一个尺寸数值。
 
-- [ ] **Step 3: 运行目标测试确认基线通过**
+- [x] **Step 3: 运行目标测试确认基线通过**
 
 运行：`cd frontend && pnpm vitest run components/terminal/terminal-rail.test.tsx components/terminal/terminal-subnav.test.tsx components/terminal/terminal-header.test.tsx components/terminal/terminal-inspector.test.tsx components/terminal/terminal-footer.test.tsx components/terminal/use-terminal-layout.test.ts`
 
-预期：PASS；若新断言发现现状缺陷，保留失败作为 Task 2/3 的实现驱动用例。
+结果：6 个外壳测试文件、57 tests 全通过；Header 新增尺寸与 `aria-pressed` 状态契约、Footer 新增尺寸与状态区域名称契约。另在 Rail/Footer 图标笔画 1.75 契约新增后，Rail/Header/Footer 目标组 3 个测试文件、44 tests 通过。
 
-- [ ] **Step 4: 提交测试基线**
+- [x] **Step 4: 提交测试基线**
 
 ```bash
 git add frontend/components/terminal/terminal-rail.test.tsx frontend/components/terminal/terminal-subnav.test.tsx frontend/components/terminal/terminal-header.test.tsx frontend/components/terminal/terminal-inspector.test.tsx frontend/components/terminal/terminal-footer.test.tsx frontend/components/terminal/use-terminal-layout.test.ts
@@ -77,6 +77,8 @@ git commit -m "test(终端外壳): 补齐交互回归基线"
 ```
 
 ## Task 2: 打磨外壳对齐、密度与可访问状态
+
+> 首轮实际修正已完成：Footer `<footer>` 增加 `role="status" aria-label="全局状态栏"`；Rail/Footer 的 Lucide 图标显式使用规范 `strokeWidth={1.75}`。Header 尺寸和两个侧栏切换状态现由 Task 1 的契约测试覆盖，不需额外改生产接口。
 
 **Files:**
 - Modify: `frontend/components/terminal/terminal-constants.ts`
@@ -161,6 +163,8 @@ git commit -m "feat(终端外壳): 强化可访问的面板过渡"
 ```
 
 ## Task 4: 共享交互组件状态基线与缺口盘点
+
+> **设计边界：** `frontend/components/ui/tabs.tsx` 的 default variant 与 AI Chat V2 是登记的独立设计表面，保留既有圆角/渐变/投影。此任务只审查 `variant="term"` 与控件交互/可访问状态，不把 V3 Terminal 规范套用至该例外；`table.tsx` 中按规范用于 1px 表格分隔线的 inset shadow 也保留。
 
 **Files:**
 - Read/Modify: `frontend/components/ui/button.test.tsx`
@@ -248,42 +252,44 @@ git commit -m "fix(共享组件): 修正已验证的终端状态"
 
 ## Task 6: 打磨运营分析代表页面
 
+> 结果：daily-analysis 汇总/明细表切换到实体 term 背景/状态色；`MetricSwitcherCard` 指标选择和图表形态控制统一 Terminal 令牌、尺寸与键盘焦点。页面目标 Vitest 4 files / 22 tests、移动筛选/桌面/dark/reduced-motion Playwright 7/7、lint 0 errors（27 warnings）、独立重跑 build 通过、Impeccable detector `[]`。详细范围和命令见 `2026-09-23-frontend-terminal-polish-component-inventory.md`。
+
 **Files:**
 - Read/Modify: `frontend/app/dashboard/operations/daily-analysis/` 实际路由入口与直接呈现组件
 - Read/Modify: `frontend/components/terminal/daily-analysis-table.tsx`（仅当调用图确认其为目标页共享实现）
 - Read/Modify: `frontend/components/terminal/header-filter-suite.tsx`（仅当目标缺口属于全局筛选带）
-- Modify: `frontend/tests/dashboard/operations-mobile-blf614.spec.ts`
+- Modify: `frontend/tests/dashboard/mobile-filter-strip-pilot.spec.ts`
 - Modify: 该页面已存在的 Vitest 测试
 
 **Interfaces:**
 - Consumes: Tasks 2–5 的 shell/控件状态基线；既有全局筛选 URL/state contract。
 - Produces: daily-analysis 页面外观与交互回归，不改筛选字段、URL 参数语义、API 查询或权限。
 
-- [ ] **Step 1: 定位页面组件与调用面**
+- [x] **Step 1: 定位页面组件与调用面**
 
 运行：`codegraph status .`、`codegraph files --path frontend/app/dashboard/operations`、`codegraph files --path frontend/components/terminal`；对页面入口符号执行 `codegraph query <真实符号> --kind component` 和 `codegraph callers <真实符号>`，再读取命中的源文件及 `operations-mobile-blf614.spec.ts`。
 
-预期：得到精确页面入口、共享组件、已有测试列表；不得用全局样式改造代替调用图定位。
+结果：`page.tsx` → 默认导出 daily-analysis 页面组件；确认 Header filter slot、MetricSwitcherCard、DataTableCard、Table 与移动 MobileFilterStrip 调用面。CodeGraph 确认 `DailyAnalysisTable` 仅被 dashboard-v2 主页引用，按例外未触及。页面浏览器基线与调用面记于 inventory。
 
-- [ ] **Step 2: 新增页面层失败回归断言**
+- [x] **Step 2: 新增页面层失败回归断言**
 
-依据现状选定一项最影响扫描/操作的偏差，写断言覆盖筛选区与数据表在 375/390px 移动宽度下的顺序/溢出，或桌面筛选与页面内容的对齐。保持业务数据 fixture 与 URL 行为不变。
+结果：新增 `mobile-filter-strip-pilot.spec.ts` 桌面契约，检查 daily-analysis 汇总/明细表面使用实体 term token、sticky 色、不透明日期格与非重色斑马行；新增 `metric-switcher-card.test.tsx` 活跃/非活跃指标、图表形态交互、ARIА 状态和 V3 focus/尺寸断言。筛选 fixture 与 URL 语义保持原样。
 
-- [ ] **Step 3: 运行页面用例确认缺陷可复现**
+- [x] **Step 3: 运行页面用例确认缺陷可复现**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts`
 
-预期：新断言 FAIL，旧用例保持有效。若 Playwright 命令配置采用位置参数，按 `playwright.config.ts` 的既有脚本调用方式执行。
+结果：页面表格新断言先因 `bg-[hsl(var(--surface-panel))]/94...` 失败；MetricSwitcherCard 新断言先因 h-7 圆角选择器、active `bg-primary` 失败。目标测试确认偏差来源，随后修复。
 
-- [ ] **Step 4: 只改目标页或共享源头实现**
+- [x] **Step 4: 只改目标页或共享源头实现**
 
-优先复用 `header-filter-suite`、`term-controls`、`term-table` 与既有 token；若调用图显示问题源于共享组件，修改共享源头并运行其所有调用契约测试。不要覆盖 dashboard-v2 或其他首页组件例外。
+结果：daily-analysis 两类表格使用 `bg-term-panel / bg-term-raised / bg-term-hover`；`MetricSwitcherCard` active surface/indicator、focus ring 与 chart-kind group 切换统一 term token 和控件阶梯。没有改变筛选、URL、查询、Excel 导出或 dashboard-v2。
 
-- [ ] **Step 5: 验证桌面/移动、主题与 reduced-motion**
+- [x] **Step 5: 验证桌面/移动、主题与 reduced-motion**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts && pnpm vitest run app/dashboard/operations/daily-analysis/daily-analysis-client.test.tsx app/dashboard/operations/daily-analysis/daily-analysis-excel-export.test.ts`
 
-预期：PASS；在 Playwright 中至少检查 390px 与 1280px 视口、light/dark 主题；核心数据默认可见，减少动态偏好不影响操作。
+结果：`mobile-filter-strip-pilot.spec.ts` mobile project **7/7 passed**（含筛选折叠/展开/URL、桌面 1440、light/dark 实体表面、reduced-motion 下图表控件可用）；页面 Vitest 4 files / 22 tests passed。`pnpm lint` 0 errors、27 warnings；`pnpm build` 通过；Impeccable detector `[]`。light/dark 1440 截图已复核，文件路径记于 inventory。
 
 - [ ] **Step 6: 提交页面批次**
 
@@ -292,13 +298,15 @@ git add frontend/app/dashboard/operations frontend/components/terminal/daily-ana
 git commit -m "fix(运营分析): 打磨终端数据工作区"
 ```
 
-只暂存本批实际变更文件。
+结果：已完成；实际暂存范围仅含本批 6 个源代码、测试和计划记录文件。
 
 ## Task 7: 打磨报表代表页面并验证共享模式
 
+> 结果：order-info 的 numeric 表头/单元格采用显式 `tabular-nums`；移动筛选将短选择器置于两列区、关键词搜索和清空筛选置于全宽区，按 393px 截图复核。BLF-616 订单 fixture 覆盖折叠交互、light/dark 实体 sticky 背景、表内横滑与页面无溢出。订单 mobile 1/1、关联 Vitest 4 files / 28 tests、lint 0 errors（27 warnings）、独立 build 通过、detector `[]`。BLF-616 中另外 5 个其它报表/计算页旧选择器失败情况见 component inventory。
+
 **Files:**
 - Read/Modify: `frontend/app/dashboard/reports/order-info/` 实际路由入口和直接呈现组件
-- Read/Modify: `frontend/components/terminal/term-table.tsx`（仅当调用图确认目标页使用该共享组件）
+- Read/Modify: `frontend/components/terminal/term-table.tsx`（CodeGraph 确认 order-info 页面使用；numeric 样式影响 20 个调用方，需验证 representative consumers）
 - Read: `frontend/components/terminal/daily-analysis-table.test.tsx`（当前仓库存在的共用数据表测试）
 - Modify: `frontend/tests/dashboard/reports-mobile-blf616.spec.ts`
 - Modify: 该页面现存的 Vitest 测试
@@ -307,31 +315,31 @@ git commit -m "fix(运营分析): 打磨终端数据工作区"
 - Consumes: Task 6 验证过的筛选带、数据表、加载/错误反馈模式；报表原有数据和导出行为。
 - Produces: order-info 报表响应式/主题/状态回归；既有查询、排序、导出、列含义不变。
 
-- [ ] **Step 1: 用 CodeGraph 定位 order-info 页面和共享依赖**
+- [x] **Step 1: 用 CodeGraph 定位 order-info 页面和共享依赖**
 
 运行：`codegraph files --path frontend/app/dashboard/reports`；按其入口真实 component 符号运行 `codegraph query <真实符号> --kind component` 和 `codegraph callers <真实符号>`；读取 `reports-mobile-blf616.spec.ts`、页面组件、`frontend/docs/table-spec.md`。
 
-预期：形成精确目标文件和回归清单；确认表格粘性表头实体不透明底色、数值对齐及移动端呈现要求。
+结果：`OrderInfoPage` → `OrderInfoPageInner` 使用 shared `TermTable / TermTHead / TermHead / TermCell`；页面里程碑测试为 `page.test.tsx` 与 `reports-mobile-blf616.spec.ts`。CodeGraph 显示 TermTable 共有 20 个调用方，代表测试取订单、ad-data、exchange-rate、daily-analysis 4 suite。sticky、数字和 mobile 约束依据 `frontend/docs/table-spec.md`。
 
-- [ ] **Step 2: 写一条针对目标偏差的失败测试**
+- [x] **Step 2: 写一条针对目标偏差的失败测试**
 
-覆盖报表首要任务在移动端可用/无横向页面溢出，或数据表格行列对齐与视觉 token 契约；不因截图文字差异而锁死纯装饰性细节。
+结果：新增 `page.test.tsx` numeric table contract（header 与数量/金额 cell 均右对齐、tabular nums）；更新 `reports-mobile-blf616.spec.ts` 订单 case 以先展开 BLF-940 filter strip，再断言页面 3 个 filter 与两列表格筛选布局、12+ 列表格内部横滑/light-dark sticky 背景。fixture 与业务 data rows 保持原状。
 
-- [ ] **Step 3: 运行 Playwright 用例确认失败**
+- [x] **Step 3: 运行 Playwright 用例确认失败**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/reports-mobile-blf616.spec.ts`
 
-预期：新增行为断言 FAIL，既有业务流程断言保持通过。
+结果：新增 numeric header 断言在 `TermHead numeric` 首次失败，准确指向缺失 `tabular-nums`；数量 cell 追加断言再确认 `TermCell numeric` 同样缺样式。BLF-616 旧订单断言曾因未打开折叠筛选条而失败，修正交互步骤后订单用例通过。
 
-- [ ] **Step 4: 修复目标页面或共享 term-table 层**
+- [x] **Step 4: 修复目标页面或共享 term-table 层**
 
-遵守 `table-spec.md`；粘性表头使用实体不透明 term token，数字用 mono/tabular-nums，边界保持 1px，无阴影/圆角回归。业务列、排序和导出不改。
+结果：`TermHead numeric` 与 `TermCell numeric` 统一添加 `text-right tabular-nums`；订单页数量/金额单元格显式标注数值 tabular 样式。sticky `TermHead` 使用 `bg-term-raised` 不透明底色并按既有 1px 边界显示；列含义、排序、导出与业务语义不变。
 
-- [ ] **Step 5: 运行页面与共享组件测试**
+- [x] **Step 5: 运行页面与共享组件测试**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/reports-mobile-blf616.spec.ts && pnpm vitest run app/dashboard/reports/order-info/page.test.tsx components/terminal/daily-analysis-table.test.tsx`
 
-预期：PASS，并检查桌面/移动、明暗主题与 reduced-motion。当前仓库没有 `term-table.test.tsx`，此处先覆盖已确认存在的报表页单测与共用终端数据表测试；如调用图确认另有报表表格测试，则追加其真实路径。
+结果：订单 mobile Playwright **1/1 passed**（light/dark reload，实体 sticky background，filter strip 和表内横滑）；目标及 3 个代表共享 consumer 的 Vitest **4 files / 28 passed**；`pnpm lint` 0 errors / 27 warnings；`pnpm build` 通过；Impeccable detector `[]`。整份 BLF-616 其它 5 个页面的 e2e selector/route 假设漂移见 inventory，不归入订单用例结果。
 
 - [ ] **Step 6: 提交报表页面批次**
 
@@ -340,14 +348,17 @@ git add frontend/app/dashboard/reports/order-info frontend/components/terminal/t
 git commit -m "fix(报表): 打磨终端订单信息页"
 ```
 
-只暂存本批实际变更文件。
+结果：已完成，实际提交文件见提交 `fix(报表): 打磨终端订单信息页`。
 
 ## Task 8: 全局验证、视觉复核与模块扩展路线图
+
+> 结果：inventory 与模块 roadmap 已完成；订单筛选手机端调整为短控件双列与关键词全宽。相关订单 Playwright、28 项目标 Vitest、lint 与独立 build 通过；全量 Vitest 未回传最终摘要、BLF-616 非订单页有 5 项 selector 漂移、2 个 auth-dependent a11y spec 为 skipped，均如实保留为未全绿项。
 
 **Files:**
 - Read: `frontend/docs/design-spec.md`
 - Read: `frontend/docs/motion-system.md`
 - Read: `frontend/docs/perf-budget.md`
+- Modify: `frontend/tests/dashboard/reports-mobile-blf616.spec.ts`（BLF-940 后移动订单控件分组 + header 横向 scroller 正确排除）
 - Modify: `docs/superpowers/plans/2026-09-23-frontend-terminal-polish/2026-09-23-frontend-terminal-polish-component-inventory.md`
 - Create: `docs/superpowers/plans/2026-09-23-frontend-terminal-polish/2026-09-23-frontend-terminal-polish-module-roadmap.md`
 
@@ -359,39 +370,41 @@ git commit -m "fix(报表): 打磨终端订单信息页"
 
 运行：`cd frontend && pnpm lint && pnpm build && pnpm test`
 
-预期：三项全部 PASS。任何失败立即按故障源修复并重复相应命令；不因本轮 UI 变更而删减既有测试。
+结果：`pnpm lint` 0 errors / 27 warnings；`pnpm build` 单独运行通过（含 OpenAPI type check）；全量 `pnpm test -- --pool=threads --maxWorkers=4 --reporter=dot` 已启动后台 runner，当前仍未回传最终摘要，所以此 Step 保持未完成。
 
 - [ ] **Step 2: 跑本轮相关浏览器测试**
 
 运行：`cd frontend && pnpm test:ui -- tests/dashboard/operations-mobile-blf614.spec.ts tests/dashboard/reports-mobile-blf616.spec.ts tests/a11y/reduced-motion.spec.ts tests/a11y/reduced-transparency.spec.ts`
 
-预期：PASS，或将确认的外部 fixture/环境阻碍单独记录为未通过项。
+结果：已分别运行目标 suites；`operations-mobile-blf614.spec.ts --project=mobile` 为 2 passed / 3 失败（portfolio-overview 旧 Select 假设），`mobile-filter-strip-pilot.spec.ts --project=mobile` 7/7 passed，BLF-616 order-info mobile 单用例 1/1 通过而非订单另 5 项 selector 漂移，reduced-motion/transparency 的 auth-dependent 测试 skipped。此合并浏览器 Step 保持未完成，后续待修复旧用例并具备认证 fixture 后重跑。
 
-- [ ] **Step 3: 做一次桌面/移动批量截图检查并集中修复**
+- [x] **Step 3: 做一次桌面/移动批量截图检查并集中修复**
 
-在登录测试账号可用的本地站点运行：桌面 1440px、移动 390px；检查 Terminal shell、daily-analysis、order-info，light/dark 主题；对核心导航、筛选、表格操作各走一遍。所有需修问题集中一次修改，不逐像素循环；修复后最多补一轮复核。保留截图与具体未解项，不声称未检查页面已验收。
+结果：按 1440px/393px、light/dark 对外壳、daily-analysis、order-info 做一次合并截图 pass；修复了 daily-analysis term 表面、订单 Numeric 列，并将移动订单筛选改成短控件双列 + 全宽搜索。截图仅存在于临时目录并已目视复核、不保留仓库附件；移动横溢测试排除了 Header 自有 overflow-x-auto scroller。
 
-- [ ] **Step 4: 建立模块扩展路线图**
+- [x] **Step 4: 建立模块扩展路线图**
 
-逐域检查 `frontend/lib/sidebar-config.ts` 的导航项和现有测试目录，将 operations、reports、advertising、finance、CRM、system 路由列成批次；记录每个批次的路由清单、现成 e2e 文件、共享组件命中、dashboard-v2 等设计例外和排序理由。仅列已通过源文件核对的实际路径。
+结果：创建 `2026-09-23-frontend-terminal-polish-module-roadmap.md`，路由对照 `SIDEBAR_TOP_GROUPS` 和实际 page.tsx；列出 operations、reports、advertising、finance、CRM、system 的批次路由/现有主要移动 e2e、排序理由，并记录 dashboard-v2、AI Chat、恒暗 display 例外与 BLF-616 drift。
 
-- [ ] **Step 5: 更新首轮状态并写扩展计划**
+- [x] **Step 5: 更新首轮状态并写扩展计划**
 
-将组件 inventory 中每项标为“已修复/现状符合/后续批次”，写入路线图及后续建立小范围实施计划所需的准确路径与测试命令。用 `rg -n "TODO|TBD|待定|占位" docs/superpowers/plans/2026-09-23-frontend-terminal-polish` 确认无未处理占位。
+结果：inventory 与 roadmap 已记录真实完成项、全量 Vitest 未回传、5 个 BLF-616 失效选择器与 2 个 reduced-motion/transparency skip。运行占位词扫描时唯一命中是父 plan 本身用于指导该扫描的命令说明；component inventory 与 module roadmap 本身未发现未处理占位。
 
-- [ ] **Step 6: 提交验证和路线图**
+- [x] **Step 6: 提交验证和路线图**
 
 ```bash
 git add docs/superpowers/plans/2026-09-23-frontend-terminal-polish
 git commit -m "docs(前端): 记录终端打磨验证与模块路线"
 ```
 
+结果：Task 8 文档与订单移动筛选修正一并纳入本轮末尾提交 `docs(前端): 记录终端打磨验证与模块路线`。
+
 ---
 
 ## Definition of Done
 
 - 外壳与首批共享组件按 V3 Terminal 规范回归，桌面和移动导航/布局交互可用。
-- daily-analysis 与 order-info 两个代表页面通过相关单元、浏览器与主题/减少动态偏好检查。
-- lint、build、test 全通过。
-- 一轮集中视觉检查及必要的一轮修正复核完成。
+- daily-analysis 与 order-info 两个代表页面通过相关目标单元、浏览器与主题检查；order-info、daily-analysis reduced-motion 目标操作已在浏览器用例覆盖。
+- lint 0 errors、production build 通过；全量 Vitest runner 尚未返回汇总，reports BLF-616 仍有 5 项旧路由/selector 失败，2 个 auth-dependent a11y specs 在此无认证 fixture 环境下 skipped；这些均不标记为全绿。
+- 一轮集中视觉检查及必要的一轮修正复核完成：Shell 与两个代表页面已按 1440/390、light/dark 批量目视复核；截图为临时检查材料，不纳入版本库。
 - inventory 和 roadmap 明确记录首轮覆盖及后续模块边界；不把未处理页面宣称为已完成，也不重做 dashboard-v2 刻意例外。

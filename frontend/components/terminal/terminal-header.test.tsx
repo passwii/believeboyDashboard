@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TerminalHeader } from './terminal-header'
 import { GLOBAL_FILTER_PILOT_PREFIXES } from './global-filter-context'
+import { TERMINAL_HEADER_HEIGHT } from './terminal-constants'
 import {
   HeaderSlotMount,
   TerminalHeaderSlotProvider,
@@ -100,7 +101,10 @@ const GROUPS: SidebarTopGroup[] = [
   },
 ]
 
-function renderHeader(pathname: string) {
+function renderHeader(
+  pathname: string,
+  options: { subnavCollapsed?: boolean; inspectorOpen?: boolean } = {}
+) {
   currentPathname = pathname
   // BLF-826 起 TerminalHeader 依赖 TerminalHeaderSlotProvider（刷新按钮/插槽），
   // 测试统一在 Provider 内渲染，与 TerminalShell 真实接线一致。
@@ -110,9 +114,9 @@ function renderHeader(pathname: string) {
         groups={GROUPS}
         activeGroupId="operations"
         pathname={pathname}
-        subnavCollapsed={false}
+        subnavCollapsed={options.subnavCollapsed ?? false}
         onExpandSubnav={vi.fn()}
-        inspectorOpen={false}
+        inspectorOpen={options.inspectorOpen ?? false}
         onToggleInspector={vi.fn()}
       />
     </TerminalHeaderSlotProvider>
@@ -133,6 +137,55 @@ afterEach(() => {
 })
 
 describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI 磁贴）', () => {
+  it('头部高度引用终端 Header 高度常量', () => {
+    const { container } = renderHeader('/dashboard/profile')
+    const header = container.querySelector('header[style]') as HTMLElement
+    expect(header.style.height).toBe(`${TERMINAL_HEADER_HEIGHT}px`)
+  })
+
+  it('子导航和 Inspector 控件的可访问名称与按压状态随布局状态同步', () => {
+    const { rerender } = render(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeader
+          groups={GROUPS}
+          activeGroupId="operations"
+          pathname="/dashboard/profile"
+          subnavCollapsed={false}
+          onExpandSubnav={vi.fn()}
+          inspectorOpen={false}
+          onToggleInspector={vi.fn()}
+        />
+      </TerminalHeaderSlotProvider>
+    )
+
+    expect(screen.getByRole('button', { name: '侧栏' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
+
+    rerender(
+      <TerminalHeaderSlotProvider>
+        <TerminalHeader
+          groups={GROUPS}
+          activeGroupId="operations"
+          pathname="/dashboard/profile"
+          subnavCollapsed
+          onExpandSubnav={vi.fn()}
+          inspectorOpen
+          onToggleInspector={vi.fn()}
+        />
+      </TerminalHeaderSlotProvider>
+    )
+
+    expect(screen.getByRole('button', { name: '展开侧栏' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('移动导航入口和页面刷新入口可访问且状态可识别', () => {
+    renderHeader('/dashboard/profile')
+    expect(screen.getByRole('button', { name: '打开导航菜单' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新当前页数据' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('试点路由（销售数据）：渲染筛选四件套且不含 KPI 磁贴', () => {
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument()
