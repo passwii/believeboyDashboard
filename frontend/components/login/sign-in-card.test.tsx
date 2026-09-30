@@ -185,6 +185,17 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
     expect(screen.getByLabelText('登录密码').className).toContain('placeholder:text-term-placeholder')
   })
 
+  it('输入框 hover 不产生位移：不带 u-interactive 上浮与任何 transform 工具类', () => {
+    render(<SignInCard />)
+    for (const label of ['企业邮箱', '登录密码']) {
+      const input = screen.getByLabelText(label)
+      expect(input.className).not.toContain('u-interactive')
+      expect(input.className).not.toMatch(/(^|\s)-?translate[-\s]|scale-\[|hover:-?translate/)
+    }
+    // 输入框内的密码可见性按钮也不做按压缩放，只保留底色/取色反馈
+    expect(screen.getByRole('button', { name: '显示密码' }).className).not.toMatch(/active:scale/)
+  })
+
   it('登录按钮文字在 light 与 dark 主题均保持高对比度', () => {
     render(<SignInCard />)
     const submit = screen.getByRole('button', { name: /登录工作区/ })

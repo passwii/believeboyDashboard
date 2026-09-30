@@ -172,6 +172,29 @@ return <div ref={ref} className="...">...</div>
 - hook 写入 element.style 的 `--spot-x` / `--spot-y`（百分比），CSS 用 `radial-gradient(...)` 渲染
 - 减透明 / 粗指针下 hook 不挂监听，CSS 仍可读 `--spot-x/y` 默认 `50%`
 
+### 3.6 页面级 authoured 动效（登录页品牌面板，2026-09-30）
+
+登录 `/login` 左栏「工作区地图」是两个纯 CSS 动效，**零 JS、零计时器**（`.login-*` 类定义在
+`globals.css` 末尾、`@layer` 之外）：
+
+| 动效 | 类 | 节奏 | 动的属性 |
+|---|---|---|---|
+| 8 个业务域行轮流点亮（tint + 1px accent 竖条 + icon 转 accent） | `.login-domain-row` | 每行 1s、一圈 8s（`animation-delay: calc(i * 1s)` 写在行内 `--login-domain-delay`） | `opacity` / `transform` / `color` |
+| 1px accent 扫描线沿栅格自上而下巡场 | `.login-grid-scan-track` / `-line` | 一圈 9s | `transform` / `opacity` |
+
+**为什么放 `@layer` 之外**：面板是 `min-h-dvh` 全高构图，需要按**视口高度**断点降档行高
+（默认 `2.5rem`，≤760px 降 `2rem`），而 Tailwind 只有宽度断点；unlayered 规则才能覆盖
+`h-*` 等 utilities。同类全高构图可沿用这个口径。
+
+**退化**：两个动效都进 `prefers-reduced-motion: reduce` 闸门（`animation: none` + 覆盖层
+`opacity: 0`），关闭后各行停在静息色，信息零丢失——不走 `MotionFade` / framer-motion，
+因为这里不需要 JS 参与，避免给登录路由加 hydration 成本。
+
+**反向纪律（2026-09-30）**：`.u-interactive` 会在 hover 时 `translateY(-1px)`，**不要用在
+输入框上**——书写面 hover 位移会干扰输入体验（登录表单已摘除，单测
+`components/login/sign-in-card.test.tsx` 守住）。输入框只保留 focus 的 `border-color` /
+`box-shadow` 过渡，无任何 hover 位移。
+
 ---
 
 ## 4. Full-bleed 路由处理

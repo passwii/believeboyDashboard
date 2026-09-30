@@ -82,6 +82,57 @@ test.describe('BelieveBoy login responsive entry', () => {
     await expect(page.getByRole('button', { name: /登录工作区/ })).toHaveCSS('border-radius', '0px')
   })
 
+  test('hovering an input produces no motion and no layout shift', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/login')
+
+    for (const label of ['企业邮箱', '登录密码']) {
+      const input = page.getByLabel(label)
+      const before = await input.boundingBox()
+      await input.hover()
+      await page.waitForTimeout(320)
+      expect(await input.evaluate((element) => window.getComputedStyle(element).transform)).toBe('none')
+      expect(await input.evaluate((element) => window.getComputedStyle(element).transitionProperty)).not.toContain(
+        'transform'
+      )
+      const after = await input.boundingBox()
+      expect(after).toEqual(before)
+    }
+  })
+
+  test('brand panel workspace map tours by default and holds still under reduced motion', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/login')
+
+    const domainRow = page.locator('.login-domain-row').first()
+    await expect(page.locator('.login-domain-row')).toHaveCount(8)
+    await expect(page.locator('section[aria-labelledby="login-brand-title"]')).toBeVisible()
+    expect(
+      await domainRow.evaluate((element) => window.getComputedStyle(element, '::before').animationName)
+    ).toBe('login-domain-tint')
+    expect(
+      await page.locator('.login-grid-scan-track').evaluate((element) => window.getComputedStyle(element).animationName)
+    ).toBe('login-grid-scan')
+
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.reload()
+    expect(
+      await page
+        .locator('.login-domain-row')
+        .first()
+        .evaluate((element) => window.getComputedStyle(element, '::before').animationName)
+    ).toBe('none')
+    expect(
+      await page
+        .locator('.login-domain-row')
+        .first()
+        .evaluate((element) => window.getComputedStyle(element, '::before').opacity)
+    ).toBe('0')
+    expect(
+      await page.locator('.login-grid-scan-track').evaluate((element) => window.getComputedStyle(element).animationName)
+    ).toBe('none')
+  })
+
   test('theme toggle switches the term color theme', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/login')
