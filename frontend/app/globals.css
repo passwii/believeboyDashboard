@@ -743,6 +743,7 @@
       -webkit-overflow-scrolling: touch;
     }
   }
+
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -1146,6 +1147,117 @@
   animation: scroll-btn-exit 0.15s ease-in both;
 }
 
+/* ── 登录页品牌面板（左栏）动效 ────────────────────────────────────────
+ * 两个 authoured moment，纯 CSS、零 JS、零计时器：
+ * 1) `login-domain-row`：工作区地图 8 行按 1s 节拍轮流点亮（背景 tint + 1px accent 竖条 +
+ *    icon 转为 accent），一圈 8s。行本身不可点击，故没有任何 hover 位移。
+ * 2) `login-grid-scan`：1px accent 扫描线沿栅格自上而下巡场，一圈 9s。
+ * 只动 opacity / transform / color；`prefers-reduced-motion: reduce` 下全部关闭（见文末
+ * reduced-motion 闸门），关闭后各行停留在静态静息色，信息不丢失。 */
+/* 行高档位：默认 h-10（终端表格行档）；短视口降 h-8，避免品牌面板在矮屏笔记本上把页面顶出滚动条。
+ * 视口高度断点必须写在这里：Tailwind 只有宽度断点，而本面板是 min-h-dvh 全高构图。
+ * 本段不放进 @layer：unlayered 规则优先于 utilities 层，行高才能在高度断点里覆盖工具类。 */
+.login-domain-row {
+  height: 2.5rem;
+}
+
+.login-brand-stack {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.login-brand-map {
+  margin-top: 2rem;
+}
+
+@media (min-width: 1024px) {
+  .login-brand-stack {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+@media (max-height: 760px) {
+  .login-domain-row {
+    height: 2rem;
+  }
+
+  .login-brand-stack {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .login-brand-map {
+    margin-top: 1.5rem;
+  }
+}
+
+.login-domain-row::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--term-hover);
+  opacity: 0;
+  animation: login-domain-tint 8s var(--motion-ease-standard) infinite;
+  animation-delay: var(--login-domain-delay, 0s);
+}
+
+.login-domain-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--term-accent);
+  opacity: 0;
+  transform: scaleY(0.4);
+  animation: login-domain-bar 8s var(--motion-ease-standard) infinite;
+  animation-delay: var(--login-domain-delay, 0s);
+}
+
+.login-domain-row [data-domain-hue='icon'] {
+  animation: login-domain-icon 8s var(--motion-ease-standard) infinite;
+  animation-delay: var(--login-domain-delay, 0s);
+}
+
+@keyframes login-domain-tint {
+  0%, 10.5% { opacity: 1; }
+  12.5%, 100% { opacity: 0; }
+}
+
+@keyframes login-domain-bar {
+  0% { opacity: 0; transform: scaleY(0.4); }
+  1.5%, 10.5% { opacity: 1; transform: scaleY(1); }
+  12.5%, 100% { opacity: 0; transform: scaleY(1); }
+}
+
+@keyframes login-domain-icon {
+  0%, 10.5% { color: var(--term-accent); }
+  12.5%, 100% { color: var(--term-muted); }
+}
+
+.login-grid-scan-track {
+  /* 不加 will-change：transform 动画运行期浏览器自会提升图层，长期挂 will-change 只会
+   * 让这块近全屏尺寸的透明层常驻显存。 */
+  animation: login-grid-scan 9s linear infinite;
+}
+
+.login-grid-scan-line {
+  animation: login-grid-scan-line 9s linear infinite;
+}
+
+@keyframes login-grid-scan {
+  0% { transform: translate3d(0, -100%, 0); }
+  100% { transform: translate3d(0, 100%, 0); }
+}
+
+@keyframes login-grid-scan-line {
+  0%, 100% { opacity: 0; }
+  10%, 90% { opacity: 0.9; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .empty-state-icon,
   .stagger-item,
@@ -1164,6 +1276,21 @@
 
   .message-content.streaming::after {
     display: none;
+  }
+
+  /* 登录页品牌面板：巡览与扫描全关，行停留在静态静息色（不再有 ::before/::after 覆盖） */
+  .login-domain-row::before,
+  .login-domain-row::after,
+  .login-domain-row [data-domain-hue='icon'],
+  .login-grid-scan-track,
+  .login-grid-scan-line {
+    animation: none !important;
+  }
+
+  .login-domain-row::before,
+  .login-domain-row::after,
+  .login-grid-scan-line {
+    opacity: 0 !important;
   }
 
   .conversation-item:hover {

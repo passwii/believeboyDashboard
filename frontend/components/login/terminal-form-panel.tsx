@@ -28,8 +28,10 @@ const TerminalFormPanel = ({
 }: TerminalFormPanelProps) => {
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
 
+  // 刻意不带 `u-interactive`：该类会让输入框 hover 时上浮 1px；输入框是静态书写面，
+  // hover 只允许 0 位移，仅保留 focus 的边框/光环过渡作为状态反馈。
   const inputClass =
-    'u-interactive [focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 h-12 w-full rounded-none border border-term-border-strong bg-term-bg pl-10 pr-10 text-sm text-term-text caret-term-pos placeholder:text-term-placeholder focus:border-term-pos focus:outline-none focus:ring-2 focus:ring-term-pos/25 disabled:cursor-not-allowed disabled:opacity-50'
+    '[focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 h-12 w-full rounded-none border border-term-border-strong bg-term-bg pl-10 pr-10 text-sm text-term-text caret-term-pos transition-[border-color,box-shadow] [transition-duration:var(--motion-fast)] [transition-timing-function:var(--motion-ease-out)] placeholder:text-term-placeholder focus:border-term-pos focus:outline-none focus:ring-2 focus:ring-term-pos/25 disabled:cursor-not-allowed disabled:opacity-50'
 
   return (
     <div className="text-sm">
@@ -86,7 +88,7 @@ const TerminalFormPanel = ({
               type="button"
               onClick={() => setIsPasswordVisible(!isPasswordVisible)}
               aria-label={isPasswordVisible ? '隐藏密码' : '显示密码'}
-              className="[focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 absolute right-0 top-0 flex h-12 w-12 items-center justify-center bg-transparent text-term-faint transition-[background-color,color,transform] hover:bg-term-hover hover:text-term-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent"
+              className="[focus-visible]:outline [focus-visible]:outline-2 [focus-visible]:outline-term-accent [focus-visible]:outline-offset-2 absolute right-0 top-0 flex h-12 w-12 items-center justify-center bg-transparent text-term-faint transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-term-accent"
             >
               {isPasswordVisible ? <EyeOff size={18} strokeWidth={1.75} /> : <Eye size={18} strokeWidth={1.75} />}
             </button>
