@@ -301,6 +301,8 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
       expect(screen.getByText(/正在验证/)).toBeInTheDocument()
     })
     expect(screen.getByLabelText('企业邮箱')).toBeDisabled()
-    resolve({})
+    await act(async () => {
+      resolve({})
+    })
   })
 })

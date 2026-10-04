@@ -9,7 +9,7 @@ import TerminalFormPanel from './terminal-form-panel'
 
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
 const SIGN_IN_MAX_ATTEMPTS = 3
-const SIGN_IN_ATTEMPT_TIMEOUT_MS = 8000
+const SIGN_IN_ATTEMPT_TIMEOUT_MS = 5000
 const SIGN_IN_RETRY_DELAYS_MS = [500, 1000] as const
 
 /**
@@ -84,7 +84,6 @@ const SignInCard = () => {
 
       for (let attempt = 0; attempt < SIGN_IN_MAX_ATTEMPTS; attempt += 1) {
         if (!mountedRef.current) return
-        setRetryAttempt(attempt)
 
         try {
           lastError = undefined
