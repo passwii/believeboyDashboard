@@ -158,9 +158,25 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
     fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
 
-    expect(await screen.findByText(/无法连接到服务器/)).toBeInTheDocument()
+    expect(await screen.findByText(/无法连接到服务器/, {}, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByLabelText('企业邮箱')).toBeEnabled()
     expect(replace).not.toHaveBeenCalled()
+  }, 7000)
+
+  it('网络错误后自动重试并在登录成功后继续跳转', async () => {
+    signInImpl = vi
+      .fn()
+      .mockResolvedValueOnce({ error: 'CredentialsSignin', code: 'network_error' })
+      .mockResolvedValueOnce({ url: undefined })
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    await waitFor(() => {
+      expect(signInImpl).toHaveBeenCalledTimes(2)
+      expect(replace).toHaveBeenCalledWith('/dashboard')
+    })
   })
 
   it('认证请求 reject 时展示连接提示且恢复输入', async () => {

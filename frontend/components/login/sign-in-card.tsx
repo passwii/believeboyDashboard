@@ -14,6 +14,9 @@ const SIGNIN_LOADING_WATCHDOG_MS = 10000
  * 认证、callback 安全校验和导航 loading 生命周期留在本组件，
  * 品牌布局由 LoginEntry / LoginBrandPanel 独立负责。
  */
+const SIGN_IN_MAX_ATTEMPTS = 3
+const SIGN_IN_RETRY_DELAYS_MS = [500, 1000]
+
 const SignInCard = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -69,12 +72,26 @@ const SignInCard = () => {
     // feel longer than it actually is. We start the navigation spinner
     // only at the moment we hand off to the router (see below).
     try {
-      const result = await signIn('credentials', {
+      let result = await signIn('credentials', {
         email,
         password,
         callbackUrl,
         redirect: false,
       })
+      for (let attempt = 0; attempt < SIGN_IN_RETRY_DELAYS_MS.length; attempt += 1) {
+        const attemptError = typeof result === 'string' ? result : result?.error
+        const attemptErrorCode =
+          typeof result === 'string' ? '' : (result?.code?.toLowerCase() ?? '')
+        if (attemptError !== 'network_error' && attemptErrorCode !== 'network_error') break
+
+        await new Promise((resolve) => window.setTimeout(resolve, SIGN_IN_RETRY_DELAYS_MS[attempt]))
+        result = await signIn('credentials', {
+          email,
+          password,
+          callbackUrl,
+          redirect: false,
+        })
+      }
 
       const signInError = typeof result === 'string' ? result : result?.error
       if (signInError) {
