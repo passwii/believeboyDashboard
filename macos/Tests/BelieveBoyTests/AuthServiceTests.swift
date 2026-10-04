@@ -38,6 +38,84 @@ final class AuthServiceTests: XCTestCase {
         )
     }
 
+    // MARK: - 重试策略
+
+    func testLoginRetriesTransportFailureThenSucceeds() async throws {
+        let attempts = LockedBox(0)
+        let session = StubURLProtocol.session { _ in
+            attempts.mutate { $0 += 1 }
+            return attempts.value == 1
+                ? StubURLProtocol.Response(status: 0, body: "", failure: URLError(.timedOut))
+                : .json(200, Self.loginBody())
+        }
+
+        let result = try await AuthService.loginWithRetry(
+            email: "test_admin@believeboy.com",
+            password: "TestAdmin123",
+            baseURL: baseURL,
+            clientID: "self-test-client",
+            session: session,
+            retryDelay: .zero,
+            sleep: { _ in }
+        )
+
+        XCTAssertEqual(result.apiKey, "blf_LOGINKEY")
+        XCTAssertEqual(attempts.value, 2)
+    }
+
+    func testLoginDoesNotRetryInvalidCredentials() async {
+        let attempts = LockedBox(0)
+        let session = StubURLProtocol.session { _ in
+            attempts.mutate { $0 += 1 }
+            return .json(401, #"{"detail":"Invalid credentials"}"#)
+        }
+
+        do {
+            _ = try await AuthService.loginWithRetry(
+                email: "test_admin@believeboy.com",
+                password: "wrong",
+                baseURL: baseURL,
+                clientID: "self-test-client",
+                session: session,
+                retryDelay: .zero,
+                sleep: { _ in }
+            )
+            XCTFail("认证失败应该原样返回")
+        } catch let error as AuthError {
+            XCTAssertEqual(error, .invalidCredentials)
+        } catch {
+            XCTFail("错误类型不符：\(error)")
+        }
+        XCTAssertEqual(attempts.value, 1, "错误密码不得重复提交，避免触发登录限流")
+    }
+
+    func testLoginStopsAfterMaximumRetryAttempts() async {
+        let attempts = LockedBox(0)
+        let session = StubURLProtocol.session { _ in
+            attempts.mutate { $0 += 1 }
+            return StubURLProtocol.Response(status: 0, body: "", failure: URLError(.timedOut))
+        }
+
+        do {
+            _ = try await AuthService.loginWithRetry(
+                email: "test_admin@believeboy.com",
+                password: "TestAdmin123",
+                baseURL: baseURL,
+                clientID: "self-test-client",
+                session: session,
+                maximumAttempts: 3,
+                retryDelay: .zero,
+                sleep: { _ in }
+            )
+            XCTFail("网络持续失败应返回错误")
+        } catch let error as AuthError {
+            XCTAssertEqual(error, .serverError(.transport("请求超时（-1001）")))
+        } catch {
+            XCTFail("错误类型不符：\(error)")
+        }
+        XCTAssertEqual(attempts.value, 3)
+    }
+
     // MARK: - 成功路径
 
     /// 登录请求的真实形状：POST / 无凭据 / **带设备槽标识**。

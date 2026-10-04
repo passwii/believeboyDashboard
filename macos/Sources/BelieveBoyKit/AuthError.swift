@@ -23,6 +23,19 @@ public enum AuthError: Error, Sendable, Equatable {
 }
 
 extension AuthError {
+    /// 仅网络传输失败和服务端 5xx 可重试；认证失败、限流、解码错误等不重复提交。
+    var isRetryable: Bool {
+        guard case .serverError(let error) = self else { return false }
+        switch error {
+        case .transport:
+            return true
+        case .http(let status, _):
+            return (500..<600).contains(status)
+        default:
+            return false
+        }
+    }
+
     /// 把底层 HTTP 错误归类到登录语义。
     static func from(_ error: APIError) -> AuthError {
         switch error {

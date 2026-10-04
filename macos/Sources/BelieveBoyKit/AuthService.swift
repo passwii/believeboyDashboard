@@ -22,6 +22,39 @@ public enum AuthService {
     ///     且宁愿退化也不愿冒充某台设备时才传 `nil`。
     ///   - session: 注入点，测试用打桩 session。
     /// - Throws: `AuthError` 的分类失败。
+    public static let maximumAttempts = 3
+    public static let retryDelay: Duration = .milliseconds(500)
+
+    /// 用邮箱与密码换取会话；仅对可恢复的网络 / 服务端错误做有限次重试。
+    public static func loginWithRetry(
+        email: String,
+        password: String,
+        baseURL: URL,
+        clientID: String?,
+        session: URLSession = .shared,
+        maximumAttempts: Int = AuthService.maximumAttempts,
+        retryDelay: Duration = AuthService.retryDelay,
+        sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) async throws -> AuthSession {
+        let attempts = max(1, maximumAttempts)
+        for attempt in 1...attempts {
+            do {
+                return try await login(
+                    email: email,
+                    password: password,
+                    baseURL: baseURL,
+                    clientID: clientID,
+                    session: session
+                )
+            } catch let error as AuthError
+                where error.isRetryable && attempt < attempts && !Task.isCancelled {
+                try await sleep(retryDelay * attempt)
+            }
+        }
+        // The loop either returns or throws on its final attempt.
+        preconditionFailure("unreachable")
+    }
+
     public static func login(
         email: String,
         password: String,

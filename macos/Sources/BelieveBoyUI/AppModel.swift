@@ -278,7 +278,7 @@ public final class AppModel {
         sessionNotice = nil
 
         do {
-            let authSession = try await AuthService.login(
+            let authSession = try await AuthService.loginWithRetry(
                 email: emailDraft,
                 password: passwordDraft,
                 baseURL: effectiveBaseURL,
