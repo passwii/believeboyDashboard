@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
@@ -179,20 +179,78 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
     })
   })
 
-  it('认证请求 reject 时展示连接提示且恢复输入', async () => {
-    signInImpl = async () => {
-      throw new Error('fetch failed')
-    }
+  it('认证请求 reject 后自动重试并在成功后跳转', async () => {
+    signInImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ url: undefined })
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    await waitFor(() => {
+      expect(signInImpl).toHaveBeenCalledTimes(2)
+      expect(replace).toHaveBeenCalledWith('/dashboard')
+    })
+  })
+
+  it('请求超时后重试，且超时错误会中止当前请求', async () => {
+    vi.useFakeTimers()
+    signInImpl = vi.fn().mockImplementationOnce(() => new Promise(() => {})).mockResolvedValueOnce({ url: undefined })
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8500)
+    })
+    expect(signInImpl).toHaveBeenCalledTimes(2)
+    expect((signInImpl as ReturnType<typeof vi.fn>).mock.calls[0][1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+    expect((signInImpl as ReturnType<typeof vi.fn>).mock.calls[0][1].signal.aborted).toBe(true)
+    expect(replace).toHaveBeenCalledWith('/dashboard')
+    vi.useRealTimers()
+  })
+
+  it('认证请求在组件卸载后超时，不会发起重试', async () => {
+    vi.useFakeTimers()
+    signInImpl = vi.fn(() => new Promise(() => {}))
+    const { unmount } = render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+    unmount()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000)
+    })
+    expect(signInImpl).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('认证请求在耗尽重试后展示连接提示且恢复输入', async () => {
+    vi.useFakeTimers()
+    signInImpl = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<SignInCard />)
     fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
     fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
 
-    expect(await screen.findByText(/无法连接到服务器/)).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000)
+    })
+    expect(screen.getByText(/无法连接到服务器/)).toBeInTheDocument()
     expect(screen.getByLabelText('企业邮箱')).toBeEnabled()
+    expect(signInImpl).toHaveBeenCalledTimes(3)
     expect(replace).not.toHaveBeenCalled()
     errorSpy.mockRestore()
+    vi.useRealTimers()
   })
 
   it('输入占位文字使用专用的高对比度令牌', () => {
