@@ -88,19 +88,19 @@ const SignInCard = () => {
 
         try {
           lastError = undefined
-          const controller = new AbortController()
           result = await new Promise<Awaited<ReturnType<typeof signIn>>>((resolve, reject) => {
-            const timeoutId = window.setTimeout(() => {
-              controller.abort()
-              reject(new DOMException('Sign-in attempt timed out', 'TimeoutError'))
-            }, SIGN_IN_ATTEMPT_TIMEOUT_MS)
+            // Auth.js v5 signIn does not forward AbortSignal to fetch, so this
+            // bounds our wait without claiming to cancel the underlying request.
+            const timeoutId = window.setTimeout(
+              () => reject(new DOMException('Sign-in attempt timed out', 'TimeoutError')),
+              SIGN_IN_ATTEMPT_TIMEOUT_MS,
+            )
 
             signIn('credentials', {
               email,
               password,
               callbackUrl,
               redirect: false,
-              signal: controller.signal,
             }).then(
               (value) => {
                 window.clearTimeout(timeoutId)
