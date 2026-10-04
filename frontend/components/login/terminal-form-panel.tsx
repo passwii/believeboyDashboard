@@ -9,6 +9,7 @@ interface TerminalFormPanelProps {
   password: string
   setPassword: (v: string) => void
   submitting: boolean
+  retryAttempt: number
   error: string | null
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
 }
@@ -23,6 +24,7 @@ const TerminalFormPanel = ({
   password,
   setPassword,
   submitting,
+  retryAttempt,
   error,
   onSubmit,
 }: TerminalFormPanelProps) => {
@@ -113,7 +115,7 @@ const TerminalFormPanel = ({
           {submitting ? (
             <>
               <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin border-2 border-term-bg/40 border-t-term-bg" />
-              正在验证…
+              {retryAttempt > 0 ? `网络不稳定，正在重试（${retryAttempt}/2）…` : '正在验证…'}
             </>
           ) : (
             <>

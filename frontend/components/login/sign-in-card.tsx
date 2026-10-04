@@ -8,17 +8,23 @@ import { LoginThemeToggle } from './login-theme-toggle'
 import TerminalFormPanel from './terminal-form-panel'
 
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
+const SIGN_IN_MAX_ATTEMPTS = 3
+const SIGN_IN_ATTEMPT_TIMEOUT_MS = 8000
+const SIGN_IN_RETRY_DELAYS_MS = [500, 1000] as const
 
 /**
  * BelieveBoy 登录表单与 credentials 流程。
  * 认证、callback 安全校验和导航 loading 生命周期留在本组件，
  * 品牌布局由 LoginEntry / LoginBrandPanel 独立负责。
  */
+
 const SignInCard = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [retryAttempt, setRetryAttempt] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
   const loadingPendingRef = useRef(false)
   const loadingWatchdogRef = useRef<number | null>(null)
   const router = useRouter()
@@ -51,7 +57,9 @@ const SignInCard = () => {
   }, [finishNavigationLoading, startGlobalLoading])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       finishNavigationLoading()
     }
   }, [finishNavigationLoading])
@@ -59,6 +67,7 @@ const SignInCard = () => {
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
+    setRetryAttempt(0)
     setError(null)
 
     // NOTE: We intentionally do NOT start the global "navigation" spinner
@@ -69,14 +78,66 @@ const SignInCard = () => {
     // feel longer than it actually is. We start the navigation spinner
     // only at the moment we hand off to the router (see below).
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        callbackUrl,
-        redirect: false,
-      })
+      let result: Awaited<ReturnType<typeof signIn>> | undefined
+      let lastError: unknown
+      let completed = false
 
-      const signInError = typeof result === 'string' ? result : result?.error
+      for (let attempt = 0; attempt < SIGN_IN_MAX_ATTEMPTS; attempt += 1) {
+        if (!mountedRef.current) return
+        setRetryAttempt(attempt)
+
+        try {
+          lastError = undefined
+          result = await new Promise<Awaited<ReturnType<typeof signIn>>>((resolve, reject) => {
+            // Auth.js v5 signIn does not forward AbortSignal to fetch, so this
+            // bounds our wait without claiming to cancel the underlying request.
+            const timeoutId = window.setTimeout(
+              () => reject(new DOMException('Sign-in attempt timed out', 'TimeoutError')),
+              SIGN_IN_ATTEMPT_TIMEOUT_MS,
+            )
+
+            signIn('credentials', {
+              email,
+              password,
+              callbackUrl,
+              redirect: false,
+            }).then(
+              (value) => {
+                window.clearTimeout(timeoutId)
+                resolve(value)
+              },
+              (err: unknown) => {
+                window.clearTimeout(timeoutId)
+                reject(err)
+              },
+            )
+          })
+          completed = true
+        } catch (err) {
+          lastError = err
+        }
+
+        if (completed) {
+          const resultCode = typeof result === 'string' ? '' : (result?.code?.toLowerCase() ?? '')
+          if (resultCode !== 'network_error') break
+        }
+
+        if (attempt === SIGN_IN_MAX_ATTEMPTS - 1) {
+          if (lastError) throw lastError
+          break
+        }
+
+        if (!mountedRef.current) return
+        setRetryAttempt(attempt + 1)
+        await new Promise((resolve) => window.setTimeout(resolve, SIGN_IN_RETRY_DELAYS_MS[attempt]))
+      }
+
+      if (!mountedRef.current) return
+      setRetryAttempt(0)
+      if (!result) {
+        throw new Error('登录请求未返回结果')
+      }
+      const signInError = typeof result === 'string' ? result : result.error
       if (signInError) {
         setSubmitting(false)
         const errorCode = typeof result === 'string' ? '' : result?.code?.toLowerCase()
@@ -114,7 +175,9 @@ const SignInCard = () => {
       beginNavigationLoading()
       router.replace(nextPath)
     } catch (err) {
+      if (!mountedRef.current) return
       setSubmitting(false)
+      setRetryAttempt(0)
       setError('无法连接到服务器，请检查后端服务是否启动。')
       console.error('登录请求失败:', err)
     }
@@ -151,6 +214,7 @@ const SignInCard = () => {
           setPassword={setPassword}
           submitting={submitting}
           error={error}
+          retryAttempt={retryAttempt}
           onSubmit={handleSignIn}
         />
       </div>
