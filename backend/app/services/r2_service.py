@@ -9,7 +9,7 @@ import io
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Iterator
 from urllib.parse import quote
 
 import boto3
@@ -259,3 +259,30 @@ def extract_key_from_url(url: str, settings: Settings | None = None) -> str | No
     from app.services.artifact_service import ArtifactService
 
     return ArtifactService.extract_key_from_url(url, settings)
+
+def iter_file_from_r2(
+    settings: Settings,
+    key: str,
+    chunk_size: int = 1024 * 1024,
+) -> Iterator[bytes]:
+    """Stream an object from R2 chunk by chunk (BLF-1237).
+
+    项目启动台节点附件的下载走服务端流式：每一次请求都必须过一遍鉴权与项目权限，
+    所以不能返回 presigned URL（签发后 TTL 内免鉴权）。``download_to_temp`` +
+    ``FileResponse`` 也不行——临时文件在响应真正流式读取之前就被删掉了。
+
+    生成器结束时（含客户端中断）关闭 boto3 StreamingBody，避免连接泄漏。
+    """
+    client = get_r2_client(settings)
+    response = client.get_object(Bucket=settings.r2_bucket_name, Key=key)
+    body = response['Body']
+    try:
+        while True:
+            chunk = body.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        close = getattr(body, 'close', None)
+        if callable(close):
+            close()

@@ -1,7 +1,7 @@
 import base64
 from urllib.parse import unquote
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from fastapi import Header
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,7 @@ def get_primary_db_session(db: Session = Depends(get_primary_db)) -> Session:
 
 def protected(_: None = Depends(require_api_key)) -> None:
     return None
+
 
 
 def _decode_header_value(value: str) -> str:
@@ -83,3 +84,16 @@ def get_request_user_id(
         return None
     value = _decode_header_value(x_user_id)
     return value[:64] if value else None
+
+
+def require_admin(is_admin: bool = Depends(get_request_is_admin)) -> bool:
+    """管理员专属依赖（流程模板 / 项目节点定义等写接口）。
+
+    管理员判定沿用既有 ``X-Is-Admin`` 口径（与 scheduled_reports.require_admin 同形）；
+    前端隐藏入口只是体验，后端 403 才是权限权威。
+    """
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail='需要管理员权限'
+        )
+    return True

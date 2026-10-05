@@ -49,7 +49,18 @@ from app.models.category_research import (
     CategoryResearchSalesTrend,
 )
 from app.models.project import Project
-from app.models.project_workflow import ProjectWorkflow, ProjectWorkflowTask
+from app.models.project_workflow import (
+    ProjectWorkflow,
+    ProjectWorkflowTask,
+    ProjectWorkflowTaskAttachment,
+    ProjectWorkflowTaskContent,
+)
+from app.models.project_workflow_template import (
+    WorkflowTemplate,
+    WorkflowTemplateTask,
+    WorkflowTemplateTaskAttachment,
+    WorkflowTemplateTaskContent,
+)
 from app.models.sku_info import SkuRecord
 from app.models.ai_chat import AIConversation, AIMessage, AIChatTokenUsageSnapshot
 from app.models.ai_insight import AIInsight, InsightStatus, InsightType
@@ -270,4 +281,10 @@ __all__ = [
     "CrmWorkflowSetting",
     "ProjectWorkflow",
     "ProjectWorkflowTask",
+    "ProjectWorkflowTaskAttachment",
+    "ProjectWorkflowTaskContent",
+    "WorkflowTemplate",
+    "WorkflowTemplateTask",
+    "WorkflowTemplateTaskAttachment",
+    "WorkflowTemplateTaskContent",
 ]
