@@ -3,6 +3,7 @@ import {
   DollarSign,
   FileBarChart,
   Handshake,
+  Layers,
   LayoutDashboard,
   ShieldUser,
   Sparkles,
@@ -11,7 +12,7 @@ import {
 } from 'lucide-react'
 
 /**
- * 登录页「工作区地图」展示的 8 个业务域。
+ * 登录页「工作区地图」展示的 9 个业务域。
  *
  * 唯一数据权威是 `lib/sidebar-config.ts` 的 `SIDEBAR_TOP_GROUPS`；此处只做登录页自用的
  * 轻量副本（不引入 sidebar-config，避免把 CRM badge 轮询组件一起打进登录 chunk）。
@@ -34,6 +35,12 @@ export const LOGIN_WORKSPACE_DOMAINS: LoginWorkspaceDomain[] = [
     label: '运营',
     icon: LayoutDashboard,
     modules: ['数据流总览', '销售数据', '库存分析', '平台巡检'],
+  },
+  {
+    id: 'project-management',
+    label: '项目管理',
+    icon: Layers,
+    modules: ['项目启动台'],
   },
   {
     id: 'reports',

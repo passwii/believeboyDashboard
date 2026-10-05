@@ -47,7 +47,7 @@ import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 /**
  * Sidebar 两层结构的唯一数据权威。
  *
- * 外层分组由 SIDEBAR_TOP_GROUPS 定义（8 个顶级分类）。
+ * 外层分组由 SIDEBAR_TOP_GROUPS 定义（9 个顶级分类；BLF-1234 新增「项目管理」）。
  * 二级菜单项硬编码在每组的 items 中。
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  *
@@ -186,7 +186,26 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 2. 报表中心（所有角色）—— 一切"产出报表 / 核算单"的入口
+  // 2. 项目管理（所有角色）—— 项目全生命周期（启动 / 流程追踪）独立出来，与「运营」并列。
+  // BLF-1234：项目启动台是「按项目看进度」的入口，语义上不属于某个业务分析域，
+  // 因此不挂进运营分组（运营分组按业务类型排列，塞进去会被当成又一个分析页）。
+  {
+    id: 'project-management',
+    label: '项目管理',
+    icon: IconMap.Layers,
+    accent: NEUTRAL_ACCENT,
+    activeAccent: NEUTRAL_ACTIVE,
+    items: [
+      {
+        title: '项目启动台',
+        url: '/dashboard/operations/project-launch',
+        matchPrefixes: ['/dashboard/operations/project-launch'],
+        icon: IconMap.Layers,
+      },
+    ],
+  },
+
+  // 3. 报表中心（所有角色）—— 一切"产出报表 / 核算单"的入口
   {
     id: 'reports',
     label: '报表中心',
@@ -225,7 +244,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 3. 财务资金（所有角色）—— 资金流水 / 税务（报表已归入报表中心）
+  // 4. 财务资金（所有角色）—— 资金流水 / 税务（报表已归入报表中心）
   {
     id: 'finance',
     label: '财务资金',
@@ -240,7 +259,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 4. 广告（所有角色）
+  // 5. 广告（所有角色）
   {
     id: 'advertising',
     label: '广告',
@@ -263,7 +282,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 5. AI 智能（所有角色）—— 含数字员工
+  // 6. AI 智能（所有角色）—— 含数字员工
   {
     id: 'ai',
     label: 'AI 智能',
@@ -297,7 +316,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 6. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
+  // 7. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
   {
     id: 'crm',
     label: 'CRM 客户与合作伙伴',
@@ -346,7 +365,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 7. 工具箱（所有角色）
+  // 8. 工具箱（所有角色）
   {
     id: 'tools',
     label: '工具箱',
@@ -360,7 +379,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 8. 系统管理（所有角色可见；细粒度权限由单页权限接管）
+  // 9. 系统管理（所有角色可见；细粒度权限由单页权限接管）
   {
     id: 'system',
     label: '系统管理',

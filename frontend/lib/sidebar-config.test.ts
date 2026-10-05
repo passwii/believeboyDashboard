@@ -14,9 +14,10 @@ const urlsOf = (id: string) =>
   SIDEBAR_TOP_GROUPS.find((g) => g.id === id)?.items.map((i) => i.url) ?? []
 
 describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
-  it('撤销 Agent 中心分组，顶级分组回到 8 个且顺序不变', () => {
+  it('顶级分组 9 个且顺序固定（BLF-1234 新增「项目管理」）', () => {
     expect(groupIds).toEqual([
       'operations',
+      'project-management',
       'reports',
       'finance',
       'advertising',
@@ -26,6 +27,16 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
       'system',
     ])
     expect(SIDEBAR_TOP_GROUPS.find((g) => g.id === 'agent')).toBeUndefined()
+  })
+
+  it('「项目管理」是与「运营」并列的独立顶级分组（BLF-1234）', () => {
+    expect(groupIds.indexOf('project-management')).toBe(groupIds.indexOf('operations') + 1)
+    expect(urlsOf('project-management')).toEqual(['/dashboard/operations/project-launch'])
+    // 项目启动台不挂进运营分组（设计稿 §7：独立顶级分组，唯一入口）。
+    expect(urlsOf('operations')).not.toContain('/dashboard/operations/project-launch')
+    expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/project-launch')).toBe(
+      'project-management'
+    )
   })
 
   it('数据流总览置顶、Agent 接入管理置底', () => {
