@@ -257,6 +257,29 @@ describe('项目启动台 · 列表与分栏', () => {
     expect(screen.getByText('详情服务不可用')).toBeInTheDocument()
   })
 
+  it('项目列表请求失败时右侧显示错误和重试，不显示空态或骨架屏', async () => {
+    const user = userEvent.setup()
+    const cache = await import('@/lib/project-client-cache')
+    vi.mocked(cache.fetchManagedProjectsCached).mockRejectedValueOnce(
+      new Error('项目服务暂不可用')
+    )
+    render(<ProjectLaunchClient />)
+
+    const rightPaneError = await screen.findByTestId('projects-error-detail')
+    expect(within(rightPaneError).getByText('项目列表加载失败')).toBeInTheDocument()
+    expect(within(rightPaneError).getByText('项目服务暂不可用')).toBeInTheDocument()
+    expect(screen.queryByTestId('no-projects')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('projects-loading')).not.toBeInTheDocument()
+
+    vi.mocked(cache.fetchManagedProjectsCached).mockResolvedValueOnce(PROJECTS)
+    await user.click(within(rightPaneError).getByRole('button', { name: '重试' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: '概览' })).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('projects-error-detail')).not.toBeInTheDocument()
+  })
+
   it('没有可见项目时给出明确空态', async () => {
     const cache = await import('@/lib/project-client-cache')
     vi.mocked(cache.fetchManagedProjectsCached).mockResolvedValueOnce([])
