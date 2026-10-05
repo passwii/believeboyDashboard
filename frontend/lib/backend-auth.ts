@@ -88,7 +88,7 @@ function pickRoleType(session: Session | null): string | null {
   return pickTrimmed(session, 'roleType')
 }
 
-function isAdmin(session: Session | null): boolean {
+export function isAdmin(session: Session | null): boolean {
   return pickRoleType(session) === 'admin'
 }
 

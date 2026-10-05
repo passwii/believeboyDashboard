@@ -15,10 +15,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { FolderOpen, Loader2, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Empty,
   EmptyContent,
@@ -38,6 +41,7 @@ import {
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TERM_BUTTON, TERM_SELECT_NATIVE } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { isAdmin } from '@/lib/backend-auth'
 import type { ManagedProjectOption } from '@/lib/hooks/use-managed-projects'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import {
@@ -49,6 +53,7 @@ import {
   createProjectWorkflow,
   deriveProjectStatus,
   downloadProjectWorkflowDocument,
+  type ProjectWorkflowSummaryItem,
   fetchProjectWorkflows,
   fetchWorkflowSummary,
   fetchWorkflowTemplates,
@@ -81,6 +86,7 @@ function errorText(error: unknown, fallback: string): string {
 
 export default function ProjectLaunchClient() {
   const { data: session, status: sessionStatus } = useSession()
+  const admin = isAdmin(session)
 
   const [projects, setProjects] = useState<ManagedProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -101,6 +107,7 @@ export default function ProjectLaunchClient() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pendingTaskId, setPendingTaskId] = useState<number | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const [storeLaunchStartDate, setStoreLaunchStartDate] = useState('')
   const [refreshing, setRefreshing] = useState(false)
 
   // 竞态保护：快速切换项目时丢弃过期详情响应。
@@ -109,8 +116,10 @@ export default function ProjectLaunchClient() {
   const detailProjectRef = useRef<number | null>(null)
   // 按项目分组的概要索引（列表行渲染 O(1) 取用）。
   const [summariesByProject, setSummariesByProject] = useState<
-    Map<number, ProjectWorkflowSummaryWorkflow[]>
+    Map<number, ProjectWorkflowSummaryItem>
   >(new Map())
+  const [workflowMutationBusy, setWorkflowMutationBusy] = useState(false)
+  const selectedSummary = selectedProjectId == null ? null : summariesByProject.get(selectedProjectId)
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
 
@@ -137,11 +146,7 @@ export default function ProjectLaunchClient() {
 
       if (summaryResult.status === 'fulfilled') {
         setSummariesByProject(
-          new Map(
-            summaryResult.value.projects.map(
-              (row) => [row.project_id, row.workflows] as const
-            )
-          )
+          new Map(summaryResult.value.projects.map((row) => [row.project_id, row] as const))
         )
       } else {
         setSummariesByProject(new Map())
@@ -157,9 +162,7 @@ export default function ProjectLaunchClient() {
     try {
       const result = await fetchWorkflowSummary(session)
       setSummariesByProject(
-        new Map(
-          result.projects.map((row) => [row.project_id, row.workflows] as const)
-        )
+        new Map(result.projects.map((row) => [row.project_id, row] as const))
       )
       setSummaryError(null)
     } catch (error) {
@@ -261,13 +264,35 @@ export default function ProjectLaunchClient() {
       await handleCreateWorkflow({
         kind: 'store_launch',
         template_key: STORE_LAUNCH_TEMPLATE_KEY,
+        ...(storeLaunchStartDate ? { start_date: storeLaunchStartDate } : {}),
       })
+      setStoreLaunchStartDate('')
     } catch (error) {
       setMutationError(errorText(error, '启用店铺启动流程失败'))
     }
-  }, [handleCreateWorkflow])
+  }, [handleCreateWorkflow, storeLaunchStartDate])
 
   // ── 写：任务状态（乐观更新 + 失败回滚） ─────────────────────────────────
+  const handleWorkflowMutation = useCallback(
+    async (action: () => Promise<ProjectWorkflow>): Promise<boolean> => {
+      if (selectedProjectId == null) return false
+      setWorkflowMutationBusy(true)
+      setMutationError(null)
+      try {
+        const updated = await action()
+        setWorkflows((current) => current.map((workflow) => workflow.id === updated.id ? updated : workflow))
+        await refreshSummary()
+        return true
+      } catch (error) {
+        setMutationError(errorText(error, '保存流程变更失败'))
+        return false
+      } finally {
+        setWorkflowMutationBusy(false)
+      }
+    },
+    [refreshSummary, selectedProjectId]
+  )
+
   const handleTaskStatusChange = useCallback(
     async (task: ProjectWorkflowTask, status: WorkflowStatus) => {
       if (task.status === status) return
@@ -330,7 +355,7 @@ export default function ProjectLaunchClient() {
   const noProjects = !projectsLoading && !projectsError && projects.length === 0
 
   function renderProjectRow(project: ManagedProjectOption) {
-    const rows = summariesByProject.get(project.id) ?? []
+    const rows = summariesByProject.get(project.id)?.workflows ?? []
     const storeLaunch = rows.find((row) => row.kind === 'store_launch') ?? null
     const products = rows.filter((row) => row.kind === 'product_development')
     const aggregate = deriveProjectStatus(rows)
@@ -411,7 +436,7 @@ export default function ProjectLaunchClient() {
 
     return (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 border border-term-border px-2 py-2">
+        <div className="flex flex-wrap items-center gap-2 border border-term-border px-2 py-2">
           <span className="font-mono text-xs text-term-muted">项目状态</span>
           {projectStatus ? (
             <WorkflowStatusPill status={projectStatus} />
@@ -421,7 +446,8 @@ export default function ProjectLaunchClient() {
             </span>
           )}
           <span className="ml-auto font-mono text-[11px] tabular-nums text-term-muted">
-            共 {workflows.length} 条流程
+            项目排期 {selectedSummary?.schedule_start ?? '未排期'} ~ {selectedSummary?.schedule_end ?? '未排期'}
+            {selectedSummary?.schedule_days == null ? '' : ` · ${selectedSummary.schedule_days} 天`}
           </span>
         </div>
         <ul className="flex flex-col rounded-none border border-term-border">
@@ -465,15 +491,21 @@ export default function ProjectLaunchClient() {
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button
-              type="button"
-              data-testid="enable-store-launch"
-              disabled={detailBusy}
-              onClick={() => void handleEnableStoreLaunch()}
-            >
-              <Plus aria-hidden />
-              启用店铺启动流程
-            </Button>
+            <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1 space-y-1 text-left">
+                <Label htmlFor="store-launch-start-date">计划开始日期（可选）</Label>
+                <Input id="store-launch-start-date" type="date" value={storeLaunchStartDate} onChange={(event) => setStoreLaunchStartDate(event.target.value)} disabled={detailBusy} />
+              </div>
+              <Button
+                type="button"
+                data-testid="enable-store-launch"
+                disabled={detailBusy}
+                onClick={() => void handleEnableStoreLaunch()}
+              >
+                <Plus aria-hidden />
+                启用店铺启动流程
+              </Button>
+            </div>
           </EmptyContent>
         </Empty>
       )
@@ -491,9 +523,14 @@ export default function ProjectLaunchClient() {
         <WorkflowTaskList
           workflow={storeLaunchWorkflow}
           pendingTaskId={pendingTaskId}
-          disabled={pendingTaskId != null}
+          disabled={pendingTaskId != null || workflowMutationBusy}
+          isAdmin={admin}
+          projectId={selectedProjectId ?? storeLaunchWorkflow.project_id}
+          session={session}
           onStatusChange={(task, nextStatus) => void handleTaskStatusChange(task, nextStatus)}
-          onDownload={(task) => void handleDownload(task)}
+          onWorkflowMutation={handleWorkflowMutation}
+          onDownloadDocument={(task) => void handleDownload(task)}
+          onError={setMutationError}
         />
       </div>
     )
@@ -565,9 +602,14 @@ export default function ProjectLaunchClient() {
               <WorkflowTaskList
                 workflow={workflow}
                 pendingTaskId={pendingTaskId}
-                disabled={pendingTaskId != null}
+                disabled={pendingTaskId != null || workflowMutationBusy}
+                isAdmin={admin}
+                projectId={selectedProjectId ?? workflow.project_id}
+                session={session}
                 onStatusChange={(task, nextStatus) => void handleTaskStatusChange(task, nextStatus)}
-                onDownload={(task) => void handleDownload(task)}
+                onWorkflowMutation={handleWorkflowMutation}
+                onDownloadDocument={(task) => void handleDownload(task)}
+                onError={setMutationError}
               />
             </section>
           ))
@@ -669,6 +711,8 @@ export default function ProjectLaunchClient() {
           ))}
         </select>
       </div>
+
+      {admin ? <div className="flex justify-end"><Button asChild variant="term" size="sm"><Link href="/dashboard/operations/project-launch/templates">流程模板管理</Link></Button></div> : null}
 
       <div className="flex min-w-0 flex-col gap-2 md:grid md:grid-cols-[260px_minmax(0,1fr)]">
         {/* 桌面：左侧项目列表 */}
