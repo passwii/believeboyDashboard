@@ -37,6 +37,10 @@ from app.api.v1.endpoints.profile import router as profile_router
 from app.api.v1.endpoints.projects import router as projects_router
 # 项目启动台流程端点（BLF-1234）：与 projects_router 同域，随核心组急切加载。
 from app.api.v1.endpoints.project_workflows import router as project_workflows_router
+# 流程模板管理端点（BLF-1237 / P2）：模板与节点的管理员写接口。
+from app.api.v1.endpoints.project_workflow_templates import (
+    router as project_workflow_templates_router,
+)
 from app.api.v1.endpoints.scheduled_reports import router as scheduled_reports_router
 from app.api.v1.endpoints.complaints import router as complaints_router
 from app.api.v1.endpoints.agent_ops import router as agent_ops_router
@@ -54,6 +58,7 @@ api_router.include_router(exchange_rates_router)
 api_router.include_router(order_info_router)
 api_router.include_router(projects_router)
 api_router.include_router(project_workflows_router)
+api_router.include_router(project_workflow_templates_router)
 api_router.include_router(sku_info_router)
 
 # -- 定价测算域（懒，首次命中才 import）--------------------------------------

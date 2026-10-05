@@ -43,6 +43,9 @@ class ArtifactService:
         ("InspectionScreenshot", "r2_key"),
         ("InspectionScreenshot", "thumbnail_key"),
         ("ScheduledReportDeliveryLog", "screenshot_r2_thumb_key"),
+        # P2 项目启动台节点附件（列名就叫 r2_key，必须显式登记）
+        ("WorkflowTemplateTaskAttachment", "r2_key"),
+        ("ProjectWorkflowTaskAttachment", "r2_key"),
     ]
 
     @classmethod

@@ -138,6 +138,41 @@ class Settings(BaseSettings):
         "application/octet-stream",
     }
 
+    # 项目启动台节点附件（P2 / BLF-1237）——内务回传，单独一套允许面：
+    # 报表上传是「固定业务类型 + 固定格式」，附件是「内务留档，含打包 zip 与图片」，
+    # 两者混用会让报表侧意外放宽，所以不复用 allowed_upload_extensions。
+    workflow_attachment_max_bytes: int = 50 * 1024 * 1024
+    workflow_attachment_allowed_extensions: set[str] = {
+        ".pdf",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".doc",
+        ".csv",
+        ".txt",
+        ".zip",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+    }
+    workflow_attachment_allowed_content_types: set[str] = {
+        "text/plain",
+        "text/csv",
+        "application/csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/pdf",
+        "application/octet-stream",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "application/zip",
+        "application/x-zip-compressed",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+    }
+
     # User avatar uploads — separate, smaller cap than generic uploads so
     # we never accept phone-camera dumps into the R2 bucket by accident.
     avatar_max_bytes: int = 5 * 1024 * 1024
