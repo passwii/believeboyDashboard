@@ -78,6 +78,10 @@ function makeStoreLaunch(overrides: Partial<ProjectWorkflow> = {}): ProjectWorkf
     status: 'not_started',
     task_count: 3,
     completed_task_count: 0,
+    start_date: null,
+    schedule_start: null,
+    schedule_end: null,
+    schedule_days: null,
     tasks: [
       {
         id: 1001,
@@ -87,6 +91,12 @@ function makeStoreLaunch(overrides: Partial<ProjectWorkflow> = {}): ProjectWorkf
         sort_order: 1,
         status: 'not_started',
         attachment_key: 'amazon_registration_form',
+        duration_days: 1,
+        start_date: '2026-10-05',
+        end_date: '2026-10-05',
+        span_days: 1,
+        contents: [],
+        attachments: [],
       },
       {
         id: 1002,
@@ -96,6 +106,12 @@ function makeStoreLaunch(overrides: Partial<ProjectWorkflow> = {}): ProjectWorkf
         sort_order: 2,
         status: 'not_started',
         attachment_key: 'worldfirst_registration_guide',
+        duration_days: 2,
+        start_date: '2026-10-06',
+        end_date: '2026-10-07',
+        span_days: 2,
+        contents: [],
+        attachments: [],
       },
       {
         id: 1003,
@@ -105,6 +121,12 @@ function makeStoreLaunch(overrides: Partial<ProjectWorkflow> = {}): ProjectWorkf
         sort_order: 3,
         status: 'not_started',
         attachment_key: null,
+        duration_days: null,
+        start_date: null,
+        end_date: null,
+        span_days: null,
+        contents: [],
+        attachments: [],
       },
     ],
     ...overrides,
@@ -120,6 +142,10 @@ const PRODUCT_WORKFLOW: ProjectWorkflow = {
   status: 'not_started',
   task_count: 1,
   completed_task_count: 0,
+  start_date: null,
+  schedule_start: null,
+  schedule_end: null,
+  schedule_days: null,
   tasks: [
     {
       id: 2001,
@@ -129,6 +155,12 @@ const PRODUCT_WORKFLOW: ProjectWorkflow = {
       sort_order: 1,
       status: 'not_started',
       attachment_key: null,
+      duration_days: null,
+      start_date: null,
+      end_date: null,
+      span_days: null,
+      contents: [],
+      attachments: [],
     },
   ],
 }
@@ -146,6 +178,10 @@ const SUMMARY = {
           status: 'in_progress' as const,
           completed_task_count: 1,
           task_count: 3,
+          start_date: '2026-10-05',
+          schedule_start: '2026-10-05',
+          schedule_end: '2026-10-07',
+          schedule_days: 3,
         },
         {
           id: 202,
@@ -155,10 +191,17 @@ const SUMMARY = {
           status: 'not_started' as const,
           completed_task_count: 0,
           task_count: 1,
+          start_date: null,
+          schedule_start: null,
+          schedule_end: null,
+          schedule_days: null,
         },
       ],
+      schedule_start: '2026-10-05',
+      schedule_end: '2026-10-07',
+      schedule_days: 3,
     },
-    { project_id: 2, workflows: [] },
+    { project_id: 2, workflows: [], schedule_start: null, schedule_end: null, schedule_days: null },
   ],
 }
 
@@ -184,6 +227,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  stableSession.user.roleType = 'admin'
   cleanup()
   vi.clearAllMocks()
 })
@@ -419,6 +463,7 @@ describe('项目启动台 · 产品开发 Tab', () => {
       expect(templateSelect).toHaveValue('product-womens-swimwear-v1')
     })
     expect(screen.getByTestId('workflow-title-input')).toHaveValue('女士泳衣')
+    await user.type(screen.getByTestId('workflow-start-date-input'), '2026-10-05')
 
     await user.click(screen.getByRole('button', { name: '创建流程' }))
 
@@ -429,6 +474,7 @@ describe('项目启动台 · 产品开发 Tab', () => {
           kind: 'product_development',
           template_key: 'product-womens-swimwear-v1',
           title: '女士泳衣',
+          start_date: '2026-10-05',
         },
         expect.anything()
       )
@@ -448,6 +494,50 @@ describe('项目启动台 · 产品开发 Tab', () => {
       '模板与流程类型不匹配'
     )
     expect(screen.getByTestId('create-workflow-dialog')).toBeInTheDocument()
+  })
+
+  it('管理员可在项目节点维护排期与阶段内容，且附件/固定资料共存', async () => {
+    const user = userEvent.setup()
+    const workflow = makeStoreLaunch({
+      tasks: [
+        {
+          ...makeStoreLaunch().tasks[0],
+          contents: [{ id: 501, title: '收集说明', body: '填完整信息', sort_order: 0 }],
+          attachments: [{ id: 601, filename: '样品清单.xlsx', content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_size: 2048, uploader: '运营A', created_at: '2026-10-05T10:00:00Z', origin: 'template' }],
+        },
+        ...makeStoreLaunch().tasks.slice(1),
+      ],
+    })
+    vi.mocked(fetchProjectWorkflows).mockResolvedValueOnce({ project_id: 1, workflows: [workflow] })
+    await renderPage()
+    await user.click(await screen.findByRole('tab', { name: '店铺启动' }))
+    const row = await screen.findByTestId('workflow-task-1001')
+    expect(within(row).getByText('2026-10-05 ~ 2026-10-05')).toBeInTheDocument()
+    expect(within(row).getByText('阶段内容')).toBeInTheDocument()
+    expect(within(row).getByText('收集说明')).toBeInTheDocument()
+    expect(within(row).getByText('模板附件')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: '固定资料' })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: '下载' })).toBeInTheDocument()
+    expect(within(row).getByText('2.0 KB')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: '概览' }))
+    expect(screen.getAllByText(/2026-10-05/).length).toBeGreaterThan(0)
+  })
+
+  it('管理员可编辑流程锚点，非管理员不显示管理控件', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    await user.click(await screen.findByRole('tab', { name: '店铺启动' }))
+    await screen.findByTestId('workflow-task-1001')
+    expect(screen.getByLabelText('计划开始日期')).toBeInTheDocument()
+
+    stableSession.user.roleType = 'operator'
+    cleanup()
+    render(<ProjectLaunchClient />)
+    await screen.findByRole('tab', { name: '店铺启动' }).then((tab) => user.click(tab))
+    await screen.findByTestId('workflow-task-1001')
+    expect(screen.queryByLabelText('计划开始日期')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '流程模板管理' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /编辑节点/ })).not.toBeInTheDocument()
   })
 
   it('产品 Tab 逐个产品实例独立分组', async () => {

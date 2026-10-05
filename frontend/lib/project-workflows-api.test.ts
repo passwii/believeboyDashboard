@@ -17,6 +17,13 @@ import {
   PROJECT_WORKFLOWS_API_BASE,
   applyTaskStatusLocally,
   createProjectWorkflow,
+  createProjectTask,
+  createTemplateTask,
+  deleteProjectContent,
+  downloadTaskAttachment,
+  fetchAdminTemplates,
+  updateProjectContent,
+  uploadTaskAttachment,
   deriveAggregateStatus,
   deriveProjectStatus,
   downloadProjectWorkflowDocument,
@@ -124,9 +131,13 @@ describe('状态派生（与后端 §4 同规则）', () => {
       status: 'not_started',
       task_count: 2,
       completed_task_count: 0,
+      start_date: null,
+      schedule_start: null,
+      schedule_end: null,
+      schedule_days: null,
       tasks: [
-        { id: 11, workflow_id: 9, title: 'A', description: null, sort_order: 1, status: 'not_started', attachment_key: null },
-        { id: 12, workflow_id: 9, title: 'B', description: null, sort_order: 2, status: 'not_started', attachment_key: null },
+        { id: 11, workflow_id: 9, title: 'A', description: null, sort_order: 1, status: 'not_started', attachment_key: null, duration_days: null, start_date: null, end_date: null, span_days: null, contents: [], attachments: [] },
+        { id: 12, workflow_id: 9, title: 'B', description: null, sort_order: 2, status: 'not_started', attachment_key: null, duration_days: null, start_date: null, end_date: null, span_days: null, contents: [], attachments: [] },
       ],
     } satisfies ProjectWorkflow
 
@@ -196,6 +207,46 @@ describe('请求契约', () => {
     expect(url).toBe(`${PROJECT_WORKFLOWS_API_BASE}/project-workflow-tasks/3`)
     expect(init.method).toBe('PATCH')
     expect(init.body).toBe(JSON.stringify({ status: 'waiting_on_partner' }))
+  })
+
+  it('管理员模板节点写操作返回完整模板详情的契约匹配', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 3, tasks: [] }))
+    await createTemplateTask(3, { title: '合同与打样' }, null)
+    expect(fetchMock.mock.calls[0][0]).toBe(`${PROJECT_WORKFLOWS_API_BASE}/project-workflows/admin/templates/3/tasks`)
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 3, tasks: [{ id: 4 }] }))
+    await fetchAdminTemplates(null)
+    expect(fetchMock.mock.calls[1][0]).toBe(`${PROJECT_WORKFLOWS_API_BASE}/project-workflows/admin/templates`)
+  })
+
+  it('流程定义、节点内容与节点附件使用正确端点和响应', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, tasks: [] }))
+    await createProjectTask(2, 7, { title: '样品确认', duration_days: 4 }, null)
+    expect(fetchMock.mock.calls[0][0]).toBe(`${PROJECT_WORKFLOWS_API_BASE}/projects/2/workflows/7/tasks`)
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, tasks: [] }))
+    await updateProjectContent(5, { title: '备注', body: '更新内容' }, null)
+    expect(fetchMock.mock.calls[1][0]).toBe(`${PROJECT_WORKFLOWS_API_BASE}/project-workflow-task-contents/5`)
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, tasks: [] }))
+    await deleteProjectContent(5, null)
+    expect(fetchMock.mock.calls[2][1].method).toBe('DELETE')
+  })
+
+  it('附件上传使用 multipart 且下载用附件原始文件名', async () => {
+    const file = new File(['attachment'], '样品清单.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, tasks: [] }))
+    await uploadTaskAttachment(2, 9, file, null)
+    const [uploadUrl, uploadInit] = fetchMock.mock.calls[0]
+    expect(uploadUrl).toBe(`${PROJECT_WORKFLOWS_API_BASE}/projects/2/workflow-tasks/9/attachments`)
+    expect(uploadInit.method).toBe('POST')
+    expect(uploadInit.body).toBeInstanceOf(FormData)
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({}))
+    await downloadTaskAttachment(2, { id: 11, filename: file.name, content_type: file.type, file_size: file.size, uploader: '运营A', created_at: '2026-10-05T00:00:00Z' }, null)
+    expect(fetchMock.mock.calls[1][0]).toBe(`${PROJECT_WORKFLOWS_API_BASE}/projects/2/workflow-task-attachments/11/download`)
+    expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), file.name)
   })
 
   it('非 2xx 抛服务端 detail（写失败要能展示真实原因）', async () => {
