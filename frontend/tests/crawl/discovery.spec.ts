@@ -1,7 +1,7 @@
 /**
  * Discovery Crawler — 全页面体检（BEL-379 扩展）
  *
- * 遍历 dashboard 全部 78 个页面，真登录 + 采集 console/network errors +
+ * 遍历 dashboard 全部 80 个页面，真登录 + 采集 console/network errors +
  * 加载耗时 + 截图，生成结构化报告（markdown + json）。
  *
  * 这就是测试工程师拿到陌生系统时第一步干的事：不写 functional test，
@@ -67,6 +67,7 @@ const ROUTES: string[] = [
   '/dashboard/operations/inventory-analysis',
   '/dashboard/operations/platform-inspection',
   '/dashboard/operations/project-goals',
+  '/dashboard/operations/project-launch',
   '/dashboard/operations/research-analysis',
   '/dashboard/operations/return-analysis',
   '/dashboard/operations/site-navigation',
