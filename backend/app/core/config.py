@@ -174,7 +174,8 @@ class Settings(BaseSettings):
     }
 
     # User avatar uploads — separate, smaller cap than generic uploads so
-    # we never accept phone-camera dumps into the R2 bucket by accident.    avatar_max_bytes: int = 5 * 1024 * 1024
+    # we never accept phone-camera dumps into the R2 bucket by accident.
+    avatar_max_bytes: int = 5 * 1024 * 1024
     avatar_allowed_extensions: set[str] = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
     avatar_allowed_content_types: set[str] = {
         "image/png",

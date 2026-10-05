@@ -156,7 +156,7 @@ Yawei 提出的 P2 目标：**每个节点可自定义内容，所有节点汇�
 | `filename` | String(256), not null | 原始文件名（下载时回显，不参与路径拼接） |
 | `content_type` | String(128), not null | 上传时记录的 MIME |
 | `file_size` | Integer, not null | 字节数 |
-| `uploader` | String(64), nullable | 操作者（`X-Operator`） |
+| `uploader` | String(255), nullable | 操作者（`X-Operator`，与仓库其它 operator 列同宽，避免超长头部截断 500） |
 | `created_at` | DateTime(tz) | |
 
 索引：`ix_workflow_template_task_attachments_task(template_task_id)`。
@@ -231,7 +231,18 @@ Yawei 提出的 P2 目标：**每个节点可自定义内容，所有节点汇�
 
 ### 5.3 排期推算（`recompute_schedule`）
 
-口径：**手填优先，其余按工期链式推算**，结果落库（每次写节点/排序/改锚点后重算一次）。
+口径：**手填优先，其余按工期链式推算**，结果落库。
+
+**触发点（缺一不可，漏掉就会出现「填了工期但日期是空」）**：
+
+- 创建流程（从模板快照时就要按模板工期 + 请求里的锚点算出阶段日期）
+- 新增项目节点
+- 改节点定义（工期 / 手填日期）
+- 删除节点、节点排序、改流程锚点 `start_date`
+
+> 实现注意：新增节点的重算必须让新节点进入内存里的 `workflow.tasks` 集合
+> （构造时用 `workflow=workflow` 而不是 `workflow_id=...`）。同一 session 的
+> identity map 会复用那份「已加载」的旧集合，直接重查 `get_workflow()` 不会把新节点带进来。
 
 ```
 cursor = workflow.start_date

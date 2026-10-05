@@ -252,7 +252,7 @@ def upgrade() -> None:
         sa.Column('filename', sa.String(length=256), nullable=False),
         sa.Column('content_type', sa.String(length=128), nullable=False),
         sa.Column('file_size', sa.Integer(), nullable=False),
-        sa.Column('uploader', sa.String(length=64), nullable=True),
+        sa.Column('uploader', sa.String(length=255), nullable=True),
         sa.Column(
             'created_at',
             sa.DateTime(timezone=True),
@@ -328,7 +328,7 @@ def upgrade() -> None:
         sa.Column('filename', sa.String(length=256), nullable=False),
         sa.Column('content_type', sa.String(length=128), nullable=False),
         sa.Column('file_size', sa.Integer(), nullable=False),
-        sa.Column('uploader', sa.String(length=64), nullable=True),
+        sa.Column('uploader', sa.String(length=255), nullable=True),
         sa.Column('origin', sa.String(length=16), nullable=False, server_default='upload'),
         sa.Column(
             'created_at',

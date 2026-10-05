@@ -98,7 +98,7 @@ def recompute_schedule(workflow: ProjectWorkflow) -> None:
         if (
             task.start_date is None
             and task.end_date is None
-            and task.duration_days
+            and task.duration_days is not None
             and cursor is not None
         ):
             task.start_date = cursor
@@ -368,6 +368,10 @@ def create_workflow(
             )
         workflow.tasks.append(task)
 
+    # 创建时就要把阶段日期算出来（Yawei 的主场景：由工期与锚点得出阶段起止）。
+    # 必须在 commit 前算：节点此时还在内存里，_ordered_tasks 按 sort_order 排序即可。
+    recompute_schedule(workflow)
+
     db.add(workflow)
     try:
         db.commit()
@@ -497,7 +501,10 @@ def create_project_task(
             status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="节点标题不能为空"
         )
     task = ProjectWorkflowTask(
-        workflow_id=workflow.id,
+        # 用 relationship 赋值而不是 workflow_id：这样新节点会同时进入内存里的
+        # ``workflow.tasks`` 集合，否则下面 recompute_schedule 遍历的是同一 session
+        # identity map 里那份「已加载、不含新节点」的旧集合，日期算不出来。
+        workflow=workflow,
         title=clean_title[:160],
         description=description,
         attachment_key=_validate_attachment_key(attachment_key),
@@ -513,10 +520,14 @@ def create_project_task(
         _resequence_project_tasks(
             db, workflow.id, insert_at=sort_order, inserted_id=task.id
         )
-    db.commit()
     refreshed = get_workflow(db, workflow.id)
     assert refreshed is not None
-    return refreshed
+    # 新节点必须参与排期推算，否则从模板/手工加进来的工期不会变成日期。
+    recompute_schedule(refreshed)
+    db.commit()
+    final = get_workflow(db, workflow.id)
+    assert final is not None
+    return final
 
 
 def update_project_task_definition(

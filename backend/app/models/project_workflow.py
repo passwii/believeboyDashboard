@@ -207,7 +207,7 @@ class ProjectWorkflowTaskAttachment(Base):
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
     content_type: Mapped[str] = mapped_column(String(128), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    uploader: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    uploader: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # upload（项目内上传）/ template（由模板附件复制而来，共享同一个 R2 对象）。
     origin: Mapped[str] = mapped_column(
         String(16), nullable=False, default="upload", server_default="upload"

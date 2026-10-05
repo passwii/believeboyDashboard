@@ -45,8 +45,8 @@ def test_config_print_exits_zero():
     text = out.getvalue()
     assert "R2 cleanup script config print" in text
     assert "Discovered R2 key columns" in text
-    # 10 columns currently (after P0.1 broaden REGISTERED_R2_FIELDS)
-    assert "10 total" in text
+    # 12 columns currently (10 after P0.1 + 2 P2 项目启动台附件表)
+    assert "12 total" in text
 
 
 def test_config_print_lists_known_prefixes():

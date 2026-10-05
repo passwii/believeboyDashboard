@@ -468,3 +468,73 @@ def test_summary_exposes_project_schedule(client, admin_headers, project_factory
     assert entry["schedule_end"] == "2026-06-05"
     assert entry["schedule_days"] == 5
     assert entry["workflows"][0]["schedule_start"] == "2026-06-01"
+
+
+def test_creating_workflow_from_template_computes_stage_dates(
+    client, admin_headers, project_factory
+):
+    """回归（把关 ②）：创建流程时就要算日期，不能等改节点才生效。
+
+    模板节点填了工期 + 创建请求带锚点，应当立刻得到各阶段起止。
+    """
+    template = client.post(
+        f"{ADMIN}/templates",
+        json={
+            "kind": "product_development",
+            "title": "排期模板",
+            "key": f"blf1237-{uuid.uuid4().hex[:10]}",
+        },
+        headers=admin_headers,
+    ).json()
+    for title, days in (("节点一", 3), ("节点二", 2), ("节点三", 1)):
+        client.post(
+            f"{ADMIN}/templates/{template['id']}/tasks",
+            json={"title": title, "duration_days": days},
+            headers=admin_headers,
+        )
+
+    project_id = project_factory()
+    response = client.post(
+        f"{BASE}/projects/{project_id}/workflows",
+        json={
+            "kind": "product_development",
+            "template_key": template["key"],
+            "start_date": "2026-07-01",
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    workflow = response.json()
+
+    assert [(task["start_date"], task["end_date"]) for task in workflow["tasks"]] == [
+        ("2026-07-01", "2026-07-03"),
+        ("2026-07-04", "2026-07-05"),
+        ("2026-07-06", "2026-07-06"),
+    ]
+    assert workflow["schedule_start"] == "2026-07-01"
+    assert workflow["schedule_end"] == "2026-07-06"
+    assert workflow["schedule_days"] == 6
+
+    client.delete(f"{ADMIN}/templates/{template['id']}", headers=admin_headers)
+
+
+def test_adding_project_node_computes_its_stage_dates(
+    client, admin_headers, project_factory
+):
+    """回归（把关 ②）：新增节点也要参与排期推算。"""
+    project_id = project_factory()
+    workflow = _create_workflow(
+        client, project_id, admin_headers, start_date="2026-08-01"
+    ).json()
+    workflow_id = workflow["id"]
+    _node(client, project_id, workflow["tasks"][0]["id"], admin_headers, duration_days=2)
+
+    response = client.post(
+        f"{BASE}/projects/{project_id}/workflows/{workflow_id}/tasks",
+        json={"title": "新增阶段", "duration_days": 3},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    added = response.json()["tasks"][-1]
+    assert added["start_date"] == "2026-08-03"
+    assert added["end_date"] == "2026-08-05"

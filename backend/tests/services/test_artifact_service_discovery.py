@@ -71,7 +71,7 @@ def test_all_r2_key_columns_excludes_url_columns():
 
 
 def test_all_r2_key_columns_count_is_correct():
-    """After P0.1, expect exactly 10 columns (7 auto + 2 anchor + 1 thumb-key)."""
+    """After P2, expect exactly 12 columns (7 auto `*_r2_key` + 5 curated irregular)."""
     cols = ArtifactService.all_r2_key_columns()
     # Hand-curated exhaustive list:
     expected = [
@@ -80,11 +80,14 @@ def test_all_r2_key_columns_count_is_correct():
         ("InspectionScreenshot", "thumbnail_key"),
         ("MonthlyReport", "summary_pdf_r2_key"),
         ("PlatformRevenue", "screenshot_r2_key"),
+        # P2 项目启动台节点附件（列名就叫 r2_key，必须显式登记，否则被当孤儿文件删掉）
+        ("ProjectWorkflowTaskAttachment", "r2_key"),
         ("ScheduledReportDeliveryLog", "screenshot_r2_key"),
         ("ScheduledReportDeliveryLog", "screenshot_r2_thumb_key"),
         ("SkuRecord", "fnsku_label_r2_key"),
         ("SkuRecord", "product_image_r2_key"),
         ("SkuRecord", "product_image_thumbnail_r2_key"),
+        ("WorkflowTemplateTaskAttachment", "r2_key"),
     ]
     assert cols == sorted(expected)
 
