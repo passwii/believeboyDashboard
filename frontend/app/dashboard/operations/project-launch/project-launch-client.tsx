@@ -577,6 +577,26 @@ export default function ProjectLaunchClient() {
   }
 
   function renderSelectedPane() {
+    if (projectsLoading) {
+      return (
+        <div className="space-y-2 p-2" data-testid="projects-loading">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      )
+    }
+
+    if (projectsError) {
+      return (
+        <ErrorState
+          data-testid="projects-error-detail"
+          title="项目列表加载失败"
+          message={projectsError}
+          onRetry={() => void loadProjectsAndSummary({ force: true })}
+        />
+      )
+    }
+
     if (noProjects) {
       return (
         <Empty data-testid="no-projects">
@@ -592,12 +612,7 @@ export default function ProjectLaunchClient() {
     }
 
     if (!selectedProject) {
-      return (
-        <div className="space-y-2 p-2" data-testid="projects-loading">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
-        </div>
-      )
+      return null
     }
 
     return (
