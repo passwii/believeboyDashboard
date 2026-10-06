@@ -129,10 +129,21 @@ export function findActiveItem(
   group: SidebarTopGroup,
   pathname: string
 ): SidebarSubItem | undefined {
-  return group.items.find((it) => isItemActive(it, pathname))
+  return group.items
+    .filter((item) => isItemActive(item, pathname))
+    .sort((a, b) => getMatchSpecificity(b, pathname) - getMatchSpecificity(a, pathname))[0]
 }
 
 export function isItemActive(item: SidebarSubItem, pathname: string): boolean {
-  if (pathname === item.url) return true
-  return item.matchPrefixes?.some((p) => pathname.startsWith(p)) ?? false
+  return getMatchSpecificity(item, pathname) > 0
+}
+
+function getMatchSpecificity(item: SidebarSubItem, pathname: string): number {
+  if (pathname === item.url) return Number.MAX_SAFE_INTEGER
+  return (
+    item.matchPrefixes?.reduce(
+      (specificity, prefix) => (pathname.startsWith(prefix) ? Math.max(specificity, prefix.length) : specificity),
+      0
+    ) ?? 0
+  )
 }
