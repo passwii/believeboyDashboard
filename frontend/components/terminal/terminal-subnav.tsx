@@ -8,7 +8,7 @@ import {
   TERMINAL_SUBNAV_MOTION,
   TERMINAL_SUBNAV_WIDTH,
   TERMINAL_TOP_STRIP_HEIGHT,
-  isItemActive,
+  findActiveItem,
 } from '@/components/terminal/terminal-constants'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { cn } from '@/lib/utils'
@@ -34,6 +34,7 @@ interface TerminalSubnavProps {
 export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: TerminalSubnavProps) {
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? groups[0]
   const items = activeGroup?.items ?? []
+  const activeItem = activeGroup ? findActiveItem(activeGroup, pathname) : undefined
 
   // 入场级联延迟：组头 0 → 列表项 step 起，封顶 maxStaggerDelayMs
   const delayOf = React.useCallback(
@@ -73,7 +74,7 @@ export function TerminalSubnav({ groups, activeGroupId, pathname, collapsed }: T
         <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 term-scroll">
           {items.map((item, index) => {
             const ItemIcon = item.icon ?? activeGroup.icon
-            const isActive = isItemActive(item, pathname)
+            const isActive = item === activeItem
             return (
               <RouteLoadingLink
                 key={item.url}

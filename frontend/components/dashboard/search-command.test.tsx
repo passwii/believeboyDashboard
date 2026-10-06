@@ -6,6 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const STORAGE_KEY = 'bb.terminal.recents'
 
 const mockPush = vi.fn()
+const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }))
+
+vi.mock('next-auth/react', () => ({
+  useSession: mockUseSession,
+}))
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
   usePathname: () => '/dashboard',
@@ -21,6 +27,10 @@ function seedRecents(entries: Array<{ path: string; title: string }>) {
 describe('SearchCommand — ⌘K 最近访问（BLF-833）', () => {
   beforeEach(() => {
     mockPush.mockClear()
+    mockUseSession.mockReturnValue({
+      data: { user: { roleType: 'operator' } },
+      status: 'authenticated',
+    })
     window.localStorage.clear()
     vi.stubEnv('NODE_ENV', 'test')
   })
@@ -72,6 +82,26 @@ describe('SearchCommand — ⌘K 最近访问（BLF-833）', () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith('/dashboard/crm/leads')
     })
+  })
+
+  it('管理员可以搜索到受限的流程模板管理入口', async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roleType: 'admin' } },
+      status: 'authenticated',
+    })
+
+    render(<SearchCommand />)
+    await openPanel()
+
+    expect(await screen.findByRole('option', { name: '流程模板管理' })).toBeInTheDocument()
+  })
+
+  it('非管理员在搜索面板中看不到受限的流程模板管理入口', async () => {
+    render(<SearchCommand />)
+    await openPanel()
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: '流程模板管理' })).not.toBeInTheDocument()
   })
 
   it('recents 为空时整组不渲染、无占位文案', async () => {

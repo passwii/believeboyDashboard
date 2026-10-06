@@ -8,7 +8,7 @@ import {
   TERMINAL_TOP_STRIP_HEIGHT,
 } from './terminal-constants'
 import { TerminalSubnav } from './terminal-subnav'
-import type { SidebarTopGroup } from '@/lib/sidebar-config'
+import { SIDEBAR_TOP_GROUPS, type SidebarTopGroup } from '@/lib/sidebar-config'
 import { TrendingUp } from 'lucide-react'
 
 vi.mock('next/navigation', () => ({
@@ -73,6 +73,42 @@ describe('TerminalSubnav', () => {
     expect(activeLink.className).toContain('bg-term-raised')
     const inactive = screen.getByTestId('link-/dashboard/operations/sku-info')
     expect(inactive.className).not.toContain('bg-term-raised')
+  })
+
+  it('重叠前缀路由只高亮最具体的匹配项', () => {
+    const cases = [
+      {
+        groupId: 'project-management',
+        title: '流程模板管理',
+        pathname: '/dashboard/operations/project-launch/templates',
+      },
+      {
+        groupId: 'reports',
+        title: '财务月报',
+        pathname: '/dashboard/reports/monthly-report/display',
+      },
+      {
+        groupId: 'advertising',
+        title: '广告分析',
+        pathname: '/dashboard/advertising/ad-analysis/overview',
+      },
+    ]
+
+    for (const { groupId, title, pathname } of cases) {
+      const group = SIDEBAR_TOP_GROUPS.find((candidate) => candidate.id === groupId)
+      expect(group).toBeDefined()
+      const { unmount } = renderSubnav({
+        groups: [group!],
+        activeGroupId: groupId,
+        pathname,
+      })
+
+      const activeLinks = screen.getAllByTestId(/^link-/).filter((link) =>
+        link.className.includes('bg-term-raised')
+      )
+      expect(activeLinks.map((link) => link.textContent)).toEqual([expect.stringContaining(title)])
+      unmount()
+    }
   })
 
   it('不再渲染重复的 L2 搜索入口', () => {

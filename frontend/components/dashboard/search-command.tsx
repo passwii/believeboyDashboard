@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { ChevronRight, History } from 'lucide-react'
 
 import {
@@ -63,6 +64,8 @@ export function SearchCommand() {
   // 最近访问快照：仅打开面板时读一次 localStorage，不订阅路由变化，避免无谓重渲染（BLF-833）
   const [recents, setRecents] = React.useState<RecentPageEntry[]>([])
   const router = useRouter()
+  const { data: session } = useSession()
+  const roleType = session?.user?.roleType as RoleType | undefined
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -89,7 +92,10 @@ export function SearchCommand() {
     setRecents(readRecents())
   }, [open])
 
-  const { items: navItems, categories: CATEGORIES } = React.useMemo(() => buildSearchItems(), [])
+  const { items: navItems, categories: CATEGORIES } = React.useMemo(
+    () => buildSearchItems(roleType),
+    [roleType]
+  )
 
   const grouped = (CATEGORIES as readonly string[]).reduce<Record<string, SearchItem[]>>(
     (acc, cat) => {
