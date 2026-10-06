@@ -1,0 +1,57 @@
+name: frontend-gates
+
+on:
+  pull_request:
+    branches: [main, feat/frontend-motion-system]
+    paths:
+      - "frontend/**"
+      - "README.md"
+      - ".github/workflows/frontend-gates.yml"
+  push:
+    branches: [main, feat/frontend-motion-system]
+    paths:
+      - "frontend/**"
+      - "README.md"
+      - ".github/workflows/frontend-gates.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-gates:
+    name: frontend gates (types, lint, build, unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API types (type-check sanity)
+        run: pnpm gen:api-types:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Unit tests (includes mock stability check)
+        run: pnpm test
