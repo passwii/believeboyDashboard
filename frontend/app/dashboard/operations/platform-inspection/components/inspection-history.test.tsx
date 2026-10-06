@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockNotify } = vi.hoisted(() => ({ mockNotify: vi.fn() }))
@@ -17,7 +17,7 @@ vi.mock('@/lib/inspection-api', () => ({
         project_id: 101,
         project_name: 'Critical 项目',
         status: 'submitted',
-        account_health_rating: 'critical',
+        account_health_rating: 'Critical',
         compliance_total: 0,
         status_summary: null,
         screenshots: [],
@@ -32,7 +32,7 @@ vi.mock('@/lib/inspection-api', () => ({
         project_id: 102,
         project_name: 'Healthy 项目',
         status: 'submitted',
-        account_health_rating: 'healthy',
+        account_health_rating: 'Healthy',
         compliance_total: 0,
         status_summary: null,
         screenshots: [],
@@ -64,19 +64,13 @@ beforeEach(() => {
 })
 
 describe('InspectionHistory health rating labels', () => {
-  it('renders critical in red as 危险 and healthy in green as 健康', async () => {
+  it('renders production AHR enums with shared Chinese labels and semantic colors', async () => {
     render(<InspectionHistory periodId={10} />)
 
-    const criticalLabel = await screen.findByText('危险')
-    const healthyLabel = await screen.findByText('健康')
+    const criticalBadge = await screen.findByLabelText('AHR 危险')
+    const healthyBadge = await screen.findByLabelText('AHR 健康')
 
-    await waitFor(() => {
-      expect(criticalLabel.closest('[data-slot="status-pill"]')).toHaveClass(
-        'text-[hsl(var(--data-negative))]'
-      )
-      expect(healthyLabel.closest('[data-slot="status-pill"]')).toHaveClass(
-        'text-[hsl(var(--data-positive))]'
-      )
-    })
+    expect(criticalBadge.querySelector('span')).toHaveClass('text-term-neg')
+    expect(healthyBadge.querySelector('span')).toHaveClass('text-emerald-700')
   })
 })

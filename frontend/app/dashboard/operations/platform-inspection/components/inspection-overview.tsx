@@ -14,34 +14,12 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { AlertTriangle, FileText, ImageIcon } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
+import { AhrRatingBadge, getAhrRatingPresentation } from './ahr-rating'
 
 interface InspectionOverviewProps {
   periodId: number
   refreshKey?: number
   onSelectProject: (projectId: number) => void
-}
-
-const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  Healthy: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-400',
-    border: 'border-emerald-200 dark:border-emerald-800',
-  },
-  Good: {
-    bg: 'bg-blue-50 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-400',
-    border: 'border-blue-200 dark:border-blue-800',
-  },
-  'At Risk': {
-    bg: 'bg-term-warn/[0.07]',
-    text: 'text-term-warn',
-    border: 'border-term-warn/30',
-  },
-  Critical: {
-    bg: 'bg-term-neg/[0.07]',
-    text: 'text-term-neg',
-    border: 'border-term-neg/30',
-  },
 }
 
 const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
@@ -130,7 +108,8 @@ const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
 type CardSeverity = 'normal' | 'warning' | 'critical'
 
 function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSeverity {
-  if (item.account_health_rating === 'Critical') return 'critical'
+  const ahrSeverity = getAhrRatingPresentation(item.account_health_rating).severity
+  if (ahrSeverity === 'critical') return 'critical'
   if ((item.compliance_total ?? 0) >= 3) return 'critical'
   if (
     getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) ===
@@ -148,7 +127,7 @@ function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSev
   )
     return 'critical'
 
-  if (item.account_health_rating === 'At Risk') return 'warning'
+  if (ahrSeverity === 'warning') return 'warning'
   if ((item.compliance_total ?? 0) >= 1) return 'warning'
   if (
     getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'warning'
@@ -277,7 +256,6 @@ interface ProjectCardProps {
 
 function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
   const style = STATUS_STYLES[item.status] || STATUS_STYLES.pending
-  const ahrStyle = item.account_health_rating ? AHR_STYLES[item.account_health_rating] : null
   const cardSeverity = getCardSeverity(item)
   const screenshotCount = item.screenshots?.length ?? 0
   const serviceTotal =
@@ -299,14 +277,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {item.account_health_rating ? (
-              <div
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ahrStyle!.bg} ${ahrStyle!.border}`}
-              >
-                <span className="text-xs font-medium text-muted-foreground">AHR</span>
-                <span className={`text-sm font-semibold ${ahrStyle!.text}`}>
-                  {item.account_health_rating}
-                </span>
-              </div>
+              <AhrRatingBadge rating={item.account_health_rating} showCode />
             ) : (
               <div className="flex items-center gap-1.5 rounded-full border border-dashed border-border/70 px-2.5 py-1">
                 <span className="text-xs text-muted-foreground/50">AHR --</span>

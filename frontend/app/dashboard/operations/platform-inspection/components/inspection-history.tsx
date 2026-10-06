@@ -11,7 +11,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { StatusPill } from '@/components/ui/table-presets'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
@@ -27,6 +26,7 @@ import {
 } from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { Loader2, Eye, ImageIcon } from 'lucide-react'
+import { AhrRatingBadge } from './ahr-rating'
 
 interface InspectionHistoryProps {
   periodId: number
@@ -58,21 +58,6 @@ function formatDateTime(dateStr: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function HealthRatingBadge({ rating }: { rating: string }) {
-  switch (rating.toLowerCase()) {
-    case 'critical':
-      return <StatusPill status="negative" label="危险" />
-    case 'healthy':
-      return <StatusPill status="success" label="健康" />
-    default:
-      return (
-        <Badge variant="outline" className="text-xs">
-          {rating}
-        </Badge>
-      )
-  }
 }
 
 function DetailSheet({
@@ -140,9 +125,9 @@ function DetailSheet({
                 <div className="rounded-none border border-border/70 bg-term-raised p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {report.health_data.account_health_rating && (
-                      <div className="flex justify-between">
+                      <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">AHR</span>
-                        <Badge variant="outline">{report.health_data.account_health_rating}</Badge>
+                        <AhrRatingBadge rating={report.health_data.account_health_rating} compact />
                       </div>
                     )}
                     {report.health_data.negative_feedback !== undefined && (
@@ -444,7 +429,7 @@ export default function InspectionHistory({ periodId, refreshKey }: InspectionHi
                       </TableCell>
                       <TableCell>
                         {item.account_health_rating ? (
-                          <HealthRatingBadge rating={item.account_health_rating} />
+                          <AhrRatingBadge rating={item.account_health_rating} compact />
                         ) : (
                           '-'
                         )}
