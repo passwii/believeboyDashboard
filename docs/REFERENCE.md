@@ -134,11 +134,31 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 > **本地数据库（BLF-472）**：所有前后端测试都调用**本地数据库**完成，不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](../../TESTING.md)。
 
-每次前端/后端开发后必须两轮测试：
+每次前端/后端开发后仍走两轮测试（技术 + 业务），但技术测试**按变更面分流**、不默认全量：
 
-**规则 1 技术测试（每次必做）**
-- 前端顺序：`pnpm lint`（2-5s，不过不进 build）→ `pnpm build`（30-90s）→ `pnpm test`（Vitest 单测）。失败立即修，全过再走业务测试。
-- 后端：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。失败立即修。
+**规则 1 技术测试（按变更面分流，不默认全量）**
+
+判档只看三个旋钮，**命中任一条即 T3**：① 动了公共符号没有（CodeGraph `callers` / `impact`）；② 有没有迁移 / 权限面；③ 有没有动 `app/core/config.py`、`app/models/*`、`app/schemas/*`。
+
+| 档 | 场景 | 后端 | 前端 |
+| --- | --- | --- | --- |
+| **T0** | 只动 `docs/`、注释、文案 | 不跑 | 不跑 |
+| **T1** | 叶子改动：单个工具函数 / 单个组件，不碰公共符号 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
+| **T2** | 局部功能：新增端点 / 新页面，不碰公共 hook、schema、迁移 | 目标集 + 该目录回归 | 同上 + `pnpm lint` |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（只跑一次）+ 失败集对账** | 全量（等 BLF-1238 修好）+ lint；build 交 Vercel |
+
+**为什么第 ③ 条旋钮要单列**：字段级改动对目标集天然不可见。BLF-1237 把 `avatar_max_bytes` 并进了上一行注释，`Settings` 丢字段、生产头像上传 500，而目标集 64 例全绿；且因 main 上同批用例本来就失败（R2 未配置），**失败集合一模一样，回归被完全掩盖**——只有全量跑才暴露。
+
+**前端铁律**：**永远带路径过滤，绝不裸跑 `pnpm test`**（BLF-1238 修好前）。本机实测全量 420s / 900s 两次都不收敛、输出全是 `ExperimentalWarning`，且长期吃满 CPU。全量交 Vercel 远程跑；`pnpm build`（30-90s）同理可交 Vercel，本地按需。
+
+**失败集对账（替代基线全量）**：PR 上跑**一次**全量拿失败列表 → 只把**失败的用例文件**在 main 上跑一遍对账 → **不再跑第二遍全量**。BLF-1237 那轮 26 个既有失败只落在 8 个文件上，对账 10 秒，省掉一整轮 6 分钟。
+
+**后端 T3 为什么不能省全量**：仓库**没有后端 CI**（`.github/workflows` 只有 `cache-governance` / `lighthouse-ci` / `motion-system-ci`），本地全量是唯一信号源。
+
+**不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）；且套件是 DB-bound，10 worker 也只从 6 分 42 秒降到 5 分 02 秒（还提前 error 退出 380 例）。要用得先做每 worker 独立库，另开任务。
+
+- 前端命令：`pnpm lint`（2-5s，不过不进 build）→ `pnpm build`（30-90s）→ `vitest run <路径>`（Vitest 单测）。
+- 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。失败立即修。
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
 
 **规则 2 业务测试（每次必做）**：功能完成后 AI 提供业务测试清单，用户手动执行并反馈。
@@ -173,7 +193,7 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 中文 + Conventional Commits：`<type>(<scope>): <subject>`。type 保留英文（feat/fix/docs/test/chore/refactor/perf/style/ci/revert），scope/subject 中文，subject 动宾短语 ≤50 字无句号，正文中文。详细见 `chinese-commit-conventions` 技能。
 
 ### Workflow
-- 推送前：前端 `pnpm lint` → `pnpm build` → `pnpm test`；后端 `pytest`。
+- 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端**绝不裸跑 `pnpm test`**（BLF-1238），全量交 Vercel；后端 T3 才跑全量并做失败集对账。
 - 推送 + 部署：**用 `git deploy`**（替代旧 pre-push hook）。脚本在 `productEnvAgent/deploy.sh`，做三件事：
   1. 校验当前在 main 分支
   2. `git push origin main`
