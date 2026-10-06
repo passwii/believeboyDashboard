@@ -202,6 +202,13 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/operations/project-launch'],
         icon: IconMap.Layers,
       },
+      {
+        title: '流程模板管理',
+        url: '/dashboard/operations/project-launch/templates',
+        matchPrefixes: ['/dashboard/operations/project-launch/templates'],
+        icon: IconMap.FileText,
+        roles: ['admin'],
+      },
     ],
   },
 

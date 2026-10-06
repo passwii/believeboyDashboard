@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { SIDEBAR_TOP_GROUPS, findGroupByPathname, flattenAllItems } from './sidebar-config'
+import {
+  SIDEBAR_TOP_GROUPS,
+  findGroupByPathname,
+  flattenAllItems,
+  getVisibleGroups,
+} from './sidebar-config'
 
 /**
  * 运营统一导航断言（2026-09-11 合并「Agent 中心」回运营；
@@ -31,7 +36,25 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
 
   it('「项目管理」是与「运营」并列的独立顶级分组（BLF-1234）', () => {
     expect(groupIds.indexOf('project-management')).toBe(groupIds.indexOf('operations') + 1)
-    expect(urlsOf('project-management')).toEqual(['/dashboard/operations/project-launch'])
+    expect(urlsOf('project-management')).toEqual([
+      '/dashboard/operations/project-launch',
+      '/dashboard/operations/project-launch/templates',
+    ])
+    expect(
+      getVisibleGroups(SIDEBAR_TOP_GROUPS, 'admin')
+        .find((group) => group.id === 'project-management')
+        ?.items.map((item) => item.url)
+    ).toContain('/dashboard/operations/project-launch/templates')
+    expect(
+      getVisibleGroups(SIDEBAR_TOP_GROUPS, 'operator')
+        .find((group) => group.id === 'project-management')
+        ?.items.map((item) => item.url)
+    ).not.toContain('/dashboard/operations/project-launch/templates')
+    expect(
+      getVisibleGroups(SIDEBAR_TOP_GROUPS)
+        .find((group) => group.id === 'project-management')
+        ?.items.map((item) => item.url)
+    ).not.toContain('/dashboard/operations/project-launch/templates')
     // 项目启动台不挂进运营分组（设计稿 §7：独立顶级分组，唯一入口）。
     expect(urlsOf('operations')).not.toContain('/dashboard/operations/project-launch')
     expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/project-launch')).toBe(
