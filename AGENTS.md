@@ -29,10 +29,23 @@
 
 ## 测试规则
 
-- 前端（顺序）：`pnpm lint` → `pnpm build` → `pnpm test`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
-- 后端：`cd backend && pytest`（单个 `pytest tests/path::test_x`）。
+**按变更面分流，不默认全量**（完整版见 [docs/REFERENCE.md](./docs/REFERENCE.md) §测试规则（完整））：
+
+| 档 | 场景 | 后端 | 前端 |
+| --- | --- | --- | --- |
+| **T0** | 只动 `docs/`、注释、文案 | 不跑 | 不跑 |
+| **T1** | 叶子改动：单个工具函数 / 单个组件，不碰公共符号 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
+| **T2** | 局部功能：新增端点 / 新页面，不碰公共 hook、schema、迁移 | 目标集 + 该目录回归 | 同上 + `pnpm lint` |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（只跑一次）+ 失败集对账** | 全量（等 BLF-1238 修好）+ lint；build 交 Vercel |
+
+判档三旋钮，**命中任一条即 T3**：① 动了公共符号没有（CodeGraph `callers` / `impact`）；② 有没有迁移 / 权限面；③ 有没有动 `app/core/config.py`、`app/models/*`、`app/schemas/*`（字段级改动对目标集不可见）。
+
+- **前端铁律**：永远带路径过滤，**绝不裸跑 `pnpm test`**（BLF-1238 修好前；本机实测 420s / 900s 两次都不收敛且吃满 CPU）。全量交 Vercel。
+- **失败集对账（替代基线全量）**：PR 上跑**一次**全量拿失败列表 → 只把**失败的用例文件**在 main 上跑一遍对账 → **不再跑第二遍全量**。
+- 后端没有 CI（`.github/workflows` 无后端任务），T3 的全量是唯一信号源，别省。**不要用 `pytest -n auto`**：共享 `BLF_test` 上 autouse `TRUNCATE` 会让 worker 互相死锁（实测 225 failed / 155 errors）。
+- 命令：后端 `cd backend && pytest`（单个 `pytest tests/path::test_x`）；前端 `pnpm lint` / `pnpm build`（可交 Vercel）/ `vitest run <路径>`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
 - **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
-- 失败立即修；全过再走业务测试清单（交用户手动验）。完整规则见 `docs/REFERENCE.md`。
+- 失败立即修；全过再走业务测试清单（交用户手动验）。
 
 ## 关键约定
 
