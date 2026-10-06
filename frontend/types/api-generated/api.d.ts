@@ -6972,6 +6972,294 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/project-workflow-task-contents/{content_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Project Workflow Content */
+        delete: operations["delete_project_workflow_content_api_v1_project_workflow_task_contents__content_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Project Workflow Content */
+        patch: operations["update_project_workflow_content_api_v1_project_workflow_task_contents__content_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflow-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Project Workflow Task */
+        delete: operations["delete_project_workflow_task_api_v1_project_workflow_tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Project Workflow Task
+         * @description P1 契约：只接受 ``{status}``，非管理员 + 有项目权限仍可用。
+         */
+        patch: operations["update_project_workflow_task_api_v1_project_workflow_tasks__task_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflow-tasks/{task_id}/definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Project Workflow Task Definition */
+        patch: operations["update_project_workflow_task_definition_api_v1_project_workflow_tasks__task_id__definition_patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/template-task-attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Admin Template Attachment */
+        delete: operations["delete_admin_template_attachment_api_v1_project_workflows_admin_template_task_attachments__attachment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/template-task-contents/{content_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Admin Template Content */
+        delete: operations["delete_admin_template_content_api_v1_project_workflows_admin_template_task_contents__content_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Admin Template Content */
+        patch: operations["update_admin_template_content_api_v1_project_workflows_admin_template_task_contents__content_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/template-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Admin Template Task */
+        delete: operations["delete_admin_template_task_api_v1_project_workflows_admin_template_tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Admin Template Task */
+        patch: operations["update_admin_template_task_api_v1_project_workflows_admin_template_tasks__task_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/template-tasks/{task_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Admin Template Attachment */
+        post: operations["upload_admin_template_attachment_api_v1_project_workflows_admin_template_tasks__task_id__attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/template-tasks/{task_id}/contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Admin Template Content */
+        post: operations["create_admin_template_content_api_v1_project_workflows_admin_template_tasks__task_id__contents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admin Templates */
+        get: operations["list_admin_templates_api_v1_project_workflows_admin_templates_get"];
+        put?: never;
+        /** Create Admin Template */
+        post: operations["create_admin_template_api_v1_project_workflows_admin_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Template */
+        get: operations["get_admin_template_api_v1_project_workflows_admin_templates__template_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Admin Template */
+        delete: operations["delete_admin_template_api_v1_project_workflows_admin_templates__template_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Admin Template */
+        patch: operations["update_admin_template_api_v1_project_workflows_admin_templates__template_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/templates/{template_id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Admin Template */
+        post: operations["copy_admin_template_api_v1_project_workflows_admin_templates__template_id__copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/templates/{template_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Admin Template Task */
+        post: operations["create_admin_template_task_api_v1_project_workflows_admin_templates__template_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/admin/templates/{template_id}/tasks/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder Admin Template Tasks */
+        put: operations["reorder_admin_template_tasks_api_v1_project_workflows_admin_templates__template_id__tasks_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Workflow Summary
+         * @description 所有可见项目的流程概要（一次批量查询，无逐项目 fan-out）。
+         */
+        get: operations["get_project_workflow_summary_api_v1_project_workflows_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Project Workflow Templates
+         * @description 只暴露模板元数据（key/kind/title），不下发模板任务正文。
+         */
+        get: operations["list_project_workflow_templates_api_v1_project_workflows_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-workflows/{workflow_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Project Workflow Definition */
+        patch: operations["update_project_workflow_definition_api_v1_project_workflows__workflow_id__patch"];
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -7135,6 +7423,146 @@ export interface paths {
         post?: never;
         /** Delete Project Shop Endpoint */
         delete: operations["delete_project_shop_endpoint_api_v1_projects__project_id__shops__country__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflow-task-attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Project Workflow Attachment */
+        delete: operations["delete_project_workflow_attachment_api_v1_projects__project_id__workflow_task_attachments__attachment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflow-task-attachments/{attachment_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Project Workflow Attachment
+         * @description 鉴权 + 项目权限校验后，服务端从 R2 流式返回（不下发公开 URL / presigned URL）。
+         */
+        get: operations["download_project_workflow_attachment_api_v1_projects__project_id__workflow_task_attachments__attachment_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflow-tasks/{task_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Project Workflow Attachment */
+        post: operations["upload_project_workflow_attachment_api_v1_projects__project_id__workflow_tasks__task_id__attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflow-tasks/{task_id}/contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Project Workflow Content */
+        post: operations["create_project_workflow_content_api_v1_projects__project_id__workflow_tasks__task_id__contents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Workflows */
+        get: operations["list_project_workflows_api_v1_projects__project_id__workflows_get"];
+        put?: never;
+        /** Create Project Workflow */
+        post: operations["create_project_workflow_api_v1_projects__project_id__workflows_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflows/documents/{document_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Project Workflow Document */
+        get: operations["download_project_workflow_document_api_v1_projects__project_id__workflows_documents__document_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflows/{workflow_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Project Workflow Task */
+        post: operations["create_project_workflow_task_api_v1_projects__project_id__workflows__workflow_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/workflows/{workflow_id}/tasks/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder Project Workflow Tasks */
+        put: operations["reorder_project_workflow_tasks_api_v1_projects__project_id__workflows__workflow_id__tasks_order_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -10751,6 +11179,11 @@ export interface components {
             /** Pdf File */
             pdf_file: string;
         };
+        /** Body_upload_admin_template_attachment_api_v1_project_workflows_admin_template_tasks__task_id__attachments_post */
+        Body_upload_admin_template_attachment_api_v1_project_workflows_admin_template_tasks__task_id__attachments_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
             /** File */
@@ -10796,6 +11229,11 @@ export interface components {
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_project_workflow_attachment_api_v1_projects__project_id__workflow_tasks__task_id__attachments_post */
+        Body_upload_project_workflow_attachment_api_v1_projects__project_id__workflow_tasks__task_id__attachments_post: {
             /** File */
             file: string;
         };
@@ -19375,6 +19813,267 @@ export interface components {
             /** Vat Enabled */
             vat_enabled?: boolean | null;
         };
+        /** ProjectWorkflowContentCreate */
+        ProjectWorkflowContentCreate: {
+            /** Body */
+            body: string;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ProjectWorkflowContentUpdate */
+        ProjectWorkflowContentUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ProjectWorkflowCreate */
+        ProjectWorkflowCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Start Date */
+            start_date?: string | null;
+            /** Template Key */
+            template_key: string;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * ProjectWorkflowDefinitionUpdate
+         * @description 流程定义（仅管理员）：改标题或排期锚点。
+         */
+        ProjectWorkflowDefinitionUpdate: {
+            /** Start Date */
+            start_date?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ProjectWorkflowItem */
+        ProjectWorkflowItem: {
+            /** Completed Task Count */
+            completed_task_count: number;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Project Id */
+            project_id: number;
+            /** Schedule Days */
+            schedule_days?: number | null;
+            /** Schedule End */
+            schedule_end?: string | null;
+            /** Schedule Start */
+            schedule_start?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "waiting_on_partner" | "completed";
+            /** Task Count */
+            task_count: number;
+            /** Tasks */
+            tasks?: components["schemas"]["ProjectWorkflowTaskItem"][];
+            /** Template Key */
+            template_key: string;
+            /** Title */
+            title: string;
+        };
+        /** ProjectWorkflowListResponse */
+        ProjectWorkflowListResponse: {
+            /** Project Id */
+            project_id: number;
+            /** Workflows */
+            workflows: components["schemas"]["ProjectWorkflowItem"][];
+        };
+        /** ProjectWorkflowSummaryItem */
+        ProjectWorkflowSummaryItem: {
+            /** Project Id */
+            project_id: number;
+            /** Schedule Days */
+            schedule_days?: number | null;
+            /** Schedule End */
+            schedule_end?: string | null;
+            /** Schedule Start */
+            schedule_start?: string | null;
+            /** Workflows */
+            workflows: components["schemas"]["ProjectWorkflowSummaryWorkflow"][];
+        };
+        /** ProjectWorkflowSummaryResponse */
+        ProjectWorkflowSummaryResponse: {
+            /** Projects */
+            projects: components["schemas"]["ProjectWorkflowSummaryItem"][];
+        };
+        /** ProjectWorkflowSummaryWorkflow */
+        ProjectWorkflowSummaryWorkflow: {
+            /** Completed Task Count */
+            completed_task_count: number;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Schedule Days */
+            schedule_days?: number | null;
+            /** Schedule End */
+            schedule_end?: string | null;
+            /** Schedule Start */
+            schedule_start?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "waiting_on_partner" | "completed";
+            /** Task Count */
+            task_count: number;
+            /** Template Key */
+            template_key: string;
+            /** Title */
+            title: string;
+        };
+        /** ProjectWorkflowTaskAttachmentItem */
+        ProjectWorkflowTaskAttachmentItem: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** File Size */
+            file_size: number;
+            /** Filename */
+            filename: string;
+            /** Id */
+            id: number;
+            /** Origin */
+            origin?: ("upload" | "template") | null;
+            /** Uploader */
+            uploader?: string | null;
+        };
+        /** ProjectWorkflowTaskContentItem */
+        ProjectWorkflowTaskContentItem: {
+            /** Body */
+            body: string;
+            /** Id */
+            id: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * ProjectWorkflowTaskCreate
+         * @description 项目内新增节点（仅管理员）。
+         */
+        ProjectWorkflowTaskCreate: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * ProjectWorkflowTaskDefinitionUpdate
+         * @description 项目内节点定义（仅管理员）：不含 status。
+         */
+        ProjectWorkflowTaskDefinitionUpdate: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ProjectWorkflowTaskItem */
+        ProjectWorkflowTaskItem: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Attachments */
+            attachments?: components["schemas"]["ProjectWorkflowTaskAttachmentItem"][];
+            /** Contents */
+            contents?: components["schemas"]["ProjectWorkflowTaskContentItem"][];
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Id */
+            id: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Span Days */
+            span_days?: number | null;
+            /** Start Date */
+            start_date?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "waiting_on_partner" | "completed";
+            /** Title */
+            title: string;
+            /** Workflow Id */
+            workflow_id: number;
+        };
+        /** ProjectWorkflowTaskOrderUpdate */
+        ProjectWorkflowTaskOrderUpdate: {
+            /** Task Ids */
+            task_ids: number[];
+        };
+        /**
+         * ProjectWorkflowTaskUpdate
+         * @description P1 契约：**只接受状态**，非管理员可用。
+         */
+        ProjectWorkflowTaskUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "in_progress" | "waiting_on_partner" | "completed";
+        };
+        /** ProjectWorkflowTemplateOption */
+        ProjectWorkflowTemplateOption: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Title */
+            title: string;
+        };
+        /** ProjectWorkflowTemplatesResponse */
+        ProjectWorkflowTemplatesResponse: {
+            /** Templates */
+            templates: components["schemas"]["ProjectWorkflowTemplateOption"][];
+        };
         /**
          * ReceiptCluster
          * @description A receipt cluster: same date + location receiving multiple SKUs.
@@ -22977,6 +23676,151 @@ export interface components {
             stale_days?: number | null;
             /** Stale Email Enabled */
             stale_email_enabled?: boolean | null;
+        };
+        /** WorkflowTemplateContentCreate */
+        WorkflowTemplateContentCreate: {
+            /** Body */
+            body: string;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** WorkflowTemplateContentUpdate */
+        WorkflowTemplateContentUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** WorkflowTemplateCopy */
+        WorkflowTemplateCopy: {
+            /** Key */
+            key?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** WorkflowTemplateCreate */
+        WorkflowTemplateCreate: {
+            /** Description */
+            description?: string | null;
+            /** Key */
+            key?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title: string;
+        };
+        /** WorkflowTemplateDetail */
+        WorkflowTemplateDetail: {
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Sort Order */
+            sort_order: number;
+            /** Task Count */
+            task_count: number;
+            /** Tasks */
+            tasks?: components["schemas"]["WorkflowTemplateTaskItem"][];
+            /** Title */
+            title: string;
+        };
+        /** WorkflowTemplateListItem */
+        WorkflowTemplateListItem: {
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "store_launch" | "product_development";
+            /** Sort Order */
+            sort_order: number;
+            /** Task Count */
+            task_count: number;
+            /** Title */
+            title: string;
+        };
+        /** WorkflowTemplateListResponse */
+        WorkflowTemplateListResponse: {
+            /** Templates */
+            templates: components["schemas"]["WorkflowTemplateListItem"][];
+        };
+        /** WorkflowTemplateTaskCreate */
+        WorkflowTemplateTaskCreate: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title: string;
+        };
+        /** WorkflowTemplateTaskItem */
+        WorkflowTemplateTaskItem: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Attachments */
+            attachments?: components["schemas"]["ProjectWorkflowTaskAttachmentItem"][];
+            /** Contents */
+            contents?: components["schemas"]["ProjectWorkflowTaskContentItem"][];
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** Id */
+            id: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Template Id */
+            template_id: number;
+            /** Title */
+            title: string;
+        };
+        /** WorkflowTemplateTaskOrderUpdate */
+        WorkflowTemplateTaskOrderUpdate: {
+            /** Task Ids */
+            task_ids: number[];
+        };
+        /** WorkflowTemplateTaskUpdate */
+        WorkflowTemplateTaskUpdate: {
+            /** Attachment Key */
+            attachment_key?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Duration Days */
+            duration_days?: number | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** WorkflowTemplateUpdate */
+        WorkflowTemplateUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
         };
         /** TaskListResponse */
         app__schemas__crm__TaskListResponse: {
@@ -39175,6 +40019,914 @@ export interface operations {
             };
         };
     };
+    delete_project_workflow_content_api_v1_project_workflow_task_contents__content_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                content_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_workflow_content_api_v1_project_workflow_task_contents__content_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                content_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowContentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_workflow_task_api_v1_project_workflow_tasks__task_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_workflow_task_api_v1_project_workflow_tasks__task_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowTaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_workflow_task_definition_api_v1_project_workflow_tasks__task_id__definition_patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowTaskDefinitionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_template_attachment_api_v1_project_workflows_admin_template_task_attachments__attachment_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                attachment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_template_content_api_v1_project_workflows_admin_template_task_contents__content_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                content_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_template_content_api_v1_project_workflows_admin_template_task_contents__content_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                content_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateContentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_template_task_api_v1_project_workflows_admin_template_tasks__task_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_template_task_api_v1_project_workflows_admin_template_tasks__task_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateTaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_admin_template_attachment_api_v1_project_workflows_admin_template_tasks__task_id__attachments_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_admin_template_attachment_api_v1_project_workflows_admin_template_tasks__task_id__attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_template_content_api_v1_project_workflows_admin_template_tasks__task_id__contents_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateContentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_templates_api_v1_project_workflows_admin_templates_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_template_api_v1_project_workflows_admin_templates_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_template_api_v1_project_workflows_admin_templates__template_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_template_api_v1_project_workflows_admin_templates__template_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_template_api_v1_project_workflows_admin_templates__template_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_admin_template_api_v1_project_workflows_admin_templates__template_id__copy_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_template_task_api_v1_project_workflows_admin_templates__template_id__tasks_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateTaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_admin_template_tasks_api_v1_project_workflows_admin_templates__template_id__tasks_order_put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                template_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowTemplateTaskOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowTemplateDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_workflow_summary_api_v1_project_workflows_summary_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_workflow_templates_api_v1_project_workflows_templates_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowTemplatesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_workflow_definition_api_v1_project_workflows__workflow_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                workflow_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowDefinitionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_projects_api_v1_projects_get: {
         parameters: {
             query?: {
@@ -39643,6 +41395,384 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_workflow_attachment_api_v1_projects__project_id__workflow_task_attachments__attachment_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                attachment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_project_workflow_attachment_api_v1_projects__project_id__workflow_task_attachments__attachment_id__download_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                attachment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_project_workflow_attachment_api_v1_projects__project_id__workflow_tasks__task_id__attachments_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_project_workflow_attachment_api_v1_projects__project_id__workflow_tasks__task_id__attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_workflow_content_api_v1_projects__project_id__workflow_tasks__task_id__contents_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowContentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_workflows_api_v1_projects__project_id__workflows_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_workflow_api_v1_projects__project_id__workflows_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_project_workflow_document_api_v1_projects__project_id__workflows_documents__document_key__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                document_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_workflow_task_api_v1_projects__project_id__workflows__workflow_id__tasks_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                workflow_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowTaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_project_workflow_tasks_api_v1_projects__project_id__workflows__workflow_id__tasks_order_put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                project_id: number;
+                workflow_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectWorkflowTaskOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkflowItem"];
                 };
             };
             /** @description Validation Error */

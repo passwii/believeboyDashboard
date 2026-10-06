@@ -1,4 +1,7 @@
 fastapi==0.139.0
+# OpenAPI 契约（frontend/types/api-generated/openapi.json）由 pydantic 渲染，
+# 版本漂移会静默改写契约。pin 到生产在跑的版本，保证导出可复现（BLF-1239）。
+pydantic==2.12.5
 uvicorn[standard]==0.51.0
 sqlalchemy==2.0.41
 psycopg[binary]>=3.2.3
