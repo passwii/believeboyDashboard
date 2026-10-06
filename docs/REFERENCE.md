@@ -145,11 +145,13 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 | **T0** | 只动 `docs/`、注释、文案 | 不跑 | 不跑 |
 | **T1** | 叶子改动：单个工具函数 / 单个组件，不碰公共符号 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
 | **T2** | 局部功能：新增端点 / 新页面，不碰公共 hook、schema、迁移 | 目标集 + 该目录回归 | 同上 + `pnpm lint` |
-| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（只跑一次）+ 失败集对账** | 全量（等 BLF-1238 修好）+ lint；build 交 Vercel |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（只跑一次）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载 ~2 分钟）+ lint；build 交 Vercel |
 
 **为什么第 ③ 条旋钮要单列**：字段级改动对目标集天然不可见。BLF-1237 把 `avatar_max_bytes` 并进了上一行注释，`Settings` 丢字段、生产头像上传 500，而目标集 64 例全绿；且因 main 上同批用例本来就失败（R2 未配置），**失败集合一模一样，回归被完全掩盖**——只有全量跑才暴露。
 
-**前端铁律**：**永远带路径过滤，绝不裸跑 `pnpm test`**（BLF-1238 修好前）。本机实测全量 420s / 900s 两次都不收敛、输出全是 `ExperimentalWarning`，且长期吃满 CPU。全量交 Vercel 远程跑；`pnpm build`（30-90s）同理可交 Vercel，本地按需。
+**前端铁律（BLF-1238 后更新）**：T1/T2 **优先带路径过滤**（`vitest run <路径>`），但**全量 `pnpm test` 已可裸跑**——235 文件 / 1660 例 / **~43s**（本机较空闲）～**~2 分钟**（同机其他 agent 满载，实测 59s / 79s / 124s），T3 才需要。`pnpm build`（30-90s）仍可交 Vercel，本地按需。判「挂住」不看绝对秒数，看是否在推进（见下条）。
+
+**卡住判型（BLF-1238 教训）**：跑到 60s 仍无 `Test Files` 汇总 + 某 worker 长时间 100%+ CPU = 某文件**无限渲染循环**（不是「慢」）；`--testTimeout` / `vi.waitFor` 救不了（微任务链饿死计时器，表现为永久挂起而非超时失败）。二分与根因规则见 [TESTING.md](../TESTING.md) §前端单测。
 
 **失败集对账（替代基线全量）**：PR 上跑**一次**全量拿失败列表 → 只把**失败的用例文件**在 main 上跑一遍对账 → **不再跑第二遍全量**。BLF-1237 那轮 26 个既有失败只落在 8 个文件上，对账 10 秒，省掉一整轮 6 分钟。
 
@@ -161,7 +163,7 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 - 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。失败立即修。
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
 
-> **实测数字口径**：本节引用的 420s / 900s、6 分 42 秒→5 分 02 秒、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。
+> **实测数字口径**：本节引用的 420s / 900s、6 分 42 秒→5 分 02 秒、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。其中 420s / 900s 两条是 **BLF-1238 修复前**的现象记录（已由 BLF-1238 定位到唯一挂起文件并修复，现全量 **~43s 起、同机满载 ~2 分钟**，2026-10-06 实测）。
 
 **规则 2 业务测试（每次必做）**：功能完成后 AI 提供业务测试清单，用户手动执行并反馈。
 
@@ -195,7 +197,7 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 中文 + Conventional Commits：`<type>(<scope>): <subject>`。type 保留英文（feat/fix/docs/test/chore/refactor/perf/style/ci/revert），scope/subject 中文，subject 动宾短语 ≤50 字无句号，正文中文。详细见 `chinese-commit-conventions` 技能。
 
 ### Workflow
-- 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端**绝不裸跑 `pnpm test`**（BLF-1238），全量交 Vercel；后端 T3 才跑全量并做失败集对账。
+- 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
 - 推送 + 部署：**用 `git deploy`**（替代旧 pre-push hook）。脚本在 `productEnvAgent/deploy.sh`，做三件事：
   1. 校验当前在 main 分支
   2. `git push origin main`
