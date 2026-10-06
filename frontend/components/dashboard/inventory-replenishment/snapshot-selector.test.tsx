@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { stableNotifications } from '@/test-utils/stable-mocks'
+
 // BEL-423：快照列表懒加载 —— 下拉关闭时不请求；首次打开才请求；同一作用域
 // 重复开关不重复请求；refreshNonce 变化（快照增删后）下次打开重新请求。
 
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: vi.fn() }),
+  useNotifications: () => stableNotifications(),
 }))
 
 import { SnapshotSelector, type SnapshotSelectorProps } from './snapshot-selector'

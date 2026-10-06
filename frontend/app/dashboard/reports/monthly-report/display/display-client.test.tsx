@@ -10,6 +10,8 @@ import DisplayTab, {
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { clearClientCacheByPrefix } from '@/lib/client-cache'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 // ── next/navigation：可控的 URL search param 存储 ────────────────────────────
 // useUrlParam 从 useSearchParams 读、经 router.replace 写。这里用一个进程内
 // URLSearchParams 模拟"已落定的 URL"（project/fromMonth/toMonth 都有值），
@@ -36,7 +38,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { isAdmin: true } }, status: 'authenticated' }),
+  useSession: () => stableSession({ user: { isAdmin: true } }),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({

@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+  useSession: () => stableSession(),
 }))
 
 // 生产 useManagedProjects 有 2min client cache，返回稳定引用；mock 用模块级常量避免每次 render 新数组

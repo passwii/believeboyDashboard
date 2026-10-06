@@ -1,6 +1,8 @@
 import { render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { stableNotifications } from '@/test-utils/stable-mocks'
+
 // ── mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('next/navigation', () => ({
@@ -8,7 +10,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: vi.fn() }),
+  useNotifications: () => stableNotifications(),
 }))
 
 vi.mock('./lib/vat-invoice-api', () => ({

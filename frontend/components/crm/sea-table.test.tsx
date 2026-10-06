@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { CrmSeaTable } from './sea-table'
 import type { Customer } from '@/lib/crm/types'
 
+import { stableNotifications } from '@/test-utils/stable-mocks'
+
 const { listCustomers, mockClient } = vi.hoisted(() => {
   const listCustomers = vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
   const mockClient = {
@@ -18,7 +20,7 @@ vi.mock('@/lib/crm/api/crm-client-provider', () => ({
   useCrmClient: () => mockClient,
 }))
 vi.mock('@/hooks/use-crm-users', () => ({ useCrmUsers: () => [] }))
-vi.mock('@/components/notifications', () => ({ useNotifications: () => ({ notify: vi.fn() }) }))
+vi.mock('@/components/notifications', () => ({ useNotifications: () => stableNotifications() }))
 // 真 useCrmTable 需要完整 next/navigation；useSearchParams 必须返回稳定对象
 // （否则 hook 的 useMemo([searchParams]) 每次重算 → runFetch 重建 → 无限重 fetch）
 const mockSearchParams = new URLSearchParams()

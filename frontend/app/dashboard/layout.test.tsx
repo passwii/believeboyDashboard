@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 // 关键断言：即便 isNavigationLoading=true（最危险 case），
 // layout 也必须始终渲染 children，绝不能整页 swap 成 DashboardPageLoading。
 //
@@ -16,7 +18,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ status: 'authenticated', data: { user: { name: 't' } } }),
+  useSession: () => stableSession({ user: { name: 't' } }),
   signOut: vi.fn(),
 }))
 
