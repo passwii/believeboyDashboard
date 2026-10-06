@@ -10,6 +10,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/operations/inventory-analysis', title: '库存分析' },
   { match: '/operations/inventory-replenishment', title: '补货分析' },
   { match: '/operations/seasonal-replenishment', title: '季节性补货分析' },
+  { match: '/operations/project-launch/templates', title: '流程模板管理' },
   { match: '/operations/project-launch', title: '项目启动台' },
   { match: '/operations/project-goals', title: '目标管理' },
   { match: '/reports/report-upload', title: '报表上传' },
