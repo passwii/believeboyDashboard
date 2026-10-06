@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import shutil
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from typing import Any
 
 from app.tasks.scripts import monthly_report
 
+logger = logging.getLogger(__name__)
 CALCULATION_VERSION = 1
 
 
@@ -116,7 +118,12 @@ def build_preview(
         return artifacts
     except BaseException:
         # Includes worker soft timeouts; only the exclusively-created directory.
-        shutil.rmtree(output_dir)
+        try:
+            shutil.rmtree(output_dir)
+        except OSError:
+            # Preserve the calculation/timeout failure; the lifecycle janitor
+            # must retry cleanup of the abandoned private build directory.
+            logger.exception("Failed to clean monthly report preview")
         raise
 
 

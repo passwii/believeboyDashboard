@@ -141,6 +141,22 @@ def test_kernel_failure_removes_only_new_directory(transaction_csv, tmp_path, mo
     assert (other / "keep").read_text() == "keep"
 
 
+def test_cleanup_failure_preserves_calculation_error(transaction_csv, tmp_path, monkeypatch, caplog):
+    from app.services import monthly_report_preview_service as service
+
+    def fail(*args, **kwargs):
+        raise ValueError("calculation failed")
+
+    def cleanup_failed(*args, **kwargs):
+        raise OSError("cleanup unavailable")
+
+    monkeypatch.setattr(service.monthly_report, "run", fail)
+    monkeypatch.setattr(service.shutil, "rmtree", cleanup_failed)
+    with pytest.raises(ValueError, match="calculation failed"):
+        _build(transaction_csv, tmp_path / "draft")
+    assert "Failed to clean monthly report preview" in caplog.text
+
+
 def test_existing_output_is_never_overwritten(transaction_csv, tmp_path):
     output = tmp_path / "draft"
     output.mkdir()

@@ -1,8 +1,0 @@
-..............................................................           [100%]
-=============================== warnings summary ===============================
-backend/tests/services/test_monthly_report_preview_service.py: 27 warnings
-  /Users/damon/multica_workspaces_desktop-api.multica.ai/believeboy-de24655df25f/blf-1250-6c4850945784/worktree/backend/app/tasks/scripts/monthly_report.py:174: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-    report_month = str(params.get("report_month", datetime.utcnow().strftime("%Y-%m")))
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-62 passed, 27 warnings in 1.22s

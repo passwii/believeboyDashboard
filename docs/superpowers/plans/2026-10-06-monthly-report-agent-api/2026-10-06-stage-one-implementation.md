@@ -23,10 +23,10 @@
 **不修改：** Job/Celery 自动入库流程、公共 schema/model、权限、已部署迁移、前端。
 
 - [x] 已有基础测试与服务实现保存在恢复工作树的 `1a60ea75`；本轮核验并补充 US/DE/UK 同内核对账、大精度 Decimal、worker 软超时清理、越界输出及输入摘要绑定测试。
-- [ ] 缺失服务的红灯阶段无法从现有记录证明，不补写虚假 TDD 历史。本轮首次执行暴露工作树缺少 `.env.test`；核验本机测试配置只指向本地 `BLF_test` 后复跑。
+- [x] 缺失服务的初始红灯阶段无法从现有记录证明，不补写虚假 TDD 历史。本轮新增清理异常回归测试，先确认 1 failed：清理 OSError 覆盖原始计算异常；再实现保留原异常并记录清理失败，后续由生命周期 janitor 重试。工作树缺少 `.env.test`，已核验本机配置指向本地 Unix socket `BLF_test` 并复制至 ignored 文件后复跑。
 - [x] 实现：内核调用 → 类型安全 JSON → SHA-256 → 可校验读取；每次独占新的输出目录，失败只清理本次目录。
-- [x] T2 目标回归：`python -m pytest tests/services/test_monthly_report_preview_service.py tests/services/test_payment_classifier_de.py tests/services/test_payment_other_transaction_fees.py tests/services/test_payment_vat.py tests/services/test_monthly_report_runtime_service.py tests/tasks/test_run_job_celery.py tests/services/test_rebuild_pt3_pt4_uses_country.py -q`：**62 passed / 0 failed / 0 errors / 27 warnings**，1.22 秒。其中预览测试 29 例；warnings 全部来自既有内核 `datetime.utcnow()` 弃用提示。未动公共符号/schema/model/权限/迁移，不跑 T3 全量，前端未改。
-- [ ] 为此独立增量创建 PR，明确“不包含可调用端点，不关闭 BLF-1250”；交 Tia review。BLF-1250 保持 in_progress。
+- [x] T2 目标回归：`python -m pytest tests/services/test_monthly_report_preview_service.py tests/services/test_payment_classifier_de.py tests/services/test_payment_other_transaction_fees.py tests/services/test_payment_vat.py tests/services/test_monthly_report_runtime_service.py tests/tasks/test_run_job_celery.py tests/services/test_rebuild_pt3_pt4_uses_country.py -q`：**63 passed / 0 failed / 0 errors / 27 warnings**，1.30 秒。其中预览测试 30 例；warnings 全部来自既有内核 `datetime.utcnow()` 弃用提示。未动公共符号/schema/model/权限/迁移，不跑 T3 全量，前端未改。
+- [x] 独立增量整理提交 PR，明确“不包含可调用端点，不关闭 BLF-1250”；交 Tia review。移除恢复任务误提交的三份根目录测试日志，不将环境错误/日志作为源码交付。BLF-1250 保持 in_progress，A review 后 Damon 继续 B/C。
 
 CodeGraph：新工作树索引已初始化；`callers/impact` 显示预览服务只由自身及新增测试调用。`build_preview` 与 confirm 的同名 callback 存在索引名字匹配误报，实际 confirm 未导入本服务；原 Job/Celery 自动入库路径未修改。A 的路径/hash 仅接受可信服务端元数据，权限、24 小时期限与确认不由 A 实现，必须在 B/C 完成后才能开放。
 
