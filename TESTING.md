@@ -172,6 +172,77 @@ Playwright E2E (Layer 2):
 
 ---
 
+## 前端单测（Vitest）— 全量耗时口径与「卡住」排查
+
+> 前端单测是 `frontend/` 下的 `*.test.ts(x)`（Vitest + jsdom，配置 `frontend/vitest.config.ts`），
+> 与上面 Layer 2 的 Playwright E2E 是两件事。命令一律在 `frontend/` 下跑。
+
+### 全量耗时口径（BLF-1238，2026-10-06 实测）
+
+```bash
+cd frontend && pnpm test          # = vitest run，全量 235 个测试文件
+```
+
+| 口径 | 数值 |
+| --- | --- |
+| 文件 / 用例 | 235 文件 / 1660 例 |
+| 全量 wall clock | **~43s**（本机较空闲，macOS 10 核 / 默认 jsdom + forks / 10 workers）～**~2 分钟**（同机其他 agent 满载，实测 59s / 79s / 124s） |
+| 判据（不看绝对秒数，看是否在推进） | 60s 时 `Test Files` 计数**已在增长** = 只是慢；**仍为 0** = 挂住 |
+| 异常阈值 | **> 5 分钟**仍无 `Test Files` 汇总 → 按下面三步排查，不要干等 |
+
+### 「卡住」三步排查（先判类型，再二分）
+
+1. **看输出**：跑到 60s 时输出里仍只有各 worker 的 `ExperimentalWarning`、`Test Files` 计数为 0
+   → 可疑（正常情况 43s 已经跑完）。
+2. **看 CPU（关键：区分「无限循环」和「单纯慢」）**：
+
+   ```bash
+   ps -Ao pcpu,pid,etime,args | grep vitest
+   ```
+
+   - 有 worker 长时间 **100%+ CPU** → **无限循环**（某文件在渲染 / 微任务里空转）；
+   - CPU 接近 **0%** → 死锁或等外部资源（未关闭的 handle / 真定时器 / 网络等待）。
+3. **二分定位**（按目录往下切，最后单文件确认）：
+
+   ```bash
+   cd frontend
+   # 目录级（--maxWorkers=1 --reporter=verbose 才能看到逐文件进度；默认 reporter 收尾才打印）
+   vitest run components/terminal --maxWorkers=1 --reporter=verbose
+   # 单文件确认（挂住的文件用 30s 超时就够——正常单文件 1-3s）
+   vitest run components/terminal/<file>.test.tsx
+   ```
+
+   目录级命令建议套一层超时（macOS 无 `timeout` 时用后台 + `kill`），否则它会一直挂着。
+
+> ⚠️ **vitest 的 `--testTimeout` / `--hookTimeout` / `vi.waitFor` 救不了这类挂起。**
+> 无限渲染循环跑在**微任务链**上，会饿死计时器 —— 超时回调根本不会被调度，
+> 表现是「永久挂起」而不是「超时失败」（BLF-1238 实测：`--testTimeout=3000` 仍挂 ≥60s）。
+> 所以只能靠上面的**症状判型 + 二分**，不要指望配置超时兜底。
+
+### 已定位的根因类型与防回归规则（BLF-1238）
+
+**根因**：测试里 `vi.mock('next-auth/react')` 的 `useSession` 每次调用都返回**新的对象字面量**，
+于是 `data` 每次渲染都是新引用 → 组件里 `useEffect(..., [session, status])` 每次渲染后重跑 →
+effect 内无条件 `setState` → 再渲染 → 无限循环。
+
+```ts
+// ❌ 反例：data 每次调用都是新引用
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+}))
+
+// ✅ 正确：session 用模块级常量 / vi.hoisted 保持稳定引用
+const SESSION = { data: { user: { name: '测试用户' } }, status: 'authenticated' }
+vi.mock('next-auth/react', () => ({ useSession: () => SESSION }))
+```
+
+**规则**：mock `next-auth/react` 的 `useSession` 必须返回**稳定引用**——这与真实实现一致
+（next-auth v5 的 `SessionProvider` 用 `React.useMemo` 缓存 value，`data` 身份在 session 未变时恒定）。
+内联 `useSession: () => ({ data: {...} })` 是**潜伏地雷**：只有「组件里 `[session]` 依赖的 effect
+无条件 setState」时才引爆，所以平时看不出来，一旦引爆就是整轮测试永久挂起。
+
+---
+
 ## 关键约定（不可违反，否则破坏隔离）
 
 1. **测试账号只在测试库里 seed**——绝不放进开发/生产库。

@@ -25,8 +25,15 @@ vi.mock('@/lib/project-client-cache', () => ({
   fetchManagedProjectsCached: fetchManagedProjectsCachedMock,
 }))
 
+// ⚠️ session 必须是**稳定引用**（BLF-1238）：next-auth v5 真实实现的 useSession 返回
+// SessionProvider 里 useMemo 化的 value，`data` 身份在 session 未变时恒定；
+// 若 mock 每次调用都返回新的对象字面量，`data` 每次渲染都是新引用，
+// HeaderProjectSelect 的 useEffect(..., [session, status]) 就会在每次渲染后重跑，
+// 配合 effect 内无条件 setState 形成无限渲染循环 —— worker 满 CPU 且微任务链
+// 饿死计时器，vitest 的 testTimeout / vi.waitFor 都不会触发，整轮测试永久挂起。
+const SESSION = { data: { user: { name: '测试用户' } }, status: 'authenticated' }
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+  useSession: () => SESSION,
 }))
 
 const replaceSpy = vi.fn()
