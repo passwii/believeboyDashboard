@@ -36,6 +36,7 @@ export function NormalPageTransition({ children, className, pathname }: Props) {
           animate={animate}
           exit={exit}
           transition={transition}
+          data-testid="page-transition-motion"
           className="h-full w-full"
         >
           {children}

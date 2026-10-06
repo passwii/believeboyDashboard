@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
-
-import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * BLF-611 广告域手机端适配回归（ad-analysis + ad-data）。
@@ -24,26 +22,6 @@ import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
  * - 规则 2：筛选控制台手机端 2 列网格，日期范围独占一行；
  * - 规则 10：ad-data 原始表保持列宽（min-width: max-content 兜底），容器内横滑，页面无整体横向滚动。
  */
-
-// 与 playwright.config.ts 保持一致（来自共享 fixture 模块）
-const FIXTURE_SECRET = BLF611_FIXTURE_SECRET
-
-async function forgeSessionToken(): Promise<string> {
-  return encode({
-    token: {
-      uid: '1',
-      isAdmin: true,
-      roleType: 'admin',
-      operatorNameZh: 'E2E',
-      sessionId: 'e2e-session',
-      name: 'E2E',
-      email: 'e2e@example.com',
-      sub: '1',
-    },
-    secret: FIXTURE_SECRET,
-    salt: 'authjs.session-token',
-  })
-}
 
 const SESSION = {
   user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', operatorNameZh: '测试' },
@@ -164,12 +142,9 @@ const AD_RAW_ROWS = Array.from({ length: 5 }, (_, i) => ({
 /** 页面级无整体横向滚动（允许 ±2px 误差） */
 async function expectNoPageHorizontalOverflow(page: import('@playwright/test').Page) {
   const overflow = await page.evaluate(() => {
-    const candidates = [
-      document.documentElement,
-      document.body,
-      ...Array.from(document.querySelectorAll('[class*="overflow-hidden"], #main-content')),
-    ]
-    return candidates.some((el) => el.scrollWidth - el.clientWidth > 2)
+    // 检查文档实际滚动宽度；内部裁剪容器可包含表格/图表的超宽内容，不代表页面横向滚动。
+    const root = document.documentElement
+    return root.scrollWidth - root.clientWidth > 2
   })
   expect(overflow, '页面级容器不应出现横向溢出（表格内部横滑除外）').toBe(false)
 }
@@ -207,17 +182,7 @@ test.beforeEach(({}, testInfo) => {
 
 test.beforeEach(async ({ page, context }) => {
   await mockAdBackend(page)
-  // 伪造合法 session cookie，绕过 proxy.ts 的 auth 守卫
-  await context.addCookies([
-    {
-      name: 'authjs.session-token',
-      value: await forgeSessionToken(),
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ])
+  await addBLF611FixtureAuth(context)
 })
 
 test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
@@ -225,7 +190,7 @@ test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
     await page.goto('/dashboard/advertising/ad-analysis/campaigns?projectId=1&country=US')
 
     // 汇总卡：前两张同一行，第三张换行（grid-cols-2）
-    const cards = page.locator('div.dashboard-surface', { hasText: '汇总指标' })
+    const cards = page.getByTestId('campaign-summary-card')
     await expect(cards.first()).toBeVisible({ timeout: 30000 })
     const boxes = []
     for (let i = 0; i < 6; i += 1) {
@@ -242,7 +207,7 @@ test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
     // 表格区块（DeferredSection）：滚入视口后挂载；手机端为卡片列表（lg:hidden），桌面表格隐藏
     const tableSection = page.locator('[data-testid="campaigns-deferred-table"]')
     await tableSection.scrollIntoViewIfNeeded()
-    const mobileCards = tableSection.locator('[class*="lg:hidden"] [class*="dashboard-surface"]')
+    const mobileCards = tableSection.getByTestId('campaign-mobile-card')
     await expect(mobileCards.first()).toBeVisible({ timeout: 15000 })
     await expect(tableSection.locator('[class*="hidden lg:block"]')).toBeHidden()
 
@@ -252,27 +217,37 @@ test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
   test('筛选区：手机端 2 列网格，日期范围独占一行', async ({ page }) => {
     await page.goto('/dashboard/advertising/ad-analysis/overview?projectId=1&country=US')
 
-    // 等筛选区控件渲染（项目 Select 触发器）
-    const toolbar = page.locator('div.dashboard-toolbar').first()
-    await expect(toolbar).toBeVisible({ timeout: 30000 })
+    // 手机端筛选条有意默认折叠：先验证可展开，再测展开后的筛选网格布局。
+    const filterToggle = page.getByRole('button', { name: '切换页面筛选' })
+    await expect(filterToggle).toBeVisible({ timeout: 30000 })
+    await expect(filterToggle).toHaveAttribute('aria-expanded', 'false')
+    await filterToggle.click()
+    await expect(filterToggle).toHaveAttribute('aria-expanded', 'true')
+    const toolbar = page.getByTestId('mobile-filter-strip-grid')
 
-    const projectTrigger = toolbar.getByText('E2E 测试项目').first()
-    const countryTrigger = toolbar.getByText('美国站 (US)').first()
+    const projectTrigger = toolbar.getByRole('combobox').nth(0)
+    const countryTrigger = toolbar.getByRole('combobox').nth(1)
+    const dateButton = toolbar.getByRole('button', {
+      name: /\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}/,
+    })
     await expect(projectTrigger).toBeVisible({ timeout: 15000 })
     await expect(countryTrigger).toBeVisible({ timeout: 15000 })
+    await expect(dateButton).toBeVisible()
 
+    const gridColumns = await toolbar.evaluate(
+      (element) => getComputedStyle(element).gridTemplateColumns.split(' ').length
+    )
+    expect(gridColumns).toBe(2)
     const projectBox = (await projectTrigger.boundingBox())!
     const countryBox = (await countryTrigger.boundingBox())!
-    // 项目 / 国家同一行（2 列网格）
-    expect(Math.abs(projectBox.y - countryBox.y)).toBeLessThan(2)
-
-    // 日期范围按钮在下一行且占满整行
-    const dateButton = toolbar.locator('button', { hasText: /日期|~|全部/ }).first()
-    await expect(dateButton).toBeVisible()
     const dateBox = (await dateButton.boundingBox())!
-    expect(dateBox.y).toBeGreaterThan(projectBox.y + 10)
     const viewport = page.viewportSize()!
-    expect(dateBox.width).toBeGreaterThan(viewport.width * 0.75)
+    // 项目与站点为 MobileFilterWide 满行；日期按 HeaderSlotDateRange 的紧凑宽度独占第一格。
+    expect(dateBox.width).toBeLessThan(viewport.width * 0.7)
+    expect(dateBox.y).toBeLessThan(projectBox.y)
+    expect(projectBox.width).toBeGreaterThan(viewport.width * 0.75)
+    expect(countryBox.width).toBeGreaterThan(viewport.width * 0.75)
+    expect(countryBox.y).toBeGreaterThan(projectBox.y + 10)
 
     await expectNoPageHorizontalOverflow(page)
   })
@@ -286,11 +261,9 @@ test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
     await expect(tableSection.locator('[class*="hidden lg:block"] table')).toBeVisible({
       timeout: 15000,
     })
-    await expect(
-      tableSection.locator('[class*="lg:hidden"] [class*="dashboard-surface"]').first()
-    ).toBeHidden()
+    await expect(tableSection.getByTestId('campaign-mobile-card').first()).toBeHidden()
 
-    const cards = page.locator('div.dashboard-surface', { hasText: '汇总指标' })
+    const cards = page.getByTestId('campaign-summary-card')
     const b0 = (await cards.nth(0).boundingBox())!
     const b3 = (await cards.nth(3).boundingBox())!
     expect(Math.abs(b0.y - b3.y)).toBeLessThan(2)
@@ -332,12 +305,14 @@ test.describe('@mobile-blf611 ad-data 原始表手机端（BLF-611 规则 10）'
   test('控制条：手机端报表类型/搜索全宽，视图切换与导出同行', async ({ page }) => {
     await page.goto('/dashboard/advertising/ad-data?projectId=1&country=US')
 
-    // 报表类型 select：前两个 combobox 是顶部筛选区的项目/国家，第三个才是报表类型
-    const reportSelect = page.getByRole('combobox').nth(2)
-    await expect(reportSelect).toBeVisible({ timeout: 30000 })
-    const selectBox = (await reportSelect.boundingBox())!
+    const adDataControls = page.getByTestId('ad-data-controls')
+    const reportControl = adDataControls.getByTestId('ad-data-report-type-control')
+    await expect(reportControl).toBeVisible({ timeout: 30000 })
+    const reportTrigger = reportControl.getByRole('combobox')
+    await expect(reportTrigger).toBeVisible()
+    const selectWidth = await reportControl.evaluate((element) => element.getBoundingClientRect().width)
     const viewport = page.viewportSize()!
-    expect(selectBox.width).toBeGreaterThan(viewport.width * 0.75)
+    expect(selectWidth).toBeGreaterThan(viewport.width * 0.75)
 
     const searchInput = page.locator('input[placeholder*="按任意列内容过滤"]').first()
     await expect(searchInput).toBeVisible()

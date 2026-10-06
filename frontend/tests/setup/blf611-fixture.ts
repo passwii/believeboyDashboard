@@ -4,5 +4,37 @@
  * playwright.config.ts（webServer.env）与 ad-mobile-blf611.spec.ts（伪造
  * next-auth session cookie）共用同一常量，避免两处漂移。
  */
+import { encode } from 'next-auth/jwt'
+import type { BrowserContext } from '@playwright/test'
+
 export const BLF611_FIXTURE_SECRET =
   'blf611-e2e-fixture-secret-0123456789-abcdefghijklmnopqrstuvwxyz-42'
+
+/** Install a signed local session cookie for self-contained authenticated E2E specs. */
+export async function addBLF611FixtureAuth(context: BrowserContext): Promise<void> {
+  const value = await encode({
+    token: {
+      uid: '1',
+      isAdmin: true,
+      roleType: 'admin',
+      operatorNameZh: 'E2E',
+      sessionId: 'e2e-session',
+      name: 'E2E',
+      email: 'e2e@example.com',
+      sub: '1',
+    },
+    secret: BLF611_FIXTURE_SECRET,
+    salt: 'authjs.session-token',
+  })
+
+  await context.addCookies([
+    {
+      name: 'authjs.session-token',
+      value,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
+}

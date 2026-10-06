@@ -159,9 +159,11 @@ export function AdAnalysisCampaignsClient() {
         ]}
       />
       {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4" data-testid="campaign-summary-cards">
         {data.summary_cards.map((card) => (
-          <TermKpiTile key={card.label} label={card.label} value={card.value} />
+          <div key={card.label} data-testid="campaign-summary-card">
+            <TermKpiTile label={card.label} value={card.value} />
+          </div>
         ))}
       </div>
 
@@ -338,7 +340,11 @@ export function AdAnalysisCampaignsClient() {
           {/* 手机端：卡片列表 */}
           <div className="lg:hidden space-y-3">
             {filteredItems.map((item) => (
-              <div key={item.campaign_name} className="rounded-none border border-term-border bg-term-panel p-3 space-y-2">
+              <div
+                key={item.campaign_name}
+                data-testid="campaign-mobile-card"
+                className="rounded-none border border-term-border bg-term-panel p-3 space-y-2"
+              >
                 {/* 头部：活动名 + Grade */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

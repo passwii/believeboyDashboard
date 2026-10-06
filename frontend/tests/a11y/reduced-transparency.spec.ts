@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * Reduced-transparency fallback regression.
@@ -13,19 +14,21 @@ import { test, expect } from '@playwright/test'
  * is not a supported key, unlike `reducedMotion`.
  */
 test.describe('reduced-transparency fallback', () => {
-  test('spotlight strength is 0 under reduced-transparency', async ({ page }) => {
+  test('spotlight strength is 0 under reduced-transparency', async ({ page, context }) => {
+    await addBLF611FixtureAuth(context)
     // Explicitly disable reduced-motion so only transparency is in play.
     await page.emulateMedia({ reducedMotion: 'no-preference' })
     await page.emulateMedia({ reducedTransparency: 'reduce' })
 
     await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/)
+    await expect(page.getByRole('main')).toBeVisible()
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
     const card = page.locator('[data-spotlight]').first()
-    const exists = (await card.count()) > 0
-    if (!exists) {
-      test.skip(true, 'No spotlight card present on this page')
+    if ((await card.count()) === 0) {
+      test.skip(true, 'Authenticated dashboard currently renders no spotlight card')
       return
     }
 
