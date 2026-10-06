@@ -157,9 +157,11 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 **不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）；且套件是 DB-bound，10 worker 也只从 6 分 42 秒降到 5 分 02 秒（还提前 error 退出 380 例）。要用得先做每 worker 独立库，另开任务。
 
-- 前端命令：`pnpm lint`（2-5s，不过不进 build）→ `pnpm build`（30-90s）→ `vitest run <路径>`（Vitest 单测）。
+- 前端命令：**按上表选要跑哪条，不是固定顺序**——`vitest run <路径>`（Vitest 单测，T1/T2 主力）、`pnpm lint`（2-5s，T2/T3）、`pnpm build`（30-90s，可交 Vercel）。
 - 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。失败立即修。
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
+
+> **实测数字口径**：本节引用的 420s / 900s、6 分 42 秒→5 分 02 秒、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。
 
 **规则 2 业务测试（每次必做）**：功能完成后 AI 提供业务测试清单，用户手动执行并反馈。
 
