@@ -4,6 +4,8 @@ import { NotificationWrapper } from '@/components/system/notification-wrapper'
 import type { WorkflowSettings } from '@/lib/crm/types'
 import SettingsPage from './page'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 const { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionRef } = vi.hoisted(() => {
   const getWorkflowSettings = vi.fn(async (): Promise<WorkflowSettings> => ({
     staleDays: 7,
@@ -22,7 +24,7 @@ const { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionR
 })
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { roleType: sessionRef.roleType } } }),
+  useSession: () => stableSession({ user: { roleType: sessionRef.roleType } }),
 }))
 
 vi.mock('@/lib/crm/api/crm-client-provider', () => {

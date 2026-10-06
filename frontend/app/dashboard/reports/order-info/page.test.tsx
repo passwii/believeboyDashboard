@@ -3,6 +3,8 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 // BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
 // 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
 const gfState = {
@@ -66,7 +68,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+  useSession: () => stableSession(),
 }))
 
 const notify = vi.fn()

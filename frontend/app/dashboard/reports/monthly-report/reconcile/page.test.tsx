@@ -11,13 +11,12 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+
 // ── mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({
-    data: { user: { id: 'user-1', roleType: 'admin' } },
-    status: 'authenticated',
-  }),
+  useSession: () => stableSession({ user: { id: 'user-1', roleType: 'admin' } }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -27,7 +26,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: vi.fn() }),
+  useNotifications: () => stableNotifications(),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({

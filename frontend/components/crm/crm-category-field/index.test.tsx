@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CrmCategoryField } from './index'
 import type { Customer } from '@/lib/crm/types/customer'
 
+import { stableNotifications } from '@/test-utils/stable-mocks'
+
 const { mockClient, mockList, mockSet } = vi.hoisted(() => {
   const list = vi.fn()
   const set = vi.fn()
@@ -18,7 +20,7 @@ vi.mock('@/lib/crm/api/crm-client-provider', async (i) => {
 })
 vi.mock('@/components/notifications', async (i) => {
   const a = await i<typeof import('@/components/notifications')>()
-  return { ...a, useNotifications: () => ({ notify: vi.fn() }) }
+  return { ...a, useNotifications: () => stableNotifications() }
 })
 
 const now = new Date().toISOString()

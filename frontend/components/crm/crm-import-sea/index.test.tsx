@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CrmImportSea } from './index'
 
+import { stableNotifications } from '@/test-utils/stable-mocks'
+
 const importMock = vi.fn()
 vi.mock('@/lib/crm/api/crm-client-provider', () => ({
   useCrmClient: () => ({ importCustomersToSea: importMock }),
 }))
-vi.mock('@/components/notifications', () => ({ useNotifications: () => ({ notify: vi.fn() }) }))
+vi.mock('@/components/notifications', () => ({ useNotifications: () => stableNotifications() }))
 vi.mock('./template', () => ({ downloadImportTemplate: vi.fn(), downloadFailureDetail: vi.fn() }))
 
 describe('CrmImportSea', () => {

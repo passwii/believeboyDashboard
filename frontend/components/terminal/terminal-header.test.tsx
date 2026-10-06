@@ -13,8 +13,10 @@ import {
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { TrendingUp } from 'lucide-react'
 
+import { stableSession } from '@/test-utils/stable-mocks'
+
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
+  useSession: () => stableSession(),
 }))
 
 const unreadMock = vi.fn()

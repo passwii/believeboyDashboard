@@ -219,27 +219,56 @@ cd frontend && pnpm test          # = vitest run，全量 235 个测试文件
 > 表现是「永久挂起」而不是「超时失败」（BLF-1238 实测：`--testTimeout=3000` 仍挂 ≥60s）。
 > 所以只能靠上面的**症状判型 + 二分**，不要指望配置超时兜底。
 
-### 已定位的根因类型与防回归规则（BLF-1238）
+### 已定位的根因类型与防回归规则（BLF-1238 / BLF-1246）
 
 **根因**：测试里 `vi.mock('next-auth/react')` 的 `useSession` 每次调用都返回**新的对象字面量**，
 于是 `data` 每次渲染都是新引用 → 组件里 `useEffect(..., [session, status])` 每次渲染后重跑 →
 effect 内无条件 `setState` → 再渲染 → 无限循环。
 
+**规则**：mock `useSession` / `useNotifications` 必须返回**稳定引用**——这与真实实现一致
+（next-auth v5 的 `SessionProvider` 用 `React.useMemo` 缓存 value，`data` 身份在 session 未变时恒定；
+`NotificationsProvider` 的 `notify` 是 `useCallback(..., [])`，身份恒定）。
+内联 `useSession: () => ({ data: {...} })` / `useNotifications: () => ({ notify: vi.fn() })`
+是**潜伏地雷**：只有「组件里 `[session]` / `[notify]` 依赖的 effect 无条件 setState」时才引爆。
+
+#### 新测试直接调 helper，不要自己拼稳定引用
+
+helper 路径：`frontend/test-utils/stable-mocks.ts`（`@/test-utils/stable-mocks`；文件名不带 `.test.`，
+不会被 vitest 的 `include` 收集，自测在同目录 `stable-mocks.test.ts`）：
+
 ```ts
-// ❌ 反例：data 每次调用都是新引用
+import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+
+// ❌ 反例：data / notify 每次渲染都是新引用（无限渲染挂死的原料）
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { user: { name: '测试用户' } }, status: 'authenticated' }),
 }))
+vi.mock('@/components/notifications', () => ({
+  useNotifications: () => ({ notify: vi.fn() }),
+}))
 
-// ✅ 正确：session 用模块级常量 / vi.hoisted 保持稳定引用
-const SESSION = { data: { user: { name: '测试用户' } }, status: 'authenticated' }
-vi.mock('next-auth/react', () => ({ useSession: () => SESSION }))
+// ✅ 正确：直接用 helper（mock 工厂里直接调，不需要 vi.hoisted）
+vi.mock('next-auth/react', () => ({
+  useSession: () => stableSession({ user: { isAdmin: true } }),
+}))
+vi.mock('@/components/notifications', () => ({
+  useNotifications: () => stableNotifications(),
+}))
 ```
 
-**规则**：mock `next-auth/react` 的 `useSession` 必须返回**稳定引用**——这与真实实现一致
-（next-auth v5 的 `SessionProvider` 用 `React.useMemo` 缓存 value，`data` 身份在 session 未变时恒定）。
-内联 `useSession: () => ({ data: {...} })` 是**潜伏地雷**：只有「组件里 `[session]` 依赖的 effect
-无条件 setState」时才引爆，所以平时看不出来，一旦引爆就是整轮测试永久挂起。
+- **不变式**：同一入参下 `stableSession()` 返回**同一个对象**（含 `data`），
+  `stableNotifications()` 返回同一个 `notify`——helper 只缓存、不新建（自测钉住这条，别改坏）。
+  入参不同（如用例切换 `sessionRef.roleType`）才换引用，正好对应「session 真的变了」。
+- **`notify` 是模块级共享单例**：同一测试文件内所有用例共享，断言 `expect(notify).toHaveBeenCalledWith(...)`
+  前请在 `beforeEach` 里 `vi.clearAllMocks()`（`vi.clearAllMocks` 只清调用记录、不拆实现，安全）。
+  需要直接引用时 `import { notify } from '@/test-utils/stable-mocks'`。
+- 仍需自己写模块级常量的场景（如 `vi.hoisted` 里已有别的 mock 对象）也 OK，
+  关键只有一条：**别在 mock 工厂里内联新建对象 / `vi.fn()`**。
+
+> **为什么值得单独写一条**：BLF-1246 复查存量时发现 18 个测试文件仍是这种写法，其中 3 个
+> （`order-info`、`inventory-analysis`、`generate-client`）**当时就已经在无限渲染**——
+> 表现为该文件耗时数秒、CPU 空转，而不是整轮挂死（循环被 250ms debounce 节流或
+> 被用例结束时卸载切断），所以一直没人发现。机械拦截见 BLF-1247（`pnpm check:mocks`）。
 
 ---
 

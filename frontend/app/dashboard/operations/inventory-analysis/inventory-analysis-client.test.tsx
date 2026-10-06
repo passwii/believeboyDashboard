@@ -1,13 +1,12 @@
 import { render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+
 // ── mocks（组件 mount 即拉数据，测试只关注渲染契约，拦截全部网络） ─────────────
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({
-    data: { user: { id: 'user-1', roleType: 'admin' } },
-    status: 'authenticated',
-  }),
+  useSession: () => stableSession({ user: { id: 'user-1', roleType: 'admin' } }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -25,7 +24,7 @@ vi.mock('@/lib/hooks/use-url-param', () => ({
 }))
 
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: vi.fn() }),
+  useNotifications: () => stableNotifications(),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
