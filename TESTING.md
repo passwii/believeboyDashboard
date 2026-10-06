@@ -259,6 +259,10 @@ vi.mock('@/components/notifications', () => ({
 - **不变式**：同一入参下 `stableSession()` 返回**同一个对象**（含 `data`），
   `stableNotifications()` 返回同一个 `notify`——helper 只缓存、不新建（自测钉住这条，别改坏）。
   入参不同（如用例切换 `sessionRef.roleType`）才换引用，正好对应「session 真的变了」。
+  缓存 key 按**值**归一（对象键序不敏感，BLF-1247 修）：`{ user: { a, b } }` 与 `{ user: { b, a } }`
+  拿到同一个对象，所以同一份 session 在文件里换写法也不会换引用。
+- **返回值视为只读**：缓存对象在同一测试文件内跨用例共享，就地改写会污染其它用例——要改就传新入参。
+  缓存不做淘汰是有意的（key 基数 = 一个文件里的 session 变体数，天然个位数）。
 - **`notify` 是模块级共享单例**：同一测试文件内所有用例共享，断言 `expect(notify).toHaveBeenCalledWith(...)`
   前请在 `beforeEach` 里 `vi.clearAllMocks()`（`vi.clearAllMocks` 只清调用记录、不拆实现，安全）。
   需要直接引用时 `import { notify } from '@/test-utils/stable-mocks'`。
@@ -268,7 +272,34 @@ vi.mock('@/components/notifications', () => ({
 > **为什么值得单独写一条**：BLF-1246 复查存量时发现 18 个测试文件仍是这种写法，其中 3 个
 > （`order-info`、`inventory-analysis`、`generate-client`）**当时就已经在无限渲染**——
 > 表现为该文件耗时数秒、CPU 空转，而不是整轮挂死（循环被 250ms debounce 节流或
-> 被用例结束时卸载切断），所以一直没人发现。机械拦截见 BLF-1247（`pnpm check:mocks`）。
+> 被用例结束时卸载切断），所以一直没人发现。
+
+#### 机械拦截：`pnpm check:mocks`（BLF-1247）
+
+「必须用稳定引用」靠人记就会漏（存量 18 处就是这么留下来的），所以加了一道机器拦截——
+`frontend/scripts/check-unstable-mocks.mjs`（屋风对齐后端 `backend/scripts/check_alembic.py`：
+**只用 node 内置模块**、失败 `exit 1`、输出含 `file:line` + 修法提示）：
+
+| 问题 | 答案 |
+| --- | --- |
+| 在哪跑 | `cd frontend && pnpm check:mocks`；已接进 `pnpm test` 入口（命中则 vitest 根本不启动）与 `.github/workflows/motion-system-ci.yml` 的显式 step |
+| 查什么 | `frontend/**/*.test.{ts,tsx}` 里 mock 工厂**内联新建**关键引用：`useSession: () => ({ data: {…} / […] })`、`useNotifications: () => ({ notify: vi.fn() })` |
+| 怎么算过 | `扫描 N 个测试文件，0 命中` → exit 0；命中 → exit 1，逐条给 `file:line:col` + 源码行 + 修法 |
+| 失败了怎么修 | 按提示把内联字面量换成 `@/test-utils/stable-mocks` 的 `stableSession({…})` / `stableNotifications()`；或模块级 `vi.hoisted` 常量。关键只有一条：**别在工厂里内联新建** |
+| 什么**不算**命中 | `data: null` / `data: SOME_CONST` / `data: mockUseSession()`（复用同一对象）/ `notify: mockNotify` / `notify` 简写 / 注释与字符串里的样例 —— 判据刻意收窄，**误报会逼人绕过检查** |
+| 判据自身怎么防回归 | `frontend/scripts/check-unstable-mocks.test.mjs`（`node --test`，正例 + 反例各若干；`pnpm test` 与 `pnpm check:mocks:test` 都会跑） |
+| 机读输出 | `node scripts/check-unstable-mocks.mjs --json` → `{ ok, filesScanned, hitCount, hits[] }` |
+| 为什么不能只靠「全量已绿」 | 3 处循环被 debounce / 用例结束卸载切断，只表现为单文件变慢 + CPU 空转，**不挂死**（BLF-1246 实证），所以肉眼很难发现 |
+
+> ⚠️ **机器层当前未生效（2026-10-06 核对）**：`motion-system-ci` 与 `lighthouse-ci` 都是
+> `disabled_manually`，workflow 里的 step 已接好但**不会真的被触发**。在它被重新启用前，
+> `pnpm test` 入口（含 `check:mocks`）是唯一实际执行点——PR 作者与 review 必须自己跑。
+>
+> 脚本本身**不依赖 node_modules**，所以也可以在任何 CI / 本地钩子里裸跑：
+> `node frontend/scripts/check-unstable-mocks.mjs`。
+>
+> **不要在脚本里加白名单「放过」存量**：stage 1（BLF-1246）已把存量清零，脚本应当在 main 上直接全绿；
+> 白名单会让规则重新变成靠人记。
 
 ---
 

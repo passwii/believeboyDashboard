@@ -41,6 +41,23 @@ describe('stableSession', () => {
     expect(a).toBe(b)
   })
 
+  it('对象键序不同但值相同：仍复用同一引用（key 做键序归一，BLF-1247）', () => {
+    const a = stableSession({ user: { id: 'user-1', roleType: 'admin' } })
+    const b = stableSession({ user: { roleType: 'admin', id: 'user-1' } })
+    expect(a).toBe(b)
+    expect(a.data).toBe(b.data)
+
+    const c = stableSession({ data: { expires: 'x', user: { id: 'u', name: 'n' } } })
+    const d = stableSession({ data: { user: { name: 'n', id: 'u' }, expires: 'x' } })
+    expect(c).toBe(d)
+  })
+
+  it('数组入参保持原序语义：顺序不同 → 不同引用', () => {
+    const a = stableSession({ user: { roles: ['a', 'b'] } })
+    const b = stableSession({ user: { roles: ['b', 'a'] } })
+    expect(a).not.toBe(b)
+  })
+
   it('支持 data: null + status: unauthenticated', () => {
     const a = stableSession({ data: null, status: 'unauthenticated' })
     const b = stableSession({ data: null, status: 'unauthenticated' })

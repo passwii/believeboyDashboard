@@ -60,15 +60,40 @@ const DEFAULT_EXPIRES = '2099-01-01T00:00:00.000Z'
 const sessionCache = new Map<string, StableSessionValue>()
 
 /**
+ * 递归按 key 排序后再 stringify —— 让缓存 key 对**对象键序**不敏感：
+ * `{ user: { a, b } }` 与 `{ user: { b, a } }` 落到同一个 key、拿到同一个对象
+ * （BLF-1247 修：旧实现直接用 `JSON.stringify`，写法一换就换引用，等于又把
+ * 「identity 抖动」还给了 effect 依赖）。数组保持原序（顺序本身有语义）。
+ */
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return Object.keys(record)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = canonicalize(record[key])
+        return acc
+      }, {})
+  }
+  return value
+}
+
+/**
  * 返回稳定引用的 `useSession()` 结果。
  *
- * 同一入参（按 `JSON.stringify` 归一化）下重复调用返回**同一个对象**，
+ * 同一入参（按值归一化，**对象键序不敏感**）下重复调用返回**同一个对象**，
  * 因此可安全地放进 effect / useCallback 依赖数组。入参变化（如用例切换
  * `sessionRef.roleType`）才会产生新对象——这正好对应「session 真的变了」。
+ *
+ * ⚠️ **返回值视为只读**：缓存对象在**同一测试文件内跨用例共享**，改写它（含
+ * `data` / `data.user` 的字段）会污染同文件其它用例。要改就传新入参，别就地改。
+ * 缓存**不做淘汰**是有意的：key 的基数受限于「一个测试文件里用到的 session 变体数」，
+ * 天然很小（个位数），加淘汰只会引入不确定性。
  */
 export function stableSession(options: StableSessionOptions = {}): StableSessionValue {
   const status = options.status ?? 'authenticated'
-  const key = JSON.stringify({ user: options.user, data: options.data, status })
+  const key = JSON.stringify(canonicalize({ user: options.user, data: options.data, status }))
   const cached = sessionCache.get(key)
   if (cached) return cached
 
@@ -92,6 +117,7 @@ let notifySeq = 0
  * `expect(notify).toHaveBeenCalledWith(...)` 断言。
  *
  * ⚠️ 同一测试文件内跨用例共享 → 断言前请在 `beforeEach` 里 `vi.clearAllMocks()`。
+ * 返回值视为只读（`notify` 本身由 helper 持有，别覆写 `stableNotifications().notify`）。
  */
 export const notify: Mock<(opts: NotifyOptions, duration?: number) => string> = vi.fn(
   () => `mock-notification-${++notifySeq}`
