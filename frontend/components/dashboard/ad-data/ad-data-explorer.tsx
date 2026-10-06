@@ -277,8 +277,11 @@ export function AdDataExplorer() {
       {/* 控制条：报表类型选择 + 搜索 + 视图切换 + 导出（终端工具栏规格） */}
       <div className="flex flex-col gap-3 border border-term-border bg-term-panel p-2 lg:flex-row lg:items-end lg:justify-between">
         {/* BLF-611：手机端字段全宽单列（sm 起 2 列），lg+ 恢复横向 + 固定宽，桌面零回归 */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
-          <div className="space-y-1.5">
+        <div
+          data-testid="ad-data-controls"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-3"
+        >
+          <div className="space-y-1.5" data-testid="ad-data-report-type-control">
             <div className="font-mono text-xs uppercase tracking-wider text-term-muted">
               报表类型
             </div>

@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { encode } from 'next-auth/jwt'
-
-import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * BLF-614 运营域 B 手机端适配回归（weekly-product-analysis / platform-inspection /
@@ -16,25 +14,6 @@ import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
  * - 规则 10：宽表格（weekly 4200px / inspection 历史 9 列）容器内横滑，页面无整体横向滚动；
  * - 图表区域手机端优化：隐藏 Y 轴、负 margin（chart 容器不溢出）。
  */
-
-const FIXTURE_SECRET = BLF611_FIXTURE_SECRET
-
-async function forgeSessionToken(): Promise<string> {
-  return encode({
-    token: {
-      uid: '1',
-      isAdmin: true,
-      roleType: 'admin',
-      operatorNameZh: 'E2E',
-      sessionId: 'e2e-session',
-      name: 'E2E',
-      email: 'e2e@example.com',
-      sub: '1',
-    },
-    secret: FIXTURE_SECRET,
-    salt: 'authjs.session-token',
-  })
-}
 
 const SESSION = {
   user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', operatorNameZh: '测试' },
@@ -175,7 +154,7 @@ async function expectNoPageHorizontalOverflow(page: import('@playwright/test').P
   const offenders = await page.evaluate(() => {
     // 排除三类“预期内 scrollWidth > clientWidth”的容器，避免误报：
     // 1. 自身就是 overflow-x-auto/overflow-auto 的表格横滑容器（规则 10）；
-    // 2. 含 overflow-x-auto 后代的 dashboard-surface（overflow-hidden 裁剪表格）；
+    // 2. 含 overflow-x-auto 后代的面板容器（overflow-hidden 裁剪表格）；
     // 3. truncate 文本省略号 span（overflow-hidden + text-overflow: ellipsis）。
     const overflowHidden = Array.from(
       document.querySelectorAll('[class*="overflow-hidden"]')
@@ -196,30 +175,36 @@ async function expectNoPageHorizontalOverflow(page: import('@playwright/test').P
         cw: el.clientWidth,
       }))
   })
-  if (offenders.length > 0) {
-    console.log('OVERFLOW_OFFENDERS=' + JSON.stringify(offenders))
-  }
   expect(offenders.length, '页面级容器不应出现横向溢出（表格内部横滑除外）').toBe(0)
 }
 
 /**
  * 在 portfolio-overview 选中项目 + 近7天日期范围，触发数据加载。
- * 注：项目多选 Popover 选中后保持展开，需 Escape 关闭，否则会拦截后续点击；
- * RangeDatePickerWithPresets 空值时内部已默认近7天，trigger 文案为日期区间。
+ * 注：项目多选 Popover 可多选，选中项目后按 Escape 关闭；日期 Popover 通过再次点 trigger 关闭。
  */
 async function selectPortfolioScope(page: import('@playwright/test').Page) {
-  const projectTrigger = page.getByRole('combobox').first()
+  const filterToggle = page.getByRole('button', { name: '切换页面筛选' })
+  // useIsMobile resolves after hydration; wait for the mobile strip instead of branching on the SSR frame.
+  await expect(filterToggle).toBeVisible({ timeout: 15000 })
+  await filterToggle.click()
+  await expect(filterToggle).toHaveAttribute('aria-expanded', 'true')
+  const filterGrid = page.getByTestId('mobile-filter-strip-grid')
+  const scope = filterGrid
+  const projectTrigger = scope.getByTestId('portfolio-project-trigger')
   await expect(projectTrigger).toBeVisible({ timeout: 30000 })
   await projectTrigger.click()
-  // 项目列表异步加载，先等 option 出现再点击，避免竞态
-  await page.getByRole('option', { name: 'E2E 测试项目' }).waitFor({ timeout: 15000 })
-  await page.getByRole('option', { name: 'E2E 测试项目' }).click()
+  // 等待异步项目列表加载；选择实际项目会触发 portfolio 数据查询。
+  const projectOption = page.getByRole('option', { name: 'E2E 测试项目' })
+  await expect(projectOption).toBeVisible({ timeout: 15000 })
+  await projectOption.click()
   await page.keyboard.press('Escape')
 
-  const dateTrigger = page.getByRole('button', { name: /~\s*\d{4}-\d{2}-\d{2}/ }).first()
+  const dateTrigger = filterGrid.getByRole('button', { name: /\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}/ }).first()
   await expect(dateTrigger).toBeVisible({ timeout: 15000 })
   await dateTrigger.click()
   await page.getByRole('button', { name: '近7天' }).click()
+  // RangeDatePicker 提交后 Popover 保持打开；再次点击触发按钮关闭，避免覆盖后续交互。
+  await dateTrigger.click()
 }
 
 async function mockOpsBackend(page: import('@playwright/test').Page) {
@@ -257,35 +242,47 @@ async function mockOpsBackend(page: import('@playwright/test').Page) {
 test.beforeEach(({}, testInfo) => {
   test.skip(
     testInfo.project.name !== 'mobile',
-    'operations-mobile-blf614 仅在 mobile project 运行（断言依赖手机端视口）'
+    'operations-mobile-blf614 在 mobile project 运行；桌面零回归用例会自行切换至 1440px 视口'
   )
 })
 
 test.beforeEach(async ({ page, context }) => {
   await mockOpsBackend(page)
-  await context.addCookies([
-    {
-      name: 'authjs.session-token',
-      value: await forgeSessionToken(),
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ])
+  await addBLF611FixtureAuth(context)
 })
 
 test.describe('@mobile-blf614 portfolio-overview 手机端（BLF-614）', () => {
   test('KPI 卡一行两个 + 筛选 2 列网格 + 对比表容器内横滑 + 页面无横向滚动', async ({ page }) => {
     await page.goto('/dashboard/operations/portfolio-overview')
     await selectPortfolioScope(page)
+    // Portfolio 筛选控件稳定钩子，验证规则 2：项目/日期占整行，国家保持半行。
+    const grid = page.getByTestId('mobile-filter-strip-grid')
+    const filterControls = grid.getByTestId('portfolio-filter-controls')
+    const projectTrigger = filterControls.getByTestId('portfolio-project-trigger')
+    const countryTrigger = filterControls.getByRole('combobox').nth(1)
+    await expect(grid).toBeVisible()
+    await expect(projectTrigger).toBeVisible()
+    await expect(countryTrigger).toBeVisible()
+    const projectBox = (await projectTrigger.boundingBox())!
+    const countryBox = (await countryTrigger.boundingBox())!
+    const dateBox = (await filterControls.getByRole('button', { name: /\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}/ }).boundingBox())!
+    const gridColumns = await grid.evaluate(
+      (element) => getComputedStyle(element).gridTemplateColumns.split(' ').length
+    )
+    const filterViewport = page.viewportSize()!
+    expect(gridColumns).toBe(2)
+    expect(projectBox.width).toBeGreaterThan(filterViewport.width * 0.75)
+    expect(countryBox.width).toBeLessThan(filterViewport.width * 0.7)
+    expect(countryBox.y).toBeGreaterThan(projectBox.y + 10)
+    expect(dateBox.y).toBeGreaterThan(countryBox.y + 10)
+    expect(dateBox.width).toBeGreaterThan(filterViewport.width * 0.75)
+
     // KPI 卡渲染且一行两个
-    const kpiLabels = ['总销售额', '总订单量', '总广告费', '平均转化率']
-    await expect(page.getByText('总销售额')).toBeVisible({ timeout: 30000 })
-    const card = page.getByText('总销售额').locator('..').locator('..')
-    const firstBox = (await card.boundingBox())!
-    const secondCard = page.getByText('总订单量').locator('..').locator('..')
-    const secondBox = (await secondCard.boundingBox())!
+    const kpiCards = page.getByTestId('portfolio-kpi-card')
+    await expect(kpiCards.first()).toBeVisible({ timeout: 30000 })
+    await expect(kpiCards).toHaveCount(5)
+    const firstBox = (await kpiCards.nth(0).boundingBox())!
+    const secondBox = (await kpiCards.nth(1).boundingBox())!
     expect(Math.abs(firstBox.y - secondBox.y)).toBeLessThan(2)
     const viewport = page.viewportSize()!
     expect(firstBox.width).toBeLessThan(viewport.width * 0.7)
@@ -379,15 +376,17 @@ test.describe('@mobile-blf614 平台巡检 手机端（BLF-614）', () => {
 
 test.describe('@mobile-blf614 桌面零回归（BLF-614）', () => {
   test('1440：portfolio KPI 一行五个 + 筛选横向排列 + 对比表全宽可见', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+    // 先在手机断点用可见的折叠筛选条选择真实项目，再放大视口检查桌面布局。
     await page.goto('/dashboard/operations/portfolio-overview')
     await selectPortfolioScope(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(page.getByTestId('terminal-header-slot')).toBeVisible()
     // KPI 一行五个（lg:grid-cols-5）
-    const first = page.getByText('总销售额').locator('..').locator('..')
-    const fifth = page.getByText('项目数量').locator('..').locator('..')
-    await expect(first).toBeVisible({ timeout: 15000 })
-    const b0 = (await first.boundingBox())!
-    const b4 = (await fifth.boundingBox())!
+    const kpiCards = page.getByTestId('portfolio-kpi-card')
+    await expect(kpiCards.first()).toBeVisible({ timeout: 15000 })
+    await expect(kpiCards).toHaveCount(5)
+    const b0 = (await kpiCards.nth(0).boundingBox())!
+    const b4 = (await kpiCards.nth(4).boundingBox())!
     expect(Math.abs(b0.y - b4.y)).toBeLessThan(2)
 
     // 对比表桌面全宽展示

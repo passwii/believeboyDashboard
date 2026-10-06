@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * Motion-system performance regression.
@@ -17,7 +18,8 @@ test.describe('motion system performance', () => {
   // CI: production webServer cold start + 5 个路由切换 + 800ms × 5 等待，需要 60s+
   test.setTimeout(60_000)
 
-  test('route switching does not regress INP/CLS', async ({ page }) => {
+  test('route switching does not regress INP/CLS', async ({ page, context }) => {
+    await addBLF611FixtureAuth(context)
     // addInitScript 在每个新 page document 创建前注入，跨 page.goto 持久化
     await page.addInitScript(() => {
       ;(window as unknown as { __perfMetrics: { inp: number; cls: number } }).__perfMetrics = {
@@ -62,6 +64,8 @@ test.describe('motion system performance', () => {
     })
 
     await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/)
+    await expect(page.getByRole('main')).toBeVisible()
     await page.waitForLoadState('networkidle')
 
     // Drive a representative route tour through the dashboard.

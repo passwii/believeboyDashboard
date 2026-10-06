@@ -325,6 +325,15 @@ vi.mock('@/components/notifications', () => ({
 3. `backend/scripts/agent_testing/conftest.py`：在 `TEST_ACCOUNTS` dict 加一项（**两边都要，且邮箱、密码、env 变量名一致**）。
 4. 重跑 `python scripts/setup_test_db.py --reset-password`。
 
+### Playwright motion/a11y CI 覆盖边界（BLF-1253）
+
+`motion-system-ci` grep 涵盖的 motion/a11y spec 必须明确验证实际页面，而不是把未认证的 `/dashboard` 登录重定向当作通过：
+
+- `tests/setup/blf611-fixture.ts` 的 `addBLF611FixtureAuth(context)` 通过测试专用 JWE 建立本地 session；使用它的 spec 仍应断言目标 URL 落在 `/dashboard`，并等待主内容挂载。
+- `reduced-motion.spec.ts` 检查已认证 dashboard 路由切换后的 transition transform；`motion-system.spec.ts` 对已认证 dashboard 与 AI chat 页面运行 axe；`motion-budget.spec.ts` 也以相同 fixture 执行路由性能巡检。
+- `reduced-transparency.spec.ts` 在已认证 dashboard 上检查 spotlight strength。当前 dashboard 没有 spotlight 卡片时，该场景仍以显式 skip 报告，不视为真实覆盖；需在有卡片页面下再补充验证。
+- 该 fixture 仅为前端 UI 测试签发，不验证后端会话撤销、真实用户权限或生产认证；自包含页面需继续 mock 数据接口。
+
 ### 加一个 Playwright E2E 测试
 
 #### Python (backend agent)
