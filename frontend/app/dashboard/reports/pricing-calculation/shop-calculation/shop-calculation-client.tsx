@@ -88,6 +88,16 @@ export default function ShopCalculationPage() {
   // Stats state (lifted from sections to render in hero)
   const [statsLoading, setStatsLoading] = useState(false)
   const [stats, setStats] = useState({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+  const setStatsIfChanged = (next: typeof stats) => {
+    setStats((current) =>
+      current.total === next.total &&
+      current.calculated === next.calculated &&
+      current.profitable === next.profitable &&
+      current.passRate === next.passRate
+        ? current
+        : next
+    )
+  }
 
   // ── Pricing history snapshot state ─────────────────────────────────────────
   // selectedSnapshotId 与 URL ?snapshot=<id> 双向同步：
@@ -177,7 +187,7 @@ export default function ShopCalculationPage() {
   useEffect(() => {
     async function loadStats() {
       if (!selectedProjectName || !selectedProjectId) {
-        setStats({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+        setStatsIfChanged({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
         return
       }
       setStatsLoading(true)
@@ -199,13 +209,13 @@ export default function ShopCalculationPage() {
             }
             setSnapshotMap(snapMap)
             setStoreSkus([]) // 快照模式下不显示当前 SKU 列表
-            setStats(payload.summary ?? { total: 0, calculated: 0, profitable: 0, passRate: 0 })
+            setStatsIfChanged(payload.summary ?? { total: 0, calculated: 0, profitable: 0, passRate: 0 })
           } else {
             // 快照拉取失败（可能快照已删除），回退实时
             notify({ type: 'error', title: '快照加载失败，已切换回实时数据' })
             setSelectedSnapshotId(null)
             setSnapshotMap(new Map())
-            setStats({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+            setStatsIfChanged({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
           }
           return
         }
@@ -250,9 +260,9 @@ export default function ShopCalculationPage() {
           return profit !== undefined && profit >= 0
         }).length
         const passRate = calculated > 0 ? (profitable / calculated) * 100 : 0
-        setStats({ total, calculated, profitable, passRate })
+        setStatsIfChanged({ total, calculated, profitable, passRate })
       } catch {
-        setStats({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+        setStatsIfChanged({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
       } finally {
         setStatsLoading(false)
       }
