@@ -31,6 +31,28 @@ const STAGE_LABELS: Record<string, string> = {
   converted: '已转化',
 }
 
+function areDashboardStatsEqual(current: DashboardStats, next: DashboardStats): boolean {
+  const currentStageKeys = Object.keys(current.leadFunnel)
+  const nextStageKeys = Object.keys(next.leadFunnel)
+
+  return (
+    currentStageKeys.length === nextStageKeys.length &&
+    nextStageKeys.every((key) => current.leadFunnel[key] === next.leadFunnel[key]) &&
+    current.newThisMonth.newCustomers === next.newThisMonth.newCustomers &&
+    current.newThisMonth.newLeads === next.newThisMonth.newLeads &&
+    current.newThisMonth.convertedCount === next.newThisMonth.convertedCount &&
+    current.followActivity.followCount7d === next.followActivity.followCount7d &&
+    current.perOwner.length === next.perOwner.length &&
+    current.perOwner.every(
+      (owner, index) =>
+        owner.ownerId === next.perOwner[index]?.ownerId &&
+        owner.ownerName === next.perOwner[index]?.ownerName &&
+        owner.customerCount === next.perOwner[index]?.customerCount &&
+        owner.convertedThisMonth === next.perOwner[index]?.convertedThisMonth
+    )
+  )
+}
+
 /** BLF-837：KPI 终端磁贴（mono 数值 + 大写标签，portfolio-overview 同规格）。 */
 function KpiTile({
   label,
@@ -82,7 +104,9 @@ export default function CrmDashboardPage() {
         client.getDashboardStats(),
         client.getLifecycleBoard(),
       ])
-      setStats(statsRes)
+      setStats((current) =>
+        current && areDashboardStatsEqual(current, statsRes) ? current : statsRes
+      )
       setLifecycle(lifecycleRes)
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载看板失败')

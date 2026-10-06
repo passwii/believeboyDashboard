@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
@@ -182,7 +181,6 @@ function ComparisonTable({
 
 export default function PortfolioOverviewClient() {
   const router = useRouter()
-  const { data: session } = useSession()
   const [projectIds, setProjectIds] = useState<number[]>([])
   const [country, setCountry] = useState('US')
   const [startDate, setStartDate] = useState('')
@@ -240,10 +238,6 @@ export default function PortfolioOverviewClient() {
       />}
     />
   )
-
-  useEffect(() => {
-    void session
-  }, [session])
 
   const tabs: Array<{ key: Tab; label: string; icon: LucideIcon }> = [
     { key: 'comparison', label: '项目对比', icon: BarChart3 },
