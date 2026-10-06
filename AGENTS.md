@@ -47,6 +47,8 @@
 - **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
 - 失败立即修；全过再走业务测试清单（交用户手动验）。
 
+> 本节引用的实测数字（420s / 900s、225 failed / 155 errors 等）为 **Damon 本机（macOS）2026-10-05 单次实测**，只作量级参考，**不是通用基准**。
+
 ## 关键约定
 
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`），因其按 `X-Operator` 过滤可见项目。
