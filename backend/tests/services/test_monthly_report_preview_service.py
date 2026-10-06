@@ -66,14 +66,22 @@ def test_build_uses_real_kernel_without_database(transaction_csv, tmp_path, monk
     assert _hash(artifacts.workbook_path) == artifacts.workbook_sha256
 
 
-def test_preview_matches_existing_kernel(transaction_csv, tmp_path):
+@pytest.mark.parametrize("country", ["US", "DE", "UK"])
+def test_preview_matches_existing_kernel(transaction_csv, tmp_path, country):
     from app.tasks.scripts.monthly_report import run
     from app.services.monthly_report_preview_service import load_preview
 
+    from app.services.monthly_report_preview_service import build_preview
+
     baseline = run(str(transaction_csv), str(tmp_path / "baseline"), {
-        "project_name": "Preview project", "country": "US", "report_month": "2026-10",
+        "project_name": "Preview project", "country": country, "report_month": "2026-10",
     })
-    result = load_preview(_build(transaction_csv, tmp_path / "draft"))
+    artifacts = build_preview(
+        transaction_path=transaction_csv, output_dir=tmp_path / "draft",
+        project_name="Preview project", country=country, report_month="2026-10",
+        expected_input_sha256=_hash(transaction_csv),
+    )
+    result = load_preview(artifacts)
     assert result["pt3"] == baseline["pt3"]
     assert result["pt4"] == baseline["pt4"]
     assert result["transactions"] == baseline["transactions"]
@@ -237,3 +245,64 @@ def test_missing_input_fails_before_output_created(tmp_path):
                       project_name="X", country="US", report_month="2026-10",
                       expected_input_sha256="0" * 64)
     assert not (tmp_path / "draft").exists()
+
+
+def test_large_decimal_roundtrip_is_lossless(transaction_csv, tmp_path, monkeypatch):
+    from app.services import monthly_report_preview_service as service
+
+    original = service.monthly_report.run
+    precise = Decimal("12345678901234567890.12345678901234567890")
+
+    def exact_metrics(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result["pt3"]["income_total"] = precise
+        return result
+
+    monkeypatch.setattr(service.monthly_report, "run", exact_metrics)
+    restored = service.load_preview(_build(transaction_csv, tmp_path / "draft"))
+    assert restored["pt3"]["income_total"].as_tuple() == precise.as_tuple()
+
+
+def test_worker_soft_timeout_cleans_partial_artifacts(transaction_csv, tmp_path, monkeypatch):
+    from billiard.exceptions import SoftTimeLimitExceeded
+    from app.services import monthly_report_preview_service as service
+
+    def timeout(input_path, output_dir, params):
+        (Path(output_dir) / "partial.xlsx").write_bytes(b"partial")
+        raise SoftTimeLimitExceeded()
+
+    monkeypatch.setattr(service.monthly_report, "run", timeout)
+    with pytest.raises(SoftTimeLimitExceeded):
+        _build(transaction_csv, tmp_path / "draft")
+    assert not (tmp_path / "draft").exists()
+
+
+def test_kernel_cannot_publish_workbook_outside_build(transaction_csv, tmp_path, monkeypatch):
+    from app.services import monthly_report_preview_service as service
+
+    outside = tmp_path / "other.xlsx"
+    outside.write_bytes(b"keep")
+    original = service.monthly_report.run
+
+    def escaped_workbook(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result["result_path"] = str(outside)
+        return result
+
+    monkeypatch.setattr(service.monthly_report, "run", escaped_workbook)
+    with pytest.raises(service.PreviewIntegrityError):
+        _build(transaction_csv, tmp_path / "draft")
+    assert outside.read_bytes() == b"keep"
+    assert not (tmp_path / "draft").exists()
+
+
+def test_payload_input_binding_cannot_change(transaction_csv, tmp_path):
+    from dataclasses import replace
+    from app.services.monthly_report_preview_service import load_preview, PreviewIntegrityError
+
+    artifacts = _build(transaction_csv, tmp_path / "draft")
+    body = json.loads(artifacts.payload_path.read_text())
+    body["input_sha256"] = "0" * 64
+    artifacts.payload_path.write_text(json.dumps(body))
+    with pytest.raises(PreviewIntegrityError):
+        load_preview(replace(artifacts, payload_sha256=_hash(artifacts.payload_path)))
