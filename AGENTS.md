@@ -42,6 +42,7 @@
 
 - **前端可裸跑全量**（BLF-1238 已修）：`pnpm test` = 235 文件 / 1660 例 / **~43s**（本机较空闲）～**~2 分钟**（同机其他 agent 满载，实测 59s / 79s / 124s）。T1/T2 仍优先带路径过滤，T3 才跑全量；判「挂住」不看绝对秒数，看是否在推进（见下条）。
 - **卡住判型（BLF-1238 教训）**：跑到 60s 仍无 `Test Files` 汇总 + 某 worker 长时间 100%+ CPU = 某文件**无限渲染循环**（不是「慢」）；`--testTimeout` / `vi.waitFor` 救不了（微任务链饿死计时器，表现为永久挂起而非超时失败）。二分与根因规则见 [TESTING.md](./TESTING.md) §前端单测。
+- **mock 稳定性机械检查（BLF-1247）**：`cd frontend && pnpm check:mocks`——扫 `frontend/**/*.test.{ts,tsx}`，命中「mock 工厂里内联新建 `useSession.data` / `useNotifications.notify`」即 `exit 1` 并给 `file:line` + 修法（已接进 `pnpm test` 入口，命中则 vitest 不启动）。修法一律用 `frontend/test-utils/stable-mocks.ts` 的 `stableSession()` / `stableNotifications()`；**不要在脚本里加白名单放过**（判据自测在 `frontend/scripts/check-unstable-mocks.test.mjs`）。口径详见 [TESTING.md](./TESTING.md) §机械拦截。
 - **失败集对账（替代基线全量）**：PR 上跑**一次**全量拿失败列表 → 只把**失败的用例文件**在 main 上跑一遍对账 → **不再跑第二遍全量**。
 - 后端没有 CI（`.github/workflows` 无后端任务），T3 的全量是唯一信号源，别省。**不要用 `pytest -n auto`**：共享 `BLF_test` 上 autouse `TRUNCATE` 会让 worker 互相死锁（实测 225 failed / 155 errors）。
 - 命令：后端 `cd backend && pytest`（单个 `pytest tests/path::test_x`）；前端 `pnpm lint` / `pnpm build`（可交 Vercel）/ `vitest run <路径>`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。

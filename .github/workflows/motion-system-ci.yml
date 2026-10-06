@@ -43,6 +43,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Mock stability check (BLF-1247)
+        # 拦截 mock 工厂里内联新建 useSession.data / useNotifications.notify 的写法
+        # （BLF-1238 全量 vitest 不收敛的原料）。脚本只用 node 内置模块，可独立跑。
+        run: pnpm check:mocks
+
       - name: Generate API types (type-check sanity)
         run: pnpm gen:api-types:check
 
