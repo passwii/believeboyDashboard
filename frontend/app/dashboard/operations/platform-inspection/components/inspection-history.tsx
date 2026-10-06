@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { StatusPill } from '@/components/ui/table-presets'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
@@ -57,6 +58,21 @@ function formatDateTime(dateStr: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function HealthRatingBadge({ rating }: { rating: string }) {
+  switch (rating.toLowerCase()) {
+    case 'critical':
+      return <StatusPill status="negative" label="危险" />
+    case 'healthy':
+      return <StatusPill status="success" label="健康" />
+    default:
+      return (
+        <Badge variant="outline" className="text-xs">
+          {rating}
+        </Badge>
+      )
+  }
 }
 
 function DetailSheet({
@@ -428,9 +444,7 @@ export default function InspectionHistory({ periodId, refreshKey }: InspectionHi
                       </TableCell>
                       <TableCell>
                         {item.account_health_rating ? (
-                          <Badge variant="outline" className="text-xs">
-                            {item.account_health_rating}
-                          </Badge>
+                          <HealthRatingBadge rating={item.account_health_rating} />
                         ) : (
                           '-'
                         )}
