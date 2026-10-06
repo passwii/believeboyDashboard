@@ -1,7 +1,7 @@
 /**
- * 项目启动台 API 客户端（BLF-1234）。
+ * 项目启动台 API 客户端（BLF-1237）。
  *
- * 契约权威：`docs/superpowers/specs/2026-10-05-project-launch-dashboard-design.md` §5
+ * 契约权威：`docs/superpowers/specs/2026-10-05-project-launch-template-customization-design.md` §9
  * + `backend/app/schemas/project_workflow.py`。后端 JSON 为 snake_case，本文件
  * 的类型沿用 snake_case（不转换），保证与契约逐字对齐。
  *
@@ -85,6 +85,23 @@ export type ProjectWorkflowTemplatesResponse = {
   templates: ProjectWorkflowTemplateOption[]
 }
 
+export type WorkflowContent = {
+  id: number
+  title: string | null
+  body: string
+  sort_order: number
+}
+
+export type WorkflowAttachment = {
+  id: number
+  filename: string
+  content_type: string
+  file_size: number
+  uploader: string | null
+  created_at: string
+  origin?: 'upload' | 'template' | null
+}
+
 export type ProjectWorkflowTask = {
   id: number
   workflow_id: number
@@ -93,6 +110,12 @@ export type ProjectWorkflowTask = {
   sort_order: number
   status: WorkflowStatus
   attachment_key: string | null
+  duration_days: number | null
+  start_date: string | null
+  end_date: string | null
+  span_days: number | null
+  contents: WorkflowContent[]
+  attachments: WorkflowAttachment[]
 }
 
 export type ProjectWorkflow = {
@@ -104,6 +127,10 @@ export type ProjectWorkflow = {
   status: WorkflowStatus
   task_count: number
   completed_task_count: number
+  start_date: string | null
+  schedule_start: string | null
+  schedule_end: string | null
+  schedule_days: number | null
   tasks: ProjectWorkflowTask[]
 }
 
@@ -120,11 +147,18 @@ export type ProjectWorkflowSummaryWorkflow = {
   status: WorkflowStatus
   completed_task_count: number
   task_count: number
+  start_date: string | null
+  schedule_start: string | null
+  schedule_end: string | null
+  schedule_days: number | null
 }
 
 export type ProjectWorkflowSummaryItem = {
   project_id: number
   workflows: ProjectWorkflowSummaryWorkflow[]
+  schedule_start: string | null
+  schedule_end: string | null
+  schedule_days: number | null
 }
 
 export type ProjectWorkflowSummaryResponse = {
@@ -135,6 +169,68 @@ export type ProjectWorkflowCreateInput = {
   kind: WorkflowKind
   template_key: string
   title?: string
+  start_date?: string | null
+}
+
+export type AdminWorkflowTemplate = {
+  id: number
+  key: string
+  kind: WorkflowKind
+  title: string
+  description: string | null
+  sort_order: number
+  task_count: number
+}
+
+export type WorkflowTemplateTask = {
+  id: number
+  template_id: number
+  title: string
+  description: string | null
+  sort_order: number
+  attachment_key: string | null
+  duration_days: number | null
+  contents: WorkflowContent[]
+  attachments: WorkflowAttachment[]
+}
+
+export type WorkflowTemplateDetail = AdminWorkflowTemplate & {
+  tasks: WorkflowTemplateTask[]
+}
+
+export type WorkflowTemplateListResponse = { templates: AdminWorkflowTemplate[] }
+
+export type WorkflowTemplateCreateInput = {
+  kind: WorkflowKind
+  title: string
+  description?: string | null
+  key?: string
+  sort_order?: number
+}
+
+export type WorkflowTemplateUpdateInput = {
+  title?: string
+  description?: string | null
+  sort_order?: number
+}
+
+export type WorkflowTemplateTaskInput = {
+  title: string
+  description?: string | null
+  attachment_key?: string | null
+  duration_days?: number | null
+  sort_order?: number
+}
+
+export type WorkflowTaskDefinitionInput = Omit<WorkflowTemplateTaskInput, 'sort_order'> & {
+  start_date?: string | null
+  end_date?: string | null
+}
+
+export type WorkflowContentInput = {
+  title?: string | null
+  body: string
+  sort_order?: number
 }
 
 // ============================================================================
@@ -215,7 +311,7 @@ export function resolveDocumentFilename(attachmentKey: string | null | undefined
 
 type RequestOptions = {
   session?: Session | null
-  method?: 'GET' | 'POST' | 'PATCH'
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
   fallbackError: string
   timeoutMs?: number
@@ -238,6 +334,26 @@ async function requestJson<T>(path: string, options: RequestOptions): Promise<T>
     throw new Error(await parseResponseError(response, options.fallbackError))
   }
 
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
+async function requestMultipart<T>(
+  path: string,
+  file: File,
+  session: Session | null | undefined,
+  fallbackError: string
+): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetchWithTimeout(`${PROJECT_WORKFLOWS_API_BASE}${path}`, {
+    method: 'POST',
+    timeoutMs: DOWNLOAD_TIMEOUT_MS,
+    cache: 'no-store',
+    headers: buildBackendClientHeaders(session ?? null, { accept: 'application/json' }),
+    body: form,
+  })
+  if (!response.ok) throw new Error(await parseResponseError(response, fallbackError))
   return (await response.json()) as T
 }
 
@@ -258,6 +374,179 @@ export async function fetchWorkflowSummary(
   return requestJson<ProjectWorkflowSummaryResponse>('/project-workflows/summary', {
     session,
     fallbackError: '流程概要加载失败',
+  })
+}
+
+export async function fetchAdminTemplates(
+  session?: Session | null
+): Promise<WorkflowTemplateListResponse> {
+  return requestJson<WorkflowTemplateListResponse>('/project-workflows/admin/templates', {
+    session,
+    fallbackError: '模板列表加载失败',
+  })
+}
+
+export async function fetchAdminTemplate(
+  templateId: number,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/templates/${templateId}`, {
+    session,
+    fallbackError: '模板详情加载失败',
+  })
+}
+
+export async function createTemplate(
+  input: WorkflowTemplateCreateInput,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>('/project-workflows/admin/templates', {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '创建模板失败',
+  })
+}
+
+export async function updateTemplate(
+  templateId: number,
+  input: WorkflowTemplateUpdateInput,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/templates/${templateId}`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存模板失败',
+  })
+}
+
+export async function deleteTemplate(
+  templateId: number,
+  session?: Session | null
+): Promise<void> {
+  return requestJson<void>(`/project-workflows/admin/templates/${templateId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除模板失败',
+  })
+}
+
+export async function copyTemplate(
+  templateId: number,
+  input: { title?: string; key?: string },
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/templates/${templateId}/copy`, {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '复制模板失败',
+  })
+}
+
+export async function createTemplateTask(
+  templateId: number,
+  input: WorkflowTemplateTaskInput,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/templates/${templateId}/tasks`, {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '新增模板节点失败',
+  })
+}
+
+export async function updateTemplateTask(
+  taskId: number,
+  input: Partial<WorkflowTemplateTaskInput>,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-tasks/${taskId}`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存模板节点失败',
+  })
+}
+
+export async function deleteTemplateTask(taskId: number, session?: Session | null): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-tasks/${taskId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除模板节点失败',
+  })
+}
+
+export async function reorderTemplateTasks(
+  templateId: number,
+  taskIds: number[],
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/templates/${templateId}/tasks/order`, {
+    session,
+    method: 'PUT',
+    body: { task_ids: taskIds },
+    fallbackError: '节点排序失败',
+  })
+}
+
+export async function createTemplateContent(
+  taskId: number,
+  input: WorkflowContentInput,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-tasks/${taskId}/contents`, {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '新增内容失败',
+  })
+}
+
+export async function updateTemplateContent(
+  contentId: number,
+  input: Partial<WorkflowContentInput>,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-task-contents/${contentId}`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存内容失败',
+  })
+}
+
+export async function deleteTemplateContent(contentId: number, session?: Session | null): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-task-contents/${contentId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除内容失败',
+  })
+}
+
+export async function uploadTemplateTaskAttachment(
+  taskId: number,
+  file: File,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestMultipart(
+    `/project-workflows/admin/template-tasks/${taskId}/attachments`,
+    file,
+    session,
+    '上传模板附件失败'
+  )
+}
+
+export async function deleteTemplateTaskAttachment(
+  attachmentId: number,
+  session?: Session | null
+): Promise<WorkflowTemplateDetail> {
+  return requestJson<WorkflowTemplateDetail>(`/project-workflows/admin/template-task-attachments/${attachmentId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除模板附件失败',
   })
 }
 
@@ -284,6 +573,146 @@ export async function createProjectWorkflow(
     body: input,
     fallbackError: '创建流程失败',
   })
+}
+
+export async function updateWorkflowDefinition(
+  workflowId: number,
+  input: { title?: string; start_date?: string | null },
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/project-workflows/${workflowId}`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存流程设置失败',
+  })
+}
+
+export async function createProjectTask(
+  projectId: number,
+  workflowId: number,
+  input: WorkflowTemplateTaskInput,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/projects/${projectId}/workflows/${workflowId}/tasks`, {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '新增节点失败',
+  })
+}
+
+export async function updateProjectTaskDefinition(
+  taskId: number,
+  input: Partial<WorkflowTaskDefinitionInput>,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/project-workflow-tasks/${taskId}/definition`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存节点失败',
+  })
+}
+
+export async function deleteProjectTask(taskId: number, session?: Session | null): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/project-workflow-tasks/${taskId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除节点失败',
+  })
+}
+
+export async function reorderProjectTasks(
+  projectId: number,
+  workflowId: number,
+  taskIds: number[],
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/projects/${projectId}/workflows/${workflowId}/tasks/order`, {
+    session,
+    method: 'PUT',
+    body: { task_ids: taskIds },
+    fallbackError: '节点排序失败',
+  })
+}
+
+export async function createProjectContent(
+  projectId: number,
+  taskId: number,
+  input: WorkflowContentInput,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/projects/${projectId}/workflow-tasks/${taskId}/contents`, {
+    session,
+    method: 'POST',
+    body: input,
+    fallbackError: '新增节点内容失败',
+  })
+}
+
+export async function updateProjectContent(
+  contentId: number,
+  input: Partial<WorkflowContentInput>,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/project-workflow-task-contents/${contentId}`, {
+    session,
+    method: 'PATCH',
+    body: input,
+    fallbackError: '保存节点内容失败',
+  })
+}
+
+export async function deleteProjectContent(contentId: number, session?: Session | null): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/project-workflow-task-contents/${contentId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除节点内容失败',
+  })
+}
+
+export async function uploadTaskAttachment(
+  projectId: number,
+  taskId: number,
+  file: File,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestMultipart(
+    `/projects/${projectId}/workflow-tasks/${taskId}/attachments`,
+    file,
+    session,
+    '上传附件失败'
+  )
+}
+
+export async function deleteTaskAttachment(
+  projectId: number,
+  attachmentId: number,
+  session?: Session | null
+): Promise<ProjectWorkflow> {
+  return requestJson<ProjectWorkflow>(`/projects/${projectId}/workflow-task-attachments/${attachmentId}`, {
+    session,
+    method: 'DELETE',
+    fallbackError: '删除附件失败',
+  })
+}
+
+export async function downloadTaskAttachment(
+  projectId: number,
+  attachment: WorkflowAttachment,
+  session?: Session | null
+): Promise<void> {
+  const response = await fetchWithTimeout(
+    `${PROJECT_WORKFLOWS_API_BASE}/projects/${projectId}/workflow-task-attachments/${attachment.id}/download`,
+    {
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
+      cache: 'no-store',
+      headers: buildBackendClientHeaders(session ?? null),
+    }
+  )
+  if (!response.ok) throw new Error(await parseResponseError(response, '附件下载失败'))
+  downloadBlob(await response.blob(), attachment.filename)
 }
 
 /** 更新任务状态，返回其所属流程（含重新派生的状态）。 */

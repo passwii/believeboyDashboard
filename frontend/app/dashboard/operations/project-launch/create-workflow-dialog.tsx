@@ -58,6 +58,7 @@ export function CreateWorkflowDialog({
 }) {
   const [templateKey, setTemplateKey] = useState('')
   const [title, setTitle] = useState('')
+  const [startDate, setStartDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,6 +71,7 @@ export function CreateWorkflowDialog({
       templates.find((template) => template.key === defaultTemplateKey) ?? templates[0]
     setTemplateKey(preferred?.key ?? '')
     setTitle(preferred?.title ?? DEFAULT_PRODUCT_WORKFLOW_TITLE)
+    setStartDate('')
   }, [defaultTemplateKey, open, templates])
 
   const selected = templates.find((template) => template.key === templateKey) ?? null
@@ -99,6 +101,7 @@ export function CreateWorkflowDialog({
         kind: selected.kind,
         template_key: selected.key,
         title: trimmedTitle,
+        ...(startDate ? { start_date: startDate } : {}),
       })
       onOpenChange(false)
     } catch (submitError) {
@@ -151,6 +154,21 @@ export function CreateWorkflowDialog({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="workflow-start-date">计划开始日期</Label>
+              <Input
+                id="workflow-start-date"
+                data-testid="workflow-start-date-input"
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                disabled={submitting}
+              />
+              <p className="font-mono text-[11px] leading-4 text-term-muted">
+                创建时即按模板工期推算阶段日期；可稍后在流程设置中调整。
+              </p>
             </div>
 
             <div className="space-y-1.5">
