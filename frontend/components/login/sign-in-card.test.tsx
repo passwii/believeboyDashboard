@@ -167,6 +167,23 @@ describe('Terminal 登录页', () => {
     expect(replace).not.toHaveBeenCalled()
   }, 7000)
 
+  it('重试中展示实际最大重试次数', async () => {
+    vi.useFakeTimers()
+    signInImpl = vi.fn().mockResolvedValue({ error: 'CredentialsSignin', code: 'network_error' })
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: /登录/ }))
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(499) })
+    expect(screen.getByRole('status')).toHaveTextContent('网络不稳定，正在重试（1/2）…')
+    await act(async () => { await vi.advanceTimersByTimeAsync(501) })
+    expect(screen.getByRole('status')).toHaveTextContent('网络不稳定，正在重试（2/2）…')
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(screen.getByText(/无法连接到服务器/)).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
   it('网络错误后自动重试并在登录成功后继续跳转', async () => {
     signInImpl = vi
       .fn()

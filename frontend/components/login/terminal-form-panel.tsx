@@ -10,18 +10,19 @@ interface TerminalFormPanelProps {
   setPassword: (v: string) => void
   submitting: boolean
   retryAttempt: number
+  maxRetryAttempts: number
   error: string | null
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
 }
 
 const TerminalFormPanel = ({
-  email, setEmail, password, setPassword, submitting, retryAttempt, error, onSubmit,
+  email, setEmail, password, setPassword, submitting, retryAttempt, maxRetryAttempts, error, onSubmit,
 }: TerminalFormPanelProps) => {
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
   const inputClass = 'placeholder:text-term-placeholder'
   const status = submitting
     ? retryAttempt > 0
-      ? `网络不稳定，正在重试（${retryAttempt}/2）…`
+      ? `网络不稳定，正在重试（${retryAttempt}/${maxRetryAttempts}）…`
       : '正在安全验证登录信息…'
     : ''
 
