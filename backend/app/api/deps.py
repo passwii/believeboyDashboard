@@ -6,6 +6,7 @@ from fastapi import Header
 from sqlalchemy.orm import Session
 
 from app.core.security import require_api_key
+from app.db.query_timeout import install_statement_timeout
 from app.db.session import get_db, get_primary_db, get_read_db
 
 
@@ -27,6 +28,25 @@ def get_read_db_session(db: Session = Depends(get_read_db)) -> Session:
 
 def get_primary_db_session(db: Session = Depends(get_primary_db)) -> Session:
     """Primary-only session. Use for write handlers and write-after-read."""
+    return db
+
+
+def get_bounded_read_db_session(db: Session = Depends(get_read_db_session)) -> Session:
+    """Read-routed session **带事务级 statement_timeout 上限**（BLF-1262 Stage 1）。
+
+    与 `get_read_db_session` 的唯一区别：在 Session 上装一个 `after_begin` 监听器，
+    把 `statement_timeout` 收紧到 `Settings.order_info_statement_timeout_ms`
+    （默认 15s，全局兜底仍是 120s）。
+
+    **刻意不做成全局默认**：月报 / AI / 定时报告这些合法长跑端点要跑得比 15s 长，
+    在没有逐端点实测数据之前统一收紧等于把它们打挂。所以只让明确知道自己在
+    收窄的端点显式声明依赖。
+
+    非 Postgres 方言（SQLite 单测）下是 no-op，行为与 `get_read_db_session` 一致。
+    """
+    from app.core.config import get_settings
+
+    install_statement_timeout(db, get_settings().order_info_statement_timeout_ms)
     return db
 
 
