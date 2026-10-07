@@ -42,6 +42,11 @@ export function normalizeErrorMessage(value: unknown, fallback = GENERIC_ERROR_M
   return text || fallback
 }
 
+const ERROR_CODE_MESSAGES: Record<string, string> = {
+  QUERY_DEADLINE_EXCEEDED: '查询超时，请收窄筛选条件',
+  BACKEND_TIMEOUT: '后端响应超时，请稍后重试',
+}
+
 export function parseErrorText(text: string, fallback: string, status?: number): string {
   const raw = text.trim()
   if (!raw) {
@@ -49,9 +54,15 @@ export function parseErrorText(text: string, fallback: string, status?: number):
   }
 
   try {
-    const payload = JSON.parse(raw) as { detail?: unknown; message?: unknown; error?: unknown }
+    const payload = JSON.parse(raw) as {
+      code?: unknown
+      detail?: unknown
+      message?: unknown
+      error?: unknown
+    }
+    const codeMessage = typeof payload.code === 'string' ? ERROR_CODE_MESSAGES[payload.code] : undefined
     return normalizeErrorMessage(
-      payload.detail ?? payload.message ?? payload.error ?? raw,
+      codeMessage ?? payload.detail ?? payload.message ?? payload.error ?? raw,
       fallback
     )
   } catch {

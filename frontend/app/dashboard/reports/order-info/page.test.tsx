@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
+const projectListMock = vi.hoisted(() => vi.fn())
+
 // BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
 // 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
 const gfState = {
@@ -78,9 +80,7 @@ vi.mock('@/components/notifications', () => ({
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
-  fetchManagedProjectsCached: vi
-    .fn()
-    .mockResolvedValue([{ id: 1, name: '店铺A' }]),
+  fetchManagedProjectsCached: projectListMock,
 }))
 
 const MOCK_ITEMS = [
@@ -219,6 +219,7 @@ describe('订单信息页终端化（BLF-817）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fetchMock.mockClear()
+    projectListMock.mockResolvedValue([{ id: 1, name: '店铺A' }])
   })
 
   it('订单表使用实体 term 表头、规范数值列与选中态语义', async () => {
@@ -574,6 +575,83 @@ describe('订单信息页终端化（BLF-817）', () => {
     } finally {
       restore()
     }
+  })
+
+  it('项目列表失败时不发全店铺 overview，重试成功后恢复订单查询', async () => {
+    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+    resetGfAndParams()
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('店铺列表加载失败，已暂停订单查询以避免默认查询全部店铺。')
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(0)
+
+    projectListMock.mockResolvedValueOnce([{ id: 1, name: '店铺A' }])
+    await userEvent.setup().click(screen.getByRole('button', { name: '重试店铺列表' }))
+
+    await screen.findByText('111-1111111-0000001')
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('project_ids=1')
+    })
+  })
+
+  it('项目列表失败时仍尊重 URL 显式项目范围', async () => {
+    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+    resetGfAndParams()
+    mockSearchParams.get = vi.fn((key: string) => (key === 'project_id' ? '3' : null))
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('project_ids=3')
+      })
+    } finally {
+      mockSearchParams.get = vi.fn(() => null)
+    }
+  })
+
+  it('项目列表失败时仍尊重头部显式项目范围，不被自动选择改写', async () => {
+    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+    resetGfAndParams()
+    setGf({ projectId: '2' })
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('project_ids=2')
+    })
+  })
+
+  it('项目列表失败时仍允许用户主动选择全部项目', async () => {
+    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+    resetGfAndParams()
+    setGf({ projectId: 'all' })
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    await waitFor(() => {
+      const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/order-info/overview')
+      )
+      expect(overviewCalls.length).toBeGreaterThan(0)
+      expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
+    })
   })
 
   it('BLF-1019 filter-options 首次失败不锁死：提示重试、不误报未关联店铺，再次打开重试成功', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getProxyTimeoutMs, TIMEOUT_TIERS } from './backend-proxy-timeout-policy'
+import { getProxyTimeoutMs, getProxyTimeoutTier, TIMEOUT_TIERS } from './backend-proxy-timeout-policy'
 
 /**
  * BEL-417: `POST /api/v1/report-upload/commit` ingests large monthly reports
@@ -80,10 +80,10 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
-    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  it('does NOT over-match sibling order-info paths (only filter-options is covered here)', () => {
+    // /overview 与 /list 由 BLF-1263 的独立档位规则覆盖。
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(15_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(15_000)
   })
 })
 describe('Insight canonical stream timeout tier', () => {
@@ -135,10 +135,31 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
-    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  it('does NOT over-match sibling order-info paths (only filter-options is covered here)', () => {
+    // /overview 与 /list 由 BLF-1263 的独立档位规则覆盖。
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(15_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(15_000)
+  })
+})
+
+describe('BLF-1263 order-info proxy timeout tiers', () => {
+  it.each(['overview', 'list', 'stats', 'page', 'live-stream'])(
+    '%s 使用 15 秒 stats timeout',
+    (endpoint) => {
+      expect(getProxyTimeoutMs(`api/v1/order-info/${endpoint}`, 'application/json')).toBe(15_000)
+      expect(getProxyTimeoutTier(`api/v1/order-info/${endpoint}`, null).label).toBe('stats')
+    }
+  )
+
+  it('export 使用 60 秒 report timeout，且不影响其他路径', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/export', 'application/json')).toBe(60_000)
+    expect(getProxyTimeoutTier('api/v1/order-info/export', null).label).toBe('report')
+    expect(getProxyTimeoutMs('api/v1/order-info/export/csv', null)).toBe(5_000)
+  })
+
+  it('不会把其他 order-info 路由扩大到 stats 档', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', null)).toBe(15_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/unknown', null)).toBe(5_000)
   })
 })
 

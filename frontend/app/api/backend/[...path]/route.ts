@@ -13,7 +13,7 @@ import {
   toProxyResponse,
 } from '@/lib/server/backend-proxy'
 import { appendApiKeyQuery } from '@/lib/server/backend-api'
-import { getProxyTimeoutMs } from '@/lib/server/backend-proxy-timeout-policy'
+import { getProxyTimeoutTier } from '@/lib/server/backend-proxy-timeout-policy'
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
@@ -69,10 +69,12 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     )
   }
 
-  // Endpoint-tiered timeout: stream → no timeout, AI / report → 30-60s,
-  // detail / list → 5-10s. See `backend-proxy-timeout-policy.ts` for the
-  // tier table and matching rules.
-  const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept)
+  // Endpoint-tiered timeout: see `backend-proxy-timeout-policy.ts`.
+  const timeoutTier = getProxyTimeoutTier(backendPath, requestAccept)
+  const timeoutMs = timeoutTier.timeoutMs
+  const upstreamSignal = timeoutMs === 0
+    ? request.signal
+    : AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)])
 
   try {
     const response = await fetch(`${buildBackendUrl(backendPath)}${appendApiKeyQuery(search)}`, {
@@ -80,13 +82,29 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       headers: buildBackendProxyHeaders(session, request.headers),
       body: await getProxyRequestBody(request),
       cache: 'no-store',
-      // Stream endpoints: no timeout (let the connection close naturally when
-      // the backend finishes or the client disconnects). Other endpoints:
-      // the per-endpoint timeout from the tier table.
-      ...(timeoutMs === 0 ? {} : { signal: AbortSignal.timeout(timeoutMs) }),
+      signal: upstreamSignal,
     })
     return await toProxyResponse(response)
   } catch (error) {
+    if (request.signal.aborted) {
+      return NextResponse.json(
+        { message: '请求已取消', code: 'REQUEST_ABORTED' },
+        { status: 499 }
+      )
+    }
+
+    if (timeoutMs > 0 && upstreamSignal.aborted) {
+      return NextResponse.json(
+        {
+          message: '后端响应超时',
+          code: 'BACKEND_TIMEOUT',
+          tier: timeoutTier.label,
+          timeoutMs,
+        },
+        { status: 504 }
+      )
+    }
+
     return NextResponse.json(
       { message: normalizeErrorMessage(error, '后端服务暂时不可用，请联系管理员') },
       { status: 500 }

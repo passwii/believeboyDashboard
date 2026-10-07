@@ -46,6 +46,7 @@ const STREAM_PATH_PATTERNS: ReadonlyArray<RegExp> = [
 const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = ['text/event-stream', 'application/x-ndjson']
 
 const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
+  /\/order-info\/export$/,
   /\/scheduled-reports\/test-email$/,
   /\/scheduled-reports\/.+\/run$/,
   // 月度核算明细会同步生成多工作表 Excel，不能走默认 5s 档。
@@ -67,6 +68,7 @@ const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
 ]
 
 const STATS_PATH_PATTERNS: ReadonlyArray<RegExp> = [
+  /\/order-info\/(?:overview|list|stats|page|live-stream)$/,
   /\/metrics\//,
   /\/aggregations\//,
   /\/dashboard\/summary$/,
@@ -120,19 +122,24 @@ const DEFAULT_TIMEOUT_MS = 5_000
  * The first matching tier wins; the `stream` tier is the only one that
  * consults the `Accept` header, and it short-circuits every other check.
  */
-export function getProxyTimeoutMs(backendPath: string, acceptHeader: string | null): number {
+export function getProxyTimeoutTier(backendPath: string, acceptHeader: string | null): TimeoutTier {
   const accept = (acceptHeader || '').toLowerCase()
+  const pathname = backendPath.split('?')[0]
 
   for (const tier of TIMEOUT_TIERS) {
     if (tier.acceptContains && tier.acceptContains.some((token) => accept.includes(token))) {
-      return tier.timeoutMs
+      return tier
     }
-    if (tier.pathPattern && tier.pathPattern.test(backendPath)) {
-      return tier.timeoutMs
+    if (tier.pathPattern && tier.pathPattern.test(pathname)) {
+      return tier
     }
   }
 
-  return DEFAULT_TIMEOUT_MS
+  return TIMEOUT_TIERS.find((tier) => tier.label === 'default')!
+}
+
+export function getProxyTimeoutMs(backendPath: string, acceptHeader: string | null): number {
+  return getProxyTimeoutTier(backendPath, acceptHeader).timeoutMs
 }
 
 function matchAny(patterns: ReadonlyArray<RegExp>): RegExp {
