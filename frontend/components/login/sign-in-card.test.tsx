@@ -1,9 +1,9 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
 import SignInCard from './sign-in-card'
-import { LoginThemeToggle } from './login-theme-toggle'
+import { LoginEntry } from './login-entry'
 
 const replace = vi.fn()
 const startGlobalLoading = vi.fn()
@@ -38,7 +38,11 @@ beforeEach(() => {
   signInImpl = async () => ({})
 })
 
-describe('Terminal 登录页（BLF-965 精细化）', () => {
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('Terminal 登录页', () => {
   it('表单是主要认证操作且保留可见字段标签', () => {
     render(<SignInCard />)
     expect(screen.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
@@ -54,7 +58,7 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
 
   it('主题切换按钮存在并可点击', async () => {
     const user = userEvent.setup()
-    render(<SignInCard />)
+    render(<LoginEntry />)
     const toggle = await screen.findByRole('button', { name: /切换到深色模式/ })
     await user.click(toggle)
     expect(toggle).toBeInTheDocument()
@@ -274,7 +278,7 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
   })
 
   it('主题切换与密码可见性按钮不使用阴影装饰变体', () => {
-    render(<SignInCard />)
+    render(<LoginEntry />)
     expect(screen.getByRole('button', { name: /切换到深色模式/ })).toBeInTheDocument()
     const passwordToggle = screen.getByRole('button', { name: '显示密码' })
     expect(passwordToggle.className).not.toContain('u-btn')
@@ -290,6 +294,63 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
     expect(password).toHaveAttribute('type', 'password')
   })
 
+  it.each(['success', 'error'] as const)('快速 %s 响应仍展示验证文案至少 500ms', async (outcome) => {
+    vi.useFakeTimers()
+    signInImpl = vi.fn(async () => outcome === 'error' ? { error: 'CredentialsSignin' } : {})
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录工作区' }))
+    expect(screen.getByText('正在验证账号信息，请稍候。')).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('正在安全验证登录信息…')
+    expect(screen.getByRole('button', { name: '显示密码' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '正在验证…' })).toHaveAttribute('aria-busy', 'true')
+    await act(async () => { await vi.advanceTimersByTimeAsync(499) })
+    expect(replace).not.toHaveBeenCalled()
+    expect(screen.queryByText(/邮箱或密码错误/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('企业邮箱')).toBeDisabled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    if (outcome === 'success') {
+      expect(replace).toHaveBeenCalledWith('/dashboard')
+    } else {
+      expect(screen.getByText(/邮箱或密码错误/)).toBeVisible()
+      expect(screen.getByLabelText('企业邮箱')).toBeEnabled()
+      expect(screen.getByText('使用企业邮箱和密码继续。')).toBeVisible()
+    }
+  })
+
+  it('慢响应超过 500ms 后仍等待认证结果，不额外延迟跳转', async () => {
+    vi.useFakeTimers()
+    const { promise, resolve } = Promise.withResolvers<unknown>()
+    signInImpl = vi.fn(() => promise)
+    render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    const form = screen.getByLabelText('企业邮箱').closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    await act(async () => { await vi.advanceTimersByTimeAsync(900) })
+    expect(signInImpl).toHaveBeenCalledTimes(1)
+    expect(replace).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('企业邮箱')).toBeDisabled()
+    await act(async () => { resolve({ url: '/dashboard/reports' }) })
+    expect(replace).toHaveBeenCalledWith('/dashboard/reports')
+  })
+
+  it('最短展示期间卸载会清理计时器，不跳转也不启动全局 loading', async () => {
+    vi.useFakeTimers()
+    const { unmount } = render(<SignInCard />)
+    fireEvent.change(screen.getByLabelText('企业邮箱'), { target: { value: 'a@b.com' } })
+    fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录工作区' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(replace).not.toHaveBeenCalled()
+    expect(startGlobalLoading).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('提交中按钮显示“正在验证…”并禁用输入', async () => {
     const { promise, resolve } = Promise.withResolvers<unknown>()
     signInImpl = () => promise
@@ -298,7 +359,7 @@ describe('Terminal 登录页（BLF-965 精细化）', () => {
     fireEvent.change(screen.getByLabelText('登录密码'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: /登录/ }))
     await waitFor(() => {
-      expect(screen.getByText(/正在验证/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '正在验证…' })).toBeInTheDocument()
     })
     expect(screen.getByLabelText('企业邮箱')).toBeDisabled()
     await act(async () => {

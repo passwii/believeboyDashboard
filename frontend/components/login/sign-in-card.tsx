@@ -4,9 +4,9 @@ import React, { useRef, useEffect, useState, useMemo, useCallback, type FormEven
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { LoginThemeToggle } from './login-theme-toggle'
 import TerminalFormPanel from './terminal-form-panel'
 
+const SIGN_IN_MINIMUM_DISPLAY_MS = 500
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
 const SIGN_IN_MAX_ATTEMPTS = 3
 const SIGN_IN_ATTEMPT_TIMEOUT_MS = 5000
@@ -25,6 +25,8 @@ const SignInCard = () => {
   const [retryAttempt, setRetryAttempt] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(true)
+  const submittingRef = useRef(false)
+  const verificationWaitRef = useRef<{ timer: number; resolve: () => void } | null>(null)
   const loadingPendingRef = useRef(false)
   const loadingWatchdogRef = useRef<number | null>(null)
   const router = useRouter()
@@ -60,12 +62,32 @@ const SignInCard = () => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      if (verificationWaitRef.current) {
+        window.clearTimeout(verificationWaitRef.current.timer)
+        verificationWaitRef.current.resolve()
+        verificationWaitRef.current = null
+      }
       finishNavigationLoading()
     }
   }, [finishNavigationLoading])
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submittingRef.current) return
+    submittingRef.current = true
+    const startedAt = performance.now()
+    const waitForVerificationDisplay = async () => {
+      if (!mountedRef.current) return
+      const remaining = SIGN_IN_MINIMUM_DISPLAY_MS - (performance.now() - startedAt)
+      if (remaining <= 0) return
+      await new Promise<void>((resolve) => {
+        const timer = window.setTimeout(() => {
+          verificationWaitRef.current = null
+          resolve()
+        }, remaining)
+        verificationWaitRef.current = { timer, resolve }
+      })
+    }
     setSubmitting(true)
     setRetryAttempt(0)
     setError(null)
@@ -131,6 +153,7 @@ const SignInCard = () => {
         await new Promise((resolve) => window.setTimeout(resolve, SIGN_IN_RETRY_DELAYS_MS[attempt]))
       }
 
+      await waitForVerificationDisplay()
       if (!mountedRef.current) return
       setRetryAttempt(0)
       if (!result) {
@@ -138,6 +161,7 @@ const SignInCard = () => {
       }
       const signInError = typeof result === 'string' ? result : result.error
       if (signInError) {
+        submittingRef.current = false
         setSubmitting(false)
         const errorCode = typeof result === 'string' ? '' : result?.code?.toLowerCase()
         if (errorCode === 'network_error') {
@@ -174,7 +198,9 @@ const SignInCard = () => {
       beginNavigationLoading()
       router.replace(nextPath)
     } catch (err) {
+      await waitForVerificationDisplay()
       if (!mountedRef.current) return
+      submittingRef.current = false
       setSubmitting(false)
       setRetryAttempt(0)
       setError('无法连接到服务器，请检查后端服务是否启动。')
@@ -183,27 +209,13 @@ const SignInCard = () => {
   }
 
   return (
-    <section aria-labelledby="login-form-title" className="relative order-1 flex min-h-dvh flex-col bg-term-panel px-5 py-5 sm:px-8 sm:py-8 md:order-2 md:justify-between md:px-10 lg:px-14">
-      <h1 className="sr-only md:hidden">彼励扶跨境</h1>
-      <div className="flex items-center justify-between gap-3 md:justify-end">
-        <div role="img" aria-label="BelieveBoy" className="flex items-center gap-3 md:hidden">
-          <span aria-hidden="true" className="grid h-10 w-10 place-items-center border border-term-border-strong bg-term-raised font-mono text-sm font-semibold tracking-tight text-term-pos">
-            BB
-          </span>
-          <span className="font-mono text-sm font-semibold tracking-[0.12em] text-term-text">BelieveBoy</span>
-        </div>
-        <LoginThemeToggle />
-      </div>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-8 md:flex-none md:py-12">
-        <header className="mb-6 md:mb-8">
-          <h2 id="login-form-title" className="md:text-3xl md:font-semibold md:tracking-tight md:text-term-text md:sm:text-4xl">
-            登录工作区
-          </h2>
-          <p aria-hidden="true" className="text-3xl font-semibold tracking-tight text-term-text sm:text-4xl md:hidden">
-            登录工作区
-          </p>
-          <p className="mt-3 text-sm leading-6 text-term-muted">
-            使用企业邮箱和密码继续。
+    <section aria-labelledby="login-form-title" className="form-panel">
+      <div className="form-panel-top" aria-hidden="true" />
+      <div className="form-main">
+        <header className="form-heading">
+          <h2 id="login-form-title">登录工作区</h2>
+          <p id="login-form-description">
+            {submitting ? '正在验证账号信息，请稍候。' : '使用企业邮箱和密码继续。'}
           </p>
         </header>
         <TerminalFormPanel
@@ -217,9 +229,9 @@ const SignInCard = () => {
           onSubmit={handleSignIn}
         />
       </div>
-      <footer className="flex items-center justify-between gap-4 border-t border-term-border pt-4 text-xs text-term-muted">
-        <span>彼励扶跨境 · BelieveBoy</span>
-        <span className="font-mono tabular-nums">账号安全登录</span>
+      <footer className="form-footer">
+        <span>账号安全登录</span>
+        <span className="mono">EMAIL / PASSWORD</span>
       </footer>
     </section>
   )
