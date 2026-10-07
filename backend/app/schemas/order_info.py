@@ -135,8 +135,8 @@ class OrderInfoPageData(BaseModel):
 class OrderInfoOverview(BaseModel):
     """一次请求返回：列表 + 顶部统计（不含 filter_options）。
 
-    供筛选 / 翻页 / 排序复用：前端每次条件变化只需这一个请求，
-    取代原先并行的 /list + /stats 两请求（消除并行重复过滤的 CPU/内存峰值）。
+    筛选、日期或项目条件变化时调用 ``/overview`` 以重算统计；仅翻页或排序时
+    使用 ``/list`` 取新列表并复用本响应中的 ``stats``，因统计不依赖 page / sort。
     """
 
     items: list[OrderInfoItem]

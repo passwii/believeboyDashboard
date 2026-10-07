@@ -199,6 +199,11 @@ def list_orders(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoListResponse:
+    """Return filtered order rows without calculating aggregate overview stats.
+
+    Use this endpoint for pagination or sorting when the filters are unchanged;
+    the client can retain stats from the latest ``/overview`` response.
+    """
     _ensure_operator_header(operator, bool(is_admin))
     df, dt = _normalize_date_range(date_from, date_to)
     with _query_timeout_guard(db, "list"):
@@ -279,8 +284,11 @@ def get_overview(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoOverview:
-    """一次返回 列表 + 顶部统计（不含 filter_options）。前端筛选/翻页/排序用这个，
-    取代原先并行的 /list + /stats 两请求。"""
+    """一次返回 列表 + 顶部统计（不含 filter_options）。
+
+    筛选、日期或项目条件变化时使用本接口以重算统计；仅翻页或排序时改调 ``/list``，
+    并复用上一次 overview 的 stats（统计不依赖 page / sort）。
+    """
     _ensure_operator_header(operator, bool(is_admin))
     df, dt = _normalize_date_range(date_from, date_to)
     with _query_timeout_guard(db, "overview"):

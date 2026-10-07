@@ -11,6 +11,8 @@ import uuid
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock
 
+from sqlalchemy import select
+
 import pytest
 
 from app.schemas.order_info import OrderInfoItem
@@ -81,23 +83,33 @@ class TestToBeijingStr:
 
 
 class TestExtractFulfillmentChannel:
+    def test_materialized_value_takes_precedence_over_raw_json(self):
+        row = MagicMock()
+        row.fulfillment_channel = "Merchant"
+        row.raw_row = {"fulfillment-channel": "Amazon"}
+        assert _extract_fulfillment_channel(row) == "Merchant"
+
     def test_returns_amazon_when_present(self):
         row = MagicMock()
+        row.fulfillment_channel = None
         row.raw_row = {"fulfillment-channel": "Amazon"}
         assert _extract_fulfillment_channel(row) == "Amazon"
 
     def test_returns_merchant_when_present(self):
         row = MagicMock()
+        row.fulfillment_channel = None
         row.raw_row = {"fulfillment-channel": "Merchant"}
         assert _extract_fulfillment_channel(row) == "Merchant"
 
     def test_returns_empty_when_missing(self):
         row = MagicMock()
+        row.fulfillment_channel = None
         row.raw_row = {}
         assert _extract_fulfillment_channel(row) == ""
 
     def test_returns_empty_for_none_raw_row(self):
         row = MagicMock()
+        row.fulfillment_channel = None
         row.raw_row = None
         assert _extract_fulfillment_channel(row) == ""
 
@@ -149,6 +161,7 @@ class TestSerializeOrderRow:
         row.country = "US"
         row.is_counted_sales = True
         row.created_at = datetime(2026, 6, 17, 2, 0, 0, tzinfo=timezone.utc)
+        row.fulfillment_channel = "Amazon"
         row.raw_row = {
             "fulfillment-channel": "Amazon",
             "ship-service-level": "Expedited",
@@ -215,6 +228,7 @@ class TestSerializeOrderRow:
         row.country = "US"
         row.is_counted_sales = False
         row.created_at = datetime(2026, 6, 17, 2, 0, 0, tzinfo=timezone.utc)
+        row.fulfillment_channel = "SOMETHING_NEW"
         row.raw_row = {"fulfillment-channel": "SOMETHING_NEW"}
         project = MagicMock()
         project.id = 1
@@ -550,6 +564,7 @@ class TestUpdateOrderById:
         row.country = "US"
         row.is_counted_sales = False
         row.created_at = datetime(2026, 6, 17, 2, 0, 0, tzinfo=timezone.utc)
+        row.fulfillment_channel = "Merchant"
         row.raw_row = {"fulfillment-channel": "Merchant"}
         return row
 
@@ -886,6 +901,37 @@ class TestComputeStatsSqlAggregate:
         assert result.fbm_count == 17
         assert result.currency is None
 
+    def test_aggregate_and_currency_queries_skip_project_joins(self, monkeypatch):
+        """Stats run on denormalized order-row filters and need neither join."""
+        from app.services.data import order_info_service as svc
+
+        captured: list[str] = []
+
+        class _AggRow:
+            total_orders = 1
+            total_quantity = 1
+            total_amount = 10.0
+            fba_count = 1
+            fbm_count = 0
+
+        class _FakeResult:
+            def one(inner_self):
+                return _AggRow()
+
+            def all(inner_self):
+                return []
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                captured.append(_compile(stmt).lower())
+                return _FakeResult()
+
+        svc.compute_stats(_FakeDB(), operator="admin_user", is_admin=True)
+        assert len(captured) == 2
+        for sql in captured:
+            assert "analysis_source_files" not in sql
+            assert " join projects " not in sql
+
     def test_fulfillment_channel_filter_applied_in_sql(self, monkeypatch):
         """When fulfillment_channels is provided, the SQL emitted must contain
         the fulfillment-channel filter."""
@@ -931,11 +977,13 @@ class TestComputeStatsSqlAggregate:
         from app.models.product_analysis_source import AnalysisSalesOrderRow
         from app.services.data import order_info_service as svc
 
-        fc_expr = AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
-        stmt = svc._build_base_query().where(fc_expr == "Amazon")
+        db = MagicMock()
+        db.bind.dialect.name = "sqlite"
+        fc_expr = svc._fulfillment_channel_sql_expr(db)
+        stmt = select(AnalysisSalesOrderRow).where(fc_expr == "Amazon")
         compiled = _compile(stmt).lower()
-        assert "json_extract" in compiled or "->>" in compiled, (
-            f"fc filter must compile to JSON_EXTRACT (sqlite) or ->> (pg); got:\n{compiled}"
+        assert "fulfillment_channel" in compiled, (
+            f"SQLite uses the generated column where available; got:\n{compiled}"
         )
 
     def test_dominant_currency_uses_group_by_order_by_limit(self, monkeypatch):
