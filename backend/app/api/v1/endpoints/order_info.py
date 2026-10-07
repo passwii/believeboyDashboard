@@ -27,12 +27,12 @@ from app.schemas.order_info import (
     OrderInfoExportResponse,
     OrderInfoFilterOptions,
     OrderInfoItem,
-    OrderLiveStreamItem,
     OrderInfoListResponse,
     OrderInfoOverview,
     OrderInfoPageData,
     OrderInfoStats,
     OrderInfoUpdate,
+    OrderLiveStreamItem,
 )
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.data import order_info_service
@@ -345,7 +345,6 @@ def update_order(
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
         .join(Project, Project.id == AnalysisSourceFile.project_id)
-        .where(AnalysisSourceFile.is_current.is_(True))
         .where(AnalysisSalesOrderRow.id == order_id)
     ).first()
     before = (

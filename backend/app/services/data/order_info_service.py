@@ -26,19 +26,19 @@ from app.models.product_analysis_source import (
     AnalysisSourceFile,
 )
 from app.models.project import Project
-from app.utils.country import SUPPORTED_COUNTRIES, get_today_for_country
-from app.utils.math_utils import round_money
-from app.utils.sales_amount import sales_amount_expr_by_row
 from app.schemas.order_info import (
     FilterOption,
     OrderInfoFilterOptions,
     OrderInfoItem,
-    OrderLiveStreamItem,
     OrderInfoListResponse,
     OrderInfoOverview,
     OrderInfoPageData,
     OrderInfoStats,
+    OrderLiveStreamItem,
 )
+from app.utils.country import SUPPORTED_COUNTRIES, get_today_for_country
+from app.utils.math_utils import round_money
+from app.utils.sales_amount import sales_amount_expr_by_row
 
 # ===== Logger =====
 
@@ -170,15 +170,14 @@ def serialize_order_row(
 
 
 def _build_base_query() -> Select:
-    """所有“按项目归类”的订单查询都基于此 — join source_files 仅为取 is_current 版本；
+    """所有“按项目归类”的订单查询都基于此 — join source_files 以取得项目元数据；
     项目过滤打在行级冗余列 AnalysisSalesOrderRow.project_id（见 apply_sql_filters）。
 
-    注意：始终只取 `AnalysisSourceFile.is_current = TRUE` 的报告版本；
-    被新版本取代的 source_file 下的订单行会从视图里消失（与销售报告上传时
-    `replace_current_pointer` 把旧版本置为 is_current=false 的语义一致）。
+    销售订单按行级 upsert 维护（BEL-348），source_file.is_current 不再代表销售行是否
+    有效；必须读取所有订单行，不能用该版本指针过滤，否则会丢失新上传和历史保留行。
     """
 
-    stmt: Select = (
+    return (
         select(AnalysisSalesOrderRow, Project)
         .join(
             AnalysisSourceFile,
@@ -188,9 +187,7 @@ def _build_base_query() -> Select:
             Project,
             Project.id == AnalysisSourceFile.project_id,
         )
-        .where(AnalysisSourceFile.is_current.is_(True))
     )
-    return stmt
 
 
 def _ensure_project_access_for_orders(
@@ -282,7 +279,7 @@ def apply_sql_filters(
     source_file 回填、upsert 时同步，prod 验证与 source_files.project_id 恒等），
     而非 join 出来的 ``AnalysisSourceFile.project_id``——这样能命中
     ``(project_id, purchase_at_pt)`` 复合索引，单项目分页从全表倒扫降到索引直扫。
-    is_current 版本过滤仍由 _build_base_query 的 source_files join 负责。
+    销售行级 upsert 的可见性不依赖 source_files.is_current；基础查询只借 source_file 关联项目。
     """
 
     if project_ids:
@@ -441,14 +438,14 @@ def list_orders(
         )
 
     # total: 应用层先按 SQL 过滤拿到候选总数，再按 fulfillment-channel 过滤得到精确 total
-    # 注意：count_sql 单独构建，不走 _build_base_query，要自己加 is_current 过滤
+    # count_sql 单独构建，不走 _build_base_query；与行级 upsert 口径一致，不按
+    # source_file 的当前版本指针过滤销售订单行（BEL-348）。
     count_sql = (
         select(func.count(AnalysisSalesOrderRow.id))
         .join(
             AnalysisSourceFile,
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
-        .where(AnalysisSourceFile.is_current.is_(True))
     )
     count_sql = apply_sql_filters(
         count_sql,
@@ -612,7 +609,7 @@ def compute_stats(
         )
 
     # ===== 1) 主聚合：COUNT / SUM / FBA·FBM case when =====
-    # 复用 _build_base_query 的 join + is_current；select 列只取要聚合的标量。
+    # 复用 _build_base_query 的项目关联；销售行可见性不依赖 source_file.is_current。
     fc_expr = AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
     base = _build_base_query()
     # 投影成单表：移除 Project join 投影，保留 join 仅作为过滤。
@@ -727,7 +724,7 @@ def collect_filter_options(
       ai-insights）共用同一份逻辑，按 `Project.sort_order.asc(), Project.id.asc()`
       排序——避免这边再写一遍 SQL 后跟主页面顺序不一致。非 admin 自动按
       operator 缩到有权限的活跃项目，include_inactive=False。
-    - 其他 distinct 自动受 `_build_base_query` 的 is_current 约束。
+    - 其他 distinct 覆盖所有行级 upsert 销售订单，不依赖 `source_files.is_current`。
     """
 
     from app.services import project_service
@@ -753,15 +750,14 @@ def collect_filter_options(
             label = f"{pname}（{brand}）"
         project_options.append(FilterOption(value=str(pid), label=label))
 
-    # status / country / currency 走 is_current-only 的 source_file，避免筛选项里
-    # 出现"已被新版本取代的旧报告"里残留的状态/币种。
+    # status / country / currency 按订单行本身取 distinct。销售上传已改为行级 upsert，
+    # source_file.is_current 不再能代表哪些销售行可见，不能据此裁剪筛选项。
     order_statuses = db.execute(
         select(AnalysisSalesOrderRow.order_status)
         .join(
             AnalysisSourceFile,
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
-        .where(AnalysisSourceFile.is_current.is_(True))
         .distinct()
         .order_by(AnalysisSalesOrderRow.order_status.asc())
     ).all()
@@ -784,7 +780,6 @@ def collect_filter_options(
             AnalysisSourceFile,
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
-        .where(AnalysisSourceFile.is_current.is_(True))
         .distinct()
         .order_by(AnalysisSalesOrderRow.country.asc())
     ).all()
@@ -800,10 +795,7 @@ def collect_filter_options(
             AnalysisSourceFile,
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
-        .where(
-            AnalysisSalesOrderRow.currency.is_not(None),
-            AnalysisSourceFile.is_current.is_(True),
-        )
+        .where(AnalysisSalesOrderRow.currency.is_not(None))
         .distinct()
         .order_by(AnalysisSalesOrderRow.currency.asc())
     ).all()
@@ -998,7 +990,7 @@ def query_order_live_stream(
       UK=London），打在 ``purchase_date_pt`` 上；
         * 同一订单多 SKU 行合并为一条事件（金额求和、数量求和）；
     * 排序键取组内最晚 ``purchase_at_utc``（真实购买瞬间，NOT NULL）；
-    * 仅 ``is_current`` 版本 source_file 的行参与（复用 ``_build_base_query``）。
+    * 按行级销售数据口径取数；不依赖销售上传后已废弃的 ``source_file.is_current`` 指针。
 
         权限：复用 :func:`_ensure_project_access_for_orders`——admin 不限项目，
         非 admin 缩到自己运营的项目；无权限返回空列表。
@@ -1129,7 +1121,6 @@ def update_order_by_id(
             AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
         )
         .join(Project, Project.id == AnalysisSourceFile.project_id)
-        .where(AnalysisSourceFile.is_current.is_(True))
         .where(AnalysisSalesOrderRow.id == order_id)
     )
     result = db.execute(stmt).first()
