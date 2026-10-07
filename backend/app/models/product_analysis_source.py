@@ -7,6 +7,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
@@ -408,6 +409,17 @@ class AnalysisSalesOrderRow(Base):
     is_counted_sales: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     status_rule_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # PG stores this expression at write time to avoid parsing the full JSON for every stats scan.
+    # SQLite create_all uses the equivalent generated expression; service query paths still
+    # retain their raw_row fallback for dialects without the deployed PG migration.
+    fulfillment_channel: Mapped[str | None] = mapped_column(
+        Text,
+        Computed(
+            "coalesce(raw_row->>'fulfillment-channel', raw_row->>'fulfillment channel')",
+            persisted=True,
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     # ===== FBM 自发货补录字段（2026-06-27 迁移 200 新增）=====

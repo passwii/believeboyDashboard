@@ -120,7 +120,8 @@ def serialize_order_row(
 ) -> OrderInfoItem:
     raw: dict = row.raw_row if isinstance(row.raw_row, dict) else {}
     fulfillment = (
-        _safe_str(raw.get("fulfillment-channel"))
+        _safe_str(getattr(row, "fulfillment_channel", None))
+        or _safe_str(raw.get("fulfillment-channel"))
         or _safe_str(raw.get("fulfillment channel"))
         or ""
     )
@@ -238,17 +239,31 @@ def _ensure_project_access_for_orders(
 def _extract_fulfillment_channel(row: AnalysisSalesOrderRow) -> str:
     raw = row.raw_row if isinstance(row.raw_row, dict) else {}
     return (
-        _safe_str(raw.get("fulfillment-channel"))
+        _safe_str(getattr(row, "fulfillment_channel", None))
+        or _safe_str(raw.get("fulfillment-channel"))
         or _safe_str(raw.get("fulfillment channel"))
         or ""
     )
 
 
-def _fulfillment_filter_sql_supported(db: Session) -> bool:
-    """判定当前 dialect 是否能在 SQL 层通过 raw_row JSON 路径精确过滤 fulfillment-channel。
+def _fulfillment_channel_sql_expr(db: Session):
+    """Use the materialized PG value when available, retaining JSON extraction elsewhere."""
+    try:
+        dialect = db.bind.dialect.name if db.bind is not None else ""
+    except Exception:
+        dialect = ""
+    if dialect in {"postgresql", "postgres"}:
+        return AnalysisSalesOrderRow.fulfillment_channel
+    # SQLite remains on the original JSON expression (JSON1); the production
+    # migration and optimized read path are PostgreSQL-only.
+    return AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
 
-    PG 上的 JSON / JSONB 列都支持 `column['key'].as_string()` 比较；SQLite 需要 JSON1 扩展，
-    在测试环境里如果没启用就 fallback 到应用层过滤。
+
+def _fulfillment_filter_sql_supported(db: Session) -> bool:
+    """判定当前 dialect 是否能在 SQL 层精确过滤 fulfillment-channel。
+
+    PostgreSQL 用生成列；其他方言保持原 JSON 路径，缺少 JSON1 扩展时
+    fallback 到应用层过滤。
     """
     try:
         dialect = db.bind.dialect.name if db.bind is not None else ""
@@ -417,11 +432,8 @@ def list_orders(
             sort_dir=sort_dir,
         )
         if fc_set:
-            fc_or_clauses = [
-                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
-                == channel
-                for channel in fc_set
-            ]
+            fc_expr = _fulfillment_channel_sql_expr(db)
+            fc_or_clauses = [fc_expr == channel for channel in fc_set]
             stmt = stmt.where(
                 fc_or_clauses[0] if len(fc_or_clauses) == 1 else or_(*fc_or_clauses)
             )
@@ -471,10 +483,8 @@ def list_orders(
 
     if use_sql_fc:
         # SQL 层能精确过滤 fulfillment-channel（PG 上的 JSONB / JSON 列）
-        fc_or_clauses = [
-            AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string() == channel
-            for channel in fc_set
-        ]
+        fc_expr = _fulfillment_channel_sql_expr(db)
+        fc_or_clauses = [fc_expr == channel for channel in fc_set]
         if len(fc_or_clauses) == 1:
             count_sql = count_sql.where(fc_or_clauses[0])
         else:
@@ -609,11 +619,10 @@ def compute_stats(
         )
 
     # ===== 1) 主聚合：COUNT / SUM / FBA·FBM case when =====
-    # 复用 _build_base_query 的项目关联；销售行可见性不依赖 source_file.is_current。
-    fc_expr = AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
-    base = _build_base_query()
-    # 投影成单表：移除 Project join 投影，保留 join 仅作为过滤。
-    base = base.with_only_columns(
+    # 聚合 filters 都落在销售行冗余列上；FK + ondelete=CASCADE 保证移除纯投影 join
+    # 不改变集合基数。SELECT 单表避免主聚合与币种查询为每行重复 join。
+    fc_expr = _fulfillment_channel_sql_expr(db)
+    base = select(
         AnalysisSalesOrderRow.id,
         AnalysisSalesOrderRow.quantity,
         AnalysisSalesOrderRow.item_price,
@@ -665,9 +674,7 @@ def compute_stats(
     # ===== 2) 主导币种：GROUP BY currency + count + LIMIT 1 =====
     currency_count = func.count(AnalysisSalesOrderRow.id).label("c")
     currency_sub = apply_sql_filters(
-        _build_base_query().with_only_columns(
-            AnalysisSalesOrderRow.id, AnalysisSalesOrderRow.currency
-        ),
+        select(AnalysisSalesOrderRow.id, AnalysisSalesOrderRow.currency),
         project_ids=scoped_project_ids,
         order_statuses=order_statuses,
         countries=countries,
@@ -1242,15 +1249,13 @@ def export_orders_to_csv(
     if fc_set and _fulfillment_filter_sql_supported(db):
         if len(fc_set) == 1:
             stmt = stmt.where(
-                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
-                == next(iter(fc_set))
+                _fulfillment_channel_sql_expr(db) == next(iter(fc_set))
             )
         else:
             stmt = stmt.where(
                 or_(
                     *[
-                        AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
-                        == channel
+                        _fulfillment_channel_sql_expr(db) == channel
                         for channel in fc_set
                     ]
                 )

@@ -23867,7 +23867,7 @@
         "type": "object"
       },
       "OrderInfoOverview": {
-        "description": "一次请求返回：列表 + 顶部统计（不含 filter_options）。\n\n供筛选 / 翻页 / 排序复用：前端每次条件变化只需这一个请求，\n取代原先并行的 /list + /stats 两请求（消除并行重复过滤的 CPU/内存峰值）。",
+        "description": "一次请求返回：列表 + 顶部统计（不含 filter_options）。\n\n筛选、日期或项目条件变化时调用 ``/overview`` 以重算统计；仅翻页或排序时\n使用 ``/list`` 取新列表并复用本响应中的 ``stats``，因统计不依赖 page / sort。",
         "properties": {
           "items": {
             "items": {
@@ -83950,6 +83950,7 @@
     },
     "/api/v1/order-info/list": {
       "get": {
+        "description": "Return filtered order rows without calculating aggregate overview stats.\n\nUse this endpoint for pagination or sorting when the filters are unchanged;\nthe client can retain stats from the latest ``/overview`` response.",
         "operationId": "list_orders_api_v1_order_info_list_get",
         "parameters": [
           {
@@ -84464,7 +84465,7 @@
     },
     "/api/v1/order-info/overview": {
       "get": {
-        "description": "一次返回 列表 + 顶部统计（不含 filter_options）。前端筛选/翻页/排序用这个，\n取代原先并行的 /list + /stats 两请求。",
+        "description": "一次返回 列表 + 顶部统计（不含 filter_options）。\n\n筛选、日期或项目条件变化时使用本接口以重算统计；仅翻页或排序时改调 ``/list``，\n并复用上一次 overview 的 stats（统计不依赖 page / sort）。",
         "operationId": "get_overview_api_v1_order_info_overview_get",
         "parameters": [
           {
