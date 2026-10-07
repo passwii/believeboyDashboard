@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * Reduced-motion fallback regression.
@@ -19,27 +20,19 @@ test.describe('reduced-motion fallback', () => {
   // CI: production webServer cold start + 2 个路由切换需要更多时间，默认 30s 不够
   test.setTimeout(60_000)
 
-  /**
-   * Skip in CI: this spec depends on an authenticated session to render
-   * the dashboard (and thus the PageTransition motion.div with
-   * `class="will-change-transform ..."`). Without a session, the test
-   * waits for an element that never mounts (CI has no auth fixture).
-   *
-   * Verified manually in dev (Phase 5 / 2026-07-12): Damon confirmed
-   * route-switch motion + browser DevTools reduced-motion toggle.
-   * Re-enable when CI provides an auth fixture.
-   */
-  test.skip('route switch has no transform under reduced-motion', async ({ page }) => {
+  test('route switch has no transform under reduced-motion', async ({ page, context }) => {
+    await addBLF611FixtureAuth(context)
     await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/)
     await page.waitForLoadState('networkidle')
 
-    // Drive a route switch so AnimatePresence actually runs an enter
+    // Navigate to a second dashboard route and ensure auth did not silently redirect to /login.
     await page.goto('/dashboard/advertising/ad-analysis/overview')
+    await expect(page).toHaveURL(/\/dashboard\/advertising\/ad-analysis\/overview(?:\?.*)?$/)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(800)
 
-    const motionDiv = page.locator('div[class*="will-change-transform"]').first()
-    // CI: production build + 路由切换后 motion.div 可能延迟挂载，给 15s
+    const motionDiv = page.getByTestId('page-transition-motion')
     await motionDiv.waitFor({ state: 'attached', timeout: 15_000 })
 
     const transform = await motionDiv.evaluate((el) => getComputedStyle(el).transform)

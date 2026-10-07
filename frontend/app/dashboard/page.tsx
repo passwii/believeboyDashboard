@@ -392,6 +392,7 @@ export default function DashboardV2Page() {
       onChange={setSelectedProjectId}
       widthClass={TERM_HEADER_W_MD}
       placeholder="选择项目"
+      title="项目筛选"
     />
   )
 

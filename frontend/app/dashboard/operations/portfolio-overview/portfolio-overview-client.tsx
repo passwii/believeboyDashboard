@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
@@ -80,7 +79,7 @@ function formatPercent(value: number): string {
 /** KPI 终端磁贴：mono 数值 + 标签行（与 HeaderKpiTile / TermMetricTile 同规格） */
 function KpiTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
+    <div data-testid="portfolio-kpi-card" className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
       <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
         {label}
       </span>
@@ -182,7 +181,6 @@ function ComparisonTable({
 
 export default function PortfolioOverviewClient() {
   const router = useRouter()
-  const { data: session } = useSession()
   const [projectIds, setProjectIds] = useState<number[]>([])
   const [country, setCountry] = useState('US')
   const [startDate, setStartDate] = useState('')
@@ -227,23 +225,23 @@ export default function PortfolioOverviewClient() {
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
-      controls={<PortfolioFilters
-        projectIds={projectIds}
-        onProjectIdsChange={setProjectIds}
-        country={country}
-        onCountryChange={setCountry}
-        startDate={startDate}
-        onStartDateChange={setStartDate}
-        endDate={endDate}
-        onEndDateChange={setEndDate}
-        loading={loading}
-      />}
+      controls={
+        <div className="col-span-2 min-w-0">
+          <PortfolioFilters
+            projectIds={projectIds}
+            onProjectIdsChange={setProjectIds}
+            country={country}
+            onCountryChange={setCountry}
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            endDate={endDate}
+            onEndDateChange={setEndDate}
+            loading={loading}
+          />
+        </div>
+      }
     />
   )
-
-  useEffect(() => {
-    void session
-  }, [session])
 
   const tabs: Array<{ key: Tab; label: string; icon: LucideIcon }> = [
     { key: 'comparison', label: '项目对比', icon: BarChart3 },
@@ -271,7 +269,7 @@ export default function PortfolioOverviewClient() {
       {data && data.projects.length > 0 ? (
         <>
           {/* KPI 统计条：终端磁贴 */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" data-testid="portfolio-kpi-cards">
             <KpiTile
               label="总销售额"
               value={formatMoneyShort(data.total_sales_amount, country)}

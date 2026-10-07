@@ -2,15 +2,28 @@
 
 import React from 'react'
 import { LoginBrandPanel } from './login-brand-panel'
+import { LoginThemeToggle } from './login-theme-toggle'
+import { BrandMark } from './brand-mark'
 import SignInCard from './sign-in-card'
+import './login.css'
 
 export function LoginEntry() {
   return (
-    <main className="min-h-dvh bg-term-bg text-term-text md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(24rem,0.9fr)]">
-      <div className="hidden md:block">
+    <div className="login-entry">
+      <header className="topbar">
+        <div className="identity" aria-label="BelieveBoy">
+          <span className="brand-mark"><BrandMark /></span>
+          <span className="wordmark">BelieveBoy</span>
+        </div>
+        <div className="topbar-right">
+          <span className="topbar-note mono">BELIEVEBOY / WORKSPACE ACCESS</span>
+          <LoginThemeToggle />
+        </div>
+      </header>
+      <main id="main-content" className="layout">
         <LoginBrandPanel />
-      </div>
-      <SignInCard />
-    </main>
+        <SignInCard />
+      </main>
+    </div>
   )
 }

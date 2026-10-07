@@ -3,8 +3,8 @@
 覆盖 ``GET /api/v1/order-info/live-stream``：
 
 * 鉴权：非 admin 缺 X-Operator → 401（与 order-info 其他端点同规则）；
-* 口径：只取 is_counted_sales、排除 Cancelled、窗口=站点本地今天、
-  仅 is_current 版本参与；
+* 口径：只取 is_counted_sales、排除 Cancelled、窗口=站点本地今天；
+  销售行按 BEL-348 行级 upsert 可见，不依赖 is_current 指针；
 * 去重：同一订单多 SKU 行合并为一条事件（金额/数量求和）；
 * 排序：按组内最晚 purchase_at_utc 倒序；limit 生效；
 * 权限：非 admin 无权限项目返回空列表，admin 放行；
@@ -291,7 +291,8 @@ def test_live_stream_dedup_sorts_and_filters(client, db_session):
     assert "026-AAAAAA-AAAAAA" in a["title"]
 
 
-def test_live_stream_ignores_superseded_source_versions(client, db_session):
+def test_live_stream_includes_rows_from_superseded_source_versions(client, db_session):
+    """BEL-348: is_current 不再维护销售行可见性，false source 里的订单也必须可见。"""
     pid = _make_project(db_session)
     v1 = _make_source(db_session, project_id=pid, version=1, is_current=False)
     v2 = _make_source(db_session, project_id=pid, version=2, is_current=True)
@@ -314,7 +315,10 @@ def test_live_stream_ignores_superseded_source_versions(client, db_session):
     )
     assert res.status_code == 200
     ids = [it["id"] for it in res.json()]
-    assert ids == [f"{pid}:026-CURRNT-000000"]
+    assert set(ids) == {
+        f"{pid}:026-OLDVER-000000",
+        f"{pid}:026-CURRNT-000000",
+    }
 
 
 def test_live_stream_limit_returns_newest(client, db_session):

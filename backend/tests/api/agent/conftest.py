@@ -846,3 +846,222 @@ def shipment_env(make_api_key):
         db.commit()
     finally:
         db.close()
+
+
+# ── BLF-1250：Agent 月报写入流程（临时上传 → 仅计算草稿 → 确认入库） ─────────
+
+
+def monthly_report_csv_bytes(
+    *,
+    sku: str = "SKU-1",
+    marketplace: str = "amazon.com",
+    total: str = "8.77",
+    product_sales: str = "12.34",
+) -> bytes:
+    """最小可计算的 Amazon Payment Report CSV（与增量 A 预览测试同口径）。"""
+    import csv
+    import io
+
+    row = {
+        "date/time": "Oct 1, 2026 12:00:00 PM UTC",
+        "type": "Order",
+        "sku": sku,
+        "quantity": "1",
+        "fulfillment": "Amazon",
+        "product sales": product_sales,
+        "shipping credits": "0",
+        "promotional rebates": "0",
+        "other": "0",
+        "selling fees": "-1.23",
+        "fba fees": "-2.34",
+        "total": total,
+        "marketplace": marketplace,
+    }
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=list(row))
+    writer.writeheader()
+    writer.writerow(row)
+    return buffer.getvalue().encode("utf-8")
+
+
+@pytest.fixture
+def monthly_report_env(make_api_key, tmp_path, monkeypatch):
+    """BLF-1250 基座：私有存储根（tmp）+ 项目 + ``monthly_reports`` 域凭据。
+
+    存储根被 monkeypatch 到 tmp_path：测试绝不写仓库 ``storage/`` 下的真实目录。
+    清理顺序：幂等台账 → 上传会话（级联 files/builds）→ 项目（级联正式月报）。
+    """
+    from app.core.config import get_settings
+    from app.models import Project
+
+    settings = get_settings()
+    overrides = {
+        "agent_monthly_report_root": tmp_path / "agent_monthly_reports",
+        "upload_root": tmp_path / "uploads",
+        "result_root": tmp_path / "results",
+        "agent_monthly_report_max_bytes": 50 * 1024 * 1024,
+        "agent_monthly_report_ttl_hours": 24,
+    }
+    for name, value in overrides.items():
+        monkeypatch.setattr(settings, name, value)
+    for name in ("agent_monthly_report_root", "upload_root", "result_root"):
+        getattr(settings, name).mkdir(parents=True, exist_ok=True)
+
+    agent_id = f"monthly-{uuid.uuid4().hex[:8]}"
+    key = make_api_key(agent_id=agent_id, business_scope="monthly_reports")
+    project_name = f"agent-monthly-{uuid.uuid4().hex[:8]}"
+
+    db = SessionLocal()
+    try:
+        project = Project(
+            project_name=project_name,
+            project_operator="pytest",
+            assistant_operator=None,
+            sort_order=0,
+            is_active=True,
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        project_id = project.id
+        # 支付报表项目匹配校验按 SkuRecord(project_name, country, sku) 反查：
+        # 没有 SKU 时 CSV 会因「未匹配到任何产品」被拒，happy path 需要它。
+        db.add(
+            SkuRecord(
+                project_id=project_id,
+                project_name=project_name,
+                sku="SKU-1",
+                asin="ASIN-SKU-1",
+                country="US",
+                fob_unit_cost=10,
+                first_leg_cost_rmb=1,
+                package_length_cm=10,
+                package_width_cm=10,
+                package_height_cm=10,
+                weight_kg=0.5,
+                carton_length_cm=20,
+                carton_width_cm=20,
+                carton_height_cm=20,
+                carton_weight_kg=5,
+                units_per_carton=10,
+                currency="USD",
+                sort_order=0,
+                is_active=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    yield {
+        "project_id": project_id,
+        "project_name": project_name,
+        "agent_id": agent_id,
+        "key_id": key["id"],
+        "settings": settings,
+        "tmp_path": tmp_path,
+        "headers": {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": agent_id,
+        },
+    }
+
+    from app.models.agent_monthly_report import (
+        AgentMonthlyReportIdempotency,
+        AgentMonthlyReportUpload,
+    )
+
+    db = SessionLocal()
+    try:
+        db.execute(
+            delete(AgentMonthlyReportIdempotency).where(
+                AgentMonthlyReportIdempotency.agent_api_key_id == key["id"]
+            )
+        )
+        db.execute(
+            delete(AgentMonthlyReportUpload).where(
+                AgentMonthlyReportUpload.agent_api_key_id == key["id"]
+            )
+        )
+        db.execute(delete(SkuRecord).where(SkuRecord.project_id == project_id))
+        obj = db.get(Project, project_id)
+        if obj is not None:
+            db.delete(obj)
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def fake_dispatch(monkeypatch):
+    """替换 celery 派发（不连 broker），记录 build_id 供断言。"""
+    from app.services import agent_monthly_report_build_service as build_service
+
+    calls: list[int] = []
+
+    def _dispatch(build_id: int) -> str:
+        calls.append(build_id)
+        return f"fake-task-{build_id}"
+
+    monkeypatch.setattr(build_service, "dispatch_build", _dispatch)
+    return calls
+
+
+def run_build_inline(build_id: int) -> dict:
+    """同步跑一次仅计算草稿（celery eager，与 run_job 测试同口径）。"""
+    from app.celery_tasks.monthly_report_preview import build_monthly_report_preview
+
+    return build_monthly_report_preview.apply(args=[build_id]).get()
+
+
+def api_create_upload(client, env, **overrides) -> dict:
+    body = {
+        "project_id": env["project_id"],
+        "country": "US",
+        "report_month": "2026-10",
+    }
+    body.update(overrides)
+    response = client.post(
+        "/api/v1/agent/monthly-reports/uploads", json=body, headers=env["headers"]
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+def api_upload_file(client, env, upload_id: int, *, kind: str, content: bytes, filename: str, content_type: str):
+    return client.post(
+        f"/api/v1/agent/monthly-reports/uploads/{upload_id}/files",
+        files={"file": (filename, content, content_type)},
+        data={"kind": kind},
+        headers=env["headers"],
+    )
+
+
+def api_upload_csv(client, env, upload_id: int, *, content: bytes | None = None) -> dict:
+    response = api_upload_file(
+        client,
+        env,
+        upload_id,
+        kind="transaction_csv",
+        content=content if content is not None else monthly_report_csv_bytes(),
+        filename="transactions.csv",
+        content_type="text/csv",
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+def api_create_build(
+    client, env, *, upload_id: int, transaction_file_id: str, summary_pdf_file_id=None, idempotency_key=None
+):
+    body = {
+        "upload_id": upload_id,
+        "transaction_file_id": transaction_file_id,
+    }
+    if summary_pdf_file_id is not None:
+        body["summary_pdf_file_id"] = summary_pdf_file_id
+    headers = dict(env["headers"])
+    headers["Idempotency-Key"] = idempotency_key or f"idem-{uuid.uuid4().hex[:12]}"
+    return client.post(
+        "/api/v1/agent/monthly-reports/builds", json=body, headers=headers
+    )

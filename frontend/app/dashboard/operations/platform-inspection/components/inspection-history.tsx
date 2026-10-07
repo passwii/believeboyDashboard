@@ -26,6 +26,7 @@ import {
 } from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { Loader2, Eye, ImageIcon } from 'lucide-react'
+import { AhrRatingBadge } from './ahr-rating'
 
 interface InspectionHistoryProps {
   periodId: number
@@ -124,9 +125,9 @@ function DetailSheet({
                 <div className="rounded-none border border-border/70 bg-term-raised p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {report.health_data.account_health_rating && (
-                      <div className="flex justify-between">
+                      <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">AHR</span>
-                        <Badge variant="outline">{report.health_data.account_health_rating}</Badge>
+                        <AhrRatingBadge rating={report.health_data.account_health_rating} compact />
                       </div>
                     )}
                     {report.health_data.negative_feedback !== undefined && (
@@ -428,9 +429,7 @@ export default function InspectionHistory({ periodId, refreshKey }: InspectionHi
                       </TableCell>
                       <TableCell>
                         {item.account_health_rating ? (
-                          <Badge variant="outline" className="text-xs">
-                            {item.account_health_rating}
-                          </Badge>
+                          <AhrRatingBadge rating={item.account_health_rating} compact />
                         ) : (
                           '-'
                         )}

@@ -264,6 +264,7 @@ export function TerminalHeader({
             <button
               type="button"
               data-testid="terminal-header-user"
+              aria-label={`用户菜单：${displayName}`}
               className="flex h-9 items-center gap-1.5 rounded-none px-1.5 text-sm text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
             >
               <UserRound className="h-5 w-5" strokeWidth={1.75} />

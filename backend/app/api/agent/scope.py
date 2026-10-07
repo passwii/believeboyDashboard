@@ -57,6 +57,9 @@ KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
         "platform_inspection",
         # 客诉中心写侧域（BLF-981）：W1 批量 upsert + R1 列表读取，写每日巡检客诉数据。
         "complaint_center",
+        # 月报写入域（BLF-1250 阶段一）：临时上传 + 仅计算草稿 + 确认入库。
+        # 写侧域——只有显式持有该域的凭据能写入正式财务月报。
+        "monthly_reports",
     }
 )
 

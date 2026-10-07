@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 /**
  * Motion-system a11y regression.
@@ -25,8 +26,11 @@ test.describe('motion system a11y', () => {
   // CI: axe-core scan + page load 需要时间
   test.setTimeout(60_000)
 
-  test('dashboard has no wcag2 critical violations', async ({ page }) => {
+  test('dashboard has no wcag2 critical violations', async ({ page, context }) => {
+    await addBLF611FixtureAuth(context)
     await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/)
+    await expect(page.getByRole('main')).toBeVisible()
     await page.waitForLoadState('networkidle')
 
     const results = await new AxeBuilder({ page })
@@ -34,15 +38,14 @@ test.describe('motion system a11y', () => {
       .analyze()
 
     const blocking = results.violations.filter((v) => v.impact === 'critical')
-    if (blocking.length > 0) {
-      // Surface the report for triage; the assertion below still fails.
-      console.log('A11y violations:', JSON.stringify(blocking, null, 2))
-    }
     expect(blocking).toEqual([])
   })
 
-  test('ai-chat has no wcag2 critical violations', async ({ page }) => {
+  test('ai-chat has no wcag2 critical violations', async ({ page, context }) => {
+    await addBLF611FixtureAuth(context)
     await page.goto('/dashboard/ai/chat')
+    await expect(page).toHaveURL(/\/dashboard\/ai\/chat(?:\?.*)?$/)
+    await expect(page.getByRole('main')).toBeVisible()
     await page.waitForLoadState('networkidle')
 
     const results = await new AxeBuilder({ page })

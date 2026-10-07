@@ -7,6 +7,7 @@ in `tests/integration/` and run only in CI/dev envs.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock
 
@@ -275,35 +276,22 @@ class TestConstants:
         assert MAX_PAGE_SIZE <= 1000
 
 
-# ---------- is_current 过滤 ----------
+# ---------- BEL-348 行级销售数据可见性 ----------
 
 
-class TestCurrentFilter:
-    """验证 _build_base_query / list_orders 的 count_sql 都强制走
-    AnalysisSourceFile.is_current = TRUE。
-    """
+class TestSalesRowVisibility:
+    """订单信息服务不得依赖已废弃的 sales_report is_current 版本指针。"""
 
-    def test_base_query_includes_is_current(self):
-        from sqlalchemy.dialects import sqlite
-
+    def test_base_query_does_not_filter_is_current(self):
         stmt = order_info_service._build_base_query()
-        compiled = str(
-            stmt.compile(
-                dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}
-            )
-        )
-        # is_current 过滤必须出现在 SQL 文本里
-        assert "is_current" in compiled
-        # 同时 boolean 表达式 true（或 1）也应存在
-        assert (
-            ("true" in compiled) or ("1" in compiled) or ("IS TRUE" in compiled.upper())
-        )
+        compiled = _compile(stmt).lower()
+        assert "is_current" not in compiled
 
-    def test_list_orders_count_sql_includes_is_current(self, monkeypatch):
-        """通过 stub db 验证 list_orders 的 count_sql 路径也带 is_current。"""
+    def test_list_orders_count_sql_does_not_filter_is_current(self):
+        """独立 count 路径同样必须包含旧版本 source_file 关联的销售行。"""
         from app.services.data import order_info_service as svc
 
-        captured: dict[str, object] = {}
+        captured: dict[str, str] = {}
 
         class _FakeResult:
             def scalar(self):
@@ -314,26 +302,142 @@ class TestCurrentFilter:
 
         class _FakeDB:
             def execute(self, stmt):
-                from sqlalchemy.dialects import sqlite
-
-                compiled = str(
-                    stmt.compile(
-                        dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}
-                    )
-                )
-                # 只关心第一次调用（count_sql），记下文本即可
+                compiled = _compile(stmt).lower()
                 if "count(" in compiled and "count_sql" not in captured:
                     captured["count_sql"] = compiled
                 return _FakeResult()
 
-        db = _FakeDB()
-        result = svc.list_orders(
-            db,
-            project_ids=None,
-            operator="someone",
+        svc.list_orders(_FakeDB(), operator="someone", is_admin=True)
+        assert "count_sql" in captured
+        assert "is_current" not in captured["count_sql"]
+
+    def test_filter_option_queries_do_not_filter_is_current(self, monkeypatch):
+        captured: list[str] = []
+
+        class _FakeResult:
+            def all(self):
+                return []
+
+        class _FakeDB:
+            def execute(self, stmt):
+                captured.append(_compile(stmt).lower())
+                return _FakeResult()
+
+        monkeypatch.setattr(
+            "app.services.project_service.list_project_items",
+            lambda db, **kwargs: [],
+        )
+        order_info_service.collect_filter_options(
+            _FakeDB(), operator="admin", is_admin=True
+        )
+
+        assert len(captured) == 3
+        assert all("is_current" not in sql for sql in captured)
+
+    def test_order_info_reads_rows_from_non_current_sales_source(self, db_session):
+        """BEL-348 regression: order-info read/write queries must not filter by the
+        sales_report is_current pointer, which is no longer maintained on upsert.
+        """
+        from app.models import AnalysisSalesOrderRow, AnalysisSourceFile, Project
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        today = date.today()
+        project = Project(
+            project_name=f"order-info-row-visibility-{uuid.uuid4().hex[:10]}",
+            sort_order=0,
+            is_active=True,
+        )
+        db_session.add(project)
+        db_session.flush()
+
+        source = AnalysisSourceFile(
+            project_id=project.id,
+            report_type="sales_report",
+            country="US",
+            report_date=today,
+            period_start_date=today,
+            period_end_date=today,
+            version=1,
+            is_current=False,
+            upload_file_id=f"order-info-{uuid.uuid4().hex[:10]}",
+            upload_file_path="/tmp/order-info.tsv",
+            original_filename="order-info.tsv",
+            stored_filename="order-info.tsv",
+            logical_filename="order-info.tsv",
+            storage_key=f"order-info/{uuid.uuid4().hex}",
+            ingestion_status="success",
+            row_count_total=1,
+            row_count_included=1,
+        )
+        db_session.add(source)
+        db_session.flush()
+
+        order_id = f"VISIBILITY-{uuid.uuid4().hex[:12]}"
+        row = AnalysisSalesOrderRow(
+            project_id=project.id,
+            source_file_id=source.id,
+            source_row_no=1,
+            amazon_order_id=order_id,
+            purchase_at_utc=datetime.now(timezone.utc),
+            purchase_at_pt=datetime.now(timezone.utc).replace(tzinfo=None),
+            purchase_date_pt=today,
+            order_status="Shipped",
+            country="US",
+            sku="VISIBILITY-SKU",
+            asin="VISIBILITY-ASIN",
+            quantity=2,
+            item_price=19.99,
+            shipping_price=1.00,
+            item_tax=0,
+            shipping_tax=0,
+            currency="USD",
+            is_counted_sales=True,
+            status_rule_version=1,
+            raw_row={"fulfillment-channel": "Amazon"},
+        )
+        db_session.add(row)
+        db_session.flush()
+
+        page = svc.get_page_data(
+            db_session,
+            project_ids=[project.id],
+            operator="pytest",
             is_admin=True,
         )
-        assert "is_current" in captured.get("count_sql", "")
+        assert page.total == 1
+        assert [item.amazon_order_id for item in page.items] == [order_id]
+        assert page.stats.total_orders == 1
+        assert {option.value for option in page.filter_options.countries} >= {"US"}
+        assert {option.value for option in page.filter_options.currencies} >= {"USD"}
+        assert {option.value for option in page.filter_options.order_statuses} >= {"Shipped"}
+
+        overview = svc.get_overview(
+            db_session,
+            project_ids=[project.id],
+            operator="pytest",
+            is_admin=True,
+        )
+        assert overview.total == 1
+        assert overview.stats.total_orders == 1
+
+        filename, csv_text = svc.export_orders_to_csv(
+            db_session,
+            project_ids=[project.id],
+            operator="pytest",
+            is_admin=True,
+        )
+        assert filename.startswith("order-info-")
+        assert order_id in csv_text
+
+        updated = svc.update_order_by_id(
+            db_session,
+            row.id,
+            OrderInfoUpdate(carrier="UPS"),
+            operator="pytest",
+            is_admin=True,
+        )
+        assert updated.carrier == "UPS"
 
 
 # ---------- operator / is_admin 行为 ----------

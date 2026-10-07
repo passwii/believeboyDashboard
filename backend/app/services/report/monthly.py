@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, insert, select, update as sa_update
+from sqlalchemy import delete, func, insert, select, text, update as sa_update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -136,6 +136,29 @@ def get_project_by_name_or_404(db: Session, project_name: str) -> Project:
     return project
 
 
+def lock_monthly_report_key(
+    db: Session, *, project_id: int, country: str, report_month: str
+) -> None:
+    """串行化同一个 (项目, 国家, 月份) 的所有月报写入者（BLF-1250）。
+
+    事务级 Postgres advisory lock：dashboard 路径（``prepare_monthly_report`` /
+    ``persist_monthly_report_result``）与 Agent confirm 共用同一把锁，所以「先查
+    再写」不是应用层的竞态窗口。事务提交/回滚即释放，无需显式解锁。
+
+    非 Postgres 方言（SQLite 单测）无 advisory lock，退化为无锁——生产库是
+    Postgres，这是测试兼容而非语义降级。
+    """
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {
+            "key": f"monthly_report:{project_id}:{country}:{report_month}",
+        },
+    )
+
+
 def prepare_monthly_report(
     db: Session,
     *,
@@ -168,6 +191,14 @@ def prepare_monthly_report(
     """
     get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
+    # 目标键锁（BLF-1250）：与 Agent confirm 及 dashboard 其他写入者串行化，
+    # 保证 version 递增与 is_current 切换不在竞态下产生重复版本。
+    lock_monthly_report_key(
+        db,
+        project_id=project_id,
+        country=normalized_country,
+        report_month=report_month,
+    )
 
     latest_version = db.execute(
         select(MonthlyReport.version)
@@ -321,6 +352,13 @@ def persist_monthly_report_result(
     report = db.get(MonthlyReport, report_id)
     if report is None:
         raise ValueError(f"monthly report not found: {report_id}")
+    # 与 prepare 同一把目标键锁：同一月报的并发写入必须串行（BLF-1250）。
+    lock_monthly_report_key(
+        db,
+        project_id=report.project_id,
+        country=report.country,
+        report_month=report.report_month,
+    )
 
     rows = result.get("transactions")
     pt3 = result.get("pt3")
@@ -813,6 +851,7 @@ __all__ = [
     # Core functions
     "parse_report_month",
     "get_project_or_404",
+    "lock_monthly_report_key",
     "prepare_monthly_report",
     "mark_report_running",
     "mark_report_failed",
