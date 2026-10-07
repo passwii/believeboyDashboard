@@ -226,6 +226,7 @@ const SignInCard = () => {
           submitting={submitting}
           error={error}
           retryAttempt={retryAttempt}
+          maxRetryAttempts={SIGN_IN_MAX_ATTEMPTS - 1}
           onSubmit={handleSignIn}
         />
       </div>

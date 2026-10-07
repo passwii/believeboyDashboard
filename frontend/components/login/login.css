@@ -222,15 +222,7 @@
       .login-entry .route-art.is-paused .route-wire-live { animation-play-state: paused; }
       .login-entry .route-node { fill: var(--brand-field); stroke: var(--brand-accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .login-entry .route-node-core { fill: var(--brand-accent); }
-      .login-entry .route-label {
-        fill: var(--brand-muted);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 10px;
-        letter-spacing: 1.4px;
-      }
-      .login-entry .route-caption { fill: var(--brand-muted); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; }
       .login-entry .route-hub { fill: var(--brand-field); stroke: rgb(115 217 144 / 65%); stroke-width: 1; vector-effect: non-scaling-stroke; }
-      .login-entry .route-hub-text { fill: var(--brand-accent); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 27px; font-weight: 650; letter-spacing: -2px; }
       .login-entry .route-corner { fill: var(--brand-accent); }
       @keyframes route-sweep { to { stroke-dashoffset: -68; } }
 
@@ -344,7 +336,6 @@
         .login-entry .brand-copy h1 { max-width: none; font-size: clamp(31px, 8vw, 42px); letter-spacing: -.065em; }
         .login-entry .brand-copy p { max-width: 34em; margin-top: 10px; font-size: 13px; line-height: 1.7; }
         .login-entry .route-art { right: -105px; bottom: 5px; width: 250px; opacity: .24; }
-        .login-entry .route-art .route-label, .login-entry .route-art .route-caption { display: none; }
         .login-entry .brand-foot { font-size: 11px; }
       }
       @media (max-width: 380px) {
