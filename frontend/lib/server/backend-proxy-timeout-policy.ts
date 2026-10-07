@@ -66,10 +66,11 @@ const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/insight\/(ad-analysis|inventory-health)\/runs$/,
 ]
 
-// BLF-1262 Stage 1：后端 overview 对单条 SQL 设 15s statement_timeout；给代理
-// 留出 5s 让后端返回有说明的 504，而不是让代理先掐断并留下后台查询。
-const ORDER_INFO_OVERVIEW_PATH_PATTERNS: ReadonlyArray<RegExp> = [
-  /\/order-info\/overview(?:\?.*)?$/,
+// BLF-1262 Stage 1：后端 order-info 只读端点使用 15s statement_timeout；给代理
+// 留出 5s 让后端返回有说明的 504，而不是让代理先掐断并留下后台查询。Export
+// 不在此范围：它是显式用户操作，不应未经证据提高 deadline。
+const ORDER_INFO_READ_PATH_PATTERNS: ReadonlyArray<RegExp> = [
+  /\/order-info\/(?:page|list|stats|overview|filter-options|live-stream)(?:\?.*)?$/,
 ]
 
 const STATS_PATH_PATTERNS: ReadonlyArray<RegExp> = [
@@ -111,8 +112,8 @@ export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
   { label: 'report', pathPattern: matchAny(REPORT_PATH_PATTERNS), timeoutMs: 60_000 },
   { label: 'ai', pathPattern: matchAny(AI_PATH_PATTERNS), timeoutMs: 30_000 },
   {
-    label: 'order-info-overview',
-    pathPattern: matchAny(ORDER_INFO_OVERVIEW_PATH_PATTERNS),
+    label: 'order-info-read',
+    pathPattern: matchAny(ORDER_INFO_READ_PATH_PATTERNS),
     timeoutMs: 20_000,
   },
   { label: 'stats', pathPattern: matchAny(STATS_PATH_PATTERNS), timeoutMs: 15_000 },
