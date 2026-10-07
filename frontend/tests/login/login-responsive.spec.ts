@@ -1,9 +1,14 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 const viewports = [
-  { width: 390, height: 844, name: 'mobile' },
   { width: 1440, height: 900, name: 'desktop' },
-]
+  { width: 820, height: 1180, name: 'tablet' },
+  { width: 390, height: 844, name: 'mobile' },
+] as const
+
+const themes = ['light', 'dark'] as const
+
+type Theme = (typeof themes)[number]
 
 function getContrastRatio(foreground: string, background: string): number {
   const luminance = (color: string) => {
@@ -23,52 +28,104 @@ function getContrastRatio(foreground: string, background: string): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-test.describe('BelieveBoy login responsive entry', () => {
+async function setTheme(page: Page, theme: Theme) {
+  const root = page.locator('html')
+  const isDark = await root.evaluate((element) => element.classList.contains('dark'))
+  if (isDark !== (theme === 'dark')) await page.locator('.theme-button').click()
+  if (theme === 'dark') {
+    await expect(root).toHaveClass(/dark/)
+  } else {
+    await expect(root).not.toHaveClass(/dark/)
+  }
+}
+
+test.describe('BelieveBoy login themes and responsive entry', () => {
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies()
     await page.emulateMedia({ reducedMotion: 'no-preference' })
   })
 
   for (const viewport of viewports) {
-    test(`${viewport.name}: brand and login form fit without horizontal overflow`, async ({ page }) => {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      await page.goto('/login')
+    for (const theme of themes) {
+      test(`${viewport.name} ${theme}: brand and form are coordinated without horizontal overflow`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height })
+        await page.goto('/login')
+        await expect(page.locator('.theme-button')).toBeVisible()
+        await setTheme(page, theme)
 
-      if (viewport.name === 'desktop') {
-        await expect(page.getByRole('heading', { level: 1, name: '彼励扶跨境' })).toBeVisible()
+        await expect(page.getByRole('heading', { level: 1, name: /跨境电商\s*运营工作区/ })).toBeVisible()
+        if (viewport.name === 'mobile') await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
         await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
-      } else {
-        await expect(page.getByRole('img', { name: 'BelieveBoy' })).toBeVisible()
-        await expect(page.getByRole('heading', { level: 1, name: '彼励扶跨境' })).toBeAttached()
-        await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
-      }
-      await expect(page.getByLabel('企业邮箱')).toBeVisible()
-      await expect(page.getByLabel('登录密码')).toBeVisible()
-      const submit = page.getByRole('button', { name: /登录工作区/ })
-      await expect(submit).toBeVisible()
-      if (viewport.name === 'mobile') {
-        await expect(submit).toBeInViewport()
-      }
-      await expect(submit).toHaveCSS('box-shadow', 'none')
-      const submitContrast = await submit.evaluate((element) => {
-        const style = window.getComputedStyle(element)
-        return { foreground: style.color, background: style.backgroundColor }
+        await expect(page.getByLabel('企业邮箱')).toBeVisible()
+        await expect(page.getByLabel('登录密码')).toBeVisible()
+
+        const colors = await page.locator('.brand-panel').evaluate((panel) => {
+          const style = window.getComputedStyle(panel)
+          const heading = window.getComputedStyle(panel.querySelector('h1')!)
+          const copy = window.getComputedStyle(panel.querySelector('p')!)
+          const form = window.getComputedStyle(document.querySelector('.form-panel')!)
+          return {
+            background: style.backgroundColor,
+            heading: heading.color,
+            copy: copy.color,
+            form: form.backgroundColor,
+          }
+        })
+        expect(colors.background).not.toBe(colors.form)
+        expect(getContrastRatio(colors.heading, colors.background)).toBeGreaterThanOrEqual(4.5)
+        expect(getContrastRatio(colors.copy, colors.background)).toBeGreaterThanOrEqual(4.5)
+        if (theme === 'light') {
+          expect(colors.background).toBe('rgb(238, 242, 236)')
+          expect(colors.form).toBe('rgb(255, 255, 255)')
+        } else {
+          expect(colors.background).toBe('rgb(8, 13, 9)')
+          expect(colors.form).toBe('rgb(17, 17, 20)')
+        }
+
+        const placeholders = await page.locator('input').evaluateAll((inputs) => inputs.map((input) => {
+          const style = window.getComputedStyle(input)
+          const placeholder = window.getComputedStyle(input, '::placeholder')
+          return { foreground: placeholder.color, background: style.backgroundColor }
+        }))
+        for (const colors of placeholders) {
+          expect(getContrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5)
+        }
+
+        const submit = page.getByRole('button', { name: /登录工作区/ })
+        await expect(submit).toBeVisible()
+        if (viewport.name === 'mobile') await expect(submit).toBeInViewport()
+        const submitColors = await submit.evaluate((element) => {
+          const style = window.getComputedStyle(element)
+          return { foreground: style.color, background: style.backgroundColor }
+        })
+        expect(getContrastRatio(submitColors.foreground, submitColors.background)).toBeGreaterThanOrEqual(4.5)
+
+        await expect
+          .poll(() => page.locator('body').evaluate((element) => element.scrollWidth - element.clientWidth))
+          .toBe(0)
+
+        await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-${theme}.png`), fullPage: true })
       })
-      expect(getContrastRatio(submitContrast.foreground, submitContrast.background)).toBeGreaterThanOrEqual(4.5)
-      await expect(page.getByRole('button', { name: '显示密码' })).toHaveCSS('box-shadow', 'none')
-      const placeholders = await page.locator('input').evaluateAll((inputs) => inputs.map((input) => {
-        const style = window.getComputedStyle(input)
-        const placeholder = window.getComputedStyle(input, '::placeholder')
-        return { foreground: placeholder.color, background: style.backgroundColor }
-      }))
-      for (const colors of placeholders) {
-        expect(getContrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5)
-      }
-      await expect
-        .poll(() => page.locator('body').evaluate((element) => element.scrollWidth - element.clientWidth))
-        .toBe(0)
-    })
+    }
   }
+
+  test('theme toggle switches the complete login palette in both directions', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/login')
+    const brandPanel = page.locator('.brand-panel')
+    const themeToggle = page.getByRole('button', { name: /切换到深色模式/ })
+
+    await setTheme(page, 'light')
+    await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+    await expect(themeToggle).toBeVisible()
+    await expect(themeToggle).toHaveCSS('box-shadow', 'none')
+    await themeToggle.click()
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await expect(brandPanel).toHaveCSS('background-color', 'rgb(8, 13, 9)')
+    await page.locator('.theme-button').click()
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
+    await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+  })
 
   test('keyboard focus keeps terminal controls square', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -100,69 +157,14 @@ test.describe('BelieveBoy login responsive entry', () => {
     }
   })
 
-  test('brand panel workspace map tours by default and holds still under reduced motion', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('/login')
-
-    const domainRow = page.locator('.login-domain-row').first()
-    await expect(page.locator('.login-domain-row')).toHaveCount(8)
-    await expect(page.locator('section[aria-labelledby="login-brand-title"]')).toBeVisible()
-    expect(
-      await domainRow.evaluate((element) => window.getComputedStyle(element, '::before').animationName)
-    ).toBe('login-domain-tint')
-    expect(
-      await page.locator('.login-grid-scan-track').evaluate((element) => window.getComputedStyle(element).animationName)
-    ).toBe('login-grid-scan')
-
-    await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.reload()
-    expect(
-      await page
-        .locator('.login-domain-row')
-        .first()
-        .evaluate((element) => window.getComputedStyle(element, '::before').animationName)
-    ).toBe('none')
-    expect(
-      await page
-        .locator('.login-domain-row')
-        .first()
-        .evaluate((element) => window.getComputedStyle(element, '::before').opacity)
-    ).toBe('0')
-    expect(
-      await page.locator('.login-grid-scan-track').evaluate((element) => window.getComputedStyle(element).animationName)
-    ).toBe('none')
-  })
-
-  test('theme toggle switches the term color theme', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('/login')
-    const root = page.locator('html')
-    const toggle = page.getByRole('button', { name: /切换到深色模式/ })
-
-    await expect(toggle).toBeVisible()
-    await expect(toggle).toHaveCSS('box-shadow', 'none')
-    await toggle.click()
-    await expect(root).toHaveClass(/dark/)
-    await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
-  })
-
-  test('mobile screen reader order keeps one level-one brand heading', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/login')
-
-    await expect(page.getByRole('heading', { level: 1, name: '彼励扶跨境' })).toBeAttached()
-    await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
-  })
-
-  test('reduced motion keeps brand and form immediately visible', async ({ page }) => {
+  test('reduced motion holds the workspace route artwork still', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/login')
 
-    await expect(page.getByRole('img', { name: 'BelieveBoy' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 1, name: '彼励扶跨境' })).toBeAttached()
     await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
-    await expect(page.getByLabel('企业邮箱')).toBeVisible()
+    expect(
+      await page.locator('.route-wire-live').first().evaluate((element) => window.getComputedStyle(element).animationName)
+    ).toBe('none')
   })
 })
