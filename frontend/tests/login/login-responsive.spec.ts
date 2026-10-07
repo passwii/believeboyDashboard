@@ -54,6 +54,7 @@ test.describe('BelieveBoy login themes and responsive entry', () => {
         await setTheme(page, theme)
 
         await expect(page.getByRole('heading', { level: 1, name: /跨境电商\s*运营工作区/ })).toBeVisible()
+        if (viewport.name === 'mobile') await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
         await expect(page.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
         await expect(page.getByLabel('企业邮箱')).toBeVisible()
         await expect(page.getByLabel('登录密码')).toBeVisible()
@@ -112,16 +113,48 @@ test.describe('BelieveBoy login themes and responsive entry', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/login')
     const brandPanel = page.locator('.brand-panel')
-    const themeToggle = page.locator('.theme-button')
+    const themeToggle = page.getByRole('button', { name: /切换到深色模式/ })
 
     await setTheme(page, 'light')
     await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+    await expect(themeToggle).toBeVisible()
+    await expect(themeToggle).toHaveCSS('box-shadow', 'none')
     await themeToggle.click()
     await expect(page.locator('html')).toHaveClass(/dark/)
     await expect(brandPanel).toHaveCSS('background-color', 'rgb(8, 13, 9)')
-    await themeToggle.click()
+    await page.locator('.theme-button').click()
     await expect(page.locator('html')).not.toHaveClass(/dark/)
     await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+  })
+
+  test('keyboard focus keeps terminal controls square', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/login')
+
+    await page.getByLabel('企业邮箱').focus()
+    await expect(page.getByLabel('企业邮箱')).toHaveCSS('border-radius', '0px')
+    await page.getByRole('button', { name: '显示密码' }).focus()
+    await expect(page.getByRole('button', { name: '显示密码' })).toHaveCSS('border-radius', '0px')
+    await page.getByRole('button', { name: /登录工作区/ }).focus()
+    await expect(page.getByRole('button', { name: /登录工作区/ })).toHaveCSS('border-radius', '0px')
+  })
+
+  test('hovering an input produces no motion and no layout shift', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/login')
+
+    for (const label of ['企业邮箱', '登录密码']) {
+      const input = page.getByLabel(label)
+      const before = await input.boundingBox()
+      await input.hover()
+      await page.waitForTimeout(320)
+      expect(await input.evaluate((element) => window.getComputedStyle(element).transform)).toBe('none')
+      expect(await input.evaluate((element) => window.getComputedStyle(element).transitionProperty)).not.toContain(
+        'transform'
+      )
+      const after = await input.boundingBox()
+      expect(after).toEqual(before)
+    }
   })
 
   test('reduced motion holds the workspace route artwork still', async ({ page }) => {
