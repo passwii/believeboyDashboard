@@ -322,3 +322,42 @@ def test_payload_input_binding_cannot_change(transaction_csv, tmp_path):
     artifacts.payload_path.write_text(json.dumps(body))
     with pytest.raises(PreviewIntegrityError):
         load_preview(replace(artifacts, payload_sha256=_hash(artifacts.payload_path)))
+
+
+# ── Tia（增量 A 评审建议 #1）：内核指标类型回归 ────────────────────────────
+# load_preview 对每个 pt3/pt4 指标都要求 str（Decimal 字符串）。内核一旦新增
+# 一个 float/int 指标，**所有** build 都会 fail closed 且错误不可定位。下面两条
+# 测试把该不变量钉死：指标必须仍是 Decimal，且类型回归时错误信息要指出段与 key。
+
+
+@pytest.mark.parametrize("country", ["US", "DE", "UK"])
+def test_kernel_metrics_stay_decimal(transaction_csv, tmp_path, country):
+    """内核 pt3/pt4 必须全部是 Decimal：任何一个 float/int 指标都会让草稿 fail closed。"""
+    from app.services.monthly_report_preview_service import build_preview, load_preview
+
+    artifacts = build_preview(
+        transaction_path=transaction_csv, output_dir=tmp_path / "draft",
+        project_name="Preview project", country=country, report_month="2026-10",
+        expected_input_sha256=_hash(transaction_csv),
+    )
+    result = load_preview(artifacts)
+    for name in ("pt3", "pt4"):
+        assert result[name], f"{name} must not be empty"
+        for key, value in result[name].items():
+            assert isinstance(value, Decimal), f"{name}.{key} is {type(value).__name__}"
+
+
+def test_non_string_metric_names_segment_and_key(transaction_csv, tmp_path):
+    """人为注入 float 指标：错误信息必须点名 pt3.<key> 与实际类型，而不是笼统报错。"""
+    from dataclasses import replace
+
+    from app.services.monthly_report_preview_service import load_preview, PreviewIntegrityError
+
+    artifacts = _build(transaction_csv, tmp_path / "draft")
+    body = json.loads(artifacts.payload_path.read_text())
+    body["result"]["pt3"]["income_total"] = 12.34
+    artifacts.payload_path.write_text(json.dumps(body))
+    with pytest.raises(PreviewIntegrityError) as excinfo:
+        load_preview(replace(artifacts, payload_sha256=_hash(artifacts.payload_path)))
+    assert "pt3.income_total" in str(excinfo.value)
+    assert "float" in str(excinfo.value)

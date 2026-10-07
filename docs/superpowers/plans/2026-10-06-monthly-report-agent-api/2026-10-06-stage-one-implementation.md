@@ -34,20 +34,42 @@ CodeGraph：新工作树索引已初始化；`callers/impact` 显示预览服务
 
 **文件职责：** `backend/app/models/agent_monthly_report.py` 保存 upload/build owner_key_id、project_id、country、month、expires_at、status、输入摘要、A 的结果摘要及 report_id；对应短数字 revision 迁移先 rebase main 再创建。`backend/app/api/agent/routers/monthly_reports.py` 提供契约里的 uploads/files/builds/status/preview/result；`backend/app/celery_tasks/monthly_report_preview.py` 在 reports queue 调用 A。注册 business_scope monthly_reports，复用身份、项目 scope 与 audit，不接内部 protected。
 
-- [ ] 建迁移前同步 main、确认单 head；先写合法二进制上传与非法/空/超限 CSV/PDF 测试；按 1 MiB 分块累计，不信 Content-Length。每会话一个 CSV＋可选 PDF，服务端随机路径，禁止 URL/base64/path 参数。
-- [ ] 写每步身份、business_scope、project_scope 与 key 归属测试；撤销 scope 后拒绝查询/下载；跨 Agent ID 返回 404，响应不带本地路径。
-- [ ] 写 build 只改变临时表、正式表行数不变及 CSV-only 流程测试；Celery 用数据库领取 queued 状态，重复投递不重复执行；Broker 派发失败返回可重试错误并恢复状态。
-- [ ] 写 24 小时过期及超时恢复测试；数据库状态＋文件清理互斥，清理不删正在计算目录。期限不能在重试中无限延长。
+- [x] 建迁移前同步 main、确认单 head；先写合法二进制上传与非法/空/超限 CSV/PDF 测试；按 1 MiB 分块累计，不信 Content-Length。每会话一个 CSV＋可选 PDF，服务端随机路径，禁止 URL/base64/path 参数。迁移 `20261006_277_agent_monthly_reports.py`（down_revision=276，与 origin/main 最新迁移接续）；`check_alembic.py` 通过。
+- [x] 写每步身份、business_scope、project_scope 与 key 归属测试；撤销 scope 后拒绝查询/下载；跨 Agent ID 返回 404，响应不带本地路径。
+- [x] 写 build 只改变临时表、正式表行数不变及 CSV-only 流程测试；Celery 用数据库领取 queued 状态，重复投递不重复执行；Broker 派发失败返回可重试错误并恢复状态。
+- [x] 写 24 小时过期及超时恢复测试；数据库状态＋文件清理互斥，清理不删正在计算目录。期限不能在重试中无限延长。
+
+实现要点：
+
+- `POST /uploads` → `POST /uploads/{id}/files` → `POST /builds` → `GET /builds/{id}` / `preview` / `result` → `POST /builds/{id}/confirm`，全部挂 `business_scope("monthly_reports")` 与写限流；鉴权在 agent 命名空间级，handler 内逐步重查 project_scope 与 key 归属。
+- 50 MiB 双重闸门：请求体先流式落 `agent_monthly_report_root/tmp`（累计超限即 413），解析后 `store_file` 再按块累计一次；两处都不依赖 Content-Length。body 无论成功失败都在 `finally` 删除。
+- build 由 `app/celery_tasks/monthly_report_preview.py` 在 `reports` 队列领取（`UPDATE ... WHERE status='queued'`，重复投递只执行一次），只调增量 A 的 `build_preview`；`agent_monthly_report_cleanup` 每小时 :20 扫过期/超时并清理临时目录（只删 agent 私有根下的目录，正式文件绝不触碰）。
+- 迁移 277 新增 4 张状态表（uploads / files / builds / idempotency），状态列用 String 避免反复 ALTER。
 
 ## 技术单元 C：确认入库、并发和补偿
 
 **文件职责：** `backend/app/services/agent_monthly_report_confirm_service.py` 执行 scope/摘要/期限检查、token 与数据库幂等、附件晋升及正式 persist；既有 `backend/app/services/report/monthly.py` 的 prepare/persist 与 Agent 共用数据库目标键锁，覆盖 dashboard 竞争。
 
-- [ ] 写首次确认 requires_confirmation、相同 body/key/token 重放成功、响应丢失后重试返回同 report_id、异体 key 冲突测试。
-- [ ] 写同 build/不同 build 同月竞争与 dashboard 竞争测试；锁内检查所有 success 报告（包含非 current）。Agent 不把已成功报告置为非 current。
-- [ ] 写晋升失败、DB 回滚、DB 成功但清理/响应失败测试；DB 回滚删除本次正式目录，已提交后绝不补偿删除。
-- [ ] 写失败审计与敏感数据不泄漏断言；对齐 confirmed 状态、report_id 与幂等唯一约束。
-- [ ] T3 一次全量 `cd backend && python -m pytest`；失败文件在 main 对账；跑 `python scripts/check_alembic.py`；完整功能 PR [risk:high] 交 Tia，由用户验收，作者不合并。
+- [x] 写首次确认 requires_confirmation、相同 body/key/token 重放成功、响应丢失后重试返回同 report_id、异体 key 冲突测试。
+- [x] 写同 build/不同 build 同月竞争与 dashboard 竞争测试；锁内检查所有 success 报告（包含非 current）。Agent 不把已成功报告置为非 current。
+- [x] 写晋升失败、DB 回滚、DB 成功但清理/响应失败测试；DB 回滚删除本次正式目录，已提交后绝不补偿删除。
+- [x] 写失败审计与敏感数据不泄漏断言；对齐 confirmed 状态、report_id 与幂等唯一约束。
+- [x] T3 一次全量 `cd backend && python -m pytest`；失败文件在 main 对账；跑 `python scripts/check_alembic.py`；完整功能 PR [risk:high] 交 Tia，由用户验收，作者不合并。
+
+实现要点：
+
+- 目标键串行化用 Postgres 事务级 advisory lock（`lock_monthly_report_key`），dashboard 的 `prepare_monthly_report` / `persist_monthly_report_result` 与 Agent confirm 共用同一把锁；两处调用都紧邻 `db.commit()`，锁持有时间短。非 Postgres（SQLite 单测）无锁，生产库是 Postgres。
+- 同月判定在锁内查 status ∈ (pending, running, success) 的全部行（含非 current 历史版本）——只要存在成功或在途月报就 409，Agent 永不把已有成功报告挤成非 current。
+- 两步确认复用 `issue_confirm_token` / `consume_confirm_token`；响应丢失后的重放靠 `agent_monthly_report_idempotency` 唯一键 `(key, action, key)` 返回原 report_id，不依赖已被原子 pop 的 Redis token。
+- 晋升（复制到正式 `upload_root` / `result_root`）在 DB 事务之前；`committed=False` 才补偿删除，提交后任何失败都不删正式文件（有专项回归测试）。
+
+## 本轮补充（增量 A 评审意见 + 恢复工作树）
+
+- Tia 建议 #1（内核指标类型不变量）：新增 US/DE/UK 指标必须为 Decimal 的回归测试，并把 `load_preview` 的类型错误信息改为点名 `pt3.<key>` 与实际类型；`PreviewIntegrityError` 不再被笼统 `ValueError` 包装吞掉，`MONTHLY_REPORT_NOT_READY.reason` 带该诊断短句。
+- Tia 建议 #2（中间目录权限）：`prepare_private_dir` 逐层 0o700，上传与 build 都先 `ensure_private_root` 再落盘；build 叶子目录仍交由 `build_preview` 以 `exist_ok=False` 独占创建。
+- Tia 建议 #3（50 MiB 不下沉到 build）：限额只在上传端点与落盘两处生效，`build_preview` 仍只做计算。
+- 新增两条契约回归：同键存在**非 current** 的成功月报仍拒绝入库；confirm 已提交后响应阶段失败不得删除正式文件。
+- OpenAPI 契约随新域重新导出（`make openapi-export` + `pnpm gen:api-types`），`tests/scripts/test_openapi_export.py` 恢复通过。
 
 ## 验收与推进
 

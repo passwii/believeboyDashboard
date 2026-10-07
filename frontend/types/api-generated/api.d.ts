@@ -461,6 +461,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/monthly-reports/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Build
+         * @description 发起仅计算草稿：202 + build_id（幂等键必填）。
+         */
+        post: operations["create_build_api_v1_agent_monthly_reports_builds_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/builds/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Build
+         * @description 状态查询：queued/running/success/failed/expired（不含服务器路径）。
+         */
+        get: operations["get_build_api_v1_agent_monthly_reports_builds__build_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/builds/{build_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Build
+         * @description 首次返回 requires_confirmation 壳 + token；重放（同 key + 同体）正式入库。
+         *
+         *     幂等优先于 token 消费：响应丢失后同幂等键重试即使 token 已被 pop，也能拿到
+         *     原 ``report_id``（契约要求「不新增版本」）。
+         */
+        post: operations["confirm_build_api_v1_agent_monthly_reports_builds__build_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/builds/{build_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Build Preview
+         * @description 预览：汇总指标 + 行数 + 输入摘要 + 版本预条件（不含交易明细）。
+         */
+        get: operations["get_build_preview_api_v1_agent_monthly_reports_builds__build_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/builds/{build_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Build Result
+         * @description 下载草稿 XLSX（私有；每次重新校验归属/权限/摘要）。
+         */
+        get: operations["download_build_result_api_v1_agent_monthly_reports_builds__build_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Upload Session
+         * @description 建临时上传会话（不写正式财务表）。
+         */
+        post: operations["create_upload_session_api_v1_agent_monthly_reports_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/uploads/{upload_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload File
+         * @description multipart 原始二进制上传：CSV（计算输入）/ PDF（可选附件）。
+         */
+        post: operations["upload_file_api_v1_agent_monthly_reports_uploads__upload_id__files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -16966,6 +17109,18 @@ export interface components {
             /** Year */
             year: number;
         };
+        /**
+         * MonthlyReportBuildCreateRequest
+         * @description 发起仅计算草稿：引用会话内已上传的不透明 file_id。
+         */
+        MonthlyReportBuildCreateRequest: {
+            /** Summary Pdf File Id */
+            summary_pdf_file_id?: string | null;
+            /** Transaction File Id */
+            transaction_file_id: string;
+            /** Upload Id */
+            upload_id: number;
+        };
         /** MonthlyReportDetailResponse */
         MonthlyReportDetailResponse: {
             /** Pt3 */
@@ -17065,6 +17220,24 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * MonthlyReportUploadCreateRequest
+         * @description 建临时上传会话：项目名从服务端项目记录解析，客户端只给 id。
+         */
+        MonthlyReportUploadCreateRequest: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Report Month
+             * @description YYYY-MM
+             */
+            report_month: string;
         };
         /**
          * MonthlySnapshotResponse
@@ -24974,6 +25147,235 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    create_build_api_v1_agent_monthly_reports_builds_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonthlyReportBuildCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_build_api_v1_agent_monthly_reports_builds__build_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_build_api_v1_agent_monthly_reports_builds__build_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_build_preview_api_v1_agent_monthly_reports_builds__build_id__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_build_result_api_v1_agent_monthly_reports_builds__build_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_upload_session_api_v1_agent_monthly_reports_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonthlyReportUploadCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_file_api_v1_agent_monthly_reports_uploads__upload_id__files_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

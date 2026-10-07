@@ -75,6 +75,8 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.operation_audit_cleanup",
             # BEL-379：每日 03:15 CST 刷新 ai_chat token 用量聚合快照
             "app.celery_tasks.ai_chat_token_usage_refresh",
+            # BLF-1250：Agent 月报仅计算草稿 + 临时件生命周期清理
+            "app.celery_tasks.monthly_report_preview",
         ],
     )
 

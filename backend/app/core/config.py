@@ -125,6 +125,21 @@ class Settings(BaseSettings):
 
     upload_root: Path = Path(__file__).resolve().parents[2] / "storage" / "uploads"
     result_root: Path = Path(__file__).resolve().parents[2] / "storage" / "results"
+    # Agent 月报写入流程（BLF-1250 阶段一）：临时上传与仅计算草稿的私有根目录。
+    # 与 upload_root / result_root 分开，因为这里的文件是「未确认临时件」——
+    # confirm 成功后才会晋升（复制）到正式目录，失败/过期由 janitor 删除。
+    agent_monthly_report_root: Path = (
+        Path(__file__).resolve().parents[2] / "storage" / "agent_monthly_reports"
+    )
+    # 用户 2026-10-06 确认的产品规则：每个 CSV/PDF 上限 50 MiB。服务端按流累计
+    # 字节拦截，不只信 Content-Length（见 agent_monthly_report_upload_service）。
+    agent_monthly_report_max_bytes: int = 50 * 1024 * 1024
+    # 未确认输入与结果保留 24 小时；到期不可 build/confirm，由 janitor 清理。
+    agent_monthly_report_ttl_hours: int = 24
+    # build 执行硬超时（分钟）：必须大于 celery 硬超时（run_job 为 20 分钟），
+    # 否则 janitor 会把仍在计算的任务判死。超时后 running 状态由 janitor 恢复为
+    # failed 并清理目录，避免状态永远 running 导致永不清理。
+    agent_monthly_report_build_timeout_minutes: int = 25
 
     max_upload_bytes: int = 50 * 1024 * 1024
     allowed_upload_extensions: set[str] = {".txt", ".csv", ".xlsx", ".pdf"}
@@ -404,4 +419,5 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.upload_root.mkdir(parents=True, exist_ok=True)
     settings.result_root.mkdir(parents=True, exist_ok=True)
+    settings.agent_monthly_report_root.mkdir(parents=True, exist_ok=True)
     return settings
