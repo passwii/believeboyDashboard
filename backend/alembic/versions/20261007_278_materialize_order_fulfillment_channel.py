@@ -43,7 +43,10 @@ def downgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name not in {'postgres', 'postgresql'}:
         return
+    # Keep rollback bounded too: dropping a generated column requires an
+    # ACCESS EXCLUSIVE lock, even though it does not need to recompute values.
     op.execute(sa.text("SET LOCAL lock_timeout = '3s'"))
+    op.execute(sa.text("SET LOCAL statement_timeout = '300s'"))
     op.execute(
         sa.text(
             "ALTER TABLE analysis_sales_order_rows "

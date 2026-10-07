@@ -94,7 +94,10 @@ def test_generated_column_matches_raw_json_coalesce_semantics(db_session: Sessio
         expected = raw_row.get("fulfillment-channel") or raw_row.get("fulfillment channel")
         assert fulfillment_channel == expected
     assert rows[0].fulfillment_channel == "Amazon"  # canonical key wins
-    assert rows[2].fulfillment_channel == "Amazon"  # legacy key fallback
+    # Deliberate compatibility expansion over the old canonical-only JSON
+    # predicate: legacy-key-only records now participate in channel filters.
+    assert "fulfillment-channel" not in rows[2].raw_row
+    assert rows[2].fulfillment_channel == "Amazon"
     assert rows[-1].fulfillment_channel is None
 
 
@@ -103,7 +106,6 @@ def test_stats_without_project_joins_match_joined_legacy_aggregates(
 ) -> None:
     env = _seed_order_rows(db_session)
     project_id = env["project_id"]
-    channel = AnalysisSalesOrderRow.fulfillment_channel
     optimized = svc.compute_stats(
         db_session,
         project_ids=[project_id],
@@ -114,30 +116,28 @@ def test_stats_without_project_joins_match_joined_legacy_aggregates(
         is_admin=True,
     )
 
-    # Reference the legacy joined SQL and raw JSON semantics. The FK-backed
-    # joins must not alter any of the six public stats fields.
+    # Keep the former joined query shape, but use the same materialized
+    # fulfillment predicate as the optimized query. This isolates join removal
+    # from the deliberate JSON-key compatibility behavior tested above.
+    channel = AnalysisSalesOrderRow.fulfillment_channel
     legacy_from = AnalysisSalesOrderRow.__table__.join(
         AnalysisSourceFile.__table__,
         AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
     ).join(Project.__table__, Project.id == AnalysisSourceFile.project_id)
-    fulfillment_expr = func.coalesce(
-        AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string(),
-        AnalysisSalesOrderRow.raw_row["fulfillment channel"].as_string(),
-    )
     legacy_aggregate = db_session.execute(
         select(
             func.count(AnalysisSalesOrderRow.id),
             func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0),
             func.coalesce(func.sum(sales_amount_expr_by_row()), 0.0),
-            func.coalesce(func.sum(case((fulfillment_expr == "Amazon", 1), else_=0)), 0),
-            func.coalesce(func.sum(case((fulfillment_expr == "Merchant", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((channel == "Amazon", 1), else_=0)), 0),
+            func.coalesce(func.sum(case((channel == "Merchant", 1), else_=0)), 0),
         )
         .select_from(legacy_from)
         .where(
             AnalysisSalesOrderRow.project_id == project_id,
             AnalysisSalesOrderRow.order_status == "Shipped",
             AnalysisSalesOrderRow.country == "US",
-            fulfillment_expr.in_(["Amazon", "Merchant"]),
+            channel.in_(["Amazon", "Merchant"]),
         )
     ).one()
     legacy_currency = db_session.execute(
@@ -150,7 +150,7 @@ def test_stats_without_project_joins_match_joined_legacy_aggregates(
             AnalysisSalesOrderRow.project_id == project_id,
             AnalysisSalesOrderRow.order_status == "Shipped",
             AnalysisSalesOrderRow.country == "US",
-            fulfillment_expr.in_(["Amazon", "Merchant"]),
+            channel.in_(["Amazon", "Merchant"]),
             AnalysisSalesOrderRow.currency.is_not(None),
         )
         .group_by(AnalysisSalesOrderRow.currency)
@@ -161,6 +161,13 @@ def test_stats_without_project_joins_match_joined_legacy_aggregates(
         .limit(1)
     ).first()
 
+    # Pin concrete semantics as well as comparing query shapes: the row with
+    # only the legacy JSON key is included as Amazon by the generated column.
+    assert optimized.total_orders == 4
+    assert optimized.total_quantity == 10
+    assert optimized.fba_count == 2
+    assert optimized.fbm_count == 2
+    assert optimized.currency == "USD"
     assert optimized.total_orders == legacy_aggregate[0]
     assert optimized.total_quantity == legacy_aggregate[1]
     assert optimized.total_amount == pytest.approx(float(legacy_aggregate[2]), abs=0.01)
