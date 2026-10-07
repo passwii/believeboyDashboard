@@ -80,12 +80,24 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
+  it('does NOT over-match sibling order-info paths (overview has its own timeout tier)', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(20_000)
     expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
   })
 })
+
+describe('BLF-1262: order-info/overview timeout tier', () => {
+  it('allows the backend 15s statement deadline to return a clear 504 first', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(20_000)
+    expect(getProxyTimeoutMs('/api/v1/order-info/overview', null)).toBe(20_000)
+  })
+
+  it('does not extend sibling or export endpoints without evidence', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/export', 'application/json')).toBe(5_000)
+  })
+})
+
 describe('Insight canonical stream timeout tier', () => {
   it('does not apply the ordinary 5s timeout to Insight streams', () => {
     expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', 'application/json')).toBe(0)
@@ -135,9 +147,8 @@ describe('BLF-1019: order-info/filter-options timeout tier', () => {
     expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
+  it('does NOT over-match sibling order-info paths (overview has its own timeout tier)', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(20_000)
     expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
   })
 })

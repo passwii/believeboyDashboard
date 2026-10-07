@@ -73,6 +73,12 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   // detail / list → 5-10s. See `backend-proxy-timeout-policy.ts` for the
   // tier table and matching rules.
   const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept)
+  const timeoutSignal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs)
+  // Preserve client cancellation (including streams) while adding the proxy
+  // deadline. If either signal aborts, cancel the upstream request promptly.
+  const upstreamSignal = timeoutSignal
+    ? AbortSignal.any([request.signal, timeoutSignal])
+    : request.signal
 
   try {
     const response = await fetch(`${buildBackendUrl(backendPath)}${appendApiKeyQuery(search)}`, {
@@ -80,13 +86,30 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       headers: buildBackendProxyHeaders(session, request.headers),
       body: await getProxyRequestBody(request),
       cache: 'no-store',
-      // Stream endpoints: no timeout (let the connection close naturally when
-      // the backend finishes or the client disconnects). Other endpoints:
-      // the per-endpoint timeout from the tier table.
-      ...(timeoutMs === 0 ? {} : { signal: AbortSignal.timeout(timeoutMs) }),
+      signal: upstreamSignal,
     })
     return await toProxyResponse(response)
   } catch (error) {
+    // A caller closing the page is not a backend failure. Use the conventional
+    // 499 status for observability if the runtime still expects a response.
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 })
+
+    // A proxy-owned deadline is a gateway timeout, not a generic 500. The
+    // overview timeout is deliberately a little longer than the backend's
+    // 15s statement_timeout so its actionable backend 504 can normally pass
+    // through first; this handles network/runtime deadlines separately.
+    if (timeoutSignal?.aborted) {
+      const isOrderOverview = /\/order-info\/overview(?:\?|$)/.test(backendPath + search)
+      return NextResponse.json(
+        {
+          message: isOrderOverview
+            ? '订单概览查询超时，请缩小店铺或日期范围后重试。'
+            : '请求后端服务超时，请稍后重试。',
+        },
+        { status: 504 }
+      )
+    }
+
     return NextResponse.json(
       { message: normalizeErrorMessage(error, '后端服务暂时不可用，请联系管理员') },
       { status: 500 }
