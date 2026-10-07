@@ -7,11 +7,15 @@ BEL-157 订单信息页面 API endpoints
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from datetime import date
-from typing import Optional
+from functools import wraps
+from typing import Optional, TypeVar
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from sqlalchemy import select
+from fastapi.responses import JSONResponse
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -20,6 +24,7 @@ from app.api.deps import (
     get_request_operator,
     protected,
 )
+from app.core.config import get_settings
 from app.models.product_analysis_source import AnalysisSalesOrderRow, AnalysisSourceFile
 from app.models.project import Project
 from app.schemas.order_info import (
@@ -45,6 +50,58 @@ from app.services.data.order_info_service import (
 router = APIRouter(
     prefix="/order-info", tags=["order-info"], dependencies=[Depends(protected)]
 )
+
+_F = TypeVar("_F", bound=Callable)
+_QUERY_DEADLINE_CODE = "QUERY_DEADLINE_EXCEEDED"
+_QUERY_DEADLINE_DETAIL = "查询超时，请收窄筛选条件"
+
+
+def _is_query_canceled(exc: DBAPIError) -> bool:
+    """Recognize PostgreSQL statement_timeout cancellations (SQLSTATE 57014)."""
+    original = exc.orig
+    sqlstate = getattr(original, "sqlstate", None) or getattr(
+        original, "pgcode", None
+    )
+    if sqlstate == "57014":
+        return True
+    # Drivers can wrap the server exception one level down.
+    cause = getattr(original, "__cause__", None)
+    return getattr(cause, "sqlstate", None) == "57014" or getattr(
+        cause, "pgcode", None
+    ) == "57014"
+
+
+def _order_info_query_deadline(fn: _F) -> _F:
+    """Apply a transaction-local deadline around an order-info read handler."""
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        db = kwargs.get("db")
+        if db is None:
+            raise RuntimeError("order-info deadline requires a db session")
+
+        timeout_ms = get_settings().order_info_statement_timeout_seconds * 1000
+        try:
+            # SQLAlchemy autobegins a transaction here. SET LOCAL is scoped to
+            # that transaction and is cleared before this request's session is
+            # returned to its connection pool.
+            db.execute(
+                text("SELECT set_config('statement_timeout', :timeout, true)"),
+                {"timeout": f"{timeout_ms}ms"},
+            )
+            return fn(*args, **kwargs)
+        except DBAPIError as exc:
+            if not _is_query_canceled(exc):
+                raise
+            db.rollback()
+            return JSONResponse(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                content={
+                    "detail": _QUERY_DEADLINE_DETAIL,
+                    "code": _QUERY_DEADLINE_CODE,
+                },
+            )
+
+    return wrapped  # type: ignore[return-value]
 
 
 def _parse_int_list(values: list[str] | None) -> list[int]:
@@ -85,6 +142,7 @@ def _normalize_date_range(
 
 
 @router.get("/page", response_model=OrderInfoPageData)
+@_order_info_query_deadline
 def get_order_info_page(
     project_ids: list[int] | None = Query(default=None),
     fulfillment_channels: list[str] | None = Query(default=None),
@@ -128,6 +186,7 @@ def get_order_info_page(
 
 
 @router.get("/list", response_model=OrderInfoListResponse)
+@_order_info_query_deadline
 def list_orders(
     project_ids: list[int] | None = Query(default=None),
     fulfillment_channels: list[str] | None = Query(default=None),
@@ -171,6 +230,7 @@ def list_orders(
 
 
 @router.get("/stats", response_model=OrderInfoStats)
+@_order_info_query_deadline
 def get_stats(
     project_ids: list[int] | None = Query(default=None),
     fulfillment_channels: list[str] | None = Query(default=None),
@@ -206,6 +266,7 @@ def get_stats(
 
 
 @router.get("/overview", response_model=OrderInfoOverview)
+@_order_info_query_deadline
 def get_overview(
     project_ids: list[int] | None = Query(default=None),
     fulfillment_channels: list[str] | None = Query(default=None),
@@ -251,6 +312,7 @@ def get_overview(
 
 
 @router.get("/filter-options", response_model=OrderInfoFilterOptions)
+@_order_info_query_deadline
 def get_filter_options(
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -263,6 +325,7 @@ def get_filter_options(
 
 
 @router.get("/live-stream", response_model=list[OrderLiveStreamItem])
+@_order_info_query_deadline
 def get_order_live_stream(
     project_ids: list[int] | None = Query(default=None),
     countries: list[str] | None = Query(default=None),
@@ -289,6 +352,7 @@ def get_order_live_stream(
 
 
 @router.post("/export", response_model=OrderInfoExportResponse)
+@_order_info_query_deadline
 def export_orders(
     payload: OrderInfoExportRequest,
     db: Session = Depends(get_read_db_session),

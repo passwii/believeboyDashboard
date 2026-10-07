@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     test_businessdev_password: str = Field(default="", max_length=256)
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
+    # Bound expensive read queries in the order-info domain without changing
+    # the connection-wide statement_timeout used by other endpoints.
+    order_info_statement_timeout_seconds: int = Field(default=20, ge=1, le=119)
     db_read_pool_size: int = Field(default=5, ge=1, le=50)
     db_read_max_overflow: int = Field(default=5, ge=0, le=50)
     replica_failure_threshold: int = Field(default=5, ge=1, le=100)
