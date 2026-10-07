@@ -59,7 +59,7 @@ import {
   useHeaderSlot,
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
-import { normalizeErrorMessage } from '@/lib/error-utils'
+import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
 
 // ======================== 类型 ========================
@@ -260,6 +260,9 @@ function OrderInfoPageInner() {
   const filterOptionsRequested = useRef(false)
   // 店铺自动选中是否已落定（manage 项目列表 resolve 后置 true，驱动首屏 fetch）
   const [projectAutoselectDone, setProjectAutoselectDone] = useState(false)
+  const [projectListLoading, setProjectListLoading] = useState(false)
+  const [projectListError, setProjectListError] = useState(false)
+  const [projectSelectionExplicit, setProjectSelectionExplicit] = useState(false)
   const [items, setItems] = useState<OrderItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -300,6 +303,7 @@ function OrderInfoPageInner() {
     }
     if (gfProjectId) {
       gfProjectOwnedRef.current = true
+      setProjectSelectionExplicit(true)
       const nextProjectId = gfProjectId === 'all' ? DEFAULT_PROJECT_VALUE : gfProjectId
       if (nextProjectId !== projectId) {
         setProjectId(nextProjectId)
@@ -354,6 +358,7 @@ function OrderInfoPageInner() {
     if (pid && pid !== DEFAULT_PROJECT_VALUE) {
       setProjectId(pid)
       gfProjectOwnedRef.current = true
+      setProjectSelectionExplicit(true)
       changed = true
     }
 
@@ -435,39 +440,50 @@ function OrderInfoPageInner() {
     void load()
   }, [session, sessionStatus, filterOptions])
   // ====== 首次加载：店铺自动选中改走带缓存的 manage 项目列表 ======
-  // 不再等 filter-options 返回才选中第一个店铺：manage 列表带 2 分钟客户端缓存，
-  // SPA 内跨页导航时通常零请求，且不会阻塞首屏 /overview。
-  // 失败/空列表时照旧放行（projectId 维持 DEFAULT 全店铺），与旧逻辑空壳分支等价。
-  useEffect(() => {
-    // 等 session 落定再拉项目列表，保证请求带上 X-Operator 头（与旧 filter-options 时序一致）
-    if (sessionStatus === 'loading') return
-    if (initialProjectAutoselected.current) return
-    let active = true
-    void fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
-      .then((payload) => {
-        if (!active || initialProjectAutoselected.current) return
+  // 项目列表失败时不能静默放行 DEFAULT 全店铺查询；显式项目范围（含用户主动选「全部」）除外。
+  const loadManagedProjects = useCallback(
+    async (isActive: () => boolean = () => true) => {
+      setProjectListLoading(true)
+      try {
+        const payload = await fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
+        if (!isActive()) return
         const rows = payload.filter(
           (item): item is { id: number; name: string } =>
             typeof item.id === 'number' && item.id > 0 && typeof item.name === 'string'
         )
-        // BLF-819 review 修复：头部已写入具体项目时不自动选第一个店铺，
-        // 否则本 effect 会把用户在头部选的项目又覆盖回 rows[0]。
+        // 头部或 URL 已明确项目范围时，自动选店铺不能覆盖用户选择。
         if (rows.length > 0 && !gfProjectOwnedRef.current) {
           setProjectId(String(rows[0].id))
         }
-        initialProjectAutoselected.current = true
-        // 显式置位驱动首屏 fetch（不依赖 setState 附带重渲染）
-        setProjectAutoselectDone(true)
-      })
-      .catch(() => {
-        if (!active || initialProjectAutoselected.current) return
-        initialProjectAutoselected.current = true
-        setProjectAutoselectDone(true)
-      })
+        setProjectListError(false)
+      } catch {
+        if (!isActive()) return
+        setProjectListError(true)
+      } finally {
+        if (isActive()) {
+          initialProjectAutoselected.current = true
+          setProjectAutoselectDone(true)
+          setProjectListLoading(false)
+        }
+      }
+    },
+    [session]
+  )
+
+  useEffect(() => {
+    // 等 session 落定再拉项目列表，保证请求带上 X-Operator 头。
+    if (sessionStatus === 'loading' || initialProjectAutoselected.current) return
+    let active = true
+    void loadManagedProjects(() => active)
     return () => {
       active = false
     }
-  }, [session, sessionStatus])
+  }, [loadManagedProjects, sessionStatus])
+
+  const handleRetryProjectList = useCallback(() => {
+    if (projectListLoading) return
+    void loadManagedProjects()
+  }, [loadManagedProjects, projectListLoading])
 
   // ====== 构建请求 query ======
   const buildQuery = useCallback(() => {
@@ -507,6 +523,8 @@ function OrderInfoPageInner() {
 
   // ====== 拉取数据（list + stats 合并） ======
   const fetchData = useCallback(async () => {
+    // 项目列表不可用时禁止 refresh 等旁路触发隐式全店铺请求。
+    if ((projectListLoading || projectListError) && !projectSelectionExplicit) return
     // 取消上一次还在飞的请求：快速筛选/翻页时只有最后一次生效，
     // 杜绝 N 次 list+stats 并发同时压到后端。
     fetchAbortRef.current?.abort()
@@ -528,8 +546,7 @@ function OrderInfoPageInner() {
         }
       )
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `订单数据加载失败 (${res.status})`)
+        throw new Error(await parseResponseError(res, `订单数据加载失败 (${res.status})`))
       }
       const data = (await res.json()) as OrderOverviewResponse
       // 走到这里说明没被 abort，安全落 state
@@ -546,7 +563,7 @@ function OrderInfoPageInner() {
       // 已被 abort 时不要动 loading，交给接管的新请求维护其加载态
       if (!ctrl.signal.aborted) setLoading(false)
     }
-  }, [buildQuery, session])
+  }, [buildQuery, projectListError, projectListLoading, projectSelectionExplicit, session])
 
   // 卸载时取消在飞请求，避免对已卸载组件 setState
   useEffect(() => {
@@ -572,6 +589,9 @@ function OrderInfoPageInner() {
   // 首次加载时等待店铺自动选中后再 fetch，避免默认"全部店铺"拉全量数据慢查询。
   useEffect(() => {
     if (!initialProjectAutoselected.current) return
+    // 项目列表失败或重试中时，阻止隐式 DEFAULT 全店铺宽查询。
+    // URL / 头部明确选择的项目范围（包括用户主动选择「全部」）仍可继续。
+    if ((projectListLoading || projectListError) && !projectSelectionExplicit) return
     // 250ms debounce：下拉/排序/日期/翻页连点时合并成一次请求，
     // 配合 fetchData 内的 abort，彻底消除筛选风暴下的并发堆积。
     // 手动 head 全局刷新按钮走 useHeaderRefresh 直调 fetchData（不受此 debounce 影响）。
@@ -579,11 +599,19 @@ function OrderInfoPageInner() {
       void fetchData()
     }, 250)
     return () => clearTimeout(timer)
-  }, [fetchData, projectId, projectAutoselectDone])
+  }, [
+    fetchData,
+    projectId,
+    projectAutoselectDone,
+    projectListLoading,
+    projectListError,
+    projectSelectionExplicit,
+  ])
 
   // ====== 操作 handlers ======
   const handleResetFilters = () => {
     setProjectId(DEFAULT_PROJECT_VALUE)
+    setProjectSelectionExplicit(true)
     setFulfillmentChannels([])
     setOrderStatuses([])
     setCountries([])
@@ -602,6 +630,7 @@ function OrderInfoPageInner() {
   }
 
   const handleExport = async () => {
+    if ((projectListLoading || projectListError) && !projectSelectionExplicit) return
     setExporting(true)
     try {
       const res = await fetch('/api/backend/api/v1/order-info/export', {
@@ -621,8 +650,7 @@ function OrderInfoPageInner() {
         }),
       })
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(txt || `导出失败 (${res.status})`)
+        throw new Error(await parseResponseError(res, `导出失败 (${res.status})`))
       }
       const data = (await res.json()) as { filename: string; content_base64: string }
       // 解码 base64 → Blob → 下载
@@ -939,6 +967,30 @@ function OrderInfoPageInner() {
         </div>
       )}
 
+      {projectListError && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="flex shrink-0 items-center gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            {projectSelectionExplicit
+              ? '店铺列表加载失败；仍按你明确选择的项目范围查询。'
+              : '店铺列表加载失败，已暂停订单查询以避免默认查询全部店铺。'}
+          </span>
+          <button
+            type="button"
+            onClick={handleRetryProjectList}
+            disabled={projectListLoading}
+            className="shrink-0 border border-term-warn/60 px-2 py-0.5 text-term-warn hover:bg-term-warn/10 disabled:opacity-50"
+            aria-label="重试店铺列表"
+          >
+            {projectListLoading ? '重试中…' : '重试'}
+          </button>
+        </div>
+      )}
+
       {/* 权限投影为空的醒目提示 */}
       {hasNoAccessibleProjects && (
         <div
@@ -978,7 +1030,7 @@ function OrderInfoPageInner() {
           <button
             type="button"
             onClick={() => void handleExport()}
-            disabled={exporting || loading}
+            disabled={exporting || loading || ((projectListLoading || projectListError) && !projectSelectionExplicit)}
             className={cn(TERM_BODY_BUTTON, 'ml-auto')}
             title="按当前筛选条件导出 CSV"
           >
@@ -1031,6 +1083,12 @@ function OrderInfoPageInner() {
                   colSpan={COLUMN_COUNT}
                   message={`加载失败：${errorMessage} — 可点击工具栏「刷新」重试`}
                   className="bg-term-panel font-mono text-xs text-term-neg"
+                />
+              ) : projectListError && !projectSelectionExplicit ? (
+                <EmptyTableState
+                  colSpan={COLUMN_COUNT}
+                  message="店铺列表加载失败 — 已暂停订单查询，请重试"
+                  className="bg-term-panel font-mono text-xs text-term-warn"
                 />
               ) : items.length === 0 ? (
                 <EmptyTableState
