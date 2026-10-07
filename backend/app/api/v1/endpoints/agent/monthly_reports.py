@@ -31,8 +31,8 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartParser
@@ -43,13 +43,21 @@ from app.api.agent.confirm import (
     issue_confirm_token,
 )
 from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
-from app.api.deps import get_primary_db_session
+from app.api.deps import get_primary_db_session, get_read_db_session
 from app.core.config import Settings, get_settings
 from app.models.agent_monthly_report import AgentMonthlyReportUpload
+from app.models.job import JobStatus
 from app.schemas.agent_monthly_report import (
+    AgentMonthlyReportDetail,
+    AgentMonthlyReportListItem,
+    MonthlyFinancialAccountingDetailEnvelope,
+    MonthlyFinancialSeriesEnvelope,
     MonthlyReportBuildCreateRequest,
+    MonthlyReportDetailEnvelope,
+    MonthlyReportListEnvelope,
     MonthlyReportUploadCreateRequest,
 )
 from app.services import agent_monthly_report_upload_service as upload_service
@@ -81,6 +89,17 @@ from app.services.agent_monthly_report_confirm_service import (
     perform_confirm,
 )
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.report.export import export_financial_accounting_detail_workbook
+from app.services.report.monthly import (
+    get_financial_accounting_detail,
+    get_financial_series,
+    get_report_detail,
+    get_report_or_404,
+    list_reports,
+    parse_report_month,
+    resolve_result_path,
+)
+from app.utils.country import normalize_country
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +110,113 @@ monthly_reports_router = APIRouter(
 
 CONFIRM_ACTION = "monthly_reports.confirm"
 
+
+@contextmanager
+def _read_service_errors():
+    """Translate internal monthly-report service errors into the Agent JSON shell."""
+    try:
+        yield
+    except AgentApiError:
+        raise
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+    except Exception as exc:
+        from fastapi import HTTPException
+
+        if isinstance(exc, HTTPException):
+            code = (
+                ErrorCode.RESOURCE_NOT_FOUND
+                if exc.status_code == 404
+                else ErrorCode.MONTHLY_REPORT_NOT_READY
+                if exc.status_code == 409
+                else ErrorCode.AGENT_RATE_LIMIT_EXCEEDED
+                if exc.status_code == 429
+                else ErrorCode.VALIDATION_FAILED
+            )
+            raise AgentApiError(code, human_message=str(exc.detail)) from None
+        raise
+
+
+def _monthly_report_list_item(report) -> AgentMonthlyReportListItem:
+    """Match the dashboard report fields without disclosing storage locations."""
+    return AgentMonthlyReportListItem(
+        id=report.id,
+        project_id=report.project_id,
+        project_name=report.project_name,
+        country=report.country,
+        report_month=report.report_month,
+        version=report.version,
+        is_current=report.is_current,
+        superseded_at=report.superseded_at,
+        status=report.status,
+        settlement_id=report.settlement_id,
+        total_transactions=report.total_transactions,
+        total_orders=report.total_orders,
+        total_refunds=report.total_refunds,
+        total_adjustments=report.total_adjustments,
+        total_service_fees=report.total_service_fees,
+        total_trans_fees=report.total_trans_fees,
+        # Preserve dashboard fields without leaking server-local storage paths.
+        result_file_path=None,
+        error_message=None,
+        calculation_version=report.calculation_version,
+        computed_at=report.computed_at,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
+    )
+
+
+def _serialize_calculation_row(row) -> dict[str, float] | None:
+    if row is None:
+        return None
+    excluded = {
+        "id",
+        "report_id",
+        "project_name",
+        "report_month",
+        "calculation_version",
+        "computed_at",
+        "created_at",
+        "updated_at",
+    }
+    return {
+        column.name: float(value) if value is not None else 0.0
+        for column in row.__table__.columns
+        if column.name not in excluded
+        for value in (getattr(row, column.name),)
+    }
+
+
+def _require_project_read_scope(project_id: int, request: Request) -> None:
+    """Recheck project_scope on every read, including project-filtered queries."""
+    assert_project_scope(project_id, request)
+
+
+def _normalize_read_filters(country: str | None, month: str | None):
+    try:
+        normalized_country = normalize_country(country) if country is not None else None
+        normalized_month = parse_report_month(month) if month is not None else None
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+    return normalized_country, normalized_month
+
 _XLSX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+_XLSX_BINARY_RESPONSE = {
+    200: {
+        "description": "XLSX 文件流",
+        "content": {
+            _XLSX_MEDIA_TYPE: {
+                "schema": {"type": "string", "format": "binary"}
+            }
+        },
+    }
+}
 
 
 def _key_id(request: Request) -> int:
@@ -115,6 +238,193 @@ def _audit_kwargs(request: Request, idempotency_key: str | None = None) -> dict:
         "agent_name": getattr(request.state, "agent_label", None),
         "idempotency_key": idempotency_key,
     }
+
+
+# ── 月报读取（与 dashboard 共用 service 与 response schema） ─────────────
+
+
+@monthly_reports_router.get("", response_model=MonthlyReportListEnvelope)
+def list_agent_monthly_reports(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str | None = Query(default=None),
+    month: str | None = Query(default=None),
+    include_history: bool = Query(default=False),
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """按项目列出月报；默认仅当前版本，include_history 可查看历史版本。"""
+    _require_project_read_scope(project_id, request)
+    with _read_service_errors():
+        normalized_country, normalized_month = _normalize_read_filters(country, month)
+        rows = list_reports(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            report_month=normalized_month,
+            current_only=not include_history,
+        )
+    return agent_ok([_monthly_report_list_item(row) for row in rows])
+
+
+@monthly_reports_router.get(
+    "/financial-series", response_model=MonthlyFinancialSeriesEnvelope
+)
+def get_agent_monthly_financial_series(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    start_month: str | None = Query(default=None),
+    end_month: str | None = Query(default=None),
+    fill_missing: bool = Query(default=True),
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """月度财务序列与趋势，复用 dashboard 财务口径。"""
+    _require_project_read_scope(project_id, request)
+    with _read_service_errors():
+        normalized_country = normalize_country(country)
+        if start_month is not None:
+            parse_report_month(start_month)
+        if end_month is not None:
+            parse_report_month(end_month)
+        payload = get_financial_series(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            start_month=start_month,
+            end_month=end_month,
+            fill_missing=fill_missing,
+        )
+    return agent_ok(payload)
+
+
+@monthly_reports_router.get(
+    "/financial-series/accounting-detail",
+    response_model=MonthlyFinancialAccountingDetailEnvelope,
+)
+def get_agent_monthly_accounting_detail(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    report_month: str = Query(min_length=7, max_length=7),
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """指定月份的核算明细，字段/币种/行结构复用 dashboard service。"""
+    _require_project_read_scope(project_id, request)
+    with _read_service_errors():
+        normalized_country = normalize_country(country)
+        parse_report_month(report_month)
+        payload = get_financial_accounting_detail(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            report_month=report_month,
+        )
+    return agent_ok(payload)
+
+
+@monthly_reports_router.get(
+    "/financial-series/accounting-detail/export",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses=_XLSX_BINARY_RESPONSE,
+)
+def export_agent_monthly_accounting_detail(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    report_month: str = Query(min_length=7, max_length=7),
+    db: Session = Depends(get_primary_db_session),
+) -> StreamingResponse:
+    """导出与 dashboard 完全一致的核算明细 XLSX 二进制流。"""
+    _require_project_read_scope(project_id, request)
+    with _read_service_errors():
+        normalized_country = normalize_country(country)
+        parse_report_month(report_month)
+        filename, content = export_financial_accounting_detail_workbook(
+            db,
+            project_id=project_id,
+            country=normalized_country,
+            report_month=report_month,
+            is_admin=False,
+        )
+    append_operation_audit_log(
+        db,
+        action="agent_monthly_reports.accounting_detail.export",
+        target_type="monthly_report_project",
+        target_id=project_id,
+        after={
+            "project_id": project_id,
+            "country": normalized_country,
+            "report_month": report_month,
+        },
+        **_audit_kwargs(request),
+    )
+    db.commit()
+    return agent_file_response(
+        content, filename=filename, media_type=_XLSX_MEDIA_TYPE
+    )
+
+
+@monthly_reports_router.get(
+    "/{report_id:int}", response_model=MonthlyReportDetailEnvelope
+)
+def get_agent_monthly_report_detail(
+    report_id: int,
+    request: Request,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """月报详情与 PT3/PT4 指标，不暴露服务端文件路径。"""
+    with _read_service_errors():
+        report = get_report_or_404(db, report_id)
+        _require_project_read_scope(report.project_id, request)
+        report, pt3, pt4 = get_report_detail(db, report_id=report_id)
+    return agent_ok(
+        AgentMonthlyReportDetail(
+            report=_monthly_report_list_item(report),
+            pt3=_serialize_calculation_row(pt3),
+            pt4=_serialize_calculation_row(pt4),
+        )
+    )
+
+
+@monthly_reports_router.get(
+    "/{report_id:int}/export",
+    response_class=FileResponse,
+    response_model=None,
+    responses=_XLSX_BINARY_RESPONSE,
+)
+def download_agent_monthly_report_result(
+    report_id: int,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+) -> FileResponse:
+    """下载正式月报结果文件；项目权限每次重验，成功响应为原始 XLSX 二进制。"""
+    with _read_service_errors():
+        report = get_report_or_404(db, report_id)
+        _require_project_read_scope(report.project_id, request)
+        if report.status != JobStatus.success:
+            raise AgentApiError(
+                ErrorCode.MONTHLY_REPORT_NOT_READY,
+                human_message="月报尚未成功完成，暂不可下载结果文件",
+            )
+        result_path = resolve_result_path(report)
+        if result_path is None:
+            raise AgentApiError(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                human_message="月报结果文件不存在",
+            )
+    append_operation_audit_log(
+        db,
+        action="agent_monthly_reports.result.export",
+        target_type="monthly_report",
+        target_id=report.id,
+        after={"report_id": report.id, "filename": result_path.name},
+        **_audit_kwargs(request),
+    )
+    db.commit()
+    return FileResponse(
+        path=str(result_path), filename=result_path.name, media_type=_XLSX_MEDIA_TYPE
+    )
 
 
 def _audit_failure(
