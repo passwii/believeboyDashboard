@@ -278,6 +278,21 @@ function normalizeMoneyToCent(value: number | null | undefined): number {
   return Math.round(Number(value ?? 0) * 100)
 }
 
+/** ASIN 固定为 10 位字母数字；前缀也允许显式指定，便于处理外观相似的 SKU。 */
+function getIdentifierFilters(value: string): { sku: string; asin: string } {
+  const normalized = value.trim()
+  if (!normalized) return { sku: '', asin: '' }
+
+  const asinMatch = normalized.match(/^asin\s*[:：]\s*(.+)$/i)
+  if (asinMatch) return { sku: '', asin: asinMatch[1].trim() }
+
+  const skuMatch = normalized.match(/^sku\s*[:：]\s*(.+)$/i)
+  if (skuMatch) return { sku: skuMatch[1].trim(), asin: '' }
+
+  if (/^[a-z0-9]{10}$/i.test(normalized)) return { sku: '', asin: normalized }
+  return { sku: normalized, asin: '' }
+}
+
 async function parseError(response: Response): Promise<string> {
   return parseResponseError(response, '请求失败')
 }
@@ -366,8 +381,7 @@ export default function SkuInfoPage() {
   const { data: session, status } = useSession()
 
   const [projectFilter, setProjectFilter] = useState('')
-  const [skuFilter, setSkuFilter] = useState('')
-  const [asinFilter, setAsinFilter] = useState('')
+  const [identifierFilter, setIdentifierFilter] = useState('')
   const [countryFilter, setCountryFilter] = useState<'all' | 'US' | 'DE' | 'UK'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
@@ -444,8 +458,9 @@ export default function SkuInfoPage() {
     }
   ) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
-    const skuValue = (filters?.sku ?? skuFilter).trim()
-    const asinValue = (filters?.asin ?? asinFilter).trim()
+    const inferredIdentifier = getIdentifierFilters(identifierFilter)
+    const skuValue = (filters?.sku ?? inferredIdentifier.sku).trim()
+    const asinValue = (filters?.asin ?? inferredIdentifier.asin).trim()
     const countryValue = filters?.country ?? countryFilter
     const statusValue = filters?.status ?? statusFilter
     const nextPage = options?.resetPage ? 1 : (options?.pageOverride ?? page)
@@ -549,8 +564,9 @@ export default function SkuInfoPage() {
 
     // 将 URL 参数同步到筛选输入框（让用户看到查询条件）
     if (urlProjectName) setProjectFilter(urlProjectName)
-    if (urlSku) setSkuFilter(urlSku)
-    if (urlAsin) setAsinFilter(urlAsin)
+    if (urlSku || urlAsin) {
+      setIdentifierFilter(urlSku ? `SKU: ${urlSku}` : urlAsin)
+    }
 
     // 显式传 filters，避免依赖尚未提交到 state 的值
     void loadData(
@@ -571,8 +587,7 @@ export default function SkuInfoPage() {
 
   const onResetFilters = () => {
     setProjectFilter('')
-    setSkuFilter('')
-    setAsinFilter('')
+    setIdentifierFilter('')
     setCountryFilter('all')
     setStatusFilter('all')
     setItems([])
@@ -584,7 +599,7 @@ export default function SkuInfoPage() {
   // 有效查询 = 项目名 / SKU / ASIN 至少填一项 → 以当前条件重拉（本页无缓存，直连后端）；
   // 无有效查询 → no-op + notify 提示，不发请求。loading 上报头部刷新按钮（转圈/禁点）。
   const handleHeaderRefresh = () => {
-    if (!projectFilter.trim() && !skuFilter.trim() && !asinFilter.trim()) {
+    if (!projectFilter.trim() && !identifierFilter.trim()) {
       notify({ type: 'info', title: '请先填写查询条件' })
       return
     }
@@ -595,7 +610,7 @@ export default function SkuInfoPage() {
   handleHeaderRefreshRef.current = handleHeaderRefresh
   useHeaderRefresh(() => handleHeaderRefreshRef.current(), { loading })
 
-  // 5 个筛选控件 + 查询/重置按钮 portal 进 Top Header 中段插槽（提交制：选择/填写不自动查询）
+  // 4 个筛选控件 + 查询/重置按钮 portal 进 Top Header 中段插槽（提交制：选择/填写不自动查询）
   const filterControls = (
     <>
       <HeaderSlotSelect
@@ -618,25 +633,15 @@ export default function SkuInfoPage() {
       {/* SKU / ASIN 输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
       <Input
         size="lg"
-        value={skuFilter}
-        onChange={(event) => setSkuFilter(event.target.value)}
+        value={identifierFilter}
+        onChange={(event) => setIdentifierFilter(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') void onSearch()
         }}
-        placeholder="输入 SKU"
+        placeholder="输入 SKU 或 ASIN"
+        aria-label="SKU 或 ASIN 搜索"
         className={cn('shrink-0', TERM_HEADER_W_MD)}
-        title="SKU 筛选"
-      />
-      <Input
-        size="lg"
-        value={asinFilter}
-        onChange={(event) => setAsinFilter(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') void onSearch()
-        }}
-        placeholder="输入 ASIN"
-        className={cn('shrink-0', TERM_HEADER_W_MD)}
-        title="ASIN 筛选"
+        title="10 位字母数字按 ASIN 查询；SKU 可加 SKU: 前缀"
       />
       <HeaderSlotSelect
         value={countryFilter}
@@ -710,25 +715,15 @@ export default function SkuInfoPage() {
           />
           <Input
             size="lg"
-            value={skuFilter}
-            onChange={(event) => setSkuFilter(event.target.value)}
+            value={identifierFilter}
+            onChange={(event) => setIdentifierFilter(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') void onSearch()
             }}
-            placeholder="输入 SKU"
+            placeholder="输入 SKU 或 ASIN"
+            aria-label="SKU 或 ASIN 搜索"
             className={cn('w-full', TERM_HEADER_W_MD)}
-            title="SKU 筛选"
-          />
-          <Input
-            size="lg"
-            value={asinFilter}
-            onChange={(event) => setAsinFilter(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void onSearch()
-            }}
-            placeholder="输入 ASIN"
-            className={cn('w-full', TERM_HEADER_W_MD)}
-            title="ASIN 筛选"
+            title="10 位字母数字按 ASIN 查询；SKU 可加 SKU: 前缀"
           />
           <HeaderSlotSelect
             value={statusFilter}
@@ -755,8 +750,9 @@ export default function SkuInfoPage() {
   const buildFilterSearchParams = () => {
     const search = new URLSearchParams()
     if (projectFilter.trim()) search.set('project_name', projectFilter.trim())
-    if (skuFilter.trim()) search.set('sku', skuFilter.trim())
-    if (asinFilter.trim()) search.set('asin', asinFilter.trim())
+    const identifier = getIdentifierFilters(identifierFilter)
+    if (identifier.sku) search.set('sku', identifier.sku)
+    if (identifier.asin) search.set('asin', identifier.asin)
     if (countryFilter !== 'all') search.set('country', countryFilter)
     if (statusFilter === 'active') search.set('is_active', 'true')
     if (statusFilter === 'inactive') search.set('is_active', 'false')
@@ -1042,7 +1038,7 @@ export default function SkuInfoPage() {
 
   return (
     <div className="w-full space-y-6 text-foreground">
-      {/* Header 化：5 个筛选控件 + 查询/重置按钮已上移 Top Header 中段插槽（提交制查询），
+      {/* Header 化：4 个筛选控件 + 查询/重置按钮已上移 Top Header 中段插槽（提交制查询），
           页面仅渲染 portal 宿主；全局刷新按钮为唯一刷新入口（operations header migration B3） */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}

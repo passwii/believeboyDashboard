@@ -195,8 +195,9 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
   it('筛选控件注册进头部插槽；旧控制台卡片壳已移除', async () => {
     const { container } = render(<SkuInfoPage />)
     await waitForProjectsReady()
-    // 插槽节点非空（3 select + 2 input + 查询/重置经 useHeaderSlot 上移）
+    // 插槽节点非空（3 select + 1 input + 查询/重置经 useHeaderSlot 上移）
     expect(capturedSlotNode).not.toBeNull()
+    expect(screen.getAllByPlaceholderText('输入 SKU 或 ASIN')).toHaveLength(1)
     // 旧控制台 dashboard-surface 卡片壳与字段标签已删除
     expect(container.querySelector('.dashboard-surface')).toBeNull()
     expect(screen.queryByText('国家站点')).not.toBeInTheDocument()
@@ -204,12 +205,11 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
   })
 
-  it('提交制语义：填写 SKU/ASIN 不触发查询', async () => {
+  it('提交制语义：填写通用 SKU/ASIN 输入框不触发查询', async () => {
     render(<SkuInfoPage />)
     await waitForProjectsReady()
-    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
-    fireEvent.change(screen.getByPlaceholderText('输入 ASIN'), {
-      target: { value: 'B0AAAAAAA1' },
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
     })
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -244,7 +244,9 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     fireEvent.click(await screen.findByText('项目A'))
     await waitFor(() => expect(screen.getByTitle('项目筛选')).toHaveTextContent('项目A'))
     // 填写 SKU（不触发查询）
-    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
     expect(fetchMock).not.toHaveBeenCalled()
 
     // 点「查询」才执行 loadData
@@ -264,17 +266,30 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
   })
 
-  it('SKU 输入框回车 = 显式提交查询（提交制内的便捷触发）', async () => {
+  it('SKU/ASIN 通用输入框回车 = 显式提交，按 10 位格式识别 ASIN', async () => {
     render(<SkuInfoPage />)
     await waitForProjectsReady()
-    const input = screen.getByPlaceholderText('输入 SKU')
-    fireEvent.change(input, { target: { value: 'SKU-001' } })
+    const input = screen.getByPlaceholderText('输入 SKU 或 ASIN')
+    fireEvent.change(input, { target: { value: 'B0AAAAAAA1' } })
     expect(fetchMock).not.toHaveBeenCalled()
     fireEvent.keyDown(input, { key: 'Enter' })
-    // 数据渲染即证明查询经回车显式触发（findByText 为 act 包装，顺带 flush 异步更新）
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('sku=SKU-001')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('asin=B0AAAAAAA1')
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain('sku=')
+  })
+
+  it('通用输入框允许用 SKU: 前缀覆盖 ASIN 格式识别', async () => {
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    const input = screen.getByPlaceholderText('输入 SKU 或 ASIN')
+    fireEvent.change(input, { target: { value: 'SKU: B0AAAAAAA1' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+    const requestUrl = String(fetchMock.mock.calls[0]?.[0])
+    expect(requestUrl).toContain('sku=B0AAAAAAA1')
+    expect(requestUrl).not.toContain('asin=')
   })
 
   it('头部刷新：无有效查询 → no-op（不 fetch）+ notify 提示', async () => {
@@ -295,7 +310,9 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     await waitForProjectsReady()
 
     // 先建立一次有效查询
-    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
     fireEvent.click(screen.getByRole('button', { name: '查询' }))
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
     const callsBefore = fetchMock.mock.calls.length
@@ -328,7 +345,9 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
   it('产品文案 Tab 复用已加载数据并显示五点完成计数', async () => {
     render(<SkuInfoPage />)
     await waitForProjectsReady()
-    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
     fireEvent.click(screen.getByRole('button', { name: '查询' }))
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
 
@@ -373,14 +392,16 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     await waitForProjectsReady()
 
     // 先建立一次有效查询
-    fireEvent.change(screen.getByPlaceholderText('输入 SKU'), { target: { value: 'SKU-001' } })
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
     fireEvent.click(screen.getByRole('button', { name: '查询' }))
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
 
     const callsBefore = fetchMock.mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: '重置' }))
     // 输入清空、结果清空 → 空态文案回归
-    expect(screen.getByPlaceholderText('输入 SKU')).toHaveValue('')
+    expect(screen.getByPlaceholderText('输入 SKU 或 ASIN')).toHaveValue('')
     expect(
       await screen.findByText('暂无数据，请输入项目名或 SKU/ASIN 进行查询。')
     ).toBeInTheDocument()
