@@ -6419,7 +6419,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Orders */
+        /**
+         * List Orders
+         * @description Return filtered order rows without calculating aggregate overview stats.
+         *
+         *     Use this endpoint for pagination or sorting when the filters are unchanged;
+         *     the client can retain stats from the latest ``/overview`` response.
+         */
         get: operations["list_orders_api_v1_order_info_list_get"];
         put?: never;
         post?: never;
@@ -6462,8 +6468,10 @@ export interface paths {
         };
         /**
          * Get Overview
-         * @description 一次返回 列表 + 顶部统计（不含 filter_options）。前端筛选/翻页/排序用这个，
-         *     取代原先并行的 /list + /stats 两请求。
+         * @description 一次返回 列表 + 顶部统计（不含 filter_options）。
+         *
+         *     筛选、日期或项目条件变化时使用本接口以重算统计；仅翻页或排序时改调 ``/list``，
+         *     并复用上一次 overview 的 stats（统计不依赖 page / sort）。
          */
         get: operations["get_overview_api_v1_order_info_overview_get"];
         put?: never;
@@ -18269,8 +18277,8 @@ export interface components {
          * OrderInfoOverview
          * @description 一次请求返回：列表 + 顶部统计（不含 filter_options）。
          *
-         *     供筛选 / 翻页 / 排序复用：前端每次条件变化只需这一个请求，
-         *     取代原先并行的 /list + /stats 两请求（消除并行重复过滤的 CPU/内存峰值）。
+         *     筛选、日期或项目条件变化时调用 ``/overview`` 以重算统计；仅翻页或排序时
+         *     使用 ``/list`` 取新列表并复用本响应中的 ``stats``，因统计不依赖 page / sort。
          */
         OrderInfoOverview: {
             /** Items */

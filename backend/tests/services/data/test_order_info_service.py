@@ -980,10 +980,15 @@ class TestComputeStatsSqlAggregate:
         db = MagicMock()
         db.bind.dialect.name = "sqlite"
         fc_expr = svc._fulfillment_channel_sql_expr(db)
-        stmt = select(AnalysisSalesOrderRow).where(fc_expr == "Amazon")
+        stmt = select(AnalysisSalesOrderRow.id).where(fc_expr == "Amazon")
         compiled = _compile(stmt).lower()
-        assert "fulfillment_channel" in compiled, (
-            f"SQLite uses the generated column where available; got:\n{compiled}"
+        where_sql = compiled.partition("where ")[2]
+        assert where_sql, f"Expected a WHERE clause in compiled SQL; got:\n{compiled}"
+        assert "json_extract(" in where_sql, (
+            f"SQLite fulfillment filter must use JSON_EXTRACT in WHERE; got:\n{where_sql}"
+        )
+        assert "fulfillment-channel" in where_sql, (
+            f"SQLite JSON extraction must target the canonical fulfillment key; got:\n{where_sql}"
         )
 
     def test_dominant_currency_uses_group_by_order_by_limit(self, monkeypatch):
