@@ -1848,6 +1848,219 @@
         "title": "AgentAccessLogsSummaryResponse",
         "type": "object"
       },
+      "AgentMonthlyReportDetail": {
+        "properties": {
+          "pt3": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pt3"
+          },
+          "pt4": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pt4"
+          },
+          "report": {
+            "$ref": "#/components/schemas/AgentMonthlyReportListItem"
+          }
+        },
+        "required": [
+          "report",
+          "pt3",
+          "pt4"
+        ],
+        "title": "AgentMonthlyReportDetail",
+        "type": "object"
+      },
+      "AgentMonthlyReportListItem": {
+        "description": "Public monthly report fields; internal storage paths are never exposed.",
+        "properties": {
+          "calculation_version": {
+            "title": "Calculation Version",
+            "type": "integer"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "report_month": {
+            "title": "Report Month",
+            "type": "string"
+          },
+          "result_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result File Path"
+          },
+          "settlement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "superseded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded At"
+          },
+          "total_adjustments": {
+            "title": "Total Adjustments",
+            "type": "integer"
+          },
+          "total_orders": {
+            "title": "Total Orders",
+            "type": "integer"
+          },
+          "total_refunds": {
+            "title": "Total Refunds",
+            "type": "integer"
+          },
+          "total_service_fees": {
+            "title": "Total Service Fees",
+            "type": "integer"
+          },
+          "total_trans_fees": {
+            "title": "Total Trans Fees",
+            "type": "integer"
+          },
+          "total_transactions": {
+            "title": "Total Transactions",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "country",
+          "report_month",
+          "version",
+          "is_current",
+          "superseded_at",
+          "status",
+          "settlement_id",
+          "total_transactions",
+          "total_orders",
+          "total_refunds",
+          "total_adjustments",
+          "total_service_fees",
+          "total_trans_fees",
+          "result_file_path",
+          "error_message",
+          "calculation_version",
+          "computed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentMonthlyReportListItem",
+        "type": "object"
+      },
       "AgentNewProductCalculationComputeRequest": {
         "description": "C1 试算请求（spec §5.3）：mode 4 种，纯计算不落库。",
         "properties": {
@@ -21008,6 +21221,78 @@
           "currency"
         ],
         "title": "MonthlyProgressItem",
+        "type": "object"
+      },
+      "MonthlyReportAgentOkResponse_AgentMonthlyReportDetail_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentMonthlyReportDetail"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MonthlyReportAgentOkResponse[AgentMonthlyReportDetail]",
+        "type": "object"
+      },
+      "MonthlyReportAgentOkResponse_MonthlyFinancialAccountingDetailResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MonthlyFinancialAccountingDetailResponse"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MonthlyReportAgentOkResponse[MonthlyFinancialAccountingDetailResponse]",
+        "type": "object"
+      },
+      "MonthlyReportAgentOkResponse_MonthlyFinancialSeriesResponse_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MonthlyFinancialSeriesResponse"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MonthlyReportAgentOkResponse[MonthlyFinancialSeriesResponse]",
+        "type": "object"
+      },
+      "MonthlyReportAgentOkResponse_list_AgentMonthlyReportListItem__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMonthlyReportListItem"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MonthlyReportAgentOkResponse[list[AgentMonthlyReportListItem]]",
         "type": "object"
       },
       "MonthlyReportBuildCreateRequest": {
@@ -43911,6 +44196,93 @@
         ]
       }
     },
+    "/api/v1/agent/monthly-reports": {
+      "get": {
+        "description": "按项目列出月报；默认仅当前版本，include_history 可查看历史版本。",
+        "operationId": "list_agent_monthly_reports_api_v1_agent_monthly_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_history",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include History",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyReportAgentOkResponse_list_AgentMonthlyReportListItem__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agent Monthly Reports",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
     "/api/v1/agent/monthly-reports/builds": {
       "post": {
         "description": "发起仅计算草稿：202 + build_id（幂等键必填）。",
@@ -44128,6 +44500,236 @@
         ]
       }
     },
+    "/api/v1/agent/monthly-reports/financial-series": {
+      "get": {
+        "description": "月度财务序列与趋势，复用 dashboard 财务口径。",
+        "operationId": "get_agent_monthly_financial_series_api_v1_agent_monthly_reports_financial_series_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fill_missing",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Fill Missing",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyReportAgentOkResponse_MonthlyFinancialSeriesResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Monthly Financial Series",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/financial-series/accounting-detail": {
+      "get": {
+        "description": "指定月份的核算明细，字段/币种/行结构复用 dashboard service。",
+        "operationId": "get_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "report_month",
+            "required": true,
+            "schema": {
+              "maxLength": 7,
+              "minLength": 7,
+              "title": "Report Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyReportAgentOkResponse_MonthlyFinancialAccountingDetailResponse_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Monthly Accounting Detail",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/financial-series/accounting-detail/export": {
+      "get": {
+        "description": "导出与 dashboard 完全一致的核算明细 XLSX 二进制流。",
+        "operationId": "export_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "report_month",
+            "required": true,
+            "schema": {
+              "maxLength": 7,
+              "minLength": 7,
+              "title": "Report Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "XLSX 文件流"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Agent Monthly Accounting Detail",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
     "/api/v1/agent/monthly-reports/uploads": {
       "post": {
         "description": "建临时上传会话（不写正式财务表）。",
@@ -44213,6 +44815,95 @@
           }
         },
         "summary": "Upload File",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/{report_id}": {
+      "get": {
+        "description": "月报详情与 PT3/PT4 指标，不暴露服务端文件路径。",
+        "operationId": "get_agent_monthly_report_detail_api_v1_agent_monthly_reports__report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyReportAgentOkResponse_AgentMonthlyReportDetail_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Monthly Report Detail",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/{report_id}/export": {
+      "get": {
+        "description": "下载正式月报结果文件；项目权限每次重验，成功响应为原始 XLSX 二进制。",
+        "operationId": "download_agent_monthly_report_result_api_v1_agent_monthly_reports__report_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "XLSX 文件流"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Agent Monthly Report Result",
         "tags": [
           "agent",
           "agent-monthly-reports"
