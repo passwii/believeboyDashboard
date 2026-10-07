@@ -461,6 +461,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/monthly-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Monthly Reports
+         * @description 按项目列出月报；默认仅当前版本，include_history 可查看历史版本。
+         */
+        get: operations["list_agent_monthly_reports_api_v1_agent_monthly_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/monthly-reports/builds": {
         parameters: {
             query?: never;
@@ -564,6 +584,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/monthly-reports/financial-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Agent Monthly Financial Series
+         * @description 月度财务序列与趋势，复用 dashboard 财务口径。
+         */
+        get: operations["get_agent_monthly_financial_series_api_v1_agent_monthly_reports_financial_series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/financial-series/accounting-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Agent Monthly Accounting Detail
+         * @description 指定月份的核算明细，字段/币种/行结构复用 dashboard service。
+         */
+        get: operations["get_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/financial-series/accounting-detail/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Agent Monthly Accounting Detail
+         * @description 导出与 dashboard 完全一致的核算明细 XLSX 二进制流。
+         */
+        get: operations["export_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/monthly-reports/uploads": {
         parameters: {
             query?: never;
@@ -598,6 +678,46 @@ export interface paths {
          * @description multipart 原始二进制上传：CSV（计算输入）/ PDF（可选附件）。
          */
         post: operations["upload_file_api_v1_agent_monthly_reports_uploads__upload_id__files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Agent Monthly Report Detail
+         * @description 月报详情与 PT3/PT4 指标，不暴露服务端文件路径。
+         */
+        get: operations["get_agent_monthly_report_detail_api_v1_agent_monthly_reports__report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/{report_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Agent Monthly Report Result
+         * @description 下载正式月报结果文件；项目权限每次重验，成功响应为原始 XLSX 二进制。
+         */
+        get: operations["download_agent_monthly_report_result_api_v1_agent_monthly_reports__report_id__export_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10136,6 +10256,67 @@ export interface components {
             /** Unique Agent Count */
             unique_agent_count: number;
         };
+        /** AgentMonthlyReportDetail */
+        AgentMonthlyReportDetail: {
+            /** Pt3 */
+            pt3: {
+                [key: string]: number;
+            } | null;
+            /** Pt4 */
+            pt4: {
+                [key: string]: number;
+            } | null;
+            report: components["schemas"]["AgentMonthlyReportListItem"];
+        };
+        /**
+         * AgentMonthlyReportListItem
+         * @description Public monthly report fields; internal storage paths are never exposed.
+         */
+        AgentMonthlyReportListItem: {
+            /** Calculation Version */
+            calculation_version: number;
+            /** Computed At */
+            computed_at: string | null;
+            /** Country */
+            country: string;
+            /** Created At */
+            created_at: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Id */
+            id: number;
+            /** Is Current */
+            is_current: boolean;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Report Month */
+            report_month: string;
+            /** Result File Path */
+            result_file_path: string | null;
+            /** Settlement Id */
+            settlement_id: string | null;
+            status: components["schemas"]["JobStatus"];
+            /** Superseded At */
+            superseded_at: string | null;
+            /** Total Adjustments */
+            total_adjustments: number;
+            /** Total Orders */
+            total_orders: number;
+            /** Total Refunds */
+            total_refunds: number;
+            /** Total Service Fees */
+            total_service_fees: number;
+            /** Total Trans Fees */
+            total_trans_fees: number;
+            /** Total Transactions */
+            total_transactions: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Version */
+            version: number;
+        };
         /**
          * AgentNewProductCalculationComputeRequest
          * @description C1 试算请求（spec §5.3）：mode 4 种，纯计算不落库。
@@ -17108,6 +17289,43 @@ export interface components {
             today_day: number;
             /** Year */
             year: number;
+        };
+        /** MonthlyReportAgentOkResponse[AgentMonthlyReportDetail] */
+        MonthlyReportAgentOkResponse_AgentMonthlyReportDetail_: {
+            data: components["schemas"]["AgentMonthlyReportDetail"];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
+        /** MonthlyReportAgentOkResponse[MonthlyFinancialAccountingDetailResponse] */
+        MonthlyReportAgentOkResponse_MonthlyFinancialAccountingDetailResponse_: {
+            data: components["schemas"]["MonthlyFinancialAccountingDetailResponse"];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
+        /** MonthlyReportAgentOkResponse[MonthlyFinancialSeriesResponse] */
+        MonthlyReportAgentOkResponse_MonthlyFinancialSeriesResponse_: {
+            data: components["schemas"]["MonthlyFinancialSeriesResponse"];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
+        /** MonthlyReportAgentOkResponse[list[AgentMonthlyReportListItem]] */
+        MonthlyReportAgentOkResponse_list_AgentMonthlyReportListItem__: {
+            /** Data */
+            data: components["schemas"]["AgentMonthlyReportListItem"][];
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
         };
         /**
          * MonthlyReportBuildCreateRequest
@@ -25151,6 +25369,40 @@ export interface operations {
             };
         };
     };
+    list_agent_monthly_reports_api_v1_agent_monthly_reports_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string | null;
+                month?: string | null;
+                include_history?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyReportAgentOkResponse_list_AgentMonthlyReportListItem__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_build_api_v1_agent_monthly_reports_builds_post: {
         parameters: {
             query?: never;
@@ -25312,6 +25564,107 @@ export interface operations {
             };
         };
     };
+    get_agent_monthly_financial_series_api_v1_agent_monthly_reports_financial_series_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                start_month?: string | null;
+                end_month?: string | null;
+                fill_missing?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyReportAgentOkResponse_MonthlyFinancialSeriesResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                report_month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyReportAgentOkResponse_MonthlyFinancialAccountingDetailResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_agent_monthly_accounting_detail_api_v1_agent_monthly_reports_financial_series_accounting_detail_export_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                report_month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description XLSX 文件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_upload_session_api_v1_agent_monthly_reports_uploads_post: {
         parameters: {
             query?: never;
@@ -25367,6 +25720,68 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_monthly_report_detail_api_v1_agent_monthly_reports__report_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyReportAgentOkResponse_AgentMonthlyReportDetail_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_agent_monthly_report_result_api_v1_agent_monthly_reports__report_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description XLSX 文件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
                 };
             };
             /** @description Validation Error */
