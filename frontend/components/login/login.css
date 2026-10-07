@@ -10,17 +10,19 @@
         --text: #19191d;
         --muted: #666670;
         --faint: #85858e;
-        --placeholder: #73737d;
+        --placeholder: #666670;
         --accent: #137735;
         --accent-hover: #116c30;
         --accent-ink: #fff;
         --focus: rgb(22 131 59 / 16%);
-        --brand-field: #111a15;
-        --brand-ink: #f1f4f0;
-        --brand-muted: #b0b9b2;
-        --brand-line: rgb(210 226 214 / 17%);
-        --brand-grid: rgb(210 226 214 / 6%);
-        --brand-accent: #73d990;
+        --brand-field: #eef2ec;
+        --brand-ink: #203127;
+        --brand-muted: #53675a;
+        --brand-line: rgb(32 75 46 / 18%);
+        --brand-grid: rgb(32 75 46 / 5%);
+        --brand-accent: #176b36;
+        --brand-route-live: rgb(23 107 54 / 66%);
+        --brand-hub-line: rgb(23 107 54 / 65%);
         --negative: #bd3029;
       }
 
@@ -46,6 +48,8 @@
         --brand-line: rgb(210 226 214 / 14%);
         --brand-grid: rgb(210 226 214 / 5%);
         --brand-accent: #73d990;
+        --brand-route-live: rgb(115 217 144 / 66%);
+        --brand-hub-line: rgb(115 217 144 / 65%);
         --negative: #ff8379;
       }
 
@@ -212,7 +216,7 @@
       }
       .login-entry .route-wire-live {
         fill: none;
-        stroke: rgb(115 217 144 / 66%);
+        stroke: var(--brand-route-live);
         stroke-width: 1;
         stroke-dasharray: 2 15;
         stroke-linecap: square;
@@ -222,7 +226,7 @@
       .login-entry .route-art.is-paused .route-wire-live { animation-play-state: paused; }
       .login-entry .route-node { fill: var(--brand-field); stroke: var(--brand-accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .login-entry .route-node-core { fill: var(--brand-accent); }
-      .login-entry .route-hub { fill: var(--brand-field); stroke: rgb(115 217 144 / 65%); stroke-width: 1; vector-effect: non-scaling-stroke; }
+      .login-entry .route-hub { fill: var(--brand-field); stroke: var(--brand-hub-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .login-entry .route-corner { fill: var(--brand-accent); }
       @keyframes route-sweep { to { stroke-dashoffset: -68; } }
 
