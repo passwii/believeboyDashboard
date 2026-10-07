@@ -610,6 +610,8 @@ function OrderInfoPageInner() {
 
   // ====== 操作 handlers ======
   const handleResetFilters = () => {
+    // 重置到「全部」是用户显式选择，重试项目列表后不能自动改成首家店铺。
+    gfProjectOwnedRef.current = true
     setProjectId(DEFAULT_PROJECT_VALUE)
     setProjectSelectionExplicit(true)
     setFulfillmentChannels([])

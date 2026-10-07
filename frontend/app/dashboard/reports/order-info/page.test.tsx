@@ -598,6 +598,39 @@ describe('订单信息页终端化（BLF-817）', () => {
     })
   })
 
+  it('项目列表失败后用户清空筛选并重试时保留全部店铺选择', async () => {
+    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+    resetGfAndParams()
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('店铺列表加载失败，已暂停订单查询以避免默认查询全部店铺。')
+
+    const user = userEvent.setup()
+    await user.click(screen.getAllByRole('button', { name: '清空筛选' })[0]!)
+    await waitFor(() => {
+      const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/order-info/overview')
+      )
+      expect(overviewCalls.length).toBeGreaterThan(0)
+      expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
+    })
+
+    projectListMock.mockResolvedValueOnce([{ id: 1, name: '店铺A' }])
+    await user.click(screen.getByRole('button', { name: '重试店铺列表' }))
+
+    await waitFor(() => {
+      const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/order-info/overview')
+      )
+      expect(overviewCalls.length).toBeGreaterThan(1)
+      expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
+    })
+  })
+
   it('项目列表失败时仍尊重 URL 显式项目范围', async () => {
     projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
     resetGfAndParams()
