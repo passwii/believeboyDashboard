@@ -164,6 +164,27 @@ def test_statement_timeout_error_is_recognised(db_session) -> None:
     db_session.rollback()
 
 
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("canceling statement due to statement timeout", True),
+        ("canceling statement due to user request", False),
+        ("取消当前语句，用户请求", False),
+        ("canceling statement due to pg_cancel_backend", False),
+    ],
+)
+def test_query_canceled_errors_only_match_statement_timeout(
+    message: str, expected: bool
+) -> None:
+    """同为 PostgreSQL SQLSTATE 57014 时，只将 statement timeout 映射为 504。"""
+
+    class _QueryCanceledError(Exception):
+        sqlstate = "57014"
+
+    error = OperationalError("SELECT 1", {}, _QueryCanceledError(message))
+    assert is_query_timeout_error(error) is expected
+
+
 def test_non_timeout_sql_errors_are_not_misread_as_timeout(db_session) -> None:
     """普通 SQL 错误不能被误判成超时 —— 否则真实 500 会被谎报成 504。"""
     with pytest.raises(SQLAlchemyError) as excinfo:

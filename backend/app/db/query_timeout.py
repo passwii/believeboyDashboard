@@ -50,9 +50,6 @@ logger = logging.getLogger("app.request")
 #: 会话上记录「已安装的 timeout + 监听器」的属性名。
 _STATE_ATTR = "_blf_statement_timeout_state"
 
-#: Postgres 在语句超时时抛 SQLSTATE 57014（query_canceled）。
-_SQLSTATE_QUERY_CANCELED = "57014"
-
 #: 驱动消息里的稳定英文片段（PG 服务端恒为英文，不随 locale 变）。
 _STATEMENT_TIMEOUT_MARKERS = (
     "statement timeout",
@@ -69,7 +66,7 @@ def _make_after_begin(timeout_ms: int):
     再走 Session 只会多绕一圈 identity map。
     """
 
-    def _apply(session, transaction, connection) -> None:  # noqa: ANN001
+    def _apply(session, transaction, connection) -> None:
         connection.execute(_SET_TIMEOUT_SQL, {"value": f"{timeout_ms}ms"})
 
     return _apply
@@ -156,20 +153,6 @@ def _iter_causes(exc: BaseException | None):
         current = nxt
 
 
-def _sqlstate_of(exc: Any) -> str | None:
-    for attr in ("sqlstate", "pgcode"):
-        value = getattr(exc, attr, None)
-        if value:
-            return str(value)
-    orig = getattr(exc, "orig", None)
-    if orig is not None and orig is not exc:
-        for attr in ("sqlstate", "pgcode"):
-            value = getattr(orig, attr, None)
-            if value:
-                return str(value)
-    return None
-
-
 def is_query_timeout_error(exc: BaseException | None) -> bool:
     """判断异常链里是否有「语句被 statement_timeout 取消」。
 
@@ -180,9 +163,5 @@ def is_query_timeout_error(exc: BaseException | None) -> bool:
     for cause in _iter_causes(exc):
         message = str(cause).lower()
         if any(marker in message for marker in _STATEMENT_TIMEOUT_MARKERS):
-            return True
-        if _sqlstate_of(cause) == _SQLSTATE_QUERY_CANCELED and (
-            "canceling statement" in message or "取消" in message
-        ):
             return True
     return False

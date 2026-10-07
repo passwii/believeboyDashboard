@@ -60,8 +60,9 @@ class Settings(BaseSettings):
     # 全局兜底仍是 connect_args 里的 120s（见 app/db/session.py）——这里只是把
     # 「前端代理早已 abort、后端线程却还在跑」的重型查询钉在更紧的预算上，
     # 超时由 Postgres 主动取消并立刻归还连接，而不是让它占满 120s。
-    # 取 15s 的理由：与 Next.js 代理侧 order-info/filter-options 已有的 15s
-    # stats 档（frontend/lib/server/backend-proxy-timeout-policy.ts）对齐。
+    # 取 15s 的理由：为 order-info/filter-options 等只读查询设置明确的单语句预算；
+    # Next.js 代理侧 20s order-info-read 档只为后端返回预留尽力而为的传递余量，
+    # 并非严格请求级 deadline（多条 SQL 累计耗时仍可能超过代理上限）。
     # 上限锁 120s = 全局值，避免有人把它调成比全局兜底还宽而误以为"没生效"。
     order_info_statement_timeout_ms: int = Field(default=15_000, ge=1_000, le=120_000)
     api_key: str = Field(default="change-me", min_length=8)
