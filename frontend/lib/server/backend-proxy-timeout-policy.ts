@@ -66,9 +66,9 @@ const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/insight\/(ad-analysis|inventory-health)\/runs$/,
 ]
 
-// BLF-1262 Stage 1：后端 order-info 只读端点使用 15s statement_timeout；给代理
-// 留出 5s 让后端返回有说明的 504，而不是让代理先掐断并留下后台查询。Export
-// 不在此范围：它是显式用户操作，不应未经证据提高 deadline。
+// BLF-1262 Stage 1：后端 order-info 只读查询有 15s 单语句 statement_timeout，代理 20s
+// 通常可以先透传后端的说明性 504；但后端没有请求级 deadline，多条 SQL 串行时最坏路径下
+// 代理仍可能先返回自己的 504。Export 不在此范围：它是显式用户操作，不应未经证据提高 deadline。
 const ORDER_INFO_READ_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/order-info\/(?:page|list|stats|overview|filter-options|live-stream)(?:\?.*)?$/,
 ]

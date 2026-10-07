@@ -546,7 +546,11 @@ function OrderInfoPageInner() {
         }
       )
       if (!res.ok) {
-        throw new Error(await parseResponseError(res, `订单数据加载失败 (${res.status})`))
+        throw new Error(
+          await parseResponseError(res, `订单数据加载失败 (${res.status})`, {
+            stripDetailCodePrefix: true,
+          })
+        )
       }
       const data = (await res.json()) as OrderOverviewResponse
       // 走到这里说明没被 abort，安全落 state
@@ -652,7 +656,11 @@ function OrderInfoPageInner() {
         }),
       })
       if (!res.ok) {
-        throw new Error(await parseResponseError(res, `导出失败 (${res.status})`))
+        throw new Error(
+          await parseResponseError(res, `导出失败 (${res.status})`, {
+            stripDetailCodePrefix: true,
+          })
+        )
       }
       const data = (await res.json()) as { filename: string; content_base64: string }
       // 解码 base64 → Blob → 下载

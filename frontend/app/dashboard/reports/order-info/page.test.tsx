@@ -531,6 +531,41 @@ describe('订单信息页终端化（BLF-817）', () => {
     } as unknown as Response
   }
 
+  it('overview 返回后端 504 时展示已剥除内部 code 的用户文案', async () => {
+    resetGfAndParams()
+    const originalImplementation = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/order-info/overview')) {
+        return {
+          ok: false,
+          status: 504,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                detail:
+                  'order_info_query_timeout: 订单查询超过服务端上限（15000ms），请收窄店铺或日期范围后重试',
+              })
+            ),
+        } as Response
+      }
+      return jsonResponse(FILTER_OPTIONS_OK)
+    })
+
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('订单查询超过服务端上限（15000ms），请收窄店铺或日期范围后重试')
+      expect(alert).not.toHaveTextContent('order_info_query_timeout')
+    } finally {
+      fetchMock.mockImplementation(originalImplementation!)
+    }
+  })
+
   /** 按 URL 分流 fetch：filter-options 走 filterImpl，其余走 overview 常量 */
   function routeFetch(filterImpl: (url: string) => Response) {
     const orig = fetchMock.getMockImplementation()

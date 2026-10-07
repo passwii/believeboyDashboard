@@ -42,7 +42,16 @@ export function normalizeErrorMessage(value: unknown, fallback = GENERIC_ERROR_M
   return text || fallback
 }
 
-export function parseErrorText(text: string, fallback: string, status?: number): string {
+export type ParseErrorOptions = {
+  stripDetailCodePrefix?: boolean
+}
+
+export function parseErrorText(
+  text: string,
+  fallback: string,
+  status?: number,
+  options: ParseErrorOptions = {}
+): string {
   const raw = text.trim()
   if (!raw) {
     return status ? `请求失败 (${status})` : fallback
@@ -50,16 +59,22 @@ export function parseErrorText(text: string, fallback: string, status?: number):
 
   try {
     const payload = JSON.parse(raw) as { detail?: unknown; message?: unknown; error?: unknown }
-    return normalizeErrorMessage(
-      payload.detail ?? payload.message ?? payload.error ?? raw,
-      fallback
-    )
+    const detail = payload.detail
+    const detailWithoutCode =
+      options.stripDetailCodePrefix && typeof detail === 'string'
+        ? detail.replace(/^[a-z][a-z0-9_]*:\s*/, '').trim()
+        : detail
+    return normalizeErrorMessage(detailWithoutCode ?? payload.message ?? payload.error ?? raw, fallback)
   } catch {
     return normalizeErrorMessage(raw, fallback)
   }
 }
 
-export async function parseResponseError(response: Response, fallback: string): Promise<string> {
+export async function parseResponseError(
+  response: Response,
+  fallback: string,
+  options?: ParseErrorOptions
+): Promise<string> {
   const raw = await response.text()
-  return parseErrorText(raw, fallback, response.status)
+  return parseErrorText(raw, fallback, response.status, options)
 }
