@@ -3007,93 +3007,97 @@ export default function ShipmentManagementPage() {
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
-      {/* 写操作栏：新建批次 / 下载模板 / 批量导入 csv（写语义留正文，不进 header 插槽） */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={openCreateDialog}
-          className="h-10 gap-1.5 px-3 text-xs"
-        >
-          <Plus className="h-4 w-4" />
-          新建批次
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={downloadBatchTemplate}
-          className="h-10 gap-1.5 px-3 text-xs"
-        >
-          <FileDown className="h-4 w-4" />
-          下载模板
-        </Button>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          disabled={batchImporting}
-          className="h-10 gap-1.5 px-3 text-xs"
-        >
-          <label>
-            <Upload className="h-4 w-4" />
-            {batchImporting ? '导入中...' : '批量导入'}
-            <input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={handleBatchImportFile}
-            />
-          </label>
-        </Button>
-      </div>
-
       <div className="grid min-w-0 gap-6">
         <Tabs
           value={activeTab}
           onValueChange={(value) => activateTab(value as ShipmentPageTab)}
           className="min-w-0 w-full"
         >
-          <div className="mb-4">
-            <TabsMotionGroup id="shipment-management-tabs">
-              <TabsList variant="term" className="w-fit max-w-full justify-start">
-                <SlidingTabsTrigger
-                  value="overview"
-                  activeValue={activeTab}
-                  layoutId="shipment-management-tab-indicator"
-                  variant="term"
-                >
-                  <LayoutDashboard aria-hidden />
-                  总览
-                </SlidingTabsTrigger>
-                <SlidingTabsTrigger
-                  value="cost"
-                  activeValue={activeTab}
-                  layoutId="shipment-management-tab-indicator"
-                  variant="term"
-                >
-                  <Coins aria-hidden />
-                  发货费用
-                </SlidingTabsTrigger>
-                <SlidingTabsTrigger
-                  value="sku-summary"
-                  activeValue={activeTab}
-                  layoutId="shipment-management-tab-indicator"
-                  variant="term"
-                >
-                  <Package aria-hidden />
-                  SKU汇总
-                </SlidingTabsTrigger>
-                <SlidingTabsTrigger
-                  value="fba-box-detail"
-                  activeValue={activeTab}
-                  layoutId="shipment-management-tab-indicator"
-                  variant="term"
-                >
-                  <Boxes aria-hidden />
-                  FBA 箱单明细
-                </SlidingTabsTrigger>
-              </TabsList>
-            </TabsMotionGroup>
+          <div
+            data-testid="shipment-management-toolbar"
+            className="mb-4 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+          >
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <TabsMotionGroup id="shipment-management-tabs">
+                <TabsList variant="term" className="w-fit max-w-full justify-start">
+                  <SlidingTabsTrigger
+                    value="overview"
+                    activeValue={activeTab}
+                    layoutId="shipment-management-tab-indicator"
+                    variant="term"
+                  >
+                    <LayoutDashboard aria-hidden />
+                    总览
+                  </SlidingTabsTrigger>
+                  <SlidingTabsTrigger
+                    value="cost"
+                    activeValue={activeTab}
+                    layoutId="shipment-management-tab-indicator"
+                    variant="term"
+                  >
+                    <Coins aria-hidden />
+                    发货费用
+                  </SlidingTabsTrigger>
+                  <SlidingTabsTrigger
+                    value="sku-summary"
+                    activeValue={activeTab}
+                    layoutId="shipment-management-tab-indicator"
+                    variant="term"
+                  >
+                    <Package aria-hidden />
+                    SKU汇总
+                  </SlidingTabsTrigger>
+                  <SlidingTabsTrigger
+                    value="fba-box-detail"
+                    activeValue={activeTab}
+                    layoutId="shipment-management-tab-indicator"
+                    variant="term"
+                  >
+                    <Boxes aria-hidden />
+                    FBA 箱单明细
+                  </SlidingTabsTrigger>
+                </TabsList>
+              </TabsMotionGroup>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openCreateDialog}
+                className="h-10 gap-1.5 px-3 text-xs"
+              >
+                <Plus className="h-4 w-4" />
+                新建批次
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={downloadBatchTemplate}
+                className="h-10 gap-1.5 px-3 text-xs"
+              >
+                <FileDown className="h-4 w-4" />
+                下载模板
+              </Button>
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                disabled={batchImporting}
+                className="h-10 gap-1.5 px-3 text-xs"
+              >
+                <label>
+                  <Upload className="h-4 w-4" />
+                  {batchImporting ? '导入中...' : '批量导入'}
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleBatchImportFile}
+                  />
+                </label>
+              </Button>
+            </div>
           </div>
 
           <DirectionalTabTransition value={activeTab} order={SHIPMENT_TAB_ORDER}>

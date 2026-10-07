@@ -240,6 +240,17 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     expect(screen.getByText('批量导入')).toBeInTheDocument()
   })
 
+  it('将页签与写操作收进同一工具行，窄屏时上下排列', async () => {
+    render(<ShipmentManagementPage />)
+    await screen.findByText('FBA12345678')
+
+    const toolbar = screen.getByTestId('shipment-management-toolbar')
+    expect(toolbar).toContainElement(screen.getByRole('tablist'))
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: /新建批次/ }))
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: /下载模板/ }))
+    expect(toolbar).toHaveClass('flex-col', 'lg:flex-row')
+  })
+
   it('筛选控件上移 header 插槽：项目 / 状态 / 国家 / 货件编号 combobox 注册进插槽', async () => {
     render(<ShipmentManagementPage />)
     await screen.findByText('FBA12345678')
