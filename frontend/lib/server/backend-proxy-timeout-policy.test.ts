@@ -68,24 +68,36 @@ describe('月度核算明细导出 timeout tier', () => {
 /**
  * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
  * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳
- * fallback 再也补不回来）。路由进 `stats` 档（15s），与页面 15s 客户端
- * 超时对齐。此测试 guard 正则，防止 tier 表改动悄悄把它打回 5s 默认。
+ * fallback 再也补不回来）。BLF-1262 后端单语句预算为 15s；代理预留 5s
+ * 透传后端明确的 504。此测试 guard 正则，防止 endpoint deadline 不匹配。
  */
 describe('BLF-1019: order-info/filter-options timeout tier', () => {
-  it('matches the `stats` tier (15_000ms)', () => {
-    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', 'application/json')).toBe(15_000)
+  it('leaves time for the backend statement deadline to return an actionable 504', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', 'application/json')).toBe(20_000)
   })
 
-  it('matches the `stats` tier when the path is prefixed with `/`', () => {
-    expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
+  it('also applies to a slash-prefixed path', () => {
+    expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(20_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
-    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  it('keeps the filter-options and overview budgets ahead of generic list routes', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(20_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(20_000)
   })
 })
+
+describe('BLF-1262: order-info/overview timeout tier', () => {
+  it('allows the backend 15s statement deadline to return a clear 504 first', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/overview', 'application/json')).toBe(20_000)
+    expect(getProxyTimeoutMs('/api/v1/order-info/overview', null)).toBe(20_000)
+  })
+
+  it('does not extend export or unlisted endpoints without evidence', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(20_000)
+    expect(getProxyTimeoutMs('api/v1/order-info/export', 'application/json')).toBe(5_000)
+  })
+})
+
 describe('Insight canonical stream timeout tier', () => {
   it('does not apply the ordinary 5s timeout to Insight streams', () => {
     expect(getProxyTimeoutMs('api/v1/insight/runs/run-1/stream', 'application/json')).toBe(0)
@@ -123,22 +135,20 @@ describe('canonical domain run submit timeout tier', () => {
 /**
  * BLF-1019：`GET /api/v1/order-info/filter-options` 是 3 个 distinct 全表扫
  * （3-6s）。默认 5s 档会掐掉它 → 前端三个筛选下拉永久空白（旧一次性空壳
- * fallback 再也补不回来）。路由进 `stats` 档（15s），与页面 15s 客户端
- * 超时对齐。此测试 guard 正则，防止 tier 表改动悄悄把它打回 5s 默认。
+ * fallback 再也补不回来）。BLF-1262 后端单语句预算为 15s；代理预留 5s
+ * 透传后端明确的 504。此测试 guard 正则，防止 endpoint deadline 不匹配。
  */
 describe('BLF-1019: order-info/filter-options timeout tier', () => {
-  it('matches the `stats` tier (15_000ms)', () => {
-    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', 'application/json')).toBe(15_000)
+  it('leaves time for the backend statement deadline to return an actionable 504', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/filter-options', 'application/json')).toBe(20_000)
   })
 
-  it('matches the `stats` tier when the path is prefixed with `/`', () => {
-    expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(15_000)
+  it('also applies to a slash-prefixed path', () => {
+    expect(getProxyTimeoutMs('/api/v1/order-info/filter-options', null)).toBe(20_000)
   })
 
-  it('does NOT over-match sibling order-info paths (list/overview stay on default)', () => {
-    // /overview 与 /list 是分页查询，走 5s 默认；只有 filter-options 需要提档。
-    expect(getProxyTimeoutMs('api/v1/order-info/overview?page=1', 'application/json')).toBe(5_000)
-    expect(getProxyTimeoutMs('api/v1/order-info/list', 'application/json')).toBe(5_000)
+  it('keeps export outside the bounded read policy', () => {
+    expect(getProxyTimeoutMs('api/v1/order-info/export', 'application/json')).toBe(5_000)
   })
 })
 
