@@ -157,8 +157,13 @@ def load_preview(artifacts: PreviewArtifacts) -> dict[str, Any]:
             metrics = {}
             for key, value in result[name].items():
                 # Our writer uses strings for Decimal, never float conversion.
+                # Name the offending segment/key: a kernel change that adds one
+                # float metric would otherwise fail every build anonymously.
                 if not isinstance(value, str):
-                    raise PreviewIntegrityError("Invalid preview metric type")
+                    raise PreviewIntegrityError(
+                        f"Invalid preview metric type at {name}.{key}: "
+                        f"{type(value).__name__}"
+                    )
                 number = Decimal(value)
                 if not number.is_finite():
                     raise PreviewIntegrityError("Invalid preview metric")
@@ -166,5 +171,9 @@ def load_preview(artifacts: PreviewArtifacts) -> dict[str, Any]:
             result[name] = metrics
         result["result_path"] = str(artifacts.workbook_path)
         return result
+    except PreviewIntegrityError:
+        # Already precise (segment/key named); do not bury it in the generic
+        # OSError/ValueError message below — callers log it for diagnosis.
+        raise
     except (OSError, ValueError, TypeError, KeyError, InvalidOperation) as exc:
         raise PreviewIntegrityError("Preview artifacts invalid or unavailable") from exc

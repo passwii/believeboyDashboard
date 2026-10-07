@@ -30,6 +30,7 @@ from app.api.v1.endpoints.agent.ad_time_trends import ad_time_trends_router
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
+from app.api.v1.endpoints.agent.monthly_reports import monthly_reports_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
@@ -230,6 +231,16 @@ agent_router.include_router(
 agent_router.include_router(
     complaint_center_router,
     dependencies=[Depends(require_business_scope("complaint_center"))],
+)
+
+
+# 月报写入域（BLF-1250 阶段一）：临时上传 → 仅计算草稿 → 两步确认入库，挂
+# business_scope("monthly_reports")（写侧域，与 dashboard 既有月报流程共用同一批
+# 正式表与目标键锁，但不经过 Job 的 prepare/persist 分支）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    monthly_reports_router,
+    dependencies=[Depends(require_business_scope("monthly_reports"))],
 )
 
 

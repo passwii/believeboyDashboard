@@ -68,6 +68,13 @@ TASK_ROUTES: dict[str, dict[str, str]] = {
     "operation_audit_cleanup": {"queue": "default"},
     # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
     "ai_chat_token_usage.refresh_daily": {"queue": "default"},
+    # BLF-1250：Agent 月报仅计算草稿（长任务，与 dashboard 月报共享 reports 队列
+    # 以免抢占短任务 prefetch 槽）
+    "app.celery_tasks.monthly_report_preview.build_monthly_report_preview": {
+        "queue": "reports"
+    },
+    # BLF-1250：临时件过期/超时恢复与清理：default 队列（每小时一次短任务）
+    "agent_monthly_report_cleanup": {"queue": "default"},
 }
 
 # beat_schedule 说明（BLF-1034）：曾经的 office-tick 3s beat 条目已移除——
@@ -127,6 +134,12 @@ BEAT_SCHEDULE: dict[str, dict[str, object]] = {
     "ai-chat-token-usage-refresh-daily": {
         "task": "ai_chat_token_usage.refresh_daily",
         "schedule": crontab(hour="3", minute="15"),
+    },
+    # BLF-1250：Agent 月报临时件生命周期（过期标记 + 超时恢复 + 目录清理）。
+    # 每小时 :20 跑一次：24 小时期限的清理粒度不需要更细，且避开整点任务。
+    "agent-monthly-report-cleanup": {
+        "task": "agent_monthly_report_cleanup",
+        "schedule": crontab(minute="20"),
     },
 }
 

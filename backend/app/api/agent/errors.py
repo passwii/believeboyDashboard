@@ -53,6 +53,14 @@ class ErrorCode(str, Enum):
     IDENTITY_CHECK_CONTRADICTION = "IDENTITY_CHECK_CONTRADICTION"
     IDENTITY_CHECK_INVALID = "IDENTITY_CHECK_INVALID"
     IDENTITY_EXPECTED_ALIAS_MISSING = "IDENTITY_EXPECTED_ALIAS_MISSING"
+    # 月报写入域（BLF-1250 阶段一）：临时上传 + 仅计算草稿 + 确认入库
+    MONTHLY_REPORT_INVALID_INPUT = "MONTHLY_REPORT_INVALID_INPUT"
+    MONTHLY_REPORT_TOO_LARGE = "MONTHLY_REPORT_TOO_LARGE"
+    MONTHLY_REPORT_UPLOAD_CONFLICT = "MONTHLY_REPORT_UPLOAD_CONFLICT"
+    MONTHLY_REPORT_NOT_READY = "MONTHLY_REPORT_NOT_READY"
+    MONTHLY_REPORT_EXPIRED = "MONTHLY_REPORT_EXPIRED"
+    MONTHLY_REPORT_CONFLICT = "MONTHLY_REPORT_CONFLICT"
+    MONTHLY_REPORT_DISPATCH_FAILED = "MONTHLY_REPORT_DISPATCH_FAILED"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -84,6 +92,15 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.IDENTITY_CHECK_CONTRADICTION: 422,
     ErrorCode.IDENTITY_CHECK_INVALID: 422,
     ErrorCode.IDENTITY_EXPECTED_ALIAS_MISSING: 422,
+    # 月报写入域（BLF-1250）：输入不合规 400、超限 413、会话内重复上传 409、
+    # 草稿未就绪/已过期/同月已有成功月报 409、派发失败 503（可重试）。
+    ErrorCode.MONTHLY_REPORT_INVALID_INPUT: 400,
+    ErrorCode.MONTHLY_REPORT_TOO_LARGE: 413,
+    ErrorCode.MONTHLY_REPORT_UPLOAD_CONFLICT: 409,
+    ErrorCode.MONTHLY_REPORT_NOT_READY: 409,
+    ErrorCode.MONTHLY_REPORT_EXPIRED: 409,
+    ErrorCode.MONTHLY_REPORT_CONFLICT: 409,
+    ErrorCode.MONTHLY_REPORT_DISPATCH_FAILED: 503,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -181,6 +198,34 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.IDENTITY_EXPECTED_ALIAS_MISSING: (
         "店铺缺少期望身份别名",
         "seller_identity.required=true but expected_alias is empty; maintain the alias before writing complaints",
+    ),
+    ErrorCode.MONTHLY_REPORT_INVALID_INPUT: (
+        "月报输入文件不合法",
+        "请确认 CSV 为 Amazon Payment Report（含计算必需列、编码受支持、有可计算行）；PDF 需为真实 PDF 文件",
+    ),
+    ErrorCode.MONTHLY_REPORT_TOO_LARGE: (
+        "月报输入文件超过大小上限",
+        "每个 CSV/PDF 上限 50 MiB（服务端按流累计字节校验）；请压缩或拆分后重传",
+    ),
+    ErrorCode.MONTHLY_REPORT_UPLOAD_CONFLICT: (
+        "该上传会话已存在同类文件",
+        "每个会话只允许一份 CSV（transaction_csv）与一份可选 PDF（summary_pdf）；更换文件请新建会话",
+    ),
+    ErrorCode.MONTHLY_REPORT_NOT_READY: (
+        "月报草稿尚不可用",
+        "请轮询 GET /builds/{build_id} 直到 status=success 再预览/下载/确认",
+    ),
+    ErrorCode.MONTHLY_REPORT_EXPIRED: (
+        "月报草稿或输入已过期",
+        "临时输入与结果保留 24 小时；请新建上传会话与 build 后重试",
+    ),
+    ErrorCode.MONTHLY_REPORT_CONFLICT: (
+        "该 项目+国家+月份 已有成功月报",
+        "阶段一不自动替换当前版本；如确需新版本，请在 dashboard 侧处理或等待后续版本切换能力",
+    ),
+    ErrorCode.MONTHLY_REPORT_DISPATCH_FAILED: (
+        "月报计算任务派发失败",
+        "队列暂时不可用，请稍后用新的 Idempotency-Key 重试 POST /builds",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
