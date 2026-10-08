@@ -293,7 +293,7 @@ function viewportWidth(page: import('@playwright/test').Page): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
-  test('筛选项 2 列网格 + 12 列宽表仅内部横滑 + 页面无横向滚动', async ({ page }) => {
+  test('订单筛选常驻面板 + 12 列宽表仅内部横滑 + 页面无横向滚动', async ({ page }) => {
     const OVERVIEW = {
       items: [
         {
@@ -363,16 +363,13 @@ test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
     await page.goto('/dashboard/reports/order-info')
     await expect(page.getByRole('heading', { name: '订单信息' })).toBeVisible({ timeout: 30000 })
 
-    // BLF-940：手机端筛选折叠在摘要条内，先展开再检查 2 列筛选网格。
-    const filterToggle = page.getByRole('button', { name: '切换页面筛选' })
-    await expect(filterToggle).toHaveAttribute('aria-expanded', 'false')
-    await filterToggle.click()
-    await expect(filterToggle).toHaveAttribute('aria-expanded', 'true')
-    const filterGrid = page.locator('[data-testid="mobile-filter-strip-grid"]')
-    await expect(filterGrid).toBeVisible()
+    const orderPanel = page.getByRole('region', { name: '订单信息' })
+    const filters = orderPanel.getByRole('group', { name: '订单筛选' })
+    await expect(filters).toBeVisible()
+    await expect(page.getByRole('button', { name: '切换页面筛选' })).toHaveCount(0)
 
-    // 本页移动筛选提供订单类型、状态、币种三个页面维度；项目/站点/日期由全局筛选器管理。
-    const selectors = filterGrid.getByRole('combobox')
+    // 项目 / 站点 / 日期仍归全局 Header；订单页自己的六项筛选在面板内常驻可见。
+    const selectors = filters.getByRole('combobox')
     await expect(selectors).toHaveCount(3)
     await expect(selectors.nth(0)).toContainText('类型')
     await expect(selectors.nth(1)).toContainText('状态')
@@ -386,10 +383,12 @@ test.describe('@mobile-blf616 订单信息 手机端（BLF-616）', () => {
     expect(currencyBox.y).toBeGreaterThan(typeBox.y)
 
     for (const title of ['按订单号搜索', '按 SKU 搜索', '按 ASIN 搜索']) {
-      const searchInput = filterGrid.locator(`[title="${title}"]`)
+      const searchInput = filters.locator(`[title="${title}"]`)
       await expect(searchInput).toBeVisible()
       const bounds = (await searchInput.boundingBox())!
-      expect(bounds.width).toBeGreaterThan(page.viewportSize()!.width * 0.8)
+      if (title === '按订单号搜索') {
+        expect(bounds.width, '订单号搜索在手机端独占一行').toBeGreaterThan(page.viewportSize()!.width * 0.75)
+      }
     }
 
     // 数据行渲染，12+ 列宽表只在自己的滚动区域内横滑。
