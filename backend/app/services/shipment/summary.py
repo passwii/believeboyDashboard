@@ -18,6 +18,7 @@ from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
 from app.utils.country import normalize_country
 from app.services.shipment.validation import (
+    CANCELLED_SHIPMENT_STATUS,
     DECIMAL_ZERO,
     MONEY_QUANT,
     ROUND_HALF_UP,
@@ -316,6 +317,11 @@ def list_shipment_sku_summary(
         stmt = stmt.where(ShipmentSchedule.include_in_history_shipping_calc.is_(True))
     if shipment_statuses:
         stmt = stmt.where(ShipmentSchedule.shipment_status.in_(shipment_statuses))
+    else:
+        # 未显式指定状态时排除已取消货件（BLF-1287）：取消货件不进入 SKU 汇总统计。
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS
+        )
     if shipment_nos:
         stmt = stmt.where(ShipmentSchedule.shipment_no.in_(shipment_nos))
     if created_date_from:
@@ -418,6 +424,12 @@ def summarize_shipment_schedule_costs(
         stmt = stmt.where(ShipmentSchedule.country == normalize_country(country))
     if shipment_status:
         stmt = stmt.where(ShipmentSchedule.shipment_status == normalize_status(shipment_status))
+    else:
+        # 未显式指定状态时排除已取消货件（BLF-1287）：
+        # 取消货件的费用/数量不得计入统计。
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS
+        )
     if shipping_method:
         stmt = stmt.where(
             ShipmentSchedule.shipping_method == normalize_shipping_method(shipping_method)

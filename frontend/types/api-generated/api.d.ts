@@ -44493,6 +44493,7 @@ export interface operations {
             query: {
                 project_id: number;
                 country: string;
+                shipment_status?: string | null;
                 api_key?: string | null;
             };
             header?: {

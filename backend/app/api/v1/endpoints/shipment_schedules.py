@@ -466,6 +466,7 @@ def list_shipment_fba_box_details(
 def list_shipment_batches(
     project_id: int = Query(gt=0),
     country: str = Query(min_length=1, max_length=8),
+    shipment_status: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -474,7 +475,11 @@ def list_shipment_batches(
         db, project_id, operator=operator, is_admin=bool(is_admin)
     )
     batches = shipment_schedule_service.list_shipment_batches(
-        db, project_id=project_id, country=country, operator=operator
+        db,
+        project_id=project_id,
+        country=country,
+        operator=operator,
+        shipment_status=shipment_status,
     )
     return {"batches": batches}
 
