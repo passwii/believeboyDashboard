@@ -21,7 +21,7 @@
 | `frontend/app/dashboard/operations/seasonal-replenishment/seasonal-replenishment-client.tsx` | `季节性补货` 数据行 | 纳入；精确保留 `筛选结果合计` 行，不纳入斑马序列。 |
 | `frontend/app/dashboard/operations/weekly-product-analysis/weekly-product-analysis-client.tsx` | `汇总` 周数据、`SKU明细` 原始明细 | 纳入；两层分组表头不动；汇总行、周期分隔行、说明行和空白间隔行不参与斑马序列；不完整周的黄色提示优先于斑马底纹。检查 worksheet view 覆盖时保留隐藏网格线及现有冻结坐标。 |
 | `frontend/app/dashboard/operations/return-analysis/return-analysis-client.tsx` | `退货排行`、`退货原因`、`商品状态`、`库存状态`、`顾客反馈`、`亚马逊原始数据` | 纳入六个 sheet 的数据行；各自表头、字段、冻结设置及空值边框保持。 |
-| `frontend/app/dashboard/finance/platform-revenue/page.tsx` | `平台回款` 数据行 | 纳入；站点、币种、回款类型的专属单元格颜色覆盖斑马底色，合计行不变。 |
+| `frontend/app/dashboard/finance/platform-revenue/page.tsx` | `平台回款` 数据行 | 纳入；站点、币种、回款类型的专属单元格颜色覆盖斑马底色，合计行不变；工作表设置 `showGridLines: false`，不新增冻结行列。 |
 | `frontend/lib/product-analysis-export.ts` | 产品分析导出的 `汇总` 周数据、`SKU明细` 原始明细 | 纳入；部分周期黄色、周期汇总、周期分隔及总计行优先，不将它们算作普通数据行。此函数被产品分析与月度 SKU 分析两个入口调用。 |
 | `frontend/app/dashboard/reports/product-analysis/components/manual-calculation-panel.tsx` | `SKU明细` 结果行 | 纳入；`汇总` sheet 目前仅写周期数，不是表格数据区，不加斑马纹。该工作簿目前未配置 worksheet view；实施时隐藏网格线，不新增冻结行列。 |
 
@@ -38,7 +38,7 @@
 
 ## 全仓导出盘点与范围边界
 
-对前端 `ExcelJS` 写入（`workbook.xlsx.writeBuffer` / `addWorksheet`）、`.xlsx` 文件名与 dashboard 下载路径做了搜索。审查表列出 10 个前端 ExcelJS 工作簿入口（包含只做 FBA 回归的 shipment-management），并将适用新增样式的入口纳入任务；重复登记的既有样式/特殊用途单独列明，避免漏项或覆盖颜色语义。
+对前端 `ExcelJS` 写入（`workbook.xlsx.writeBuffer` / `addWorksheet`）、`.xlsx` 文件名与 dashboard 下载路径做了搜索。下表列出 15 行前端导出入口/入口组，其中 10 行属于本次样式处理或 FBA 回归检查范围（含只做回归的 shipment-management）；其余条目用于记录已具备样式或因特殊用途不纳入的判定，避免漏项或覆盖颜色语义。
 
 | 页面 / 文件 | 导出工作表 | 判定 |
 |---|---|---|
@@ -58,7 +58,7 @@
 | `frontend/app/dashboard/reports/monthly-report/display/display-client.tsx` | 月度财务总览、年度财务总览 | **用户明确排除，不修改。** |
 | `frontend/app/dashboard/reports/monthly-report/generate/generate-client.tsx`、`frontend/app/dashboard/operations/research-analysis/page.tsx` | 服务端返回的月报 XLSX、研究分析工作簿 | 前端只下载后端生成的 Blob，样式必须在后端生成器改，不纳入本前端实现。 |
 
-另外后端检索到 `openpyxl` 生成点：`backend/app/services/category/export.py`、`backend/app/services/new_product_calculation_export.py`、`backend/app/services/shop_calculation_export.py`、`backend/app/services/shipment/fba_box_export.py`、`backend/app/services/shipment/fba_template.py`、`backend/app/tasks/scripts/product_analysis.py`、`backend/app/tasks/scripts/monthly_report.py` 与 `backend/app/services/report/export.py`。其中有分类分析、测算、shipment 和报表等独立业务文件；需后端 owner 逐个映射对应用户入口与样式契约。本计划不更改 `backend/`；若本需求的“所有导出”也覆盖这些服务端 XLSX，需另行委派/拆分后端工作，不能将其误报成已经纳入前端方案。
+另外后端检索到 `openpyxl` 生成点：`backend/app/services/category/export.py`、`backend/app/services/new_product_calculation_export.py`、`backend/app/services/shop_calculation_export.py`、`backend/app/services/shipment/fba_box_export.py`、`backend/app/services/shipment/fba_template.py`、`backend/app/tasks/scripts/product_analysis.py`、`backend/app/tasks/scripts/monthly_report.py`、`backend/app/services/report/export.py`，以及 `backend/app/api/v1/endpoints/report_reconciliation.py` 中 `GET /report-reconciliation/reports/{id}/export-pt3`（工作表「数据库数据」）。其中有分类分析、测算、shipment、报表及对账数据等独立业务文件；需后端 owner 逐个映射对应用户入口与样式契约。本计划不更改 `backend/`；若本需求的“所有导出”也覆盖这些服务端 XLSX，需另行委派/拆分后端工作，不能将其误报成已经纳入前端方案。
 
 ## 文件职责
 
@@ -154,7 +154,7 @@ export function applyAlternatingRowFill(row: Row, dataRowIndex: number, columnCo
 
 - [ ] **步骤 1：添加测试驱动的导出工作簿检查**，覆盖普通行底色、站点/币种/回款类型彩色单元格、全 7 列细边框、合计行强调和原数值。
 - [ ] **步骤 2：运行 `cd frontend && pnpm exec vitest run app/dashboard/finance/platform-revenue/page.test.tsx` 确认新断言失败。**
-- [ ] **步骤 3：在设置类型、站点、币种专属填充之前对每行应用交替填充**，让语义色自然覆盖基础行色；不要改合计行和分页获取逻辑。
+- [ ] **步骤 3：在设置类型、站点、币种专属填充之前对每行应用交替填充**，让语义色自然覆盖基础行色；为 `平台回款` 工作表设置 `showGridLines: false`，不新增冻结行列；不要改合计行和分页获取逻辑。
 - [ ] **步骤 4：重复目标 Vitest 命令确认通过。**
 - [ ] **步骤 5：提交平台回款导出改动**：`git add frontend/app/dashboard/finance/platform-revenue && git commit -m "fix(回款导出): 统一数据行底纹"`。
 
@@ -181,7 +181,7 @@ export function applyAlternatingRowFill(row: Row, dataRowIndex: number, columnCo
 
 - [ ] 所有纳入的普通分析数据行按其数据序号以 `FFFFFFFF` / `FFF8FAFC` 交替，边框覆盖数据范围内的空值单元格。
 - [ ] 合计行、周期汇总/分隔、说明、间隔、黄色不完整提示、状态字体色及其它单元格语义填充都保留；特殊行不计入数据斑马序号。
-- [ ] 所有原有 sheet 名、列/行顺序、值、公式、格式、合并范围、图片、冻结坐标与导出入口保持；目标工作表隐藏网格线（对原先未配置的 weekly builder 与手动核算工作簿只增加 `showGridLines: false`，不新增冻结行列）。
+- [ ] 所有原有 sheet 名、列/行顺序、值、公式、格式、合并范围、图片、冻结坐标与导出入口保持；目标工作表隐藏网格线。周产品分析保留既有冻结设置；对原先未配置 worksheet view 的平台回款与手动核算工作簿只增加 `showGridLines: false`，不新增冻结行列。
 - [ ] FBA 箱单仅验证已存在的货件组底纹与图片/合并/总计不变量；相邻 shipment-management sheet 不被本次改动。
 - [ ] `dashboard/reports/monthly-report/display` 没有文件改动。
 - [ ] `pnpm test` 与 `pnpm lint` 实际结果记录在 PR / issue 交付中。
