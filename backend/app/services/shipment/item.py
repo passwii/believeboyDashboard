@@ -106,6 +106,17 @@ def replace_shipment_schedule_items(
     返回: 总数量
     """
     validate_items_against_product_costs(db, schedule, items)
+    # Preserve the legacy validation error before the allocation guard: an unknown
+    # quantity is an invalid replacement (400), not an allocation conflict (409).
+    for item in items:
+        if item["quantity"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"第 {int(item['row_no'])} 行无法确定 quantity"
+                    "（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）"
+                ),
+            )
 
     # Allocation writes lock this same schedule row first, serializing replacement
     # with allocation and preserving the established lock order.
@@ -136,14 +147,6 @@ def replace_shipment_schedule_items(
 
     total_quantity = 0
     for item in items:
-        if item["quantity"] is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"第 {int(item['row_no'])} 行无法确定 quantity"
-                    "（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）"
-                ),
-            )
         total_quantity += int(item["quantity"])
         db.add(
             ShipmentScheduleItem(

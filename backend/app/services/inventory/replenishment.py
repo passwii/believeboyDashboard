@@ -310,15 +310,6 @@ def _aggregate_inventory_source_rows(
         .where(InventorySnapshotRow.source_file_id == source.id)
         .group_by(InventorySnapshotRow.sku)
     ).all()
-    if rows and len(rows[0]) == 2:
-        # Compatibility for legacy integrations whose projection only includes SKU and available quantity.
-        return {
-            (_normalize_text(sku, max_length=128) or ""): _InventorySnapshot(
-                available_qty=int(quantity or 0)
-            )
-            for sku, quantity in rows
-            if _normalize_text(sku, max_length=128)
-        }
     return {
         (_normalize_text(sku, max_length=128) or ""): _InventorySnapshot(
             available_qty=int(available_qty or 0),

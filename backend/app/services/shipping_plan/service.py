@@ -532,7 +532,10 @@ def _batch_response(db: Session, batch: ShippingPlanBatch) -> dict[str, object]:
     for plan_item, allocated in item_rows:
         allocations = db.scalars(select(ShippingPlanAllocation).where(ShippingPlanAllocation.plan_item_id == plan_item.id).order_by(ShippingPlanAllocation.id)).all()
         allocated = int(allocated or 0)
-        items.append({"id": plan_item.id, "sku": plan_item.sku, "quantity": plan_item.quantity, "allocated_quantity": allocated, "remaining_quantity": max(0, plan_item.quantity - allocated), "allocations": allocations})
+        items.append({"id": plan_item.id, "sku": plan_item.sku, "quantity": plan_item.quantity, "allocated_quantity": allocated, "remaining_quantity": max(0, plan_item.quantity - allocated), "allocations": [
+            {"id": allocation.id, "plan_item_id": allocation.plan_item_id, "shipment_schedule_id": allocation.shipment_schedule_id, "sku": allocation.sku, "quantity": allocation.quantity}
+            for allocation in allocations
+        ]})
     return {"id": batch.id, "project_id": batch.project_id, "country": batch.country, "name": batch.name, "expected_arrival_date": batch.expected_arrival_date, "status": batch.status, "remark": batch.remark, "items": items}
 
 

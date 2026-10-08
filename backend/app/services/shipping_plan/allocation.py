@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,14 +16,6 @@ def shipment_item_replacement_conflicts(
     requested: dict[str, int] = {}
     for item in items:
         sku = str(item["sku"])
-        if item.get("quantity") is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"第 {int(item['row_no'])} 行无法确定 quantity，"
-                    "不能安全校验货件关联"
-                ),
-            )
         requested[sku] = requested.get(sku, 0) + int(item["quantity"])
 
     rows = db.execute(

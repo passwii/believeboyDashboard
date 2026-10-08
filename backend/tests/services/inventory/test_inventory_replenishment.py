@@ -214,7 +214,10 @@ class TestLoadInventoryMap:
         mock_result_first = MagicMock()
         mock_result_first.scalars.return_value = mock_scalars_first
 
-        quantity_rows = [("SKU-A", 100), ("SKU-B", 50)]
+        quantity_rows = [
+            ("SKU-A", 100, 0, 0, 0, 0, 0, None),
+            ("SKU-B", 50, 0, 0, 0, 0, 0, None),
+        ]
         mock_qty_exec = MagicMock()
         mock_qty_exec.all.return_value = quantity_rows
 

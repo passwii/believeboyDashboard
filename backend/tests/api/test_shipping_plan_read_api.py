@@ -43,6 +43,38 @@ def test_single_country_guard_rejects_all_scope():
     assert exc.value.status_code == 422
 
 
+def test_shipment_history_aggregates_skus_by_etd_and_includes_completed_and_in_transit():
+    from app.services.shipping_plan.service import get_shipment_history
+
+    class FakeResult:
+        def all(self):
+            return [
+                (1, date(2026, 10, 8), "SHIP-A", 7),
+                (1, date(2026, 10, 8), "SHIP-A", 3),
+                (2, date(2026, 10, 9), "SHIP-B", 4),
+                (3, None, "SHIP-C", 5),
+                (4, date(2026, 10, 10), "SHIP-D", 9),
+            ]
+
+    class FakeDb:
+        def execute(self, _statement):
+            return FakeResult()
+
+    result = get_shipment_history(
+        FakeDb(),
+        project_id=11,
+        country="US",
+        etd_from=date(2026, 10, 8),
+        etd_to=date(2026, 10, 9),
+    )
+
+    assert result["months"] == [
+        {"month": "2026-10", "shipment_count": 2, "quantity": 14}
+    ]
+    assert result["missing_etd_shipment_count"] == 1
+    assert result["missing_etd_quantity"] == 5
+
+
 def test_sales_history_uses_contiguous_successful_report_coverage():
     from app.services.shipping_plan.service import _load_historical_sales
 

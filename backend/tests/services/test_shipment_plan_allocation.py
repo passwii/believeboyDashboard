@@ -20,6 +20,7 @@ from app.services.shipping_plan.service import (
     create_or_add_allocation,
     create_plan_batch,
     delete_allocation,
+    get_shipment_history,
     list_plan_batches,
 )
 
@@ -93,7 +94,37 @@ def test_duplicate_allocation_returns_conflict_and_keeps_original_quantity(db_se
     allocation = db_session.query(ShippingPlanAllocation).one()
     assert allocation.quantity == 3
     batches = list_plan_batches(db_session, project_id=project.id, country="US")
-    assert batches["items"][0]["items"][0]["remaining_quantity"] == 5
+    batch_item = batches["items"][0]["items"][0]
+    assert batch_item["remaining_quantity"] == 5
+    assert batch_item["allocations"] == [
+        {
+            "id": first["allocation"].id,
+            "plan_item_id": plan_item.id,
+            "shipment_schedule_id": schedule.id,
+            "sku": "SKU-ALLOC",
+            "quantity": 3,
+        }
+    ]
+
+
+def test_shipment_history_includes_etd_quantity_even_when_history_calc_flag_is_false(db_session):
+    project, schedule, _batch, _plan_item = _seed_scope(db_session)
+    schedule.shipment_status = "completed"
+    schedule.etd_date = date(2026, 10, 8)
+    schedule.include_in_history_shipping_calc = False
+    db_session.flush()
+
+    result = get_shipment_history(
+        db_session,
+        project_id=project.id,
+        country="US",
+        etd_from=date(2026, 10, 1),
+        etd_to=date(2026, 10, 31),
+    )
+
+    assert result["months"] == [
+        {"month": "2026-10", "shipment_count": 1, "quantity": 10}
+    ]
 
 
 def test_allocation_rejects_plan_and_shipment_overallocation(db_session):

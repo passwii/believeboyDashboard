@@ -87,6 +87,28 @@ def _replacement(*, sku="SKU-GUARD", quantity=10):
     ]
 
 
+def test_item_replacement_missing_quantity_without_allocations_remains_bad_request(db_session):
+    schedule = _seed_allocation(db_session)
+    db_session.query(ShippingPlanAllocation).filter_by(
+        shipment_schedule_id=schedule.id
+    ).delete()
+    db_session.flush()
+
+    with pytest.raises(HTTPException) as exc:
+        replace_shipment_schedule_items(
+            db_session, schedule, _replacement(quantity=None), source_type="manual"
+        )
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == (
+        "第 1 行无法确定 quantity"
+        "（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）"
+    )
+    assert db_session.query(ShipmentScheduleItem).filter_by(
+        shipment_schedule_id=schedule.id
+    ).one().quantity == 10
+
+
 def test_item_replacement_rejects_removing_allocated_sku(db_session):
     schedule = _seed_allocation(db_session)
 
