@@ -24,7 +24,11 @@ if TYPE_CHECKING:
 # 常量定义
 # ============================================================
 
-ALLOWED_SHIPMENT_STATUS = {"draft", "in_transit", "completed"}
+ALLOWED_SHIPMENT_STATUS = {"draft", "in_transit", "completed", "cancelled"}
+
+# 已取消货件（BLF-1287）不参与任何统计口径：
+# 统计查询在未显式指定 shipment_status 时必须排除该状态。
+CANCELLED_SHIPMENT_STATUS = "cancelled"
 ALLOWED_SHIPPING_METHOD = {"sea", "air", "express", "truck", "rail", "other"}
 
 

@@ -31,6 +31,7 @@ from app.services.shipment.summary import (
 )
 from app.services.shipment.csv_parser import parse_shipment_schedules_csv
 from app.services.shipment.validation import (
+    CANCELLED_SHIPMENT_STATUS,
     DECIMAL_ZERO,
     MONEY_QUANT,
     ROUND_HALF_UP,
@@ -134,6 +135,12 @@ def list_shipment_schedules(
         filter_stmt = filter_stmt.where(
             ShipmentSchedule.shipment_status == normalize_status(shipment_status)
         )
+    else:
+        # 未显式指定状态时排除已取消货件（BLF-1287）：已取消货件只在「已取消」
+        # 筛选下可见，避免混入默认列表与分页总数。
+        filter_stmt = filter_stmt.where(
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS
+        )
     if shipping_method:
         filter_stmt = filter_stmt.where(
             ShipmentSchedule.shipping_method
@@ -221,14 +228,18 @@ def list_shipment_batches(
     project_id: int,
     country: str,
     operator: str | None = None,
+    shipment_status: str | None = None,
 ) -> list[str]:
     """
     返回该项目+国家下已用过的去重发货批次列表。
 
     排序：按最近一次更新倒序（MAX(updated_at) DESC），未更新过的排最后。
     过滤：operator 非空时排除该 operator 已隐藏的批次。
+    状态过滤：显式传入 shipment_status（支持逗号分隔多值）时按其过滤；
+    未传入时排除已取消批次（BLF-1287），避免取消货件把批次选项带出来。
     """
     normalized_country = normalize_country(country)
+    status_filters = normalize_status_filters(shipment_status)
 
     batch_col = ShipmentSchedule.shipment_batch
     latest_updated = func.max(ShipmentSchedule.updated_at).label("latest_updated")
@@ -242,6 +253,13 @@ def list_shipment_batches(
         )
         .group_by(batch_col)
     )
+
+    if status_filters:
+        stmt = stmt.where(ShipmentSchedule.shipment_status.in_(status_filters))
+    else:
+        stmt = stmt.where(
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS
+        )
 
     if operator:
         hidden_subq = (

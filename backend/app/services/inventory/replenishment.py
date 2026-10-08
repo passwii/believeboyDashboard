@@ -52,6 +52,8 @@ from app.utils.constants import (
 from app.utils.country import normalize_country
 
 IN_TRANSIT_STATUSES = ("in_transit", "draft")
+# 已取消货件（BLF-1287）不属于任何在途/统计口径。
+CANCELLED_SHIPMENT_STATUS = "cancelled"
 RISK_LONG_TERM_OUT_OF_STOCK = "长期断货"
 RISK_SHORT_TERM_OUT_OF_STOCK = "短期断货"
 RISK_OUT_OF_STOCK = "断货风险"
@@ -345,8 +347,10 @@ def _load_in_transit_map(
         #   - actual_inbound_date > report_date (completed, but after the query date)
         # Note: completed + actual_inbound_date=NULL is correctly excluded
         # (both OR branches evaluate to false/NULL).
+        # 已取消货件（BLF-1287）不计入在途，独立于上述两个条件先行排除。
         stmt = stmt.where(
             func.date(ShipmentSchedule.created_at) <= report_date,
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS,
             or_(
                 ShipmentSchedule.shipment_status != "completed",
                 ShipmentSchedule.actual_inbound_date > report_date,
@@ -1762,6 +1766,7 @@ def list_inventory_replenishment_shipments(
     project_id: int,
     sku: str,
 ) -> list[dict[str, object]]:
+    """返回某 SKU 的发货记录（排除已取消货件，BLF-1287）。"""
     _get_project_or_404(db, project_id)
     normalized_sku = _normalize_text(sku, max_length=128)
     if normalized_sku is None:
@@ -1778,6 +1783,8 @@ def list_inventory_replenishment_shipments(
         .where(
             ShipmentSchedule.project_id == project_id,
             ShipmentScheduleItem.sku == normalized_sku,
+            # 已取消货件不在补货页发货记录中展示（BLF-1287）。
+            ShipmentSchedule.shipment_status != CANCELLED_SHIPMENT_STATUS,
         )
         .order_by(
             func.coalesce(
