@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import { Moon, SunMedium } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -14,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TERMINAL_RAIL_WIDTH, TERMINAL_TOP_STRIP_HEIGHT, TERMINAL_RAIL_ICON_SIZE } from '@/components/terminal/terminal-constants'
+import { ThemeModePicker } from '@/components/terminal/theme-mode-picker'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { cn } from '@/lib/utils'
 
@@ -31,14 +30,6 @@ interface TerminalRailProps {
  */
 export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: TerminalRailProps) {
   const router = useRouter()
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = React.useState(false)
-
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const isDark = mounted && resolvedTheme === 'dark'
 
   return (
     <aside
@@ -94,15 +85,7 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
 
       {/* 底部：主题切换 + 用户菜单 */}
       <div className="flex shrink-0 flex-col items-center gap-1 border-t border-term-border py-2">
-        <button
-          type="button"
-          title={isDark ? '切换亮色' : '切换暗色'}
-          aria-label="切换主题"
-          onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          className="flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
-        >
-          {isDark ? <SunMedium className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} strokeWidth={1.75} /> : <Moon className="shrink-0" style={{ height: TERMINAL_RAIL_ICON_SIZE, width: TERMINAL_RAIL_ICON_SIZE }} strokeWidth={1.75} />}
-        </button>
+        <ThemeModePicker placement="rail" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
