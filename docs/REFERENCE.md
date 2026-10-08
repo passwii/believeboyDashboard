@@ -138,14 +138,16 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 **规则 1 技术测试（按变更面分流，不默认全量）**
 
-判档只看三个旋钮，**命中任一条即 T3**：① 动了公共符号没有（CodeGraph `callers` / `impact`）；② 有没有迁移 / 权限面；③ 有没有动 `app/core/config.py`、`app/models/*`、`app/schemas/*`。
+表格场景用于初步归类；若与下方条件冲突，按更高档执行。判档命中任一 T3 条件即升 T3：① 改动跨模块复用的公共符号、共享契约或其行为（用 CodeGraph `callers` / `impact` 确认影响面）；② 改动迁移或权限逻辑；③ 改动 `app/core/config.py` 的配置字段 / 默认值，或 `app/models/*`、`app/schemas/*` 的字段、约束、序列化契约。仅注释 / 文案改动不因此升档。字段级改动对目标集不可见，因此相关行为改动必须全量验证。
 
 | 档 | 场景 | 后端 | 前端 |
 | --- | --- | --- | --- |
-| **T0** | 只动 `docs/`、注释、文案 | 不跑 | 不跑 |
-| **T1** | 叶子改动：单个工具函数 / 单个组件，不碰公共符号 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
-| **T2** | 局部功能：新增端点 / 新页面，不碰公共 hook、schema、迁移 | 目标集 + 该目录回归 | 同上 + `pnpm lint` |
-| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（只跑一次）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载 ~2 分钟）+ lint；build 交 Vercel |
+| **T0** | 只改 `docs/`、注释或文案，且不改变运行行为 | 不跑 | 不跑 |
+| **T1** | 叶子改动：单个工具函数 / 单个组件，仅影响局部实现，未触发 T3 条件 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
+| **T2** | 局部功能：新增端点 / 新页面，未触发 T3 条件 | 目标集 + 该目录回归 | Vitest 目标用例 + 该目录回归 + `pnpm lint` |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint；build 交 Vercel |
+
+**E2E 不按 T 档一刀切：** 涉及登录、权限隔离、NextAuth、前后端代理或关键跨服务用户流程时，跑对应 Playwright 用例；纯业务逻辑 / API 行为优先用 pytest 覆盖，不为凑档位盲目跑 E2E。运行前按入口文档准备测试数据库和前后端服务：前端见 [TESTING.md](../TESTING.md)，后端见 [agent_testing README](../backend/scripts/agent_testing/README.md)。前端命令：`cd frontend && pnpm test:ui -- tests/<area>/<name>.spec.ts`；后端 agent E2E：`cd backend && pytest scripts/agent_testing/<test_file>.py -v`。
 
 **为什么第 ③ 条旋钮要单列**：字段级改动对目标集天然不可见。BLF-1237 把 `avatar_max_bytes` 并进了上一行注释，`Settings` 丢字段、生产头像上传 500，而目标集 64 例全绿；且因 main 上同批用例本来就失败（R2 未配置），**失败集合一模一样，回归被完全掩盖**——只有全量跑才暴露。
 
@@ -153,17 +155,18 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 **卡住判型（BLF-1238 教训）**：跑到 60s 仍无 `Test Files` 汇总 + 某 worker 长时间 100%+ CPU = 某文件**无限渲染循环**（不是「慢」）；`--testTimeout` / `vi.waitFor` 救不了（微任务链饿死计时器，表现为永久挂起而非超时失败）。二分与根因规则见 [TESTING.md](../TESTING.md) §前端单测。
 
-**失败集对账（替代基线全量）**：PR 上跑**一次**全量拿失败列表 → 只把**失败的用例文件**在 main 上跑一遍对账 → **不再跑第二遍全量**。BLF-1237 那轮 26 个既有失败只落在 8 个文件上，对账 10 秒，省掉一整轮 6 分钟。
+**失败集对账（替代基线全量）**：PR 上全量只跑一次并记录失败项；仅对 main 上存在的失败用例文件，在相同命令 / 环境下对账一次，不再跑第二遍全量。PR 与 main 出现相同失败时，记录为既有失败，不误报为本次回归；新增用例无法在 main 对账，需单独复现。若失败不稳定，只定向重跑失败用例确认并记录；修复本次引入的问题，不用 `skip` / `xfail` 隐藏失败。BLF-1237 那轮 26 个既有失败只落在 8 个文件上，对账 10 秒，省掉一整轮 6 分钟。
 
-**后端 T3 为什么不能省全量**：仓库**没有后端 CI**（`.github/workflows` 只有 `cache-governance` / `lighthouse-ci` / `motion-system-ci`），本地全量是唯一信号源。
+**后端 T3 为什么不能省全量**：仓库**没有后端 CI**（`.github/workflows` 只有 `cache-governance` / `lighthouse-ci` / `motion-system-ci`），本地全量是唯一信号源。耗时受环境、测试库和收集情况影响，不提供固定时间估计。
+若遇到 [backend/tests/README.md](../backend/tests/README.md) 记录的 `PROD_DATABASE_URL` 导入期收集失败，视为测试收集阻塞、不能报全绿；记录具体错误并修复或隔离导入链后再确认覆盖。
 
-**不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）；且套件是 DB-bound，10 worker 也只从 6 分 42 秒降到 5 分 02 秒（还提前 error 退出 380 例）。要用得先做每 worker 独立库，另开任务。
+**不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）。曾有一次 10 worker 运行在 5 分 02 秒后因错误提前退出（380 例未完成）；该次结果不能作为有效全量耗时或性能对比。要用并行测试，先做每 worker 独立库，另开任务。
 
 - 前端命令：**按上表选要跑哪条，不是固定顺序**——`vitest run <路径>`（Vitest 单测，T1/T2 主力）、`pnpm lint`（2-5s，T2/T3）、`pnpm build`（30-90s，可交 Vercel）。
-- 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。失败立即修。
+- 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。新增失败立即修；确认是基线既有失败的，按上面的失败集对账规则记录，不误报为本次回归。
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
 
-> **实测数字口径**：本节引用的 420s / 900s、6 分 42 秒→5 分 02 秒、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。其中 420s / 900s 两条是 **BLF-1238 修复前**的现象记录（已由 BLF-1238 定位到唯一挂起文件并修复，现全量 **~43s 起、同机满载 ~2 分钟**，2026-10-06 实测）。
+> **实测数字口径**：本节引用的 420s / 900s、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 / 10-06 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。其中 420s / 900s 是 **BLF-1238 修复前**的前端挂起现象记录（已定位并修复，当前前端全量约 **43s 起、同机满载约 2 分钟**，2026-10-06 实测）。后端并行测试的耗时比较中，**6 分 42 秒是串行基准，5 分 02 秒是 10 worker 的失败试跑**；失败试跑有 380 例未完成，因此这组数据不能作为有效性能对比，失败试跑也不能视为全量结果。
 
 **规则 2 业务测试（每次必做）**：功能完成后 AI 提供业务测试清单，用户手动执行并反馈。
 
