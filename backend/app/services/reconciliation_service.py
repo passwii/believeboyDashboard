@@ -223,6 +223,7 @@ def auto_reconcile(
     tolerance: float = TOLERANCE,
     operator: str = "system",
     country: str | None = None,
+    suppress_duplicate_alerts: bool = False,
 ) -> Dict[str, Any]:
     """
     Perform automatic reconciliation between database PT3 calculation and PDF.
@@ -348,6 +349,7 @@ def auto_reconcile(
         ReconciliationRecord.mode == "auto"
     ).first()
 
+    should_trigger_alert = existing is None or not suppress_duplicate_alerts
     if existing:
         # Update existing record
         existing.operator = operator
@@ -374,8 +376,8 @@ def auto_reconcile(
     db.commit()
     db.refresh(record)
 
-    # Trigger alert if match rate < 100%
-    if match_rate < 100:
+    # Existing auto records are upserted; Agent retries avoid duplicate alerts.
+    if match_rate < 100 and should_trigger_alert:
         # Calculate total difference
         total_diff = 0.0
         for item in items:
