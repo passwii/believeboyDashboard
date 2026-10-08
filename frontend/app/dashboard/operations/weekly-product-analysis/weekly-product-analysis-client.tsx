@@ -837,7 +837,8 @@ function fillSummaryWorksheet(
     applyCellBorder(cell, 'FFCBD5E1')
   })
 
-  // 添加说明行
+  // 添加说明行：合计行写完后先下移一行，避免说明行覆盖合计值
+  rowIndex += 1
   const noteRow = worksheet.getRow(rowIndex)
   worksheet.mergeCells(rowIndex, 1, rowIndex, lastColumn)
   noteRow.getCell(1).value = '* 黄色背景标记：该周数据不完整，仅供参考'
@@ -851,7 +852,6 @@ function fillSummaryWorksheet(
     vertical: 'middle',
     horizontal: 'left',
   }
-  rowIndex += 1
 
   worksheet.columns = [
     { width: 12 },

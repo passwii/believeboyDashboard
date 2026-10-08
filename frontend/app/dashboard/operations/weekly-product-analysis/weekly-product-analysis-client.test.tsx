@@ -240,8 +240,16 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
       xSplit: 2,
       showGridLines: false,
     })
-    // 合计行与说明行仍按原结构写出（rowIndex 冲突为 PR 前既有问题，另开 issue 处理）
-    expect(summary.getCell('A5').value).toBe('* 黄色背景标记：该周数据不完整，仅供参考')
+    // 合计行保留在数据行之后，说明行独占下一行（BLF-1293 修复 rowIndex 冲突）
+    expect(summary.getCell('A5').value).toBe('合计')
+    expect(summary.getCell('B5').value).toBe('2 周')
+    expect(summary.getCell('C5').value).toBe(110)
+    expect(summary.getCell('C5').numFmt).toBe('#,##0')
+    expect(summary.getCell('A6').value).toBe('* 黄色背景标记：该周数据不完整，仅供参考')
+    // 说明行合并范围仍为整行，且合计行不再被合并覆盖
+    expect(summary.getCell('A6').master.address).toBe('A6')
+    expect(summary.getCell('B6').master.address).toBe('A6')
+    expect(summary.getCell('A5').master.address).toBe('A5')
 
     const detail = workbook.getWorksheet('SKU明细')!
     expect(detail.getCell('B3').value).toBe('SKU-001')
