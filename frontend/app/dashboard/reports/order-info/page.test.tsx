@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
 const projectListMock = vi.hoisted(() => vi.fn())
+const headerRefreshState = vi.hoisted(() => ({ handler: null as (() => void | Promise<void>) | null }))
 
 // BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
 // 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
@@ -35,9 +36,10 @@ vi.mock('@/components/terminal/global-filter-context', async (importOriginal) =>
 // BLF-940：header slot / mobile strip / refresh 走 mock，避免挂载点缺失抛错。
 // 插槽内容直接渲染回页面正文（便于断言筛选控件存在性，生产环境 portal 进 head）。
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
-  useHeaderRefresh: vi.fn((_handler: () => void | Promise<void>) => ({
-    setLoading: vi.fn(),
-  })),
+  useHeaderRefresh: vi.fn((handler: () => void | Promise<void>) => {
+    headerRefreshState.handler = handler
+    return { setLoading: vi.fn() }
+  }),
   useHeaderSlot: (node: React.ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
@@ -219,6 +221,23 @@ describe('订单信息页终端化（BLF-817）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     fetchMock.mockClear()
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        items: MOCK_ITEMS,
+        total: 3,
+        page: 1,
+        page_size: 50,
+        stats: {
+          total_orders: 3,
+          total_quantity: 6,
+          total_amount: 43,
+          currency: 'USD',
+          fba_count: 2,
+          fbm_count: 1,
+        },
+      })
+    )
+    headerRefreshState.handler = null
     projectListMock.mockResolvedValue([{ id: 1, name: '店铺A' }])
   })
 
@@ -661,7 +680,7 @@ describe('订单信息页终端化（BLF-817）', () => {
       const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
         String(url).includes('/order-info/overview')
       )
-      expect(overviewCalls.length).toBeGreaterThan(1)
+      expect(overviewCalls.length).toBeGreaterThan(0)
       expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
     })
   })
@@ -720,6 +739,174 @@ describe('订单信息页终端化（BLF-817）', () => {
       expect(overviewCalls.length).toBeGreaterThan(0)
       expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
     })
+  })
+
+  it('后续页使用 list-only 并复用第一页统计', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...OVERVIEW_OK, total: 120 }))
+    resetGfAndParams()
+      const user = userEvent.setup()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/order-info/overview?')
+
+      await user.click(screen.getByRole('button', { name: '下一页' }))
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/order-info/list?')
+        expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('page=2')
+      })
+      expect(screen.getByText('Σ 单量').closest('span')).toHaveTextContent('3')
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(1)
+  })
+
+  it('第 2 页刷新尚未执行时快速翻页，取消旧意图并让新页只请求 list', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...OVERVIEW_OK, total: 150 }))
+    resetGfAndParams()
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => {
+      const url = new URL(String(fetchMock.mock.calls.at(-1)![0]), 'http://localhost')
+      expect(url.pathname).toBe('/api/backend/api/v1/order-info/list')
+      expect(url.searchParams.get('page')).toBe('2')
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: '下一页' })).toBeEnabled())
+
+    fetchMock.mockClear()
+    act(() => {
+      headerRefreshState.handler?.()
+      fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const url = new URL(String(fetchMock.mock.calls[0]![0]), 'http://localhost')
+      expect(url.pathname).toBe('/api/backend/api/v1/order-info/list')
+      expect(url.searchParams.get('page')).toBe('3')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(0)
+  })
+
+  it('过滤条件切换后 abort 旧请求，并拒绝忽略 abort 的过期响应', async () => {
+    resetGfAndParams()
+    const { rerender } = render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+    await screen.findByText('111-1111111-0000001')
+    fetchMock.mockClear()
+
+    let resolveStale!: (response: Response) => void
+    let staleSignal: AbortSignal | undefined
+    const staleItem = { ...MOCK_ITEMS[0], id: 999, amazon_order_id: '111-1111111-0000009' }
+    const freshItem = { ...MOCK_ITEMS[0], id: 1000, amazon_order_id: '111-1111111-0000010' }
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('date_from=2026-08-01')) {
+        return Promise.resolve(jsonResponse({ ...OVERVIEW_OK, items: [freshItem] }))
+      }
+      staleSignal = init?.signal as AbortSignal
+      return new Promise((resolve) => {
+        resolveStale = resolve
+      })
+    })
+
+    act(() => {
+      headerRefreshState.handler?.()
+    })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      setGf({ dateFrom: '2026-08-01', dateTo: '2026-08-05' })
+    })
+    rerender(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+    expect(staleSignal?.aborted).toBe(true)
+    expect(await screen.findByText(freshItem.amazon_order_id)).toBeInTheDocument()
+
+    await act(async () => {
+      resolveStale(jsonResponse({ ...OVERVIEW_OK, items: [staleItem] }))
+      await Promise.resolve()
+    })
+    expect(screen.getByText(freshItem.amazon_order_id)).toBeInTheDocument()
+    expect(screen.queryByText(staleItem.amazon_order_id)).not.toBeInTheDocument()
+  })
+
+  it('手动刷新与待执行筛选 debounce 合并为一次 overview 请求', async () => {
+    const restore = routeFetch(() => jsonResponse(FILTER_OPTIONS_OK))
+    try {
+      resetGfAndParams()
+      const { rerender } = render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      fetchMock.mockClear()
+
+      act(() => {
+        setGf({ dateFrom: '2026-08-01', dateTo: '2026-08-05' })
+      })
+      rerender(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      const refresh = headerRefreshState.handler
+      expect(refresh).not.toBeNull()
+      act(() => {
+        refresh?.()
+      })
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(1)
+      })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(1)
+    } finally {
+      restore()
+    }
+  })
+
+  it('刷新失败时保留当前页面已有订单', async () => {
+    const restore = routeFetch(() => jsonResponse(FILTER_OPTIONS_OK))
+    try {
+      resetGfAndParams()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      fetchMock.mockImplementationOnce(async () => errResponse())
+      act(() => {
+        headerRefreshState.handler?.()
+      })
+
+      expect(await screen.findByText(/ERR · timeout/)).toBeInTheDocument()
+      expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
+
+      act(() => {
+        headerRefreshState.handler?.()
+      })
+      await waitFor(() => {
+        expect(screen.queryByText(/ERR · timeout/)).not.toBeInTheDocument()
+      })
+      expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
+    } finally {
+      restore()
+    }
   })
 
   it('BLF-1019 filter-options 首次失败不锁死：提示重试、不误报未关联店铺，再次打开重试成功', async () => {
