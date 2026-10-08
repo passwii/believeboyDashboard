@@ -264,9 +264,11 @@ function OrderInfoPageInner() {
   const [projectListError, setProjectListError] = useState(false)
   const [projectSelectionExplicit, setProjectSelectionExplicit] = useState(false)
   const [items, setItems] = useState<OrderItem[]>([])
+  const [dataQueryKey, setDataQueryKey] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [stats, setStats] = useState<OrderStats | null>(null)
+  const [statsQueryKey, setStatsQueryKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -376,19 +378,23 @@ function OrderInfoPageInner() {
     urlPrefillApplied.current = true
   }, [searchParams])
 
-  // 当前在飞的 list/stats 请求控制器：发新请求前 abort 上一次，
-  // 避免快速切换筛选时多个重型请求并发堆积压垮后端（CPU/内存飙升根因之一）。
-  const fetchAbortRef = useRef<AbortController | null>(null)
+  // 当前请求按 query key 去重；generation 防止忽略 AbortSignal 的旧响应覆盖新筛选。
+  const activeRequestRef = useRef<{
+    key: string
+    queryKey: string
+    generation: number
+    controller: AbortController
+  } | null>(null)
+  const requestGenerationRef = useRef(0)
+  const fetchScheduleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fetchScheduleIncludeStatsRef = useRef(false)
 
-  // ====== 关键字输入 debounce（250ms）======
+  // 关键字即时提交到 query state；统一由下方 query scheduler 做 250ms debounce。
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSkuKeywordCommitted(skuKeyword.trim())
-      setOrderIdKeywordCommitted(orderIdKeyword.trim())
-      setAsinKeywordCommitted(asinKeyword.trim())
-      setPage(1)
-    }, 250)
-    return () => clearTimeout(timer)
+    setSkuKeywordCommitted(skuKeyword.trim())
+    setOrderIdKeywordCommitted(orderIdKeyword.trim())
+    setAsinKeywordCommitted(asinKeyword.trim())
+    setPage(1)
   }, [skuKeyword, orderIdKeyword, asinKeyword])
 
   // 当前登录用户名（默认填到 updated_by）
@@ -521,28 +527,47 @@ function OrderInfoPageInner() {
     sortDir,
   ])
 
-  // ====== 拉取数据（list + stats 合并） ======
-  const fetchData = useCallback(async () => {
+  // 按页码区分页面数据请求：第一页返回 overview + stats，后续页走 list-only，
+  // 并复用同一筛选条件下第一页统计。排序/页码不影响 stats key。
+  const requestQuery = useMemo(() => buildQuery().toString(), [buildQuery])
+  const authScopeKey = JSON.stringify(session?.user ?? null)
+  const statsKey = useMemo(() => {
+    const params = new URLSearchParams(requestQuery)
+    params.delete('page')
+    params.delete('page_size')
+    params.delete('sort_by')
+    params.delete('sort_dir')
+    return `${params.toString()}::${authScopeKey}`
+  }, [requestQuery, authScopeKey])
+  const requestKey = `${requestQuery}::${authScopeKey}`
+  const requestKeyRef = useRef(requestKey)
+  requestKeyRef.current = requestKey
+  const hasCurrentData = dataQueryKey === requestKey
+  const currentStats = statsQueryKey === statsKey ? stats : null
+
+  // ====== 拉取数据：首屏 overview，后续页 list-only ======
+  const fetchData = useCallback(async (includeStats = false) => {
     // 项目列表不可用时禁止 refresh 等旁路触发隐式全店铺请求。
     if ((projectListLoading || projectListError) && !projectSelectionExplicit) return
-    // 取消上一次还在飞的请求：快速筛选/翻页时只有最后一次生效，
-    // 杜绝 N 次 list+stats 并发同时压到后端。
-    fetchAbortRef.current?.abort()
-    const ctrl = new AbortController()
-    fetchAbortRef.current = ctrl
 
+    const endpoint = includeStats || statsQueryKey !== statsKey ? 'overview' : 'list'
+    const key = `${requestKey}::${endpoint}`
+    if (activeRequestRef.current?.key === key) return
+    activeRequestRef.current?.controller.abort()
+
+    const controller = new AbortController()
+    const generation = ++requestGenerationRef.current
+    activeRequestRef.current = { key, queryKey: requestKey, generation, controller }
     setLoading(true)
     setErrorMessage(null)
+
     try {
-      const params = buildQuery()
-      // 单请求 /overview 一次拿 列表+统计，取代原先并行的 /list + /stats：
-      // 后端不再在两个会话里对大表重复全扫描，消除 CPU/内存峰值。
       const res = await fetch(
-        `/api/backend/api/v1/order-info/overview?${params.toString()}`,
+        `/api/backend/api/v1/order-info/${endpoint}?${requestQuery}`,
         {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
-          signal: ctrl.signal,
+          signal: controller.signal,
         }
       )
       if (!res.ok) {
@@ -552,27 +577,61 @@ function OrderInfoPageInner() {
           })
         )
       }
-      const data = (await res.json()) as OrderOverviewResponse
-      // 走到这里说明没被 abort，安全落 state
+      const data = (await res.json()) as OrderListResponse & Partial<Pick<OrderOverviewResponse, 'stats'>>
+      if (
+        controller.signal.aborted ||
+        generation !== requestGenerationRef.current ||
+        requestKey !== requestKeyRef.current
+      ) return
+
       setItems(data.items)
+      setDataQueryKey(requestKey)
       setTotal(data.total)
-      setStats(data.stats)
+      if (endpoint === 'overview' && data.stats) {
+        setStats(data.stats)
+        setStatsQueryKey(statsKey)
+      }
       // 新数据落定后清空行选择：选中态合计只对本页数据负责，跨页保留会算错
       setSelectedIds(new Set())
     } catch (e) {
-      // 被新请求取代（abort）不算错误，忽略；否则才提示用户
-      if (ctrl.signal.aborted) return
+      // 被新请求取代（abort）或 generation 过期不算错误，忽略；已有成功数据留在表格中。
+      if (
+        controller.signal.aborted ||
+        generation !== requestGenerationRef.current ||
+        requestKey !== requestKeyRef.current
+      ) return
       setErrorMessage(e instanceof Error ? e.message : '数据加载失败')
     } finally {
-      // 已被 abort 时不要动 loading，交给接管的新请求维护其加载态
-      if (!ctrl.signal.aborted) setLoading(false)
+      if (generation === requestGenerationRef.current) {
+        activeRequestRef.current = null
+        setLoading(false)
+      }
     }
-  }, [buildQuery, projectListError, projectListLoading, projectSelectionExplicit, session])
+  }, [projectListError, projectListLoading, projectSelectionExplicit, requestKey, requestQuery, session, statsKey, statsQueryKey])
 
-  // 卸载时取消在飞请求，避免对已卸载组件 setState
+  // 调度器保持稳定，避免 stats 更新导致 query effect 再次排队同一页请求。
+  const fetchDataRef = useRef(fetchData)
+  fetchDataRef.current = fetchData
+
+  // 筛选 debounce、翻页和手动刷新共用一个调度器；相同 query 的在途请求由 fetchData 去重。
+  const scheduleFetch = useCallback((delayMs = 250, includeStats = false) => {
+    if (fetchScheduleTimerRef.current) clearTimeout(fetchScheduleTimerRef.current)
+    fetchScheduleIncludeStatsRef.current ||= includeStats
+    fetchScheduleTimerRef.current = setTimeout(() => {
+      fetchScheduleTimerRef.current = null
+      const shouldIncludeStats = fetchScheduleIncludeStatsRef.current
+      fetchScheduleIncludeStatsRef.current = false
+      void fetchDataRef.current(shouldIncludeStats)
+    }, delayMs)
+  }, [])
+
+  // 卸载时取消 debounce 与在飞请求，避免后台请求或已卸载组件更新状态。
   useEffect(() => {
     return () => {
-      fetchAbortRef.current?.abort()
+      if (fetchScheduleTimerRef.current) clearTimeout(fetchScheduleTimerRef.current)
+      activeRequestRef.current?.controller.abort()
+      activeRequestRef.current = null
+      requestGenerationRef.current += 1
     }
   }, [])
 
@@ -587,25 +646,35 @@ function OrderInfoPageInner() {
     setDateTo(to)
   }, [])
 
-  // ====== 副作用：任何筛选变化触发 fetch ======
-  // gate 只看 autoselect 是否完成（manage 项目列表失败时也会放行，与旧逻辑等价），
-  // 保证首屏 /overview 不会被任何前置加载永久拦住。
-  // 首次加载时等待店铺自动选中后再 fetch，避免默认"全部店铺"拉全量数据慢查询。
+  // ====== 副作用：查询 key 变化时统一 debounce，并立即使旧请求失效 ======
+  // 首次加载等待项目自动选择；项目列表失败时阻止隐式全店铺查询。
   useEffect(() => {
+    const activeRequest = activeRequestRef.current
+    if (activeRequest && activeRequest.queryKey !== requestKey) {
+      activeRequest.controller.abort()
+      activeRequestRef.current = null
+      requestGenerationRef.current += 1
+    }
+
     if (!initialProjectAutoselected.current) return
-    // 项目列表失败或重试中时，阻止隐式 DEFAULT 全店铺宽查询。
-    // URL / 头部明确选择的项目范围（包括用户主动选择「全部」）仍可继续。
-    if ((projectListLoading || projectListError) && !projectSelectionExplicit) return
-    // 250ms debounce：下拉/排序/日期/翻页连点时合并成一次请求，
-    // 配合 fetchData 内的 abort，彻底消除筛选风暴下的并发堆积。
-    // 手动 head 全局刷新按钮走 useHeaderRefresh 直调 fetchData（不受此 debounce 影响）。
-    const timer = setTimeout(() => {
-      void fetchData()
-    }, 250)
-    return () => clearTimeout(timer)
+    if ((projectListLoading || projectListError) && !projectSelectionExplicit) {
+      activeRequestRef.current?.controller.abort()
+      activeRequestRef.current = null
+      requestGenerationRef.current += 1
+      setLoading(false)
+      return
+    }
+
+    scheduleFetch(250)
+    return () => {
+      if (fetchScheduleTimerRef.current) {
+        clearTimeout(fetchScheduleTimerRef.current)
+        fetchScheduleTimerRef.current = null
+      }
+    }
   }, [
-    fetchData,
-    projectId,
+    requestKey,
+    scheduleFetch,
     projectAutoselectDone,
     projectListLoading,
     projectListError,
@@ -811,7 +880,7 @@ function OrderInfoPageInner() {
   // 本页不再渲染重复控件（移除原「Console 工具栏」div）。其余页面独有维度（类型/状态/币种/搜索/
   // 清空/刷新）走 useHeaderSlot portal 进 head 中段，刷新走 head 全局按钮 + useHeaderRefresh。
   useHeaderRefresh(() => {
-    void fetchData()
+    scheduleFetch(0, true)
   }, { loading })
 
   // 页面独有维度的 head slot 控件（不与 head 全局四件套重叠的部分）。
@@ -1086,19 +1155,19 @@ function OrderInfoPageInner() {
               </TermRow>
             </TermTHead>
             <TermBody>
-              {loading ? (
+              {loading && !hasCurrentData ? (
                 <SkeletonRows />
-              ) : errorMessage ? (
-                <EmptyTableState
-                  colSpan={COLUMN_COUNT}
-                  message={`加载失败：${errorMessage} — 可点击工具栏「刷新」重试`}
-                  className="bg-term-panel font-mono text-xs text-term-neg"
-                />
               ) : projectListError && !projectSelectionExplicit ? (
                 <EmptyTableState
                   colSpan={COLUMN_COUNT}
                   message="店铺列表加载失败 — 已暂停订单查询，请重试"
                   className="bg-term-panel font-mono text-xs text-term-warn"
+                />
+              ) : errorMessage && !hasCurrentData ? (
+                <EmptyTableState
+                  colSpan={COLUMN_COUNT}
+                  message={`加载失败：${errorMessage} — 可点击工具栏「刷新」重试`}
+                  className="bg-term-panel font-mono text-xs text-term-neg"
                 />
               ) : items.length === 0 ? (
                 <EmptyTableState
@@ -1316,18 +1385,18 @@ function OrderInfoPageInner() {
       {/* ====== 底部 pinned 聚合分页条：总单量 / 总金额 / 选中态合计 + 翻页 ====== */}
       <footer className="flex h-8 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-sm tabular-nums text-term-muted">
         <span>
-          Σ 单量 <span className="text-term-text">{stats ? stats.total_orders.toLocaleString('zh-CN') : '—'}</span>
+          Σ 单量 <span className="text-term-text">{currentStats ? currentStats.total_orders.toLocaleString('zh-CN') : '—'}</span>
         </span>
         <span>
           Σ 金额{' '}
           <span className="text-term-text">
-            {stats ? `${fmtAmount(stats.total_amount)} ${stats.currency ?? ''}` : '—'}
+            {currentStats ? `${fmtAmount(currentStats.total_amount)} ${currentStats.currency ?? ''}` : '—'}
           </span>
         </span>
         <span className="hidden lg:inline">
-          FBA <span className="text-term-text">{stats ? stats.fba_count.toLocaleString('zh-CN') : '—'}</span>
+          FBA <span className="text-term-text">{currentStats ? currentStats.fba_count.toLocaleString('zh-CN') : '—'}</span>
           {' / '}
-          FBM <span className="text-term-text">{stats ? stats.fbm_count.toLocaleString('zh-CN') : '—'}</span>
+          FBM <span className="text-term-text">{currentStats ? currentStats.fbm_count.toLocaleString('zh-CN') : '—'}</span>
         </span>
         {selectedAgg.count > 0 && (
           <span className="border border-term-accent/40 bg-term-accent/10 px-1.5 py-0.5 text-term-accent">
