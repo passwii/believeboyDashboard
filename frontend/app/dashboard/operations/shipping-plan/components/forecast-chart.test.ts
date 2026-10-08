@@ -31,6 +31,7 @@ describe('buildForecastChartPoints', () => {
       ['2027-03', '2027-03-01', '2027-03-31'],
       ['2027-04', '2027-04-01', '2027-04-06'],
     ])
+    expect(chartPoints.slice(90).every((point) => !('interval_start' in point) && !('interval_end' in point))).toBe(true)
   })
 
   it('leaves monthly historical sales unknown when any day lacks report coverage', () => {

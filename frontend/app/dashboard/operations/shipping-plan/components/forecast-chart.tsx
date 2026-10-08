@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import type { components } from '@/types/api-generated/api'
 import {
   CartesianGrid,
   ComposedChart,
@@ -16,29 +17,25 @@ import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/compone
 
 type DecimalValue = number | string
 
-export type ForecastChartPoint = {
-  forecast_date: string
+export type ForecastChartPoint = components['schemas']['ForecastPoint']
+export type ShippingPlanForecast = Pick<
+  components['schemas']['ShippingPlanForecastResponse'],
+  | 'sku'
+  | 'as_of_date'
+  | 'forecast_start_date'
+  | 'forecast_end_date'
+  | 'inventory_snapshot_date'
+  | 'data_quality'
+  | 'daily_points'
+  | 'confirmed_180d_sales_upper_bound'
+  | 'planned_180d_sales_upper_bound'
+>
+
+type ChartPoint = Omit<ForecastChartPoint, 'demand' | 'confirmed_sales' | 'planned_sales' | 'historical_order_sales'> & {
   demand: DecimalValue | null
   confirmed_sales: DecimalValue | null
   planned_sales: DecimalValue | null
-  confirmed_closing_inventory: DecimalValue | null
-  planned_closing_inventory: DecimalValue | null
   historical_order_sales: number | null
-}
-
-export type ShippingPlanForecast = {
-  sku: string
-  as_of_date: string
-  forecast_start_date: string
-  forecast_end_date: string
-  inventory_snapshot_date: string | null
-  data_quality: string[]
-  daily_points: ForecastChartPoint[]
-  confirmed_180d_sales_upper_bound: DecimalValue | null
-  planned_180d_sales_upper_bound: DecimalValue | null
-}
-
-type ChartPoint = ForecastChartPoint & {
   label: string
   rangeLabel: string
   rangeStart: string
@@ -51,8 +48,8 @@ function dateLabel(value: string): string {
   return match ? `${match[2]}/${match[3]}` : value
 }
 
-function sumKnown(values: Array<DecimalValue | null>): number | null {
-  const numericValues = values.map((value) => value === null ? null : Number(value))
+function sumKnown(values: Array<DecimalValue | null | undefined>): number | null {
+  const numericValues = values.map((value) => value == null ? null : Number(value))
   if (numericValues.some((value) => value === null || !Number.isFinite(value))) return null
   return numericValues.reduce<number>((sum, value) => sum + (value ?? 0), 0)
 }
@@ -78,9 +75,7 @@ function aggregateMonthly(points: ForecastChartPoint[]): ChartPoint[] {
       planned_sales: sumKnown(rows.map((row) => row.planned_sales)),
       confirmed_closing_inventory: last.confirmed_closing_inventory,
       planned_closing_inventory: last.planned_closing_inventory,
-      historical_order_sales: sumKnown(rows.map((row) => row.historical_order_sales)),
-      interval_start: first.forecast_date,
-      interval_end: last.forecast_date,
+      historical_order_sales: sumKnown(rows.map((row) => row.historical_order_sales ?? null)),
     }
   })
 }
@@ -114,12 +109,12 @@ export function buildForecastChartPoints(points: ForecastChartPoint[]): ChartPoi
     rangeEnd: point.forecast_date,
     monthly: false,
   }))
-  return [...daily, ...aggregateMonthly(points.slice(90))]
+  return [...daily, ...aggregateMonthly(points.slice(90))] as ChartPoint[]
 }
 
 export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) {
   const data = useMemo(() => buildForecastChartPoints(forecast.daily_points ?? []), [forecast.daily_points])
-  const hasHistoricalData = data.some((point) => point.historical_order_sales !== null)
+  const hasHistoricalData = data.some((point) => point.historical_order_sales != null)
   const hasUnknownDemand = data.some((point) => point.demand === null)
   const confirmedText = formatValue(forecast.confirmed_180d_sales_upper_bound)
   const plannedText = formatValue(forecast.planned_180d_sales_upper_bound)

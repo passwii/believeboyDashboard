@@ -1,30 +1,15 @@
 'use client'
 
+import type { components } from '@/types/api-generated/api'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+export type ShippingPlanSkuRow = components['schemas']['ShippingPlanSkuItem']
 type DecimalValue = number | string
 
-export type ShippingPlanSkuRow = {
-  sku: string
-  asin: string | null
-  product_name: string | null
-  available_inventory: number | null
-  inventory_snapshot_date: string | null
-  base_dms: DecimalValue | null
-  growth_factor: DecimalValue
-  demand_source: 'manual' | 'default'
-  in_transit_quantity: number
-  draft_quantity: number
-  active_plan_remaining_quantity: number
-  confirmed_180d_sales_upper_bound: DecimalValue | null
-  planned_180d_sales_upper_bound: DecimalValue | null
-  data_quality: string[]
-}
-
-function number(value: DecimalValue | null, digits = 0) {
+function number(value: DecimalValue | null | undefined, digits = 0) {
   const numeric = value == null ? null : Number(value)
   return numeric == null || !Number.isFinite(numeric) ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(numeric)
 }
@@ -74,7 +59,7 @@ export function SkuForecastTable({
               <TableBody>
                 {rows.map((row) => {
                   const selected = row.sku === selectedSku
-                  const quality = qualityMeta(row.data_quality)
+                  const quality = qualityMeta(row.data_quality ?? [])
                   return (
                     <TableRow
                       key={row.sku}

@@ -18,155 +18,32 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ForecastChart } from './components/forecast-chart'
 import { SkuForecastTable } from './components/sku-forecast-table'
+import type { components } from '@/types/api-generated/api'
 
 const API_BASE = '/api/backend/api/v1/shipping-plan'
 const BACKEND_API_BASE = '/api/backend/api/v1'
 const DAY_MS = 24 * 60 * 60 * 1000
+const MAX_SCHEDULE_CANDIDATES_PER_STATUS = 25
 
 type DecimalValue = number | string
 
-type ShippingPlanSku = {
-  sku: string
-  asin: string | null
-  product_name: string | null
-  available_inventory: number | null
-  inventory_snapshot_date: string | null
-  base_dms: DecimalValue | null
-  growth_factor: DecimalValue
-  demand_source: 'manual' | 'default'
-  in_transit_quantity: number
-  draft_quantity: number
-  active_plan_remaining_quantity: number
-  confirmed_180d_sales_upper_bound: DecimalValue | null
-  planned_180d_sales_upper_bound: DecimalValue | null
-  data_quality: string[]
-}
-
-type ShippingPlanSkuListResponse = {
-  items: ShippingPlanSku[]
-  total: number
-  page: number
-  page_size: number
-  valid_forecast_sku_count: number
-  missing_forecast_sku_count: number
-  known_confirmed_sales_upper_bound: number
-  known_planned_sales_upper_bound: number
-}
-
-type ForecastPoint = {
-  forecast_date: string
-  demand: DecimalValue | null
-  confirmed_sales: DecimalValue | null
-  planned_sales: DecimalValue | null
-  confirmed_closing_inventory: DecimalValue | null
-  planned_closing_inventory: DecimalValue | null
-  historical_order_sales: number | null
-  interval_start?: string
-  interval_end?: string
-}
-
-type ForecastArrival = {
-  arrival_date: string | null
-  sku: string
-  quantity: number
-  source_type: string
-  reference: string | null
-  data_quality: string | null
-}
-
-type ForecastResponse = {
-  project_id: number
-  country: string
-  sku: string
-  as_of_date: string
-  forecast_start_date: string
-  forecast_end_date: string
-  inventory_snapshot_date: string | null
-  base_dms: number | null
-  growth_factor: number
-  demand_source: 'manual' | 'default'
-  sales_baseline_start_date: string
-  sales_baseline_end_date: string
-  data_quality: string[]
-  daily_points: ForecastPoint[]
-  confirmed_180d_sales_upper_bound: DecimalValue | null
-  planned_180d_sales_upper_bound: DecimalValue | null
-  unverified_completed_quantity: number
-  overdue_shipment_quantity: number
-  overdue_plan_quantity: number
-  arrivals: ForecastArrival[]
-}
-
-type ShipmentMonth = { month: string; shipment_count: number; quantity: number }
-type ShipmentHistory = {
-  project_id: number
-  country: string
-  etd_from: string
-  etd_to: string
-  months: ShipmentMonth[]
-  missing_etd_shipment_count: number
-  missing_etd_quantity: number
-  included_statuses: string[]
-  date_basis: string
-}
-
-type PlanAllocation = {
-  id: number
-  plan_item_id: number
-  shipment_schedule_id: number
-  sku: string
-  quantity: number
-}
-type PlanItem = {
-  id: number
-  sku: string
-  quantity: number
-  allocated_quantity: number
-  remaining_quantity: number
-  allocations: PlanAllocation[]
-}
-type PlanBatch = {
-  id: number
-  name: string
-  expected_arrival_date: string
-  status: 'active' | 'cancelled'
-  remark: string | null
-  items: PlanItem[]
-}
-
-type PlanBatchesResponse = { items: PlanBatch[] }
-type ShipmentCandidate = {
-  id: number
-  shipment_no: string
-  shipment_status: 'draft' | 'in_transit'
-  etd_date: string | null
-  eta_date: string | null
-  available_quantity: number
-}
-
+type ShippingPlanSku = components['schemas']['ShippingPlanSkuItem']
+type ShippingPlanSkuListResponse = components['schemas']['ShippingPlanSkuListResponse']
+type ForecastPoint = components['schemas']['ForecastPoint']
+type ForecastResponse = components['schemas']['ShippingPlanForecastResponse']
+type ShipmentHistory = components['schemas']['ShipmentHistoryResponse']
+type PlanAllocation = components['schemas']['ShippingPlanAllocationResponse']
+type PlanItem = components['schemas']['ShippingPlanBatchItemResponse']
+type PlanBatch = components['schemas']['ShippingPlanBatchResponse']
+type PlanBatchesResponse = components['schemas']['ShippingPlanBatchListResponse']
+type ShipmentCandidate = Pick<
+  components['schemas']['ShipmentScheduleListItem'],
+  'id' | 'shipment_no' | 'shipment_status' | 'etd_date' | 'eta_date'
+> & { shipment_status: 'draft' | 'in_transit'; available_quantity: number }
 type EditablePlanItem = { id: number | string; sku: string; quantity: string; allocated: number }
-
-type ShipmentScheduleListResponse = {
-  items: Array<{
-    id: number
-    shipment_no: string
-    shipment_status: 'draft' | 'in_transit' | 'completed'
-    etd_date: string | null
-    eta_date: string | null
-  }>
-  has_next: boolean
-}
-
-type ShipmentScheduleDetail = {
-  id: number
-  shipment_no: string
-  shipment_status: 'draft' | 'in_transit' | 'completed'
-  etd_date: string | null
-  eta_date: string | null
-  items: Array<{ sku: string; quantity: number }>
-}
-
-type ApiErrorPayload = { detail?: string }
+type ShipmentScheduleListResponse = components['schemas']['ShipmentScheduleListResponse']
+type ShipmentScheduleDetail = components['schemas']['ShipmentScheduleDetail']
+type ApiErrorPayload = { detail?: unknown }
 
 function formatNumber(value: DecimalValue | null | undefined, digits = 1): string {
   const numeric = value == null ? null : Number(value)
@@ -188,6 +65,21 @@ function queryString(values: Record<string, string | number | null | undefined>)
   return params.toString()
 }
 
+function getApiErrorMessage(detail: unknown): string | null {
+  if (typeof detail === 'string') return detail
+  if (!Array.isArray(detail)) return null
+  const messages = detail.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const validationError = entry as { loc?: unknown; msg?: unknown }
+    if (typeof validationError.msg !== 'string') return []
+    const location = Array.isArray(validationError.loc)
+      ? validationError.loc.filter((part) => part !== 'body').map(String).join('.')
+      : ''
+    return [location ? `${location}: ${validationError.msg}` : validationError.msg]
+  })
+  return messages.length ? messages.join('；') : null
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const url = path.startsWith(`${BACKEND_API_BASE}/`) ? path : `${API_BASE}${path}`
   const response = await fetch(url, {
@@ -199,7 +91,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     let message = `请求失败（HTTP ${response.status}）`
     try {
       const payload = (await response.json()) as ApiErrorPayload
-      message = payload.detail || message
+      message = getApiErrorMessage(payload.detail) || message
     } catch {
       // Keep the status-based message when the proxy did not return JSON.
     }
@@ -209,11 +101,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-function qualityKey(reasons: string[]): 'ready' | 'missing_inventory' | 'missing_sales' | 'inventory_stale' | 'inventory_pending' {
-  if (reasons.length === 0) return 'ready'
-  if (reasons.includes('inventory_snapshot_missing') || reasons.includes('sku_inventory_snapshot_missing')) return 'missing_inventory'
-  if (reasons.includes('sales_baseline_missing')) return 'missing_sales'
-  if (reasons.includes('post_snapshot_inbound_before_forecast_start')) return 'inventory_stale'
+function qualityKey(reasons: string[] | undefined): 'ready' | 'missing_inventory' | 'missing_sales' | 'inventory_stale' | 'inventory_pending' {
+  if (!reasons?.length) return 'ready'
+  if (reasons?.includes('inventory_snapshot_missing') || reasons?.includes('sku_inventory_snapshot_missing')) return 'missing_inventory'
+  if (reasons?.includes('sales_baseline_missing')) return 'missing_sales'
+  if (reasons?.includes('post_snapshot_inbound_before_forecast_start')) return 'inventory_stale'
   return 'inventory_pending'
 }
 
@@ -231,8 +123,8 @@ function qualityReasonLabel(reason: string): string {
   return labels[reason] ?? reason
 }
 
-function qualityTone(reasons: string[]): string {
-  if (reasons.length === 0) return 'border-term-pos/40 text-term-pos'
+function qualityTone(reasons: string[] | undefined): string {
+  if (!reasons?.length) return 'border-term-pos/40 text-term-pos'
   return 'border-term-warn/50 text-term-warn'
 }
 
@@ -291,6 +183,7 @@ export default function ShippingPlanClient() {
   const [allocationScheduleId, setAllocationScheduleId] = useState('')
   const [allocationQuantity, setAllocationQuantity] = useState('')
   const [savingAllocation, setSavingAllocation] = useState(false)
+  const allocationSubmitInFlightRef = useRef(false)
 
   const scopeQuery = useMemo(() => queryString({ project_id: projectId, country }), [country, projectId])
 
@@ -504,18 +397,18 @@ export default function ShippingPlanClient() {
           const schedules: ShipmentScheduleListResponse['items'] = []
           let page = 1
           let hasNext = true
-          while (hasNext) {
+          while (hasNext && schedules.length < MAX_SCHEDULE_CANDIDATES_PER_STATUS) {
             const response = await requestJson<ShipmentScheduleListResponse>(
-              `${BACKEND_API_BASE}/shipment-schedules?${queryString({ project_id: projectId, country, shipment_status: shipmentStatus, page, page_size: 200, include_total: 'false' })}`
+              `${BACKEND_API_BASE}/shipment-schedules?${queryString({ project_id: projectId, country, shipment_status: shipmentStatus, page, page_size: MAX_SCHEDULE_CANDIDATES_PER_STATUS, include_total: 'false' })}`
             )
-            schedules.push(...response.items)
+            schedules.push(...response.items.slice(0, MAX_SCHEDULE_CANDIDATES_PER_STATUS - schedules.length))
             hasNext = response.has_next
             page += 1
           }
-          return schedules
+          return { schedules, wasTruncated: hasNext }
         })
       )
-      const schedules = schedulesByStatus.flat()
+      const schedules = schedulesByStatus.flatMap((result) => result.schedules)
       const details = await Promise.all(
         schedules.map((schedule) => requestJson<ShipmentScheduleDetail>(`${BACKEND_API_BASE}/shipment-schedules/${schedule.id}`))
       )
@@ -534,13 +427,16 @@ export default function ShippingPlanClient() {
         return [{
           id: detail.id,
           shipment_no: detail.shipment_no,
-          shipment_status: detail.shipment_status,
-          etd_date: detail.etd_date,
-          eta_date: detail.eta_date,
+          shipment_status: detail.shipment_status as 'draft' | 'in_transit',
+          etd_date: detail.etd_date ?? null,
+          eta_date: detail.eta_date ?? null,
           available_quantity: availableQuantity,
         }]
       })
       setCandidates(available)
+      if (schedulesByStatus.some((result) => result.wasTruncated)) {
+        notify({ type: 'error', title: '候选货件已截断', message: '为控制请求量，每种货件状态最多检查 25 件；若未找到目标货件，请联系管理员缩小筛选范围后重试。' })
+      }
     } catch (error) {
       if (requestId === candidatesRequestIdRef.current) {
         notify({ type: 'error', title: '正式货件读取失败', message: error instanceof Error ? error.message : '请重试' })
@@ -550,12 +446,16 @@ export default function ShippingPlanClient() {
 
   const submitAllocation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (allocationSubmitInFlightRef.current) return
     const quantity = Number(allocationQuantity)
     const selectedCandidate = candidates.find((candidate) => candidate.id === Number(allocationScheduleId))
-    if (!allocationItemId || !selectedCandidate || !Number.isInteger(quantity) || quantity <= 0 || quantity > selectedCandidate.available_quantity) {
+    const selectedPlanItem = batches.flatMap((batch) => batch.items).find((item) => item.id === allocationItemId)
+    if (!selectedPlanItem || !selectedCandidate || !Number.isInteger(quantity) || quantity <= 0 ||
+      quantity > selectedPlanItem.remaining_quantity || quantity > selectedCandidate.available_quantity) {
       notify({ type: 'error', title: '关联信息不完整', message: '请选择正式货件，并输入不超过计划余额和货件可分配量的正整数。' })
       return
     }
+    allocationSubmitInFlightRef.current = true
     setSavingAllocation(true)
     try {
       const batchId = batches.find((batch) => batch.items.some((item) => item.id === allocationItemId))?.id
@@ -570,6 +470,7 @@ export default function ShippingPlanClient() {
     } catch (error) {
       notify({ type: 'error', title: '关联失败', message: error instanceof Error ? error.message : '请检查计划余额与货件可分配量。' })
     } finally {
+      allocationSubmitInFlightRef.current = false
       setSavingAllocation(false)
     }
   }
@@ -680,7 +581,7 @@ export default function ShippingPlanClient() {
               <>
                 <div className="flex items-start justify-between gap-3 border-b border-term-border pb-3">
                   <div className="min-w-0"><div className="truncate font-mono text-base font-semibold text-term-text">{selectedRow.sku}</div><div className="mt-1 truncate text-xs text-term-muted">{selectedRow.product_name || selectedRow.asin || '未维护商品信息'}</div></div>
-                  <Badge variant="outline" className={`shrink-0 rounded-none font-mono text-[10px] ${qualityTone(selectedRow.data_quality)}`}>{selectedRow.data_quality.length ? '数据待核实' : '可计算'}</Badge>
+                  <Badge variant="outline" className={`shrink-0 rounded-none font-mono text-[10px] ${qualityTone(selectedRow.data_quality)}`}>{selectedRow.data_quality?.length ? '数据待核实' : '可计算'}</Badge>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                   <Metric label="可售库存" value={formatNumber(selectedRow.available_inventory, 0)} />
@@ -700,7 +601,7 @@ export default function ShippingPlanClient() {
                   </div>
                   <p className="mt-2 text-[11px] leading-5 text-term-muted">当前来源：{selectedRow.demand_source === 'manual' ? '手工设置' : '系统缺省 1.0'}</p>
                 </div>
-                {selectedRow.data_quality.length ? <ul className="space-y-1 border-t border-term-border pt-3 text-xs leading-5 text-term-warn">{selectedRow.data_quality.map((reason) => <li key={reason}>· {qualityReasonLabel(reason)}</li>)}</ul> : null}
+                {selectedRow.data_quality?.length ? <ul className="space-y-1 border-t border-term-border pt-3 text-xs leading-5 text-term-warn">{selectedRow.data_quality.map((reason) => <li key={reason}>· {qualityReasonLabel(reason)}</li>)}</ul> : null}
               </>
             ) : <p className="text-sm text-term-muted">加载 SKU 参数中…</p>}
           </DataTableCardBody>
