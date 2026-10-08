@@ -5265,6 +5265,26 @@
         "title": "Body_recognize_report_upload_api_v1_report_upload_recognize_post",
         "type": "object"
       },
+      "Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post": {
+        "properties": {
+          "excel_file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Excel File",
+            "type": "string"
+          },
+          "pdf_file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Pdf File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "excel_file",
+          "pdf_file"
+        ],
+        "title": "Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post",
+        "type": "object"
+      },
       "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post": {
         "properties": {
           "excel_file": {
@@ -44910,6 +44930,199 @@
         ]
       }
     },
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation": {
+      "get": {
+        "description": "Read bounded auto/manual reconciliation history for one scoped report.",
+        "operationId": "get_agent_monthly_report_reconciliation_history_api_v1_agent_monthly_reports__report_id__reconciliation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Monthly Report Reconciliation History Api V1 Agent Monthly Reports  Report Id  Reconciliation Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Monthly Report Reconciliation History",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/auto": {
+      "post": {
+        "description": "Run scoped PT3/PDF reconciliation and upsert the report's auto record.",
+        "operationId": "reconcile_agent_monthly_report_auto_api_v1_agent_monthly_reports__report_id__reconciliation_auto_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tolerance",
+            "required": false,
+            "schema": {
+              "default": 0.01,
+              "minimum": 0,
+              "title": "Tolerance",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reconcile Agent Monthly Report Auto Api V1 Agent Monthly Reports  Report Id  Reconciliation Auto Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconcile Agent Monthly Report Auto",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/manual": {
+      "post": {
+        "description": "Compare uploaded Excel/PDF inputs and upsert this report's manual record.",
+        "operationId": "reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tolerance",
+            "required": false,
+            "schema": {
+              "default": 0.01,
+              "minimum": 0,
+              "title": "Tolerance",
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reconcile Agent Monthly Report Manual Api V1 Agent Monthly Reports  Report Id  Reconciliation Manual Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconcile Agent Monthly Report Manual",
+        "tags": [
+          "agent",
+          "agent-monthly-reports"
+        ]
+      }
+    },
     "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}": {
       "put": {
         "description": "W1 填写 / 更新草稿：upsert 语义 + 显式字段合并 + 审计（不 confirm）。\n\n周期不存在 → 404 ``RESOURCE_NOT_FOUND``；项目不在凭据范围 → 403\n``AGENT_PROJECT_OUT_OF_SCOPE``（``require_project_scope`` 直取）。\n幂等：重复 PUT 更新同一条不新建。",
@@ -52003,6 +52216,67 @@
           }
         },
         "summary": "Create Shipment",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/fba-box-details.xlsx": {
+      "get": {
+        "description": "导出一个项目内指定货件的 FBA 箱单明细（纯读 XLSX 文件流）。",
+        "operationId": "export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "可重复传入多个货件编号；至少 1 个，最多 100 个。",
+            "in": "query",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "description": "可重复传入多个货件编号；至少 1 个，最多 100 个。",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "title": "Shipment No",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "FBA 箱单明细 XLSX 文件流"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Shipment Fba Box Details",
         "tags": [
           "agent",
           "agent-shipments"

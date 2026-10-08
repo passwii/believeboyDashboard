@@ -724,6 +724,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Agent Monthly Report Reconciliation History
+         * @description Read bounded auto/manual reconciliation history for one scoped report.
+         */
+        get: operations["get_agent_monthly_report_reconciliation_history_api_v1_agent_monthly_reports__report_id__reconciliation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Agent Monthly Report Auto
+         * @description Run scoped PT3/PDF reconciliation and upsert the report's auto record.
+         */
+        post: operations["reconcile_agent_monthly_report_auto_api_v1_agent_monthly_reports__report_id__reconciliation_auto_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Agent Monthly Report Manual
+         * @description Compare uploaded Excel/PDF inputs and upsert this report's manual record.
+         */
+        post: operations["reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -2115,6 +2175,26 @@ export interface paths {
         put?: never;
         /** Create Shipment */
         post: operations["create_shipment_api_v1_agent_projects__project_id__shipments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shipments/fba-box-details.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Shipment Fba Box Details
+         * @description 导出一个项目内指定货件的 FBA 箱单明细（纯读 XLSX 文件流）。
+         */
+        get: operations["export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -11503,6 +11583,13 @@ export interface components {
             country: string;
             /** File */
             file: string;
+        };
+        /** Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post */
+        Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post: {
+            /** Excel File */
+            excel_file: string;
+            /** Pdf File */
+            pdf_file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
@@ -25803,6 +25890,116 @@ export interface operations {
             };
         };
     };
+    get_agent_monthly_report_reconciliation_history_api_v1_agent_monthly_reports__report_id__reconciliation_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_agent_monthly_report_auto_api_v1_agent_monthly_reports__report_id__reconciliation_auto_post: {
+        parameters: {
+            query?: {
+                tolerance?: number;
+            };
+            header?: never;
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post: {
+        parameters: {
+            query?: {
+                tolerance?: number;
+            };
+            header?: never;
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_report_api_v1_agent_platform_inspection_periods__period_id__projects__project_id__put: {
         parameters: {
             query?: never;
@@ -28392,6 +28589,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get: {
+        parameters: {
+            query: {
+                /** @description 可重复传入多个货件编号；至少 1 个，最多 100 个。 */
+                shipment_no: string[];
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FBA 箱单明细 XLSX 文件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
