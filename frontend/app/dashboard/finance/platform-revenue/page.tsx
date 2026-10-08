@@ -48,7 +48,7 @@ import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
-import { disableGridLines } from '@/lib/excel-styles'
+import { applyDataRowBanding, disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
@@ -666,6 +666,13 @@ export default function PlatformRevenuePage() {
           revenue.revenue_type || '订单回款',
           revenue.note || '',
         ]
+        applyDataRowBanding({
+          worksheet,
+          startRow: dataStartRow + index,
+          rowCount: 1,
+          columnCount: headerLabels.length,
+          dataRowOffset: index,
+        })
         // 设置默认字体（Microsoft YaHei），后续条件样式会覆盖
         for (let col = 1; col <= 7; col++) {
           row.getCell(col).font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }

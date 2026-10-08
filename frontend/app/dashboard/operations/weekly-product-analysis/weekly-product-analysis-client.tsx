@@ -53,6 +53,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
+import { applyDataRowBanding } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
@@ -755,6 +756,12 @@ function fillSummaryWorksheet(
   })
 
   let rowIndex = 3
+  applyDataRowBanding({
+    worksheet,
+    startRow: rowIndex,
+    rowCount: summaryRows.length,
+    columnCount: lastColumn,
+  })
   summaryRows.forEach((item, index) => {
     const row = worksheet.getRow(rowIndex)
     const { isPartial } = extractCompleteness(item.row)
@@ -797,6 +804,9 @@ function fillSummaryWorksheet(
   })
 
   const totalRow = worksheet.getRow(rowIndex)
+  for (let column = 1; column <= lastColumn; column += 1) {
+    applyCellBorder(totalRow.getCell(column), 'FFCBD5E1')
+  }
   totalRow.getCell(1).value = '合计'
   totalRow.getCell(2).value = `${summaryRows.length} 周`
   SUMMARY_COLUMNS.forEach((column, idx) => {
@@ -966,6 +976,12 @@ function fillDetailWorksheet(
   })
 
   let rowIndex = 3
+  applyDataRowBanding({
+    worksheet,
+    startRow: rowIndex,
+    rowCount: detailRows.length,
+    columnCount: lastColumn,
+  })
   detailRows.forEach((rowData) => {
     const row = worksheet.getRow(rowIndex)
     detailColumns.forEach((column, idx) => {
@@ -985,6 +1001,9 @@ function fillDetailWorksheet(
   })
 
   const totalRow = worksheet.getRow(rowIndex)
+  for (let column = 1; column <= lastColumn; column += 1) {
+    applyCellBorder(totalRow.getCell(column), 'FFCBD5E1')
+  }
   detailColumns.forEach((column, idx) => {
     const cell = totalRow.getCell(idx + 1)
     if (column === '日期') {

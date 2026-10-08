@@ -46,6 +46,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
+import { applyDataRowBanding } from '@/lib/excel-styles'
 
 // =============================================================================
 // Types
@@ -827,6 +828,13 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
         detailSheet.getCell(rowIdx, 9).value = Number(detail['利润率'] ?? 0)
         rowIdx += 1
       })
+    })
+
+    applyDataRowBanding({
+      worksheet: detailSheet,
+      startRow: 2,
+      rowCount: rowIdx - 2,
+      columnCount: headers.length,
     })
 
     const buffer = await wb.xlsx.writeBuffer()

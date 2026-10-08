@@ -38,7 +38,7 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
-import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 
@@ -422,7 +422,8 @@ export default function InventoryAnalysisPage() {
           ...shipmentColumns.map((col) => row.shipment_quantities?.[col.shipment_no] ?? ''),
         ]
 
-        excelRow.eachCell((cell, colNumber) => {
+        for (let colNumber = 1; colNumber <= columns.length; colNumber += 1) {
+          const cell = excelRow.getCell(colNumber)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
@@ -447,7 +448,13 @@ export default function InventoryAnalysisPage() {
             }
           }
           applyBorder(cell)
-        })
+        }
+      })
+      applyDataRowBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: rows.length,
+        columnCount: columns.length,
       })
 
       const totalRow = worksheet.getRow(rows.length + 2)

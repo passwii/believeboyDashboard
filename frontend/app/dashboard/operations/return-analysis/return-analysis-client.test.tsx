@@ -64,6 +64,8 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
 const excelCapture = vi.hoisted(() => ({
   sheetNames: [] as string[],
   rowsBySheet: {} as Record<string, unknown[][]>,
+  fillsBySheet: {} as Record<string, Array<Array<unknown>>>,
+  bordersBySheet: {} as Record<string, Array<Array<unknown>>>,
 }))
 
 vi.mock('exceljs', () => {
@@ -86,9 +88,34 @@ vi.mock('exceljs', () => {
         eachCell: (cb: (c: typeof cell) => void) => cells.forEach(() => cb(cell)),
       }
     }
-    getRow() {
-      const cell = { font: {}, border: {}, fill: {}, alignment: {} }
-      return { eachCell: (cb: (c: typeof cell) => void) => cb(cell) }
+    getRow(rowNumber: number) {
+      const sheetName = this.name
+      const makeCell = (column: number) => ({
+        font: {},
+        alignment: {},
+        set fill(value: unknown) {
+          const rows = excelCapture.fillsBySheet[sheetName] ?? []
+          rows[rowNumber] ??= []
+          rows[rowNumber][column] = value
+          excelCapture.fillsBySheet[sheetName] = rows
+        },
+        get fill() {
+          return excelCapture.fillsBySheet[sheetName]?.[rowNumber]?.[column]
+        },
+        set border(value: unknown) {
+          const rows = excelCapture.bordersBySheet[sheetName] ?? []
+          rows[rowNumber] ??= []
+          rows[rowNumber][column] = value
+          excelCapture.bordersBySheet[sheetName] = rows
+        },
+        get border() {
+          return excelCapture.bordersBySheet[sheetName]?.[rowNumber]?.[column]
+        },
+      })
+      return {
+        getCell: (column: number) => makeCell(column),
+        eachCell: (cb: (cell: ReturnType<typeof makeCell>) => void) => cb(makeCell(1)),
+      }
     }
   }
   class FakeWorkbook {
@@ -646,6 +673,10 @@ describe('原始数据 Tab（原始行懒加载）', () => {
 
 describe('导出 Excel：亚马逊原始数据 sheet', () => {
   it('未打开过原始数据 Tab 时，导出会先拉原始行并追加第 6 张 sheet', async () => {
+    excelCapture.sheetNames = []
+    excelCapture.rowsBySheet = {}
+    excelCapture.fillsBySheet = {}
+    excelCapture.bordersBySheet = {}
     render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
     expect(rawRequestCount).toBe(0)
@@ -669,9 +700,20 @@ describe('导出 Excel：亚马逊原始数据 sheet', () => {
     expect(rawSheetRows[0][0]).toBe('退货日期（站点时区）')
     expect(rawSheetRows[1][2]).toBe('ORDER-RAW-1')
     expect(rawSheetRows[1][12]).toBe('与描述不符')
+    expect(excelCapture.fillsBySheet['亚马逊原始数据']?.[2]?.[1]).toMatchObject({
+      fgColor: { argb: 'FFFFFFFF' },
+    })
+    expect(excelCapture.bordersBySheet['亚马逊原始数据']?.[2]?.[17]).toMatchObject({
+      left: { style: 'thin' },
+      right: { style: 'thin' },
+    })
   })
 
   it('原始行拉取失败时中止导出，不产出任何 sheet', async () => {
+    excelCapture.sheetNames = []
+    excelCapture.rowsBySheet = {}
+    excelCapture.fillsBySheet = {}
+    excelCapture.bordersBySheet = {}
     rawShouldFail = true
     render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
@@ -687,6 +729,10 @@ describe('导出 Excel：亚马逊原始数据 sheet', () => {
   })
 
   it('导出 sheet 携带全部行，不随页内 200 行截断', async () => {
+    excelCapture.sheetNames = []
+    excelCapture.rowsBySheet = {}
+    excelCapture.fillsBySheet = {}
+    excelCapture.bordersBySheet = {}
     // 生成超过页内上限的行数，且全程停留 rankings Tab（页内不渲染原始表格，
     // 唯一的截断风险点就是导出自身若误用 RAW_DISPLAY_LIMIT 切片）。
     rawGeneratedRowCount = RAW_DISPLAY_LIMIT + 5

@@ -40,7 +40,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
-import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
@@ -487,6 +487,12 @@ export default function SeasonalReplenishmentPage() {
           if (col === estQtyCol) cell.numFmt = '#,##0'
           applyBorder(cell)
         }
+      })
+      applyDataRowBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: rows.length,
+        columnCount: columns.length,
       })
 
       const totalRow = worksheet.getRow(rows.length + 2)

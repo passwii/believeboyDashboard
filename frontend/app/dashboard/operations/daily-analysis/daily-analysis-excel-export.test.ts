@@ -61,7 +61,13 @@ describe('exportDailyAnalysisToExcel', () => {
     await workbook.xlsx.load(await blob.arrayBuffer())
 
     expect(workbook.worksheets.map((worksheet) => worksheet.name)).toEqual(['日报汇总', 'SKU明细'])
-    expect(workbook.getWorksheet('日报汇总')?.getCell('A2').value).toBe('2026-09-01')
-    expect(workbook.getWorksheet('SKU明细')?.getCell('B2').value).toBe('SKU-1')
+    const summarySheet = workbook.getWorksheet('日报汇总')!
+    const detailSheet = workbook.getWorksheet('SKU明细')!
+    expect(summarySheet.getCell('A2').value).toBe('2026-09-01')
+    expect(detailSheet.getCell('B2').value).toBe('SKU-1')
+    expect(summarySheet.getCell('A2').fill).toMatchObject({
+      fgColor: { argb: 'FFFFFFFF' },
+    })
+    expect(detailSheet.getCell('P2').border).toBeDefined()
   })
 })

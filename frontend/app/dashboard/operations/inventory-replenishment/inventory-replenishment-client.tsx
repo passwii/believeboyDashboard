@@ -56,7 +56,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
-import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { downloadBlob } from '@/lib/download-blob'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
@@ -1122,6 +1122,12 @@ export default function InventoryReplenishmentPage() {
           if (col === 20) cell.numFmt = '#,##0'
           applyBorder(cell)
         }
+      })
+      applyDataRowBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: filteredRows.length,
+        columnCount: columns.length,
       })
 
       const totalRow = worksheet.getRow(filteredRows.length + 2)

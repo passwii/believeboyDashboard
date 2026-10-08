@@ -70,7 +70,7 @@ import { useNotifications } from '@/components/notifications'
 import { useGoalProgress } from '@/lib/use-goal-progress'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
-import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder } from '@/lib/excel-styles'
 import { downloadBlob } from '@/lib/download-blob'
 import {
   buildSkuScopeKey,
@@ -590,14 +590,21 @@ export async function exportDailyAnalysisToExcel(
     excelRow.getCell(13).value = row.conversion_rate
     excelRow.getCell(13).numFmt = '0.00%'
 
-    excelRow.eachCell((cell, colNumber) => {
+    for (let colNumber = 1; colNumber <= summaryCols.length; colNumber += 1) {
+      const cell = excelRow.getCell(colNumber)
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
       cell.alignment = {
         vertical: 'middle',
         horizontal: colNumber === 1 ? 'center' : 'right',
       }
       applyBorder(cell)
-    })
+    }
+  })
+  applyDataRowBanding({
+    worksheet: summarySheet,
+    startRow: 2,
+    rowCount: summaryRows.length,
+    columnCount: summaryCols.length,
   })
 
   // Sheet 2: SKU明细
@@ -674,18 +681,24 @@ export async function exportDailyAnalysisToExcel(
     excelRow.getCell(16).value = row.conversion_rate
     excelRow.getCell(16).numFmt = '0.00%'
 
-    excelRow.eachCell((cell, colNumber) => {
+    for (let colNumber = 1; colNumber <= detailCols.length; colNumber += 1) {
+      const cell = excelRow.getCell(colNumber)
       cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
       cell.alignment = {
         vertical: 'middle',
         horizontal: colNumber <= 3 ? 'left' : 'right',
       }
       applyBorder(cell)
-    })
+    }
+  })
+  applyDataRowBanding({
+    worksheet: detailSheet,
+    startRow: 2,
+    rowCount: detailRows.length,
+    columnCount: detailCols.length,
   })
 
   let mergeStartRow = 2
-  let groupIndex = 0
   for (let rowIndex = 1; rowIndex <= detailRows.length; rowIndex += 1) {
     const currentDate = detailRows[rowIndex]?.date
     const previousDate = detailRows[rowIndex - 1]?.date
@@ -696,8 +709,6 @@ export async function exportDailyAnalysisToExcel(
     const mergeEndRow = rowIndex + 1
     const groupStartRow = mergeStartRow
     const groupRowCount = mergeEndRow - groupStartRow + 1
-    const isEvenGroup = groupIndex % 2 === 0
-    const groupFill = isEvenGroup ? 'FFFFFFFF' : 'FFF8FAFC'
     const groupBorder = 'FFCBD5E1'
     const strongGroupBorder = 'FF94A3B8'
 
@@ -708,7 +719,7 @@ export async function exportDailyAnalysisToExcel(
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: groupFill },
+          fgColor: { argb: (currentRow - 2) % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC' },
         }
         cell.border = {
           top: {
@@ -746,7 +757,7 @@ export async function exportDailyAnalysisToExcel(
     mergedDateCell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: groupFill },
+      fgColor: { argb: (groupStartRow - 2) % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC' },
     }
     mergedDateCell.border = {
       top: { style: 'medium', color: { argb: strongGroupBorder } },
@@ -756,7 +767,6 @@ export async function exportDailyAnalysisToExcel(
     }
 
     mergeStartRow = rowIndex + 2
-    groupIndex += 1
   }
 
   const buffer = await workbook.xlsx.writeBuffer()

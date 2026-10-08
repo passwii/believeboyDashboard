@@ -1,5 +1,120 @@
 import { render, screen, cleanup } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const excelCapture = vi.hoisted(() => ({
+  sheetNames: [] as string[],
+  valuesBySheet: {} as Record<string, unknown[][]>,
+  fillsBySheet: {} as Record<string, Array<Array<unknown>>>,
+  bordersBySheet: {} as Record<string, Array<Array<unknown>>>,
+  mergesBySheet: {} as Record<string, string[]>,
+  imageCount: 0,
+  sheetImageCount: 0,
+}))
+
+vi.mock('exceljs', () => {
+  class FakeWorksheet {
+    name: string
+    views: unknown[] = []
+    columns: unknown[] = []
+    constructor(name: string) {
+      this.name = name
+    }
+    getRow(rowNumber: number) {
+      const sheetName = this.name
+      const makeCell = (column: number) => ({
+        font: {},
+        alignment: {},
+        numFmt: undefined as unknown,
+        set value(value: unknown) {
+          const rows = excelCapture.valuesBySheet[sheetName] ?? []
+          rows[rowNumber] ??= []
+          rows[rowNumber][column - 1] = value
+          excelCapture.valuesBySheet[sheetName] = rows
+        },
+        get value() {
+          return excelCapture.valuesBySheet[sheetName]?.[rowNumber]?.[column - 1]
+        },
+        set fill(value: unknown) {
+          const rows = excelCapture.fillsBySheet[sheetName] ?? []
+          rows[rowNumber] ??= []
+          rows[rowNumber][column] = value
+          excelCapture.fillsBySheet[sheetName] = rows
+        },
+        get fill() {
+          return excelCapture.fillsBySheet[sheetName]?.[rowNumber]?.[column]
+        },
+        set border(value: unknown) {
+          const rows = excelCapture.bordersBySheet[sheetName] ?? []
+          rows[rowNumber] ??= []
+          rows[rowNumber][column] = value
+          excelCapture.bordersBySheet[sheetName] = rows
+        },
+        get border() {
+          return excelCapture.bordersBySheet[sheetName]?.[rowNumber]?.[column]
+        },
+      })
+      return {
+        height: 0,
+        font: {},
+        getCell: (column: number) => makeCell(column),
+        eachCell: (
+          optionsOrCallback: unknown,
+          callback?: (cell: ReturnType<typeof makeCell>, column: number) => void
+        ) => {
+          const eachCallback =
+            typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+          const cells = Array.from({ length: 18 }, (_, index) => makeCell(index + 1))
+          if (eachCallback) cells.forEach((cell, index) => eachCallback(cell, index + 1))
+        },
+        set values(values: unknown) {
+          const rows = excelCapture.valuesBySheet[sheetName] ?? []
+          rows[rowNumber] = Array.isArray(values) ? values : []
+          excelCapture.valuesBySheet[sheetName] = rows
+        },
+      }
+    }
+    getCell(rowNumber: number, column: number) {
+      return this.getRow(rowNumber).getCell(column)
+    }
+    mergeCells(...args: unknown[]) {
+      const merges = excelCapture.mergesBySheet[this.name] ?? []
+      merges.push(args.join(':'))
+      excelCapture.mergesBySheet[this.name] = merges
+    }
+    addRow(values: unknown) {
+      const rows = excelCapture.valuesBySheet[this.name] ?? []
+      rows.push(Array.isArray(values) ? values : [values])
+      excelCapture.valuesBySheet[this.name] = rows
+      return this.getRow(rows.length)
+    }
+    addImage() {
+      excelCapture.sheetImageCount += 1
+    }
+  }
+  class FakeWorkbook {
+    creator = ''
+    created: Date = new Date()
+    worksheets: FakeWorksheet[] = []
+    addWorksheet(name: string) {
+      excelCapture.sheetNames.push(name)
+      const worksheet = new FakeWorksheet(name)
+      this.worksheets.push(worksheet)
+      return worksheet
+    }
+    addImage() {
+      excelCapture.imageCount += 1
+      return 1
+    }
+    get xlsx() {
+      return {
+        writeBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+        load: () => Promise.resolve(this),
+      }
+    }
+  }
+  return { Workbook: FakeWorkbook, default: { Workbook: FakeWorkbook } }
+})
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 
@@ -181,14 +296,50 @@ function fbaBoxPayload() {
         fba_label_prefix: 'FBA',
         tracking_no: 'TBA-001',
         product_image_thumbnail_r2_url: null,
-        product_image_r2_url: null,
+        product_image_r2_url: 'https://example.com/product.png',
+      },
+      {
+        project_id: 1,
+        project_name: '项目A',
+        country: 'US',
+        shipment_no: 'FBA12345678',
+        warehouse_code: 'WH-01',
+        sku: 'TEST-SKU-FBA-2',
+        product_name: '测试品二',
+        asin: 'B0TEST2',
+        fnsku: 'FNSKU-2',
+        package_length_cm: 10,
+        package_width_cm: 10,
+        package_height_cm: 10,
+        weight_kg: 1,
+        length_cm: 50,
+        width_cm: 40,
+        height_cm: 30,
+        carton_weight_kg: 12,
+        quantity: 50,
+        units_per_carton: 10,
+        carton_count: 5,
+        full_carton_count: 5,
+        partial_carton_units: 0,
+        outer_box_text: 'BOX',
+        total_weight_kg: 60,
+        total_volume_m3: 0.3,
+        fba_label_prefix: 'FBA',
+        tracking_no: 'TBA-001',
+        product_image_thumbnail_r2_url: null,
+        product_image_r2_url: 'https://example.com/product.png',
       },
     ],
   }
 }
 
 function jsonResponse(data: unknown): Response {
-  return { ok: true, status: 200, json: async () => data } as unknown as Response
+  return {
+    ok: true,
+    status: 200,
+    json: async () => data,
+    arrayBuffer: async () => new ArrayBuffer(8),
+  } as unknown as Response
 }
 
 /** 默认 fetch 路由：按 URL 子串分派到各 loader 的响应 */
@@ -217,6 +368,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  excelCapture.sheetNames = []
+  excelCapture.valuesBySheet = {}
+  excelCapture.fillsBySheet = {}
+  excelCapture.bordersBySheet = {}
+  excelCapture.mergesBySheet = {}
+  excelCapture.imageCount = 0
+  excelCapture.sheetImageCount = 0
   vi.clearAllMocks()
   vi.unstubAllGlobals()
   capturedSlotNode = null
@@ -332,6 +490,26 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     })
     expect(fetchedUrls().some((u) => u.includes('/cost-summary'))).toBe(false)
     expect(fetchedUrls().some((u) => u.includes('/fba-box-details'))).toBe(false)
+  })
+
+  it('FBA 箱单导出保留分组底纹、合并单元格、图片与总计', async () => {
+    mockSearchParams = new URLSearchParams('tab=fba-box-detail&shipment_no=FBA12345678')
+    render(<ShipmentManagementPage />)
+    await screen.findByText('TEST-SKU-FBA')
+
+    await userEvent.click(screen.getByRole('button', { name: /导出 Excel/ }))
+
+    await vi.waitFor(() => expect(excelCapture.sheetNames).toContain('FBA箱单明细'))
+    const details = excelCapture.valuesBySheet['FBA箱单明细']!
+    const detailFills = excelCapture.fillsBySheet['FBA箱单明细']!
+    expect(details[2]?.[3]).toBe('TEST-SKU-FBA')
+    expect(details[3]?.[3]).toBe('TEST-SKU-FBA-2')
+    expect(detailFills[2]?.[4]).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    // 同一货件属于同一底纹组；FBA 箱单保持其分组底纹逻辑而非逐行斑马纹。
+    expect(detailFills[3]?.[4]).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(excelCapture.sheetImageCount).toBe(2)
+    expect(excelCapture.mergesBySheet['FBA箱单明细']).toContain('2:1:3:1')
+    expect(details[4]?.[0]).toBe('合计')
   })
 
   it('头部刷新（FBA 箱单 tab）：重拉当前选中货件的箱单明细', async () => {
