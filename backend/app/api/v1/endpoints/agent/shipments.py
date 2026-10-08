@@ -23,6 +23,7 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
+from app.api.agent.scope import require_project_scope
 from app.api.deps import get_primary_db_session, get_read_db_session
 from app.db.session import SessionLocal
 from app.models import Project
@@ -42,6 +43,7 @@ from app.services.audit_log_service import (
     query_operation_audit_log,
 )
 from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
+from app.services.shipment import fba_box_export as fba_box_export_service
 from app.services.shipment import fba_template as fba_template_service
 from app.services.shipment import summary as shipment_summary_service
 from app.services.shipment.item import replace_shipment_schedule_items
@@ -328,6 +330,71 @@ def list_shipments(
         has_next=has_next,
     )
     return agent_ok(payload.model_dump())
+
+
+@shipments_router.get(
+    "/fba-box-details.xlsx",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={
+        200: {
+            "description": "FBA 箱单明细 XLSX 文件流",
+            "content": {
+                fba_box_export_service.XLSX_CONTENT_TYPE: {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        }
+    },
+)
+def export_shipment_fba_box_details(
+    project_id: int,
+    shipment_no: list[str] = Query(
+        min_length=1,
+        max_length=fba_box_export_service.MAX_SHIPMENT_NOS,
+        description="可重复传入多个货件编号；至少 1 个，最多 100 个。",
+    ),
+    db: Session = Depends(get_read_db_session),
+    _scope=Depends(require_project_scope),
+) -> StreamingResponse:
+    """导出一个项目内指定货件的 FBA 箱单明细（纯读 XLSX 文件流）。"""
+    try:
+        shipment_nos = fba_box_export_service.normalize_export_shipment_nos(
+            shipment_no
+        )
+    except ValueError as exc:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message=str(exc)
+        ) from None
+
+    with _service_errors():
+        schedules = [
+            _resolve_schedule(db, project_id, requested_no)
+            for requested_no in shipment_nos
+        ]
+        project = _get_project_or_shell_404(db, project_id)
+        _, items = shipment_service.list_shipment_fba_box_details(
+            db, shipment_nos=shipment_nos
+        )
+
+    if not items:
+        raise AgentApiError(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            human_message="指定货件没有可导出的 FBA 箱单明细",
+        )
+
+    # 每个编号均先按 project_id 查验，且此 API 的明细查询严格限制在该编号集合。
+    ordered_shipment_nos = [str(schedule.shipment_no) for schedule in schedules]
+    artifact = fba_box_export_service.build_fba_box_details_export(
+        project_name=str(project.project_name),
+        shipment_nos=ordered_shipment_nos,
+        items=items,
+    )
+    return agent_file_response(
+        artifact.content,
+        filename=artifact.filename,
+        media_type=artifact.content_type,
+    )
 
 
 @shipments_router.get("/{shipment_no}")

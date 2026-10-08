@@ -85,12 +85,24 @@ Query 参数：
     GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}
     GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/sku-summary
     GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-box-detail
+    GET    /api/v1/agent/projects/{project_id}/shipments/fba-box-details.xlsx?shipment_no={shipment_no}
     GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/audit
     POST   /api/v1/agent/projects/{project_id}/shipments                      （confirm）
     PATCH  /api/v1/agent/projects/{project_id}/shipments/{shipment_no}        （confirm）
     PUT    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/items  （confirm）
     POST   /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/status （confirm）
     POST   /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/recalculate-costs （confirm）
+
+**FBA 箱单明细 XLSX 导出**：
+
+```bash
+curl -fLsS --get "$BASE/projects/$PROJECT_ID/shipments/fba-box-details.xlsx" \
+  "${AUTH[@]}" \
+  --data-urlencode "shipment_no=$SHIPMENT_NO" \
+  -o "${SHIPMENT_NO}-fba-box-details.xlsx"
+```
+
+`shipment_no` 可重复传入多个值（同项目最多 100 个），至少一个；每个货件必须属于路径中的项目。成功返回与 Dashboard「FBA 箱单明细」同字段、排序和汇总口径的 XLSX 二进制流；图片缺失或不可下载时仍返回工作簿。不存在、跨项目或空明细货件返回 Agent `RESOURCE_NOT_FOUND` 错误壳；不写审计，不持久化导出文件。该端点与 JSON 箱单明细和 FBA 发货模板是不同资源。
 
 写接口（confirm）两步：第一次调用返回 HTTP 200 + `requires_confirmation:true` +
 `confirm_token`（300s 有效，与请求体 SHA-256 绑定）；向用户复述 preview 摘要，

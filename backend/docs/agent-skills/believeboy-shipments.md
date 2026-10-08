@@ -42,6 +42,20 @@ PROJECT_ID=$(curl -s "$BASE/projects?name=<项目名>" "${AUTH[@]}" | jq -r '.da
 | R4 | GET | `/shipments/{shipment_no}/fba-box-detail` | FBA 箱规明细 |
 | R5 | GET | `/shipments/{shipment_no}/audit?limit=` | 操作审计轨迹（limit 默认 50，≤200） |
 | R6 | GET | `/shipments/{shipment_no}/fba-delivery-template` | 导出 FBA 发货模板 xlsx |
+| R7 | GET | `/shipments/fba-box-details.xlsx?shipment_no=...` | 导出 Dashboard 同版式 FBA 箱单明细 xlsx（可重复传 shipment_no，最多 100 个） |
+
+**R7 导出 FBA 箱单明细**：
+
+```bash
+curl -fLsS --get "$BASE/projects/$PROJECT_ID/shipments/fba-box-details.xlsx" \
+  "${AUTH[@]}" \
+  --data-urlencode "shipment_no=$SHIPMENT_NO" \
+  -o "${SHIPMENT_NO}-fba-box-details.xlsx"
+```
+
+- 可重复传入 `shipment_no`，同一项目最多 100 个；每个货件按路径项目校验。
+- 成功响应是原始 XLSX 文件流，与 Dashboard「FBA 箱单明细」字段和业务计算一致；无可导出的行或货件不存在时返回 `RESOURCE_NOT_FOUND`。
+- 不存在或无法取得的产品图片会跳过，不影响文件生成；导出文件仅驻留内存，不写入持久化存储。
 
 **R6 导出 FBA 发货模板**：
 
