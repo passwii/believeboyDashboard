@@ -1888,7 +1888,7 @@ export default function InventoryReplenishmentPage() {
               {selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}
             </SheetTitle>
             <SheetDescription className="dark:text-term-text/72">
-              在途数量口径包含 `in_transit`、`draft`。本抽屉只读展示，维护请前往发货管理。
+              在途数量口径包含 `in_transit`、`draft`。本抽屉只读展示；正式货件维护请前往货件管理，未落实的预计到货计划请前往发货规划。
             </SheetDescription>
           </SheetHeader>
 

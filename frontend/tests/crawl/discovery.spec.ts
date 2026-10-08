@@ -89,6 +89,7 @@ const ROUTES: string[] = [
   '/dashboard/operations/inventory-replenishment',
   '/dashboard/operations/portfolio-overview',
   '/dashboard/operations/seasonal-replenishment',
+  '/dashboard/operations/shipping-plan',
   '/dashboard/operations/shipment-management',
   '/dashboard/operations/sku-info',
   '/dashboard/operations/weekly-product-analysis',

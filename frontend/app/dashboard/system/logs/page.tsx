@@ -124,8 +124,8 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
   },
   {
     key: 'shipment',
-    label: '发货管理',
-    description: '发货管理',
+    label: '货件管理',
+    description: '货件管理',
     prefixes: ['shipment_schedules.'],
     className: 'rounded-none border-term-warn/40 font-mono text-[11px] text-term-warn',
   },

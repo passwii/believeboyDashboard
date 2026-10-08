@@ -93,9 +93,21 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
         '/dashboard/operations/inventory-replenishment',
         '/dashboard/operations/inventory-ledger',
         '/dashboard/operations/seasonal-replenishment',
+        '/dashboard/operations/shipping-plan',
         '/dashboard/operations/shipment-management',
       ])
     )
+  })
+
+  it('发货规划紧邻货件管理之前，两个页面路径独立且稳定', () => {
+    const items = SIDEBAR_TOP_GROUPS.find((group) => group.id === 'operations')?.items ?? []
+    const planIndex = items.findIndex((item) => item.url === '/dashboard/operations/shipping-plan')
+    expect(planIndex).toBeGreaterThanOrEqual(0)
+    expect(items[planIndex]?.title).toBe('发货规划')
+    expect(items[planIndex + 1]).toMatchObject({
+      title: '货件管理',
+      url: '/dashboard/operations/shipment-management',
+    })
   })
 
   it('报表自动化回归 reports（紧随定时报告），且不在其他分组', () => {
