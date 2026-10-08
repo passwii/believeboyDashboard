@@ -9,7 +9,10 @@
 * ``GET /builds/{build_id}`` —— 状态（queued/running/success/failed/expired）；
 * ``GET /builds/{build_id}/preview`` —— 授权范围内的指标/行数/输入摘要/版本预条件；
 * ``GET /builds/{build_id}/result`` —— 下载草稿 XLSX（私有，权限不绕过）；
-* ``POST /builds/{build_id}/confirm`` —— 两步确认 + 正式入库（幂等 + 数据库锁）。
+* ``POST /builds/{build_id}/confirm`` —— 两步确认 + 正式入库（幂等 + 数据库锁）；
+* ``POST /{report_id}/reconciliation/auto`` —— 复用 PT3/PDF 自动对账；
+* ``POST /{report_id}/reconciliation/manual`` —— 上传 Excel/PDF 手动对账；
+* ``GET /{report_id}/reconciliation`` —— 分页读取该月报对账历史。
 
 装配约定（``agent/__init__.py``）：
 
@@ -28,11 +31,14 @@ from __future__ import annotations
 
 import logging
 import uuid
+import zipfile
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.formparsers import MultiPartParser
@@ -50,6 +56,8 @@ from app.api.deps import get_primary_db_session, get_read_db_session
 from app.core.config import Settings, get_settings
 from app.models.agent_monthly_report import AgentMonthlyReportUpload
 from app.models.job import JobStatus
+from app.models.monthly_report import MonthlyReport, MonthlyReportPT3Calculation
+from app.models.reconciliation import ReconciliationRecord
 from app.schemas.agent_monthly_report import (
     AgentMonthlyReportDetail,
     AgentMonthlyReportListItem,
@@ -89,6 +97,7 @@ from app.services.agent_monthly_report_confirm_service import (
     perform_confirm,
 )
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.reconciliation_service import auto_reconcile
 from app.services.report.export import export_financial_accounting_detail_workbook
 from app.services.report.monthly import (
     get_financial_accounting_detail,
@@ -99,6 +108,7 @@ from app.services.report.monthly import (
     parse_report_month,
     resolve_result_path,
 )
+from app.services.report_reconciliation_service import reconcile_to_dict
 from app.utils.country import normalize_country
 
 logger = logging.getLogger(__name__)
@@ -204,16 +214,16 @@ def _normalize_read_filters(country: str | None, month: str | None):
         ) from None
     return normalized_country, normalized_month
 
-_XLSX_MEDIA_TYPE = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_PDF_MEDIA_TYPE = "application/pdf"
+_RECONCILIATION_ACTION_AUTO = "agent_monthly_reports.reconciliation.auto"
+_RECONCILIATION_ACTION_MANUAL = "agent_monthly_reports.reconciliation.manual"
 _XLSX_BINARY_RESPONSE = {
     200: {
         "description": "XLSX 文件流",
         "content": {
-            _XLSX_MEDIA_TYPE: {
-                "schema": {"type": "string", "format": "binary"}
-            }
+            _XLSX_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}}
         },
     }
 }
@@ -360,8 +370,363 @@ def export_agent_monthly_accounting_detail(
         **_audit_kwargs(request),
     )
     db.commit()
-    return agent_file_response(
-        content, filename=filename, media_type=_XLSX_MEDIA_TYPE
+    return agent_file_response(content, filename=filename, media_type=_XLSX_MEDIA_TYPE)
+
+
+def _scoped_reconciliation_report(
+    db: Session, report_id: int, request: Request, *, for_update: bool = False
+) -> MonthlyReport:
+    """Load and scope-check a report without revealing cross-project existence."""
+    statement = select(MonthlyReport).where(MonthlyReport.id == report_id)
+    if for_update:
+        statement = statement.with_for_update()
+    report = db.execute(statement).scalar_one_or_none()
+    if report is None:
+        raise AgentApiError(ErrorCode.RESOURCE_NOT_FOUND)
+    try:
+        assert_project_scope(report.project_id, request)
+    except AgentApiError as exc:
+        if exc.code == ErrorCode.AGENT_PROJECT_OUT_OF_SCOPE:
+            raise AgentApiError(ErrorCode.RESOURCE_NOT_FOUND) from None
+        raise
+    return report
+
+
+def _reconciliation_upload_error(message: str) -> AgentApiError:
+    return AgentApiError(
+        ErrorCode.MONTHLY_REPORT_INVALID_INPUT,
+        human_message=message,
+        agent_hint="请上传未加密的 .xlsx Excel 文件和有效的 .pdf 文件",
+    )
+
+
+async def _save_reconciliation_upload(
+    upload: UploadFile,
+    *,
+    suffix: str,
+    settings: Settings,
+) -> tuple[Path, int]:
+    """Copy one validated upload into a private, request-scoped temp file."""
+    if not upload.filename or Path(upload.filename).suffix.lower() != suffix:
+        raise _reconciliation_upload_error(f"上传文件必须使用 {suffix} 格式")
+
+    allowed_types = (
+        {_XLSX_MEDIA_TYPE, "application/vnd.ms-excel", "application/octet-stream"}
+        if suffix == ".xlsx"
+        else {_PDF_MEDIA_TYPE, "application/octet-stream"}
+    )
+    if upload.content_type and upload.content_type.lower() not in allowed_types:
+        raise _reconciliation_upload_error(f"{suffix} 文件的 Content-Type 不正确")
+
+    temp_dir = prepare_private_dir(
+        settings.agent_monthly_report_root / "reconciliation-tmp"
+    )
+    path = temp_dir / f"reconcile-{uuid.uuid4().hex}{suffix}"
+    size = 0
+    prefix = b""
+    try:
+        with path.open("xb") as target:
+            path.chmod(0o600)
+            while chunk := await upload.read(CHUNK_SIZE):
+                if len(prefix) < 8:
+                    prefix += chunk[: 8 - len(prefix)]
+                size += len(chunk)
+                if size > settings.agent_monthly_report_max_bytes:
+                    raise AgentApiError(
+                        ErrorCode.MONTHLY_REPORT_TOO_LARGE,
+                        human_message="对账文件超过单文件大小上限",
+                    )
+                target.write(chunk)
+        if size == 0:
+            raise _reconciliation_upload_error("对账文件不能为空")
+        if suffix == ".pdf" and not prefix.startswith(b"%PDF-"):
+            raise _reconciliation_upload_error("PDF 文件内容无效")
+        if suffix == ".xlsx" and not prefix.startswith(b"PK\x03\x04"):
+            raise _reconciliation_upload_error("Excel 文件内容无效")
+        return path, size
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        await upload.close()
+
+
+@monthly_reports_router.post(
+    "/{report_id:int}/reconciliation/auto",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+def reconcile_agent_monthly_report_auto(
+    report_id: int,
+    request: Request,
+    tolerance: float = Query(default=0.01, ge=0),
+    db: Session = Depends(get_primary_db_session),
+) -> dict:
+    """Run scoped PT3/PDF reconciliation and upsert the report's auto record."""
+    try:
+        report = _scoped_reconciliation_report(db, report_id, request, for_update=True)
+        if not report.summary_pdf_r2_key and not report.summary_pdf_r2_url:
+            raise AgentApiError(
+                ErrorCode.MONTHLY_REPORT_NOT_READY,
+                human_message="该月报尚未上传汇总 PDF",
+            )
+        has_pt3 = db.execute(
+            select(MonthlyReportPT3Calculation.id).where(
+                MonthlyReportPT3Calculation.report_id == report_id
+            )
+        ).scalar_one_or_none()
+        if has_pt3 is None:
+            raise AgentApiError(
+                ErrorCode.MONTHLY_REPORT_NOT_READY,
+                human_message="该月报尚无 PT3 对账数据",
+            )
+        result = auto_reconcile(
+            db,
+            report_id=report_id,
+            tolerance=tolerance,
+            operator=_agent_id(request) or "agent",
+            country=report.country,
+            suppress_duplicate_alerts=True,
+        )
+    except AgentApiError as exc:
+        db.rollback()
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_AUTO,
+            error=exc,
+        )
+        raise
+    except ValueError:
+        db.rollback()
+        error = AgentApiError(
+            ErrorCode.MONTHLY_REPORT_NOT_READY,
+            human_message="自动对账未完成，请确认 PT3 数据和汇总 PDF 可用",
+        )
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_AUTO,
+            error=error,
+        )
+        raise error from None
+    except Exception:
+        db.rollback()
+        logger.exception("agent monthly-report auto reconciliation failed")
+        error = AgentApiError(ErrorCode.INTERNAL_ERROR)
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_AUTO,
+            error=error,
+        )
+        raise error from None
+
+    append_operation_audit_log(
+        db,
+        action=_RECONCILIATION_ACTION_AUTO,
+        target_type="reconciliation_record",
+        target_id=result["record_id"],
+        after={
+            "report_id": report_id,
+            "record_id": result["record_id"],
+            "match_rate": result["match_rate"],
+            "total_items": result["total_items"],
+        },
+        **_audit_kwargs(request),
+    )
+    db.commit()
+    return agent_ok(result)
+
+
+@monthly_reports_router.post(
+    "/{report_id:int}/reconciliation/manual",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+async def reconcile_agent_monthly_report_manual(
+    report_id: int,
+    request: Request,
+    excel_file: UploadFile = File(...),
+    pdf_file: UploadFile = File(...),
+    tolerance: float = Query(default=0.01, ge=0),
+    db: Session = Depends(get_primary_db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """Compare uploaded Excel/PDF inputs and upsert this report's manual record."""
+    try:
+        _scoped_reconciliation_report(db, report_id, request, for_update=True)
+    except AgentApiError as exc:
+        db.rollback()
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_MANUAL,
+            error=exc,
+        )
+        await excel_file.close()
+        await pdf_file.close()
+        raise
+    excel_path: Path | None = None
+    pdf_path: Path | None = None
+    try:
+        excel_path, excel_size = await _save_reconciliation_upload(
+            excel_file, suffix=".xlsx", settings=settings
+        )
+        pdf_path, pdf_size = await _save_reconciliation_upload(
+            pdf_file, suffix=".pdf", settings=settings
+        )
+        try:
+            result = reconcile_to_dict(
+                str(excel_path), str(pdf_path), tolerance=tolerance
+            )
+        except (KeyError, ValueError, OSError, zipfile.BadZipFile) as exc:
+            logger.info("invalid manual reconciliation input: %s", type(exc).__name__)
+            raise _reconciliation_upload_error(
+                "对账文件无法解析，请确认 Excel 包含‘报表核算’工作表且文件未损坏"
+            ) from None
+        except Exception:
+            logger.exception("manual monthly-report reconciliation failed")
+            raise AgentApiError(ErrorCode.INTERNAL_ERROR) from None
+
+        match_rate = Decimal(str(result["match_rate"]))
+        record = db.execute(
+            select(ReconciliationRecord)
+            .where(
+                ReconciliationRecord.report_id == report_id,
+                ReconciliationRecord.mode == "manual",
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+        detail_json = {
+            "items": result["items"],
+            "summary": result.get("summary", {}),
+        }
+        if record is None:
+            record = ReconciliationRecord(
+                report_id=report_id,
+                operator=_agent_id(request) or "agent",
+                mode="manual",
+                match_rate=match_rate,
+                matched_items=result["matched_items"],
+                mismatched_items=result["mismatched_items"],
+                missing_items=result["missing_items"],
+                detail_json=detail_json,
+            )
+            db.add(record)
+        else:
+            record.operator = _agent_id(request) or "agent"
+            record.match_rate = match_rate
+            record.matched_items = result["matched_items"]
+            record.mismatched_items = result["mismatched_items"]
+            record.missing_items = result["missing_items"]
+            record.detail_json = detail_json
+        db.flush()
+        db.refresh(record)
+        result["record_id"] = record.id
+        append_operation_audit_log(
+            db,
+            action=_RECONCILIATION_ACTION_MANUAL,
+            target_type="reconciliation_record",
+            target_id=record.id,
+            after={
+                "report_id": report_id,
+                "record_id": record.id,
+                "match_rate": result["match_rate"],
+                "total_items": result["total_items"],
+                "excel_bytes": excel_size,
+                "pdf_bytes": pdf_size,
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        return agent_ok(result)
+    except AgentApiError as exc:
+        db.rollback()
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_MANUAL,
+            error=exc,
+        )
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("agent manual monthly-report reconciliation failed")
+        error = AgentApiError(ErrorCode.INTERNAL_ERROR)
+        _audit_reconciliation_failure(
+            db,
+            request,
+            report_id=report_id,
+            action=_RECONCILIATION_ACTION_MANUAL,
+            error=error,
+        )
+        raise error from None
+    finally:
+        if excel_path is not None:
+            excel_path.unlink(missing_ok=True)
+        if pdf_path is not None:
+            pdf_path.unlink(missing_ok=True)
+        await excel_file.close()
+        await pdf_file.close()
+
+
+def _reconciliation_history_item(record: ReconciliationRecord) -> dict:
+    detail = record.detail_json if isinstance(record.detail_json, dict) else {}
+    return {
+        "id": record.id,
+        "report_id": record.report_id,
+        "mode": record.mode,
+        "match_rate": float(record.match_rate),
+        "matched_items": record.matched_items,
+        "mismatched_items": record.mismatched_items,
+        "missing_items": record.missing_items,
+        "total_items": (
+            record.matched_items + record.mismatched_items + record.missing_items
+        ),
+        "summary": detail.get("summary", {}),
+        "items": detail.get("items", []),
+        "created_at": record.created_at,
+    }
+
+
+@monthly_reports_router.get("/{report_id:int}/reconciliation")
+def get_agent_monthly_report_reconciliation_history(
+    report_id: int,
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    """Read bounded auto/manual reconciliation history for one scoped report."""
+    _scoped_reconciliation_report(db, report_id, request)
+    filters = ReconciliationRecord.report_id == report_id
+    total = db.execute(
+        select(func.count(ReconciliationRecord.id)).where(filters)
+    ).scalar_one()
+    records = (
+        db.execute(
+            select(ReconciliationRecord)
+            .where(filters)
+            .order_by(
+                ReconciliationRecord.created_at.desc(), ReconciliationRecord.id.desc()
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    return agent_ok(
+        {
+            "records": [_reconciliation_history_item(record) for record in records],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
     )
 
 
@@ -425,6 +790,32 @@ def download_agent_monthly_report_result(
     return FileResponse(
         path=str(result_path), filename=result_path.name, media_type=_XLSX_MEDIA_TYPE
     )
+
+
+def _audit_reconciliation_failure(
+    db: Session,
+    request: Request,
+    *,
+    report_id: int,
+    action: str,
+    error: AgentApiError,
+) -> None:
+    """Record a scoped reconciliation write failure without masking its error."""
+    try:
+        append_operation_audit_log(
+            db,
+            action=action,
+            target_type="monthly_report",
+            target_id=report_id,
+            result="failure",
+            after={"report_id": report_id, "code": error.code.value},
+            error_message=error.human_message or error.code.value,
+            **_audit_kwargs(request),
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 — audit must not replace the operation error
+        logger.exception("failed to write agent reconciliation failure audit")
+        db.rollback()
 
 
 def _audit_failure(
@@ -785,9 +1176,7 @@ def download_build_result(
         **_audit_kwargs(request),
     )
     db.commit()
-    return FileResponse(
-        path=str(path), filename=path.name, media_type=_XLSX_MEDIA_TYPE
-    )
+    return FileResponse(path=str(path), filename=path.name, media_type=_XLSX_MEDIA_TYPE)
 
 
 # ── 确认入库（两步 + 数据库幂等） ────────────────────────────────────────
