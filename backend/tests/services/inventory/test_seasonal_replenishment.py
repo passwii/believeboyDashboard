@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -301,7 +302,14 @@ class TestListSeasonalReplenishmentAnalysis:
         from app.services.inventory.replenishment import _BaseSkuRow
 
         base = [_BaseSkuRow(sku="SKU-A", asin="ASIN001", country="US")]
-        inventory = {"SKU-A": 100}
+        inventory = {"SKU-A": SimpleNamespace(
+            available_qty=100,
+            age_0_90_qty=0,
+            age_91_180_qty=0,
+            age_181_270_qty=0,
+            age_271_365_qty=0,
+            age_365_plus_qty=0,
+        )}
         in_transit = {"SKU-A": 50}
         product_names = {"SKU-A": "Test Product"}
         # 90D=10, 30D=8, 14D=6, 7D=4 → 加权 = 10*.4+8*.3+6*.2+4*.1=8

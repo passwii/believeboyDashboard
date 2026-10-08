@@ -222,7 +222,8 @@ class TestLoadInventoryMap:
 
         result = _load_inventory_map(db_session, 1, "US")
 
-        assert result == {"SKU-A": 100, "SKU-B": 50}
+        assert result["SKU-A"].available_qty == 100
+        assert result["SKU-B"].available_qty == 50
 
 
 class TestLoadInTransitMap:

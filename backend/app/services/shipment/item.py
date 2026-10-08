@@ -5,22 +5,21 @@ SKU 明细管理模块
 """
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
 
-from app.models.sku_info import SkuRecord
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.models.sku_info import SkuRecord
+from app.services.shipment.csv_parser import (
+    parse_shipment_items_csv,
+)
 from app.services.shipment.validation import (
     DECIMAL_ZERO,
     normalize_text_value,
 )
-from app.services.shipment.csv_parser import (
-    parse_shipment_items_csv,
-)
+from app.services.shipping_plan.allocation import shipment_item_replacement_conflicts
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -107,6 +106,26 @@ def replace_shipment_schedule_items(
     返回: 总数量
     """
     validate_items_against_product_costs(db, schedule, items)
+
+    # Allocation writes lock this same schedule row first, serializing replacement
+    # with allocation and preserving the established lock order.
+    db.execute(
+        select(ShipmentSchedule.id)
+        .where(ShipmentSchedule.id == schedule.id)
+        .with_for_update()
+    ).scalar_one()
+    conflicts = shipment_item_replacement_conflicts(
+        db, schedule_id=schedule.id, items=items
+    )
+    if conflicts:
+        detail = ", ".join(
+            f"{row['sku']}（已关联 {row['allocated_quantity']}，替换后 {row['replacement_quantity']}）"
+            for row in conflicts
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"替换明细会破坏发货规划关联，请先解绑或调整关联：{detail}",
+        )
 
     # 删除现有明细
     db.execute(
@@ -221,8 +240,8 @@ def replace_shipment_schedule_items_from_csv(
 
 def _get_schedule_or_404(db: Session, schedule_id: int) -> ShipmentSchedule:
     """获取发货计划，不存在则抛出 404"""
-    from sqlalchemy.orm import selectinload
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     stmt = (
         select(ShipmentSchedule)

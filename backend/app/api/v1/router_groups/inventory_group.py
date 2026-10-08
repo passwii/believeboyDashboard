@@ -10,6 +10,7 @@ from app.api.v1.endpoints.inventory_replenishment_snapshots import (
     router as inventory_replenishment_snapshots_router,
 )
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
+from app.api.v1.endpoints.shipping_plan import router as shipping_plan_router
 
 router = APIRouter()
 router.include_router(inventory_replenishment_router)
@@ -18,3 +19,4 @@ router.include_router(
     inventory_ledger_router, prefix="/inventory-ledger", tags=["inventory-ledger"]
 )
 router.include_router(shipment_schedules_router)
+router.include_router(shipping_plan_router)
