@@ -60,7 +60,7 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供,缺位显示占位「—」。'
+        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供;已接入域在 7 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
       )
     ).toBeInTheDocument()
   })
@@ -104,6 +104,19 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(within(row).queryByText(/^\d+ \/ \d+$/)).not.toBeInTheDocument()
     expect(within(row).queryByText(/^\d+%$/)).not.toBeInTheDocument()
     expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('接口成功但无活动的域显示零调用与明确的无活动状态', () => {
+    mockSummary({}, 'ok')
+    render(<AgentOverviewClient />)
+
+    const row = screen.getByRole('row', { name: /货件管理/ })
+    const cells = within(row).getAllByRole('cell')
+    expect(cells[4]).toHaveTextContent('7 天内无调用')
+    expect(cells[5]).toHaveTextContent('0')
+    expect(cells[6]).toHaveTextContent('0')
+    expect(cells[7]).toHaveTextContent('无调用')
+    expect(cells[7]).toHaveAttribute('title', '7 天内无调用，错误率不可计算')
   })
 
   it('聚合数据就位时点亮:调用量 / 错误率着色 / 新鲜度相对时间', () => {
