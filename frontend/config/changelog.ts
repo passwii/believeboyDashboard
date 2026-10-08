@@ -26,7 +26,7 @@ export const changeLog: ChangeLogEntry[] = [
     content:
       'BEL-157 新增「数据管理 → 订单信息」页面，集中展示各店铺订单明细。\n\n1. 下单时间自动换算为北京时间，下方备注 PT 原始日期（PDT）\n2. 按店铺、订单类型（FBA / FBM）、状态、国家、币种、SKU / 订单号 / ASIN、时间区间多维筛选\n3. 支持排序、数量/金额显示、按当前筛选条件导出 CSV\n4. 顶部统计条实时聚合订单数、总数量、总金额、FBA·FBM 分布',
     highlights: [
-      '侧边栏新增「订单信息」入口（位于发货管理和 SKU 信息之间）',
+      '侧边栏新增「订单信息」入口（位于货件管理和 SKU 信息之间）',
       '后端：app/services/data/order_info_service.py + /api/v1/order-info/* 五个端点',
       '前端：/dashboard/reports/order-info 页面 + Next.js API 路由转发',
     ],

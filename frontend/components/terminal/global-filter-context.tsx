@@ -60,6 +60,7 @@ const STORAGE_KEY = 'bb.terminal.global-filter'
 export const GLOBAL_FILTER_PILOT_PREFIXES = [
   '/dashboard/operations/daily-analysis',
   '/dashboard/reports/order-info',
+  '/dashboard/operations/shipping-plan',
 ] as const
 
 export function isGlobalFilterPilotRoute(pathname: string): boolean {
