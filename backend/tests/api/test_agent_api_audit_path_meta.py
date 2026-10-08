@@ -133,6 +133,16 @@ class TestParseAuditPathMeta:
                 32,
                 "account_health",
             ),
+            (
+                "/api/v1/agent/platform-inspection/projects/42",
+                42,
+                "platform_inspection",
+            ),
+            (
+                "/api/v1/agent/provisioning/keys",
+                None,
+                "agent_provisioning",
+            ),
             # BLF-582：sku-info 已原生化收口进 sku_info 域（审计映射已修正）
             (
                 "/api/v1/external/projects/7/sku-info",
@@ -235,6 +245,8 @@ class TestAgentPathDomainMapCoverage:
         "shipments",
         "report_upload_status",
         "account_health",
+        "platform_inspection",
+        "agent_provisioning",
     }
 
     def test_all_registered_domains_have_path_fragments(self):
