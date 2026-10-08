@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,7 +62,7 @@ function setGf(patch: Partial<typeof gfState>) {
 
 const mockSearchParams = {
   getAll: vi.fn((_key: string): string[] => []),
-  get: vi.fn((): string | null => null),
+  get: vi.fn((_key: string): string | null => null),
 }
 
 vi.mock('next/navigation', () => ({
@@ -263,6 +263,27 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(amountCell?.className).toContain('text-right')
     expect(amountCell?.className).toContain('tabular-nums')
     expect(table).toHaveClass('tabular-nums')
+  })
+
+  it('订单专属筛选集中在订单信息面板内，不占用全局 Header 插槽', async () => {
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    const orderPanel = screen.getByRole('region', { name: '订单信息' })
+    const filters = within(orderPanel).getByRole('group', { name: '订单筛选' })
+
+    expect(within(filters).getAllByRole('combobox')).toHaveLength(3)
+    expect(screen.getAllByRole('combobox')).toHaveLength(3)
+    expect(within(filters).getByPlaceholderText('订单号 111-…')).toBeInTheDocument()
+    expect(within(filters).getByPlaceholderText('SKU')).toBeInTheDocument()
+    expect(within(filters).getByPlaceholderText('ASIN')).toBeInTheDocument()
+    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(within(filters).getByText('订单属性')).toBeInTheDocument()
+    expect(within(filters).getByText('订单查找')).toBeInTheDocument()
   })
 
   it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
@@ -652,36 +673,52 @@ describe('订单信息页终端化（BLF-817）', () => {
     })
   })
 
-  it('项目列表失败后用户清空筛选并重试时保留全部店铺选择', async () => {
-    projectListMock.mockRejectedValueOnce(new Error('项目列表请求失败'))
+  it('订单筛选清空保留 Head 项目、站点和日期条件', async () => {
     resetGfAndParams()
-    render(
+    const { rerender } = render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
       </TerminalGlobalFilterProvider>
     )
 
-    await screen.findByText('店铺列表加载失败，已暂停订单查询以避免默认查询全部店铺。')
-
-    const user = userEvent.setup()
-    await user.click(screen.getAllByRole('button', { name: '清空筛选' })[0]!)
+    await screen.findByText('111-1111111-0000001')
+    act(() => {
+      setGf({ projectId: '2', country: 'DE', dateFrom: '2026-08-01', dateTo: '2026-08-05' })
+    })
+    rerender(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
     await waitFor(() => {
-      const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
-        String(url).includes('/order-info/overview')
-      )
-      expect(overviewCalls.length).toBeGreaterThan(0)
-      expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
+      const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+      expect(lastUrl).toContain('project_ids=2')
+      expect(lastUrl).toContain('countries=DE')
+      expect(lastUrl).toContain('date_from=2026-08-01')
+      expect(lastUrl).toContain('date_to=2026-08-05')
     })
 
-    projectListMock.mockResolvedValueOnce([{ id: 1, name: '店铺A' }])
-    await user.click(screen.getByRole('button', { name: '重试店铺列表' }))
+    const user = userEvent.setup()
+    await user.type(screen.getByPlaceholderText('SKU'), 'SKU-A')
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('sku_keyword=SKU-A')
+    })
 
+    const overviewCallsBeforeClear = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/order-info/overview')
+    ).length
+    await user.click(screen.getByRole('button', { name: '清空订单筛选' }))
     await waitFor(() => {
       const overviewCalls = fetchMock.mock.calls.filter(([url]) =>
         String(url).includes('/order-info/overview')
       )
-      expect(overviewCalls.length).toBeGreaterThan(0)
-      expect(String(overviewCalls.at(-1)![0])).not.toContain('project_ids=')
+      expect(overviewCalls.length).toBeGreaterThan(overviewCallsBeforeClear)
+      const lastUrl = String(overviewCalls.at(-1)![0])
+      expect(lastUrl).toContain('project_ids=2')
+      expect(lastUrl).toContain('countries=DE')
+      expect(lastUrl).toContain('date_from=2026-08-01')
+      expect(lastUrl).toContain('date_to=2026-08-05')
+      expect(lastUrl).not.toContain('sku_keyword=')
     })
   })
 

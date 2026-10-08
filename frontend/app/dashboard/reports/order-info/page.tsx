@@ -30,7 +30,6 @@ import {
   parseDateInputValue,
 } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
 import { MultiSelect, type Option } from '@/components/ui/multi-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -45,20 +44,8 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
-import {
-  HeaderSlotButton,
-  HeaderSlotInput,
-  TERM_HEADER_TRIGGER,
-  TERM_HEADER_W_SM,
-  TERM_HEADER_W_MD,
-} from '@/components/terminal/header-filter-suite'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import {
-  useHeaderRefresh,
-  useHeaderSlot,
-  useMobileFilterStrip,
-} from '@/components/terminal/terminal-header-slot'
+import { TERM_BUTTON, TERM_INPUT, TERM_TRIGGER } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
 
@@ -138,7 +125,7 @@ const DEFAULT_PROJECT_VALUE = '__all__'
 /** 表格列数（含行选择列）——骨架屏 / 空态 colSpan 用 */
 const COLUMN_COUNT = 13
 
-/** 页面内正文工具行基类；HeaderSlot 控件统一使用 header-filter-suite 原子。 */
+/** 页面内工具按钮基类；与 V3 Terminal h-9 控件保持同档。 */
 const TERM_BODY_BUTTON =
   'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -205,24 +192,6 @@ function fulfillmentTone(label: string): 'accent' | 'muted' {
 
 function fmtAmount(n: number): string {
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-/** BLF-940 · 移动端折叠筛选条摘要：拼合「关键字 + 状态/类型/币种条数」到一行。 */
-function buildMobileFilterSummary(params: {
-  orderStatuses: string[]
-  fulfillmentChannels: string[]
-  currencies: string[]
-  orderIdKeyword: string
-  skuKeyword: string
-  asinKeyword: string
-}): string {
-  const counts: string[] = []
-  const keyword = params.orderIdKeyword || params.skuKeyword || params.asinKeyword
-  if (keyword) counts.push(`关键字：${keyword}`)
-  if (params.orderStatuses.length > 0) counts.push(`状态 ×${params.orderStatuses.length}`)
-  if (params.fulfillmentChannels.length > 0) counts.push(`类型 ×${params.fulfillmentChannels.length}`)
-  if (params.currencies.length > 0) counts.push(`币种 ×${params.currencies.length}`)
-  return counts.length > 0 ? counts.join(' · ') : '未设置筛选'
 }
 
 // ======================== 主组件 ========================
@@ -687,13 +656,9 @@ function OrderInfoPageInner() {
 
   // ====== 操作 handlers ======
   const handleResetFilters = () => {
-    // 重置到「全部」是用户显式选择，重试项目列表后不能自动改成首家店铺。
-    gfProjectOwnedRef.current = true
-    setProjectId(DEFAULT_PROJECT_VALUE)
-    setProjectSelectionExplicit(true)
+    // 只清当前页的订单条件；全局项目 / 站点 / 日期由 Header 筛选器管理。
     setFulfillmentChannels([])
     setOrderStatuses([])
-    setCountries([])
     setCurrencies([])
     setSkuKeyword('')
     setSkuKeywordCommitted('')
@@ -701,10 +666,6 @@ function OrderInfoPageInner() {
     setOrderIdKeywordCommitted('')
     setAsinKeyword('')
     setAsinKeywordCommitted('')
-    // 重置回退到默认 = 近 7 天（与首次加载默认一致），不是空=全部
-    const { from, to } = defaultLast7Days()
-    setDateFrom(from)
-    setDateTo(to)
     setPage(1)
   }
 
@@ -879,20 +840,17 @@ function OrderInfoPageInner() {
     [filterOptions, filterOptionsError]
   )
 
-  // —— BLF-940 · Stage 2：head/页面 slot 去重 ——
-  // 项目 / 站点 / 日期 = BLF-819 全局四件套，已由 TerminalHeader head 中段承担（pilot 路由含本路径），
-  // 本页不再渲染重复控件（移除原「Console 工具栏」div）。其余页面独有维度（类型/状态/币种/搜索/
-  // 清空/刷新）走 useHeaderSlot portal 进 head 中段，刷新走 head 全局按钮 + useHeaderRefresh。
+  // 项目 / 站点 / 日期由全局 TerminalHeader 管理；本页筛选留在订单面板内。
+  // 刷新仍复用 TerminalHeader 的全局刷新按钮。
   useHeaderRefresh(() => {
     scheduleFetch(0, true)
   }, { loading })
 
-  // 页面独有维度的 head slot 控件（不与 head 全局四件套重叠的部分）。
-  // 移动端使用明确的两列布局：类型/状态并排、币种独占一格，关键词输入整行铺开。
+  // 页面专属筛选：按属性和精确查找两组展示在订单面板内。
   const pageFilterSelects = (
     <>
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
         options={filterOptions?.fulfillment_channels ?? []}
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
@@ -900,7 +858,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '类型 · 加载中…' : filterOptionsError ? '类型 · 加载失败，点开重试' : '类型 · FBA/FBM'}
       />
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
         options={filterOptions?.order_statuses ?? []}
         selected={orderStatuses}
         onChange={setOrderStatuses}
@@ -908,7 +866,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '状态 · 加载中…' : filterOptionsError ? '状态 · 加载失败，点开重试' : '状态 · 全部'}
       />
       <MultiSelect
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
         options={filterOptions?.currencies ?? []}
         selected={currencies}
         onChange={setCurrencies}
@@ -918,116 +876,25 @@ function OrderInfoPageInner() {
     </>
   )
 
-  const pageFilterSearches = (
-    <>
-      <div className="relative min-w-0">
-        <Search
-          className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
-          aria-hidden
+  const pageFilterSearches = [
+    { label: '按订单号搜索', placeholder: '订单号 111-…', value: orderIdKeyword, onChange: setOrderIdKeyword },
+    { label: '按 SKU 搜索', placeholder: 'SKU', value: skuKeyword, onChange: setSkuKeyword },
+    { label: '按 ASIN 搜索', placeholder: 'ASIN', value: asinKeyword, onChange: setAsinKeyword },
+  ].map(({ label, placeholder, value, onChange }) => (
+    <div key={label} className={cn('min-w-0', label === '按订单号搜索' && 'col-span-2 sm:col-span-1')}>
+      <label className="relative block min-w-0">
+        <span className="sr-only">{label}</span>
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint" aria-hidden />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          title={label}
+          className={cn(TERM_INPUT, 'w-full min-w-0 pl-7 pr-2 text-xs')}
         />
-        <HeaderSlotInput
-          value={orderIdKeyword}
-          onChange={(e) => setOrderIdKeyword(e.target.value)}
-          placeholder="订单号 111-…"
-          title="按订单号搜索"
-          widthClass={TERM_HEADER_W_MD}
-          className="w-full pl-7"
-        />
-      </div>
-      <div className="relative min-w-0">
-        <Search
-          className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
-          aria-hidden
-        />
-        <HeaderSlotInput
-          value={skuKeyword}
-          onChange={(e) => setSkuKeyword(e.target.value)}
-          placeholder="SKU"
-          title="按 SKU 搜索"
-          widthClass={TERM_HEADER_W_SM}
-          className="w-full pl-7"
-        />
-      </div>
-      <div className="relative min-w-0">
-        <Search
-          className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint"
-          aria-hidden
-        />
-        <HeaderSlotInput
-          value={asinKeyword}
-          onChange={(e) => setAsinKeyword(e.target.value)}
-          placeholder="ASIN"
-          title="按 ASIN 搜索"
-          widthClass={TERM_HEADER_W_SM}
-          className="w-full pl-7"
-        />
-      </div>
-    </>
-  )
-
-  const headerSlotControls = (
-    <>
-      <div className="hidden items-center gap-1.5 md:flex">
-        {pageFilterSelects}
-      </div>
-      <span className="mx-0.5 hidden h-4 w-px bg-term-border md:block" aria-hidden />
-      <div className="hidden items-center gap-1.5 md:flex">
-        {pageFilterSearches}
-        <HeaderSlotButton
-          variant="muted"
-          onClick={handleResetFilters}
-          disabled={loading}
-          className="ml-auto"
-          title="清空全部筛选条件"
-        >
-          <X className="h-3 w-3" aria-hidden />
-          清空筛选
-        </HeaderSlotButton>
-      </div>
-    </>
-  )
-
-  const mobilePageFilterControls = (
-    <>
-      <div className="col-span-2 grid grid-cols-2 gap-2">
-        {pageFilterSelects}
-      </div>
-      <MobileFilterWide>
-        <div className="grid grid-cols-1 gap-2">
-          {pageFilterSearches}
-          <HeaderSlotButton
-            variant="muted"
-            onClick={handleResetFilters}
-            disabled={loading}
-            className="w-full"
-            title="清空全部筛选条件"
-          >
-            <X className="h-3 w-3" aria-hidden />
-            清空筛选
-          </HeaderSlotButton>
-        </div>
-      </MobileFilterWide>
-    </>
-  )
-
-  // BLF-940 · 桌面端（≥md）：head 中段挂载点 portal
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerSlotControls} />
-  )
-
-  // BLF-940 · 移动端（<md）：正文顶部折叠筛选条（同上控件 + 清空）
-  // 摘要 = 筛选状态文字，展开态用 grid-cols-2 排列
-  const mobileFilterSummary = buildMobileFilterSummary({
-    orderStatuses,
-    fulfillmentChannels,
-    currencies,
-    orderIdKeyword,
-    skuKeyword,
-    asinKeyword,
-  })
-  const mobileFilterStrip = useMobileFilterStrip(
-    <MobileFilterStrip summary={mobileFilterSummary} controls={mobilePageFilterControls} />
-  )
+      </label>
+    </div>
+  ))
 
   // ====== 渲染 ======
   return (
@@ -1091,13 +958,7 @@ function OrderInfoPageInner() {
         </div>
       )}
 
-      {/* BLF-940 · 筛选控件上移 head 中段（桌面）/ 正文顶部折叠条（移动端），
-          原「Console 工具栏」div 已移除（项目/站点/日期由 head 全局四件套承担，重复消除）。
-          详情见上方 headerSlotControls / headerSlotPortal / mobileFilterStrip 构造。 */}
-      {headerSlotPortal}
-      {mobileFilterStrip}
-
-      {/* ====== 高密度订单大表面板：标题条 32px + 表格区独立滚动 ====== */}
+      {/* ====== 高密度订单大表面板：筛选区常驻，表格区独立滚动 ====== */}
       <section
         className="flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel"
         aria-label="订单信息"
@@ -1125,6 +986,33 @@ function OrderInfoPageInner() {
             导出 CSV
           </button>
         </header>
+
+        <div
+          role="group"
+          aria-label="订单筛选"
+          className="shrink-0 border-b border-term-border bg-term-panel px-2 py-2"
+        >
+          <div className="grid gap-2 border-b border-term-border pb-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
+            <span className="font-mono text-[10px] leading-4 text-term-muted">订单属性</span>
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+              {pageFilterSelects}
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                disabled={loading}
+                className={cn(TERM_BUTTON, 'w-full justify-center px-2')}
+                title="清空订单筛选条件"
+              >
+                <X className="h-3 w-3" aria-hidden />
+                清空订单筛选
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-2 pt-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
+            <span className="font-mono text-[10px] leading-4 text-term-muted">订单查找</span>
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">{pageFilterSearches}</div>
+          </div>
+        </div>
 
         {/* 表格独立滚动区（sticky 表头依赖此滚动容器） */}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain term-scroll">
@@ -1193,7 +1081,7 @@ function OrderInfoPageInner() {
                           currencies.length > 0 ||
                           dateFrom ||
                           dateTo
-                        ? '当前筛选条件下无订单 — 可调整筛选或点击「清空筛选」重置'
+                        ? '当前筛选条件下无订单 — 可调整条件或点击「清空订单筛选」重置订单条件'
                         : '暂无订单数据 — 等待新的销售报告上传后重试'
                   }
                   className="bg-term-panel font-mono text-xs"
