@@ -724,66 +724,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agent/monthly-reports/{report_id}/reconciliation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Agent Monthly Report Reconciliation History
-         * @description Read bounded auto/manual reconciliation history for one scoped report.
-         */
-        get: operations["get_agent_monthly_report_reconciliation_history_api_v1_agent_monthly_reports__report_id__reconciliation_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/auto": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reconcile Agent Monthly Report Auto
-         * @description Run scoped PT3/PDF reconciliation and upsert the report's auto record.
-         */
-        post: operations["reconcile_agent_monthly_report_auto_api_v1_agent_monthly_reports__report_id__reconciliation_auto_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agent/monthly-reports/{report_id}/reconciliation/manual": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reconcile Agent Monthly Report Manual
-         * @description Compare uploaded Excel/PDF inputs and upsert this report's manual record.
-         */
-        post: operations["reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/agent/platform-inspection/periods/{period_id}/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -11583,13 +11523,6 @@ export interface components {
             country: string;
             /** File */
             file: string;
-        };
-        /** Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post */
-        Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post: {
-            /** Excel File */
-            excel_file: string;
-            /** Pdf File */
-            pdf_file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
@@ -25877,116 +25810,6 @@ export interface operations {
                 };
                 content: {
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_agent_monthly_report_reconciliation_history_api_v1_agent_monthly_reports__report_id__reconciliation_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                report_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reconcile_agent_monthly_report_auto_api_v1_agent_monthly_reports__report_id__reconciliation_auto_post: {
-        parameters: {
-            query?: {
-                tolerance?: number;
-            };
-            header?: never;
-            path: {
-                report_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post: {
-        parameters: {
-            query?: {
-                tolerance?: number;
-            };
-            header?: never;
-            path: {
-                report_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_reconcile_agent_monthly_report_manual_api_v1_agent_monthly_reports__report_id__reconciliation_manual_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
