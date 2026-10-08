@@ -7,15 +7,16 @@ from io import BytesIO
 from urllib.parse import unquote
 
 import pytest
+from conftest import seed_schedule
+from fastapi.testclient import TestClient
+from openpyxl import load_workbook
+from sqlalchemy import select
+
 from app.api.v1.lazy_router import preload_all_lazy_groups
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.sku_info import SkuRecord
 from app.services.shipment import fba_box_export as export_service
-from conftest import seed_schedule
-from fastapi.testclient import TestClient
-from openpyxl import load_workbook
-from sqlalchemy import select
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
