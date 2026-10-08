@@ -2181,6 +2181,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/shipments/fba-box-details.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Shipment Fba Box Details
+         * @description 导出一个项目内指定货件的 FBA 箱单明细（纯读 XLSX 文件流）。
+         */
+        get: operations["export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}": {
         parameters: {
             query?: never;
@@ -28569,6 +28589,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get: {
+        parameters: {
+            query: {
+                /** @description 可重复传入多个货件编号；至少 1 个，最多 100 个。 */
+                shipment_no: string[];
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FBA 箱单明细 XLSX 文件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -52222,6 +52222,67 @@
         ]
       }
     },
+    "/api/v1/agent/projects/{project_id}/shipments/fba-box-details.xlsx": {
+      "get": {
+        "description": "导出一个项目内指定货件的 FBA 箱单明细（纯读 XLSX 文件流）。",
+        "operationId": "export_shipment_fba_box_details_api_v1_agent_projects__project_id__shipments_fba_box_details_xlsx_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "可重复传入多个货件编号；至少 1 个，最多 100 个。",
+            "in": "query",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "description": "可重复传入多个货件编号；至少 1 个，最多 100 个。",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "title": "Shipment No",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "FBA 箱单明细 XLSX 文件流"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Shipment Fba Box Details",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
     "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}": {
       "delete": {
         "operationId": "delete_shipment_api_v1_agent_projects__project_id__shipments__shipment_no__delete",
