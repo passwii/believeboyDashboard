@@ -58,7 +58,9 @@ export function useLedgerInsight(options: UseLedgerInsightOptions): {
   onItemRefreshedRef.current = onItemRefreshed
 
   const [digest, setDigest] = useState<string | null>(null)
+  const [attachedRunId, setAttachedRunId] = useState<string | null>(null)
   const attachedRef = useRef<string | null>(null)
+  const attachGenerationRef = useRef(0)
   const reportedRef = useRef<string | null>(null)
 
   const stream = useInsightStream({
@@ -73,9 +75,17 @@ export function useLedgerInsight(options: UseLedgerInsightOptions): {
 
   const runId = ledgerRunId(item)
   const runBound = runId !== null
-  const liveContent = stream.partialDrafts.main ?? ''
+  // A single dialog instance is reused when the selected ledger row changes. Ignore
+  // stream state until its attach for this row has completed; otherwise the previous
+  // row's drafts/status can briefly be rendered or written back to the new row.
+  const currentRun =
+    runBound && attachedRunId === runId && stream.runId === runId
+  const liveContent = currentRun ? stream.partialDrafts.main ?? '' : ''
+  const runStatus = currentRun ? stream.runStatus : null
+  const finishedContent = currentRun ? stream.drafts.main ?? '' : ''
+  const streamError = currentRun ? stream.error : null
   const effectiveRunStatus =
-    stream.runStatus ?? (runBound ? toTerminalRunStatus(stream.status) : null)
+    runStatus ?? (currentRun ? toTerminalRunStatus(stream.status) : null)
 
   // 打开详情时接管后台 run；关闭详情只断开本地订阅，服务端 run 继续跑。
   const attach = stream.attach
@@ -84,23 +94,34 @@ export function useLedgerInsight(options: UseLedgerInsightOptions): {
     if (!open || !runId) {
       if (attachedRef.current) {
         attachedRef.current = null
+        attachGenerationRef.current += 1
+        setAttachedRunId(null)
         detach()
       }
       return
     }
     if (attachedRef.current === runId) return
     attachedRef.current = runId
+    const generation = ++attachGenerationRef.current
     reportedRef.current = null
+    setAttachedRunId(null)
     setDigest(null)
     // 详情拉取失败已由 hook 落到 error，面板自行展示。
-    void attach(runId).catch(() => undefined)
+    void attach(runId)
+      .then(() => {
+        if (attachGenerationRef.current === generation && attachedRef.current === runId) {
+          setAttachedRunId(runId)
+        }
+      })
+      .catch(() => {
+        if (attachGenerationRef.current === generation && attachedRef.current === runId) {
+          // Keep the matching run's error visible when detail loading fails.
+          setAttachedRunId(runId)
+        }
+      })
   }, [open, runId, attach, detach])
-
-  const runStatus = stream.runStatus
-  const finishedContent = stream.drafts.main ?? ''
-  const streamError = stream.error
   useEffect(() => {
-    if (!item || !runId) return
+    if (!item || !runId || !currentRun) return
     if (runStatus !== 'completed' && runStatus !== 'failed') return
     const key = `${runId}:${runStatus}`
     if (reportedRef.current === key) return
@@ -112,14 +133,14 @@ export function useLedgerInsight(options: UseLedgerInsightOptions): {
       ai_summary_status: toLedgerSummaryStatus(runStatus),
       ai_summary_error: runStatus === 'failed' ? (streamError?.message ?? item.ai_summary_error) : null,
     })
-  }, [item, runId, runStatus, finishedContent, streamError])
+  }, [item, runId, currentRun, runStatus, finishedContent, streamError])
 
   const state = toLedgerPanelState({
     item,
     regenerating,
     runStatus: effectiveRunStatus,
-    transport: stream.status,
-    progress: stream.progress,
+    transport: currentRun ? stream.status : 'queued',
+    progress: currentRun ? stream.progress : null,
   })
   const { content, contentState } = toLedgerPanelContent({
     item,
@@ -133,17 +154,17 @@ export function useLedgerInsight(options: UseLedgerInsightOptions): {
     state,
     content,
     contentState,
-    digest: runBound ? digest : null,
-    error: runBound ? streamError : null,
-    backgroundMessage: runBound ? stream.backgroundMessage : null,
+    digest: currentRun ? digest : null,
+    error: currentRun ? streamError : null,
+    backgroundMessage: currentRun ? stream.backgroundMessage : null,
     onCancel:
-      runBound && state.busy
+      currentRun && state.busy
         ? () => {
             void cancel()
           }
         : undefined,
     onRetry:
-      runBound && effectiveRunStatus === 'failed'
+      currentRun && effectiveRunStatus === 'failed'
         ? () => {
             void retry().catch(() => undefined)
           }

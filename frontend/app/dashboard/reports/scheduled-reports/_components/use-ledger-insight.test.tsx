@@ -113,6 +113,60 @@ describe('useLedgerInsight（BLF-1015）', () => {
     expect(result.current.runBound).toBe(true)
   })
 
+  it('切换到另一个 run 时，在新 run attach 完成前不展示或回写上一个摘要', async () => {
+    let resolveSecondDetail!: (value: InsightRunDetail) => void
+    const secondDetail = new Promise<InsightRunDetail>((resolve) => {
+      resolveSecondDetail = resolve
+    })
+    const client = {
+      detail: vi.fn()
+        .mockResolvedValueOnce(
+          detail({
+            status: 'completed',
+            outputs: { main: { format: 'markdown', content: '第一条记录的摘要' } },
+          })
+        )
+        .mockReturnValueOnce(secondDetail),
+      stream: vi.fn(() => new Promise<Response>(() => {})),
+      cancel: vi.fn(),
+      retry: vi.fn(),
+    } as unknown as InsightClient
+    const onItemRefreshed = vi.fn()
+    const firstItem = makeItem({ insight_run_id: 'run-1', ai_summary_status: 'generating' })
+    const secondItem = makeItem({
+      ledger_key: 'lk-2',
+      insight_run_id: 'run-2',
+      ai_summary_status: 'pending',
+    })
+
+    const { result, rerender } = renderHook(
+      ({ item }: { item: LedgerItem }) =>
+        useLedgerInsight({ open: true, item, regenerating: false, onItemRefreshed, client }),
+      { initialProps: { item: firstItem } }
+    )
+
+    await waitFor(() => expect(result.current.panel.content).toBe('第一条记录的摘要'))
+    rerender({ item: secondItem })
+
+    expect(result.current.panel.content).toBe('')
+    expect(result.current.panel.state.status).toBe('queued')
+    expect(onItemRefreshed).not.toHaveBeenCalledWith(
+      expect.objectContaining({ ledger_key: 'lk-2', ai_summary: '第一条记录的摘要' })
+    )
+
+    await act(async () => {
+      resolveSecondDetail(
+        detail({
+          run_id: 'run-2',
+          status: 'completed',
+          outputs: { main: { format: 'markdown', content: '第二条记录的摘要' } },
+        })
+      )
+      await secondDetail
+    })
+    await waitFor(() => expect(result.current.panel.content).toBe('第二条记录的摘要'))
+  })
+
   it('详情已是终态时直接回读正文，不再开流（避免同一 run 重复订阅）', async () => {
     const { client, raw } = makeClient(
       detail({
