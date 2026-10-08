@@ -56,7 +56,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
-import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyTotalRowStyle } from '@/lib/excel-styles'
 import { downloadBlob } from '@/lib/download-blob'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
@@ -1080,7 +1080,7 @@ export default function InventoryReplenishmentPage() {
         // 默认的 sheetRow.eachCell(cb) 会跳过 null 单元格，导致 dms_30 / weighted_dms /
         // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少边框。
         // 改成 for 循环 + getCell(col) 可以保证每个单元格都被处理（与 totalRow 的
-        // applyRowBorder(totalRow, 1, 24) 保持一致），且不改变原始数据（null 仍为 null）。
+        // applyTotalRowStyle 全列覆盖保持一致），且不改变原始数据（null 仍为 null）。
         for (let col = 1; col <= 26; col++) {
           const cell = sheetRow.getCell(col)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
@@ -1123,8 +1123,19 @@ export default function InventoryReplenishmentPage() {
           applyBorder(cell)
         }
       })
+      applyDataRowBanding({
+        worksheet,
+        startRow: 2,
+        rowCount: filteredRows.length,
+        columnCount: columns.length,
+      })
 
       const totalRow = worksheet.getRow(filteredRows.length + 2)
+      // 统一合计样式：浅灰蓝底 + 顶部强调粗线 + 全行细边框；
+      // 先铺样式再写值与 numFmt，保证数值与格式不变。
+      applyTotalRowStyle(totalRow, 26, {
+        numericColumns: [3, 4, 5, 6, 7, 8, 9, 11, 20],
+      })
       totalRow.getCell(1).value = '筛选结果合计'
       totalRow.getCell(3).value = tableTotals.available_inventory
       totalRow.getCell(4).value = tableTotals.in_transit_quantity
@@ -1136,12 +1147,6 @@ export default function InventoryReplenishmentPage() {
       totalRow.getCell(11).value = tableTotals.weighted_dms
       totalRow.getCell(20).value = tableTotals.estimated_replenishment_quantity
       totalRow.getCell(21).value = `SKU: ${summary.sku_count}`
-      applyRowBorder(totalRow, 1, 26)
-      totalRow.eachCell({ includeEmpty: true }, (cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', wrapText: true }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-      })
       totalRow.getCell(3).numFmt = '#,##0'
       totalRow.getCell(4).numFmt = '#,##0'
       totalRow.getCell(5).numFmt = '0.0000'

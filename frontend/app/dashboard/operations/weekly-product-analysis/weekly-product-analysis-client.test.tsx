@@ -7,10 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // 稳定引用：避免每次渲染产生新对象导致 loadProjects / loadData identity 抖动、
 // useEffect 重复触发、双重 fetch、loading 断言竞态（真实 useSession / useNotifications
 // 返回稳定引用）。关键教训：必须用 vi.hoisted 定义常量再在 factory 里引用。
-const { stableSession, mockNotify, fetchMock, mockGetClientCache, mockSetClientCache } = vi.hoisted(
+const { stableSession, mockNotify, fetchMock, mockGetClientCache, mockSetClientCache, downloadBlobMock } = vi.hoisted(
   () => ({
     stableSession: { user: { id: 'user-1', roleType: 'admin' } },
     mockNotify: vi.fn(),
+    downloadBlobMock: vi.fn(),
     // 带签名建 mock：mock.calls 得到 [RequestInfo | URL] 元组类型（beforeEach 会覆写实现）
     fetchMock: vi.fn((_input: RequestInfo | URL): Promise<Response> =>
       Promise.resolve({ ok: true, status: 200 } as unknown as Response)
@@ -19,6 +20,8 @@ const { stableSession, mockNotify, fetchMock, mockGetClientCache, mockSetClientC
     mockSetClientCache: vi.fn(),
   })
 )
+
+vi.mock('@/lib/download-blob', () => ({ downloadBlob: downloadBlobMock }))
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({
@@ -109,7 +112,13 @@ const WEEKLY_ROWS = [
     total_sales: 1000,
     total_units: 50,
     total_ad_spend: 200,
-    summary_row: { 总销量: 50, 总销售额: 1000, 广告花费: 200, 页面浏览量: 2600 },
+    summary_row: {
+      总销量: 50,
+      总销售额: 1000,
+      广告花费: 200,
+      页面浏览量: 2600,
+      _is_partial: true,
+    },
   },
 ]
 
@@ -175,10 +184,80 @@ afterEach(() => {
 })
 
 import WeeklyProductAnalysisClient from './weekly-product-analysis-client'
+import { applyDataRowBanding } from '@/lib/excel-styles'
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
 describe('WeeklyProductAnalysisClient header 化渲染契约（operations header migration · Batch A1）', () => {
+  it('weekly summary and detail data ranges use alternating fills without touching partial and total rows', () => {
+    const cells = Array.from({ length: 8 }, () => Array.from({ length: 4 }, () => ({ fill: undefined as unknown })))
+    const worksheet = {
+      getRow: (rowNumber: number) => ({ getCell: (column: number) => cells[rowNumber][column] }),
+    }
+    cells[1][1].fill = { color: 'header' }
+    cells[4][1].fill = { color: 'total' }
+    cells[5][1].fill = { color: 'note' }
+
+    applyDataRowBanding({ worksheet: worksheet as never, startRow: 2, rowCount: 2, columnCount: 3 })
+
+    expect(cells[1][1].fill).toMatchObject({ color: 'header' })
+    expect(cells[2][1].fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(cells[3][1].fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
+    expect(cells[4][1].fill).toMatchObject({ color: 'total' })
+    expect(cells[5][1].fill).toMatchObject({ color: 'note' })
+  })
+  it('Excel 汇总与明细：数据行交替底纹、黄色优先、合并与冻结坐标与数值格式不变', async () => {
+    downloadBlobMock.mockReset()
+    const user = userEvent.setup()
+    render(<WeeklyProductAnalysisClient />)
+    await screen.findByText('2026-08-17 至 2026-08-23')
+
+    await user.click(screen.getByRole('button', { name: /导出 Excel/ }))
+    await vi.waitFor(() => expect(downloadBlobMock).toHaveBeenCalledTimes(1))
+
+    const [blob] = downloadBlobMock.mock.calls[0] as [Blob, string]
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(await blob.arrayBuffer())
+
+    const summary = workbook.getWorksheet('汇总')!
+    // 数据行按数据序号交替：首行不完整周黄色优先覆盖斑马白底，第二行落到浅灰蓝
+    expect(summary.getCell('C3').fill).toMatchObject({ fgColor: { argb: 'FFFFF3CD' } })
+    expect(summary.getCell('C4').fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
+    expect(summary.getCell('C3').value).toBe(50)
+    expect(summary.getCell('C4').value).toBe(60)
+    // 数值格式不变
+    expect(summary.getCell('C3').numFmt).toBe('#,##0')
+    expect(summary.getCell('C4').numFmt).toBe('#,##0')
+    // 两层表头 / 周次列的合并范围不变
+    expect(summary.getCell('A1').master.address).toBe('A1')
+    expect(summary.getCell('A2').master.address).toBe('A1')
+    expect(summary.getCell('B2').master.address).toBe('B1')
+    // 冻结坐标保留 + 隐藏网格线
+    expect(summary.views[0]).toMatchObject({
+      state: 'frozen',
+      ySplit: 2,
+      xSplit: 2,
+      showGridLines: false,
+    })
+    // 合计行与说明行仍按原结构写出（rowIndex 冲突为 PR 前既有问题，另开 issue 处理）
+    expect(summary.getCell('A5').value).toBe('* 黄色背景标记：该周数据不完整，仅供参考')
+
+    const detail = workbook.getWorksheet('SKU明细')!
+    expect(detail.getCell('B3').value).toBe('SKU-001')
+    // 首个明细数据行（序号 0）为白色，空值尾列也有细边框
+    expect(detail.getCell('C3').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(detail.getCell(3, 41).border).toMatchObject({ top: { style: 'thin' } })
+    expect(detail.getCell('A1').master.address).toBe('A1')
+    expect(detail.views[0]).toMatchObject({
+      state: 'frozen',
+      ySplit: 2,
+      xSplit: 2,
+      showGridLines: false,
+    })
+    expect(detail.getCell('A4').value).toBe('合计')
+  })
+
   it('渲染不崩溃：周汇总表格、双 tab 与导出/重算入口齐全', async () => {
     render(<WeeklyProductAnalysisClient />)
 

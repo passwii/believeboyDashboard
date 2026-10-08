@@ -46,6 +46,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
+import { applyDataRowBanding } from '@/lib/excel-styles'
 
 // =============================================================================
 // Types
@@ -786,6 +787,10 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     const summarySheet = wb.addWorksheet('汇总')
     const detailSheet = wb.addWorksheet('SKU明细')
 
+    // 目标工作表隐藏网格线；不新增冻结行列（与统一导出样式计划一致）
+    summarySheet.views = [{ showGridLines: false }]
+    detailSheet.views = [{ showGridLines: false }]
+
     const startDateCompact = startDate.replaceAll('-', '')
     const endDateCompact = endDate.replaceAll('-', '')
     const safeProjectName = projectLabel.replace(/[\\/:*?"<>|]/g, '-')
@@ -827,6 +832,13 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
         detailSheet.getCell(rowIdx, 9).value = Number(detail['利润率'] ?? 0)
         rowIdx += 1
       })
+    })
+
+    applyDataRowBanding({
+      worksheet: detailSheet,
+      startRow: 2,
+      rowCount: rowIdx - 2,
+      columnCount: headers.length,
     })
 
     const buffer = await wb.xlsx.writeBuffer()

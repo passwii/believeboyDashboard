@@ -53,6 +53,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
+import { applyDataRowBanding } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import {
@@ -689,7 +690,7 @@ function fillSummaryWorksheet(
   }
 ) {
   const lastColumn = SUMMARY_COLUMNS.length + 2
-  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2, showGridLines: false }]
 
   const groupRow = worksheet.getRow(1)
   const headRow = worksheet.getRow(2)
@@ -755,6 +756,12 @@ function fillSummaryWorksheet(
   })
 
   let rowIndex = 3
+  applyDataRowBanding({
+    worksheet,
+    startRow: rowIndex,
+    rowCount: summaryRows.length,
+    columnCount: lastColumn,
+  })
   summaryRows.forEach((item, index) => {
     const row = worksheet.getRow(rowIndex)
     const { isPartial } = extractCompleteness(item.row)
@@ -877,7 +884,7 @@ function fillDetailWorksheet(
   }
 ) {
   const lastColumn = detailColumns.length
-  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2, showGridLines: false }]
 
   const groupRow = worksheet.getRow(1)
   const headRow = worksheet.getRow(2)
@@ -966,6 +973,12 @@ function fillDetailWorksheet(
   })
 
   let rowIndex = 3
+  applyDataRowBanding({
+    worksheet,
+    startRow: rowIndex,
+    rowCount: detailRows.length,
+    columnCount: lastColumn,
+  })
   detailRows.forEach((rowData) => {
     const row = worksheet.getRow(rowIndex)
     detailColumns.forEach((column, idx) => {

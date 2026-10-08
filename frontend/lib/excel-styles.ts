@@ -94,6 +94,42 @@ export function applyDataStyle(
   cell.alignment = { vertical: 'middle', horizontal: options?.align || 'right' }
 }
 
+export interface DataRowBandingOptions {
+  worksheet: Worksheet
+  /** 数据区起始行（1-based，含） */
+  startRow: number
+  /** 数据行数 */
+  rowCount: number
+  /** 总列数；空值单元格也会写入底纹 */
+  columnCount: number
+  /** 此范围之前已有的数据行数，用于跨特殊行分段时延续斑马纹 */
+  dataRowOffset?: number
+}
+
+/**
+ * 为连续数据行应用白色 / 浅灰蓝交替底纹与完整细边框；不修改字体或对齐。
+ * 特殊行应排除在数据范围之外。如数据行中存在语义色，调用方应在本函数之后应用语义色。
+ */
+export function applyDataRowBanding(options: DataRowBandingOptions) {
+  const { worksheet, startRow, rowCount, columnCount, dataRowOffset = 0 } = options
+  if (rowCount <= 0 || columnCount <= 0) return
+
+  for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
+    const fill =
+      (dataRowOffset + rowOffset) % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.altRowFill
+    const row = worksheet.getRow(startRow + rowOffset)
+    for (let column = 1; column <= columnCount; column += 1) {
+      const cell = row.getCell(column)
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: fill },
+      }
+      applyBorder(cell)
+    }
+  }
+}
+
 /**
  * 统一表头行样式（对齐 daily-analysis 导出风格）：
  * 微软雅黑加粗 + 浅灰蓝底 + 居中自动换行 + 表头边框。

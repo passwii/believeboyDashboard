@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   EXCEL_COLORS,
+  applyDataRowBanding,
   applyGroupBanding,
   applyHeaderRowStyle,
   applyTotalRowStyle,
@@ -86,6 +87,76 @@ describe('applyTotalRowStyle', () => {
     const row = worksheet.getRow(2) as unknown as Parameters<typeof applyTotalRowStyle>[0]
     applyTotalRowStyle(row, 2, { centerColumns: [1] })
     expect(cells[2][1].alignment).toMatchObject({ horizontal: 'center' })
+  })
+})
+
+describe('applyDataRowBanding', () => {
+  it('alternates data rows, borders blank cells, and honors offsets across special rows', () => {
+    const { worksheet, cells } = createMockContext(5, 3)
+
+    applyDataRowBanding({
+      worksheet: worksheet as never,
+      startRow: 2,
+      rowCount: 2,
+      columnCount: 3,
+      dataRowOffset: 1,
+    })
+
+    expect(cells[2][1].fill).toMatchObject({ fgColor: { argb: EXCEL_COLORS.altRowFill } })
+    expect(cells[3][1].fill).toMatchObject({ fgColor: { argb: EXCEL_COLORS.white } })
+    expect(cells[2][3].border).toMatchObject({
+      top: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+      left: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+      bottom: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+      right: { style: 'thin', color: { argb: EXCEL_COLORS.border } },
+    })
+    expect(cells[4][1].fill).toBeUndefined()
+  })
+
+  it('preserves existing font and alignment and round-trips styles through ExcelJS', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('数据')
+    worksheet.getCell('A2').value = 'data'
+    worksheet.getCell('A2').font = { bold: true }
+    worksheet.getCell('A2').alignment = { horizontal: 'right' }
+    worksheet.getCell('B3').value = null
+    worksheet.getCell('B3').border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    }
+
+    applyDataRowBanding({ worksheet, startRow: 2, rowCount: 2, columnCount: 2 })
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const restoredWorkbook = new ExcelJS.Workbook()
+    await restoredWorkbook.xlsx.load(buffer)
+    const restored = restoredWorkbook.getWorksheet('数据')!
+
+    expect(restored.getCell('A2').fill).toMatchObject({
+      fgColor: { argb: EXCEL_COLORS.white },
+    })
+    expect(restored.getCell('A3').fill).toMatchObject({
+      fgColor: { argb: EXCEL_COLORS.altRowFill },
+    })
+    expect(restored.getCell('B3').border).toMatchObject({
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    })
+    expect(restored.getCell('A2').font).toMatchObject({ bold: true })
+    expect(restored.getCell('A2').alignment).toMatchObject({ horizontal: 'right' })
+  })
+
+  it('does nothing for empty rows or columns', () => {
+    const { worksheet, cells } = createMockContext(2, 2)
+    applyDataRowBanding({ worksheet: worksheet as never, startRow: 2, rowCount: 0, columnCount: 2 })
+    applyDataRowBanding({ worksheet: worksheet as never, startRow: 2, rowCount: 1, columnCount: 0 })
+    expect(cells[2][1].fill).toBeUndefined()
+    expect(cells[2][1].border).toBeUndefined()
   })
 })
 

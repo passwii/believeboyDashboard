@@ -76,7 +76,7 @@ import {
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
-import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { applyBorder, applyDataRowBanding, applyHeaderBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { downloadBlob } from '@/lib/download-blob'
@@ -643,6 +643,12 @@ export default function ReturnAnalysisPage() {
             applyBorder(cell)
           })
         })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: data.ranking_rows.length,
+          columnCount: headers.length,
+        })
 
         // freeze header row
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -669,6 +675,12 @@ export default function ReturnAnalysisPage() {
             applyBorder(cell)
           })
         })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: data.reason_rows.length,
+          columnCount: headers.length,
+        })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
@@ -694,6 +706,12 @@ export default function ReturnAnalysisPage() {
             applyBorder(cell)
           })
         })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: data.disposition_rows.length,
+          columnCount: headers.length,
+        })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
@@ -718,6 +736,12 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => {
             applyBorder(cell)
           })
+        })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: data.status_rows.length,
+          columnCount: headers.length,
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -745,6 +769,12 @@ export default function ReturnAnalysisPage() {
             applyBorder(cell)
           })
         })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: data.feedback_rows.length,
+          columnCount: headers.length,
+        })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
@@ -768,6 +798,12 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => {
             applyBorder(cell)
           })
+        })
+        applyDataRowBanding({
+          worksheet: ws,
+          startRow: 2,
+          rowCount: raw.rows.length,
+          columnCount: RETURN_RAW_COLUMNS.length,
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]

@@ -1,4 +1,5 @@
 import type { Cell, Worksheet } from 'exceljs'
+import { applyDataRowBanding } from './excel-styles'
 import { downloadBlob } from './download-blob'
 
 export type ExportCountryOption = 'US' | 'DE' | 'UK'
@@ -365,6 +366,12 @@ export async function exportProductAnalysisToExcel(
   })
 
   let rowIdx = 6
+  applyDataRowBanding({
+    worksheet: summarySheet,
+    startRow: rowIdx,
+    rowCount: periods.length,
+    columnCount: lastCol,
+  })
   periods.forEach((period) => {
     const row = summarySheet.getRow(rowIdx)
     const weekLabel = getISOWeek(period.report_start_date)
@@ -517,6 +524,7 @@ export async function exportProductAnalysisToExcel(
   })
 
   let dRowIdx = 6
+  let dataRowIndex = 0
   let currentPeriodLabel = ''
   periods.forEach((period) => {
     const periodLabel = `${period.report_start_date} ~ ${period.report_end_date}`
@@ -532,6 +540,8 @@ export async function exportProductAnalysisToExcel(
       currentPeriodLabel = periodLabel
     }
 
+    const detailStartRow = dRowIdx
+    const detailOffset = dataRowIndex
     period.details.forEach((detail) => {
       const row = detailSheet.getRow(dRowIdx)
       EXPORT_DETAIL_COLUMNS.forEach((column, idx) => {
@@ -555,6 +565,14 @@ export async function exportProductAnalysisToExcel(
         applyCellBorder(cell)
       })
       dRowIdx += 1
+      dataRowIndex += 1
+    })
+    applyDataRowBanding({
+      worksheet: detailSheet,
+      startRow: detailStartRow,
+      rowCount: period.details.length,
+      columnCount: dLastCol,
+      dataRowOffset: detailOffset,
     })
 
     // Period summary row
