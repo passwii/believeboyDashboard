@@ -16,6 +16,7 @@ import {
 import { TerminalFooter } from '@/components/terminal/terminal-footer'
 import { TerminalHeader } from '@/components/terminal/terminal-header'
 import { TerminalInspector } from '@/components/terminal/terminal-inspector'
+import { ThemeModePicker } from '@/components/terminal/theme-mode-picker'
 import { useLiveStream } from '@/components/terminal/use-live-stream'
 import { TerminalRail } from '@/components/terminal/terminal-rail'
 import { TerminalSubnav } from '@/components/terminal/terminal-subnav'
@@ -155,6 +156,9 @@ export function TerminalShell({ children }: TerminalShellProps) {
                 onNavigate={() => setMobileNavOpen(false)}
               />
             ))}
+          </div>
+          <div className="shrink-0 border-t border-term-border px-2 py-2">
+            <ThemeModePicker placement="mobile" />
           </div>
         </SheetContent>
       </Sheet>

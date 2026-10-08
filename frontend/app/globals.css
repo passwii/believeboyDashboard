@@ -456,6 +456,47 @@
   }
 }
 
+/* Keep this unlayered so Tailwind transition utilities cannot override the
+   short, color-only transition during an explicit theme change. */
+html[data-theme-transition],
+html[data-theme-transition] body,
+html[data-theme-transition] body * {
+  transition-property: color, background-color, background-image, border-color, outline-color, fill, stroke, text-decoration-color, caret-color, box-shadow;
+  transition-duration: 220ms !important;
+  transition-timing-function: ease !important;
+}
+
+html[data-theme-transition] body * {
+  transition-property: color, background-color, background-image, border-color, outline-color, fill, stroke, text-decoration-color, caret-color, box-shadow !important;
+}
+
+.theme-mode-icon-animate {
+  animation: theme-mode-icon-change 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes theme-mode-icon-change {
+  from {
+    opacity: 0.35;
+    transform: rotate(-18deg) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-transition],
+  html[data-theme-transition] body,
+  html[data-theme-transition] body * {
+    transition-duration: 1ms !important;
+  }
+
+  .theme-mode-icon-animate {
+    animation: none !important;
+  }
+}
+
 @layer components {
   /* ── Overlay motion (dialog / sheet / alert backdrops) ─────────────────── */
   .ui-overlay-motion {

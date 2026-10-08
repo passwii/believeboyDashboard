@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('next-themes', () => ({
-  useTheme: () => ({ resolvedTheme: 'light', setTheme: vi.fn() }),
+  useTheme: () => ({ theme: 'light', resolvedTheme: 'light', setTheme: vi.fn() }),
 }))
 
 const GROUPS: SidebarTopGroup[] = [
@@ -67,12 +67,12 @@ describe('TerminalRail', () => {
     expect(logoSlot.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
   })
 
-  it('主题切换按钮通过标题提供具体动作名称', () => {
+  it('主题选择入口提供三态设置的可访问名称', () => {
     const { container } = render(
       <TerminalRail groups={GROUPS} activeGroupId="operations" onGroupNavigate={vi.fn()} />
     )
     const themeButton = container.querySelector('aside > div:last-child > button:first-child')
-    expect(themeButton).toHaveAttribute('title', '切换暗色')
+    expect(themeButton).toHaveAttribute('aria-label', '主题设置：浅色')
   })
 
   it('BLF-850 Rail 图标尺寸引用单一常量 TERMINAL_RAIL_ICON_SIZE（内联 style，非动态类）', () => {
