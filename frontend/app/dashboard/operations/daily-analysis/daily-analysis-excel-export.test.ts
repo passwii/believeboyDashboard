@@ -70,4 +70,34 @@ describe('exportDailyAnalysisToExcel', () => {
     })
     expect(detailSheet.getCell('P2').border).toBeDefined()
   })
+
+  it('SKU明细 保留按日期分组底纹（同一天同色，跨天换色）', async () => {
+    await exportDailyAnalysisToExcel(
+      [makeSummaryRow('2026-09-01'), makeSummaryRow('2026-09-02')],
+      [
+        makeDetailRow('2026-09-01', 'SKU-1'),
+        makeDetailRow('2026-09-01', 'SKU-2'),
+        makeDetailRow('2026-09-02', 'SKU-3'),
+      ],
+      '测试项目',
+      'US',
+      '2026-09-01 ~ 2026-09-02',
+      [],
+      'daily'
+    )
+
+    const [blob] = downloadBlobMock.mock.calls[0] as [Blob, string]
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(await blob.arrayBuffer())
+    const detailSheet = workbook.getWorksheet('SKU明细')!
+
+    // 第 1 组（09-01 两行）同色，第 2 组（09-02）换色：分组序号决定底纹，不是物理行奇偶
+    expect(detailSheet.getCell('B2').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(detailSheet.getCell('B3').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(detailSheet.getCell('B4').fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
+    // 日期列按组纵向合并保持不变
+    expect(detailSheet.getCell('A2').isMerged).toBe(true)
+    expect(detailSheet.getCell('A3').master.address).toBe('A2')
+  })
 })

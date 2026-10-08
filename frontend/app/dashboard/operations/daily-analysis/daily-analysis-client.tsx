@@ -691,14 +691,10 @@ export async function exportDailyAnalysisToExcel(
       applyBorder(cell)
     }
   })
-  applyDataRowBanding({
-    worksheet: detailSheet,
-    startRow: 2,
-    rowCount: detailRows.length,
-    columnCount: detailCols.length,
-  })
-
+  // SKU明细 保留既有「按日期分组交替底纹」：底纹由下方分组循环按组序号统一铺，
+  // 不接入逐行斑马（同一天的多行必须同色，作为「一天一色带」的阅读锚点）。
   let mergeStartRow = 2
+  let groupIndex = 0
   for (let rowIndex = 1; rowIndex <= detailRows.length; rowIndex += 1) {
     const currentDate = detailRows[rowIndex]?.date
     const previousDate = detailRows[rowIndex - 1]?.date
@@ -709,6 +705,7 @@ export async function exportDailyAnalysisToExcel(
     const mergeEndRow = rowIndex + 1
     const groupStartRow = mergeStartRow
     const groupRowCount = mergeEndRow - groupStartRow + 1
+    const groupFill = groupIndex % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC'
     const groupBorder = 'FFCBD5E1'
     const strongGroupBorder = 'FF94A3B8'
 
@@ -719,7 +716,7 @@ export async function exportDailyAnalysisToExcel(
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: (currentRow - 2) % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC' },
+          fgColor: { argb: groupFill },
         }
         cell.border = {
           top: {
@@ -757,7 +754,7 @@ export async function exportDailyAnalysisToExcel(
     mergedDateCell.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: (groupStartRow - 2) % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFC' },
+      fgColor: { argb: groupFill },
     }
     mergedDateCell.border = {
       top: { style: 'medium', color: { argb: strongGroupBorder } },
@@ -767,6 +764,7 @@ export async function exportDailyAnalysisToExcel(
     }
 
     mergeStartRow = rowIndex + 2
+    groupIndex += 1
   }
 
   const buffer = await workbook.xlsx.writeBuffer()

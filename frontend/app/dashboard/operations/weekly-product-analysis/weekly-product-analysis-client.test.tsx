@@ -206,7 +206,7 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
     expect(cells[4][1].fill).toMatchObject({ color: 'total' })
     expect(cells[5][1].fill).toMatchObject({ color: 'note' })
   })
-  it('Excel 汇总与明细数据行保留交替底纹与边框', async () => {
+  it('Excel 汇总与明细：数据行交替底纹、黄色优先、合并与冻结坐标与数值格式不变', async () => {
     downloadBlobMock.mockReset()
     const user = userEvent.setup()
     render(<WeeklyProductAnalysisClient />)
@@ -219,15 +219,42 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
     const ExcelJS = await import('exceljs')
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(await blob.arrayBuffer())
+
     const summary = workbook.getWorksheet('汇总')!
-    expect(summary.getCell('C3').fill).toBeDefined()
-    expect(summary.getCell('C4').fill).toBeDefined()
+    // 数据行按数据序号交替：首行不完整周黄色优先覆盖斑马白底，第二行落到浅灰蓝
+    expect(summary.getCell('C3').fill).toMatchObject({ fgColor: { argb: 'FFFFF3CD' } })
+    expect(summary.getCell('C4').fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
+    expect(summary.getCell('C3').value).toBe(50)
+    expect(summary.getCell('C4').value).toBe(60)
+    // 数值格式不变
+    expect(summary.getCell('C3').numFmt).toBe('#,##0')
+    expect(summary.getCell('C4').numFmt).toBe('#,##0')
+    // 两层表头 / 周次列的合并范围不变
+    expect(summary.getCell('A1').master.address).toBe('A1')
+    expect(summary.getCell('A2').master.address).toBe('A1')
+    expect(summary.getCell('B2').master.address).toBe('B1')
+    // 冻结坐标保留 + 隐藏网格线
+    expect(summary.views[0]).toMatchObject({
+      state: 'frozen',
+      ySplit: 2,
+      xSplit: 2,
+      showGridLines: false,
+    })
+    // 合计行与说明行仍按原结构写出（rowIndex 冲突为 PR 前既有问题，另开 issue 处理）
     expect(summary.getCell('A5').value).toBe('* 黄色背景标记：该周数据不完整，仅供参考')
 
     const detail = workbook.getWorksheet('SKU明细')!
     expect(detail.getCell('B3').value).toBe('SKU-001')
-    expect(detail.getCell('C3').fill).toBeDefined()
-    expect(detail.getCell(3, 41).border).toBeDefined()
+    // 首个明细数据行（序号 0）为白色，空值尾列也有细边框
+    expect(detail.getCell('C3').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(detail.getCell(3, 41).border).toMatchObject({ top: { style: 'thin' } })
+    expect(detail.getCell('A1').master.address).toBe('A1')
+    expect(detail.views[0]).toMatchObject({
+      state: 'frozen',
+      ySplit: 2,
+      xSplit: 2,
+      showGridLines: false,
+    })
     expect(detail.getCell('A4').value).toBe('合计')
   })
 

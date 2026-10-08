@@ -690,7 +690,7 @@ function fillSummaryWorksheet(
   }
 ) {
   const lastColumn = SUMMARY_COLUMNS.length + 2
-  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2, showGridLines: false }]
 
   const groupRow = worksheet.getRow(1)
   const headRow = worksheet.getRow(2)
@@ -804,9 +804,6 @@ function fillSummaryWorksheet(
   })
 
   const totalRow = worksheet.getRow(rowIndex)
-  for (let column = 1; column <= lastColumn; column += 1) {
-    applyCellBorder(totalRow.getCell(column), 'FFCBD5E1')
-  }
   totalRow.getCell(1).value = '合计'
   totalRow.getCell(2).value = `${summaryRows.length} 周`
   SUMMARY_COLUMNS.forEach((column, idx) => {
@@ -887,7 +884,7 @@ function fillDetailWorksheet(
   }
 ) {
   const lastColumn = detailColumns.length
-  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2, showGridLines: false }]
 
   const groupRow = worksheet.getRow(1)
   const headRow = worksheet.getRow(2)
@@ -1001,9 +998,6 @@ function fillDetailWorksheet(
   })
 
   const totalRow = worksheet.getRow(rowIndex)
-  for (let column = 1; column <= lastColumn; column += 1) {
-    applyCellBorder(totalRow.getCell(column), 'FFCBD5E1')
-  }
   detailColumns.forEach((column, idx) => {
     const cell = totalRow.getCell(idx + 1)
     if (column === '日期') {

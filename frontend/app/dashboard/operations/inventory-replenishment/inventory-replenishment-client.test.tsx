@@ -39,6 +39,10 @@ const { stableSession, mockNotify } = vi.hoisted(() => ({
   mockNotify: vi.fn(),
 }))
 
+const { downloadBlobMock } = vi.hoisted(() => ({ downloadBlobMock: vi.fn() }))
+
+vi.mock('@/lib/download-blob', () => ({ downloadBlob: downloadBlobMock }))
+
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: nav.get, toString: nav.toString }),
   usePathname: () => '/dashboard/operations/inventory-replenishment',
@@ -224,6 +228,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  downloadBlobMock.mockReset()
   vi.unstubAllGlobals()
   headerCapture.refreshHandler = null
   headerCapture.refreshLoading = undefined
@@ -269,6 +274,50 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     expect(screen.getByText('全部状态')).toBeInTheDocument()
     expect(screen.getByText('项目A')).toBeInTheDocument()
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+  })
+
+  it('导出 Excel：数据行斑马纹，合计行使用统一样式（浅灰蓝 + 顶部粗线）且数值/格式不变', async () => {
+    const user = userEvent.setup()
+    render(<InventoryReplenishmentPage />)
+    await screen.findByText('SKU-001')
+
+    const exportButton = screen.getByRole('button', { name: /导出 Excel/ })
+    await vi.waitFor(() => expect(exportButton).toBeEnabled())
+    await user.click(exportButton)
+    await vi.waitFor(() => expect(downloadBlobMock).toHaveBeenCalledTimes(1))
+
+    const [blob] = downloadBlobMock.mock.calls[0] as [Blob, string]
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(await blob.arrayBuffer())
+    const worksheet = workbook.getWorksheet('补货分析')!
+
+    // 数据行（序号 0）白色，空值列也有细边框
+    expect(worksheet.getCell('A2').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(worksheet.getCell('Z2').border).toMatchObject({ top: { style: 'thin' } })
+
+    // 合计行：浅灰蓝底 + 顶部 medium 强调线，与相邻斑马行可区分
+    const totalRow = worksheet.getRow(3)
+    expect(totalRow.getCell(1).value).toBe('筛选结果合计')
+    expect(totalRow.getCell(1).fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
+    expect(totalRow.getCell(1).border).toMatchObject({
+      top: { style: 'medium', color: { argb: 'FF94A3B8' } },
+    })
+    expect(totalRow.getCell(1).font).toMatchObject({ bold: true })
+
+    // 合并值与 numFmt 不变
+    expect(totalRow.getCell(3).value).toBe(100)
+    expect(totalRow.getCell(3).numFmt).toBe('#,##0')
+    expect(totalRow.getCell(4).value).toBe(50)
+    expect(totalRow.getCell(5).value).toBe(1.2)
+    expect(totalRow.getCell(5).numFmt).toBe('0.0000')
+    expect(totalRow.getCell(11).value).toBe(1.18)
+    expect(totalRow.getCell(11).numFmt).toBe('0.00')
+    expect(totalRow.getCell(20).value).toBe(200)
+    expect(totalRow.getCell(21).value).toBe('SKU: 1')
+    // 工作表设置不变（隐藏网格线 + 冻结首行首列）
+    expect(worksheet.views[0]).toMatchObject({ showGridLines: false })
+    expect(worksheet.views[0].state).toBe('frozen')
   })
 
   it('旧控制台已移除：无「刷新重算」按钮、无「控制台」文案', async () => {

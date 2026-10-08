@@ -787,6 +787,10 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     const summarySheet = wb.addWorksheet('汇总')
     const detailSheet = wb.addWorksheet('SKU明细')
 
+    // 目标工作表隐藏网格线；不新增冻结行列（与统一导出样式计划一致）
+    summarySheet.views = [{ showGridLines: false }]
+    detailSheet.views = [{ showGridLines: false }]
+
     const startDateCompact = startDate.replaceAll('-', '')
     const endDateCompact = endDate.replaceAll('-', '')
     const safeProjectName = projectLabel.replace(/[\\/:*?"<>|]/g, '-')
