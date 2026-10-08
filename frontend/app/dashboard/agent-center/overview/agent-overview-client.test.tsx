@@ -60,7 +60,7 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供;已接入域在 7 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
+        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
       )
     ).toBeInTheDocument()
   })
@@ -100,7 +100,7 @@ describe('AgentOverviewClient 数据流总览', () => {
   it('聚合数据缺位时运行时三列降级为占位(P2b 端点未上线)', () => {
     render(<AgentOverviewClient />)
     const row = screen.getByRole('row', { name: /客户消息/ })
-    // 无调用量 / 错误率特征,运行时列(24h / 7d / 错误)显示占位
+    // 无调用量 / 错误率特征,运行时列(24h / 30d / 错误)显示占位
     expect(within(row).queryByText(/^\d+ \/ \d+$/)).not.toBeInTheDocument()
     expect(within(row).queryByText(/^\d+%$/)).not.toBeInTheDocument()
     expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(3)
@@ -112,11 +112,11 @@ describe('AgentOverviewClient 数据流总览', () => {
 
     const row = screen.getByRole('row', { name: /货件管理/ })
     const cells = within(row).getAllByRole('cell')
-    expect(cells[4]).toHaveTextContent('7 天内无调用')
+    expect(cells[4]).toHaveTextContent('30 天内无调用')
     expect(cells[5]).toHaveTextContent('0')
     expect(cells[6]).toHaveTextContent('0')
     expect(cells[7]).toHaveTextContent('无调用')
-    expect(cells[7]).toHaveAttribute('title', '7 天内无调用，错误率不可计算')
+    expect(cells[7]).toHaveAttribute('title', '30 天内无调用，错误率不可计算')
   })
 
   it('聚合数据就位时点亮:调用量 / 错误率着色 / 新鲜度相对时间', () => {
@@ -126,26 +126,26 @@ describe('AgentOverviewClient 数据流总览', () => {
         complaint_center: {
           domain: 'complaint_center',
           calls_24h: 12,
-          calls_7d: 89,
+          calls_30d: 89,
           writes_24h: 2,
-          writes_7d: 14,
-          errors_7d: 0,
+          writes_30d: 14,
+          errors_30d: 0,
           last_active_at: new Date(now - 3 * 3_600_000).toISOString(),
         },
         sku_info: {
           domain: 'sku_info',
           calls_24h: 3,
-          calls_7d: 23,
+          calls_30d: 23,
           writes_24h: 1,
-          writes_7d: 5,
-          errors_7d: 3,
+          writes_30d: 5,
+          errors_30d: 3,
           last_active_at: new Date(now - 2 * 86_400_000).toISOString(),
         },
       },
       'ok'
     )
     render(<AgentOverviewClient />)
-    // 调用量拆为 24h / 7d 两个数字列（右对齐）
+    // 调用量拆为 24h / 30d 两个数字列（右对齐）
     const complaintRow = screen.getByRole('row', { name: /客户消息/ })
     expect(within(complaintRow).getByText('12')).toBeInTheDocument()
     expect(within(complaintRow).getByText('89')).toBeInTheDocument()

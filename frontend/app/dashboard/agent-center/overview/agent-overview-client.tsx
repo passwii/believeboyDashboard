@@ -34,7 +34,7 @@ import { AGENT_DOMAINS } from '@/lib/agent-domains'
  * Agent 中心 · 数据流总览。
  *
  * 静态部分 = AGENT_DOMAINS 注册表(接入状态 / 能力 / 入口跳转,产出域置顶呼应侧栏叙事);
- * 运行时部分 = domain-summary 聚合(P2b 前端已预埋):最近活动(新鲜度灯)/ 24h·7d 调用量 / 7d 错误率,
+ * 运行时部分 = domain-summary 聚合(P2b 前端已预埋):最近活动(新鲜度灯)/ 24h·30d 调用量 / 30d 错误率,
  * 后端端点未上线时三列降级为占位「—」,上线后自动点亮。
  */
 
@@ -90,9 +90,9 @@ export function productionCell(code: string, production: ReturnType<typeof useAg
   }
 }
 
-function errorRateText(errors7d: number, calls7d: number): string {
-  if (calls7d <= 0) return '—'
-  return `${Math.round((errors7d / calls7d) * 100)}%`
+function errorRateText(errors30d: number, calls30d: number): string {
+  if (calls30d <= 0) return '—'
+  return `${Math.round((errors30d / calls30d) * 100)}%`
 }
 
 export default function AgentOverviewClient() {
@@ -113,7 +113,7 @@ export default function AgentOverviewClient() {
       <DataTableCard>
         <DataTableCardHeader
           title="业务域活动矩阵"
-          description={`共 ${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 7d 错误率由 domain-summary 提供;已接入域在 7 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。`}
+          description={`共 ${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。`}
         />
         <DataTableCardBody>
           {/* 11 列定宽 + 「说明」吸收余量：窄屏由 Table 原语容器承接横滑（table-spec §1.7） */}
@@ -126,8 +126,8 @@ export default function AgentOverviewClient() {
                 { width: 56 }, // 路由
                 { width: 96 }, // 最近活动
                 { width: 80 }, // 调用 24h
-                { width: 80 }, // 调用 7d
-                { width: 80 }, // 7d 错误
+                { width: 80 }, // 调用 30d
+                { width: 80 }, // 30d 错误
                 { width: 100 }, // 今日产出
                 { width: 80 }, // 状态
                 { width: 56 }, // 入口
@@ -141,8 +141,8 @@ export default function AgentOverviewClient() {
                 <TableHead className={numericHead}>路由</TableHead>
                 <TableHead className="whitespace-nowrap">最近活动</TableHead>
                 <TableHead className={numericHead}>调用 24h</TableHead>
-                <TableHead className={numericHead}>调用 7d</TableHead>
-                <TableHead className={numericHead}>7d 错误</TableHead>
+                <TableHead className={numericHead}>调用 30d</TableHead>
+                <TableHead className={numericHead}>30d 错误</TableHead>
                 <TableHead className="whitespace-nowrap">今日产出</TableHead>
                 <TableHead className="whitespace-nowrap">状态</TableHead>
                 <TableHead className="!text-center">入口</TableHead>
@@ -191,7 +191,7 @@ export default function AgentOverviewClient() {
                             className={`h-1.5 w-1.5 rounded-full bg-current ${FRESHNESS_STYLE[freshnessFor(row?.last_active_at)]}`}
                           />
                           <span className="text-term-muted">
-                            {row ? formatRelativeTime(row.last_active_at) : '7 天内无调用'}
+                            {row ? formatRelativeTime(row.last_active_at) : '30 天内无调用'}
                           </span>
                         </span>
                       ) : (
@@ -206,30 +206,30 @@ export default function AgentOverviewClient() {
                     </TableCell>
                     <TableCell
                       className={`${numericCell} text-term-muted`}
-                      title={hasSummary ? `写 7d:${row?.writes_7d ?? 0}` : undefined}
+                      title={hasSummary ? `写 30d:${row?.writes_30d ?? 0}` : undefined}
                     >
-                      {row?.calls_7d ?? (hasSummary ? 0 : <span className="text-term-faint">—</span>)}
+                      {row?.calls_30d ?? (hasSummary ? 0 : <span className="text-term-faint">—</span>)}
                     </TableCell>
                     <TableCell
                       className={numericCell}
                       title={
                         row
-                          ? `${row.errors_7d} 次错误 / ${row.calls_7d} 次调用`
+                          ? `${row.errors_30d} 次错误 / ${row.calls_30d} 次调用`
                           : hasSummary
-                            ? '7 天内无调用，错误率不可计算'
+                            ? '30 天内无调用，错误率不可计算'
                             : undefined
                       }
                     >
                       {row ? (
                         <span
                           className={`font-mono tabular-nums ${
-                            row.errors_7d > 0 ? 'text-term-neg' : 'text-term-muted'
+                            row.errors_30d > 0 ? 'text-term-neg' : 'text-term-muted'
                           }`}
                         >
-                          {errorRateText(row.errors_7d, row.calls_7d)}
+                          {errorRateText(row.errors_30d, row.calls_30d)}
                         </span>
                       ) : hasSummary ? (
-                        <span className="text-term-faint" title="7 天内无调用，错误率不可计算">
+                        <span className="text-term-faint" title="30 天内无调用，错误率不可计算">
                           无调用
                         </span>
                       ) : (
