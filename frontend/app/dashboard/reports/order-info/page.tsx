@@ -387,7 +387,7 @@ function OrderInfoPageInner() {
   } | null>(null)
   const requestGenerationRef = useRef(0)
   const fetchScheduleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fetchScheduleIncludeStatsRef = useRef(false)
+  const fetchScheduleIntentRef = useRef<{ requestKey: string; includeStats: boolean } | null>(null)
 
   // 关键字即时提交到 query state；统一由下方 query scheduler 做 250ms debounce。
   useEffect(() => {
@@ -613,27 +613,35 @@ function OrderInfoPageInner() {
   const fetchDataRef = useRef(fetchData)
   fetchDataRef.current = fetchData
 
-  // 筛选 debounce、翻页和手动刷新共用一个调度器；相同 query 的在途请求由 fetchData 去重。
-  const scheduleFetch = useCallback((delayMs = 250, includeStats = false) => {
+  const clearScheduledFetch = useCallback(() => {
     if (fetchScheduleTimerRef.current) clearTimeout(fetchScheduleTimerRef.current)
-    fetchScheduleIncludeStatsRef.current ||= includeStats
+    fetchScheduleTimerRef.current = null
+    fetchScheduleIntentRef.current = null
+  }, [])
+
+  // 筛选 debounce、翻页和手动刷新共用一个调度器；强制统计意图只对排队时的 query/page 生效。
+  const scheduleFetch = useCallback((delayMs = 250, includeStats = false) => {
+    clearScheduledFetch()
+    const intent = { requestKey, includeStats }
+    fetchScheduleIntentRef.current = intent
     fetchScheduleTimerRef.current = setTimeout(() => {
       fetchScheduleTimerRef.current = null
-      const shouldIncludeStats = fetchScheduleIncludeStatsRef.current
-      fetchScheduleIncludeStatsRef.current = false
-      void fetchDataRef.current(shouldIncludeStats)
+      if (fetchScheduleIntentRef.current !== intent) return
+      fetchScheduleIntentRef.current = null
+      if (intent.requestKey !== requestKeyRef.current) return
+      void fetchDataRef.current(intent.includeStats)
     }, delayMs)
-  }, [])
+  }, [clearScheduledFetch, requestKey])
 
   // 卸载时取消 debounce 与在飞请求，避免后台请求或已卸载组件更新状态。
   useEffect(() => {
     return () => {
-      if (fetchScheduleTimerRef.current) clearTimeout(fetchScheduleTimerRef.current)
+      clearScheduledFetch()
       activeRequestRef.current?.controller.abort()
       activeRequestRef.current = null
       requestGenerationRef.current += 1
     }
-  }, [])
+  }, [clearScheduledFetch])
 
   // 首屏默认近 7 天：仅在 URL 未预填日期时设置
   // 在 mount 后 effect 里 setState 而不是 useState 初值，
@@ -666,15 +674,11 @@ function OrderInfoPageInner() {
     }
 
     scheduleFetch(250)
-    return () => {
-      if (fetchScheduleTimerRef.current) {
-        clearTimeout(fetchScheduleTimerRef.current)
-        fetchScheduleTimerRef.current = null
-      }
-    }
+    return clearScheduledFetch
   }, [
     requestKey,
     scheduleFetch,
+    clearScheduledFetch,
     projectAutoselectDone,
     projectListLoading,
     projectListError,

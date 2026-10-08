@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -760,6 +760,40 @@ describe('订单信息页终端化（BLF-817）', () => {
       })
       expect(screen.getByText('Σ 单量').closest('span')).toHaveTextContent('3')
       expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(1)
+  })
+
+  it('第 2 页刷新尚未执行时快速翻页，取消旧意图并让新页只请求 list', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...OVERVIEW_OK, total: 150 }))
+    resetGfAndParams()
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    await screen.findByText('111-1111111-0000001')
+    await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => {
+      const url = new URL(String(fetchMock.mock.calls.at(-1)![0]), 'http://localhost')
+      expect(url.pathname).toBe('/api/backend/api/v1/order-info/list')
+      expect(url.searchParams.get('page')).toBe('2')
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: '下一页' })).toBeEnabled())
+
+    fetchMock.mockClear()
+    act(() => {
+      headerRefreshState.handler?.()
+      fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const url = new URL(String(fetchMock.mock.calls[0]![0]), 'http://localhost')
+      expect(url.pathname).toBe('/api/backend/api/v1/order-info/list')
+      expect(url.searchParams.get('page')).toBe('3')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/order-info/overview'))).toHaveLength(0)
   })
 
   it('过滤条件切换后 abort 旧请求，并拒绝忽略 abort 的过期响应', async () => {
