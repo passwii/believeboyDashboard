@@ -7,6 +7,7 @@ import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
@@ -19,48 +20,58 @@ import { ForecastChart } from './components/forecast-chart'
 import { SkuForecastTable } from './components/sku-forecast-table'
 
 const API_BASE = '/api/backend/api/v1/shipping-plan'
+const BACKEND_API_BASE = '/api/backend/api/v1'
 const DAY_MS = 24 * 60 * 60 * 1000
 
-type Quality = 'ready' | 'missing_inventory' | 'missing_sales' | 'inventory_stale' | 'inventory_pending'
+type DecimalValue = number | string
 
 type ShippingPlanSku = {
-  project_id: number
-  country: string
   sku: string
   asin: string | null
   product_name: string | null
   available_inventory: number | null
   inventory_snapshot_date: string | null
-  base_dms: number | null
-  growth_factor: number
+  base_dms: DecimalValue | null
+  growth_factor: DecimalValue
   demand_source: 'manual' | 'default'
   in_transit_quantity: number
   draft_quantity: number
-  planned_remaining_quantity: number
-  confirmed_sales_cap: number | null
-  planned_sales_cap: number | null
-  data_quality: Quality
-  data_quality_reasons: string[]
+  active_plan_remaining_quantity: number
+  confirmed_180d_sales_upper_bound: DecimalValue | null
+  planned_180d_sales_upper_bound: DecimalValue | null
+  data_quality: string[]
+}
+
+type ShippingPlanSkuListResponse = {
+  items: ShippingPlanSku[]
+  total: number
+  page: number
+  page_size: number
+  valid_forecast_sku_count: number
+  missing_forecast_sku_count: number
+  known_confirmed_sales_upper_bound: number
+  known_planned_sales_upper_bound: number
 }
 
 type ForecastPoint = {
   forecast_date: string
-  demand: number | null
-  confirmed_sales: number | null
-  planned_sales: number | null
-  confirmed_closing_inventory: number | null
-  planned_closing_inventory: number | null
+  demand: DecimalValue | null
+  confirmed_sales: DecimalValue | null
+  planned_sales: DecimalValue | null
+  confirmed_closing_inventory: DecimalValue | null
+  planned_closing_inventory: DecimalValue | null
   historical_order_sales: number | null
   interval_start?: string
   interval_end?: string
 }
 
-type ArrivalWarning = {
-  kind: string
+type ForecastArrival = {
+  arrival_date: string | null
   sku: string
-  shipment_no?: string | null
   quantity: number
-  message: string
+  source_type: string
+  reference: string | null
+  data_quality: string | null
 }
 
 type ForecastResponse = {
@@ -74,23 +85,38 @@ type ForecastResponse = {
   base_dms: number | null
   growth_factor: number
   demand_source: 'manual' | 'default'
-  data_quality: Quality
-  data_quality_reasons: string[]
+  sales_baseline_start_date: string
+  sales_baseline_end_date: string
+  data_quality: string[]
   daily_points: ForecastPoint[]
-  confirmed_sales_cap: number | null
-  planned_sales_cap: number | null
-  arrivals: ArrivalWarning[]
+  confirmed_180d_sales_upper_bound: DecimalValue | null
+  planned_180d_sales_upper_bound: DecimalValue | null
+  unverified_completed_quantity: number
+  overdue_shipment_quantity: number
+  overdue_plan_quantity: number
+  arrivals: ForecastArrival[]
 }
 
-type ShipmentMonth = { month: string; shipment_count: number; total_quantity: number }
+type ShipmentMonth = { month: string; shipment_count: number; quantity: number }
 type ShipmentHistory = {
+  project_id: number
+  country: string
+  etd_from: string
+  etd_to: string
   months: ShipmentMonth[]
-  missing_etd_count: number
+  missing_etd_shipment_count: number
   missing_etd_quantity: number
   included_statuses: string[]
+  date_basis: string
 }
 
-type PlanAllocation = { id: number; shipment_schedule_id: number; shipment_no: string; quantity: number }
+type PlanAllocation = {
+  id: number
+  plan_item_id: number
+  shipment_schedule_id: number
+  sku: string
+  quantity: number
+}
 type PlanItem = {
   id: number
   sku: string
@@ -112,18 +138,40 @@ type PlanBatchesResponse = { items: PlanBatch[] }
 type ShipmentCandidate = {
   id: number
   shipment_no: string
+  shipment_status: 'draft' | 'in_transit'
+  etd_date: string | null
+  eta_date: string | null
+  available_quantity: number
+}
+
+type EditablePlanItem = { id: number | string; sku: string; quantity: string; allocated: number }
+
+type ShipmentScheduleListResponse = {
+  items: Array<{
+    id: number
+    shipment_no: string
+    shipment_status: 'draft' | 'in_transit' | 'completed'
+    etd_date: string | null
+    eta_date: string | null
+  }>
+  has_next: boolean
+}
+
+type ShipmentScheduleDetail = {
+  id: number
+  shipment_no: string
   shipment_status: 'draft' | 'in_transit' | 'completed'
   etd_date: string | null
   eta_date: string | null
-  sku_quantity: number
-  available_quantity: number
+  items: Array<{ sku: string; quantity: number }>
 }
 
 type ApiErrorPayload = { detail?: string }
 
-function formatNumber(value: number | null | undefined, digits = 1): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(value)
+function formatNumber(value: DecimalValue | null | undefined, digits = 1): string {
+  const numeric = value == null ? null : Number(value)
+  if (numeric == null || !Number.isFinite(numeric)) return '—'
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(numeric)
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -141,7 +189,8 @@ function queryString(values: Record<string, string | number | null | undefined>)
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const url = path.startsWith(`${BACKEND_API_BASE}/`) ? path : `${API_BASE}${path}`
+  const response = await fetch(url, {
     credentials: 'include',
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -160,27 +209,39 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-function qualityLabel(quality: Quality): string {
-  const labels: Record<Quality, string> = {
-    ready: '可计算',
-    missing_inventory: '缺少库存快照',
-    missing_sales: '缺少销量基线',
-    inventory_stale: '库存快照待更新',
-    inventory_pending: '库存状态待核实',
-  }
-  return labels[quality] ?? '数据待核实'
+function qualityKey(reasons: string[]): 'ready' | 'missing_inventory' | 'missing_sales' | 'inventory_stale' | 'inventory_pending' {
+  if (reasons.length === 0) return 'ready'
+  if (reasons.includes('inventory_snapshot_missing') || reasons.includes('sku_inventory_snapshot_missing')) return 'missing_inventory'
+  if (reasons.includes('sales_baseline_missing')) return 'missing_sales'
+  if (reasons.includes('post_snapshot_inbound_before_forecast_start')) return 'inventory_stale'
+  return 'inventory_pending'
 }
 
-function qualityTone(quality: Quality): string {
-  if (quality === 'ready') return 'border-term-pos/40 text-term-pos'
+function qualityReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    inventory_snapshot_missing: '缺少库存快照日期。',
+    sku_inventory_snapshot_missing: '快照中没有该 SKU 的可售数量。',
+    sales_baseline_missing: '缺少可用的销量基线。',
+    completed_inbound_unverified: '已完成货件缺少可核对的实际入仓日期或库存快照。',
+    post_snapshot_inbound_before_forecast_start: '库存快照后、预测开始前已有货件入仓；请更新快照。',
+    shipment_eta_missing: '部分正式货件没有可用 ETA。',
+    shipment_eta_overdue: '部分正式货件 ETA 已早于预测开始日期。',
+    plan_eta_overdue: '部分预期计划日期已早于预测开始日期。',
+  }
+  return labels[reason] ?? reason
+}
+
+function qualityTone(reasons: string[]): string {
+  if (reasons.length === 0) return 'border-term-pos/40 text-term-pos'
   return 'border-term-warn/50 text-term-warn'
 }
 
-function getHistoryWindow(): { from: string; to: string } {
-  const today = new Date()
-  const from = new Date(today.getTime() - 365 * DAY_MS)
-  const iso = (date: Date) => date.toISOString().slice(0, 10)
-  return { from: iso(from), to: iso(today) }
+function getSiteDates(country: string): { asOfDate: string; etdFrom: string; etdTo: string } {
+  const timezone = COUNTRY_TIMEZONE_MAP[country] ?? COUNTRY_TIMEZONE_MAP.US
+  const asOfDate = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date())
+  const [year, month, day] = asOfDate.split('-').map(Number)
+  const from = new Date(Date.UTC(year!, month! - 1, day! - 365))
+  return { asOfDate, etdFrom: from.toISOString().slice(0, 10), etdTo: asOfDate }
 }
 
 function StatLine({ label, value, note }: { label: string; value: string | number; note?: string }) {
@@ -201,6 +262,7 @@ export default function ShippingPlanClient() {
   const scopeReady = globalFilter.ready && Boolean(projectId) && projectId !== 'all' && country !== 'ALL'
 
   const [skus, setSkus] = useState<ShippingPlanSku[]>([])
+  const [skuSummary, setSkuSummary] = useState<ShippingPlanSkuListResponse | null>(null)
   const [forecast, setForecast] = useState<ForecastResponse | null>(null)
   const [history, setHistory] = useState<ShipmentHistory | null>(null)
   const [batches, setBatches] = useState<PlanBatch[]>([])
@@ -220,7 +282,7 @@ export default function ShippingPlanClient() {
   const [editingBatchId, setEditingBatchId] = useState<number | null>(null)
   const [editBatchName, setEditBatchName] = useState('')
   const [editBatchArrival, setEditBatchArrival] = useState('')
-  const [editBatchRows, setEditBatchRows] = useState<Array<{ id: number; sku: string; quantity: string; allocated: number }>>([])
+  const [editBatchRows, setEditBatchRows] = useState<EditablePlanItem[]>([])
   const [savingBatchEdit, setSavingBatchEdit] = useState(false)
   const [cancellingBatchId, setCancellingBatchId] = useState<number | null>(null)
   const [candidates, setCandidates] = useState<ShipmentCandidate[]>([])
@@ -236,6 +298,7 @@ export default function ShippingPlanClient() {
     const requestId = ++scopeRequestIdRef.current
     if (!scopeReady) {
       setSkus([])
+      setSkuSummary(null)
       setForecast(null)
       setHistory(null)
       setBatches([])
@@ -245,18 +308,30 @@ export default function ShippingPlanClient() {
     setLoading(true)
     setPageError(null)
     try {
-      const window = getHistoryWindow()
-      const [skuResponse, historyResponse, batchResponse] = await Promise.all([
-        requestJson<{ items: ShippingPlanSku[] }>(`/skus?${scopeQuery}&page=1&page_size=500`),
-        requestJson<ShipmentHistory>(`/shipment-history?${scopeQuery}&from=${window.from}&to=${window.to}`),
+      const window = getSiteDates(country)
+      const firstPage = await requestJson<ShippingPlanSkuListResponse>(
+        `/skus?${scopeQuery}&as_of_date=${window.asOfDate}&page=1&page_size=200`
+      )
+      const pageCount = Math.ceil(firstPage.total / firstPage.page_size)
+      const [remainingPages, historyResponse, batchResponse] = await Promise.all([
+        Promise.all(
+          Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) =>
+            requestJson<ShippingPlanSkuListResponse>(
+              `/skus?${scopeQuery}&as_of_date=${window.asOfDate}&page=${index + 2}&page_size=200`
+            )
+          )
+        ),
+        requestJson<ShipmentHistory>(`/shipment-history?${scopeQuery}&etd_from=${window.etdFrom}&etd_to=${window.etdTo}`),
         requestJson<PlanBatchesResponse>(`/batches?${scopeQuery}`),
       ])
       if (requestId !== scopeRequestIdRef.current) return
-      setSkus(skuResponse.items ?? [])
+      const allSkus = [firstPage, ...remainingPages].flatMap((page) => page.items ?? [])
+      setSkus(allSkus)
+      setSkuSummary(firstPage)
       setHistory(historyResponse)
       setBatches(batchResponse.items ?? [])
       setSelectedSku((current) =>
-        skuResponse.items?.some((item) => item.sku === current) ? current : (skuResponse.items?.[0]?.sku ?? '')
+        allSkus.some((item) => item.sku === current) ? current : (allSkus[0]?.sku ?? '')
       )
     } catch (error) {
       if (requestId === scopeRequestIdRef.current) {
@@ -265,7 +340,7 @@ export default function ShippingPlanClient() {
     } finally {
       if (requestId === scopeRequestIdRef.current) setLoading(false)
     }
-  }, [scopeQuery, scopeReady])
+  }, [country, scopeQuery, scopeReady])
 
   useEffect(() => {
     void reload()
@@ -279,7 +354,8 @@ export default function ShippingPlanClient() {
     }
     const controller = new AbortController()
     setForecastLoading(true)
-    requestJson<ForecastResponse>(`/forecast?${scopeQuery}&sku=${encodeURIComponent(selectedSku)}`, {
+    const asOfDate = getSiteDates(country).asOfDate
+    requestJson<ForecastResponse>(`/forecast?${scopeQuery}&as_of_date=${asOfDate}&sku=${encodeURIComponent(selectedSku)}`, {
       signal: controller.signal,
     })
       .then(setForecast)
@@ -296,25 +372,16 @@ export default function ShippingPlanClient() {
         if (!controller.signal.aborted) setForecastLoading(false)
       })
     return () => controller.abort()
-  }, [notify, scopeQuery, scopeReady, selectedSku])
+  }, [country, notify, scopeQuery, scopeReady, selectedSku])
 
   useEffect(() => {
     const current = skus.find((item) => item.sku === selectedSku)
     if (current) setFactorDraft(String(current.growth_factor ?? 1))
   }, [selectedSku, skus])
 
-  useEffect(() => {
-    if (!scopeReady) return
-    const controller = new AbortController()
-    requestJson<{ items: ShipmentCandidate[] }>(`/batches/allocations/candidates?${scopeQuery}`, { signal: controller.signal })
-      .then((response) => { if (!controller.signal.aborted) setCandidates(response.items ?? []) })
-      .catch(() => { if (!controller.signal.aborted) setCandidates([]) })
-    return () => controller.abort()
-  }, [scopeQuery, scopeReady])
-
   const selectedRow = skus.find((item) => item.sku === selectedSku) ?? null
-  const validSkuCount = skus.filter((item) => item.data_quality === 'ready').length
-  const missingSkuCount = skus.length - validSkuCount
+  const validSkuCount = skuSummary?.valid_forecast_sku_count ?? skus.filter((item) => qualityKey(item.data_quality) === 'ready').length
+  const missingSkuCount = skuSummary?.missing_forecast_sku_count ?? Math.max(0, skus.length - validSkuCount)
   const selectedPlanItems = useMemo(
     () => batches.flatMap((batch) => batch.items.map((item) => ({ ...item, batch }))),
     [batches]
@@ -331,9 +398,9 @@ export default function ShippingPlanClient() {
     }
     setSavingFactor(true)
     try {
-      await requestJson(`/skus/${encodeURIComponent(selectedSku)}/growth-factor?${scopeQuery}`, {
+      await requestJson(`/skus/${encodeURIComponent(selectedSku)}/growth-factor`, {
         method: 'PUT',
-        body: JSON.stringify({ growth_factor: factor }),
+        body: JSON.stringify({ project_id: Number(projectId), country, growth_factor: factor }),
       })
       notify({ type: 'success', title: '增长系数已保存', message: `${selectedSku} × ${factorDraft}` })
       await reload()
@@ -389,8 +456,8 @@ export default function ShippingPlanClient() {
     const items = editBatchRows.map((row) => ({ sku: row.sku, quantity: Number(row.quantity) }))
     const uniqueSkus = new Set(items.map((item) => item.sku))
     if (!editBatchName.trim() || !editBatchArrival || !items.length || uniqueSkus.size !== items.length ||
-      editBatchRows.some((row) => !Number.isInteger(Number(row.quantity)) || Number(row.quantity) < row.allocated)) {
-      notify({ type: 'error', title: '计划信息无效', message: 'SKU 不可重复；数量必须为整数且不能小于已关联量。' })
+      editBatchRows.some((row) => !row.sku || !skus.some((sku) => sku.sku === row.sku) || !Number.isInteger(Number(row.quantity)) || Number(row.quantity) <= 0 || Number(row.quantity) < row.allocated)) {
+      notify({ type: 'error', title: '计划信息无效', message: 'SKU 不可重复；数量必须为正整数且不能小于已关联量。' })
       return
     }
     setSavingBatchEdit(true)
@@ -430,11 +497,50 @@ export default function ShippingPlanClient() {
     setAllocationItemId(item.id)
     setAllocationQuantity(String(item.remaining_quantity))
     setAllocationScheduleId('')
+    setCandidates([])
     try {
-      const response = await requestJson<{ items: ShipmentCandidate[] }>(
-        `/batches/allocations/candidates?${scopeQuery}&sku=${encodeURIComponent(item.sku)}`
+      const schedulesByStatus = await Promise.all(
+        (['draft', 'in_transit'] as const).map(async (shipmentStatus) => {
+          const schedules: ShipmentScheduleListResponse['items'] = []
+          let page = 1
+          let hasNext = true
+          while (hasNext) {
+            const response = await requestJson<ShipmentScheduleListResponse>(
+              `${BACKEND_API_BASE}/shipment-schedules?${queryString({ project_id: projectId, country, shipment_status: shipmentStatus, page, page_size: 200, include_total: 'false' })}`
+            )
+            schedules.push(...response.items)
+            hasNext = response.has_next
+            page += 1
+          }
+          return schedules
+        })
       )
-      if (requestId === candidatesRequestIdRef.current) setCandidates(response.items ?? [])
+      const schedules = schedulesByStatus.flat()
+      const details = await Promise.all(
+        schedules.map((schedule) => requestJson<ShipmentScheduleDetail>(`${BACKEND_API_BASE}/shipment-schedules/${schedule.id}`))
+      )
+      if (requestId !== candidatesRequestIdRef.current) return
+      const existingAllocations = batches.flatMap((batch) => batch.items.flatMap((planItem) => planItem.allocations))
+      const available = details.flatMap((detail) => {
+        if (detail.shipment_status !== 'draft' && detail.shipment_status !== 'in_transit') return []
+        const skuQuantity = detail.items.find((shipmentItem) => shipmentItem.sku === item.sku)?.quantity
+        if (skuQuantity == null) return []
+        if (existingAllocations.some((allocation) => allocation.plan_item_id === item.id && allocation.shipment_schedule_id === detail.id)) return []
+        const alreadyAllocated = existingAllocations
+          .filter((allocation) => allocation.shipment_schedule_id === detail.id && allocation.sku === item.sku)
+          .reduce((sum, allocation) => sum + allocation.quantity, 0)
+        const availableQuantity = Math.max(0, skuQuantity - alreadyAllocated)
+        if (!availableQuantity) return []
+        return [{
+          id: detail.id,
+          shipment_no: detail.shipment_no,
+          shipment_status: detail.shipment_status,
+          etd_date: detail.etd_date,
+          eta_date: detail.eta_date,
+          available_quantity: availableQuantity,
+        }]
+      })
+      setCandidates(available)
     } catch (error) {
       if (requestId === candidatesRequestIdRef.current) {
         notify({ type: 'error', title: '正式货件读取失败', message: error instanceof Error ? error.message : '请重试' })
@@ -445,13 +551,16 @@ export default function ShippingPlanClient() {
   const submitAllocation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const quantity = Number(allocationQuantity)
-    if (!allocationItemId || !allocationScheduleId || !Number.isInteger(quantity) || quantity <= 0) {
-      notify({ type: 'error', title: '关联信息不完整', message: '请选择正式货件并输入正整数数量。' })
+    const selectedCandidate = candidates.find((candidate) => candidate.id === Number(allocationScheduleId))
+    if (!allocationItemId || !selectedCandidate || !Number.isInteger(quantity) || quantity <= 0 || quantity > selectedCandidate.available_quantity) {
+      notify({ type: 'error', title: '关联信息不完整', message: '请选择正式货件，并输入不超过计划余额和货件可分配量的正整数。' })
       return
     }
     setSavingAllocation(true)
     try {
-      await requestJson(`/batches/${batches.find((batch) => batch.items.some((item) => item.id === allocationItemId))?.id}/allocations?${scopeQuery}`, {
+      const batchId = batches.find((batch) => batch.items.some((item) => item.id === allocationItemId))?.id
+      if (!batchId) throw new Error('找不到该计划所属批次，请刷新后重试。')
+      await requestJson(`/batches/${batchId}/allocations?${scopeQuery}`, {
         method: 'POST',
         body: JSON.stringify({ plan_item_id: allocationItemId, shipment_schedule_id: Number(allocationScheduleId), quantity }),
       })
@@ -519,7 +628,7 @@ export default function ShippingPlanClient() {
     { label: 'SKU', value: loading ? '…' : skus.length },
     { label: '可计算', value: loading ? '…' : validSkuCount },
     { label: '数据待核实', value: loading ? '…' : missingSkuCount },
-    { label: 'ETD 缺失货件', value: history ? `${history.missing_etd_count} 件` : '—' },
+    { label: 'ETD 缺失货件', value: history ? `${history.missing_etd_shipment_count} 件` : '—' },
   ]
 
   return (
@@ -571,7 +680,7 @@ export default function ShippingPlanClient() {
               <>
                 <div className="flex items-start justify-between gap-3 border-b border-term-border pb-3">
                   <div className="min-w-0"><div className="truncate font-mono text-base font-semibold text-term-text">{selectedRow.sku}</div><div className="mt-1 truncate text-xs text-term-muted">{selectedRow.product_name || selectedRow.asin || '未维护商品信息'}</div></div>
-                  <Badge variant="outline" className={`shrink-0 rounded-none font-mono text-[10px] ${qualityTone(selectedRow.data_quality)}`}>{qualityLabel(selectedRow.data_quality)}</Badge>
+                  <Badge variant="outline" className={`shrink-0 rounded-none font-mono text-[10px] ${qualityTone(selectedRow.data_quality)}`}>{selectedRow.data_quality.length ? '数据待核实' : '可计算'}</Badge>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                   <Metric label="可售库存" value={formatNumber(selectedRow.available_inventory, 0)} />
@@ -579,9 +688,9 @@ export default function ShippingPlanClient() {
                   <Metric label="基础 DMS" value={formatNumber(selectedRow.base_dms, 3)} />
                   <Metric label="在途数量" value={formatNumber(selectedRow.in_transit_quantity, 0)} />
                   <Metric label="草稿数量" value={formatNumber(selectedRow.draft_quantity, 0)} />
-                  <Metric label="有效计划余额" value={formatNumber(selectedRow.planned_remaining_quantity, 0)} />
-                  <Metric label="确定情景上限" value={formatNumber(selectedRow.confirmed_sales_cap, 0)} />
-                  <Metric label="计划情景上限" value={formatNumber(selectedRow.planned_sales_cap, 0)} />
+                  <Metric label="有效计划余额" value={formatNumber(selectedRow.active_plan_remaining_quantity, 0)} />
+                  <Metric label="确定情景上限" value={formatNumber(selectedRow.confirmed_180d_sales_upper_bound, 0)} />
+                  <Metric label="计划情景上限" value={formatNumber(selectedRow.planned_180d_sales_upper_bound, 0)} />
                 </dl>
                 <div className="border-t border-term-border pt-3">
                   <label htmlFor="growth-factor" className="mb-2 block font-mono text-xs text-term-muted">SKU 增长系数</label>
@@ -591,7 +700,7 @@ export default function ShippingPlanClient() {
                   </div>
                   <p className="mt-2 text-[11px] leading-5 text-term-muted">当前来源：{selectedRow.demand_source === 'manual' ? '手工设置' : '系统缺省 1.0'}</p>
                 </div>
-                {selectedRow.data_quality_reasons.length ? <ul className="space-y-1 border-t border-term-border pt-3 text-xs leading-5 text-term-warn">{selectedRow.data_quality_reasons.map((reason) => <li key={reason}>· {reason}</li>)}</ul> : null}
+                {selectedRow.data_quality.length ? <ul className="space-y-1 border-t border-term-border pt-3 text-xs leading-5 text-term-warn">{selectedRow.data_quality.map((reason) => <li key={reason}>· {qualityReasonLabel(reason)}</li>)}</ul> : null}
               </>
             ) : <p className="text-sm text-term-muted">加载 SKU 参数中…</p>}
           </DataTableCardBody>
@@ -625,7 +734,37 @@ export default function ShippingPlanClient() {
               </div>
             </form>
             {activePlanQuantity > 0 ? <p className="font-mono text-xs text-term-muted">当前 SKU 有效计划余额：{formatNumber(activePlanQuantity, 0)} 件</p> : null}
-            <PlanBatchList batches={batches} selectedSku={selectedSku} allocationItemId={allocationItemId} allocationScheduleId={allocationScheduleId} allocationQuantity={allocationQuantity} candidates={candidates} savingAllocation={savingAllocation} cancellingBatchId={cancellingBatchId} editingBatchId={editingBatchId} editBatchName={editBatchName} editBatchArrival={editBatchArrival} editBatchRows={editBatchRows} savingBatchEdit={savingBatchEdit} onEditBatch={beginBatchEdit} onEditBatchNameChange={setEditBatchName} onEditBatchArrivalChange={setEditBatchArrival} onEditBatchRowChange={(index, patch) => setEditBatchRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))} onSaveBatchEdit={(batch) => void saveBatchEdit(batch)} onCancelBatchEdit={() => setEditingBatchId(null)} onCancel={(batch) => void cancelBatch(batch)} onStartAllocation={(item) => void startAllocation(item)} onAllocationScheduleChange={setAllocationScheduleId} onAllocationQuantityChange={setAllocationQuantity} onSubmitAllocation={(event) => void submitAllocation(event)} onDismissAllocation={() => setAllocationItemId(null)} onRemoveAllocation={(id) => void removeAllocation(id)} />
+            <PlanBatchList
+              batches={batches}
+              selectedSku={selectedSku}
+              allocationItemId={allocationItemId}
+              allocationScheduleId={allocationScheduleId}
+              allocationQuantity={allocationQuantity}
+              candidates={candidates}
+              savingAllocation={savingAllocation}
+              cancellingBatchId={cancellingBatchId}
+              editingBatchId={editingBatchId}
+              editBatchName={editBatchName}
+              editBatchArrival={editBatchArrival}
+              editBatchRows={editBatchRows}
+              skus={skus}
+              savingBatchEdit={savingBatchEdit}
+              onEditBatch={beginBatchEdit}
+              onEditBatchNameChange={setEditBatchName}
+              onEditBatchArrivalChange={setEditBatchArrival}
+              onEditBatchRowChange={(index, patch) => setEditBatchRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))}
+              onAddEditBatchRow={() => setEditBatchRows((current) => [...current, { id: `new-${current.length}`, sku: '', quantity: '', allocated: 0 }])}
+              onRemoveEditBatchRow={(index) => setEditBatchRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+              onSaveBatchEdit={(batch) => void saveBatchEdit(batch)}
+              onCancelBatchEdit={() => setEditingBatchId(null)}
+              onCancel={(batch) => void cancelBatch(batch)}
+              onStartAllocation={(item) => void startAllocation(item)}
+              onAllocationScheduleChange={setAllocationScheduleId}
+              onAllocationQuantityChange={setAllocationQuantity}
+              onSubmitAllocation={(event) => void submitAllocation(event)}
+              onDismissAllocation={() => setAllocationItemId(null)}
+              onRemoveAllocation={(id) => void removeAllocation(id)}
+            />
           </DataTableCardBody>
         </DataTableCard>
 
@@ -636,7 +775,7 @@ export default function ShippingPlanClient() {
             <p><strong className="font-mono text-term-text">ETD 发运：</strong>历史发运日期采用货件 ETD 代理口径，仅统计在途和已完成货件；无 ETD 记录单独显示。</p>
             <p><strong className="font-mono text-term-text">同比销量：</strong>去年同期 `orderSales` 仅用于图表参考；覆盖不完整的日期留空，不按零销量绘制。</p>
             <p><strong className="font-mono text-term-text">到货假设：</strong>V1 假设货件到仓日当天可售；实际可售时间可能晚于到仓日期。</p>
-            {forecast?.arrivals.length ? <div className="border-t border-term-border pt-3"><div className="mb-2 flex items-center gap-2 text-term-warn"><AlertTriangle className="h-4 w-4" />需要关注的到货</div><ul className="space-y-2">{forecast.arrivals.map((arrival, index) => <li key={`${arrival.kind}-${arrival.sku}-${arrival.shipment_no ?? index}`} className="border-b border-term-border pb-2 last:border-0">{arrival.message} <span className="font-mono">· {formatNumber(arrival.quantity, 0)} 件</span></li>)}</ul></div> : null}
+            {forecast?.arrivals.some((arrival) => arrival.data_quality) ? <div className="border-t border-term-border pt-3"><div className="mb-2 flex items-center gap-2 text-term-warn"><AlertTriangle className="h-4 w-4" />需要关注的到货</div><ul className="space-y-2">{forecast.arrivals.filter((arrival) => arrival.data_quality).map((arrival, index) => <li key={`${arrival.source_type}-${arrival.sku}-${arrival.reference ?? index}`} className="border-b border-term-border pb-2 last:border-0">{arrival.reference || arrival.source_type}：{arrival.arrival_date ? `日期 ${formatDate(arrival.arrival_date)}` : '日期未知'}，数据状态 {arrival.data_quality} <span className="font-mono">· {formatNumber(arrival.quantity, 0)} 件</span></li>)}</ul></div> : null}
           </DataTableCardBody>
         </DataTableCard>
       </div>
@@ -664,20 +803,20 @@ function ShipmentHistoryStrip({ history }: { history: ShipmentHistory }) {
       <DataTableCardBody>
         <div className="flex min-w-0 items-center gap-2 overflow-x-auto px-4 py-3 term-scroll">
           <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-term-muted"><CalendarDays className="h-3.5 w-3.5" />最近 12 个月</span>
-          {history.months.map((month) => <div key={month.month} className="min-w-24 border-l border-term-border pl-3"><div className="font-mono text-xs text-term-text">{month.month}</div><div className="mt-1 font-mono text-[11px] tabular-nums text-term-muted">{month.shipment_count} 件 · {formatNumber(month.total_quantity, 0)} 件数</div></div>)}
-          <div className="min-w-28 border-l border-term-warn/50 pl-3 text-xs text-term-warn">缺 ETD：{history.missing_etd_count} 件 / {formatNumber(history.missing_etd_quantity, 0)} 件数</div>
+          {history.months.map((month) => <div key={month.month} className="min-w-24 border-l border-term-border pl-3"><div className="font-mono text-xs text-term-text">{month.month}</div><div className="mt-1 font-mono text-[11px] tabular-nums text-term-muted">{month.shipment_count} 件 · {formatNumber(month.quantity, 0)} 件数</div></div>)}
+          <div className="min-w-28 border-l border-term-warn/50 pl-3 text-xs text-term-warn">缺 ETD：{history.missing_etd_shipment_count} 件 / {formatNumber(history.missing_etd_quantity, 0)} 件数</div>
         </div>
-        <div className="border-t border-term-border px-4 py-2 text-[11px] text-term-muted">统计状态：{history.included_statuses.map((status) => status === 'in_transit' ? '在途' : status === 'completed' ? '已完成' : status).join('、')}。物流成本历史排除标记不影响本统计。</div>
+        <div className="border-t border-term-border px-4 py-2 text-[11px] text-term-muted">统计状态：{history.included_statuses.map((status) => status === 'in_transit' ? '在途' : status === 'completed' ? '已完成' : status).join('、')}。{history.date_basis}。物流成本历史排除标记不影响本统计。</div>
       </DataTableCardBody>
     </DataTableCard>
   )
 }
 
 function PlanBatchList({
-  batches, selectedSku, allocationItemId, allocationScheduleId, allocationQuantity, candidates,
+  batches, skus, selectedSku, allocationItemId, allocationScheduleId, allocationQuantity, candidates,
   savingAllocation, cancellingBatchId, editingBatchId, editBatchName, editBatchArrival, editBatchRows,
   savingBatchEdit, onEditBatch, onEditBatchNameChange, onEditBatchArrivalChange, onEditBatchRowChange,
-  onSaveBatchEdit, onCancelBatchEdit, onCancel, onStartAllocation, onAllocationScheduleChange,
+  onAddEditBatchRow, onRemoveEditBatchRow, onSaveBatchEdit, onCancelBatchEdit, onCancel, onStartAllocation, onAllocationScheduleChange,
   onAllocationQuantityChange, onSubmitAllocation, onDismissAllocation, onRemoveAllocation,
 }: {
   batches: PlanBatch[]
@@ -691,12 +830,15 @@ function PlanBatchList({
   editingBatchId: number | null
   editBatchName: string
   editBatchArrival: string
-  editBatchRows: Array<{ id: number; sku: string; quantity: string; allocated: number }>
+  editBatchRows: EditablePlanItem[]
+  skus: ShippingPlanSku[]
   savingBatchEdit: boolean
   onEditBatch: (batch: PlanBatch) => void
   onEditBatchNameChange: (value: string) => void
   onEditBatchArrivalChange: (value: string) => void
-  onEditBatchRowChange: (index: number, patch: { quantity?: string }) => void
+  onEditBatchRowChange: (index: number, patch: { sku?: string; quantity?: string }) => void
+  onAddEditBatchRow: () => void
+  onRemoveEditBatchRow: (index: number) => void
   onSaveBatchEdit: (batch: PlanBatch) => void
   onCancelBatchEdit: () => void
   onCancel: (batch: PlanBatch) => void
@@ -721,17 +863,17 @@ function PlanBatchList({
               <div className="space-y-2 border border-term-border bg-term-raised p-3">
                 <Input aria-label="编辑计划批次名称" value={editBatchName} onChange={(event) => onEditBatchNameChange(event.target.value)} className="h-9 rounded-none border-term-border bg-term-bg" />
                 <Input aria-label="编辑预计到仓日期" type="date" value={editBatchArrival} onChange={(event) => onEditBatchArrivalChange(event.target.value)} className="h-9 rounded-none border-term-border bg-term-bg font-mono" />
-                {editBatchRows.map((row, index) => <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-2"><span className="truncate font-mono text-xs text-term-text">{row.sku}</span><div><Input aria-label={`编辑 ${row.sku} 计划数量`} type="number" min={row.allocated} step="1" value={row.quantity} onChange={(event) => onEditBatchRowChange(index, { quantity: event.target.value })} className="h-8 rounded-none border-term-border bg-term-bg font-mono" /><span className="mt-1 block text-[10px] text-term-muted">已关联至少 {row.allocated}</span></div></div>)}
-                <div className="flex gap-2"><Button type="button" size="sm" disabled={savingBatchEdit} onClick={() => onSaveBatchEdit(batch)} className="h-8 rounded-none">{savingBatchEdit ? '保存中…' : '保存修改'}</Button><Button type="button" variant="ghost" size="sm" onClick={onCancelBatchEdit} className="h-8 rounded-none">取消</Button></div>
+                {editBatchRows.map((row, index) => <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_110px_auto] items-center gap-2">{row.allocated > 0 ? <span className="truncate font-mono text-xs text-term-text">{row.sku}</span> : <select aria-label={`编辑计划 SKU ${index + 1}`} value={row.sku} onChange={(event) => onEditBatchRowChange(index, { sku: event.target.value })} className="h-8 min-w-0 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text"><option value="">选择 SKU</option>{skus.map((sku) => <option key={sku.sku} value={sku.sku}>{sku.sku}</option>)}</select>}<div><Input aria-label={`编辑 ${row.sku || `SKU ${index + 1}`} 计划数量`} type="number" min={Math.max(1, row.allocated)} step="1" value={row.quantity} onChange={(event) => onEditBatchRowChange(index, { quantity: event.target.value })} className="h-8 rounded-none border-term-border bg-term-bg font-mono" /><span className="mt-1 block text-[10px] text-term-muted">已关联至少 {row.allocated}</span></div><Button type="button" variant="ghost" size="sm" aria-label={`移除编辑 SKU ${index + 1}`} disabled={row.allocated > 0} onClick={() => onRemoveEditBatchRow(index)} className="h-8 rounded-none text-term-muted">移除</Button></div>)}
+                <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" disabled={savingBatchEdit || !skus.length} onClick={onAddEditBatchRow} className="h-8 rounded-none"><Plus className="mr-1 h-3.5 w-3.5" />添加 SKU</Button><Button type="button" size="sm" disabled={savingBatchEdit} onClick={() => onSaveBatchEdit(batch)} className="h-8 rounded-none">{savingBatchEdit ? '保存中…' : '保存修改'}</Button><Button type="button" variant="ghost" size="sm" onClick={onCancelBatchEdit} className="h-8 rounded-none">取消</Button></div>
               </div>
             ) : batch.items.map((item) => <div key={item.id} className={`border border-term-border px-3 py-2 ${selectedSku === item.sku ? 'bg-term-raised' : 'bg-term-panel'}`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-mono font-semibold text-term-text">{item.sku}</span><span className="font-mono tabular-nums text-term-muted">计划 {formatNumber(item.quantity, 0)} · 已关联 {formatNumber(item.allocated_quantity, 0)} · 余额 {formatNumber(item.remaining_quantity, 0)}</span></div>
-              {item.allocations.map((allocation) => <div key={allocation.id} className="mt-2 flex items-center justify-between gap-2 border-t border-term-border pt-2 text-[11px] text-term-muted"><span className="truncate">接替货件 <strong className="font-mono text-term-text">{allocation.shipment_no}</strong> · {allocation.quantity} 件</span><Button variant="ghost" size="sm" aria-label={`解除 ${allocation.shipment_no} 关联`} onClick={() => onRemoveAllocation(allocation.id)} className="h-7 rounded-none px-2 text-term-warn"><X className="h-3 w-3" />解除</Button></div>)}
+              {item.allocations.map((allocation) => <div key={allocation.id} className="mt-2 flex items-center justify-between gap-2 border-t border-term-border pt-2 text-[11px] text-term-muted"><span className="truncate">接替货件 <strong className="font-mono text-term-text">#{allocation.shipment_schedule_id}</strong> · {allocation.quantity} 件</span><Button variant="ghost" size="sm" aria-label={`解除货件 #${allocation.shipment_schedule_id} 关联`} onClick={() => onRemoveAllocation(allocation.id)} className="h-7 rounded-none px-2 text-term-warn"><X className="h-3 w-3" />解除</Button></div>)}
               {batch.status === 'active' && item.remaining_quantity > 0 ? <Button variant="outline" size="sm" onClick={() => onStartAllocation(item)} className="mt-2 h-7 rounded-none text-[11px]">关联正式货件</Button> : null}
               {allocationItemId === item.id ? <form onSubmit={onSubmitAllocation} className="mt-3 grid gap-2 border-t border-term-border pt-3 sm:grid-cols-[minmax(0,1fr)_100px_auto_auto]">
-                <Select value={allocationScheduleId} onValueChange={onAllocationScheduleChange}><SelectTrigger aria-label="选择正式货件" className="h-8 min-w-0 rounded-none border-term-border bg-term-bg font-mono text-[11px]"><SelectValue placeholder="选择草稿或在途货件" /></SelectTrigger><SelectContent className="rounded-none border-term-border bg-term-panel">{candidates.filter((candidate) => candidate.available_quantity > 0 && ['draft', 'in_transit'].includes(candidate.shipment_status)).map((candidate) => <SelectItem key={candidate.id} value={String(candidate.id)}>{candidate.shipment_no} · {candidate.shipment_status === 'draft' ? '草稿' : '在途'} · 可关联 {candidate.available_quantity}</SelectItem>)}</SelectContent></Select>
-                <Input aria-label="关联数量" type="number" min="1" max={item.remaining_quantity} step="1" value={allocationQuantity} onChange={(event) => onAllocationQuantityChange(event.target.value)} className="h-8 rounded-none border-term-border bg-term-bg font-mono" />
-                <Button type="submit" size="sm" disabled={savingAllocation} className="h-8 rounded-none">{savingAllocation ? '关联中…' : '确认'}</Button><Button type="button" variant="ghost" size="sm" onClick={onDismissAllocation} className="h-8 rounded-none">取消</Button>
+                <Select value={allocationScheduleId} onValueChange={onAllocationScheduleChange}><SelectTrigger aria-label="选择正式货件" className="h-8 min-w-0 rounded-none border-term-border bg-term-bg font-mono text-[11px]"><SelectValue placeholder="选择草稿或在途货件" /></SelectTrigger><SelectContent className="rounded-none border-term-border bg-term-panel">{candidates.filter((candidate) => candidate.available_quantity > 0 && ['draft', 'in_transit'].includes(candidate.shipment_status)).map((candidate) => <SelectItem key={candidate.id} value={String(candidate.id)}>{candidate.shipment_no} · {candidate.shipment_status === 'draft' ? '草稿' : '在途'} · ETD {candidate.etd_date ? formatDate(candidate.etd_date) : '未知'} · ETA {candidate.eta_date ? formatDate(candidate.eta_date) : '未知'} · 可关联 {candidate.available_quantity}</SelectItem>)}</SelectContent></Select>
+                <Input aria-label="关联数量" type="number" min="1" max={Math.min(item.remaining_quantity, candidates.find((candidate) => candidate.id === Number(allocationScheduleId))?.available_quantity ?? item.remaining_quantity)} step="1" value={allocationQuantity} onChange={(event) => onAllocationQuantityChange(event.target.value)} className="h-8 rounded-none border-term-border bg-term-bg font-mono" />
+                <Button type="submit" size="sm" disabled={savingAllocation || !allocationScheduleId || Number(allocationQuantity) > (candidates.find((candidate) => candidate.id === Number(allocationScheduleId))?.available_quantity ?? 0)} className="h-8 rounded-none">{savingAllocation ? '关联中…' : '确认'}</Button><Button type="button" variant="ghost" size="sm" onClick={onDismissAllocation} className="h-8 rounded-none">取消</Button>
               </form> : null}
             </div>)}
           </div>

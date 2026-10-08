@@ -5,33 +5,36 @@ import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+type DecimalValue = number | string
+
 export type ShippingPlanSkuRow = {
   sku: string
   asin: string | null
   product_name: string | null
   available_inventory: number | null
   inventory_snapshot_date: string | null
-  base_dms: number | null
-  growth_factor: number
+  base_dms: DecimalValue | null
+  growth_factor: DecimalValue
   demand_source: 'manual' | 'default'
   in_transit_quantity: number
   draft_quantity: number
-  planned_remaining_quantity: number
-  confirmed_sales_cap: number | null
-  planned_sales_cap: number | null
-  data_quality: 'ready' | 'missing_inventory' | 'missing_sales' | 'inventory_stale' | 'inventory_pending'
+  active_plan_remaining_quantity: number
+  confirmed_180d_sales_upper_bound: DecimalValue | null
+  planned_180d_sales_upper_bound: DecimalValue | null
+  data_quality: string[]
 }
 
-function number(value: number | null, digits = 0) {
-  return value == null ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(value)
+function number(value: DecimalValue | null, digits = 0) {
+  const numeric = value == null ? null : Number(value)
+  return numeric == null || !Number.isFinite(numeric) ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(numeric)
 }
 
-const QUALITY: Record<ShippingPlanSkuRow['data_quality'], string> = {
-  ready: '可计算',
-  missing_inventory: '缺少库存',
-  missing_sales: '缺少销量',
-  inventory_stale: '快照待更新',
-  inventory_pending: '待核实',
+function qualityMeta(reasons: string[]): { label: string; ready: boolean } {
+  if (!reasons.length) return { label: '可计算', ready: true }
+  if (reasons.includes('inventory_snapshot_missing') || reasons.includes('sku_inventory_snapshot_missing')) return { label: '缺少库存', ready: false }
+  if (reasons.includes('sales_baseline_missing')) return { label: '缺少销量', ready: false }
+  if (reasons.includes('post_snapshot_inbound_before_forecast_start')) return { label: '快照待更新', ready: false }
+  return { label: '待核实', ready: false }
 }
 
 export function SkuForecastTable({
@@ -71,6 +74,7 @@ export function SkuForecastTable({
               <TableBody>
                 {rows.map((row) => {
                   const selected = row.sku === selectedSku
+                  const quality = qualityMeta(row.data_quality)
                   return (
                     <TableRow
                       key={row.sku}
@@ -89,10 +93,10 @@ export function SkuForecastTable({
                       <TableCell className="text-right font-mono tabular-nums">{number(row.base_dms, 3)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{number(row.growth_factor, 4)}{row.demand_source === 'default' ? <span className="ml-1 text-term-muted">默认</span> : null}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{number(row.in_transit_quantity)} / {number(row.draft_quantity)}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{number(row.planned_remaining_quantity)}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{number(row.confirmed_sales_cap)}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{number(row.planned_sales_cap)}</TableCell>
-                      <TableCell><Badge variant="outline" className={`whitespace-nowrap rounded-none font-mono text-[10px] ${row.data_quality === 'ready' ? 'border-term-pos/40 text-term-pos' : 'border-term-warn/50 text-term-warn'}`}>{QUALITY[row.data_quality]}</Badge></TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{number(row.active_plan_remaining_quantity)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{number(row.confirmed_180d_sales_upper_bound)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{number(row.planned_180d_sales_upper_bound)}</TableCell>
+                      <TableCell><Badge variant="outline" className={`whitespace-nowrap rounded-none font-mono text-[10px] ${quality.ready ? 'border-term-pos/40 text-term-pos' : 'border-term-warn/50 text-term-warn'}`}>{quality.label}</Badge></TableCell>
                     </TableRow>
                   )
                 })}

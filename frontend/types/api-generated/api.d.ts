@@ -8573,6 +8573,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shipping-plan/allocations/{allocation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Shipping Plan Allocation */
+        delete: operations["remove_shipping_plan_allocation_api_v1_shipping_plan_allocations__allocation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Shipping Plan Batches */
+        get: operations["get_shipping_plan_batches_api_v1_shipping_plan_batches_get"];
+        put?: never;
+        /** Post Shipping Plan Batch */
+        post: operations["post_shipping_plan_batch_api_v1_shipping_plan_batches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Shipping Plan Batch */
+        patch: operations["patch_shipping_plan_batch_api_v1_shipping_plan_batches__batch_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/batches/{batch_id}/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Shipping Plan Allocation */
+        post: operations["post_shipping_plan_allocation_api_v1_shipping_plan_batches__batch_id__allocations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/batches/{batch_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Shipping Plan Batch */
+        post: operations["cancel_shipping_plan_batch_api_v1_shipping_plan_batches__batch_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Shipping Plan Forecast */
+        get: operations["get_shipping_plan_forecast_api_v1_shipping_plan_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/shipment-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Shipping Plan Shipment History */
+        get: operations["get_shipping_plan_shipment_history_api_v1_shipping_plan_shipment_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/skus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Shipping Plan Skus */
+        get: operations["get_shipping_plan_skus_api_v1_shipping_plan_skus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping-plan/skus/{sku}/growth-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Shipping Plan Growth Factor */
+        put: operations["put_shipping_plan_growth_factor_api_v1_shipping_plan_skus__sku__growth_factor_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shop-calculation": {
         parameters: {
             query?: never;
@@ -14633,6 +14787,41 @@ export interface components {
             status?: string | null;
             /** Subtitle */
             subtitle?: string | null;
+        };
+        /** ForecastArrival */
+        ForecastArrival: {
+            /** Arrival Date */
+            arrival_date: string | null;
+            /** Data Quality */
+            data_quality?: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Reference */
+            reference?: string | null;
+            /** Sku */
+            sku: string;
+            /** Source Type */
+            source_type: string;
+        };
+        /** ForecastPoint */
+        ForecastPoint: {
+            /** Confirmed Closing Inventory */
+            confirmed_closing_inventory: string | null;
+            /** Confirmed Sales */
+            confirmed_sales: string | null;
+            /** Demand */
+            demand: string | null;
+            /**
+             * Forecast Date
+             * Format: date
+             */
+            forecast_date: string;
+            /** Historical Order Sales */
+            historical_order_sales?: number | null;
+            /** Planned Closing Inventory */
+            planned_closing_inventory: string | null;
+            /** Planned Sales */
+            planned_sales: string | null;
         };
         /**
          * FulfillmentCenterItem
@@ -21762,6 +21951,51 @@ export interface components {
             /** Shipment Nos */
             shipment_nos: string[];
         };
+        /** ShipmentHistoryMonth */
+        ShipmentHistoryMonth: {
+            /** Month */
+            month: string;
+            /** Quantity */
+            quantity: number;
+            /** Shipment Count */
+            shipment_count: number;
+        };
+        /** ShipmentHistoryResponse */
+        ShipmentHistoryResponse: {
+            /** Country */
+            country: string;
+            /**
+             * Date Basis
+             * @default ETD 作为 V1 计划发运日期代理，不代表实际离港日
+             */
+            date_basis: string;
+            /**
+             * Etd From
+             * Format: date
+             */
+            etd_from: string;
+            /**
+             * Etd To
+             * Format: date
+             */
+            etd_to: string;
+            /**
+             * Included Statuses
+             * @default [
+             *       "in_transit",
+             *       "completed"
+             *     ]
+             */
+            included_statuses: string[];
+            /** Missing Etd Quantity */
+            missing_etd_quantity: number;
+            /** Missing Etd Shipment Count */
+            missing_etd_shipment_count: number;
+            /** Months */
+            months: components["schemas"]["ShipmentHistoryMonth"][];
+            /** Project Id */
+            project_id: number;
+        };
         /** ShipmentItemsImportResponse */
         ShipmentItemsImportResponse: {
             /** Inserted */
@@ -22089,6 +22323,273 @@ export interface components {
         ShipmentSkuSummaryResponse: {
             /** Items */
             items: components["schemas"]["ShipmentSkuSummaryItem"][];
+        };
+        /** ShippingPlanAllocationCreate */
+        ShippingPlanAllocationCreate: {
+            /** Plan Item Id */
+            plan_item_id: number;
+            /** Quantity */
+            quantity: number;
+            /** Shipment Schedule Id */
+            shipment_schedule_id: number;
+        };
+        /** ShippingPlanAllocationResponse */
+        ShippingPlanAllocationResponse: {
+            /** Id */
+            id: number;
+            /** Plan Item Id */
+            plan_item_id: number;
+            /** Quantity */
+            quantity: number;
+            /** Shipment Schedule Id */
+            shipment_schedule_id: number;
+            /** Sku */
+            sku: string;
+        };
+        /** ShippingPlanAllocationResult */
+        ShippingPlanAllocationResult: {
+            allocation: components["schemas"]["ShippingPlanAllocationResponse"];
+            /** Plan Item Remaining Quantity */
+            plan_item_remaining_quantity: number;
+            /** Shipment Sku Remaining Quantity */
+            shipment_sku_remaining_quantity: number;
+        };
+        /** ShippingPlanBatchCreate */
+        ShippingPlanBatchCreate: {
+            /** Country */
+            country: string;
+            /**
+             * Expected Arrival Date
+             * Format: date
+             */
+            expected_arrival_date: string;
+            /** Items */
+            items: components["schemas"]["ShippingPlanItemInput"][];
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: number;
+            /** Remark */
+            remark?: string | null;
+        };
+        /** ShippingPlanBatchItemResponse */
+        ShippingPlanBatchItemResponse: {
+            /** Allocated Quantity */
+            allocated_quantity: number;
+            /** Allocations */
+            allocations: components["schemas"]["ShippingPlanAllocationResponse"][];
+            /** Id */
+            id: number;
+            /** Quantity */
+            quantity: number;
+            /** Remaining Quantity */
+            remaining_quantity: number;
+            /** Sku */
+            sku: string;
+        };
+        /** ShippingPlanBatchListResponse */
+        ShippingPlanBatchListResponse: {
+            /** Items */
+            items: components["schemas"]["ShippingPlanBatchResponse"][];
+            /** Total */
+            total: number;
+        };
+        /** ShippingPlanBatchResponse */
+        ShippingPlanBatchResponse: {
+            /** Country */
+            country: string;
+            /**
+             * Expected Arrival Date
+             * Format: date
+             */
+            expected_arrival_date: string;
+            /** Id */
+            id: number;
+            /** Items */
+            items: components["schemas"]["ShippingPlanBatchItemResponse"][];
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: number;
+            /** Remark */
+            remark: string | null;
+            /** Status */
+            status: string;
+        };
+        /** ShippingPlanBatchUpdate */
+        ShippingPlanBatchUpdate: {
+            /** Expected Arrival Date */
+            expected_arrival_date?: string | null;
+            /** Items */
+            items?: components["schemas"]["ShippingPlanItemInput"][] | null;
+            /** Name */
+            name?: string | null;
+            /** Remark */
+            remark?: string | null;
+        };
+        /** ShippingPlanForecastResponse */
+        ShippingPlanForecastResponse: {
+            /** Arrivals */
+            arrivals: components["schemas"]["ForecastArrival"][];
+            /**
+             * As Of Date
+             * Format: date
+             */
+            as_of_date: string;
+            /** Base Dms */
+            base_dms: string | null;
+            /** Confirmed 180D Sales Upper Bound */
+            confirmed_180d_sales_upper_bound: string | null;
+            /** Country */
+            country: string;
+            /** Daily Points */
+            daily_points: components["schemas"]["ForecastPoint"][];
+            /** Data Quality */
+            data_quality: string[];
+            /** Demand Source */
+            demand_source: string;
+            /**
+             * Forecast End Date
+             * Format: date
+             */
+            forecast_end_date: string;
+            /**
+             * Forecast Start Date
+             * Format: date
+             */
+            forecast_start_date: string;
+            /** Growth Factor */
+            growth_factor: string;
+            /** Inventory Snapshot Date */
+            inventory_snapshot_date: string | null;
+            /**
+             * Overdue Plan Quantity
+             * @default 0
+             */
+            overdue_plan_quantity: number;
+            /**
+             * Overdue Shipment Quantity
+             * @default 0
+             */
+            overdue_shipment_quantity: number;
+            /** Planned 180D Sales Upper Bound */
+            planned_180d_sales_upper_bound: string | null;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Sales Baseline End Date
+             * Format: date
+             */
+            sales_baseline_end_date: string;
+            /**
+             * Sales Baseline Start Date
+             * Format: date
+             */
+            sales_baseline_start_date: string;
+            /** Sku */
+            sku: string;
+            /**
+             * Unverified Completed Quantity
+             * @default 0
+             */
+            unverified_completed_quantity: number;
+        };
+        /** ShippingPlanGrowthFactorResponse */
+        ShippingPlanGrowthFactorResponse: {
+            /** Country */
+            country: string;
+            /**
+             * Demand Source
+             * @default manual
+             */
+            demand_source: string;
+            /** Growth Factor */
+            growth_factor: string;
+            /** Project Id */
+            project_id: number;
+            /** Sku */
+            sku: string;
+        };
+        /** ShippingPlanGrowthFactorUpdate */
+        ShippingPlanGrowthFactorUpdate: {
+            /** Country */
+            country: string;
+            /** Growth Factor */
+            growth_factor: number | string;
+            /** Project Id */
+            project_id: number;
+        };
+        /** ShippingPlanItemInput */
+        ShippingPlanItemInput: {
+            /** Quantity */
+            quantity: number;
+            /** Sku */
+            sku: string;
+        };
+        /** ShippingPlanSkuItem */
+        ShippingPlanSkuItem: {
+            /**
+             * Active Plan Remaining Quantity
+             * @default 0
+             */
+            active_plan_remaining_quantity: number;
+            /** Asin */
+            asin?: string | null;
+            /** Available Inventory */
+            available_inventory?: number | null;
+            /** Base Dms */
+            base_dms?: string | null;
+            /** Confirmed 180D Sales Upper Bound */
+            confirmed_180d_sales_upper_bound?: string | null;
+            /** Data Quality */
+            data_quality?: string[];
+            /**
+             * Demand Source
+             * @default default
+             */
+            demand_source: string;
+            /**
+             * Draft Quantity
+             * @default 0
+             */
+            draft_quantity: number;
+            /**
+             * Growth Factor
+             * @default 1.0
+             */
+            growth_factor: string;
+            /**
+             * In Transit Quantity
+             * @default 0
+             */
+            in_transit_quantity: number;
+            /** Inventory Snapshot Date */
+            inventory_snapshot_date?: string | null;
+            /** Planned 180D Sales Upper Bound */
+            planned_180d_sales_upper_bound?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Sku */
+            sku: string;
+        };
+        /** ShippingPlanSkuListResponse */
+        ShippingPlanSkuListResponse: {
+            /** Items */
+            items: components["schemas"]["ShippingPlanSkuItem"][];
+            /** Known Confirmed Sales Upper Bound */
+            known_confirmed_sales_upper_bound: string;
+            /** Known Planned Sales Upper Bound */
+            known_planned_sales_upper_bound: string;
+            /** Missing Forecast Sku Count */
+            missing_forecast_sku_count: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+            /** Valid Forecast Sku Count */
+            valid_forecast_sku_count: number;
         };
         /**
          * ShopCalculationCreateRequest
@@ -44424,6 +44925,423 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShipmentItemsImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_shipping_plan_allocation_api_v1_shipping_plan_allocations__allocation_id__delete: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                allocation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_plan_batches_api_v1_shipping_plan_batches_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanBatchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_shipping_plan_batch_api_v1_shipping_plan_batches_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingPlanBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_shipping_plan_batch_api_v1_shipping_plan_batches__batch_id__patch: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingPlanBatchUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_shipping_plan_allocation_api_v1_shipping_plan_batches__batch_id__allocations_post: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingPlanAllocationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanAllocationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_shipping_plan_batch_api_v1_shipping_plan_batches__batch_id__cancel_post: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                batch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanBatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_plan_forecast_api_v1_shipping_plan_forecast_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                sku: string;
+                as_of_date?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanForecastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_plan_shipment_history_api_v1_shipping_plan_shipment_history_get: {
+        parameters: {
+            query: {
+                etd_from: string;
+                etd_to: string;
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShipmentHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_plan_skus_api_v1_shipping_plan_skus_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                as_of_date?: string;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanSkuListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_shipping_plan_growth_factor_api_v1_shipping_plan_skus__sku__growth_factor_put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingPlanGrowthFactorUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShippingPlanGrowthFactorResponse"];
                 };
             };
             /** @description Validation Error */

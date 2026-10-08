@@ -14,16 +14,16 @@ import {
 } from 'recharts'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 
+type DecimalValue = number | string
+
 export type ForecastChartPoint = {
   forecast_date: string
-  demand: number | null
-  confirmed_sales: number | null
-  planned_sales: number | null
-  confirmed_closing_inventory: number | null
-  planned_closing_inventory: number | null
+  demand: DecimalValue | null
+  confirmed_sales: DecimalValue | null
+  planned_sales: DecimalValue | null
+  confirmed_closing_inventory: DecimalValue | null
+  planned_closing_inventory: DecimalValue | null
   historical_order_sales: number | null
-  interval_start?: string
-  interval_end?: string
 }
 
 export type ShippingPlanForecast = {
@@ -32,11 +32,10 @@ export type ShippingPlanForecast = {
   forecast_start_date: string
   forecast_end_date: string
   inventory_snapshot_date: string | null
-  data_quality: string
-  data_quality_reasons: string[]
+  data_quality: string[]
   daily_points: ForecastChartPoint[]
-  confirmed_sales_cap: number | null
-  planned_sales_cap: number | null
+  confirmed_180d_sales_upper_bound: DecimalValue | null
+  planned_180d_sales_upper_bound: DecimalValue | null
 }
 
 type ChartPoint = ForecastChartPoint & {
@@ -52,9 +51,10 @@ function dateLabel(value: string): string {
   return match ? `${match[2]}/${match[3]}` : value
 }
 
-function sumKnown(values: Array<number | null>): number | null {
-  if (values.some((value) => value === null || !Number.isFinite(value))) return null
-  return values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+function sumKnown(values: Array<DecimalValue | null>): number | null {
+  const numericValues = values.map((value) => value === null ? null : Number(value))
+  if (numericValues.some((value) => value === null || !Number.isFinite(value))) return null
+  return numericValues.reduce<number>((sum, value) => sum + (value ?? 0), 0)
 }
 
 function aggregateMonthly(points: ForecastChartPoint[]): ChartPoint[] {
@@ -85,9 +85,24 @@ function aggregateMonthly(points: ForecastChartPoint[]): ChartPoint[] {
   })
 }
 
-function formatValue(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '缺失'
-  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value)
+function formatValue(value: DecimalValue | null | undefined): string {
+  const numeric = value === null || value === undefined ? null : Number(value)
+  if (numeric === null || !Number.isFinite(numeric)) return '缺失'
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(numeric)
+}
+
+function qualityReason(reason: string): string {
+  const labels: Record<string, string> = {
+    inventory_snapshot_missing: '缺少库存快照日期。',
+    sku_inventory_snapshot_missing: '快照中没有该 SKU 的可售数量。',
+    sales_baseline_missing: '缺少可用的销量基线。',
+    completed_inbound_unverified: '已完成货件缺少可核对的实际入仓日期或库存快照。',
+    post_snapshot_inbound_before_forecast_start: '库存快照后、预测开始前已有货件入仓；请更新快照。',
+    shipment_eta_missing: '部分正式货件没有可用 ETA。',
+    shipment_eta_overdue: '部分正式货件 ETA 已早于预测开始日期。',
+    plan_eta_overdue: '部分预期计划日期已早于预测开始日期。',
+  }
+  return labels[reason] ?? reason
 }
 
 export function buildForecastChartPoints(points: ForecastChartPoint[]): ChartPoint[] {
@@ -106,8 +121,8 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
   const data = useMemo(() => buildForecastChartPoints(forecast.daily_points ?? []), [forecast.daily_points])
   const hasHistoricalData = data.some((point) => point.historical_order_sales !== null)
   const hasUnknownDemand = data.some((point) => point.demand === null)
-  const confirmedText = formatValue(forecast.confirmed_sales_cap)
-  const plannedText = formatValue(forecast.planned_sales_cap)
+  const confirmedText = formatValue(forecast.confirmed_180d_sales_upper_bound)
+  const plannedText = formatValue(forecast.planned_180d_sales_upper_bound)
 
   return (
     <section className="min-w-0" aria-label={`${forecast.sku} 180 天预测趋势`}>
@@ -117,7 +132,7 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
         <div className="border-r border-term-border px-3 py-2"><div className="font-mono text-[10px] uppercase tracking-wide text-term-muted">预测区间</div><div className="mt-1 font-mono text-xs tabular-nums text-term-text">{dateLabel(forecast.forecast_start_date)} – {dateLabel(forecast.forecast_end_date)}</div></div>
         <div className="px-3 py-2"><div className="font-mono text-[10px] uppercase tracking-wide text-term-muted">库存快照</div><div className="mt-1 font-mono text-xs tabular-nums text-term-text">{forecast.inventory_snapshot_date ?? '未知'}</div></div>
       </div>
-      {forecast.data_quality !== 'ready' ? <div role="status" className="mb-3 border border-term-warn/40 px-3 py-2 text-xs leading-5 text-term-warn">当前 SKU 数据不足以给出完整精确上限。{forecast.data_quality_reasons?.join(' ')}</div> : null}
+      {forecast.data_quality.length > 0 ? <div role="status" className="mb-3 border border-term-warn/40 px-3 py-2 text-xs leading-5 text-term-warn">当前 SKU 数据不足以给出完整精确上限。{forecast.data_quality.map((reason) => qualityReason(reason)).join(' ')}</div> : null}
       <div className="h-[320px] min-w-0 w-full" data-testid="shipping-plan-forecast-chart">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>

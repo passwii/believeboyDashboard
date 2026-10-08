@@ -45,11 +45,12 @@ function response(data: unknown) {
 }
 
 const sku = {
-  project_id: 42, country: 'US', sku: 'SKU-001', asin: 'B0TEST', product_name: '测试商品',
+  sku: 'SKU-001', asin: 'B0TEST', product_name: '测试商品',
   available_inventory: 20, inventory_snapshot_date: '2026-10-07', base_dms: 1.25,
   growth_factor: 1.1, demand_source: 'manual', in_transit_quantity: 40, draft_quantity: 5,
-  planned_remaining_quantity: 8, confirmed_sales_cap: 170, planned_sales_cap: 180,
-  data_quality: 'ready', data_quality_reasons: [],
+  active_plan_remaining_quantity: 8,
+  confirmed_180d_sales_upper_bound: 170, planned_180d_sales_upper_bound: 180,
+  data_quality: [],
 }
 
 beforeEach(() => {
@@ -58,10 +59,10 @@ beforeEach(() => {
   mocks.refresh.mockReset()
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
-    if (url.includes('/skus?')) return response({ items: [sku] })
-    if (url.includes('/shipment-history?')) return response({ months: [{ month: '2026-09', shipment_count: 2, total_quantity: 40 }], missing_etd_count: 1, missing_etd_quantity: 7, included_statuses: ['in_transit', 'completed'] })
-    if (url.includes('/batches?')) return response({ items: [{ id: 1, name: 'OCT-PLAN', expected_arrival_date: '2026-11-01', status: 'active', remark: null, items: [{ id: 11, sku: 'SKU-001', quantity: 12, allocated_quantity: 4, remaining_quantity: 8, allocations: [{ id: 8, shipment_schedule_id: 90, shipment_no: 'FBA-90', quantity: 4 }] }] }] })
-    if (url.includes('/forecast?')) return response({ project_id: 42, country: 'US', sku: 'SKU-001', as_of_date: '2026-10-08', forecast_start_date: '2026-10-09', forecast_end_date: '2027-04-06', inventory_snapshot_date: '2026-10-07', base_dms: 1.25, growth_factor: 1.1, demand_source: 'manual', data_quality: 'ready', data_quality_reasons: [], daily_points: [{ forecast_date: '2026-10-09', demand: 1.375, confirmed_sales: 1.375, planned_sales: 1.375, confirmed_closing_inventory: 18.625, planned_closing_inventory: 18.625, historical_order_sales: null }], confirmed_sales_cap: 170, planned_sales_cap: 180, arrivals: [] })
+    if (url.includes('/skus?')) return response({ items: [sku], total: 1, page: 1, page_size: 200, valid_forecast_sku_count: 1, missing_forecast_sku_count: 0, known_confirmed_sales_upper_bound: 170, known_planned_sales_upper_bound: 180 })
+    if (url.includes('/shipment-history?')) return response({ project_id: 42, country: 'US', etd_from: '2025-10-08', etd_to: '2026-10-08', months: [{ month: '2026-09', shipment_count: 2, quantity: 40 }], missing_etd_shipment_count: 1, missing_etd_quantity: 7, included_statuses: ['in_transit', 'completed'], date_basis: 'ETD 作为 V1 计划发运日期代理，不代表实际离港日' })
+    if (url.includes('/batches?')) return response({ items: [{ id: 1, name: 'OCT-PLAN', expected_arrival_date: '2026-11-01', status: 'active', remark: null, items: [{ id: 11, sku: 'SKU-001', quantity: 12, allocated_quantity: 4, remaining_quantity: 8, allocations: [{ id: 8, plan_item_id: 11, shipment_schedule_id: 90, sku: 'SKU-001', quantity: 4 }] }] }] })
+    if (url.includes('/forecast?')) return response({ project_id: 42, country: 'US', sku: 'SKU-001', as_of_date: '2026-10-08', forecast_start_date: '2026-10-09', forecast_end_date: '2027-04-06', inventory_snapshot_date: '2026-10-07', sales_baseline_start_date: '2026-09-09', sales_baseline_end_date: '2026-10-08', base_dms: 1.25, growth_factor: 1.1, demand_source: 'manual', data_quality: [], daily_points: [{ forecast_date: '2026-10-09', demand: 1.375, confirmed_sales: 1.375, planned_sales: 1.375, confirmed_closing_inventory: 18.625, planned_closing_inventory: 18.625, historical_order_sales: null }], confirmed_180d_sales_upper_bound: 170, planned_180d_sales_upper_bound: 180, unverified_completed_quantity: 0, overdue_shipment_quantity: 0, overdue_plan_quantity: 0, arrivals: [] })
     return response({})
   }))
 })
@@ -159,7 +160,7 @@ describe('ShippingPlanClient', () => {
         expect.stringContaining('/skus/SKU-001/growth-factor'),
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ growth_factor: 1.4 }),
+          body: JSON.stringify({ project_id: 42, country: 'US', growth_factor: 1.4 }),
         })
       )
     )
