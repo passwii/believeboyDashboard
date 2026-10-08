@@ -5,28 +5,28 @@ Business logic for inventory replenishment analysis.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
-import warnings
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AnalysisSalesOrderRow,
     AnalysisBusinessRow,
+    AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventoryReplenishmentSetting,
     InventorySnapshotRow,
-    SkuRecord,
     Project,
     ShipmentSchedule,
     ShipmentScheduleItem,
+    SkuRecord,
 )
-from app.services.sales_query import counted_sales_where
+from app.schemas.inventory_replenishment import InventorySignals
 from app.services.inventory.health_score import ItemInput
 from app.services.inventory.seasonal_factor import compute_seasonal_factor
 from app.services.inventory.state_action import (
@@ -38,18 +38,17 @@ from app.services.inventory.state_action import (
     compute_trend_label,
     compute_trend_momentum,
 )
-from app.schemas.inventory_replenishment import InventorySignals
-
-from app.utils.text_utils import normalize_text, normalize_asin
-from app.utils.math_utils import decimal_to_float, round_decimal, round_decimal_to_int
+from app.services.sales_query import counted_sales_where
 from app.utils.constants import (
     DEFAULT_PRODUCTION_LEAD_DAYS,
-    DEFAULT_SHIPPING_DAYS,
     DEFAULT_SAFETY_FACTOR,
+    DEFAULT_SHIPPING_DAYS,
     RECENT_SALES_LAG_DAYS,
     RECENT_SALES_WINDOW_DAYS,
 )
 from app.utils.country import normalize_country
+from app.utils.math_utils import decimal_to_float, round_decimal, round_decimal_to_int
+from app.utils.text_utils import normalize_asin, normalize_text
 
 IN_TRANSIT_STATUSES = ("in_transit", "draft")
 RISK_LONG_TERM_OUT_OF_STOCK = "长期断货"
@@ -275,6 +274,12 @@ def _load_inventory_map(
         country=country,
         report_date=report_date,
     )
+    return _aggregate_inventory_source_rows(db, source)
+
+
+def _aggregate_inventory_source_rows(
+    db: Session, source: AnalysisSourceFile | None
+) -> dict[str, _InventorySnapshot]:
     if source is None:
         return {}
     rows = db.execute(
@@ -533,7 +538,7 @@ def _load_business_dms_map(
             continue
         dms = Decimal(int(units_ordered or 0)) / Decimal(target_days)
         for sku in skus:
-            result[sku] = result.get(sku, Decimal("0")) + dms
+            result[sku] = result.get(sku, Decimal(0)) + dms
     return result
 
 
@@ -603,11 +608,108 @@ def _normalize_weighted_dms(
     ]
     if not available:
         return None
-    total_weight = sum((weight for _, weight in available), Decimal("0"))
+    total_weight = sum((weight for _, weight in available), Decimal(0))
     if total_weight <= 0:
         return None
-    weighted_sum = sum((value * weight for value, weight in available), Decimal("0"))
+    weighted_sum = sum((value * weight for value, weight in available), Decimal(0))
     return weighted_sum / total_weight
+
+
+def load_shipping_plan_baseline(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    as_of_date: date,
+):
+    """Return active SKU, inventory and the replenishment ``base_dms`` for shipping forecasts.
+
+    The inventory quantity is read through the same source selector as replenishment.
+    A missing SKU row is unknown (not zero), because report-file row absence does not
+    prove the uploaded inventory report was a complete catalog snapshot.
+    """
+    from app.services.shipping_plan.forecast import (
+        ShippingPlanBaseline,
+        ShippingPlanBaselineItem,
+    )
+
+    project = _get_project_or_404(db, project_id)
+    normalized_country = normalize_country(country)
+    base_rows = _load_base_skus(db, project, normalized_country)
+    settings_map = _load_settings_map(db, project_id, normalized_country)
+    inventory_source = _get_shipping_plan_inventory_source(
+        db, project_id, normalized_country
+    )
+    inventory_is_valid = (
+        inventory_source is not None
+        and inventory_source.ingestion_status == "success"
+    )
+    inventory_map = (
+        _aggregate_inventory_source_rows(db, inventory_source)
+        if inventory_is_valid
+        else {}
+    )
+    source_snapshot_date = (
+        inventory_source.report_date if inventory_is_valid else None
+    )
+    product_name_map = _load_product_name_map(
+        db, project_id, [row.sku for row in base_rows]
+    )
+    dms_maps = [
+        _load_sales_dms_map(db, project_id, normalized_country, as_of_date, 30),
+        _load_sales_dms_map(db, project_id, normalized_country, as_of_date, 14),
+        _load_sales_dms_map(db, project_id, normalized_country, as_of_date, 7),
+        _load_sales_dms_map(
+            db,
+            project_id,
+            normalized_country,
+            as_of_date,
+            RECENT_SALES_WINDOW_DAYS,
+            lag_days=RECENT_SALES_LAG_DAYS,
+        ),
+    ]
+
+    items = []
+    for row in base_rows:
+        setting = settings_map.get((row.sku, row.country))
+        inventory = inventory_map.get(row.sku)
+        base_dms = _normalize_weighted_dms(
+            *(sales_map.get(row.sku) for sales_map in dms_maps)
+        )
+        items.append(
+            ShippingPlanBaselineItem(
+                sku=row.sku,
+                asin=_normalize_text(
+                    setting.asin if setting and setting.asin else row.asin,
+                    max_length=64,
+                ),
+                product_name=product_name_map.get(row.sku),
+                available_inventory=inventory.available_qty if inventory else None,
+                inventory_snapshot_date=source_snapshot_date,
+                base_dms=base_dms,
+                shipping_days=(
+                    setting.shipping_days
+                    if setting is not None
+                    else DEFAULT_SHIPPING_DAYS
+                ),
+            )
+        )
+    return ShippingPlanBaseline(
+        project_id=project_id,
+        country=normalized_country,
+        as_of_date=as_of_date,
+        items=tuple(items),
+    )
+
+
+def _get_shipping_plan_inventory_source(
+    db: Session, project_id: int, country: str
+) -> AnalysisSourceFile | None:
+    from app.services.inventory_analysis_service import _get_inventory_source
+
+    return _get_inventory_source(
+        db, project_id=project_id, country=country, report_date=None
+    )
 
 
 def _add_days(base_date: date, days_value: Decimal | None) -> str | None:
@@ -742,10 +844,10 @@ def _normalize_seasonal_weighted_dms(
     ]
     if not available:
         return None
-    total_weight = sum((weight for _, weight in available), Decimal("0"))
+    total_weight = sum((weight for _, weight in available), Decimal(0))
     if total_weight <= 0:
         return None
-    weighted_sum = sum((value * weight for value, weight in available), Decimal("0"))
+    weighted_sum = sum((value * weight for value, weight in available), Decimal(0))
     return weighted_sum / total_weight
 
 
@@ -957,7 +1059,7 @@ def list_seasonal_replenishment_analysis(
             setting.safety_factor if setting is not None else DEFAULT_SAFETY_FACTOR
         )
         weighted_dms = (
-            None if base_dms is None else base_dms * (Decimal("1") + safety_factor)
+            None if base_dms is None else base_dms * (Decimal(1) + safety_factor)
         )
         if weighted_dms is not None and weighted_dms <= 0:
             weighted_dms = None
@@ -1211,7 +1313,7 @@ def list_inventory_replenishment_analysis(
             setting.safety_factor if setting is not None else DEFAULT_SAFETY_FACTOR
         )
         weighted_dms = (
-            None if base_dms is None else base_dms * (Decimal("1") + safety_factor)
+            None if base_dms is None else base_dms * (Decimal(1) + safety_factor)
         )
         if weighted_dms is not None and weighted_dms <= 0:
             weighted_dms = None

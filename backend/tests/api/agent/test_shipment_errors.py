@@ -33,6 +33,12 @@ class TestErrorCodeMapping:
         exc = _translate_http_exception(HTTPException(status_code=409, detail="货件编号已存在"))
         assert exc.code is ErrorCode.SHIPMENT_DUPLICATE_NO
 
+    def test_translate_non_duplicate_409_to_validation_failed(self):
+        detail = "替换明细会破坏发货规划关联，请先解绑或调整关联"
+        exc = _translate_http_exception(HTTPException(status_code=409, detail=detail))
+        assert exc.code is ErrorCode.VALIDATION_FAILED
+        assert exc.human_message == detail
+
     def test_translate_400_sku(self):
         exc = _translate_http_exception(
             HTTPException(status_code=400, detail="以下 SKU 未找到可用的 SKU 信息：X-999")

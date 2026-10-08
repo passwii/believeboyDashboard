@@ -5,22 +5,21 @@ SKU 明细管理模块
 """
 from __future__ import annotations
 
-from datetime import date
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
 
-from app.models.sku_info import SkuRecord
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
+from app.models.sku_info import SkuRecord
+from app.services.shipment.csv_parser import (
+    parse_shipment_items_csv,
+)
 from app.services.shipment.validation import (
     DECIMAL_ZERO,
     normalize_text_value,
 )
-from app.services.shipment.csv_parser import (
-    parse_shipment_items_csv,
-)
+from app.services.shipping_plan.allocation import shipment_item_replacement_conflicts
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -107,6 +106,37 @@ def replace_shipment_schedule_items(
     返回: 总数量
     """
     validate_items_against_product_costs(db, schedule, items)
+    # Preserve the legacy validation error before the allocation guard: an unknown
+    # quantity is an invalid replacement (400), not an allocation conflict (409).
+    for item in items:
+        if item["quantity"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"第 {int(item['row_no'])} 行无法确定 quantity"
+                    "（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）"
+                ),
+            )
+
+    # Allocation writes lock this same schedule row first, serializing replacement
+    # with allocation and preserving the established lock order.
+    db.execute(
+        select(ShipmentSchedule.id)
+        .where(ShipmentSchedule.id == schedule.id)
+        .with_for_update()
+    ).scalar_one()
+    conflicts = shipment_item_replacement_conflicts(
+        db, schedule_id=schedule.id, items=items
+    )
+    if conflicts:
+        detail = ", ".join(
+            f"{row['sku']}（已关联 {row['allocated_quantity']}，替换后 {row['replacement_quantity']}）"
+            for row in conflicts
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"替换明细会破坏发货规划关联，请先解绑或调整关联：{detail}",
+        )
 
     # 删除现有明细
     db.execute(
@@ -117,14 +147,6 @@ def replace_shipment_schedule_items(
 
     total_quantity = 0
     for item in items:
-        if item["quantity"] is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"第 {int(item['row_no'])} 行无法确定 quantity"
-                    "（请在 CSV 中填写 quantity 或 carton_count，并确保 SKU 在 SKU 信息中有装箱率）"
-                ),
-            )
         total_quantity += int(item["quantity"])
         db.add(
             ShipmentScheduleItem(
@@ -221,8 +243,8 @@ def replace_shipment_schedule_items_from_csv(
 
 def _get_schedule_or_404(db: Session, schedule_id: int) -> ShipmentSchedule:
     """获取发货计划，不存在则抛出 404"""
-    from sqlalchemy.orm import selectinload
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     stmt = (
         select(ShipmentSchedule)

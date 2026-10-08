@@ -72,7 +72,9 @@ def _translate_http_exception(exc: HTTPException) -> AgentApiError:
     if exc.status_code == 404:
         return AgentApiError(ErrorCode.RESOURCE_NOT_FOUND, human_message=detail)
     if exc.status_code == 409:
-        return AgentApiError(ErrorCode.SHIPMENT_DUPLICATE_NO, human_message=detail)
+        if detail and "货件编号已存在" in detail:
+            return AgentApiError(ErrorCode.SHIPMENT_DUPLICATE_NO, human_message=detail)
+        return AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail)
     if exc.status_code == 400 and "SKU" in (detail or ""):
         return AgentApiError(ErrorCode.SHIPMENT_ITEMS_INVALID_SKU, human_message=detail)
     return AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail)

@@ -91,6 +91,12 @@ from app.models.shop_calculation import ShopCalculation
 from app.models.project_shop import ProjectShop
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
+from app.models.shipping_plan import (
+    ShippingPlanAllocation,
+    ShippingPlanBatch,
+    ShippingPlanItem,
+    ShippingPlanSkuSetting,
+)
 from app.models.shipment_batch_dropdown_hidden import ShipmentBatchDropdownHidden
 from app.models.report_upload_status import ReportUploadStatus
 from app.models.report_upload_log import ReportUploadLog
@@ -194,6 +200,10 @@ __all__ = [
     "ShipmentSchedule",
     "ShipmentScheduleItem",
     "ShipmentSkuSummary",
+    "ShippingPlanSkuSetting",
+    "ShippingPlanBatch",
+    "ShippingPlanItem",
+    "ShippingPlanAllocation",
     "ShipmentBatchDropdownHidden",
     "ReportUploadStatus",
     "ReportUploadLog",
