@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Agent 中心 · 数据流总览「域活动聚合」数据源(P2b 前端预埋)。
  *
  * 契约(docs/superpowers/plans/2026-09-05-agent-dataflow-overview §P2b):
- * GET /api/backend/api/v1/agent-ops/domain-summary?days=7
- * → { generated_at, items: [{ domain, calls_24h, calls_7d, writes_24h, writes_7d, errors_7d, last_active_at }] }
+ * GET /api/backend/api/v1/agent-ops/domain-summary?days=30
+ * → 后端响应字段仍叫 calls_7d / writes_7d / errors_7d,但统计窗口由 days 参数决定;
+ * 本 hook 将其映射成前端的 30d 字段,供总览页明确展示为 30 天窗口。
  *
  * 端点未上线(404)或出错时本 hook 优雅降级:data = null,总览矩阵三列渲染占位「—」;
  * 后端交付后无需前端改动即可点亮。无轮询(管理总览页,进页拉一次)。
@@ -19,31 +20,49 @@ export type DomainSummary = {
   /** 域 code(= agent_api_audit_log.operation_type,与 AGENT_DOMAINS.code 一致) */
   domain: string
   calls_24h: number
-  calls_7d: number
+  calls_30d: number
   writes_24h: number
-  writes_7d: number
-  errors_7d: number
+  writes_30d: number
+  errors_30d: number
   /** 最近活动 ISO 时间;从未活动可缺省 */
   last_active_at?: string | null
 }
 
 export type DomainSummaryMap = Record<string, DomainSummary>
 
+type DomainSummaryResponseItem = {
+  domain: string
+  calls_24h: number
+  calls_7d: number
+  writes_24h: number
+  writes_7d: number
+  errors_7d: number
+  last_active_at?: string | null
+}
+
 type DomainSummaryResponse = {
   generated_at?: string
-  items?: DomainSummary[] | null
+  items?: DomainSummaryResponseItem[] | null
 }
 
 const API_BASE = '/api/backend'
 
 /** 纯函数:聚合 items → 按 domain code 索引的 map(容错:非法条目跳过) */
 export function reduceDomainSummaries(
-  items: DomainSummary[] | null | undefined
+  items: DomainSummaryResponseItem[] | null | undefined
 ): DomainSummaryMap {
   const map: DomainSummaryMap = {}
   for (const item of Array.isArray(items) ? items : []) {
     if (item && typeof item.domain === 'string' && item.domain) {
-      map[item.domain] = item
+      map[item.domain] = {
+        domain: item.domain,
+        calls_24h: item.calls_24h,
+        calls_30d: item.calls_7d,
+        writes_24h: item.writes_24h,
+        writes_30d: item.writes_7d,
+        errors_30d: item.errors_7d,
+        last_active_at: item.last_active_at,
+      }
     }
   }
   return map
@@ -96,7 +115,7 @@ export function useAgentDomainSummary(): {
   const load = useCallback(async () => {
     const seq = ++requestSeqRef.current
     try {
-      const response = await fetch(`${API_BASE}/api/v1/agent-ops/domain-summary?days=7`, {
+      const response = await fetch(`${API_BASE}/api/v1/agent-ops/domain-summary?days=30`, {
         cache: 'no-store',
       })
       if (!response.ok) throw new Error(`agent-ops/domain-summary ${response.status}`)
