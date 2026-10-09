@@ -96,6 +96,12 @@ class ShipmentHistoryMonth(BaseModel):
     quantity: int
 
 
+class ShipmentHistorySalesMonth(BaseModel):
+    month: str
+    sales_quantity: int | None
+    covered: bool
+
+
 class ShipmentHistoryResponse(BaseModel):
     project_id: int
     country: str
@@ -106,6 +112,11 @@ class ShipmentHistoryResponse(BaseModel):
     missing_etd_quantity: int
     included_statuses: list[str] = ["in_transit", "completed"]
     date_basis: str = "ETD 作为 V1 计划发运日期代理，不代表实际离港日"
+    sales_months: list[ShipmentHistorySalesMonth] = Field(default_factory=list)
+    sales_basis: str = (
+        "按 purchase_date_pt（站点时区）归入自然月；口径 = counted_sales_where "
+        "（is_counted_sales=true，排除 Cancelled，含 Pending）；与发运量同为项目+站点全 SKU 口径"
+    )
 
 
 class ShippingPlanItemInput(BaseModel):

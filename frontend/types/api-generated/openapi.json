@@ -33236,6 +33236,18 @@
           "project_id": {
             "title": "Project Id",
             "type": "integer"
+          },
+          "sales_basis": {
+            "default": "按 purchase_date_pt（站点时区）归入自然月；口径 = counted_sales_where （is_counted_sales=true，排除 Cancelled，含 Pending）；与发运量同为项目+站点全 SKU 口径",
+            "title": "Sales Basis",
+            "type": "string"
+          },
+          "sales_months": {
+            "items": {
+              "$ref": "#/components/schemas/ShipmentHistorySalesMonth"
+            },
+            "title": "Sales Months",
+            "type": "array"
           }
         },
         "required": [
@@ -33248,6 +33260,36 @@
           "missing_etd_quantity"
         ],
         "title": "ShipmentHistoryResponse",
+        "type": "object"
+      },
+      "ShipmentHistorySalesMonth": {
+        "properties": {
+          "covered": {
+            "title": "Covered",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "sales_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Quantity"
+          }
+        },
+        "required": [
+          "month",
+          "sales_quantity",
+          "covered"
+        ],
+        "title": "ShipmentHistorySalesMonth",
         "type": "object"
       },
       "ShipmentItemsImportResponse": {

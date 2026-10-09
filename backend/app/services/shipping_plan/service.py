@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from calendar import monthrange
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
@@ -338,6 +339,42 @@ def _build_forecast(
     }
 
 
+def _sales_coverage_intervals(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    start: date,
+    end: date,
+) -> list[tuple[date, date]]:
+    """Return merged successful sales-report coverage intervals overlapping a window."""
+    sources = db.execute(
+        select(AnalysisSourceFile.period_start_date, AnalysisSourceFile.period_end_date)
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.report_type == "sales_report",
+            AnalysisSourceFile.ingestion_status == "success",
+            AnalysisSourceFile.is_current.is_(True),
+            AnalysisSourceFile.superseded_at.is_(None),
+            AnalysisSourceFile.period_start_date <= end,
+            AnalysisSourceFile.period_end_date >= start,
+        )
+    ).all()
+    intervals = sorted(
+        (row.period_start_date, row.period_end_date)
+        for row in sources
+        if row.period_start_date is not None and row.period_end_date is not None
+    )
+    merged: list[list[date]] = []
+    for left, right in intervals:
+        if not merged or left > merged[-1][1] + timedelta(days=1):
+            merged.append([left, right])
+        elif right > merged[-1][1]:
+            merged[-1][1] = right
+    return [(left, right) for left, right in merged]
+
+
 def _load_historical_sales(
     db: Session,
     *,
@@ -350,28 +387,15 @@ def _load_historical_sales(
     """Return prior-year orderSales only for days fully covered by successful reports."""
     target_dates = [forecast_start + timedelta(days=offset) - timedelta(days=365) for offset in range(forecast_days)]
     start_date, end_date = min(target_dates), max(target_dates)
-    sources = db.execute(
-        select(AnalysisSourceFile.period_start_date, AnalysisSourceFile.period_end_date)
-        .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_type == "sales_report",
-            AnalysisSourceFile.ingestion_status == "success",
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSourceFile.superseded_at.is_(None),
-            AnalysisSourceFile.period_start_date <= end_date,
-            AnalysisSourceFile.period_end_date >= start_date,
-        )
-    ).all()
-    intervals = sorted((row.period_start_date, row.period_end_date) for row in sources)
-    merged: list[list[date]] = []
-    for left, right in intervals:
-        if not merged or left > merged[-1][1] + timedelta(days=1):
-            merged.append([left, right])
-        elif right > merged[-1][1]:
-            merged[-1][1] = right
+    intervals = _sales_coverage_intervals(
+        db,
+        project_id=project_id,
+        country=country,
+        start=start_date,
+        end=end_date,
+    )
     covered = {
-        target_date: any(left <= target_date <= right for left, right in merged)
+        target_date: any(left <= target_date <= right for left, right in intervals)
         for target_date in target_dates
     }
     rows = db.execute(
@@ -706,4 +730,63 @@ def get_shipment_history(db: Session, *, project_id: int, country: str, etd_from
     for month in sorted(monthly):
         row = monthly[month]
         months.append({"month": month, "shipment_count": len(row["_ids"]), "quantity": row["quantity"]})
-    return {"project_id": project_id, "country": country, "etd_from": etd_from, "etd_to": etd_to, "months": months, "missing_etd_shipment_count": len(missing_ids), "missing_etd_quantity": missing_quantity}
+
+    coverage_intervals = _sales_coverage_intervals(
+        db,
+        project_id=project_id,
+        country=country,
+        start=etd_from,
+        end=etd_to,
+    )
+    month_expr = func.date_trunc("month", AnalysisSalesOrderRow.purchase_date_pt)
+    sales_rows = db.execute(
+        select(
+            month_expr,
+            func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0),
+        )
+        .where(
+            *counted_sales_where(
+                project_id=project_id,
+                country=country,
+                date_from=etd_from,
+                date_to=etd_to,
+            )
+        )
+        .group_by(month_expr)
+    ).all()
+    sales_by_month = {row[0].strftime("%Y-%m"): int(row[1] or 0) for row in sales_rows}
+
+    sales_months = []
+    month_start = date(etd_from.year, etd_from.month, 1)
+    while month_start <= etd_to:
+        _, last_day = monthrange(month_start.year, month_start.month)
+        month_end = date(month_start.year, month_start.month, last_day)
+        covered_start = max(month_start, etd_from)
+        covered_end = min(month_end, etd_to)
+        covered = any(
+            left <= covered_start and right >= covered_end
+            for left, right in coverage_intervals
+        )
+        month = month_start.strftime("%Y-%m")
+        sales_months.append(
+            {
+                "month": month,
+                "sales_quantity": sales_by_month.get(month, 0) if covered else None,
+                "covered": covered,
+            }
+        )
+        if month_start.month == 12:
+            month_start = date(month_start.year + 1, 1, 1)
+        else:
+            month_start = date(month_start.year, month_start.month + 1, 1)
+
+    return {
+        "project_id": project_id,
+        "country": country,
+        "etd_from": etd_from,
+        "etd_to": etd_to,
+        "months": months,
+        "missing_etd_shipment_count": len(missing_ids),
+        "missing_etd_quantity": missing_quantity,
+        "sales_months": sales_months,
+    }

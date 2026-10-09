@@ -21995,6 +21995,22 @@ export interface components {
             months: components["schemas"]["ShipmentHistoryMonth"][];
             /** Project Id */
             project_id: number;
+            /**
+             * Sales Basis
+             * @default 按 purchase_date_pt（站点时区）归入自然月；口径 = counted_sales_where （is_counted_sales=true，排除 Cancelled，含 Pending）；与发运量同为项目+站点全 SKU 口径
+             */
+            sales_basis: string;
+            /** Sales Months */
+            sales_months?: components["schemas"]["ShipmentHistorySalesMonth"][];
+        };
+        /** ShipmentHistorySalesMonth */
+        ShipmentHistorySalesMonth: {
+            /** Covered */
+            covered: boolean;
+            /** Month */
+            month: string;
+            /** Sales Quantity */
+            sales_quantity: number | null;
         };
         /** ShipmentItemsImportResponse */
         ShipmentItemsImportResponse: {
