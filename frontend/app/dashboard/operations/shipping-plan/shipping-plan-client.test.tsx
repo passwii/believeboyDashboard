@@ -21,6 +21,8 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useMobileFilterStrip: () => null,
 }))
 vi.mock('recharts', () => ({
+  Bar: () => null,
+  BarChart: ({ children }: { children: ReactNode }) => <div data-testid="bar-chart">{children}</div>,
   CartesianGrid: () => null,
   ComposedChart: ({ children }: { children: ReactNode }) => <div data-testid="chart">{children}</div>,
   Legend: () => null,
@@ -93,12 +95,12 @@ afterEach(() => {
 describe('ShippingPlanClient', () => {
   it('shows plan projections, shipment history and partial allocation balance', async () => {
     render(<ShippingPlanClient />)
-    expect(await screen.findByText('180 天 SKU 销售上限')).toBeInTheDocument()
+    expect(await screen.findByText('销量与库存预测')).toBeInTheDocument()
     expect(await screen.findByText('OCT-PLAN')).toBeInTheDocument()
     expect(screen.getByText('计划 12 · 已关联 4 · 余额 8')).toBeInTheDocument()
-    expect(screen.getByText('2026-09')).toBeInTheDocument()
-    expect(screen.getByText(/缺 ETD：1 件/)).toBeInTheDocument()
-    expect(screen.getByText(/V1 假设货件到仓日当天可售/)).toBeInTheDocument()
+    expect(screen.getByTestId('shipment-history-chart')).toBeInTheDocument()
+    expect(screen.getByText(/缺少 ETD：1 件货/)).toBeInTheDocument()
+    expect(screen.getByText(/预测从预计到仓日当天计入库存/)).toBeInTheDocument()
   })
 
   it('requires a single site instead of aggregating ALL sites', () => {
