@@ -1,6 +1,6 @@
 # BelieveBoy Dashboard 终端化推进 Master Prompt
 
-> ⚠️ 历史文档：文中「桌面端 GUI」指已删除的 `gui/`（Rust + GPUI）方案 —— 该目录已于 2026-09-13 整体删除（BLF-1041），桌面端路线改为 SwiftUI，见 [`macos/PLAN.md`](../../macos/PLAN.md)。本文的 **Web 端**终端化指令仍然有效。
+> ⚠️ 历史文档：文中「桌面端 GUI」指已删除的 `gui/`（Rust + GPUI）方案 —— 该目录已于 2026-09-13 整体删除（BLF-1041）；后续 SwiftUI macOS 客户端也已停止并删除，桌面端后续改由 MyGo 承接。本文的 **Web 端**终端化指令仍然有效。
 
 > 用途：在任意 AI 编码工具（Claude Code / Cursor / Codex 等）中作为完整工作指令使用。
 > 使用方式：把本文件全文作为首条任务提示词发给工具，或按 §任务 分批发给它。

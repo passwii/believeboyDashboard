@@ -27,7 +27,7 @@ class ShipmentSchedule(Base):
     __table_args__ = (
         UniqueConstraint("shipment_no", name="shipment_schedules_shipment_no_key"),
         CheckConstraint(
-            "shipment_status in ('draft', 'in_transit', 'completed')",
+            "shipment_status in ('draft', 'in_transit', 'completed', 'cancelled')",
             name="ck_shipment_schedules_status",
         ),
         CheckConstraint(

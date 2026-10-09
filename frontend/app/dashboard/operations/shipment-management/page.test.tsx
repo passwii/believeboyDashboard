@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -207,7 +207,23 @@ function listItem(overrides?: Record<string, unknown>) {
 }
 
 function listPayload() {
-  return { items: [listItem()], page: 1, page_size: 20, total: 1, has_next: false }
+  return {
+    items: [listItem(), listItem({ id: 2, shipment_no: 'FBA-CANCELLED', shipment_status: 'cancelled' })],
+    page: 1,
+    page_size: 20,
+    total: 2,
+    has_next: false,
+  }
+}
+
+function cancelledListPayload() {
+  return {
+    items: [listItem({ id: 2, shipment_no: 'FBA-CANCELLED', shipment_status: 'cancelled' })],
+    page: 1,
+    page_size: 20,
+    total: 1,
+    has_next: false,
+  }
 }
 
 function detailPayload() {
@@ -348,7 +364,12 @@ function defaultFetchImpl(url: string): Promise<Response> {
   if (u.includes('/cost-summary')) return Promise.resolve(jsonResponse(costSummaryPayload()))
   if (u.includes('/sku-summary')) return Promise.resolve(jsonResponse(skuSummaryPayload()))
   if (u.includes('/fba-box-details')) return Promise.resolve(jsonResponse(fbaBoxPayload()))
-  if (u.includes('/shipment-schedules?')) return Promise.resolve(jsonResponse(listPayload()))
+  if (u.includes('/shipment-schedules?')) {
+    const params = new URL(u, 'http://localhost').searchParams
+    return Promise.resolve(
+      jsonResponse(params.get('shipment_status') === 'cancelled' ? cancelledListPayload() : listPayload())
+    )
+  }
   return Promise.resolve(jsonResponse(detailPayload()))
 }
 
@@ -383,6 +404,45 @@ afterEach(() => {
 })
 
 describe('ShipmentManagementPage header 化渲染契约（operations header migration B2）', () => {
+  it('总览状态筛选可展示已取消货件；默认列表仍隐藏取消记录', async () => {
+    render(<ShipmentManagementPage />)
+    expect(await screen.findByText('FBA12345678')).toBeInTheDocument()
+    expect(screen.queryByText('FBA-CANCELLED')).not.toBeInTheDocument()
+
+    const statusFilter = screen.getByTitle('状态筛选')
+    fireEvent.pointerDown(statusFilter, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(statusFilter)
+    fireEvent.click(await screen.findByRole('option', { name: '已取消' }))
+
+    expect(await screen.findByText('FBA-CANCELLED')).toBeInTheDocument()
+    expect(screen.queryByText('FBA12345678')).not.toBeInTheDocument()
+    expect(fetchedUrls().some((url) => url.includes('shipment_status=cancelled'))).toBe(true)
+  })
+
+  it('SKU 汇总默认只请求完成与在途记录', async () => {
+    mockSearchParams = new URLSearchParams('tab=sku-summary')
+    render(<ShipmentManagementPage />)
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+    expect(fetchedUrls().some((url) => url.includes('shipment_status=completed%2Cin_transit'))).toBe(true)
+  })
+
+  it('费用 tab 筛选已取消状态时清空列表并将统计置零，不请求取消费用汇总', async () => {
+    mockSearchParams = new URLSearchParams('tab=cost')
+    render(<ShipmentManagementPage />)
+    expect(await screen.findByText('¥ 1,250')).toBeInTheDocument()
+    expect(await screen.findByText('FBA12345678')).toBeInTheDocument()
+    fetchMock.mockClear()
+
+    const statusFilter = screen.getByTitle('状态筛选')
+    fireEvent.pointerDown(statusFilter, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(statusFilter)
+    fireEvent.click(await screen.findByRole('option', { name: '已取消' }))
+
+    await vi.waitFor(() => expect(screen.getByText('总运费').parentElement).toHaveTextContent('0'))
+    expect(screen.queryByText('FBA-CANCELLED')).not.toBeInTheDocument()
+    expect(fetchedUrls().some((url) => url.includes('/cost-summary'))).toBe(false)
+  })
+
   it('渲染不崩溃：4 个 tab、表格行与写操作栏齐全', async () => {
     render(<ShipmentManagementPage />)
     // 列表加载完成（overview tab 默认）

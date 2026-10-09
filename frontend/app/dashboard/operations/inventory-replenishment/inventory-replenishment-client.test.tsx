@@ -380,6 +380,56 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     await vi.waitFor(() => expect(headerCapture.refreshLoading).toBe(false))
   })
 
+  it('SKU 发货记录不展示已取消货件', async () => {
+    render(<InventoryReplenishmentPage />)
+    await screen.findByText('SKU-001')
+
+    vi.mocked(fetch).mockImplementation((url) => {
+      if (!String(url).includes('/inventory-replenishment-shipments?')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              schedule_id: 10,
+              shipment_no: 'FBA-ACTIVE',
+              shipment_status: 'in_transit',
+              shipping_method: 'sea',
+              etd_date: null,
+              eta_date: null,
+              actual_inbound_date: null,
+              tracking_no: null,
+              quantity: 50,
+              remark: null,
+              updated_at: '2026-10-01T00:00:00Z',
+            },
+            {
+              schedule_id: 11,
+              shipment_no: 'FBA-CANCELLED',
+              shipment_status: 'cancelled',
+              shipping_method: 'sea',
+              etd_date: null,
+              eta_date: null,
+              actual_inbound_date: null,
+              tracking_no: null,
+              quantity: 100,
+              remark: null,
+              updated_at: '2026-10-01T00:00:00Z',
+            },
+          ],
+        }),
+      } as Response)
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: /发货/ }).at(-1)!)
+
+    expect(await screen.findByText('FBA-ACTIVE')).toBeInTheDocument()
+    expect(screen.queryByText('FBA-CANCELLED')).not.toBeInTheDocument()
+    expect(screen.queryByText('已取消')).not.toBeInTheDocument()
+  })
+
   it('快照模式：头部刷新回调降级为不带 save 的 force 重载（保存未发生）', async () => {
     const user = userEvent.setup()
     render(<InventoryReplenishmentPage />)

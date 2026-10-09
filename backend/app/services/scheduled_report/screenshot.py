@@ -17,17 +17,11 @@ logger = logging.getLogger(__name__)
 _DESKTOP_VIEWPORT_WIDTH = 900
 _MOBILE_VIEWPORT_WIDTH = 420  # 手机竖屏宽度，截图专用
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
-# 手机端截图缩放倍率。
-# 2x：420 CSS px → 840 物理 px，邮件客户端主流尺寸下清晰，Retina 屏略可
-#      见毛刺但邮件系统自身会压缩，可接受。
-# 4x：420 CSS px → 1680 物理 px，理论上覆盖 iPhone 15 Pro Max @3x。
-#      但在 1.9 GiB / 2 核 VPS 上 SwiftShader 软渲染 + ECharts + full_page
-#      会导致 GPU 进程长驻 400-500 MiB D 状态几分钟不出结果（2026-07-29
-#      scheduled_report dispatch_one 卡死的根因）。
-#      物理像素翻 4 倍，软渲染时间 5-10x，2 核 CPU 直接打满；chrome 进程
-#      还互相等 IO pipe，永远无法自然完成。
-#      ⇒ VPS / 2 核小机器结构性约束 = 2x，4x 仅在 4 核 / 4 GB+ 部署上启用。
-_MOBILE_SCALE_FACTOR = 2
+# 手机端截图缩放倍率：3x 输出 1260px 宽，适配高像素密度手机屏幕。
+# 相比原 2x，像素面积增加到 2.25 倍；上线前应在 1.9 GiB / 2 核 VPS
+# 实测峰值内存与耗时。此前 4x 在该规格上导致 SwiftShader 软渲染及
+# full_page 截图严重占用 CPU / 内存（2026-07-29 scheduled_report 卡死事故）。
+_MOBILE_SCALE_FACTOR = 3
 _ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
 
 # 邮件 logo 本地副本（与 dash.believeboy.com/logo-email.png 同源）
@@ -101,7 +95,7 @@ def html_to_png(
     Args:
         html: 要渲染的完整 HTML 文档。
         width: CSS 视口宽度（默认 420px，手机竖屏宽度）。
-        scale: 设备缩放因子（默认 2x，生成 840px 物理宽度，Retina 清晰）。
+        scale: 设备缩放因子（默认 3x，生成 1260px 物理宽度）。
 
     Returns:
         PNG 字节数据（含透明圆角），失败时返回 None（不阻断邮件发送）。
@@ -241,7 +235,7 @@ def process_screenshot_and_upload(
             }
         ]
 
-        # ── R2 上传（完整尺寸 2x 图）───────────────────────
+        # ── R2 上传（完整尺寸 3x 图）───────────────────────
         settings = get_settings()
         project_slug = _safe_project_folder_name(project_name)
         report_date = report_data.get("report_date", "")

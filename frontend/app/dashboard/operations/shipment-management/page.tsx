@@ -291,6 +291,7 @@ const STATUS_OPTIONS = [
   { value: 'draft', label: '草稿' },
   { value: 'in_transit', label: '在途' },
   { value: 'completed', label: '已完成' },
+  { value: 'cancelled', label: '已取消' },
 ] as const
 
 const METHOD_OPTIONS = [
@@ -369,6 +370,7 @@ const SHIPMENT_STATUS_EXPORT_FILLS: Record<string, string> = {
   草稿: 'FFF1F5F9',
   在途: 'FFE0F2FE',
   已完成: 'FFDCFCE7',
+  已取消: 'FFFFE4E6',
 }
 
 /** 给导出表格的状态单元格着色；未知状态回退白底。 */
@@ -378,6 +380,10 @@ function paintExportStatusCell(cell: Cell) {
     pattern: 'solid',
     fgColor: { argb: SHIPMENT_STATUS_EXPORT_FILLS[String(cell.value)] ?? 'FFFFFFFF' },
   }
+}
+
+function isCancelledShipment(status: string): boolean {
+  return status === 'cancelled'
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
@@ -420,6 +426,11 @@ function statusMeta(status: string): { label: string; className: string } {
       label: '已完成',
       className:
         'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300',
+    },
+    cancelled: {
+      label: '已取消',
+      className:
+        'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300',
     },
   }
   return (
@@ -883,6 +894,7 @@ export default function ShipmentManagementPage() {
   const summary = useMemo(() => {
     return items.reduce(
       (acc, item) => {
+        if (isCancelledShipment(item.shipment_status)) return acc
         acc.totalSku += item.sku_count
         acc.totalQuantity += item.total_quantity
         return acc
@@ -1190,6 +1202,16 @@ export default function ShipmentManagementPage() {
 
   const loadList = useCallback(
     async (targetPage: number) => {
+      if (statusFilter === 'cancelled' && activeTab !== 'overview') {
+        setItems([])
+        setPage(1)
+        setTotal(0)
+        setHasNext(false)
+        setSelectedId(null)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
         const params = new URLSearchParams({
@@ -1211,14 +1233,20 @@ export default function ShipmentManagementPage() {
         if (!response.ok) throw new Error(await parseError(response))
 
         const payload = (await response.json()) as ShipmentScheduleListResponse
-        setItems(payload.items)
+        // 默认及其他状态视图都不展示取消记录；只有总览明确筛选「已取消」时才显示。
+        const visibleItems = payload.items.filter((item) =>
+          statusFilter === 'cancelled'
+            ? isCancelledShipment(item.shipment_status)
+            : !isCancelledShipment(item.shipment_status)
+        )
+        setItems(visibleItems)
         setPage(payload.page)
         setTotal(payload.total || 0)
         setHasNext(payload.has_next)
         setSelectedId((current) => {
-          if (payload.items.length === 0) return null
-          if (current && payload.items.some((item) => item.id === current)) return current
-          return payload.items[0].id
+          if (visibleItems.length === 0) return null
+          if (current && visibleItems.some((item) => item.id === current)) return current
+          return visibleItems[0].id
         })
       } catch (loadError) {
         notify({ type: 'error', title: normalizeErrorMessage(loadError, '船期列表加载失败') })
@@ -1229,6 +1257,7 @@ export default function ShipmentManagementPage() {
     },
     [
       notify,
+      activeTab,
       countryFilter,
       pageSize,
       projectFilter,
@@ -1265,7 +1294,12 @@ export default function ShipmentManagementPage() {
         if (!response.ok) throw new Error(await parseError(response))
 
         const payload = (await response.json()) as ShipmentScheduleListResponse
-        shipmentNos.push(...payload.items.map((item) => item.shipment_no))
+        const visibleItems = payload.items.filter((item) =>
+          statusFilter === 'cancelled'
+            ? isCancelledShipment(item.shipment_status)
+            : !isCancelledShipment(item.shipment_status)
+        )
+        shipmentNos.push(...visibleItems.map((item) => item.shipment_no))
         hasNextPage = payload.has_next
         nextPage += 1
       }
@@ -1311,12 +1345,22 @@ export default function ShipmentManagementPage() {
   }, [])
 
   const loadSkuSummary = useCallback(async () => {
+    if (statusFilter === 'cancelled') {
+      setSkuSummaryItems([])
+      setSkuSummaryLoading(false)
+      return
+    }
+
     setSkuSummaryLoading(true)
     try {
       const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       if (countryFilter !== 'all') params.set('country', countryFilter)
-      if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
+      if (statusFilter === 'all') {
+        params.set('shipment_status', HISTORY_SHIPMENT_STATUSES.join(','))
+      } else {
+        params.set('shipment_status', statusFilter)
+      }
       selectedShipmentNoFilter.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
       if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
       if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
@@ -1347,12 +1391,26 @@ export default function ShipmentManagementPage() {
   ])
 
   const loadCostSummary = useCallback(async () => {
+    if (statusFilter === 'cancelled') {
+      setCostSummary({
+        shipment_count: 0,
+        total_sku: 0,
+        total_quantity: 0,
+        total_chargeable_weight_kg: 0,
+        total_logistics_cost: 0,
+      })
+      setCostSummaryLoading(false)
+      return
+    }
+
     setCostSummaryLoading(true)
     try {
       const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
       if (countryFilter !== 'all') params.set('country', countryFilter)
-      if (statusFilter !== 'all') params.set('shipment_status', statusFilter)
+      if (statusFilter !== 'all' && statusFilter !== 'cancelled') {
+        params.set('shipment_status', statusFilter)
+      }
       selectedShipmentNoFilter.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
       if (shipmentDateFrom) params.set('created_date_from', shipmentDateFrom)
       if (shipmentDateTo) params.set('created_date_to', shipmentDateTo)
@@ -1391,6 +1449,13 @@ export default function ShipmentManagementPage() {
 
   const loadFbaBoxDetails = useCallback(
     async (shipmentNos: string[]) => {
+      if (statusFilter === 'cancelled') {
+        setFbaBoxMeta(null)
+        setFbaBoxItems([])
+        setFbaBoxLoading(false)
+        return
+      }
+
       setFbaBoxLoading(true)
       try {
         const params = new URLSearchParams()
@@ -1418,7 +1483,7 @@ export default function ShipmentManagementPage() {
         setFbaBoxLoading(false)
       }
     },
-    [notify]
+    [notify, statusFilter]
   )
 
   useEffect(() => {

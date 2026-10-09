@@ -434,7 +434,7 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
         'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300',
     },
     cancelled: {
-      label: '取消',
+      label: '已取消',
       className:
         'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300',
     },
@@ -708,7 +708,7 @@ export default function InventoryReplenishmentPage() {
       )
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as ShipmentResponse
-      setShipments(payload.items)
+      setShipments(payload.items.filter((item) => item.shipment_status !== 'cancelled'))
     } catch (loadError) {
       setShipments([])
       notify({

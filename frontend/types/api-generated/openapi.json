@@ -102683,6 +102683,22 @@
           },
           {
             "in": "query",
+            "name": "shipment_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shipment Status"
+            }
+          },
+          {
+            "in": "query",
             "name": "api_key",
             "required": false,
             "schema": {

@@ -163,7 +163,7 @@ class TestCreateShipment:
         assert resp.status_code == 400
         err = resp.json()["error"]
         assert err["code"] == "SHIPMENT_STATUS_INVALID"
-        assert sorted(err["details"]["allowed"]) == ["completed", "draft", "in_transit"]
+        assert sorted(err["details"]["allowed"]) == ["cancelled", "completed", "draft", "in_transit"]
 
     def test_invalid_shipping_method_rejected(self, client, shipment_env, confirm_memory_store):
         body = _create_body(f"SH-VSM-{uuid.uuid4().hex[:8]}")
@@ -394,7 +394,7 @@ class TestStatusTransition:
         assert resp.status_code == 400
         err = resp.json()["error"]
         assert err["code"] == "SHIPMENT_STATUS_INVALID"
-        assert sorted(err["details"]["allowed"]) == ["completed", "draft", "in_transit"]
+        assert sorted(err["details"]["allowed"]) == ["cancelled", "completed", "draft", "in_transit"]
 
     def test_missing_to_status(self, client, shipment_env, confirm_memory_store):
         shipment_no = f"SH-STM-{uuid.uuid4().hex[:8]}"

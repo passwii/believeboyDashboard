@@ -421,13 +421,14 @@ def get_shipment_sku_summary(
     db: Session = Depends(get_read_db_session),
 ) -> dict:
     with _service_errors():
-        _resolve_schedule(db, project_id, shipment_no)
+        schedule = _resolve_schedule(db, project_id, shipment_no)
         rows = shipment_summary_service.list_shipment_sku_summary(
             db,
             project_id=project_id,
             shipment_nos=[shipment_no],
             include_only_history_calc=False,
-            shipment_status=None,
+            # 显式按该货件自身状态查询：已取消货件的 SKU 明细仍需可按编号读取（BLF-1287）。
+            shipment_status=str(schedule.shipment_status),
         )
     return agent_ok({"items": rows})
 

@@ -1,6 +1,0 @@
-id: 1789407552051-3
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"（续传补上的尾段）"}}
-
-id: 1789407552051-3
-data: {"type":"message_stop"}
-

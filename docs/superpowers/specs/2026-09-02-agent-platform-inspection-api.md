@@ -40,7 +40,7 @@
 
 ### 2.3 前端「平台巡检」现有能力（要 Agent 化的对象，`frontend/lib/inspection-api.ts` + GUI `platform_inspection.rs`）
 
-> 注：`gui/`（Rust + GPUI，含 `platform_inspection.rs`）已于 2026-09-13 整体删除（BLF-1041），桌面端改为 SwiftUI（[`macos/PLAN.md`](../../../macos/PLAN.md)）。本文的 Agent API 契约不受影响。
+> 注：旧 `gui/`（Rust + GPUI）已于 2026-09-13 整体删除（BLF-1041）；后续的 SwiftUI macOS 客户端现已停止并删除，桌面端后续改由 MyGo 承接。本文的 Agent API 契约不受影响。
 
 | # | 前端动作 | 内部端点（`inspections.py`） | 写/读 |
 |---|---|---|---|
