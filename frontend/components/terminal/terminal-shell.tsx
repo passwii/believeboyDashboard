@@ -7,6 +7,8 @@ import { ChevronDown } from 'lucide-react'
 
 import { PageTransition } from '@/components/motion/PageTransition'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
+import { DashboardNavigationLoading } from '@/components/dashboard/dashboard-navigation-loading'
+import { useGlobalLoading } from '@/components/global-loading-provider'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
 import {
@@ -53,15 +55,17 @@ export function TerminalShell({ children }: TerminalShellProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const roleType = session?.user?.roleType as RoleType | undefined
+  const { isNavigationLoading, navigationTargetPath, startGlobalLoading, endGlobalLoading } =
+    useGlobalLoading()
+  const pendingRailNavigationRef = React.useRef(false)
+  const railNavigationWatchdogRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const visibleGroups = React.useMemo(
     () => getVisibleGroups(SIDEBAR_TOP_GROUPS, roleType),
     [roleType]
   )
-  const activeGroupId = React.useMemo(() => findGroupByPathname(visibleGroups, pathname), [
-    pathname,
-    visibleGroups,
-  ])
+  const [pendingGroupId, setPendingGroupId] = React.useState<string | undefined>()
+  const activeGroupId = pendingGroupId ?? findGroupByPathname(visibleGroups, pathname)
 
   const { subnavCollapsed, toggleSubnav, inspectorOpen, toggleInspector } = useTerminalLayout()
 
@@ -79,9 +83,41 @@ export function TerminalShell({ children }: TerminalShellProps) {
     (group: SidebarTopGroup) => {
       if (subnavCollapsed) toggleSubnav()
       const target = group.items[0]
-      if (target && !isLinkActive(pathname, target)) router.push(target.url)
+      if (target && !isLinkActive(pathname, target)) {
+        pendingRailNavigationRef.current = true
+        setPendingGroupId(group.id)
+        startGlobalLoading('navigation', { targetPath: target.url })
+        if (railNavigationWatchdogRef.current) clearTimeout(railNavigationWatchdogRef.current)
+        railNavigationWatchdogRef.current = setTimeout(() => {
+          if (!pendingRailNavigationRef.current) return
+          pendingRailNavigationRef.current = false
+          railNavigationWatchdogRef.current = null
+          setPendingGroupId(undefined)
+          endGlobalLoading('navigation')
+        }, 10_000)
+        router.push(target.url)
+      }
     },
-    [pathname, router, subnavCollapsed, toggleSubnav]
+    [endGlobalLoading, pathname, router, startGlobalLoading, subnavCollapsed, toggleSubnav]
+  )
+
+  React.useEffect(() => {
+    setPendingGroupId(undefined)
+    if (!pendingRailNavigationRef.current) return
+    pendingRailNavigationRef.current = false
+    if (railNavigationWatchdogRef.current) {
+      clearTimeout(railNavigationWatchdogRef.current)
+      railNavigationWatchdogRef.current = null
+    }
+    endGlobalLoading('navigation')
+  }, [endGlobalLoading, pathname])
+
+  React.useEffect(
+    () => () => {
+      if (railNavigationWatchdogRef.current) clearTimeout(railNavigationWatchdogRef.current)
+      if (pendingRailNavigationRef.current) endGlobalLoading('navigation')
+    },
+    [endGlobalLoading]
   )
 
   // 移动端抽屉
@@ -123,10 +159,18 @@ export function TerminalShell({ children }: TerminalShellProps) {
         <div className="relative flex min-h-0 flex-1">
           <main
             id="main-content"
+            aria-busy={isNavigationLoading}
             className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto rounded-none p-1 shadow-none md:p-2 term-scroll"
           >
             <MobileStripMount className="sticky top-0 z-10" />
-            <PageTransition>{children}</PageTransition>
+            <div className="contents" inert={isNavigationLoading} aria-hidden={isNavigationLoading}>
+              <PageTransition>{children}</PageTransition>
+            </div>
+            {isNavigationLoading ? (
+              <div className="absolute inset-0 z-20 overflow-y-auto bg-term-bg p-2 term-scroll">
+                <DashboardNavigationLoading targetPath={navigationTargetPath} />
+              </div>
+            ) : null}
           </main>
           <TerminalInspector
             open={inspectorOpen}

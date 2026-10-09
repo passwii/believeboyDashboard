@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   TERMINAL_RAIL_WIDTH,
@@ -10,8 +10,10 @@ import { TerminalRail } from './terminal-rail'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { TrendingUp } from 'lucide-react'
 
+const mockRouter = vi.hoisted(() => ({ push: vi.fn(), prefetch: vi.fn() }))
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => mockRouter,
 }))
 
 vi.mock('next-themes', () => ({
@@ -32,6 +34,11 @@ const GROUPS: SidebarTopGroup[] = [
 ]
 
 describe('TerminalRail', () => {
+  beforeEach(() => {
+    mockRouter.push.mockClear()
+    mockRouter.prefetch.mockClear()
+  })
+
   it('BLF-832 Logo 位高度引用顶部基准带常量（不再借用 Rail 宽度）', () => {
     const { container } = render(
       <TerminalRail groups={GROUPS} activeGroupId="operations" onGroupNavigate={vi.fn()} />
@@ -65,6 +72,18 @@ describe('TerminalRail', () => {
 
     // 面板分割线对齐契约（BLF-832）不被本次改动破坏：格高仍等于顶部基准带
     expect(logoSlot.style.height).toBe(`${TERMINAL_TOP_STRIP_HEIGHT}px`)
+  })
+
+  it('悬停或键盘聚焦大类时预加载该类的首个页面', () => {
+    render(<TerminalRail groups={GROUPS} activeGroupId="operations" onGroupNavigate={vi.fn()} />)
+    const groupButton = screen.getByRole('button', { name: '运营' })
+
+    fireEvent.mouseEnter(groupButton)
+    fireEvent.focus(groupButton)
+
+    expect(mockRouter.prefetch).toHaveBeenCalledTimes(2)
+    expect(mockRouter.prefetch).toHaveBeenNthCalledWith(1, '/dashboard/operations/daily-analysis')
+    expect(mockRouter.prefetch).toHaveBeenNthCalledWith(2, '/dashboard/operations/daily-analysis')
   })
 
   it('主题选择入口提供三态设置的可访问名称', () => {
