@@ -38,6 +38,33 @@ from celery.exceptions import SoftTimeLimitExceeded
 # ---------------------------------------------------------------------------
 
 
+def test_html_to_png_uses_three_x_device_scale_by_default(monkeypatch):
+    """Default report screenshots should render at 3x device scale."""
+    import playwright.sync_api as pw_sync_api
+
+    from app.services.scheduled_report import screenshot as ss_mod
+
+    fake_page = MagicMock()
+    fake_page.screenshot.return_value = b"\x89PNG\r\n\x1a\n" * 4
+    fake_browser = MagicMock()
+    fake_browser.new_page.return_value = fake_page
+    fake_pw_cm = MagicMock()
+    fake_pw_cm.__enter__.return_value.chromium.launch.return_value = fake_browser
+    fake_pw_cm.__exit__.return_value = False
+    fake_sync_pw = MagicMock(return_value=fake_pw_cm)
+
+    monkeypatch.setattr(pw_sync_api, "sync_playwright", fake_sync_pw, raising=False)
+    monkeypatch.setattr(ss_mod, "_apply_rounded_corners", lambda b: b)
+
+    result = ss_mod.html_to_png("<html><body>hi</body></html>")
+
+    assert result is not None, "html_to_png returned None — stub didn't take"
+    fake_browser.new_page.assert_called_once_with(
+        viewport={"width": 420, "height": 800},
+        device_scale_factor=3,
+    )
+
+
 def test_html_to_png_passes_explicit_timeout_to_playwright(monkeypatch):
     """html_to_png must pass a timeout >= 60 s to page.screenshot().
 
