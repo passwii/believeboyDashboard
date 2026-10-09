@@ -41,6 +41,8 @@ interface TerminalShellProps {
   children: React.ReactNode
 }
 
+const RAIL_NAVIGATION_WATCHDOG_MS = 10_000
+
 /**
  * Terminal 高密度交易终端外壳（BLF-809；BLF-887 高度上档 2026-08-29）。
  *
@@ -57,7 +59,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
   const roleType = session?.user?.roleType as RoleType | undefined
   const { isNavigationLoading, navigationTargetPath, startGlobalLoading, endGlobalLoading } =
     useGlobalLoading()
-  const pendingRailNavigationRef = React.useRef(false)
+  const pendingRailNavigationCountRef = React.useRef(0)
   const railNavigationWatchdogRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const visibleGroups = React.useMemo(
@@ -78,46 +80,48 @@ export function TerminalShell({ children }: TerminalShellProps) {
     pushRecent(pathname, getDashboardPageTitle(pathname))
   }, [pathname])
 
+  const clearPendingRailNavigations = React.useCallback(() => {
+    if (railNavigationWatchdogRef.current) {
+      clearTimeout(railNavigationWatchdogRef.current)
+      railNavigationWatchdogRef.current = null
+    }
+
+    const pendingCount = pendingRailNavigationCountRef.current
+    pendingRailNavigationCountRef.current = 0
+    for (let index = 0; index < pendingCount; index += 1) {
+      endGlobalLoading('navigation')
+    }
+  }, [endGlobalLoading])
+
   // Rail 点击域图标 → 跳到该域第一个模块；若子导航已折叠则顺手展开
   const handleGroupNavigate = React.useCallback(
     (group: SidebarTopGroup) => {
       if (subnavCollapsed) toggleSubnav()
       const target = group.items[0]
       if (target && !isLinkActive(pathname, target)) {
-        pendingRailNavigationRef.current = true
+        pendingRailNavigationCountRef.current += 1
         setPendingGroupId(group.id)
         startGlobalLoading('navigation', { targetPath: target.url })
         if (railNavigationWatchdogRef.current) clearTimeout(railNavigationWatchdogRef.current)
         railNavigationWatchdogRef.current = setTimeout(() => {
-          if (!pendingRailNavigationRef.current) return
-          pendingRailNavigationRef.current = false
-          railNavigationWatchdogRef.current = null
+          if (pendingRailNavigationCountRef.current === 0) return
+          clearPendingRailNavigations()
           setPendingGroupId(undefined)
-          endGlobalLoading('navigation')
-        }, 10_000)
+        }, RAIL_NAVIGATION_WATCHDOG_MS)
         router.push(target.url)
       }
     },
-    [endGlobalLoading, pathname, router, startGlobalLoading, subnavCollapsed, toggleSubnav]
+    [clearPendingRailNavigations, pathname, router, startGlobalLoading, subnavCollapsed, toggleSubnav]
   )
 
   React.useEffect(() => {
     setPendingGroupId(undefined)
-    if (!pendingRailNavigationRef.current) return
-    pendingRailNavigationRef.current = false
-    if (railNavigationWatchdogRef.current) {
-      clearTimeout(railNavigationWatchdogRef.current)
-      railNavigationWatchdogRef.current = null
-    }
-    endGlobalLoading('navigation')
-  }, [endGlobalLoading, pathname])
+    clearPendingRailNavigations()
+  }, [clearPendingRailNavigations, pathname])
 
   React.useEffect(
-    () => () => {
-      if (railNavigationWatchdogRef.current) clearTimeout(railNavigationWatchdogRef.current)
-      if (pendingRailNavigationRef.current) endGlobalLoading('navigation')
-    },
-    [endGlobalLoading]
+    () => () => clearPendingRailNavigations(),
+    [clearPendingRailNavigations]
   )
 
   // 移动端抽屉
@@ -163,7 +167,11 @@ export function TerminalShell({ children }: TerminalShellProps) {
             className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto rounded-none p-1 shadow-none md:p-2 term-scroll"
           >
             <MobileStripMount className="sticky top-0 z-10" />
-            <div className="contents" inert={isNavigationLoading} aria-hidden={isNavigationLoading}>
+            <div
+              className="contents"
+              inert={isNavigationLoading ? '' : undefined}
+              aria-hidden={isNavigationLoading}
+            >
               <PageTransition>{children}</PageTransition>
             </div>
             {isNavigationLoading ? (
