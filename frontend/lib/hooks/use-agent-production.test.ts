@@ -13,9 +13,7 @@ import type { ComplaintsOverviewResponse } from './use-agent-production'
 /**
  * 真实响应快照(`tests/fixtures/complaints-overview-*.json`)。
  *
- * 抓取口径与 S4 的 Swift 侧快照同一份:本地后端 + 生产库快照 `BLF` +
- * 管理员账号上下文(见 `macos/Tests/BelieveBoyTests/AgentOpsFixtures.swift`
- * 的 `complaintsWithRun` / `complaintsWithoutRun`,此处逐字节同值)。
+ * 抓取口径:本地后端 + 生产库快照 `BLF` + 管理员账号上下文；快照与后端真实响应逐字节同值。
  *
  * 注解为契约类型:快照刷新时若后端换了键名,类型不符会先在编译期报出来;
  * 下方 `COMPLAINTS_OVERVIEW_KEYS` 断言再做一次运行期钉住。
