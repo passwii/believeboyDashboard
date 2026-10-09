@@ -66,6 +66,14 @@ export function TerminalRail({ groups, activeGroupId, onGroupNavigate }: Termina
               title={group.label}
               aria-label={group.label}
               aria-current={isActive ? 'page' : undefined}
+              onMouseEnter={() => {
+                const target = group.items[0]
+                if (target) router.prefetch(target.url)
+              }}
+              onFocus={() => {
+                const target = group.items[0]
+                if (target) router.prefetch(target.url)
+              }}
               onClick={() => onGroupNavigate(group)}
               className={cn(
                 'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-none shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
