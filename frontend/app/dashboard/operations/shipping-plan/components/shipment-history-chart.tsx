@@ -22,16 +22,21 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value)
 }
 
+function formatSignedNumber(value: number): string {
+  return `${value > 0 ? '+' : ''}${formatNumber(value)}`
+}
+
 export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) {
   const data = useMemo(() => buildShipmentHistoryPoints(history), [history])
   const hasCoveredSales = data.some((point) => point.covered && point.sales_quantity !== null)
   const totals = useMemo(() => {
     const coveredPoints = data.filter((point) => point.covered && point.sales_quantity !== null)
     return {
-      shipment: data.reduce((sum, point) => sum + point.quantity, 0),
+      covered: coveredPoints.length,
+      shipment: coveredPoints.reduce((sum, point) => sum + point.quantity, 0),
       sales: coveredPoints.reduce((sum, point) => sum + (point.sales_quantity ?? 0), 0),
       gap: coveredPoints.reduce((sum, point) => sum + (point.gap ?? 0), 0),
-      uncovered: data.filter((point) => !point.covered).length,
+      uncovered: data.length - coveredPoints.length,
     }
   }, [data])
 
@@ -97,9 +102,9 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
         </div>
         <div className="border-t border-term-border px-4 py-2 text-[11px] text-term-muted">
           <p>
-            窗口内累计：发运 {formatNumber(totals.shipment)} 件 · 销量{' '}
-            {totals.uncovered === data.length ? '待核实' : `${formatNumber(totals.sales)} 件`} · 差{' '}
-            {totals.uncovered === data.length ? '待核实' : `${formatNumber(totals.gap)} 件`}
+            {totals.covered === 0
+              ? `已覆盖 0/${data.length} 个月：发运待核实 · 销量待核实 · 差待核实`
+              : `已覆盖 ${totals.covered}/${data.length} 个月：发运 ${formatNumber(totals.shipment)} 件 · 销量 ${formatNumber(totals.sales)} 件 · 差 ${formatSignedNumber(totals.gap)} 件`}
             {totals.uncovered > 0 ? ` · ${totals.uncovered} 个月待核实` : null}
           </p>
           <p className="mt-0.5 text-term-warn">缺少 ETD：{history.missing_etd_shipment_count} 件货 · {formatNumber(history.missing_etd_quantity)} 件</p>
