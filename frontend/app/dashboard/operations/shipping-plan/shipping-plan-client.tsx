@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { AlertTriangle, CalendarDays, LoaderCircle, Plus, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, LoaderCircle, Plus, RefreshCw, X } from 'lucide-react'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ForecastChart } from './components/forecast-chart'
+import { ShipmentHistoryChart } from './components/shipment-history-chart'
 import { SkuForecastTable } from './components/sku-forecast-table'
 import type { components } from '@/types/api-generated/api'
 
@@ -549,7 +550,7 @@ export default function ShippingPlanClient() {
         {stats.map((stat) => <StatLine key={stat.label} {...stat} />)}
       </section>
 
-      {history ? <ShipmentHistoryStrip history={history} /> : null}
+      {history ? <ShipmentHistoryChart history={history} /> : null}
 
       <SkuForecastTable rows={skus} selectedSku={selectedSku} loading={loading} onSelect={setSelectedSku} />
 
@@ -557,7 +558,7 @@ export default function ShippingPlanClient() {
         <DataTableCard className="min-w-0">
           <DataTableCardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-mono text-sm font-semibold text-term-text">180 天 SKU 销售上限</h2><p className="mt-1 text-xs leading-5 text-term-muted">需求采用基础加权日均销量 × SKU 增长系数；到货当天计入供给。</p></div>
+              <div><h2 className="font-mono text-sm font-semibold text-term-text">销量与库存预测</h2></div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-term-muted">SKU</span>
                 <Select value={selectedSku} onValueChange={setSelectedSku} disabled={skus.length === 0}>
@@ -575,7 +576,7 @@ export default function ShippingPlanClient() {
         </DataTableCard>
 
         <DataTableCard>
-          <DataTableCardHeader title="SKU 预测参数" description="库存与销量基线沿用补货分析；安全库存系数不参与销售上限计算。" />
+          <DataTableCardHeader title="SKU 参数" />
           <DataTableCardBody className="space-y-4 p-4">
             {selectedRow ? (
               <>
@@ -610,7 +611,7 @@ export default function ShippingPlanClient() {
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <DataTableCard>
-          <DataTableCardHeader title="预期到货计划" description="仅维护未落实的计划；正式货件请到「货件管理」中创建和更新。" />
+          <DataTableCardHeader title="预期到货计划" />
           <DataTableCardBody className="space-y-4 p-4">
             <form onSubmit={(event) => void createPlanBatch(event)} className="space-y-2">
               <div className="grid gap-2 sm:grid-cols-2">
@@ -670,12 +671,11 @@ export default function ShippingPlanClient() {
         </DataTableCard>
 
         <DataTableCard>
-          <DataTableCardHeader title="数据边界" description="读数说明与质量提醒" />
+          <DataTableCardHeader title="数据说明" />
           <DataTableCardBody className="space-y-3 p-4 text-xs leading-5 text-term-muted">
-            <p><strong className="font-mono text-term-text">库存快照：</strong>预测使用最近的库存快照，不是实时库存。快照日期和缺失原因展示在 SKU 参数中。</p>
-            <p><strong className="font-mono text-term-text">ETD 发运：</strong>历史发运日期采用货件 ETD 代理口径，仅统计在途和已完成货件；无 ETD 记录单独显示。</p>
-            <p><strong className="font-mono text-term-text">同比销量：</strong>去年同期 `orderSales` 仅用于图表参考；覆盖不完整的日期留空，不按零销量绘制。</p>
-            <p><strong className="font-mono text-term-text">到货假设：</strong>V1 假设货件到仓日当天可售；实际可售时间可能晚于到仓日期。</p>
+            <p><strong className="font-mono text-term-text">库存：</strong>按最近快照计算，不代表实时库存。</p>
+            <p><strong className="font-mono text-term-text">发运：</strong>按 ETD 月份统计在途与已完成货件；缺少 ETD 的货件单独列出。</p>
+            <p><strong className="font-mono text-term-text">到货：</strong>预测从预计到仓日当天计入库存。</p>
             {forecast?.arrivals.some((arrival) => arrival.data_quality) ? <div className="border-t border-term-border pt-3"><div className="mb-2 flex items-center gap-2 text-term-warn"><AlertTriangle className="h-4 w-4" />需要关注的到货</div><ul className="space-y-2">{forecast.arrivals.filter((arrival) => arrival.data_quality).map((arrival, index) => <li key={`${arrival.source_type}-${arrival.sku}-${arrival.reference ?? index}`} className="border-b border-term-border pb-2 last:border-0">{arrival.reference || arrival.source_type}：{arrival.arrival_date ? `日期 ${formatDate(arrival.arrival_date)}` : '日期未知'}，数据状态 {arrival.data_quality} <span className="font-mono">· {formatNumber(arrival.quantity, 0)} 件</span></li>)}</ul></div> : null}
           </DataTableCardBody>
         </DataTableCard>
@@ -695,22 +695,6 @@ function PageHeading({ onRefresh, loading }: { onRefresh?: () => void; loading?:
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0"><dt className="text-term-muted">{label}</dt><dd className="mt-1 truncate font-mono tabular-nums text-term-text">{value}</dd></div>
-}
-
-function ShipmentHistoryStrip({ history }: { history: ShipmentHistory }) {
-  return (
-    <DataTableCard data-testid="shipment-history-strip">
-      <DataTableCardHeader title="历史发运量" description="按 ETD 月份汇总；ETD 为计划发运日期代理，不代表实际离港。" />
-      <DataTableCardBody>
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto px-4 py-3 term-scroll">
-          <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-term-muted"><CalendarDays className="h-3.5 w-3.5" />最近 12 个月</span>
-          {history.months.map((month) => <div key={month.month} className="min-w-24 border-l border-term-border pl-3"><div className="font-mono text-xs text-term-text">{month.month}</div><div className="mt-1 font-mono text-[11px] tabular-nums text-term-muted">{month.shipment_count} 件 · {formatNumber(month.quantity, 0)} 件数</div></div>)}
-          <div className="min-w-28 border-l border-term-warn/50 pl-3 text-xs text-term-warn">缺 ETD：{history.missing_etd_shipment_count} 件 / {formatNumber(history.missing_etd_quantity, 0)} 件数</div>
-        </div>
-        <div className="border-t border-term-border px-4 py-2 text-[11px] text-term-muted">统计状态：{history.included_statuses.map((status) => status === 'in_transit' ? '在途' : status === 'completed' ? '已完成' : status).join('、')}。{history.date_basis}。物流成本历史排除标记不影响本统计。</div>
-      </DataTableCardBody>
-    </DataTableCard>
-  )
 }
 
 function PlanBatchList({
