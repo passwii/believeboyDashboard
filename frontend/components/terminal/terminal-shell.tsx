@@ -61,6 +61,7 @@ export function TerminalShell({ children }: TerminalShellProps) {
     useGlobalLoading()
   const pendingRailNavigationCountRef = React.useRef(0)
   const railNavigationWatchdogRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contentWrapperRef = React.useRef<HTMLDivElement>(null)
 
   const visibleGroups = React.useMemo(
     () => getVisibleGroups(SIDEBAR_TOP_GROUPS, roleType),
@@ -124,6 +125,14 @@ export function TerminalShell({ children }: TerminalShellProps) {
     [clearPendingRailNavigations]
   )
 
+  React.useLayoutEffect(() => {
+    const element = contentWrapperRef.current
+    if (!element) return
+
+    if (isNavigationLoading) element.setAttribute('inert', '')
+    else element.removeAttribute('inert')
+  }, [isNavigationLoading])
+
   // 移动端抽屉
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
   const openMobileNav = React.useCallback(() => setMobileNavOpen(true), [])
@@ -168,8 +177,8 @@ export function TerminalShell({ children }: TerminalShellProps) {
           >
             <MobileStripMount className="sticky top-0 z-10" />
             <div
+              ref={contentWrapperRef}
               className="contents"
-              inert={isNavigationLoading ? '' : undefined}
               aria-hidden={isNavigationLoading}
             >
               <PageTransition>{children}</PageTransition>
