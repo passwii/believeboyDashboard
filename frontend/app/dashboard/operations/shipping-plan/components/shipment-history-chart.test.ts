@@ -172,7 +172,7 @@ describe('ShipmentHistoryChart', () => {
     expect(screen.getByTestId('tooltip').textContent).toContain('待核实')
   })
 
-  it('omits the sales series and shows cumulative sales as待核实 when every month is uncovered', () => {
+  it('omits the sales series and shows cumulative values as待核实 when every month is uncovered', () => {
     render(
       createElement(ShipmentHistoryChart, {
         history: {
@@ -186,9 +186,33 @@ describe('ShipmentHistoryChart', () => {
     )
 
     expect(screen.queryByTestId('sales-line')).toBeNull()
-    expect(screen.getByText(/窗口内累计/).textContent).toContain('销量 待核实 · 差 待核实')
-    expect(screen.getByText(/窗口内累计/).textContent).not.toContain('销量 0 件')
-    expect(screen.getByText(/窗口内累计/).textContent).toContain('2 个月待核实')
+    expect(screen.getByText(/已覆盖 0\/2 个月/).textContent).toBe(
+      '已覆盖 0/2 个月：发运待核实 · 销量待核实 · 差待核实 · 2 个月待核实'
+    )
+  })
+
+  it('totals shipment, sales, and gap over covered months only when coverage is mixed', () => {
+    render(
+      createElement(ShipmentHistoryChart, {
+        history: {
+          ...history,
+          months: [
+            { month: '2025-10', shipment_count: 1, quantity: 12 },
+            { month: '2025-11', shipment_count: 1, quantity: 7 },
+            { month: '2025-12', shipment_count: 1, quantity: 100 },
+          ],
+          sales_months: [
+            { month: '2025-10', sales_quantity: 10, covered: true },
+            { month: '2025-11', sales_quantity: 12, covered: true },
+            { month: '2025-12', sales_quantity: null, covered: false },
+          ],
+        },
+      })
+    )
+
+    expect(screen.getByText(/已覆盖 2\/3 个月/).textContent).toBe(
+      '已覆盖 2/3 个月：发运 19 件 · 销量 22 件 · 差 +3 件 · 1 个月待核实'
+    )
   })
 
   it('renders legacy responses without sales months using the zero-filled shipment timeline', () => {
