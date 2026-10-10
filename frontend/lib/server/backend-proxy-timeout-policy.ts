@@ -55,6 +55,9 @@ const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   // the 5s default. Pair with the `COPY FROM STDIN` rewrite of
   // `ingest_ledger_csv` for throughput — see commit `2026-08-03-bel-417-*`.
   /\/report-upload\/commit$/,
+  // 产品标签制作：服务端要跑 pypdf + pdfplumber + reportlab 的完整叠加管线，
+  // 冷启动导入这三个库本身就占掉大部分 5s 预算，默认档必超时。
+  /\/product-label\/generate$/,
 ]
 
 const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [

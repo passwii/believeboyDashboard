@@ -40,6 +40,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/tools/markdown-to-word', title: 'Markdown 转 Word' },
   { match: '/tools/page-render', title: 'Markdown / HTML 渲染' },
   { match: '/tools/brand-registration-example', title: '品牌备案示例' },
+  { match: '/tools/product-label', title: '产品标签制作' },
   { match: '/ai/chat', title: 'AI Chat' },
   { match: '/ai/ad-analysis', title: 'AI 广告分析' },
   { match: '/ai/inventory-health', title: 'AI 库存健康' },

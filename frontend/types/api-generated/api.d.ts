@@ -7251,6 +7251,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-label/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Product Label
+         * @description 给单页产品标签 PDF 叠加文案，返回新的 PDF。
+         */
+        post: operations["generate_product_label_api_v1_product_label_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/project-goals": {
         parameters: {
             query?: never;
@@ -11688,6 +11708,21 @@ export interface components {
              * @description 已更新的 SKU ID 列表
              */
             updated_ids: number[];
+        };
+        /** Body_generate_product_label_api_v1_product_label_generate_post */
+        Body_generate_product_label_api_v1_product_label_generate_post: {
+            /** File */
+            file: string;
+            /**
+             * Made In China
+             * @default
+             */
+            made_in_china: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /** Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post */
         Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post: {
@@ -41337,6 +41372,51 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProductAnalysisWeeklyRecomputeResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_product_label_api_v1_product_label_generate_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_generate_product_label_api_v1_product_label_generate_post"];
+            };
+        };
+        responses: {
+            /** @description 叠加文案后的 PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description 标签不可处理（多页 / 无文字 / 插不下 / 文案超宽） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -34,6 +34,7 @@ from app.api.v1.endpoints.notifications import router as notifications_router
 from app.api.v1.endpoints.order_info import router as order_info_router
 from app.api.v1.endpoints.page_render import router as page_render_router
 from app.api.v1.endpoints.profile import router as profile_router
+from app.api.v1.endpoints.product_label import router as product_label_router
 from app.api.v1.endpoints.projects import router as projects_router
 # 项目启动台流程端点（BLF-1234）：与 projects_router 同域，随核心组急切加载。
 from app.api.v1.endpoints.project_workflows import router as project_workflows_router
@@ -104,6 +105,8 @@ api_router.include_router(scheduled_reports_router)
 include_lazy_router(api_router, "app.api.v1.router_groups.system_extra_group")
 
 api_router.include_router(page_render_router)
+# 产品标签制作（工具箱）：单页标签 PDF 叠加文案，无状态、无 DB、无系统依赖。
+api_router.include_router(product_label_router)
 # BLF-459 V3：/external/* 已彻底下线（老消费者全部切到 /agent/*）。
 # 保留一个 410 Gone 兜底路由，给仍打旧路径的调用方明确信号（见
 # app/api/v1/endpoints/external_retired.py），而不是裸 404。

@@ -7,6 +7,10 @@ describe('getDashboardPageTitle', () => {
     expect(getDashboardPageTitle('/dashboard/tools/brand-registration-example')).toBe('品牌备案示例')
   })
 
+  it('产品标签制作路由显示对应标题', () => {
+    expect(getDashboardPageTitle('/dashboard/tools/product-label')).toBe('产品标签制作')
+  })
+
   it('Shipping Plan 与 Shipment Management 使用准确标题且保留原页面路由', () => {
     expect(getDashboardPageTitle('/dashboard/operations/shipping-plan')).toBe('发货规划')
     expect(getDashboardPageTitle('/dashboard/operations/shipment-management')).toBe('货件管理')
