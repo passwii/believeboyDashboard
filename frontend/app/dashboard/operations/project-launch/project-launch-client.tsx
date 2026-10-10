@@ -67,6 +67,7 @@ import {
   type WorkflowStatus,
 } from '@/lib/project-workflows-api'
 import { cn } from '@/lib/utils'
+import { hasActiveProjectWorkflow } from '@/lib/project-startup-status'
 
 import { CreateWorkflowDialog } from './create-workflow-dialog'
 import { WorkflowOverviewRow, WorkflowStatusPill, WorkflowTaskList } from './project-workflow-list'
@@ -93,8 +94,10 @@ export default function ProjectLaunchClient() {
   const [projectsError, setProjectsError] = useState<string | null>(null)
 
   const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryLoaded, setSummaryLoaded] = useState(false)
 
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false)
   const [workflows, setWorkflows] = useState<ProjectWorkflow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
@@ -122,6 +125,15 @@ export default function ProjectLaunchClient() {
   const selectedSummary = selectedProjectId == null ? null : summariesByProject.get(selectedProjectId)
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
+  const archivedProjectCount = !summaryLoaded || summaryError ? 0 : projects.filter((project) =>
+    !hasActiveProjectWorkflow(summariesByProject.get(project.id)?.workflows ?? [])
+  ).length
+  const displayedProjects = useMemo(() => {
+    if (showArchivedProjects || summaryError) return projects
+    return projects.filter((project) =>
+      hasActiveProjectWorkflow(summariesByProject.get(project.id)?.workflows ?? [])
+    )
+  }, [projects, showArchivedProjects, summariesByProject, summaryError])
 
   // ── 读：项目列表 + 流程概要（一次批量，无逐项目 fan-out） ────────────────
   const loadProjectsAndSummary = useCallback(
@@ -129,6 +141,7 @@ export default function ProjectLaunchClient() {
       setProjectsLoading(true)
       setProjectsError(null)
       setSummaryError(null)
+      setSummaryLoaded(false)
 
       const [projectsResult, summaryResult] = await Promise.allSettled([
         fetchManagedProjectsCached<ManagedProjectOption[]>(session, undefined, {
@@ -152,6 +165,7 @@ export default function ProjectLaunchClient() {
         setSummariesByProject(new Map())
         setSummaryError(errorText(summaryResult.reason, '流程概要加载失败'))
       }
+      setSummaryLoaded(true)
 
       setProjectsLoading(false)
     },
@@ -210,12 +224,15 @@ export default function ProjectLaunchClient() {
     void loadProjectsAndSummary()
   }, [loadProjectsAndSummary, sessionStatus])
 
-  // 默认选中第一个可见项目（概要加载完成后）。
+  // 默认选中第一个当前可见项目；刷新后若原项目进入历史列表则切回首个待处理项目。
   useEffect(() => {
-    if (selectedProjectId != null) return
-    const first = projects[0]
-    if (first) setSelectedProjectId(first.id)
-  }, [projects, selectedProjectId])
+    if (projectsLoading || projectsError) return
+    if (selectedProjectId != null && displayedProjects.some((project) => project.id === selectedProjectId)) {
+      return
+    }
+    const nextProjectId = displayedProjects[0]?.id ?? null
+    if (selectedProjectId !== nextProjectId) setSelectedProjectId(nextProjectId)
+  }, [displayedProjects, projectsError, projectsLoading, selectedProjectId])
 
   useEffect(() => {
     if (selectedProjectId == null) {
@@ -654,7 +671,24 @@ export default function ProjectLaunchClient() {
     }
 
     if (!selectedProject) {
-      return null
+      return (
+        <Empty data-testid="no-pending-projects">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FolderOpen aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>暂无待启动项目</EmptyTitle>
+            <EmptyDescription>历史或已启动项目已收起，可展开查看全部项目。</EmptyDescription>
+          </EmptyHeader>
+          {archivedProjectCount > 0 ? (
+            <EmptyContent>
+              <Button type="button" variant="outline" onClick={() => setShowArchivedProjects(true)}>
+                显示历史/已启动项目（{archivedProjectCount}）
+              </Button>
+            </EmptyContent>
+          ) : null}
+        </Empty>
+      )
     }
 
     return (
@@ -691,25 +725,37 @@ export default function ProjectLaunchClient() {
   return (
     <div className="flex w-full flex-col gap-2" data-testid="project-launch">
       {/* 窄屏：项目选择器替代左侧列表 */}
-      <div className="flex items-center gap-2 md:hidden">
-        <label htmlFor="project-launch-picker" className="shrink-0 font-mono text-[11px] text-term-muted">
-          项目
-        </label>
-        <select
-          id="project-launch-picker"
-          data-testid="project-picker"
-          className={`${TERM_SELECT_NATIVE} w-full`}
-          value={selectedProjectId == null ? '' : String(selectedProjectId)}
-          disabled={projects.length === 0}
-          onChange={(event) => setSelectedProjectId(Number(event.target.value) || null)}
-        >
-          {projects.length === 0 ? <option value="">暂无项目</option> : null}
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-1 md:hidden">
+        <div className="flex items-center gap-2">
+          <label htmlFor="project-launch-picker" className="shrink-0 font-mono text-[11px] text-term-muted">
+            项目
+          </label>
+          <select
+            id="project-launch-picker"
+            data-testid="project-picker"
+            className={`${TERM_SELECT_NATIVE} w-full`}
+            value={selectedProjectId == null ? '' : String(selectedProjectId)}
+            disabled={displayedProjects.length === 0}
+            onChange={(event) => setSelectedProjectId(Number(event.target.value) || null)}
+          >
+            {displayedProjects.length === 0 ? <option value="">暂无待启动项目</option> : null}
+            {displayedProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {archivedProjectCount > 0 ? (
+          <button
+            type="button"
+            data-testid="toggle-archived-projects-mobile"
+            className={`${TERM_BUTTON} self-end`}
+            onClick={() => setShowArchivedProjects((value) => !value)}
+          >
+            {showArchivedProjects ? '收起历史/已启动项目' : `显示历史/已启动项目（${archivedProjectCount}）`}
+          </button>
+        ) : null}
       </div>
 
       {admin ? <div className="flex justify-end"><Button asChild variant="term" size="sm"><Link href="/dashboard/operations/project-launch/templates">流程模板管理</Link></Button></div> : null}
@@ -723,8 +769,18 @@ export default function ProjectLaunchClient() {
         >
           <div className="flex items-center justify-between border-b border-term-border px-2 py-1">
             <span className="font-mono text-[11px] text-term-faint">
-              {projectsLoading ? '加载中…' : `共 ${projects.length} 个项目`}
+              {projectsLoading ? '加载中…' : `显示 ${displayedProjects.length} / ${projects.length} 个项目`}
             </span>
+            {archivedProjectCount > 0 ? (
+              <button
+                type="button"
+                data-testid="toggle-archived-projects"
+                className={`${TERM_BUTTON} ml-auto`}
+                onClick={() => setShowArchivedProjects((value) => !value)}
+              >
+                {showArchivedProjects ? '收起历史/已启动项目' : `显示历史/已启动项目（${archivedProjectCount}）`}
+              </button>
+            ) : null}
             {refreshing ? (
               <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin text-term-muted" />
             ) : null}
@@ -742,7 +798,7 @@ export default function ProjectLaunchClient() {
               <Skeleton className="h-9 w-full" />
             </div>
           ) : (
-            <ul className="flex flex-col p-1">{projects.map(renderProjectRow)}</ul>
+            <ul className="flex flex-col p-1">{displayedProjects.map(renderProjectRow)}</ul>
           )}
         </TermPanel>
 

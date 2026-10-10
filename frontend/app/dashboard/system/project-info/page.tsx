@@ -63,6 +63,11 @@ import {
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { getCountryLabel } from '@/lib/country'
+import { fetchWorkflowSummary, type ProjectWorkflowSummaryWorkflow } from '@/lib/project-workflows-api'
+import {
+  deriveProjectStartupStatus,
+  PROJECT_STARTUP_STATUS_LABELS,
+} from '@/lib/project-startup-status'
 
 type ProjectItem = {
   id: number
@@ -286,12 +291,18 @@ function toCommissionPoints(rate: number | null): number | null {
 
 export default function ProjectInfoPage() {
   const shopLoadRequestRef = useRef(0)
+  const startupSummaryRequestRef = useRef(0)
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
   const { data: session, status } = useSession()
   const { notify } = useNotifications()
   const searchParams = useSearchParams()
   const [items, setItems] = useState<ProjectItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [startupWorkflowsByProject, setStartupWorkflowsByProject] = useState<
+    Map<number, ProjectWorkflowSummaryWorkflow[]>
+  >(new Map())
+  const [startupSummaryLoading, setStartupSummaryLoading] = useState(true)
+  const [startupSummaryError, setStartupSummaryError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [operatorOptions, setOperatorOptions] = useState<string[]>([])
   const [movingId, setMovingId] = useState<number | null>(null)
@@ -399,6 +410,33 @@ export default function ProjectInfoPage() {
   useEffect(() => {
     void loadProjects()
   }, [loadProjects])
+
+  const loadStartupSummary = useCallback(async () => {
+    const requestId = ++startupSummaryRequestRef.current
+    setStartupSummaryLoading(true)
+    setStartupSummaryError(false)
+    try {
+      const summary = await fetchWorkflowSummary(session)
+      if (requestId !== startupSummaryRequestRef.current) return
+      setStartupWorkflowsByProject(
+        new Map(summary.projects.map((project) => [project.project_id, project.workflows]))
+      )
+    } catch {
+      if (requestId !== startupSummaryRequestRef.current) return
+      setStartupWorkflowsByProject(new Map())
+      setStartupSummaryError(true)
+    } finally {
+      if (requestId === startupSummaryRequestRef.current) setStartupSummaryLoading(false)
+    }
+  }, [session])
+
+  useEffect(() => {
+    if (status === 'loading') return
+    void loadStartupSummary()
+    return () => {
+      startupSummaryRequestRef.current += 1
+    }
+  }, [loadStartupSummary, status])
 
   useEffect(() => {
     void loadOperatorOptions()
@@ -657,8 +695,8 @@ export default function ProjectInfoPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => void loadProjects()}
-                  disabled={loading || submitting}
+                  onClick={() => void Promise.all([loadProjects(), loadStartupSummary()])}
+                  disabled={loading || startupSummaryLoading || submitting}
                 >
                   {loading ? '刷新中...' : '刷新数据'}
                 </Button>
@@ -913,6 +951,7 @@ export default function ProjectInfoPage() {
                         <TableHead>佣金点数</TableHead>
                         <TableHead className="w-[120px]">店铺地址</TableHead>
                         <TableHead className="w-[80px]">状态</TableHead>
+                        <TableHead className="w-[100px]">启动状态</TableHead>
                         <TableHead className="w-[80px]">项目等级</TableHead>
                         <TableHead className="w-[140px] text-center">排序</TableHead>
                         <TableHead className="w-[100px] text-right">操作</TableHead>
@@ -976,6 +1015,18 @@ export default function ProjectInfoPage() {
                                 <StatusPill status="success" label="启用" />
                               ) : (
                                 <StatusPill status="neutral" label="停用" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {startupSummaryLoading ? (
+                                <span className="text-xs text-muted-foreground">加载中</span>
+                              ) : startupSummaryError ? (
+                                <span className="text-xs text-muted-foreground" title="启动状态加载失败">-</span>
+                              ) : (
+                                <StatusPill
+                                  status={deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? []) === 'launched' ? 'success' : deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? []) === 'launching' ? 'warning' : 'neutral'}
+                                  label={PROJECT_STARTUP_STATUS_LABELS[deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? [])]}
+                                />
                               )}
                             </TableCell>
                             <TableCell>
