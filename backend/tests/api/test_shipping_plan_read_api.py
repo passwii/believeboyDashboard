@@ -3,9 +3,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-
 from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -42,9 +41,8 @@ def test_shipping_plan_schemas_export_required_contract_fields():
 
 def test_single_country_guard_rejects_all_scope():
     import pytest
-    from fastapi import HTTPException
-
     from app.services.shipping_plan.service import _require_single_country
+    from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc:
         _require_single_country("ALL")
@@ -289,6 +287,36 @@ def test_shipment_history_sales_marks_month_uncovered_without_successful_report(
             "covered": False,
             "provisional_sales_quantity": 9,
             "provisional_sales_through": date(2026, 2, 12),
+            "coverage_through": None,
+        }
+    ]
+
+
+def test_shipment_history_sales_does_not_report_provisional_zero_without_order_rows(db_session):
+    from app.services.shipping_plan.service import get_shipment_history
+
+    project, _source = _seed_shipping_history_sales_source(
+        db_session,
+        start=date(2026, 2, 1),
+        end=date(2026, 2, 28),
+        ingestion_status="failed",
+    )
+
+    result = get_shipment_history(
+        db_session,
+        project_id=project.id,
+        country="US",
+        etd_from=date(2026, 2, 1),
+        etd_to=date(2026, 2, 28),
+    )
+
+    assert result["sales_months"] == [
+        {
+            "month": "2026-02",
+            "sales_quantity": None,
+            "covered": False,
+            "provisional_sales_quantity": None,
+            "provisional_sales_through": None,
             "coverage_through": None,
         }
     ]

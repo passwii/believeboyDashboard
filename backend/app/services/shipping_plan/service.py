@@ -789,7 +789,9 @@ def get_shipment_history(db: Session, *, project_id: int, country: str, etd_from
                 "sales_quantity": sales_by_month.get(month, 0) if covered else None,
                 "covered": covered,
                 "provisional_sales_quantity": (
-                    None if covered else sales_by_month.get(month, 0)
+                    None
+                    if covered or month not in sales_by_month
+                    else sales_by_month[month]
                 ),
                 "provisional_sales_through": (
                     None if covered else sales_through_by_month.get(month)
