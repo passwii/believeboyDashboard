@@ -37,6 +37,8 @@ import {
   fetchAdminTemplate,
   fetchAdminTemplates,
   updateTemplate,
+  updateTemplateContent,
+  updateTemplateTask,
   type WorkflowTemplateDetail,
 } from '@/lib/project-workflows-api'
 import WorkflowTemplateEditor from './workflow-template-editor'
@@ -69,6 +71,8 @@ beforeEach(() => {
   vi.mocked(fetchAdminTemplates).mockResolvedValue(TEMPLATES)
   vi.mocked(fetchAdminTemplate).mockResolvedValue(DETAIL)
   vi.mocked(updateTemplate).mockImplementation(async (_id, input) => ({ ...DETAIL, ...input }))
+  vi.mocked(updateTemplateTask).mockImplementation(async () => DETAIL)
+  vi.mocked(updateTemplateContent).mockImplementation(async () => DETAIL)
   vi.mocked(createTemplateTask).mockImplementation(async () => ({
     ...DETAIL,
     task_count: 2,
@@ -117,7 +121,57 @@ describe('项目启动台模板编辑器', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('模板已保存')
   })
 
-  it('新建节点后使用服务端返回详情更新节点清单', async () => {
+  it('切换阶段前自动保存阶段字段和已有内容', async () => {
+    const user = userEvent.setup()
+    const twoTaskDetail: WorkflowTemplateDetail = {
+      ...DETAIL,
+      task_count: 2,
+      tasks: [DETAIL.tasks[0], {
+        ...DETAIL.tasks[0],
+        id: 12,
+        title: '样品验收',
+        sort_order: 1,
+        contents: [{ id: 121, title: null, body: '检查样品', sort_order: 0 }],
+      }],
+    }
+    vi.mocked(fetchAdminTemplates).mockResolvedValue({ templates: [twoTaskDetail] })
+    vi.mocked(fetchAdminTemplate).mockResolvedValue(twoTaskDetail)
+    vi.mocked(updateTemplateTask).mockResolvedValue(twoTaskDetail)
+    vi.mocked(updateTemplateContent).mockResolvedValue(twoTaskDetail)
+
+    render(<WorkflowTemplateEditor />)
+    await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('资料准备'))
+    await user.clear(screen.getByLabelText('阶段说明'))
+    await user.type(screen.getByLabelText('阶段说明'), '先核对资料')
+    await user.clear(screen.getByLabelText('内容'))
+    await user.type(screen.getByLabelText('内容'), '确认法人及地址')
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+
+    await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('样品验收'))
+    expect(updateTemplateTask).toHaveBeenCalledWith(11, expect.objectContaining({ description: '先核对资料' }), expect.anything())
+    expect(updateTemplateContent).toHaveBeenCalledWith(111, { title: '收集要求', body: '确认法人及地址' }, expect.anything())
+  })
+
+  it('自动保存失败时停留在当前阶段并显示错误', async () => {
+    const user = userEvent.setup()
+    const twoTaskDetail: WorkflowTemplateDetail = {
+      ...DETAIL,
+      task_count: 2,
+      tasks: [DETAIL.tasks[0], { ...DETAIL.tasks[0], id: 12, title: '样品验收', sort_order: 1 }],
+    }
+    vi.mocked(fetchAdminTemplates).mockResolvedValue({ templates: [twoTaskDetail] })
+    vi.mocked(fetchAdminTemplate).mockResolvedValue(twoTaskDetail)
+    vi.mocked(updateTemplateTask).mockRejectedValue(new Error('保存失败'))
+
+    render(<WorkflowTemplateEditor />)
+    await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('资料准备'))
+    await user.click(screen.getByRole('button', { name: '下一步' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('保存失败')
+    expect(screen.getByLabelText('阶段名称')).toHaveValue('资料准备')
+  })
+
+  it('新建阶段后自动选中新阶段', async () => {
     const user = userEvent.setup()
     render(<WorkflowTemplateEditor />)
     await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('资料准备'))
@@ -125,8 +179,7 @@ describe('项目启动台模板编辑器', () => {
     await user.type(screen.getByLabelText('新增阶段'), '样品验收')
     await user.click(screen.getByRole('button', { name: '新增阶段' }))
 
-    await waitFor(() => expect(createTemplateTask).toHaveBeenCalledWith(1, { title: '样品验收' }, expect.anything()))
-    await waitFor(() => expect(screen.getAllByDisplayValue('样品验收').length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('样品验收'))
     expect(within(screen.getByLabelText('模板列表')).getByText(/2 个阶段/)).toBeInTheDocument()
   })
 })

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useSession } from 'next-auth/react'
-import { Copy, Loader2, Plus, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Copy, Loader2, Plus, RefreshCw, Trash2, Upload } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,6 +58,7 @@ export default function WorkflowTemplateEditor() {
   const [newTitle, setNewTitle] = useState('')
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newContentByTask, setNewContentByTask] = useState<Record<number, { title: string; body: string }>>({})
+  const [activeTaskId, setActiveTaskId] = useState<number | null>(null)
   const detailRequest = useRef(0)
 
   const loadList = useCallback(async (preferredId?: number | null) => {
@@ -100,11 +101,22 @@ export default function WorkflowTemplateEditor() {
     detailRequest.current += 1
     if (selectedId == null || !admin) {
       setDetail(null)
+      setActiveTaskId(null)
       return
     }
     setDetail(null)
+    setActiveTaskId(null)
     void loadDetail(selectedId)
   }, [admin, loadDetail, selectedId])
+
+  useEffect(() => {
+    if (!detail) return
+    if (detail.tasks.length === 0) {
+      setActiveTaskId(null)
+    } else if (activeTaskId == null || !detail.tasks.some((task) => task.id === activeTaskId)) {
+      setActiveTaskId(detail.tasks[0].id)
+    }
+  }, [activeTaskId, detail])
 
   async function runAction(key: string, action: () => Promise<void>, success?: string) {
     setBusyKey(key)
@@ -156,6 +168,7 @@ export default function WorkflowTemplateEditor() {
     await runAction('new-task', async () => {
       const updated = await createTemplateTask(detail.id, { title: newTaskTitle.trim() }, session)
       setDetail(updated)
+      setActiveTaskId(updated.tasks[updated.tasks.length - 1]?.id ?? null)
       setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
       setNewTaskTitle('')
     }, '节点已添加')
@@ -184,6 +197,43 @@ export default function WorkflowTemplateEditor() {
         contents: (task.contents ?? []).map((content) => content.id === contentId ? { ...content, ...patch } : content),
       } : task),
     } : current)
+  }
+
+  async function saveTask(task: WorkflowTemplateTask) {
+    const updated = await updateTemplateTask(task.id, {
+      title: task.title,
+      description: task.description,
+      attachment_key: task.attachment_key,
+      duration_days: task.duration_days,
+    }, session)
+    setDetail(updated)
+    setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
+  }
+
+  async function saveTaskContents(task: WorkflowTemplateTask) {
+    for (const content of task.contents ?? []) {
+      const saved = await updateTemplateContent(content.id, { title: content.title, body: content.body }, session)
+      setDetail(saved)
+      setTemplates((current) => current.map((item) => item.id === saved.id ? saved : item))
+    }
+  }
+
+  async function switchTask(nextTaskId: number) {
+    if (!detail || busyKey !== null || nextTaskId === activeTaskId) return
+    const activeTask = detail.tasks.find((task) => task.id === activeTaskId)
+    if (!activeTask) {
+      setActiveTaskId(nextTaskId)
+      return
+    }
+    try {
+      await runAction('switch-task', async () => {
+        await saveTask(activeTask)
+        await saveTaskContents(activeTask)
+        setActiveTaskId(nextTaskId)
+      }, '阶段已自动保存')
+    } catch {
+      // Keep the current stage selected so the user can correct the failed save.
+    }
   }
 
   async function moveTask(index: number, direction: -1 | 1) {
@@ -265,104 +315,131 @@ export default function WorkflowTemplateEditor() {
                   }, '模板已删除')
                 }}><Trash2 aria-hidden />删除</Button>
               </div>
-              <div className="space-y-3 p-2">
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
-                  <div className="space-y-1"><Label htmlFor="template-title">模板名称</Label><Input id="template-title" value={detail.title} onChange={(event) => setDetail({ ...detail, title: event.target.value })} maxLength={160} /></div>
-                  <div className="space-y-1"><Label htmlFor="template-order">目录顺序</Label><Input id="template-order" type="number" min={0} value={detail.sort_order} onChange={(event) => setDetail({ ...detail, sort_order: Number(event.target.value) || 0 })} /></div>
-                  <div className="space-y-1 md:col-span-2"><Label htmlFor="template-description">模板说明</Label><Textarea id="template-description" value={detail.description ?? ''} onChange={(event) => setDetail({ ...detail, description: event.target.value })} rows={2} /></div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 border-t border-term-border pt-3"><h3 className="flex-1 font-mono text-xs text-term-text">阶段清单</h3><span className="font-mono text-[11px] text-term-muted">模板 key 不可更改：{detail.key}</span></div>
-                <ol className="divide-y divide-term-border border-y border-term-border">
-                  {detail.tasks.map((task, index) => {
-                    const taskContents = task.contents ?? []
-                    const taskAttachments = task.attachments ?? []
-                    return (
-                      <li key={task.id} className="space-y-3 py-3" data-testid={`template-task-${task.id}`}>
-                        <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[36px_minmax(0,1fr)_110px]">
-                          <span className="flex h-9 items-center justify-center border border-term-border font-mono text-xs tabular-nums text-term-muted">{String(index + 1).padStart(2, '0')}</span>
-                          <div className="space-y-1"><Label htmlFor={`task-title-${task.id}`}>阶段名称</Label><Input id={`task-title-${task.id}`} value={task.title} onChange={(event) => updateTaskLocal(task.id, { title: event.target.value })} maxLength={160} /></div>
-                          <div className="space-y-1"><Label htmlFor={`task-days-${task.id}`}>计划工期（天）</Label><Input id={`task-days-${task.id}`} type="number" min={0} max={3650} value={task.duration_days ?? ''} onChange={(event) => updateTaskLocal(task.id, { duration_days: event.target.value === '' ? null : Number(event.target.value) })} placeholder="未设置" /></div>
-                          <div className="space-y-1 md:col-span-2"><Label htmlFor={`task-description-${task.id}`}>阶段说明</Label><Textarea id={`task-description-${task.id}`} value={task.description ?? ''} onChange={(event) => updateTaskLocal(task.id, { description: event.target.value })} rows={2} /></div>
-                          <div className="space-y-1"><Label htmlFor={`task-document-${task.id}`}>固定资料</Label><select id={`task-document-${task.id}`} className="h-9 w-full border border-term-border bg-term-bg px-2 font-mono text-[11px] text-term-text" value={task.attachment_key ?? ''} onChange={(event) => updateTaskLocal(task.id, { attachment_key: event.target.value || null })}><option value="">不关联固定资料</option>{Object.entries(WORKFLOW_DOCUMENTS).map(([key, doc]) => <option value={key} key={key}>{doc.label}</option>)}</select></div>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          <Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => void runAction(`save-task-${task.id}`, async () => {
-                            const updated = await updateTemplateTask(task.id, { title: task.title, description: task.description, attachment_key: task.attachment_key, duration_days: task.duration_days }, session)
-                            setDetail(updated)
-                            setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                          }, '阶段已保存')}>保存阶段</Button>
-                          <Button type="button" variant="term" size="sm" disabled={busyKey !== null || index === 0} onClick={() => void moveTask(index, -1)}>上移</Button>
-                          <Button type="button" variant="term" size="sm" disabled={busyKey !== null || index === detail.tasks.length - 1} onClick={() => void moveTask(index, 1)}>下移</Button>
-                          <Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
-                            if (!window.confirm(`确认删除阶段「${task.title}」？`)) return
-                            void runAction(`delete-task-${task.id}`, async () => {
-                              const updated = await deleteTemplateTask(task.id, session)
-                              setDetail(updated)
-                              setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                            }, '阶段已删除')
-                          }}><Trash2 aria-hidden />删除阶段</Button>
-                        </div>
+              <div className="space-y-4 p-3">
+                <section className="space-y-2" aria-label="模板基本信息">
+                  <div className="flex items-center justify-between gap-2"><h3 className="font-mono text-xs font-semibold text-term-text">模板信息</h3><span className="truncate font-mono text-[10px] text-term-muted">Key: {detail.key}</span></div>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
+                    <div className="space-y-1"><Label htmlFor="template-title">模板名称</Label><Input id="template-title" value={detail.title} onChange={(event) => setDetail({ ...detail, title: event.target.value })} maxLength={160} /></div>
+                    <div className="space-y-1"><Label htmlFor="template-order">目录顺序</Label><Input id="template-order" type="number" min={0} value={detail.sort_order} onChange={(event) => setDetail({ ...detail, sort_order: Number(event.target.value) || 0 })} /></div>
+                    <div className="space-y-1 md:col-span-2"><Label htmlFor="template-description">模板说明</Label><Textarea id="template-description" value={detail.description ?? ''} onChange={(event) => setDetail({ ...detail, description: event.target.value })} rows={2} /></div>
+                  </div>
+                </section>
 
-                        <div className="grid min-w-0 grid-cols-1 gap-3 border-t border-term-border pt-3 xl:grid-cols-2">
-                          <section aria-label={`${task.title} 内容`}>
-                            <div className="mb-2 flex items-center justify-between gap-2"><h4 className="font-mono text-xs text-term-text">阶段内容</h4><span className="font-mono text-[11px] text-term-muted">{taskContents.length} 条</span></div>
-                            <div className="space-y-2">
-                              {taskContents.map((content) => <div key={content.id} className="grid gap-1 border border-term-border p-2">
-                                <Label htmlFor={`content-title-${content.id}`}>小标题（可选）</Label><Input id={`content-title-${content.id}`} value={content.title ?? ''} onChange={(event) => updateContentLocal(task.id, content.id, { title: event.target.value })} />
-                                <Label htmlFor={`content-body-${content.id}`}>内容</Label><Textarea id={`content-body-${content.id}`} value={content.body} onChange={(event) => updateContentLocal(task.id, content.id, { body: event.target.value })} rows={3} />
-                                <div className="flex justify-end gap-1"><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => void runAction(`save-content-${content.id}`, async () => {
-                                  const edited = detail.tasks.find((candidate) => candidate.id === task.id)?.contents?.find((item) => item.id === content.id)
-                                  if (!edited) return
-                                  const updated = await updateTemplateContent(content.id, { title: edited.title, body: edited.body }, session)
-                                  setDetail(updated)
-                                  setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                                }, '内容已保存')}>保存内容</Button><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
-                                  if (!window.confirm('确认删除这条阶段内容？')) return
-                                  void runAction(`delete-content-${content.id}`, async () => {
-                                    const updated = await deleteTemplateContent(content.id, session)
+                <section className="space-y-3 border-t border-term-border pt-3" aria-label="阶段编辑">
+                  <div className="flex flex-wrap items-center gap-2"><h3 className="flex-1 font-mono text-xs font-semibold text-term-text">阶段编辑</h3><span className="font-mono text-[11px] text-term-muted">{detail.tasks.length} 个阶段</span></div>
+                  {detail.tasks.length > 0 ? (
+                    <>
+                      <ol className="flex gap-1 overflow-x-auto border-b border-term-border pb-2" aria-label="阶段导航">
+                        {detail.tasks.map((task, index) => {
+                          const active = task.id === activeTaskId
+                          return <li key={task.id} className="min-w-0 flex-1">
+                            <button type="button" aria-current={active ? 'step' : undefined} aria-label={`第 ${index + 1} 阶段：${task.title}`} onClick={() => void switchTask(task.id)} disabled={busyKey !== null} className={`flex h-full min-h-12 w-full min-w-[112px] items-center gap-2 border px-2 py-1.5 text-left font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-border-strong disabled:cursor-wait ${active ? 'border-term-border-strong bg-term-raised text-term-text' : 'border-term-border text-term-muted hover:bg-term-hover hover:text-term-text'}`}>
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center border text-[10px] tabular-nums ${active ? 'border-term-border-strong text-term-text' : 'border-term-border text-term-muted'}`}>{String(index + 1).padStart(2, '0')}</span>
+                              <span className="min-w-0 truncate text-[11px]">{task.title}</span>
+                            </button>
+                          </li>
+                        })}
+                      </ol>
+                      {(() => {
+                        const taskIndex = detail.tasks.findIndex((task) => task.id === activeTaskId)
+                        const task = detail.tasks[taskIndex]
+                        if (!task) return null
+                        const taskContents = task.contents ?? []
+                        const taskAttachments = task.attachments ?? []
+                        return <div className="space-y-4" data-testid={`template-task-${task.id}`}>
+                          <div className="flex flex-wrap items-center gap-2 border-b border-term-border pb-2">
+                            <div className="min-w-0 flex-1"><p className="font-mono text-[10px] text-term-muted">阶段 {String(taskIndex + 1).padStart(2, '0')} / {String(detail.tasks.length).padStart(2, '0')}</p><h4 className="mt-1 truncate font-mono text-sm font-semibold text-term-text">{task.title}</h4></div>
+                            <span className="font-mono text-[10px] text-term-muted">切换时自动保存</span>
+                          </div>
+                          <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[36px_minmax(0,1fr)_110px]">
+                            <span className="flex h-9 items-center justify-center border border-term-border font-mono text-xs tabular-nums text-term-muted">{String(taskIndex + 1).padStart(2, '0')}</span>
+                            <div className="space-y-1"><Label htmlFor={`task-title-${task.id}`}>阶段名称</Label><Input id={`task-title-${task.id}`} value={task.title} onChange={(event) => updateTaskLocal(task.id, { title: event.target.value })} maxLength={160} /></div>
+                            <div className="space-y-1"><Label htmlFor={`task-days-${task.id}`}>计划工期（天）</Label><Input id={`task-days-${task.id}`} type="number" min={0} max={3650} value={task.duration_days ?? ''} onChange={(event) => updateTaskLocal(task.id, { duration_days: event.target.value === '' ? null : Number(event.target.value) })} placeholder="未设置" /></div>
+                            <div className="space-y-1 md:col-span-2"><Label htmlFor={`task-description-${task.id}`}>阶段说明</Label><Textarea id={`task-description-${task.id}`} value={task.description ?? ''} onChange={(event) => updateTaskLocal(task.id, { description: event.target.value })} rows={2} /></div>
+                            <div className="space-y-1"><Label htmlFor={`task-document-${task.id}`}>固定资料</Label><select id={`task-document-${task.id}`} className="h-9 w-full border border-term-border bg-term-bg px-2 font-mono text-[11px] text-term-text" value={task.attachment_key ?? ''} onChange={(event) => updateTaskLocal(task.id, { attachment_key: event.target.value || null })}><option value="">不关联固定资料</option>{Object.entries(WORKFLOW_DOCUMENTS).map(([key, doc]) => <option value={key} key={key}>{doc.label}</option>)}</select></div>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => void runAction(`save-task-${task.id}`, () => saveTask(task), '阶段已保存')}>保存阶段</Button>
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null || taskIndex === 0} onClick={() => void moveTask(taskIndex, -1)}>上移</Button>
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null || taskIndex === detail.tasks.length - 1} onClick={() => void moveTask(taskIndex, 1)}>下移</Button>
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
+                              if (!window.confirm(`确认删除阶段「${task.title}」？`)) return
+                              void runAction(`delete-task-${task.id}`, async () => {
+                                const nextIndex = Math.min(taskIndex, detail.tasks.length - 2)
+                                const updated = await deleteTemplateTask(task.id, session)
+                                setDetail(updated)
+                                setActiveTaskId(updated.tasks[Math.max(0, nextIndex)]?.id ?? null)
+                                setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
+                              }, '阶段已删除')
+                            }}><Trash2 aria-hidden />删除阶段</Button>
+                          </div>
+
+                          <div className="grid min-w-0 grid-cols-1 gap-4 border-t border-term-border pt-3 xl:grid-cols-2">
+                            <section aria-label={`${task.title} 内容`}>
+                              <div className="mb-2 flex items-center justify-between gap-2"><h5 className="font-mono text-xs font-semibold text-term-text">阶段内容</h5><span className="font-mono text-[11px] text-term-muted">{taskContents.length} 条</span></div>
+                              <div className="space-y-2">
+                                {taskContents.map((content) => <div key={content.id} className="grid gap-1 border border-term-border p-2">
+                                  <Label htmlFor={`content-title-${content.id}`}>小标题（可选）</Label><Input id={`content-title-${content.id}`} value={content.title ?? ''} onChange={(event) => updateContentLocal(task.id, content.id, { title: event.target.value })} />
+                                  <Label htmlFor={`content-body-${content.id}`}>内容</Label><Textarea id={`content-body-${content.id}`} value={content.body} onChange={(event) => updateContentLocal(task.id, content.id, { body: event.target.value })} rows={3} />
+                                  <div className="flex justify-end gap-1"><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => void runAction(`save-content-${content.id}`, async () => {
+                                    const edited = detail.tasks.find((candidate) => candidate.id === task.id)?.contents?.find((item) => item.id === content.id)
+                                    if (!edited) return
+                                    const updated = await updateTemplateContent(content.id, { title: edited.title, body: edited.body }, session)
                                     setDetail(updated)
                                     setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                                  }, '内容已删除')
-                                }}><Trash2 aria-hidden />删除</Button></div>
-                              </div>)}
-                              <div className="grid gap-1 border border-dashed border-term-border p-2"><Label htmlFor={`new-content-title-${task.id}`}>新增内容标题</Label><Input id={`new-content-title-${task.id}`} value={newContentByTask[task.id]?.title ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: event.target.value, body: current[task.id]?.body ?? '' } }))} /><Label htmlFor={`new-content-body-${task.id}`}>新增内容</Label><Textarea id={`new-content-body-${task.id}`} rows={2} value={newContentByTask[task.id]?.body ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: current[task.id]?.title ?? '', body: event.target.value } }))} /><Button type="button" variant="term" size="sm" className="justify-self-end" disabled={busyKey !== null || !(newContentByTask[task.id]?.body ?? '').trim()} onClick={() => void runAction(`add-content-${task.id}`, async () => {
-                                const content = newContentByTask[task.id]
-                                if (!content?.body.trim()) return
-                                const updated = await createTemplateContent(task.id, { title: content.title || undefined, body: content.body }, session)
-                                setNewContentByTask((current) => ({ ...current, [task.id]: { title: '', body: '' } }))
-                                setDetail(updated)
-                                setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                              }, '内容已添加')}><Plus aria-hidden />添加内容</Button></div>
-                            </div>
-                          </section>
-
-                          <section aria-label={`${task.title} 附件`}>
-                            <div className="mb-2 flex items-center justify-between gap-2"><h4 className="font-mono text-xs text-term-text">模板附件</h4><span className="font-mono text-[11px] text-term-muted">{taskAttachments.length} 个</span></div>
-                            <ul className="divide-y divide-term-border border-y border-term-border">
-                              {taskAttachments.map((attachment) => <li key={attachment.id} className="flex min-w-0 items-center gap-2 py-2"><span className="min-w-0 flex-1 truncate font-mono text-xs text-term-text" title={attachment.filename}>{attachment.filename}</span><span className="shrink-0 font-mono text-[11px] tabular-nums text-term-muted">{formatFileSize(attachment.file_size)}</span><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
-                                if (!window.confirm(`确认移除模板附件「${attachment.filename}」？现有项目中仍引用的对象会保留。`)) return
-                                void runAction(`delete-attachment-${attachment.id}`, async () => {
-                                  const updated = await deleteTemplateTaskAttachment(attachment.id, session)
+                                  }, '内容已保存')}>保存内容</Button><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
+                                    if (!window.confirm('确认删除这条阶段内容？')) return
+                                    void runAction(`delete-content-${content.id}`, async () => {
+                                      const updated = await deleteTemplateContent(content.id, session)
+                                      setDetail(updated)
+                                      setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
+                                    }, '内容已删除')
+                                  }}><Trash2 aria-hidden />删除</Button></div>
+                                </div>)}
+                                <div className="grid gap-1 border border-dashed border-term-border p-2"><Label htmlFor={`new-content-title-${task.id}`}>新增内容标题</Label><Input id={`new-content-title-${task.id}`} value={newContentByTask[task.id]?.title ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: event.target.value, body: current[task.id]?.body ?? '' } }))} /><Label htmlFor={`new-content-body-${task.id}`}>新增内容</Label><Textarea id={`new-content-body-${task.id}`} rows={2} value={newContentByTask[task.id]?.body ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: current[task.id]?.title ?? '', body: event.target.value } }))} /><Button type="button" variant="term" size="sm" className="justify-self-end" disabled={busyKey !== null || !(newContentByTask[task.id]?.body ?? '').trim()} onClick={() => void runAction(`add-content-${task.id}`, async () => {
+                                  const content = newContentByTask[task.id]
+                                  if (!content?.body.trim()) return
+                                  const updated = await createTemplateContent(task.id, { title: content.title || undefined, body: content.body }, session)
+                                  setNewContentByTask((current) => ({ ...current, [task.id]: { title: '', body: '' } }))
                                   setDetail(updated)
                                   setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-                                }, '附件已移除')
-                              }}><Trash2 aria-hidden /><span className="sr-only">删除 {attachment.filename}</span></Button></li>)}
-                            </ul>
-                            <label className="mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 border border-term-border bg-term-panel px-2 font-mono text-[11px] text-term-muted hover:border-term-border-strong hover:text-term-text has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
-                              {busyKey === `upload-${task.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload aria-hidden className="h-3.5 w-3.5" />}上传附件
-                              <input className="sr-only" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.txt,.zip,.png,.jpg,.jpeg,.webp" disabled={busyKey !== null} onChange={(event: ChangeEvent<HTMLInputElement>) => { void uploadAttachment(task, event.target.files?.[0]); event.target.value = '' }} />
-                            </label>
-                            <p className="mt-1 font-mono text-[10px] leading-4 text-term-muted">单个文件最大 50 MB。模板附件会随模板复制到新流程。</p>
-                          </section>
+                                }, '内容已添加')}><Plus aria-hidden />添加内容</Button></div>
+                              </div>
+                            </section>
+
+                            <section aria-label={`${task.title} 附件`}>
+                              <div className="mb-2 flex items-center justify-between gap-2"><h5 className="font-mono text-xs font-semibold text-term-text">模板附件</h5><span className="font-mono text-[11px] text-term-muted">{taskAttachments.length} 个</span></div>
+                              <ul className="divide-y divide-term-border border-y border-term-border">
+                                {taskAttachments.map((attachment) => <li key={attachment.id} className="flex min-w-0 items-center gap-2 py-2"><span className="min-w-0 flex-1 truncate font-mono text-xs text-term-text" title={attachment.filename}>{attachment.filename}</span><span className="shrink-0 font-mono text-[11px] tabular-nums text-term-muted">{formatFileSize(attachment.file_size)}</span><Button type="button" variant="term" size="sm" disabled={busyKey !== null} onClick={() => {
+                                  if (!window.confirm(`确认移除模板附件「${attachment.filename}」？现有项目中仍引用的对象会保留。`)) return
+                                  void runAction(`delete-attachment-${attachment.id}`, async () => {
+                                    const updated = await deleteTemplateTaskAttachment(attachment.id, session)
+                                    setDetail(updated)
+                                    setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
+                                  }, '附件已移除')
+                                }}><Trash2 aria-hidden /><span className="sr-only">删除 {attachment.filename}</span></Button></li>)}
+                              </ul>
+                              <label className="mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 border border-term-border bg-term-panel px-2 font-mono text-[11px] text-term-muted hover:border-term-border-strong hover:text-term-text has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                                {busyKey === `upload-${task.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload aria-hidden className="h-3.5 w-3.5" />}上传附件
+                                <input className="sr-only" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.txt,.zip,.png,.jpg,.jpeg,.webp" disabled={busyKey !== null} onChange={(event: ChangeEvent<HTMLInputElement>) => { void uploadAttachment(task, event.target.files?.[0]); event.target.value = '' }} />
+                              </label>
+                              <p className="mt-1 font-mono text-[10px] leading-4 text-term-muted">单个文件最大 50 MB。模板附件会随模板复制到新流程。</p>
+                            </section>
+                          </div>
+                          <div className="flex flex-col gap-2 border-t border-term-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null || taskIndex === 0} onClick={() => void switchTask(detail.tasks[taskIndex - 1].id)}><ArrowLeft aria-hidden />上一步</Button>
+                            <span className="font-mono text-[10px] text-term-muted">离开此阶段时自动保存阶段设置与已有内容</span>
+                            <Button type="button" variant="term" size="sm" disabled={busyKey !== null || taskIndex === detail.tasks.length - 1} onClick={() => void switchTask(detail.tasks[taskIndex + 1].id)}>下一步<ArrowRight aria-hidden /></Button>
+                          </div>
                         </div>
-                      </li>
-                    )
-                  })}
-                </ol>
-                <div className="flex flex-col gap-2 border border-dashed border-term-border p-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1 space-y-1"><Label htmlFor="new-template-task">新增阶段</Label><Input id="new-template-task" value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="输入阶段名称" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void addTask() } }} /></div>
-                  <Button type="button" variant="term" disabled={busyKey !== null || !newTaskTitle.trim()} onClick={() => void addTask()}>{busyKey === 'new-task' ? <Loader2 className="animate-spin" /> : <Plus aria-hidden />}新增阶段</Button>
-                </div>
+                      })()}
+                    </>
+                  ) : <p className="border border-dashed border-term-border p-4 font-mono text-xs text-term-muted">当前模板还没有阶段，添加阶段后即可开始编辑。</p>}
+                  <div className="flex flex-col gap-2 border-t border-term-border pt-3 sm:flex-row sm:items-end">
+                    <div className="min-w-0 flex-1 space-y-1"><Label htmlFor="new-template-task">新增阶段</Label><Input id="new-template-task" value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="输入阶段名称" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void addTask() } }} /></div>
+                    <Button type="button" variant="term" disabled={busyKey !== null || !newTaskTitle.trim()} onClick={() => void addTask()}>{busyKey === 'new-task' ? <Loader2 className="animate-spin" /> : <Plus aria-hidden />}新增阶段</Button>
+                  </div>
+                </section>
               </div>
             </>
           )}
