@@ -249,11 +249,15 @@ describe('项目启动台 · 列表与分栏', () => {
 
     // 项目行（左侧列表）与面板标题各出现一次。
     expect(screen.getAllByText('项目A').length).toBeGreaterThan(0)
-    expect(screen.getByTestId('project-row-2')).toBeInTheDocument()
+    expect(screen.queryByTestId('project-row-2')).not.toBeInTheDocument()
+    // 默认收起没有待处理流程的历史项目，可手动展开查看。
+    const showArchived = screen.getByTestId('toggle-archived-projects')
+    expect(showArchived).toHaveTextContent('显示历史/已启动项目（1）')
     // 项目A 的店铺启动进度来自概要（1/3）。
     expect(within(screen.getByTestId('project-row-1')).getByText('店铺启动：1/3')).toBeInTheDocument()
-    // 项目B 无流程 → 未启动 + 未启用。
-    const rowB = within(screen.getByTestId('project-row-2'))
+    // 展开后项目B 无流程 → 未启动 + 未启用。
+    await userEvent.setup().click(showArchived)
+    const rowB = within(await screen.findByTestId('project-row-2'))
     expect(rowB.getByText('未启动')).toBeInTheDocument()
     expect(rowB.getByText('店铺启动：未启用')).toBeInTheDocument()
 
@@ -266,6 +270,7 @@ describe('项目启动台 · 列表与分栏', () => {
     const user = userEvent.setup()
     await renderPage()
 
+    await user.click(screen.getByTestId('toggle-archived-projects-mobile'))
     await user.selectOptions(screen.getByTestId('project-picker'), '2')
 
     await waitFor(() => {
@@ -340,8 +345,9 @@ describe('项目启动台 · 店铺启动 Tab', () => {
       Promise.resolve({ project_id: projectId, workflows: DETAILS[projectId] ?? [] })
     )
     render(<ProjectLaunchClient />)
-    // 项目B（无流程）作为选中项目，先切过去。
+    // 项目B（无流程）作为选中项目，先展开历史项目并切过去。
     await waitFor(() => expect(fetchProjectWorkflows).toHaveBeenCalled())
+    await user.click(await screen.findByTestId('toggle-archived-projects-mobile'))
     await user.selectOptions(await screen.findByTestId('project-picker'), '2')
 
     await user.click(await screen.findByRole('tab', { name: '店铺启动' }))
@@ -370,6 +376,7 @@ describe('项目启动台 · 店铺启动 Tab', () => {
     vi.mocked(createProjectWorkflow).mockRejectedValueOnce(new Error('无项目权限'))
     render(<ProjectLaunchClient />)
     await waitFor(() => expect(fetchProjectWorkflows).toHaveBeenCalled())
+    await user.click(await screen.findByTestId('toggle-archived-projects-mobile'))
     await user.selectOptions(await screen.findByTestId('project-picker'), '2')
     await user.click(await screen.findByRole('tab', { name: '店铺启动' }))
 

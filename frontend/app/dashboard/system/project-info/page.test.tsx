@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED } = vi.hoisted(() => ({
+const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMMARY } = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
   NOTIFY: { notify: vi.fn() },
   FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
     { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: true, project_tier: null, store_address: null },
     { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: false, source_file: null, has_context: true, project_tier: 'T2', store_address: null },
   ]),
+  FETCH_WORKFLOW_SUMMARY: vi.fn().mockResolvedValue({ projects: [] }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -35,6 +36,10 @@ vi.mock('@/lib/project-client-cache', () => ({
   fetchManagedProjectsCached: FETCH_MANAGED_PROJECTS_CACHED,
   fetchProjectOperatorOptionsCached: vi.fn().mockResolvedValue([]),
   clearProjectClientCaches: vi.fn(),
+}))
+
+vi.mock('@/lib/project-workflows-api', () => ({
+  fetchWorkflowSummary: FETCH_WORKFLOW_SUMMARY,
 }))
 
 // Mock heavy child components
@@ -72,6 +77,37 @@ describe('StoreInfoPage 站点列/下拉', () => {
     // 店铺乙：country_name=null, country='DE' → 兜底 getCountryLabel('DE')='德国站'
     await screen.findByText('店铺乙')
     expect(screen.getByText('德国站')).toBeInTheDocument()
+  })
+
+  it('项目启动状态与店铺启动流程关联展示', async () => {
+    FETCH_WORKFLOW_SUMMARY.mockResolvedValueOnce({
+      projects: [
+        {
+          project_id: 1,
+          workflows: [{ kind: 'store_launch', status: 'completed' }],
+        },
+        {
+          project_id: 2,
+          workflows: [{ kind: 'store_launch', status: 'in_progress' }],
+        },
+      ],
+    })
+
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+
+    const launchedRow = (await screen.findByText('店铺甲')).closest('tr')
+    const launchingRow = screen.getByText('店铺乙').closest('tr')
+    expect(within(launchedRow!).getByText('已启动')).toBeInTheDocument()
+    expect(within(launchingRow!).getByText('正在启动')).toBeInTheDocument()
+  })
+
+  it('没有启动流程的历史项目显示为未启动', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+
+    const row = (await screen.findByText('店铺甲')).closest('tr')
+    expect(within(row!).getByText('未启动')).toBeInTheDocument()
   })
 
   it('项目名称前的背景标记只对启用项目展示', async () => {
