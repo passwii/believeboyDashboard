@@ -102,6 +102,14 @@ describe('StoreInfoPage 站点列/下拉', () => {
     expect(within(launchingRow!).getByText('正在启动')).toBeInTheDocument()
   })
 
+  it('没有启动流程的历史项目显示为未启动', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+
+    const row = (await screen.findByText('店铺甲')).closest('tr')
+    expect(within(row!).getByText('未启动')).toBeInTheDocument()
+  })
+
   it('项目名称前的背景标记只对启用项目展示', async () => {
     render(<ProjectInfoPage />)
     await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))

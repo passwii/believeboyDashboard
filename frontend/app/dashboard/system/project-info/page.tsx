@@ -289,6 +289,21 @@ function toCommissionPoints(rate: number | null): number | null {
   return Number((rate * 100).toFixed(4))
 }
 
+function startupStatusTone(status: ReturnType<typeof deriveProjectStartupStatus>) {
+  if (status === 'launched') return 'success'
+  if (status === 'launching') return 'warning'
+  return 'neutral'
+}
+
+function StartupStatusPill({
+  workflows,
+}: {
+  workflows: readonly ProjectWorkflowSummaryWorkflow[]
+}) {
+  const status = deriveProjectStartupStatus(workflows)
+  return <StatusPill status={startupStatusTone(status)} label={PROJECT_STARTUP_STATUS_LABELS[status]} />
+}
+
 export default function ProjectInfoPage() {
   const shopLoadRequestRef = useRef(0)
   const startupSummaryRequestRef = useRef(0)
@@ -1023,9 +1038,8 @@ export default function ProjectInfoPage() {
                               ) : startupSummaryError ? (
                                 <span className="text-xs text-muted-foreground" title="启动状态加载失败">-</span>
                               ) : (
-                                <StatusPill
-                                  status={deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? []) === 'launched' ? 'success' : deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? []) === 'launching' ? 'warning' : 'neutral'}
-                                  label={PROJECT_STARTUP_STATUS_LABELS[deriveProjectStartupStatus(startupWorkflowsByProject.get(item.id) ?? [])]}
+                                <StartupStatusPill
+                                  workflows={startupWorkflowsByProject.get(item.id) ?? []}
                                 />
                               )}
                             </TableCell>
