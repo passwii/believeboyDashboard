@@ -3,8 +3,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
-from app.main import app
 from fastapi.testclient import TestClient
+
+from app.main import app
 
 client = TestClient(app)
 
@@ -41,8 +42,9 @@ def test_shipping_plan_schemas_export_required_contract_fields():
 
 def test_single_country_guard_rejects_all_scope():
     import pytest
-    from app.services.shipping_plan.service import _require_single_country
     from fastapi import HTTPException
+
+    from app.services.shipping_plan.service import _require_single_country
 
     with pytest.raises(HTTPException) as exc:
         _require_single_country("ALL")
