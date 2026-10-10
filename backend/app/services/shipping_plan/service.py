@@ -743,6 +743,7 @@ def get_shipment_history(db: Session, *, project_id: int, country: str, etd_from
         select(
             month_expr,
             func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0),
+            func.max(AnalysisSalesOrderRow.purchase_date_pt),
         )
         .where(
             *counted_sales_where(
@@ -755,6 +756,9 @@ def get_shipment_history(db: Session, *, project_id: int, country: str, etd_from
         .group_by(month_expr)
     ).all()
     sales_by_month = {row[0].strftime("%Y-%m"): int(row[1] or 0) for row in sales_rows}
+    sales_through_by_month = {
+        row[0].strftime("%Y-%m"): row[2] for row in sales_rows if row[2] is not None
+    }
 
     sales_months = []
     month_start = date(etd_from.year, etd_from.month, 1)
@@ -768,11 +772,29 @@ def get_shipment_history(db: Session, *, project_id: int, country: str, etd_from
             for left, right in coverage_intervals
         )
         month = month_start.strftime("%Y-%m")
+        # Only report an official coverage cutoff when coverage is contiguous from
+        # the start of this month's requested window. A later isolated interval
+        # must not be presented as a continuous "through" date.
+        coverage_through = next(
+            (
+                min(right, covered_end)
+                for left, right in coverage_intervals
+                if left <= covered_start <= right
+            ),
+            None,
+        )
         sales_months.append(
             {
                 "month": month,
                 "sales_quantity": sales_by_month.get(month, 0) if covered else None,
                 "covered": covered,
+                "provisional_sales_quantity": (
+                    None if covered else sales_by_month.get(month, 0)
+                ),
+                "provisional_sales_through": (
+                    None if covered else sales_through_by_month.get(month)
+                ),
+                "coverage_through": None if covered else coverage_through,
             }
         )
         if month_start.month == 12:

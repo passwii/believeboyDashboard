@@ -33288,6 +33288,18 @@
       },
       "ShipmentHistorySalesMonth": {
         "properties": {
+          "coverage_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Through"
+          },
           "covered": {
             "title": "Covered",
             "type": "boolean"
@@ -33295,6 +33307,29 @@
           "month": {
             "title": "Month",
             "type": "string"
+          },
+          "provisional_sales_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Sales Quantity"
+          },
+          "provisional_sales_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Sales Through"
           },
           "sales_quantity": {
             "anyOf": [

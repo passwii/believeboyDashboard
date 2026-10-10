@@ -21,6 +21,7 @@ def test_shipping_plan_routes_require_api_key():
 def test_shipping_plan_schemas_export_required_contract_fields():
     from app.schemas.shipping_plan import (
         ForecastPoint,
+        ShipmentHistorySalesMonth,
         ShippingPlanForecastResponse,
         ShippingPlanSkuListResponse,
     )
@@ -32,6 +33,11 @@ def test_shipping_plan_schemas_export_required_contract_fields():
     assert "inventory_snapshot_date" in forecast_fields
     assert "data_quality" in forecast_fields
     assert "historical_order_sales" in ForecastPoint.model_fields
+    assert {
+        "provisional_sales_quantity",
+        "provisional_sales_through",
+        "coverage_through",
+    }.issubset(ShipmentHistorySalesMonth.model_fields)
 
 
 def test_single_country_guard_rejects_all_scope():
@@ -188,10 +194,10 @@ def _seed_shipping_history_order(
             order_status=status,
             sku="SKU-HISTORY",
             quantity=quantity,
-            item_price=Decimal("0"),
-            shipping_price=Decimal("0"),
-            item_tax=Decimal("0"),
-            shipping_tax=Decimal("0"),
+            item_price=Decimal(0),
+            shipping_price=Decimal(0),
+            item_tax=Decimal(0),
+            shipping_tax=Decimal(0),
             is_counted_sales=True,
             raw_row={},
         )
@@ -223,9 +229,30 @@ def test_shipment_history_sales_returns_contiguous_months_and_covered_zeroes(db_
     )
 
     assert result["sales_months"] == [
-        {"month": "2026-01", "sales_quantity": 0, "covered": True},
-        {"month": "2026-02", "sales_quantity": 7, "covered": True},
-        {"month": "2026-03", "sales_quantity": 0, "covered": True},
+        {
+            "month": "2026-01",
+            "sales_quantity": 0,
+            "covered": True,
+            "provisional_sales_quantity": None,
+            "provisional_sales_through": None,
+            "coverage_through": None,
+        },
+        {
+            "month": "2026-02",
+            "sales_quantity": 7,
+            "covered": True,
+            "provisional_sales_quantity": None,
+            "provisional_sales_through": None,
+            "coverage_through": None,
+        },
+        {
+            "month": "2026-03",
+            "sales_quantity": 0,
+            "covered": True,
+            "provisional_sales_quantity": None,
+            "provisional_sales_through": None,
+            "coverage_through": None,
+        },
     ]
 
 
@@ -256,7 +283,14 @@ def test_shipment_history_sales_marks_month_uncovered_without_successful_report(
     )
 
     assert result["sales_months"] == [
-        {"month": "2026-02", "sales_quantity": None, "covered": False}
+        {
+            "month": "2026-02",
+            "sales_quantity": None,
+            "covered": False,
+            "provisional_sales_quantity": 9,
+            "provisional_sales_through": date(2026, 2, 12),
+            "coverage_through": None,
+        }
     ]
 
 
@@ -274,6 +308,14 @@ def test_shipment_history_sales_does_not_report_partially_covered_month(db_sessi
         purchased_on=date(2026, 2, 10),
         quantity=4,
     )
+    _seed_shipping_history_order(
+        db_session,
+        project_id=project.id,
+        source_id=source.id,
+        order_id="BLF1298-AFTER-COVERAGE",
+        purchased_on=date(2026, 2, 20),
+        quantity=6,
+    )
 
     result = get_shipment_history(
         db_session,
@@ -284,7 +326,14 @@ def test_shipment_history_sales_does_not_report_partially_covered_month(db_sessi
     )
 
     assert result["sales_months"] == [
-        {"month": "2026-02", "sales_quantity": None, "covered": False}
+        {
+            "month": "2026-02",
+            "sales_quantity": None,
+            "covered": False,
+            "provisional_sales_quantity": 10,
+            "provisional_sales_through": date(2026, 2, 20),
+            "coverage_through": date(2026, 2, 14),
+        }
     ]
 
 
@@ -322,5 +371,12 @@ def test_shipment_history_sales_excludes_cancelled_order_rows(db_session):
     )
 
     assert result["sales_months"] == [
-        {"month": "2026-02", "sales_quantity": 3, "covered": True}
+        {
+            "month": "2026-02",
+            "sales_quantity": 3,
+            "covered": True,
+            "provisional_sales_quantity": None,
+            "provisional_sales_through": None,
+            "coverage_through": None,
+        }
     ]
