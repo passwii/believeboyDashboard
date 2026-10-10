@@ -135,6 +135,15 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
     ).toBe('tools')
   })
 
+  it('产品标签制作归入工具箱且 URL 唯一', () => {
+    const tools = urlsOf('tools')
+    expect(tools).toContain('/dashboard/tools/product-label')
+    expect(
+      flattenAllItems().filter((item) => item.url === '/dashboard/tools/product-label')
+    ).toHaveLength(1)
+    expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/tools/product-label')).toBe('tools')
+  })
+
   it('客户消息 /list 子页命中 operations 分组（matchPrefixes）', () => {
     expect(
       findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/complaint-center/list')

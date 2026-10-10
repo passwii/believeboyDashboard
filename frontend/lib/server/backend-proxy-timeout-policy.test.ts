@@ -169,3 +169,19 @@ describe('退货分析原始行端点：stats 档（15s）', () => {
     expect(getProxyTimeoutMs('api/v1/return-analysis/raw-rows/extra', null)).toBe(5_000)
   })
 })
+
+/**
+ * 产品标签制作：服务端跑完整的 pypdf + pdfplumber + reportlab 叠加管线，
+ * 冷启动导入这几个库本身就吃满 5s 默认档。落 `report` 档（60s）。
+ */
+describe('产品标签制作：report 档（60s）', () => {
+  it('matches the `report` tier for the generate endpoint', () => {
+    expect(getProxyTimeoutMs('api/v1/product-label/generate', 'application/pdf')).toBe(60_000)
+    expect(getProxyTimeoutMs('/api/v1/product-label/generate', null)).toBe(60_000)
+  })
+
+  it('不误伤 product-label 的其他子路径（锁死 `$` 锚）', () => {
+    expect(getProxyTimeoutMs('api/v1/product-label/generate/extra', null)).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/product-label', null)).toBe(5_000)
+  })
+})

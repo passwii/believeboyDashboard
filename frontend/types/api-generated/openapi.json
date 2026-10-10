@@ -5156,6 +5156,30 @@
         "title": "BatchUpdateListingCopyResponse",
         "type": "object"
       },
+      "Body_generate_product_label_api_v1_product_label_generate_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "made_in_china": {
+            "default": "",
+            "title": "Made In China",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_generate_product_label_api_v1_product_label_generate_post",
+        "type": "object"
+      },
       "Body_import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post": {
         "properties": {
           "category_keyword_en": {
@@ -92143,6 +92167,97 @@
           }
         },
         "summary": "Recompute Product Analysis Weekly"
+      }
+    },
+    "/api/v1/product-label/generate": {
+      "post": {
+        "description": "给单页产品标签 PDF 叠加文案，返回新的 PDF。",
+        "operationId": "generate_product_label_api_v1_product_label_generate_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_generate_product_label_api_v1_product_label_generate_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "叠加文案后的 PDF"
+          },
+          "400": {
+            "description": "标签不可处理（多页 / 无文字 / 插不下 / 文案超宽）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Product Label",
+        "tags": [
+          "product-label"
+        ]
       }
     },
     "/api/v1/project-goals": {
