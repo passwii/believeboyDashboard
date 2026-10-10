@@ -29,6 +29,7 @@ function formatSignedNumber(value: number): string {
 export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) {
   const data = useMemo(() => buildShipmentHistoryPoints(history), [history])
   const hasCoveredSales = data.some((point) => point.covered && point.sales_quantity !== null)
+  const hasProvisionalSales = data.some((point) => point.provisional_sales_quantity !== null)
   const totals = useMemo(() => {
     const coveredPoints = data.filter((point) => point.covered && point.sales_quantity !== null)
     return {
@@ -37,6 +38,7 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
       sales: coveredPoints.reduce((sum, point) => sum + (point.sales_quantity ?? 0), 0),
       gap: coveredPoints.reduce((sum, point) => sum + (point.gap ?? 0), 0),
       uncovered: data.length - coveredPoints.length,
+      provisional: data.filter((point) => point.provisional_sales_quantity !== null).length,
     }
   }, [data])
 
@@ -64,6 +66,7 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
                   const point = payload?.[0]?.payload as ShipmentHistoryPoint | undefined
                   if (!active || !point) return null
                   const salesCovered = point.covered && point.sales_quantity !== null
+                  const provisionalSales = !salesCovered ? point.provisional_sales_quantity : null
                   return (
                     <div className="min-w-40 border border-term-border bg-term-panel p-3 text-xs">
                       <div className="mb-2 border-b border-term-border pb-2 font-mono text-term-text">{point.month}</div>
@@ -71,9 +74,19 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
                       <div className="mt-1 flex justify-between gap-5">
                         <span className="text-term-muted">同月销量</span>
                         <span className="font-mono tabular-nums text-term-text">
-                          {salesCovered ? `${formatNumber(point.sales_quantity ?? 0)} 件` : '待核实'}
+                          {salesCovered
+                            ? `${formatNumber(point.sales_quantity ?? 0)} 件`
+                            : provisionalSales !== null
+                              ? `暂计 ${formatNumber(provisionalSales)} 件`
+                              : '待核实'}
                         </span>
                       </div>
+                      {provisionalSales !== null ? (
+                        <div className="mt-1 text-right text-term-warn">
+                          非整月{point.provisional_sales_through ? ` · 订单截至 ${point.provisional_sales_through}` : ''}
+                          {point.coverage_through ? ` · 报表覆盖至 ${point.coverage_through}` : ''}
+                        </div>
+                      ) : null}
                       <div className="mt-1 flex justify-between gap-5">
                         <span className="text-term-muted">差值</span>
                         <span className="font-mono tabular-nums text-term-text">
@@ -97,6 +110,18 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
                   connectNulls={false}
                 />
               ) : null}
+              {hasProvisionalSales ? (
+                <Line
+                  dataKey="provisional_sales_quantity"
+                  name="暂计销量（非整月）"
+                  stroke="var(--term-warn)"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 4 }}
+                  connectNulls={false}
+                />
+              ) : null}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -106,6 +131,7 @@ export function ShipmentHistoryChart({ history }: { history: ShipmentHistory }) 
               ? `已覆盖 0/${data.length} 个月：发运待核实 · 销量待核实 · 差待核实`
               : `已覆盖 ${totals.covered}/${data.length} 个月：发运 ${formatNumber(totals.shipment)} 件 · 销量 ${formatNumber(totals.sales)} 件 · 差 ${formatSignedNumber(totals.gap)} 件`}
             {totals.uncovered > 0 ? ` · ${totals.uncovered} 个月待核实` : null}
+            {totals.provisional > 0 ? ` · ${totals.provisional} 个月有暂计` : null}
           </p>
           <p className="mt-0.5 text-term-warn">缺少 ETD：{history.missing_etd_shipment_count} 件货 · {formatNumber(history.missing_etd_quantity)} 件</p>
         </div>
