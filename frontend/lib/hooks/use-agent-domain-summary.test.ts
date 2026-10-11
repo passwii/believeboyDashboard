@@ -66,6 +66,15 @@ describe('useAgentDomainSummary', () => {
             errors_7d: 6,
             last_active_at: '2026-09-05T11:00:00Z',
           },
+          {
+            domain: 'monthly_reports',
+            calls_24h: 2,
+            calls_7d: 8,
+            writes_24h: 1,
+            writes_7d: 3,
+            errors_7d: 8,
+            last_active_at: '2026-10-10T10:00:00Z',
+          },
         ],
       }),
     })
@@ -87,6 +96,23 @@ describe('useAgentDomainSummary', () => {
       errors_30d: 6,
       last_active_at: '2026-09-05T11:00:00Z',
     })
+    expect(result.current.data?.monthly_reports).toEqual({
+      domain: 'monthly_reports',
+      calls_24h: 2,
+      calls_30d: 8,
+      writes_24h: 1,
+      writes_30d: 3,
+      errors_30d: 8,
+      last_active_at: '2026-10-10T10:00:00Z',
+    })
+  })
+
+  it.each([404, 503])('summary 返回 %s 时数据为未知 null,而非空活动集合', async (status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status }))
+    const { result } = renderHook(() => useAgentDomainSummary())
+
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.data).toBeNull()
   })
 })
 

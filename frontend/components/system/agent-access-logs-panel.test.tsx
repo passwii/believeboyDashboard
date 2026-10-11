@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // ── 模块级常量（BLF-450 / BLF-460 实测教训：inline 新引用会让 effect 无限重跑）──
 const { notify, session } = vi.hoisted(() => ({
@@ -104,6 +104,15 @@ const inspectionSubmitRow = {
   operation_type: 'platform_inspection',
 }
 
+const monthlyReportRow = {
+  ...readRow,
+  id: 6,
+  path: '/api/v1/agent/monthly-reports/financial-series',
+  operation_type: 'monthly_reports',
+  agent_id: 'monthly-report-assistant',
+  key_label: '月报助理',
+}
+
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status: 200,
@@ -114,8 +123,8 @@ function jsonResponse(payload: unknown): Response {
 describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
   beforeEach(() => {
     const listResponse = {
-      items: [readRow, otherRow, detailRow, auditRow, inspectionSubmitRow],
-      total: 5,
+      items: [readRow, otherRow, detailRow, auditRow, inspectionSubmitRow, monthlyReportRow],
+      total: 6,
       page: 1,
       page_size: 50,
       has_next: false,
@@ -210,6 +219,24 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
       const latestUrl = urls[urls.length - 1]
       expect(latestUrl).toContain('project_id=12')
       expect(latestUrl).toContain('operation_type=shipments')
+    })
+  })
+
+  it('月报访问日志显示中文域名并可按 monthly_reports 筛选（BLF-1314）', async () => {
+    render(<AgentAccessLogsPanel />)
+
+    const row = await screen.findByRole('row', { name: /财务月报/ })
+    expect(within(row).getByText('财务月报')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '财务月报' })).toHaveValue('monthly_reports')
+    const selects = screen.getAllByTestId('native-select')
+    fireEvent.change(selects[selects.length - 1], { target: { value: 'monthly_reports' } })
+    fireEvent.click(screen.getByRole('button', { name: /查询/ }))
+
+    await waitFor(() => {
+      const urls = vi.mocked(fetch).mock.calls
+        .map((call) => String(call[0]))
+        .filter((url) => url.includes('/agent-access-logs?'))
+      expect(urls[urls.length - 1]).toContain('operation_type=monthly_reports')
     })
   })
 

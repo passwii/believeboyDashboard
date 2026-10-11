@@ -98,6 +98,16 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: false, write: true },
   },
   {
+    code: 'monthly_reports',
+    dashboardPath: '/dashboard/reports/monthly-report/display',
+    label: '财务月报',
+    description:
+      '月报列表/详情/财务序列/核算明细与导出 + 上传/计算草稿/预览/确认入库/自动与手工对账（读 10 + 写 6）',
+    status: 'live',
+    routeCount: 16,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'replenishment_analysis',
     dashboardPath: '/dashboard/operations/inventory-replenishment',
     label: '补货分析',

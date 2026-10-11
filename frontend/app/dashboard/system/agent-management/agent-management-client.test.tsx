@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Option } from '@/components/ui/multi-select'
 
 // ── 模块级 mock（防 effect 无限重跑：BLF-450 教训）───────────────────
 const { mockKeys } = vi.hoisted(() => ({
@@ -153,7 +154,21 @@ vi.mock('@/components/project-scope-select', () => ({
 }))
 
 vi.mock('@/components/ui/multi-select', () => ({
-  MultiSelect: () => <div data-testid="domain-multi-select" />,
+  MultiSelect: ({ options, selected, onChange }: {
+    options: Option[]
+    selected: string[]
+    onChange: (values: string[]) => void
+  }) => (
+    <select
+      multiple
+      aria-label="业务域范围"
+      data-testid="domain-multi-select"
+      value={selected}
+      onChange={(event) => onChange(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}
+    >
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  ),
 }))
 
 import { AgentManagementClient } from './agent-management-client'
@@ -266,6 +281,28 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
         })
       )
     )
+  })
+
+  it('月报域可选为凭据业务范围并透传 monthly_reports（BLF-1314）', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole('button', { name: '创建凭据' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('option', { name: '财务月报' })).toHaveValue('monthly_reports')
+    expect(within(dialog).queryByRole('option', { name: '财务利润' })).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: /全部业务域/ }))
+    await user.selectOptions(within(dialog).getByRole('listbox', { name: '业务域范围' }), 'monthly_reports')
+    await user.type(within(dialog).getByLabelText('名称'), '月报助理')
+    await user.type(within(dialog).getByLabelText('Agent ID'), 'monthly-report-assistant')
+    await user.click(within(dialog).getByRole('button', { name: '创建', exact: true }))
+
+    await waitFor(() => expect(createAgentApiKey).toHaveBeenCalledWith(expect.objectContaining({
+      label: '月报助理',
+      agent_id: 'monthly-report-assistant',
+      business_scope: 'monthly_reports',
+    })))
   })
 
   it('凭据表 Agent 列只显示 Agent ID（中文名即「名称」列，BLF-471 follow-up）', async () => {
