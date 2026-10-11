@@ -11,6 +11,9 @@ const chartState = vi.hoisted(() => ({
     shipment_count: number
     quantity: number
     sales_quantity: number | null
+    provisional_sales_quantity: number | null
+    provisional_sales_through: string | null
+    coverage_through: string | null
     covered: boolean
     gap: number | null
   }>,
@@ -113,6 +116,9 @@ describe('buildShipmentHistoryPoints', () => {
         shipment_count: 1,
         quantity: 12,
         sales_quantity: null,
+        provisional_sales_quantity: null,
+        provisional_sales_through: null,
+        coverage_through: null,
         covered: false,
         gap: null,
       },
@@ -121,10 +127,39 @@ describe('buildShipmentHistoryPoints', () => {
         shipment_count: 0,
         quantity: 0,
         sales_quantity: 0,
+        provisional_sales_quantity: null,
+        provisional_sales_through: null,
+        coverage_through: null,
         covered: true,
         gap: 0,
       },
     ])
+  })
+
+  it('preserves provisional sales and coverage dates separately from complete monthly sales', () => {
+    const points = buildShipmentHistoryPoints({
+      ...history,
+      sales_months: [
+        {
+          month: '2026-09',
+          sales_quantity: null,
+          covered: false,
+          provisional_sales_quantity: 36,
+          provisional_sales_through: '2026-09-29',
+          coverage_through: '2026-09-06',
+        },
+      ],
+    })
+
+    expect(points[0]).toMatchObject({
+      month: '2026-09',
+      sales_quantity: null,
+      provisional_sales_quantity: 36,
+      provisional_sales_through: '2026-09-29',
+      coverage_through: '2026-09-06',
+      covered: false,
+      gap: null,
+    })
   })
 
   it('calculates covered-month gaps in both directions', () => {
@@ -144,6 +179,9 @@ describe('buildShipmentHistoryPoints', () => {
       history.months.map((shipment) => ({
         ...shipment,
         sales_quantity: null,
+        provisional_sales_quantity: null,
+        provisional_sales_through: null,
+        coverage_through: null,
         covered: false,
         gap: null,
       }))
@@ -170,6 +208,36 @@ describe('ShipmentHistoryChart', () => {
     expect(JSON.parse(chartData)[0].sales_quantity).toBeNull()
     expect(screen.getByTestId('sales-line').getAttribute('data-connect-nulls')).toBe('false')
     expect(screen.getByTestId('tooltip').textContent).toContain('待核实')
+  })
+
+  it('shows incomplete sales as provisional with the order date and coverage cutoff', () => {
+    render(
+      createElement(ShipmentHistoryChart, {
+        history: {
+          ...history,
+          sales_months: [
+            {
+              month: '2025-10',
+              sales_quantity: null,
+              covered: false,
+              provisional_sales_quantity: 36,
+              provisional_sales_through: '2025-10-29',
+              coverage_through: '2025-10-06',
+            },
+          ],
+        },
+      })
+    )
+
+    const chartData = JSON.parse(screen.getByTestId('chart-data').textContent ?? '[]')
+    expect(chartData[0]).toMatchObject({
+      sales_quantity: null,
+      provisional_sales_quantity: 36,
+      covered: false,
+      gap: null,
+    })
+    expect(screen.getByTestId('tooltip').textContent).toContain('暂计 36 件')
+    expect(screen.getByTestId('tooltip').textContent).toContain('非整月 · 订单截至 2025-10-29 · 报表覆盖至 2025-10-06')
   })
 
   it('omits the sales series and shows cumulative values as待核实 when every month is uncovered', () => {

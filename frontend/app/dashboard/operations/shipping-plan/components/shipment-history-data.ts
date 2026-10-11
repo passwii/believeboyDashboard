@@ -1,12 +1,24 @@
 import type { components } from '@/types/api-generated/api'
 
-export type ShipmentHistory = components['schemas']['ShipmentHistoryResponse']
+type ApiShipmentHistory = components['schemas']['ShipmentHistoryResponse']
+type ShipmentHistorySalesMonth = NonNullable<ApiShipmentHistory['sales_months']>[number] & {
+  provisional_sales_quantity?: number | null
+  provisional_sales_through?: string | null
+  coverage_through?: string | null
+}
+
+export type ShipmentHistory = Omit<ApiShipmentHistory, 'sales_months'> & {
+  sales_months?: ShipmentHistorySalesMonth[]
+}
 
 export type ShipmentHistoryPoint = {
   month: string
   shipment_count: number
   quantity: number
   sales_quantity: number | null
+  provisional_sales_quantity: number | null
+  provisional_sales_through: string | null
+  coverage_through: string | null
   covered: boolean
   gap: number | null
 }
@@ -20,6 +32,7 @@ export function buildShipmentHistoryPoints(history: ShipmentHistory): ShipmentHi
       const shipment = shipmentsByMonth.get(sales.month)
       const covered = sales.covered && sales.sales_quantity !== null
       const salesQuantity = covered ? sales.sales_quantity : null
+      const provisionalSalesQuantity = covered ? null : sales.provisional_sales_quantity ?? null
       const quantity = shipment?.quantity ?? 0
 
       return {
@@ -27,6 +40,9 @@ export function buildShipmentHistoryPoints(history: ShipmentHistory): ShipmentHi
         shipment_count: shipment?.shipment_count ?? 0,
         quantity,
         sales_quantity: salesQuantity,
+        provisional_sales_quantity: provisionalSalesQuantity,
+        provisional_sales_through: sales.provisional_sales_through ?? null,
+        coverage_through: sales.coverage_through ?? null,
         covered,
         gap: salesQuantity === null ? null : salesQuantity - quantity,
       }
@@ -39,6 +55,9 @@ export function buildShipmentHistoryPoints(history: ShipmentHistory): ShipmentHi
     return history.months.map((shipment) => ({
       ...shipment,
       sales_quantity: null,
+      provisional_sales_quantity: null,
+      provisional_sales_through: null,
+      coverage_through: null,
       covered: false,
       gap: null,
     }))
@@ -55,6 +74,9 @@ export function buildShipmentHistoryPoints(history: ShipmentHistory): ShipmentHi
       shipment_count: shipment?.shipment_count ?? 0,
       quantity: shipment?.quantity ?? 0,
       sales_quantity: null,
+      provisional_sales_quantity: null,
+      provisional_sales_through: null,
+      coverage_through: null,
       covered: false,
       gap: null,
     })
