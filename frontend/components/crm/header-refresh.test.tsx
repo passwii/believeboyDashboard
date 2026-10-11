@@ -99,7 +99,7 @@ describe('CRM 数据 owner 的 Head 刷新契约', () => {
     renderPage(<Component />)
     await screen.findByText('原有客户')
     const button = screen.getByRole('button', { name: 'Head 刷新' })
-    expect(button).toBeEnabled()
+    await waitFor(() => expect(button).toBeEnabled())
 
     const pending = deferred<typeof pageData>()
     loader.mockReturnValueOnce(pending.promise)

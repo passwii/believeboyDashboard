@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BellRing, ListChecks, Settings2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
+import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { AlertStatsBar } from './components/alert-stats-bar'
 import { AlertEventsTab } from './components/alert-events-tab'
@@ -21,6 +22,8 @@ export default function AlertCenterPage() {
   const [stats, setStats] = useState<AlertStats | null>(null)
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [activeTab, setActiveTab] = useState('events')
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const { notify } = useNotifications()
   const [refreshTabOwner, setRefreshTabOwner] = useState<(() => Promise<void>) | null>(null)
   const registerTabRefreshOwner = useCallback((refresh: () => Promise<void>) => {
     setRefreshTabOwner(() => refresh)
@@ -31,22 +34,39 @@ export default function AlertCenterPage() {
       fetchAlertStats(),
       fetchManagedProjectsCached<Array<{ id: number; name: string }>>(),
     ])
-    setStats(statsResult.status === 'fulfilled' ? statsResult.value : null)
-    setProjects(
-      projectsResult.status === 'fulfilled' && Array.isArray(projectsResult.value)
-        ? projectsResult.value.map((project) => ({ id: project.id, name: project.name }))
-        : []
-    )
-  }, [])
+    const failures: string[] = []
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value)
+    } else {
+      failures.push(`告警统计：${String(statsResult.reason)}`)
+    }
+    if (projectsResult.status === 'fulfilled' && Array.isArray(projectsResult.value)) {
+      setProjects(projectsResult.value.map((project) => ({ id: project.id, name: project.name })))
+    } else if (projectsResult.status === 'rejected') {
+      failures.push(`项目列表：${String(projectsResult.reason)}`)
+    }
+    if (failures.length > 0) {
+      notify({
+        type: 'error',
+        title: '告警中心刷新失败',
+        message: failures.join('；'),
+      })
+    }
+  }, [notify])
 
   useEffect(() => {
     void loadPageMetadata()
   }, [loadPageMetadata])
 
   const refreshActiveOwner = useCallback(async () => {
-    await Promise.all([loadPageMetadata(), refreshTabOwner?.()])
+    setIsRefreshing(true)
+    try {
+      await Promise.all([loadPageMetadata(), refreshTabOwner?.()])
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [loadPageMetadata, refreshTabOwner])
-  useHeaderRefresh(refreshActiveOwner)
+  useHeaderRefresh(refreshActiveOwner, { loading: isRefreshing })
 
   // 稳定 `projects` 引用：内容不变就不产生新数组引用。
   // 对应 Task 5 review 的 parked finding：alert-rule-dialog.tsx 的 useEffect

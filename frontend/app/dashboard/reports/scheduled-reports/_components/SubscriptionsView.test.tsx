@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 /**
@@ -88,7 +88,10 @@ type Recorded = { method: string; id: string; body: unknown }
 let requests: Recorded[] = []
 
 /** 拦 fetch：记录写请求，GET 订阅列表返回固定数据 */
-function installFetch(failingIds: number[] = []) {
+function installFetch(
+  failingIds: number[] = [],
+  listResponse?: () => Response | Promise<Response>,
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -106,15 +109,17 @@ function installFetch(failingIds: number[] = []) {
         })
       }
       if (url.includes('/scheduled-reports/subscriptions')) {
-        return new Response(JSON.stringify({ items: SUBS }), { status: 200 })
+        return listResponse
+          ? await listResponse()
+          : new Response(JSON.stringify({ items: SUBS }), { status: 200 })
       }
       return new Response('{}', { status: 200 })
     }),
   )
 }
 
-async function renderView() {
-  render(<SubscriptionsView />)
+async function renderView(onRefreshReady?: (refresh: () => Promise<void>) => void) {
+  render(<SubscriptionsView onRefreshReady={onRefreshReady} />)
   await screen.findByRole('table', { name: '订阅列表' })
 }
 
@@ -144,6 +149,15 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
       defaultModel: 'gpt-5',
       premiumModels: ['gpt-5'],
       basicModels: ['gpt-5-mini'],
+      webSearchConfigured: false,
+      reasoningModels: [],
+      defaultReasoningEffort: 'medium',
+      timeoutSeconds: 60,
+      maxConversationTurns: 20,
+      webSearchMaxResults: 5,
+      overviewOptions: [],
+      detailOptions: [],
+      scenarios: [],
     })
   })
   afterEach(() => {
@@ -160,6 +174,51 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     await user.click(rowCheckbox('u2@example.com'))
 
     expect(bulkBar().getByText('已选 2 条')).toBeInTheDocument()
+  })
+
+  it('Head 刷新遇到 HTTP 错误时保留现有订阅并提示错误', async () => {
+    let listRequest = 0
+    installFetch([], () => {
+      listRequest += 1
+      return listRequest === 1
+        ? new Response(JSON.stringify({ items: SUBS }), { status: 200 })
+        : new Response('服务暂不可用', { status: 503 })
+    })
+    let refresh = async () => {}
+    await renderView((handler) => { refresh = handler })
+
+    await act(async () => { await refresh() })
+
+    expect(within(screen.getByRole('table', { name: '订阅列表' })).getByText('u1@example.com')).toBeInTheDocument()
+    expect(notifyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        title: '订阅数据刷新失败',
+        message: '订阅列表请求失败（HTTP 503）',
+      }),
+    )
+  })
+
+  it('Head 刷新遇到网络错误时保留现有订阅并提示错误', async () => {
+    let listRequest = 0
+    installFetch([], () => {
+      listRequest += 1
+      if (listRequest === 1) return new Response(JSON.stringify({ items: SUBS }), { status: 200 })
+      throw new Error('network offline')
+    })
+    let refresh = async () => {}
+    await renderView((handler) => { refresh = handler })
+
+    await act(async () => { await refresh() })
+
+    expect(within(screen.getByRole('table', { name: '订阅列表' })).getByText('u1@example.com')).toBeInTheDocument()
+    expect(notifyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        title: '订阅数据刷新失败',
+        message: 'network offline',
+      }),
+    )
   })
 
   it('批量暂停只对选中的行发 PUT，请求体为 {"enabled":false}', async () => {
@@ -273,6 +332,15 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
         defaultModel: 'gpt-5',
         premiumModels: ['gpt-5'],
         basicModels: ['gpt-5-mini'],
+        webSearchConfigured: false,
+        reasoningModels: [],
+        defaultReasoningEffort: 'medium',
+        timeoutSeconds: 60,
+        maxConversationTurns: 20,
+        webSearchMaxResults: 5,
+        overviewOptions: [],
+        detailOptions: [],
+        scenarios: [],
       })
     installFetch()
     await renderView()

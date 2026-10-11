@@ -97,10 +97,10 @@
 | `/dashboard/reports/report-reconciliation` | 重定向 | router.refresh fallback | `reports/loading.tsx` → `TablePageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
 | `/dashboard/reports/scheduled-reports` | H（客户端 layout + 客户端数据视图） | callback：layout 按当前 tab 调用订阅或台账 owner | `reports/loading.tsx` → `TablePageLoading` | S + A：按 active tab 重取真实数据 owner；B-nav + B-refresh 未验证 |
 | `/dashboard/reports/scheduled-reports/ledger` | H（客户端 layout + 客户端数据视图） | callback：`LedgerView.loadLedger()` 当前日期/筛选 | `reports/loading.tsx` → `TablePageLoading` | S + A：筛选状态保留；B-nav + B-refresh 未验证 |
-| `/dashboard/reports/scheduled-reports/subscriptions` | H（客户端 layout + 客户端数据视图） | callback：`SubscriptionsView.refreshSubscriptions()` | `reports/loading.tsx` → `TablePageLoading` | S + A：订阅筛选/选中态保留；B-nav + B-refresh 未验证 |
+| `/dashboard/reports/scheduled-reports/subscriptions` | H（客户端 layout + 客户端数据视图） | callback：`SubscriptionsView.refreshSubscriptions()` | `reports/loading.tsx` → `TablePageLoading` | S + A：订阅筛选/选中态保留；HTTP/网络失败保留现有数据并提示可见错误；B-nav + B-refresh 未验证 |
 | `/dashboard/system/account-management` | C（客户端页面/请求） | callback：`system/account-management/page.tsx`，重取用户列表 | `system/loading.tsx` → `TablePageLoading` | S；保留页面对话框与编辑状态；B-nav + B-refresh 未验证 |
 | `/dashboard/system/agent-management` | H（服务端入口 + 客户端子树） | router.refresh fallback | `system/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；callback 缺失；RSC 是否触发客户端数据重取待确认 |
-| `/dashboard/system/alerts` | C（客户端页面/请求） | callback：刷新告警统计/项目元数据及当前活动 Tab 数据 owner | `system/loading.tsx` → `TablePageLoading` | S + A：活动 Tab 重取自身数据且保留筛选；B-nav + B-refresh 未验证 |
+| `/dashboard/system/alerts` | C（客户端页面/请求） | callback：刷新告警统计/项目元数据及当前活动 Tab 数据 owner | `system/loading.tsx` → `TablePageLoading` | S + A：活动 Tab 重取自身数据且保留筛选；失败保留上次成功统计/项目并提示错误，Header busy 状态覆盖刷新全程；B-nav + B-refresh 未验证 |
 | `/dashboard/system/changelog` | 静态发布 snapshot | 不适用：无客户端读请求；内容随发布更新，RSC fallback 不作为客户端数据刷新契约 | `system/changelog/loading.tsx` → `SimplePageLoading` | S；静态 snapshot；B-nav 待验证 |
 | `/dashboard/system/data-management` | C（客户端页面/请求） | callback：页面 `refreshAll()` 同时重取状态与详情 | `system/loading.tsx` → `TablePageLoading` | S；操作面板与骨架待核对；B-nav + B-refresh 未验证 |
 | `/dashboard/system/digital-display` | C（客户端页面/请求） | callback：`system/digital-display/page.tsx`，按当前选中项目重取大屏数据 | `system/loading.tsx` → `TablePageLoading` | S；保留大屏项目选择并复用请求态；B-nav + B-refresh 未验证 |
@@ -141,6 +141,7 @@ Stage 1 的 51 条 C/H + fallback 路由及 scheduled-reports 的 3 个 URL 已�
 - **当前 Stage 2 补齐状态**：初始静态盘点的 23 个 client 数据缺口现已全部接入明确 callback（含研究分析当前关键词/数据集/概览/趋势 owner；产品分析主面板仅刷新项目目录并保留核算/上传流程；scheduled-reports 按活动 Tab 重取对应 owner）。代码级目标回归见下方；浏览器 Head 点击仍未执行。
 - **Stage 2 本轮扩展实施（静态代码）**：除 CRM tasks 和共享 CRM customers/leads/follow-ups/sea 数据 owner 外，已接入数字员工列表与详情、AI 广告分析历史/定时任务 Tab、洞察列表、库存健康项目选项、CRM 规则/类目管理、账号管理、告警中心活动 Tab owner、系统数据管理、数字大屏、系统日志审计/登录 Tab、系统 Agent 管理密钥列表与访问/写入日志、项目启动模板当前阶段保存后重取详情、发货规划数据、scheduled-reports 当前活动 Tab owner、系统项目资料的 Head callback；本轮续补 AI 对话/客户服务配置、虚拟办公室 SSE snapshot、自动报表当前活动 Tab 与 page-render 历史列表刷新 callback。上传/生成内容及本地编辑/预览草稿均保留。新增目标测试覆盖 CRM owner、配置刷新、AI 对话数据请求、RPA 当前视图与 CRM/项目启动刷新桥接。
 - CRM tasks callback 在 `page.tsx` 调用相同 `load(true)`，强刷当前 scope/type，刷新期间上报 `loading`，刷新时失败保留已加载任务并显示错误；初载失败仍清空空数据并显示错误。回归用例断言请求参数、视图/筛选保留及失败旧数据保留。
+- Review 修复：告警通知偏好 Head refresh 会比较当前草稿与最近保存值，仅在没有未保存编辑时才同步远端值；保存成功后更新基准，避免静默覆盖草稿。订阅列表遇 HTTP 非 2xx、无效响应或网络失败时保留订阅/项目数据并通过通知提示原因。告警中心统计/项目元数据刷新按数据源独立更新成功项，失败时保留各自上次成功值并提示错误，Header busy 状态覆盖活动 Tab 与元数据刷新全过程。
 
 ### Stage 2 验证记录
 
@@ -164,4 +165,5 @@ Stage 1 的 51 条 C/H + fallback 路由及 scheduled-reports 的 3 个 URL 已�
 - **Stage 1 自动化测试**：未运行；Stage 1 文件原记录的测试资产不代表当时通过。
 - **Stage 1 浏览器验证**：未执行；所有 `B-*` 待执行。
 - **Stage 2 lint / 静态 mock 检查（已执行）**：针对 `crm/tasks/page.tsx` 与测试文件 ESLint 通过；`node scripts/check-unstable-mocks.mjs` 扫描 248 个测试文件，0 命中。
-- **Stage 2 本轮自动化验证**：全量 `pnpm test` 251 文件 / 1830 例通过；全量 `pnpm lint` 0 errors / 27 warnings；新增续做文件 ESLint 无问题；`git diff --check` 通过。浏览器点击验证仍未执行。
+- **Stage 2 review 修复自动化验证（本轮）**：目标 Vitest 5 文件 / 40 例通过（告警中心 6、偏好草稿 1、scheduled-reports 11、项目资料 4、CRM Head header 9）；全量 `pnpm test` 252 文件 / 1855 例通过；全量 `pnpm lint` 0 errors / 27 warnings；`pnpm check:mocks` 扫描 252 个测试文件 / 0 命中；`git diff --check` 通过。修复包含告警中心元数据刷新失败保留数据与 busy 覆盖、偏好草稿不被 Head 覆盖、订阅刷新 HTTP/网络失败保留旧列表并提示；并修正一条 CRM Head 按钮异步初始 busy 状态下的脆弱测试时序断言。`pnpm exec tsc --noEmit` 报 61 errors / 25 files，错误集中在其他测试/路由；本轮修改文件未见类型检查报错。浏览器点击验证仍未执行。
+- **PR #717 当前状态（更新于 2026-10-11）**：已基于最新 `origin/main` rebase 并解决项目资料页面冲突；本轮全量 `pnpm test` 252 文件 / 1855 例通过；`pnpm lint` 0 errors / 27 warnings；`pnpm check:mocks` 扫描 252 个测试文件 / 0 命中。`pnpm exec tsc --noEmit` 报 61 errors / 25 files，错误分布在其他测试/现有路由，本轮修改的相关文件未再报告类型错误。准备推送 PR 修复；此前 Vercel required check 失败，新的 Preview 结果须由推送后检查，不得视为当前可合并。
