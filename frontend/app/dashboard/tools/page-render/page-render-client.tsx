@@ -343,7 +343,7 @@ export default function PageRenderClient() {
         actions={
           <>
             <Badge variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] tabular-nums text-term-muted">{historyTotal}</Badge>
-            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={refreshHistory} disabled={isLoadingHistory}>
+            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={() => void refreshHistory(true)} disabled={isLoadingHistory}>
               {isLoadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '刷新'}
             </Button>
           </>
