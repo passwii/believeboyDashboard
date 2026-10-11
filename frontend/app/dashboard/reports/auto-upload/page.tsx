@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   Activity,
@@ -45,6 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
   REPORT_UPLOAD_COUNTRY_OPTIONS,
   getMultiCountryDisplay,
@@ -164,9 +165,11 @@ function UploadProgressSummary({
 function RpaStatusGrid({
   country,
   onCountryChange,
+  refreshHandlerRef,
 }: {
   country: string
   onCountryChange: (v: string) => void
+  refreshHandlerRef: React.MutableRefObject<(() => Promise<void>) | null>
 }) {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<string[]>([])
@@ -186,24 +189,24 @@ function RpaStatusGrid({
   // BEL-422：项目列表仅服务于「项目筛选」下拉，首次打开下拉时才拉取，
   // 不再随 mount 预拉（带 2 分钟客户端缓存，打开后重复交互零请求）。
   const projectsRequested = useRef(false)
+  const loadProjects = useCallback(async (force = false) => {
+    setProjectsLoading(true)
+    try {
+      const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session, false, { force })
+      setProjects(payload.map((item) => item.name).filter(Boolean))
+    } catch (_error) {
+      // 保留已有筛选选项；首次加载失败时列表仍为空。
+    } finally {
+      setProjectsLoading(false)
+    }
+  }, [session])
   const ensureProjects = () => {
     if (projectsRequested.current) return
     projectsRequested.current = true
-    const loadProjects = async () => {
-      setProjectsLoading(true)
-      try {
-        const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session)
-        setProjects(payload.map((item) => item.name).filter(Boolean))
-      } catch (_error) {
-        // ignore
-      } finally {
-        setProjectsLoading(false)
-      }
-    }
     void loadProjects()
   }
 
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     setStatusLoading(true)
     setStatusError(null)
     try {
@@ -222,11 +225,24 @@ function RpaStatusGrid({
     } finally {
       setStatusLoading(false)
     }
-  }
+  }, [country, statusDate])
 
   useEffect(() => {
     void loadStatus()
-  }, [statusDate, country]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadStatus])
+
+  const refreshStatus = useCallback(async () => {
+    const refreshes: Promise<void>[] = [loadStatus()]
+    if (projectsRequested.current) refreshes.push(loadProjects(true))
+    await Promise.all(refreshes)
+  }, [loadProjects, loadStatus])
+
+  useEffect(() => {
+    refreshHandlerRef.current = refreshStatus
+    return () => {
+      if (refreshHandlerRef.current === refreshStatus) refreshHandlerRef.current = null
+    }
+  }, [refreshHandlerRef, refreshStatus])
 
   const filteredRows = useMemo(() => {
     if (selectedProjects.length === 0) return statusRows
@@ -467,10 +483,12 @@ function AutoUploadContent({
   country,
   onCountryChange,
   endpoint,
+  refreshHandlerRef,
 }: {
   country: ReportUploadCountry
   onCountryChange: (v: ReportUploadCountry) => void
   endpoint: UploadEndpoint
+  refreshHandlerRef: React.MutableRefObject<(() => Promise<void>) | null>
 }) {
   const { data: session } = useSession()
   const [dragActive, setDragActive] = useState(false)
@@ -480,19 +498,30 @@ function AutoUploadContent({
   const [recognitionMap, setRecognitionMap] = useState<Record<string, RecognitionResponse>>({})
   // 项目列表（用于手动选择）
   const [availableProjects, setAvailableProjects] = useState<string[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
 
-  // 加载项目列表
-  useEffect(() => {
-    const loadProjects = async () => {
-      try {
-        const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session)
-        setAvailableProjects(payload.map((item) => item.name).filter(Boolean))
-      } catch {
-        // ignore
-      }
+  const refreshProjects = useCallback(async (force = false) => {
+    setProjectsLoading(true)
+    try {
+      const payload = await fetchManagedProjectsCached<Array<{ name: string }>>(session, false, { force })
+      setAvailableProjects(payload.map((item) => item.name).filter(Boolean))
+    } catch {
+      // Keep existing options and upload queue when project lookup fails.
+    } finally {
+      setProjectsLoading(false)
     }
-    void loadProjects()
   }, [session])
+
+  useEffect(() => {
+    void refreshProjects()
+  }, [refreshProjects])
+
+  useEffect(() => {
+    refreshHandlerRef.current = () => refreshProjects(true)
+    return () => {
+      refreshHandlerRef.current = null
+    }
+  }, [refreshHandlerRef, refreshProjects])
 
   // 进度条统计：识别（成功 + 失败都算完成）/ 上传（仅识别成功且非 unknown 可上传的项，success + error 都算完成）
   const recognitionStats = useMemo(() => {
@@ -1232,6 +1261,26 @@ export default function AutoUploadPage() {
   const [activeTab, setActiveTab] = useState<'upload' | 'status'>('status')
   const [uploadSubTab, setUploadSubTab] = useState<UploadEndpoint>('report-upload')
   const [country, setCountry] = useState('US')
+  const [headerRefreshing, setHeaderRefreshing] = useState(false)
+  const statusRefreshHandlerRef = useRef<(() => Promise<void>) | null>(null)
+  const reportUploadRefreshHandlerRef = useRef<(() => Promise<void>) | null>(null)
+  const adUploadRefreshHandlerRef = useRef<(() => Promise<void>) | null>(null)
+
+  const refreshActiveTab = useCallback(async () => {
+    const refresh = activeTab === 'status'
+      ? statusRefreshHandlerRef.current
+      : uploadSubTab === 'report-upload'
+        ? reportUploadRefreshHandlerRef.current
+        : adUploadRefreshHandlerRef.current
+    if (!refresh) return
+    setHeaderRefreshing(true)
+    try {
+      await refresh()
+    } finally {
+      setHeaderRefreshing(false)
+    }
+  }, [activeTab, uploadSubTab])
+  useHeaderRefresh(refreshActiveTab, { loading: headerRefreshing })
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
@@ -1250,7 +1299,11 @@ export default function AutoUploadPage() {
 
         {/* Tab content */}
         <TabsContent value="status" className="min-h-0 flex-1 space-y-0">
-          <RpaStatusGrid country={country} onCountryChange={setCountry} />
+          <RpaStatusGrid
+            country={country}
+            onCountryChange={setCountry}
+            refreshHandlerRef={statusRefreshHandlerRef}
+          />
         </TabsContent>
         <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
           <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
@@ -1269,6 +1322,7 @@ export default function AutoUploadPage() {
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
                 endpoint="report-upload"
+                refreshHandlerRef={reportUploadRefreshHandlerRef}
               />
             </TabsContent>
             <TabsContent value="ad-upload" className="min-h-0 flex-1 space-y-0">
@@ -1276,6 +1330,7 @@ export default function AutoUploadPage() {
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
                 endpoint="ad-upload"
+                refreshHandlerRef={adUploadRefreshHandlerRef}
               />
             </TabsContent>
           </Tabs>

@@ -43,6 +43,8 @@ export interface CrmTableProps<T> {
   rowKey: keyof T
   /** 外部变更后主动刷新表格（每次 +1 触发） */
   refreshKey?: number
+  /** 由页面主表格注册 Head 刷新；嵌套/独立表格默认不占用全局 callback */
+  headerRefresh?: boolean
   /** 表头快捷筛选字段定义（P4 实用档）；不传则不渲染筛选行 */
   filterFields?: FilterFieldDef[]
   /** 是否显示关键词搜索框（写入 URL keyword，hook 已支持） */

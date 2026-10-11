@@ -5,6 +5,10 @@ import type { Customer } from '@/lib/crm/types'
 
 import { stableNotifications } from '@/test-utils/stable-mocks'
 
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+}))
+
 const { listCustomers, mockClient } = vi.hoisted(() => {
   const listCustomers = vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
   const mockClient = {

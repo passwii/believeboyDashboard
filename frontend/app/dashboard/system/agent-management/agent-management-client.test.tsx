@@ -130,6 +130,10 @@ vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),
 }))
 
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+}))
+
 vi.mock('@/hooks/use-confirm', () => ({
   useConfirm: () => ({ confirm }),
 }))

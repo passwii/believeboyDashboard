@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { exportProductAnalysisToExcel } from '@/lib/product-analysis-export'
@@ -637,6 +638,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
   // Projects
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsRefreshing, setProjectsRefreshing] = useState(false)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   // Filters
@@ -658,21 +660,28 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
   // UI
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
-  useEffect(() => {
-    const loadProjects = async () => {
-      setProjectsLoading(true)
-      setProjectLoadError(null)
-      try {
-        const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
-        setProjects(data as ProjectOption[])
-      } catch (error) {
-        setProjectLoadError(normalizeErrorMessage(error, '项目列表加载失败'))
-      } finally {
-        setProjectsLoading(false)
-      }
+  const refreshProjects = useCallback(async (force = false) => {
+    if (force) setProjectsRefreshing(true)
+    else setProjectsLoading(true)
+    setProjectLoadError(null)
+    try {
+      const data = await fetchManagedProjectsCached<ProjectOption[]>(session, false, { force })
+      setProjects(data as ProjectOption[])
+      setSelectedProjectName((current) =>
+        data.some((project) => project.name === current) ? current : data[0]?.name ?? ''
+      )
+    } catch (error) {
+      setProjectLoadError(normalizeErrorMessage(error, '项目列表加载失败'))
+    } finally {
+      setProjectsLoading(false)
+      setProjectsRefreshing(false)
     }
-    void loadProjects()
   }, [session])
+
+  useEffect(() => {
+    void refreshProjects()
+  }, [refreshProjects])
+  useHeaderRefresh(() => refreshProjects(true), { loading: projectsRefreshing })
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.name === selectedProjectName),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { CrmRulesPanel } from '@/components/crm/crm-rules-panel'
@@ -8,6 +8,7 @@ import { CrmCategoryManager } from '@/components/crm/crm-category-manager'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useNotifications } from '@/components/notifications'
 import { TermPanel } from '@/components/terminal/term-panel'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,6 +36,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshOwners, setRefreshOwners] = useState<Array<() => Promise<void>>>([])
+  const registerRefreshOwner = useCallback((refresh: () => Promise<void>) => {
+    setRefreshOwners((owners) => [...owners.filter((owner) => owner !== refresh), refresh])
+  }, [])
+
   useEffect(() => {
     if (!isAdmin) {
       setLoading(false)
@@ -59,6 +66,21 @@ export default function SettingsPage() {
       cancelled = true
     }
   }, [client, isAdmin, notify])
+
+  const refreshSettings = useCallback(async () => {
+    if (!isAdmin) return
+    setRefreshing(true)
+    try {
+      const refreshed = await client.getWorkflowSettings()
+      setSettings(refreshed)
+      await Promise.all(refreshOwners.map((refreshOwner) => refreshOwner()))
+    } catch (error) {
+      notify({ type: 'error', title: '刷新设置失败', message: String(error) })
+    } finally {
+      setRefreshing(false)
+    }
+  }, [client, isAdmin, notify, refreshOwners])
+  useHeaderRefresh(refreshSettings, { loading: loading || refreshing })
 
   if (sessionStatus === 'loading') {
     return (
@@ -120,9 +142,9 @@ export default function SettingsPage() {
   return (
     // BLF-837：页面标题已由 Top Header 面包屑承载；设置卡片走 TermPanel
     <div className="flex min-w-0 flex-col gap-2">
-      <CrmRulesPanel />
+      <CrmRulesPanel onRefreshReady={registerRefreshOwner} />
 
-      <CrmCategoryManager />
+      <CrmCategoryManager onRefreshReady={registerRefreshOwner} />
 
       <TermPanel title="7 天无跟进提醒" bodyClassName="px-3 py-3 max-md:overflow-x-auto">
         <p className="mb-3 font-mono text-xs text-term-faint">

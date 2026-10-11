@@ -39,6 +39,7 @@ import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { HistoryList, GenerationDialog } from '@/components/dashboard/ai-ad-analysis'
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -73,7 +74,11 @@ type TabKey = 'history' | 'schedules'
 
 // ─── History Tab ────────────────────────────────────────────────────────────
 
-function HistoryTab() {
+function HistoryTab({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { data: session } = useSession()
   const { notify } = useNotifications()
 
@@ -120,6 +125,13 @@ function HistoryTab() {
   const handleGenerationComplete = useCallback(() => {
     setRefreshTrigger((n) => n + 1)
   }, [])
+
+  const refreshHistory = useCallback(async () => {
+    setRefreshTrigger((n) => n + 1)
+  }, [])
+  useEffect(() => {
+    onRefreshReady?.(refreshHistory)
+  }, [onRefreshReady, refreshHistory])
 
   return (
     <div className="space-y-3">
@@ -205,10 +217,20 @@ function HistoryTab() {
 
 // ─── Schedules Tab ──────────────────────────────────────────────────────────
 
-function SchedulesTab() {
+function SchedulesTab({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<any>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const refreshSchedules = useCallback(async () => {
+    setRefreshTrigger((n) => n + 1)
+  }, [])
+  useEffect(() => {
+    onRefreshReady?.(refreshSchedules)
+  }, [onRefreshReady, refreshSchedules])
 
   // ScheduleList 自带 onRefresh 触发, 我们用 refreshTrigger 让父组件在保存/删除/切换后重新触发
   return (
@@ -277,13 +299,30 @@ function SchedulesTab() {
 
 export default function AdAnalysisPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('history')
+  const [refreshTabOwner, setRefreshTabOwner] = useState<(() => Promise<void>) | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const registerTabRefreshOwner = useCallback((refresh: () => Promise<void>) => {
+    setRefreshTabOwner(() => refresh)
+  }, [])
+  const refreshActiveTab = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await refreshTabOwner?.()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refreshTabOwner])
+  useHeaderRefresh(refreshActiveTab, { loading: refreshing })
 
   return (
     // BLF-838：页面标题由 Top Header 面包屑承载；Tab 切换终端规格
     <div className="flex min-w-0 flex-col gap-2">
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as TabKey)}
+        onValueChange={(v) => {
+          setActiveTab(v as TabKey)
+          setRefreshTabOwner(null)
+        }}
         className="space-y-2"
       >
         <TabsList variant="term" className="w-fit justify-start">
@@ -298,10 +337,10 @@ export default function AdAnalysisPage() {
         </TabsList>
 
         <TabsContent value="history">
-          <HistoryTab />
+          <HistoryTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
         <TabsContent value="schedules">
-          <SchedulesTab />
+          <SchedulesTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
       </Tabs>
     </div>

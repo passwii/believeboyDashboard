@@ -17,13 +17,27 @@ export function useOfficeStream() {
   const [chatterFeed, setChatterFeed] = useState<ChatterEvent[]>([])
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const snapshotResolverRef = useRef<(() => void) | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const connect = useCallback(() => {
     const es = new EventSource(STREAM_URL)
+    eventSourceRef.current = es
 
     es.addEventListener('snapshot', (e) => {
       const snap = parseSnapshot((e as MessageEvent).data)
-      if (snap) setEmployees(snap.employees)
+      if (snap) {
+        setEmployees(snap.employees)
+        if (snapshotResolverRef.current) {
+          snapshotResolverRef.current()
+          snapshotResolverRef.current = null
+          if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+          refreshTimerRef.current = null
+          setRefreshing(false)
+        }
+      }
     })
 
     // P3-B: 监听 chatter 事件，追加到 feed（最新在前，上限 MAX_CHATTER）
@@ -51,13 +65,31 @@ export function useOfficeStream() {
     return es
   }, [])
 
+  const refresh = useCallback(() => {
+    if (refreshing) return
+    setRefreshing(true)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    eventSourceRef.current?.close()
+
+    snapshotResolverRef.current = () => undefined
+    refreshTimerRef.current = setTimeout(() => {
+      snapshotResolverRef.current = null
+      refreshTimerRef.current = null
+      setRefreshing(false)
+    }, 10_000)
+    connect()
+  }, [connect, refreshing])
+
   useEffect(() => {
-    const es = connect()
+    connect()
     return () => {
-      es.close()
+      eventSourceRef.current?.close()
+      eventSourceRef.current = null
       if (timerRef.current) clearTimeout(timerRef.current)
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      snapshotResolverRef.current = null
     }
   }, [connect])
 
-  return { employees, connected, chatterFeed }
+  return { employees, connected, chatterFeed, refreshing, refresh }
 }

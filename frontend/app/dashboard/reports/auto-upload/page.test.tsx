@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +14,14 @@ import {
 // AutoUploadContent 的 useEffect(loadProjects, [session]) 会无限重跑（fetch 永不落定），
 // 与 v2/page.test.tsx 中 useManagedProjects 的注释同理。
 const SESSION = { data: { user: { name: '测试用户' } }, status: 'authenticated' }
+const HEADER_REFRESH = vi.hoisted(() => ({ handler: null as null | (() => void | Promise<void>) }))
+
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => void | Promise<void>) => {
+    HEADER_REFRESH.handler = handler
+    return { setLoading: vi.fn() }
+  },
+}))
 
 vi.mock('next-auth/react', () => ({
   useSession: () => SESSION,
@@ -194,6 +202,18 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
     expect(await screen.findByText('广告-词份额')).toBeInTheDocument()
     expect(screen.getByText('广告-时间效果')).toBeInTheDocument()
     expect(screen.queryByText('词份额')).not.toBeInTheDocument()
+  })
+
+  it('Head 刷新重取当前状态视图，保留日期和筛选上下文', async () => {
+    render(<AutoUploadPage />)
+    await screen.findByText('销售')
+    const fetchMock = vi.mocked(fetch)
+    const before = fetchMock.mock.calls.filter(([input]) => String(input).includes('/rpa-reports/status')).length
+
+    await act(async () => HEADER_REFRESH.handler?.())
+
+    const after = fetchMock.mock.calls.filter(([input]) => String(input).includes('/rpa-reports/status')).length
+    expect(after).toBe(before + 1)
   })
 
   it('上传成功后队列展示入库行数（rows_ingested 结构化字段）', async () => {

@@ -34,6 +34,7 @@ import {
 } from '@/lib/api/ai-chat'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMobile } from '@/lib/hooks/use-mobile'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 import type { TextSegment, ChatMessage, Phase, AIChatWindowProps, Conversation } from './types'
 
@@ -99,6 +100,8 @@ export function AIChatWindow({
   const [activeServerId, setActiveServerId] = useState<number | null>(null)
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [refreshingPageData, setRefreshingPageData] = useState(false)
+  const [pageRefreshError, setPageRefreshError] = useState<string | null>(null)
   const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
   /** Bumped to force re-fetching the conversation list (after create/delete/rename). */
@@ -201,6 +204,89 @@ export function AIChatWindow({
       cancelled = true
     }
   }, [activeServerId])
+
+  const headerRefreshRequestRef = useRef(0)
+  const refreshPageData = useCallback(async () => {
+    if (isStreaming) return
+
+    const requestId = ++headerRefreshRequestRef.current
+    const targetConversationId = activeServerId
+    setRefreshingPageData(true)
+    setPageRefreshError(null)
+
+    try {
+      const [conversationResult, messageResult, configResult] = await Promise.allSettled([
+        listConversations(),
+        targetConversationId == null ? Promise.resolve([]) : getMessages(targetConversationId),
+        ensureConfigLoaded(true),
+      ])
+      if (requestId !== headerRefreshRequestRef.current) return
+
+      const errors: string[] = []
+      let refreshedConversations: Conversation[] | null = null
+      if (conversationResult.status === 'fulfilled') {
+        refreshedConversations = conversationResult.value.map(toClientConversation)
+        setConversations(refreshedConversations)
+      } else {
+        errors.push(
+          conversationResult.reason instanceof Error
+            ? conversationResult.reason.message
+            : '加载历史会话失败'
+        )
+      }
+
+      if (configResult.status === 'fulfilled') {
+        setProviderConfigured(configResult.value.providerConfigured)
+      } else {
+        errors.push(configResult.reason instanceof Error ? configResult.reason.message : '加载 AI 配置失败')
+      }
+
+      const targetStillExists =
+        targetConversationId == null ||
+        refreshedConversations?.some((conversation) => conversation.serverId === targetConversationId) !== false
+
+      if (
+        targetConversationId != null &&
+        targetConversationId === activeServerIdRef.current &&
+        targetStillExists
+      ) {
+        if (messageResult.status === 'fulfilled') {
+          setMessages(messageResult.value.map(toClientMessage))
+        } else {
+          errors.push(
+            messageResult.reason instanceof Error ? messageResult.reason.message : '加载会话消息失败'
+          )
+        }
+      } else if (targetConversationId == null && refreshedConversations && !activeConvId) {
+        const latest = [...refreshedConversations].sort(
+          (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)
+        )[0]
+        if (latest) {
+          setActiveConvId(latest.id)
+          setActiveServerId(latest.serverId ?? null)
+        }
+      } else if (targetConversationId != null && refreshedConversations && !targetStillExists) {
+        const latest = [...refreshedConversations].sort(
+          (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)
+        )[0]
+        setActiveConvId(latest?.id ?? null)
+        setActiveServerId(latest?.serverId ?? null)
+        setMessages([])
+      }
+
+      setPageRefreshError(errors.length > 0 ? errors.join('；') : null)
+    } catch (error) {
+      if (requestId === headerRefreshRequestRef.current) {
+        setPageRefreshError(error instanceof Error ? error.message : '刷新 AI 会话数据失败')
+      }
+    } finally {
+      if (requestId === headerRefreshRequestRef.current) setRefreshingPageData(false)
+    }
+  }, [activeConvId, activeServerId, isStreaming])
+
+  useHeaderRefresh(refreshPageData, {
+    loading: refreshingPageData || loadingConversations || loadingMessages || isStreaming,
+  })
 
   // ── Chat stream hook — uses ref-based conversation ID so send() always
   // ── resolves to the current server ID, even when the conversation is
@@ -771,6 +857,12 @@ export function AIChatWindow({
       style={{ ['--sidebar-width' as string]: '280px' }}
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
+
+      {pageRefreshError && (
+        <div role="alert" className="absolute left-1/2 top-4 z-[60] -translate-x-1/2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-200">
+          历史会话刷新失败：{pageRefreshError}
+        </div>
+      )}
 
       {/* Layer 1: Background */}
       <div

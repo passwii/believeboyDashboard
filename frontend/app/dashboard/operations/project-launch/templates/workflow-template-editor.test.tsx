@@ -6,6 +6,10 @@ const { sessionState } = vi.hoisted(() => ({
   sessionState: { data: { user: { roleType: 'admin' } }, status: 'authenticated' as const },
 }))
 
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+}))
+
 vi.mock('next-auth/react', () => ({
   useSession: () => sessionState,
 }))

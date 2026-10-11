@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Task, TaskListParams, TaskStatus, TaskType } from '@/lib/crm/types'
 import TasksPage from './page'
 
-const { listTasks, setTaskStatus, notify, client } = vi.hoisted(() => {
+const { listTasks, setTaskStatus, notify, client, getRefreshHandler, setRefreshHandler } = vi.hoisted(() => {
   let tasks: Task[] = []
   const setState = (next: Task[]) => {
     tasks = next
@@ -21,11 +21,31 @@ const { listTasks, setTaskStatus, notify, client } = vi.hoisted(() => {
     return updated
   })
   const notify = vi.fn()
+  let refreshHandler: (() => void | Promise<void>) | null = null
+  const setRefreshHandler = (handler: () => void | Promise<void>) => {
+    refreshHandler = handler
+  }
+  const getRefreshHandler = () => refreshHandler
   // 稳定 client 对象（避免每次渲染新对象 → load 重建 → 无限重 fetch）
   const client = { listTasks, setTaskStatus }
-  return { listTasks, setTaskStatus, notify, client, __setTasks: setState, __getTasks: () => tasks }
+  return {
+    listTasks,
+    setTaskStatus,
+    notify,
+    client,
+    getRefreshHandler,
+    setRefreshHandler,
+    __setTasks: setState,
+    __getTasks: () => tasks,
+  }
 })
 
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => void | Promise<void>) => {
+    setRefreshHandler(handler)
+    return { setLoading: vi.fn() }
+  },
+}))
 vi.mock('@/lib/crm/api/crm-client-provider', () => ({
   useCrmClient: () => client,
 }))
@@ -100,6 +120,39 @@ describe('TasksPage', () => {
     // 仅 call 类任务保留
     await waitFor(() => expect(screen.getByText('电话回访客户')).toBeTruthy())
     expect(screen.queryByText('确认报价单')).toBeNull()
+  })
+
+  it('Head 刷新重新请求当前筛选下的任务并保留视图/筛选状态', async () => {
+    render(<TasksPage />)
+    await screen.findByText('确认报价单')
+    fireEvent.change(screen.getByTestId('task-type-filter'), { target: { value: 'call' } })
+    await screen.findByText('电话回访客户')
+    fireEvent.click(screen.getByTestId('view-list'))
+
+    const callsBeforeRefresh = listTasks.mock.calls.length
+    const refresh = getRefreshHandler()
+    expect(refresh).toBeTypeOf('function')
+    await act(async () => { await refresh?.() })
+
+    expect(listTasks).toHaveBeenCalledTimes(callsBeforeRefresh + 1)
+    expect(listTasks).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: 'all', type: 'call', pageSize: 100 })
+    )
+    expect(screen.getByTestId('task-type-filter')).toHaveValue('call')
+    expect(screen.getByTestId('view-list')).toHaveAttribute('aria-checked', 'true')
+    expect(await screen.findByText('电话回访客户')).toBeTruthy()
+  })
+
+  it('刷新失败时保留已有任务并显示错误', async () => {
+    render(<TasksPage />)
+    await screen.findByText('确认报价单')
+    listTasks.mockRejectedValueOnce(new Error('网络不可用'))
+
+    const refresh = getRefreshHandler()
+    await act(async () => { await refresh?.() })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('网络不可用')
+    expect(screen.getByText('确认报价单')).toBeTruthy()
   })
 
   it('视图切换：列表视图可见 cancelled', async () => {

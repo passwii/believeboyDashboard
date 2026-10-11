@@ -48,7 +48,11 @@ const FREQUENCY_LABELS: Record<string, string> = {
   monthly: '每月',
 }
 
-export default function LedgerView() {
+export default function LedgerView({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { data: session } = useSession()
   const { notify } = useNotifications()
 
@@ -190,6 +194,10 @@ export default function LedgerView() {
     return () => clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ledgerEmail])
+
+  useEffect(() => {
+    onRefreshReady?.(loadLedger)
+  }, [loadLedger, onRefreshReady])
 
   const roleType = session?.user?.roleType
   const isAdmin = roleType === 'admin'

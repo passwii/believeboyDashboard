@@ -13,7 +13,11 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-export function CrmCategoryManager() {
+export function CrmCategoryManager({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const client = useCrmClient()
   const { notify } = useNotifications()
   const [categories, setCategories] = useState<Category[]>([])
@@ -41,6 +45,9 @@ export function CrmCategoryManager() {
   useEffect(() => {
     void load()
   }, [load])
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   const handleCreate = async () => {
     const name = newName.trim()

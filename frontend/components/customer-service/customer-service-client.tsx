@@ -1,11 +1,12 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ensureConfigLoaded, getConfig } from '@/lib/api/ai-chat-config-store'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import type { ScenarioSummary } from '@/lib/server/ai-chat'
 import { findScenarioPreset } from '@/lib/server/ai-chat'
 import { ScenarioTabs } from './scenario-tabs'
 import { InputPane } from './input-pane'
 import { ToneCard } from './tone-card'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 const DRAFT_KEY = 'cs-draft-v1'
 
@@ -26,6 +27,8 @@ export function CustomerServiceClient() {
   const [length, setLength] = useState<'brief' | 'standard' | 'detailed'>('standard')
   const [generateToken, setGenerateToken] = useState(0)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [loadingScenarios, setLoadingScenarios] = useState(true)
+  const [scenarioError, setScenarioError] = useState<string | null>(null)
   const streamingCount = useRef(0)
   const reqIdRef = useRef(0)
 
@@ -35,22 +38,29 @@ export function CustomerServiceClient() {
     setIsGenerating(streamingCount.current > 0)
   }
 
-  // 加载场景配置
-  useEffect(() => {
-    let alive = true
-    ensureConfigLoaded()
-      .then(() => {
-        if (!alive) return
-        const list = getConfig()?.scenarios ?? []
-        setScenarios(list)
-        const firstEnabled = list.find((s) => !s.disabled)
-        if (firstEnabled) setSelectedId(firstEnabled.id)
+  const loadScenarios = useCallback(async (force = false) => {
+    setLoadingScenarios(true)
+    setScenarioError(null)
+    try {
+      const config = await ensureConfigLoaded(force)
+      const list = config.scenarios ?? []
+      setScenarios(list)
+      setSelectedId((current) => {
+        if (list.some((scenario) => scenario.id === current && !scenario.disabled)) return current
+        return list.find((scenario) => !scenario.disabled)?.id ?? current
       })
-      .catch(() => {})
-    return () => {
-      alive = false
+    } catch (error) {
+      setScenarioError(error instanceof Error ? error.message : '加载场景配置失败')
+    } finally {
+      setLoadingScenarios(false)
     }
   }, [])
+
+  useEffect(() => {
+    void loadScenarios()
+  }, [loadScenarios])
+
+  useHeaderRefresh(() => loadScenarios(true), { loading: loadingScenarios || isGenerating })
 
   // 草稿暂存（sessionStorage）
   useEffect(() => {
@@ -84,6 +94,7 @@ export function CustomerServiceClient() {
 
   return (
     <div className="flex h-full flex-col gap-4">
+      {scenarioError && <p role="alert" className="text-sm text-destructive">场景配置刷新失败：{scenarioError}</p>}
       <ScenarioTabs scenarios={scenarios} selectedId={selectedId} onSelect={setSelectedId} />
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <InputPane

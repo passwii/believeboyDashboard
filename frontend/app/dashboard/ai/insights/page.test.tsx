@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+}))
+
 // BEL-424 契约测试：AI 洞察页的模型配置不再 mount 即拉 ——
 // 推迟到生成弹窗首次打开，且复用 ai-chat 配置 store（跨页共享、在途去重）。
 

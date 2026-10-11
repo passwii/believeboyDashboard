@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,16 +19,29 @@ import {
   type AlertPreference,
 } from '@/lib/alerts-api'
 
-export function AlertPreferencesTab() {
+export function AlertPreferencesTab({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { notify } = useNotifications()
   const [pref, setPref] = useState<AlertPreference | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    void fetchAlertPreferences()
-      .then(setPref)
-      .catch((err) => notify({ type: 'error', title: '加载偏好失败', message: String(err) }))
+  const load = useCallback(async () => {
+    try {
+      setPref(await fetchAlertPreferences())
+    } catch (err) {
+      notify({ type: 'error', title: '加载偏好失败', message: String(err) })
+    }
   }, [notify])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   if (!pref) {
     return <div className="py-8 text-center font-mono text-xs text-term-faint">加载中…</div>

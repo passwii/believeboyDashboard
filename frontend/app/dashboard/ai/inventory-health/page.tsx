@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { SingleDatePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
 import { TermPanel } from '@/components/terminal/term-panel'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import {
@@ -84,6 +85,16 @@ export default function InventoryHealthPage() {
     if (!projectId) return
     setSubmitted({ projectId, country, reportDate })
   }, [projectId, country, reportDate])
+
+  const refreshProjects = useCallback(async () => {
+    const list = await fetchManagedProjectsCached<Project[]>(session, false, { force: true })
+    const nextProjects = Array.isArray(list) ? list : []
+    setProjects(nextProjects)
+    if (!nextProjects.some((project) => project.id === projectId)) {
+      setProjectId(nextProjects[0]?.id ?? null)
+    }
+  }, [projectId, session])
+  useHeaderRefresh(refreshProjects)
 
   const activeLabel = inventoryScopeLabel(activeScope)
   const started = submitted !== null

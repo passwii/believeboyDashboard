@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { TermPill } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { isAdmin } from '@/lib/backend-auth'
 import {
   WORKFLOW_DOCUMENTS,
@@ -60,6 +61,7 @@ export default function WorkflowTemplateEditor() {
   const [newContentByTask, setNewContentByTask] = useState<Record<number, { title: string; body: string }>>({})
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null)
   const detailRequest = useRef(0)
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadList = useCallback(async (preferredId?: number | null) => {
     setLoading(true)
@@ -108,6 +110,29 @@ export default function WorkflowTemplateEditor() {
     setActiveTaskId(null)
     void loadDetail(selectedId)
   }, [admin, loadDetail, selectedId])
+
+  const refreshDraftRef = useRef({ detail, activeTaskId, busyKey })
+  refreshDraftRef.current = { detail, activeTaskId, busyKey }
+  const saveTaskRef = useRef<((task: WorkflowTemplateTask) => Promise<void>) | null>(null)
+  const saveTaskContentsRef = useRef<((task: WorkflowTemplateTask) => Promise<void>) | null>(null)
+  const refreshCurrentTemplate = useCallback(async () => {
+    setRefreshing(true)
+    setError(null)
+    try {
+      const draft = refreshDraftRef.current
+      if (draft.busyKey !== null) return
+      const activeTask = draft.detail?.tasks.find((task) => task.id === draft.activeTaskId)
+      if (activeTask) {
+        await saveTaskRef.current?.(activeTask)
+        await saveTaskContentsRef.current?.(activeTask)
+      }
+      await loadList(selectedId)
+      if (selectedId != null) await loadDetail(selectedId, true)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadDetail, loadList, selectedId])
+  useHeaderRefresh(refreshCurrentTemplate, { loading: loading || refreshing })
 
   useEffect(() => {
     if (!detail) return
@@ -199,7 +224,7 @@ export default function WorkflowTemplateEditor() {
     } : current)
   }
 
-  async function saveTask(task: WorkflowTemplateTask) {
+  const saveTask = useCallback(async (task: WorkflowTemplateTask) => {
     const updated = await updateTemplateTask(task.id, {
       title: task.title,
       description: task.description,
@@ -208,15 +233,17 @@ export default function WorkflowTemplateEditor() {
     }, session)
     setDetail(updated)
     setTemplates((current) => current.map((item) => item.id === updated.id ? updated : item))
-  }
+  }, [session])
 
-  async function saveTaskContents(task: WorkflowTemplateTask) {
+  const saveTaskContents = useCallback(async (task: WorkflowTemplateTask) => {
     for (const content of task.contents ?? []) {
       const saved = await updateTemplateContent(content.id, { title: content.title, body: content.body }, session)
       setDetail(saved)
       setTemplates((current) => current.map((item) => item.id === saved.id ? saved : item))
     }
-  }
+  }, [session])
+  saveTaskRef.current = saveTask
+  saveTaskContentsRef.current = saveTaskContents
 
   async function switchTask(nextTaskId: number) {
     if (!detail || busyKey !== null || nextTaskId === activeTaskId) return

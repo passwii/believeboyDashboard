@@ -22,6 +22,7 @@ import {
 } from '@/components/terminal/term-table'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 interface ProjectOption {
   id: number
@@ -34,7 +35,13 @@ const SEVERITY_TONE: Record<string, TermTone> = {
   info: 'info',
 }
 
-export function AlertRulesTab({ projects }: { projects: ProjectOption[] }) {
+export function AlertRulesTab({
+  projects,
+  onRefreshReady,
+}: {
+  projects: ProjectOption[]
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { notify } = useNotifications()
   const [rules, setRules] = useState<AlertRuleItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,6 +62,10 @@ export function AlertRulesTab({ projects }: { projects: ProjectOption[] }) {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   const toggleActive = async (rule: AlertRuleItem) => {
     try {

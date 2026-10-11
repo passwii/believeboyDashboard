@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import { TermPageShell, TERM_BUTTON } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { TermPanel } from '@/components/terminal/term-panel'
 
 type UserRoleType = 'admin' | 'operator' | 'businessdev'
@@ -146,6 +147,8 @@ export default function AccountManagementPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useHeaderRefresh(load, { loading })
 
   const updateOne = async (id: string, patch: Partial<Pick<UserItem, 'isActive' | 'roleType'>>) => {
     const target = items.find((item) => item.id === id)

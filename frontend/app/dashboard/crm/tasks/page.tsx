@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KanbanSquare, List } from 'lucide-react'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useNotifications } from '@/components/notifications'
@@ -37,9 +38,8 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveData = false) => {
     setLoading(true)
     setError(null)
     try {
@@ -51,15 +51,17 @@ export default function TasksPage() {
       setTasks(page.items)
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载任务失败')
-      setTasks([])
+      if (!preserveData) setTasks([])
     } finally {
       setLoading(false)
     }
   }, [client, scope, typeFilter])
 
+  useHeaderRefresh(() => load(true), { loading })
+
   useEffect(() => {
     void load()
-  }, [load, refreshKey])
+  }, [load])
 
   const onError = useCallback(
     (message: string) => {
@@ -136,17 +138,23 @@ export default function TasksPage() {
 
       {loading && tasks.length === 0 ? (
         <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
-      ) : error ? (
-        <div
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-        >
-          ERR · {error}
-        </div>
-      ) : view === 'board' ? (
-        <TaskKanban tasks={tasks} onDragEnd={handleDragEnd} showOwner={scope === 'all'} />
       ) : (
-        <TaskList tasks={tasks} />
+        <>
+          {error && (
+            <div
+              role="alert"
+              className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+            >
+              ERR · {error}
+            </div>
+          )}
+          {(!error || tasks.length > 0) &&
+            (view === 'board' ? (
+              <TaskKanban tasks={tasks} onDragEnd={handleDragEnd} showOwner={scope === 'all'} />
+            ) : (
+              <TaskList tasks={tasks} />
+            ))}
+        </>
       )}
     </div>
   )

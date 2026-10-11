@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/table'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { ProjectContextDrawer } from '@/components/dashboard/project-context/project-context-drawer'
 import { ProjectContextTab } from '@/components/dashboard/project-context/project-context-tab'
 import {
@@ -438,7 +439,6 @@ export default function ProjectInfoPage() {
       )
     } catch {
       if (requestId !== startupSummaryRequestRef.current) return
-      setStartupWorkflowsByProject(new Map())
       setStartupSummaryError(true)
     } finally {
       if (requestId === startupSummaryRequestRef.current) setStartupSummaryLoading(false)
@@ -452,6 +452,11 @@ export default function ProjectInfoPage() {
       startupSummaryRequestRef.current += 1
     }
   }, [loadStartupSummary, status])
+
+  const refreshPageData = useCallback(async () => {
+    await Promise.all([loadProjects({ force: true }), loadStartupSummary()])
+  }, [loadProjects, loadStartupSummary])
+  useHeaderRefresh(refreshPageData, { loading: loading || startupSummaryLoading })
 
   useEffect(() => {
     void loadOperatorOptions()

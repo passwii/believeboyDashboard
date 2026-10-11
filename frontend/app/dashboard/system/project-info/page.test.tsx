@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMMARY } = vi.hoisted(() => ({
+const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMMARY, REFRESH_HANDLER } = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
   NOTIFY: { notify: vi.fn() },
   FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
@@ -10,6 +10,7 @@ const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMM
     { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: false, source_file: null, has_context: true, project_tier: 'T2', store_address: null },
   ]),
   FETCH_WORKFLOW_SUMMARY: vi.fn().mockResolvedValue({ projects: [] }),
+  REFRESH_HANDLER: { current: null as null | (() => Promise<void>) },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +31,13 @@ vi.mock('@/components/global-loading-provider', () => ({
 
 vi.mock('@/hooks/use-smooth-refresh', () => ({
   useSmoothRefresh: () => ({ showSkeleton: false, isRefreshing: false }),
+}))
+
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => Promise<void>) => {
+    REFRESH_HANDLER.current = handler
+    return { setLoading: vi.fn() }
+  },
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -100,6 +108,24 @@ describe('StoreInfoPage 站点列/下拉', () => {
     const launchingRow = screen.getByText('店铺乙').closest('tr')
     expect(within(launchedRow!).getByText('已启动')).toBeInTheDocument()
     expect(within(launchingRow!).getByText('正在启动')).toBeInTheDocument()
+  })
+
+  it('Head 刷新强制重取项目列表与启动流程概要', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await screen.findByText('店铺甲')
+    const projectsBefore = FETCH_MANAGED_PROJECTS_CACHED.mock.calls.length
+    const summariesBefore = FETCH_WORKFLOW_SUMMARY.mock.calls.length
+
+    await REFRESH_HANDLER.current?.()
+
+    expect(FETCH_MANAGED_PROJECTS_CACHED).toHaveBeenCalledTimes(projectsBefore + 1)
+    expect(FETCH_MANAGED_PROJECTS_CACHED).toHaveBeenLastCalledWith(
+      SESSION_DATA,
+      true,
+      { force: true }
+    )
+    expect(FETCH_WORKFLOW_SUMMARY).toHaveBeenCalledTimes(summariesBefore + 1)
   })
 
   it('没有启动流程的历史项目显示为未启动', async () => {

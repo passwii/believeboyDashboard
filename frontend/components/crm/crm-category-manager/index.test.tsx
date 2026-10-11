@@ -4,6 +4,7 @@ import { CrmCategoryManager } from './index'
 
 import { stableNotifications } from '@/test-utils/stable-mocks'
 
+
 const { mockClient, mockList, mockCreate, mockUpdate, mockDelete } = vi.hoisted(
   () => {
     const list = vi.fn()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BellRing, ListChecks, Settings2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
@@ -10,6 +10,7 @@ import { AlertEventsTab } from './components/alert-events-tab'
 import { AlertRulesTab } from './components/alert-rules-tab'
 import { AlertPreferencesTab } from './components/alert-preferences-tab'
 import { TermPageShell } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 interface ProjectOption {
   id: number
@@ -19,17 +20,33 @@ interface ProjectOption {
 export default function AlertCenterPage() {
   const [stats, setStats] = useState<AlertStats | null>(null)
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [activeTab, setActiveTab] = useState('events')
+  const [refreshTabOwner, setRefreshTabOwner] = useState<(() => Promise<void>) | null>(null)
+  const registerTabRefreshOwner = useCallback((refresh: () => Promise<void>) => {
+    setRefreshTabOwner(() => refresh)
+  }, [])
+
+  const loadPageMetadata = useCallback(async () => {
+    const [statsResult, projectsResult] = await Promise.allSettled([
+      fetchAlertStats(),
+      fetchManagedProjectsCached<Array<{ id: number; name: string }>>(),
+    ])
+    setStats(statsResult.status === 'fulfilled' ? statsResult.value : null)
+    setProjects(
+      projectsResult.status === 'fulfilled' && Array.isArray(projectsResult.value)
+        ? projectsResult.value.map((project) => ({ id: project.id, name: project.name }))
+        : []
+    )
+  }, [])
 
   useEffect(() => {
-    void fetchAlertStats().then(setStats).catch(() => setStats(null))
-    // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享同一份项目元数据，
-    // warm 复访不再重复打后端。
-    void fetchManagedProjectsCached<Array<{ id: number; name: string }>>()
-      .then((data) =>
-        setProjects(Array.isArray(data) ? data.map((p) => ({ id: p.id, name: p.name })) : [])
-      )
-      .catch(() => setProjects([]))
-  }, [])
+    void loadPageMetadata()
+  }, [loadPageMetadata])
+
+  const refreshActiveOwner = useCallback(async () => {
+    await Promise.all([loadPageMetadata(), refreshTabOwner?.()])
+  }, [loadPageMetadata, refreshTabOwner])
+  useHeaderRefresh(refreshActiveOwner)
 
   // 稳定 `projects` 引用：内容不变就不产生新数组引用。
   // 对应 Task 5 review 的 parked finding：alert-rule-dialog.tsx 的 useEffect
@@ -48,7 +65,13 @@ export default function AlertCenterPage() {
     <TermPageShell>
       <AlertStatsBar stats={stats} />
 
-      <Tabs defaultValue="events">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value)
+          setRefreshTabOwner(null)
+        }}
+      >
         {/* BLF-883 全局统一：variant="term" + 前置 icon */}
         <TabsList variant="term" className="w-fit justify-start">
           <TabsTrigger value="events" variant="term">
@@ -65,13 +88,13 @@ export default function AlertCenterPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="events" className="mt-2">
-          <AlertEventsTab />
+          <AlertEventsTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
         <TabsContent value="rules" className="mt-2">
-          <AlertRulesTab projects={stableProjects} />
+          <AlertRulesTab projects={stableProjects} onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
         <TabsContent value="preferences" className="mt-2">
-          <AlertPreferencesTab />
+          <AlertPreferencesTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
       </Tabs>
     </TermPageShell>

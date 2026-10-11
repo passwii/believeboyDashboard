@@ -187,7 +187,11 @@ function BulkBar({
   )
 }
 
-export default function SubscriptionsView() {
+export default function SubscriptionsView({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { data: session } = useSession()
   const { confirm } = useConfirm()
   const { notify } = useNotifications()
@@ -255,6 +259,10 @@ export default function SubscriptionsView() {
       console.error(e)
     }
   }, [session])
+
+  useEffect(() => {
+    onRefreshReady?.(refreshSubscriptions)
+  }, [onRefreshReady, refreshSubscriptions])
 
   useEffect(() => {
     const loadData = async () => {

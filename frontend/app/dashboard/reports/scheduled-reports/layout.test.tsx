@@ -9,18 +9,29 @@ let mockPathname = '/dashboard/reports/scheduled-reports'
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
 }))
-
-vi.mock('./_components/SubscriptionsView', () => ({
-  default: function SubscriptionsViewStub() {
-    return <div data-testid="subscriptions-view" />
-  },
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
 }))
 
-vi.mock('./_components/LedgerView', () => ({
-  default: function LedgerViewStub() {
-    return <div data-testid="ledger-view" />
-  },
-}))
+vi.mock('./_components/SubscriptionsView', async () => {
+  const React = await import('react')
+  return {
+    default: function SubscriptionsViewStub({ onRefreshReady }: { onRefreshReady?: (refresh: () => Promise<void>) => void }) {
+      React.useEffect(() => { onRefreshReady?.(async () => {}) }, [onRefreshReady])
+      return <div data-testid="subscriptions-view" />
+    },
+  }
+})
+
+vi.mock('./_components/LedgerView', async () => {
+  const React = await import('react')
+  return {
+    default: function LedgerViewStub({ onRefreshReady }: { onRefreshReady?: (refresh: () => Promise<void>) => void }) {
+      React.useEffect(() => { onRefreshReady?.(async () => {}) }, [onRefreshReady])
+      return <div data-testid="ledger-view" />
+    },
+  }
+})
 
 import ScheduledReportsLayout from './layout'
 
