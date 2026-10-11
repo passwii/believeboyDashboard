@@ -80,10 +80,10 @@ describe('AgentEmployeesClient 员工花名册(P3)', () => {
         '1': {
           api_key_id: 1,
           calls_24h: 2,
-          calls_7d: 3,
+          calls_30d: 30,
           writes_24h: 1,
-          writes_7d: 1,
-          errors_7d: 0,
+          writes_30d: 10,
+          errors_30d: 2,
           last_active_at: NOW_ISO,
         },
       },
@@ -91,11 +91,30 @@ describe('AgentEmployeesClient 员工花名册(P3)', () => {
     )
     render(<AgentEmployeesClient />)
     expect(await screen.findByText('巡检员')).toBeInTheDocument()
-    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    expect(screen.getByText('2 / 30')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '24h/30d 调用' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '30d 错误' })).toBeInTheDocument()
+    expect(screen.getAllByRole('cell')[6]).toHaveTextContent('2')
+    expect(screen.getByText('2 / 30')).toHaveAttribute('title', '写 24h:1 · 写 30d:10')
+    expect(screen.getByText('调用量与错误数由 agent 访问审计按凭据聚合(最近 30 天)')).toBeInTheDocument()
     // 停用员工显示;未绑定 agent_id 显示占位文案
     expect(screen.getByText('—（未绑定）')).toBeInTheDocument()
     // 巡检员无活动条目 → 占位(按文本特征断言无第二行数值)
-    expect(screen.getAllByText('2 / 3')).toHaveLength(1)
+    expect(screen.getAllByText('2 / 30')).toHaveLength(1)
+    expect(screen.getByText('30 天内无调用')).toBeInTheDocument()
+    expect(screen.getAllByRole('cell')[14]).toHaveTextContent('0')
+  })
+
+  it('活动统计请求失败时显示未知占位而不误报无调用', async () => {
+    mockSummary(null, 'error')
+    render(<AgentEmployeesClient />)
+
+    expect(await screen.findByText('客服 1 号')).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(2)
+    expect(screen.getAllByRole('cell')[5]).toHaveTextContent('—')
+    expect(screen.getAllByRole('cell')[6]).toHaveTextContent('—')
+    expect(screen.queryByText('30 天内无调用')).not.toBeInTheDocument()
+    expect(screen.getByText('活动统计暂不可用；接入后展示最近 30 天')).toBeInTheDocument()
   })
 
   it('花名册加载失败 → 错误提示', async () => {

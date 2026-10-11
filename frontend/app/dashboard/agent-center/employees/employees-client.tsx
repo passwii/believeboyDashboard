@@ -27,7 +27,7 @@ import { formatRelativeTime, freshnessFor, type Freshness } from '@/lib/hooks/us
  * Agent 中心 · 员工段(P3)。
  *
  * 凭据即身份:花名册 = ``agent_api_keys``(``listAgentApiKeys``,只读,不含已删除);
- * 活动列 = ``employee-summary`` 按 ``api_key_id`` 聚合(P3b,端点未上线降级占位)。
+ * 活动列 = ``employee-summary`` 按 ``api_key_id`` 聚合(P3b,调用与错误统计使用最近 30 天窗口)。
  * 只读展示,凭据 CRUD 留在「Agent 接入管理」。
  */
 
@@ -110,8 +110,8 @@ export default function AgentEmployeesClient() {
           title="员工花名册"
           description={
             summary.status === 'ok'
-              ? '活动列由 agent 访问审计按凭据聚合(最近 7 天)'
-              : '活动列待 employee-summary 端点(P3b)部署后点亮'
+              ? '调用量与错误数由 agent 访问审计按凭据聚合(最近 30 天)'
+              : '活动统计暂不可用；接入后展示最近 30 天'
           }
         />
         <DataTableCardBody>
@@ -143,8 +143,8 @@ export default function AgentEmployeesClient() {
                   <TableHead>能力域</TableHead>
                   <TableHead className="w-[100px]">项目范围</TableHead>
                   <TableHead className="w-[80px]">状态</TableHead>
-                  <TableHead className="w-[100px]">24h/7d 调用</TableHead>
-                  <TableHead className="w-[80px]">7d 错误</TableHead>
+                  <TableHead className="w-[100px]">24h/30d 调用</TableHead>
+                  <TableHead className="w-[80px]">30d 错误</TableHead>
                   <TableHead className="w-[120px]">最近活动</TableHead>
                 </TableRow>
               </TableHeader>
@@ -182,10 +182,12 @@ export default function AgentEmployeesClient() {
                         {row ? (
                           <span
                             className="font-mono text-xs tabular-nums text-term-muted"
-                            title={`写 24h:${row.writes_24h} · 写 7d:${row.writes_7d}`}
+                            title={`写 24h:${row.writes_24h} · 写 30d:${row.writes_30d}`}
                           >
-                            {row.calls_24h} / {row.calls_7d}
+                            {row.calls_24h} / {row.calls_30d}
                           </span>
+                        ) : summary.data ? (
+                          <span className="text-xs text-term-faint">30 天内无调用</span>
                         ) : (
                           <span className="text-term-faint">—</span>
                         )}
@@ -194,11 +196,13 @@ export default function AgentEmployeesClient() {
                         {row ? (
                           <span
                             className={`font-mono text-xs tabular-nums ${
-                              row.errors_7d > 0 ? 'text-term-neg' : 'text-term-muted'
+                              row.errors_30d > 0 ? 'text-term-neg' : 'text-term-muted'
                             }`}
                           >
-                            {row.errors_7d}
+                            {row.errors_30d}
                           </span>
+                        ) : summary.data ? (
+                          <span className="font-mono text-xs tabular-nums text-term-muted">0</span>
                         ) : (
                           <span className="text-term-faint">—</span>
                         )}
