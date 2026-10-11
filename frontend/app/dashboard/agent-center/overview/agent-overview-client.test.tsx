@@ -6,7 +6,7 @@ import { productionCell } from './agent-overview-client'
 import { formatRelativeTime } from '@/lib/hooks/use-agent-domain-summary'
 import { AGENT_DOMAINS } from '@/lib/agent-domains'
 import type { AgentProduction } from '@/lib/hooks/use-agent-production'
-import type { DomainSummaryMap } from '@/lib/hooks/use-agent-domain-summary'
+import type { DomainSummaryMap, DomainSummaryStatus } from '@/lib/hooks/use-agent-domain-summary'
 
 const useAgentDomainSummaryMock = vi.hoisted(() => vi.fn())
 const useAgentProductionMock = vi.hoisted(() => vi.fn())
@@ -27,7 +27,7 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: vi.fn(),
 }))
 
-function mockSummary(data: DomainSummaryMap | null, status: 'ok' | 'error' = data ? 'ok' : 'error') {
+function mockSummary(data: DomainSummaryMap | null, status: DomainSummaryStatus = data ? 'ok' : 'error') {
   useAgentDomainSummaryMock.mockReturnValue({ data, status, reload: vi.fn() })
 }
 
@@ -48,6 +48,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -60,11 +61,11 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        '共 17 个业务域、16 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
+        '共 18 个业务域、17 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
       )
     ).toBeInTheDocument()
   })
-  it('每个注册表域渲染一行(16 域 + 表头)', () => {
+  it('每个注册表域渲染一行(18 域 + 表头)', () => {
     render(<AgentOverviewClient />)
     expect(screen.getAllByRole('row')).toHaveLength(AGENT_DOMAINS.length + 1)
   })
@@ -117,6 +118,75 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(cells[6]).toHaveTextContent('0')
     expect(cells[7]).toHaveTextContent('无调用')
     expect(cells[7]).toHaveAttribute('title', '30 天内无调用，错误率不可计算')
+  })
+
+  it.each([
+    { calls24h: 4, calls30d: 20, errors30d: 5, rate: '25%' },
+    { calls24h: 2, calls30d: 8, errors30d: 8, rate: '100%' },
+  ])('月报行展示真实活动与 $rate 错误率,不伪造今日产出', ({ calls24h, calls30d, errors30d, rate }) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-10T12:00:00Z'))
+    mockSummary({
+      monthly_reports: {
+        domain: 'monthly_reports',
+        calls_24h: calls24h,
+        calls_30d: calls30d,
+        writes_24h: 1,
+        writes_30d: 3,
+        errors_30d: errors30d,
+        last_active_at: '2026-10-10T10:00:00Z',
+      },
+    })
+    mockProduction({ reports: { uploaded: 8, total: 15, status: 'ok' } })
+    render(<AgentOverviewClient />)
+
+    const row = screen.getByRole('row', { name: /财务月报/ })
+    const cells = within(row).getAllByRole('cell')
+    expect(within(cells[2]).getByText('读')).toBeInTheDocument()
+    expect(within(cells[2]).getByText('写')).toBeInTheDocument()
+    expect(cells[3]).toHaveTextContent(/^16$/)
+    expect(cells[4]).toHaveTextContent('2 小时前')
+    expect(cells[5]).toHaveTextContent(String(calls24h))
+    expect(cells[5]).toHaveAttribute('title', '写 24h:1')
+    expect(cells[6]).toHaveTextContent(String(calls30d))
+    expect(cells[6]).toHaveAttribute('title', '写 30d:3')
+    expect(cells[7]).toHaveAttribute('title', `${errors30d} 次错误 / ${calls30d} 次调用`)
+    expect(within(cells[7]).getByText(rate)).toHaveClass('text-term-neg')
+    expect(cells[8]).toHaveTextContent(/^—$/)
+    expect(cells[9]).toHaveTextContent('已接入')
+    expect(within(row).getByRole('link', { name: '打开财务月报' })).toHaveAttribute(
+      'href',
+      '/dashboard/reports/monthly-report/display'
+    )
+  })
+
+  it('月报在成功的 summary 中缺位时显示真实零调用,不显示 0% 错误率', () => {
+    mockSummary({})
+    render(<AgentOverviewClient />)
+
+    const row = screen.getByRole('row', { name: /财务月报/ })
+    const cells = within(row).getAllByRole('cell')
+    expect(cells[4]).toHaveTextContent('30 天内无调用')
+    expect(cells[5]).toHaveTextContent(/^0$/)
+    expect(cells[6]).toHaveTextContent(/^0$/)
+    expect(cells[7]).toHaveTextContent('无调用')
+    expect(cells[7]).toHaveAttribute('title', '30 天内无调用，错误率不可计算')
+    expect(within(row).queryByText('0%')).not.toBeInTheDocument()
+    expect(cells[8]).toHaveTextContent(/^—$/)
+  })
+
+  it.each(['loading', 'error'] as const)('summary 为 %s 时月报活动保持未知占位,不当作零调用', (status) => {
+    mockSummary(null, status)
+    render(<AgentOverviewClient />)
+
+    const row = screen.getByRole('row', { name: /财务月报/ })
+    const cells = within(row).getAllByRole('cell')
+    for (const index of [4, 5, 6, 7, 8]) {
+      expect(cells[index]).toHaveTextContent(/^—$/)
+    }
+    expect(within(row).queryByText('0')).not.toBeInTheDocument()
+    expect(within(row).queryByText('无调用')).not.toBeInTheDocument()
+    expect(cells[9]).toHaveTextContent('已接入')
   })
 
   it('聚合数据就位时点亮:调用量 / 错误率着色 / 新鲜度相对时间', () => {
@@ -195,6 +265,7 @@ describe('今日产出列(P2c-1)', () => {
     }
     expect(productionCell('shipments', null)).toBeNull()
     expect(productionCell('shipments', fullProduction)).toBeNull()
+    expect(productionCell('monthly_reports', fullProduction)).toBeNull()
     expect(productionCell('complaint_center', fullProduction)?.text).toBe('待回复 3')
     expect(
       productionCell('complaint_center', {

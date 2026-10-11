@@ -71,6 +71,11 @@ describe('formatBusinessScope', () => {
     expect(formatBusinessScope('shipments,shop_calculations')).toBe('货件管理、店铺测算')
   })
 
+  it('月报域白名单显示中文名而不是未知 code', () => {
+    expect(formatBusinessScope('monthly_reports')).toBe('财务月报')
+    expect(formatBusinessScope(' shipments, monthly_reports ')).toBe('货件管理、财务月报')
+  })
+
   it('未知 code 回退为 #code', () => {
     expect(formatBusinessScope('mystery')).toBe('#mystery')
   })
@@ -119,6 +124,21 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.label).toBe('报表状态')
     expect(domain?.routeCount).toBe(1)
     expect(domain?.capabilities).toEqual({ read: true, write: false })
+  })
+
+  it('monthly_reports 已接入当前 16 条读写路由并指向月报工作台（BLF-1314）', () => {
+    const domain = getAgentDomain('monthly_reports')
+    expect(domain).toEqual({
+      code: 'monthly_reports',
+      label: '财务月报',
+      description: '月报列表/详情/财务序列/核算明细与导出 + 上传/计算草稿/预览/确认入库/自动与手工对账（读 10 + 写 6）',
+      status: 'live',
+      routeCount: 16,
+      capabilities: { read: true, write: true },
+      dashboardPath: '/dashboard/reports/monthly-report/display',
+    })
+    expect(liveAgentDomains()).toContain(domain)
+    expect(AGENT_DOMAINS.filter((d) => d.code === 'monthly_reports')).toHaveLength(1)
   })
 
   it('replenishment_analysis 已接入且 routeCount=6、读写（BLF-502）', () => {

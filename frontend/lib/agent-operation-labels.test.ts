@@ -115,6 +115,13 @@ describe('accessOperationLabel', () => {
     ).toBe('提交平台巡检')
   })
 
+  it.each([
+    ['GET', '/api/v1/agent/monthly-reports/financial-series'],
+    ['POST', '/api/v1/agent/monthly-reports/builds/1/confirm'],
+  ])('月报访问日志 %s %s 识别注册表中文域名', (method, path) => {
+    expect(accessOperationLabel(method, path, 'monthly_reports')).toBe('财务月报')
+  })
+
   it('具体路径优先于通用路径，未知值回退可排查标识', () => {
     expect(
       accessOperationLabel(
