@@ -100,6 +100,9 @@ class ShipmentHistorySalesMonth(BaseModel):
     month: str
     sales_quantity: int | None
     covered: bool
+    provisional_sales_quantity: int | None = None
+    provisional_sales_through: date | None = None
+    coverage_through: date | None = None
 
 
 class ShipmentHistoryResponse(BaseModel):

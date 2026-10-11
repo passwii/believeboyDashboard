@@ -22040,10 +22040,16 @@ export interface components {
         };
         /** ShipmentHistorySalesMonth */
         ShipmentHistorySalesMonth: {
+            /** Coverage Through */
+            coverage_through?: string | null;
             /** Covered */
             covered: boolean;
             /** Month */
             month: string;
+            /** Provisional Sales Quantity */
+            provisional_sales_quantity?: number | null;
+            /** Provisional Sales Through */
+            provisional_sales_through?: string | null;
             /** Sales Quantity */
             sales_quantity: number | null;
         };
