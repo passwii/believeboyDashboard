@@ -88,9 +88,10 @@ def create_group(db: Session, *, project_id: int, marketplace: str, name: str, m
         description=description, representative_sku_record_id=representative_id, is_active=True)
     db.add(group)
     try:
-        db.flush()
-        _add_members(db, group, member_ids)
-        db.flush()
+        with db.begin_nested():
+            db.flush()
+            _add_members(db, group, member_ids)
+            db.flush()
     except IntegrityError as exc:
         raise ReviewGroupError("SKU already belongs to an active review group or violates group ownership") from exc
     return group
@@ -104,8 +105,9 @@ def replace_group_members(db: Session, *, group_id: int, member_ids: list[int]) 
     if group.representative_sku_record_id not in member_ids:
         raise ReviewGroupError("representative must remain a group member; set representative first")
     try:
-        _add_members(db, group, member_ids)
-        db.flush()
+        with db.begin_nested():
+            _add_members(db, group, member_ids)
+            db.flush()
     except IntegrityError as exc:
         raise ReviewGroupError("SKU already belongs to an active review group or violates group ownership") from exc
     return group
@@ -113,6 +115,9 @@ def replace_group_members(db: Session, *, group_id: int, member_ids: list[int]) 
 
 def set_representative(db: Session, *, group_id: int, sku_record_id: int) -> AmazonReviewGroup:
     group = _active_group(db, group_id)
+    sku = db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id)).scalar_one_or_none()
+    if sku is None or sku.project_id != group.project_id or sku.country != group.marketplace:
+        raise ReviewGroupError("representative SKU must belong to the same Project and Marketplace")
     member = db.execute(select(AmazonReviewGroupMember.id).where(
         AmazonReviewGroupMember.group_id == group.id,
         AmazonReviewGroupMember.sku_record_id == sku_record_id,

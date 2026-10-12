@@ -15,7 +15,7 @@ def validate_marketplace(value: str) -> str:
 class ReviewGroupCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     project_id: int = Field(gt=0)
-    marketplace: str = Field(min_length=2, max_length=2)
+    marketplace: str = Field(min_length=2, max_length=20)
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     member_ids: list[int] = Field(min_length=1)

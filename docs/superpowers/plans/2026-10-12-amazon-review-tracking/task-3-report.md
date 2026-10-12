@@ -18,3 +18,11 @@
 
 - Commit：待提交。
 - 未解决：无。当前服务不包含 API/前端或评论数据功能，按 Task 3 边界未实现。
+
+## Reviewer 修复（2026-10-12）
+
+- 成员创建/替换均在 `Session.begin_nested()` savepoint 中 flush；捕获 `IntegrityError` 后仅回滚 savepoint 并抛 `ReviewGroupError`，外层 Session 保持可用，数据库错误不被吞掉。
+- 设置代表前显式校验 SKU 的 Project 与 Marketplace 归属。
+- 补充跨 Project 同 Marketplace 拒绝、代表切换、原代表移除拒绝、移除成员保留 `removed_at`、组 ID 稳定、IntegrityError 后 session 可用，以及 Marketplace schema 标准化/拒绝测试。
+- 验证：首次测试暴露测试夹具缺少 Project.sort_order 及 schema `max_length=2` 阻止 validator 规范化含空格输入；修正后 `TEST_DATABASE_URL=postgresql+psycopg://damon@/BLF_test?host=/tmp pytest tests/services/test_amazon_review_tracking_service.py -q`：8 passed。
+- Commit：待提交。
