@@ -132,6 +132,13 @@ def set_representative(db: Session, *, group_id: int, sku_record_id: int) -> Ama
 
 def deactivate_group(db: Session, *, group_id: int) -> AmazonReviewGroup:
     group = _active_group(db, group_id)
+    now = datetime.now(timezone.utc)
+    members = db.execute(select(AmazonReviewGroupMember).where(
+        AmazonReviewGroupMember.group_id == group.id,
+        AmazonReviewGroupMember.removed_at.is_(None),
+    )).scalars().all()
+    for member in members:
+        member.removed_at = now
     group.is_active = False
     db.flush()
     return group

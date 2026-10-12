@@ -4,7 +4,7 @@
 
 - 新增 `backend/app/schemas/amazon_review_tracking.py`：共享 Marketplace 集合与标准化校验，以及创建组、替换成员、设置代表的 Pydantic 请求 schema；校验名称、重复/空成员、正整数 ID 和代表成员关系。
 - 新增 `backend/app/services/amazon_review_tracking_service.py`：创建/查询组，严格校验 SKU 所属 Project 与 Marketplace，建立成员与代表的复合归属字段，依赖 DB 复合外键及活动成员唯一索引兜底并转换约束错误；成员替换保留组 ID、软移除历史行；设置代表和软停用组，拒绝停用组修改。
-- 扩展 `backend/tests/services/test_amazon_review_tracking_service.py`，覆盖成功创建、代表校验、跨 Marketplace 成员拒绝、重复成员、组成员替换软移除/稳定 ID、重复组、未知 SKU、停用组变更和无效 Marketplace。
+- 扩展 `backend/tests/services/test_amazon_review_tracking_service.py`，覆盖成功创建、代表校验、跨 Marketplace 成员拒绝、重复成员、组成员替换软移除/稳定 ID、重复组、未知 SKU、停用组变更和无效 Marketplace；本次补充停用组成员软移除、保留历史并允许同 SKU 加入新组的回归测试。
 
 ## 验证
 

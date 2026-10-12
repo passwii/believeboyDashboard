@@ -43,6 +43,6 @@
 - 审查发现当前 `_merge_update_payload` 的可更新字段列表已包含 `father_id`；Agent PATCH schema 也已声明该可空字段。复核运行时行为后确认此前静默丢弃问题在当前代码中不可复现，因此不对合并实现做无意义改动。
 - 在 `backend/tests/api/agent/test_sku_info.py` 增加参数化回归覆盖：PATCH 设置 `father_id`、显式 `null` 清除、缺省字段保留原值。
 - 红灯验证未复现：新增三种场景首次运行均通过（3 passed），因此视为现有实现的行为锁定测试，而非声称测试先失败后修复。
-- 完整 Agent SKU API 目标测试：`tests/api/agent/test_sku_info.py`，**62 passed**，10 条既有依赖弃用警告。
-- `git diff --check`：通过。
+- Agent SKU 完整目标测试：与 Task 3/API 组合运行见 Task 5 报告；独立 Agent 用例在组合中通过。`git diff --check` 在提交前复核。
+- 全量校验更新：见 task-5-report.md；曾尝试离线 migration SQL 生成，但既有 baseline migration 使用 inspector，无法在 Alembic mock connection 离线运行。
 

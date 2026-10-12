@@ -128,3 +128,32 @@ def test_duplicate_group_unknown_sku_inactive_group_and_invalid_marketplace(db_s
         replace_group_members(db_session, group_id=group.id, member_ids=[one.id])
     with pytest.raises(ReviewGroupError, match="Marketplace"):
         create_group(db_session, project_id=project.id, marketplace="ZZ", name="Invalid", member_ids=[one.id], representative_id=one.id)
+
+
+def test_deactivate_group_soft_removes_members_and_allows_rejoin(db_session, data):
+    from app.models.amazon_review_tracking import AmazonReviewGroupMember
+
+    project, (one, _, _) = data
+    old_group = create_group(db_session, project_id=project.id, marketplace="US", name="Old",
+        member_ids=[one.id], representative_id=one.id)
+    db_session.flush()
+    old_member = db_session.execute(select(AmazonReviewGroupMember).where(
+        AmazonReviewGroupMember.group_id == old_group.id,
+        AmazonReviewGroupMember.sku_record_id == one.id,
+    )).scalar_one()
+
+    deactivate_group(db_session, group_id=old_group.id)
+    db_session.flush()
+    assert old_group.is_active is False
+    assert old_member.removed_at is not None
+
+    new_group = create_group(db_session, project_id=project.id, marketplace="US", name="New",
+        member_ids=[one.id], representative_id=one.id)
+    db_session.flush()
+    new_member = db_session.execute(select(AmazonReviewGroupMember).where(
+        AmazonReviewGroupMember.group_id == new_group.id,
+        AmazonReviewGroupMember.sku_record_id == one.id,
+    )).scalar_one()
+    assert new_group.id != old_group.id
+    assert new_member.removed_at is None
+    assert db_session.get(AmazonReviewGroupMember, old_member.id) is not None
