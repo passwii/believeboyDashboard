@@ -389,6 +389,38 @@ class TestW2Update:
         )
         return r
 
+    @pytest.mark.parametrize(
+        ("patch_fields", "expected_father_id"),
+        [
+            ({"father_id": "PARENT-PATCH-001"}, "PARENT-PATCH-001"),
+            ({"father_id": None}, None),
+            ({}, "PARENT-ORIGINAL-001"),
+        ],
+        ids=["set", "explicit-null-clears", "omitted-preserves"],
+    )
+    def test_father_id_patch_distinguishes_set_null_and_omitted(
+        self,
+        client,
+        shipment_env,
+        confirm_memory_store,
+        patch_fields,
+        expected_father_id,
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku=f"X-FATHER-{uuid.uuid4().hex[:8]}",
+            father_id="PARENT-ORIGINAL-001",
+        )
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", **patch_fields},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["father_id"] == expected_father_id
+
     def test_partial_update_preserves_identity_fields(
         self, client, shipment_env, confirm_memory_store
     ):
