@@ -151,7 +151,7 @@ export default function ComplaintListClient() {
   const { notify } = useNotifications()
   const searchParams = useSearchParams()
   const { projects } = useManagedProjects()
-  const [date, setDate] = useState<Date>(new Date())
+  const [date, setDate] = useState<Date | null>(null)
   const [firstMessageDate, setFirstMessageDate] = useState<Date | null>(() => {
     const v = searchParams.get('first_message_date')
     return parseDateInputValue(v) ?? null
@@ -166,7 +166,7 @@ export default function ComplaintListClient() {
   const [country, setCountry] = useState(searchParams.get('country') ?? '')
   const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '')
   const [sort, setSort] = useState<'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc'>(
-    (searchParams.get('sort') as 'sla_asc') ?? 'sla_asc'
+    (searchParams.get('sort') as 'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc') ?? 'date_desc'
   )
   const [page, setPage] = useState(1)
   const [data, setData] = useState<ComplaintListResponse | null>(null)
@@ -174,7 +174,7 @@ export default function ComplaintListClient() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const filters = useMemo(
     () => ({
-      date: toYmdLocal(date),
+      ...(date ? { date: toYmdLocal(date) } : {}),
       first_message_date: firstMessageDate ? toYmdLocal(firstMessageDate) : undefined,
       project_id: projectId ? Number(projectId) : undefined,
       category: category || undefined,
@@ -230,6 +230,16 @@ export default function ComplaintListClient() {
     setSelectedId(id)
   }, [])
 
+  const handleInspectionDateChange = useCallback((d?: Date) => {
+    setPage(1)
+    setDate(d ? getDayStart(d) : null)
+  }, [])
+
+  const handleAllInspectionDates = useCallback(() => {
+    setPage(1)
+    setDate(null)
+  }, [])
+
   const handleStatusChanged = useCallback(() => {
     setSelectedId(null)
     void loadData()
@@ -240,14 +250,22 @@ export default function ComplaintListClient() {
   // Desktop header-slot controls
   const headerControls = (
     <>
-      <SingleDatePicker
-        value={date}
-        onChange={(d) => {
-          setPage(1)
-          if (d) setDate(getDayStart(d))
-        }}
-        className="h-10 w-[130px]"
-      />
+      <div className="flex items-center gap-1">
+        <SingleDatePicker
+          value={date ?? undefined}
+          onChange={handleInspectionDateChange}
+          className="h-10 w-[130px]"
+        />
+        <Button
+          variant={date ? 'ghost' : 'secondary'}
+          size="xs"
+          className="h-10 px-1.5"
+          aria-pressed={!date}
+          onClick={handleAllInspectionDates}
+        >
+          全部日期
+        </Button>
+      </div>
       <SingleDatePicker
         value={firstMessageDate ?? undefined}
         onChange={(d) => {
@@ -309,14 +327,22 @@ export default function ComplaintListClient() {
   const mobileSummary = `${country} · ${status ? STATUS_LABEL[status] : '全部'} · ${CATEGORY_LABEL[category] ?? '全部'}`
   const mobileControls = (
     <>
-      <SingleDatePicker
-        value={date}
-        onChange={(d) => {
-          setPage(1)
-          if (d) setDate(getDayStart(d))
-        }}
-        className="h-10 w-full"
-      />
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <SingleDatePicker
+          value={date ?? undefined}
+          onChange={handleInspectionDateChange}
+          className="h-10 w-0 flex-1"
+        />
+        <Button
+          variant={date ? 'ghost' : 'secondary'}
+          size="xs"
+          className="h-10 shrink-0 px-2"
+          aria-pressed={!date}
+          onClick={handleAllInspectionDates}
+        >
+          全部日期
+        </Button>
+      </div>
       <SingleDatePicker
         value={firstMessageDate ?? undefined}
         onChange={(d) => {
