@@ -31,7 +31,7 @@
 
 按审查意见完成五项修复：管理端点要求 API key、有效 Session 和数据库中的启用管理员账号，拒绝仅凭 `X-Is-Admin` 授权；PATCH 的 name/member_ids/representative_id 显式 null 返回 422；创建、更新、停用全程异常均 rollback；API 测试覆盖跨 Project / Marketplace 成员拒绝及无部分写；列表成员改为一次批量查询。
 
-验证：`TEST_DATABASE_URL='postgresql+psycopg://damon@/BLF_test?host=/tmp' pytest tests/api/test_amazon_review_tracking.py tests/services/test_amazon_review_tracking_service.py -q`，14 passed。另有 3 条 SlowAPI 弃用警告。
+验证：`TEST_DATABASE_URL='postgresql+psycopg://damon@/BLF_test?host=/tmp' pytest tests/api/test_amazon_review_tracking.py tests/services/test_amazon_review_tracking_service.py -q`，17 passed。包含新增审计写入失败回滚参数化用例：创建失败后同名新组无记录；PATCH 失败后原名称、成员及启用状态保持；停用失败后原组仍启用且成员保持。测试通过 `expire_all()` 后重新查询数据库状态，确认 session rollback 后可查询。另有 3 条 SlowAPI 弃用警告。
 
 ## 复审补充（2026-10-12）
 

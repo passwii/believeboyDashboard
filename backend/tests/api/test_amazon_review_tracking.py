@@ -20,7 +20,7 @@ def client(db_session):
     app.dependency_overrides[get_read_db_session] = lambda: db_session
     app.dependency_overrides[endpoint._require_admin] = lambda: True
     app.dependency_overrides[endpoint.require_api_key] = lambda: None
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def test_review_group_routes_are_mounted_in_openapi(client):
@@ -91,6 +91,78 @@ def test_api_rejects_cross_project_and_marketplace_members(client, db_session, m
             AmazonReviewGroupMember.group_id == group.id, AmazonReviewGroupMember.removed_at.is_(None)
         )).scalars().all() == [local.id]
         assert db_session.execute(select(AmazonReviewGroup).where(AmazonReviewGroup.name == group_name)).scalars().all() == [persisted_group]
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload", "expected_status"),
+    [
+        ("post", "/api/v1/amazon-review-tracking/groups", "create", 500),
+        ("patch", "/api/v1/amazon-review-tracking/groups/{group_id}", "patch", 500),
+        ("post", "/api/v1/amazon-review-tracking/groups/{group_id}/deactivate", None, 500),
+    ],
+)
+def test_audit_failure_rolls_back_group_mutation(
+    client, db_session, monkeypatch, method, path, payload, expected_status
+):
+    from app.models import Project, SkuRecord
+
+    import uuid
+    suffix = uuid.uuid4().hex[:8]
+    project = db_session.execute(
+        select(Project).where(Project.is_active.is_(True)).limit(1)
+    ).scalar_one()
+    sku = SkuRecord(
+        project_id=project.id, project_name=project.project_name,
+        sku=f"review-rollback-{suffix}", asin=f"B0ROLLBACK{suffix.upper()}",
+        country="US", fob_unit_cost=0, sort_order=999984, is_active=True,
+    )
+    db_session.add(sku)
+    db_session.flush()
+    group = create_group(
+        db_session, project_id=project.id, marketplace="US",
+        name=f"rollback-old-{suffix}", member_ids=[sku.id],
+        representative_id=sku.id,
+    )
+    db_session.commit()
+    group_id = group.id
+
+    def fail_audit(*_args, **_kwargs):
+        raise RuntimeError("audit write failed")
+
+    monkeypatch.setattr(endpoint, "append_operation_audit_log", fail_audit)
+    url = path.format(group_id=group_id)
+    create_sku = None
+    if payload == "create":
+        create_sku = SkuRecord(
+            project_id=project.id, project_name=project.project_name,
+            sku=f"review-create-rollback-{suffix}", asin=f"B0CREATE{suffix.upper()}",
+            country="US", fob_unit_cost=0, sort_order=999985, is_active=True,
+        )
+        db_session.add(create_sku)
+        db_session.commit()
+    body = (
+        {"project_id": project.id, "marketplace": "US", "name": f"rollback-new-{suffix}",
+         "member_ids": [create_sku.id], "representative_id": create_sku.id}
+        if payload == "create"
+        else {"name": f"rollback-new-{suffix}"} if payload == "patch" else None
+    )
+    response = getattr(client, method)(url, json=body) if body is not None else getattr(client, method)(url)
+    assert response.status_code == expected_status
+
+    db_session.expire_all()
+    assert db_session.execute(
+        select(AmazonReviewGroup).where(AmazonReviewGroup.name == f"rollback-new-{suffix}")
+    ).scalars().all() == []
+    persisted = db_session.get(AmazonReviewGroup, group_id)
+    assert persisted is not None
+    assert persisted.name == f"rollback-old-{suffix}"
+    assert persisted.is_active is True
+    assert db_session.execute(
+        select(AmazonReviewGroupMember.sku_record_id).where(
+            AmazonReviewGroupMember.group_id == group_id,
+            AmazonReviewGroupMember.removed_at.is_(None),
+        )
+    ).scalars().all() == [sku.id]
 
 
 def test_group_listing_loads_members_in_one_batch(client, db_session, monkeypatch):
