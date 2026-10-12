@@ -179,7 +179,7 @@ class AgentShopCalculationComputeRequest(BaseModel):
 1. `source ∈ {agent_listing_pull, agent_review_scrape, agent_market_research, external_api}` → 否则 400 `SHOP_CALCULATION_INVALID_SOURCE`；
 2. **SKU 存在性校验**（D2 拍板：按 `(project_id, country, sku)` 严格粒度，与货件域 `_find_missing_skus` 完全一致）：`select SkuRecord.sku where project_id == {pid} and country == body.country and sku == body.sku`，不存在 → 400 `SHOP_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据（sku-info 相关端点）；
 3. `observed_at` 若提供：不晚于 now()+24h（容忍时区偏差），否则 400 `VALIDATION_FAILED`；
-4. 金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库（pydantic 已兜结构，这里是业务兜底）。
+4. `sale_price_usd` 与 `total_fee_usd` 必须为正；`profit_usd` 和 `profit_rate` 不要求为正（允许零值和负值），`profit_rate` 仍须小于 1 → 保留真实亏损经营结果，同时防止售价和费用结构无效。
 
 > SKU 校验粒度决策点（见 §9 D2）：默认按 `(project_id, sku)` 国别无关校验（SKU 主数据可能只登记 US 而 agent 补 DE 价格）；若实施时希望严格按 `(project_id, country, sku)`（与货件域完全一致），改动只有一处查询条件。
 

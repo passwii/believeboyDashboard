@@ -406,11 +406,11 @@ def _validate_upsert(body: dict, request: Request) -> None:
                 human_message="observed_at 不能晚于当前时间 24 小时",
             )
 
-    # 金额防脏数据（spec §6.2 #4；pydantic 已兜结构，这里是业务兜底）
-    if req.sale_price_usd <= 0 or req.profit_usd <= 0 or req.total_fee_usd <= 0:
+    # 售价与总费用必须为正；利润允许为零或负数，以保留真实经营结果。
+    if req.sale_price_usd <= 0 or req.total_fee_usd <= 0:
         raise AgentApiError(
             ErrorCode.VALIDATION_FAILED,
-            human_message="sale_price_usd / profit_usd / total_fee_usd 必须为正数",
+            human_message="sale_price_usd / total_fee_usd 必须为正数",
         )
     if not (-1 < req.profit_rate < 1):
         raise AgentApiError(
