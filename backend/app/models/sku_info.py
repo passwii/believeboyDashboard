@@ -35,9 +35,7 @@ class SkuRecord(Base):
         ),
         Index("idx_product_costs_project_id", "project_id"),
         Index("idx_product_costs_project_sort", "project_id", "sort_order", "id"),
-        Index(
-            "idx_product_costs_project_sku_active", "project_id", "sku", "is_active"
-        ),
+        Index("idx_product_costs_project_sku_active", "project_id", "sku", "is_active"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -45,7 +43,8 @@ class SkuRecord(Base):
         primary_key=True,
         autoincrement=True,
     )
-    project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"),
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
         ForeignKey("projects.id", ondelete="RESTRICT"),
         nullable=False,
     )
@@ -58,6 +57,7 @@ class SkuRecord(Base):
     asin: Mapped[str] = mapped_column(String, nullable=False, index=True)
     fnsku: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     product_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    father_id: Mapped[str | None] = mapped_column(String, nullable=True)
     fob_unit_cost: Mapped[float] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )
@@ -108,7 +108,9 @@ class SkuRecord(Base):
     sku_factory_info_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    sku_factory_info_updated_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    sku_factory_info_updated_by: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
     # ── 产品文案（Listing Copy，BLF-1080）─────────────────────────────
     # 亚马逊 Listing 文案字段组：标题 + 5 点描述（拆 5 列，便于导出成列与
     # 单点校验）+ Description + 卖点提炼；全部可空（未录入 = NULL）。
@@ -124,15 +126,27 @@ class SkuRecord(Base):
     listing_copy_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    listing_copy_updated_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    listing_copy_updated_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
     fnsku_label_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     fnsku_label_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     product_image_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    product_image_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    product_image_thumbnail_r2_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    product_image_thumbnail_r2_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    product_image_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    product_image_uploaded_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    product_image_r2_url: Mapped[str | None] = mapped_column(
+        String(1024), nullable=True
+    )
+    product_image_thumbnail_r2_key: Mapped[str | None] = mapped_column(
+        String(512), nullable=True
+    )
+    product_image_thumbnail_r2_url: Mapped[str | None] = mapped_column(
+        String(1024), nullable=True
+    )
+    product_image_uploaded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    product_image_uploaded_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

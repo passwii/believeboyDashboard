@@ -25,6 +25,7 @@ class SkuRecordItem(BaseModel):
     asin: str
     fnsku: str | None = None
     product_name: str | None = None
+    father_id: str | None = None
     fob_unit_cost: float
     first_leg_cost_rmb: float
     package_length_cm: float
@@ -42,6 +43,7 @@ class SkuRecordItem(BaseModel):
     is_active: bool
     sku_factory_info: dict | None = None
     sku_factory_info_updated_at: datetime | None = None
+
     sku_factory_info_updated_by: str | None = None
     fnsku_label_r2_key: str | None = None
     fnsku_label_r2_url: str | None = None
@@ -82,6 +84,7 @@ class SkuRecordCreate(BaseModel):
     asin: str = ""
     fnsku: str | None = None
     product_name: str | None = None
+    father_id: str | None = None
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
@@ -114,6 +117,7 @@ class SkuRecordUpdate(BaseModel):
     asin: str = ""
     fnsku: str | None = None
     product_name: str | None = None
+    father_id: str | None = None
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
