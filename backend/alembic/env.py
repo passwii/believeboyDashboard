@@ -16,6 +16,8 @@ from app.models import (  # noqa: F401
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
+    AmazonReviewGroup,
+    AmazonReviewGroupMember,
     Job,
     JobRun,
     ExchangeRate,
