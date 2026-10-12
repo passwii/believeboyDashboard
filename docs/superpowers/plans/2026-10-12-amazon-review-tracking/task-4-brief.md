@@ -7,8 +7,8 @@
 - Modify: `backend/app/api/v1/router.py`
 - Test: `backend/tests/api/test_amazon_review_tracking.py`
 
-- [x] 先写 API 测试：未认证拒绝、列表筛选、创建、PATCH、软停用、跨 Project/Marketplace 拒绝和失败事务无部分写入。
-- [x] 将服务接入 FastAPI 路由；写接口使用主库 session，读接口遵循本域既有只读 session 规范。
-- [x] 对写操作记录 operation audit log，审计前后快照不得包含评论正文（本阶段尚无评论内容）。
-- [x] 挂载路由并验证 OpenAPI 中请求/响应 schema。
-- [x] 运行目标 API 测试并通过；补充 PATCH 空/非法成员及代表 SKU 返回 422、重名返回 409 且无写入的回归测试（13 passed）。
+- [ ] 先写 API 测试：未认证拒绝、列表筛选、创建、PATCH、软停用、跨 Project/Marketplace 拒绝和失败事务无部分写入。
+- [ ] 将服务接入 FastAPI 路由；写接口使用主库 session，读接口遵循本域既有只读 session 规范。
+- [ ] 对写操作记录 operation audit log，审计前后快照不得包含评论正文（本阶段尚无评论内容）。
+- [ ] 挂载路由并验证 OpenAPI 中请求/响应 schema。
+- [ ] 运行目标 API 测试并通过。
