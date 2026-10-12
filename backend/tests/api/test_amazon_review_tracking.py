@@ -55,27 +55,42 @@ def test_patch_rejects_explicit_null_fields():
             ReviewGroupPatch.model_validate({field: None})
 
 
-def test_api_rejects_cross_project_and_marketplace_members(db_session):
+def test_api_rejects_cross_project_and_marketplace_members(client, db_session, monkeypatch):
     from app.models import Project, SkuRecord
 
+    import uuid
+    suffix = uuid.uuid4().hex[:8]
     project = db_session.execute(select(Project).where(Project.is_active.is_(True)).limit(1)).scalar_one()
-    other = Project(project_name="review-api-other-project", sort_order=999980, is_active=True)
+    other = Project(project_name=f"review-api-other-project-{suffix}", sort_order=999980, is_active=True)
     db_session.add(other)
     db_session.flush()
-    local = SkuRecord(project_id=project.id, project_name=project.project_name, sku="review-api-local",
-        asin="B0REVIEWLOCAL", country="US", fob_unit_cost=0, sort_order=999981, is_active=True)
-    foreign = SkuRecord(project_id=other.id, project_name=other.project_name, sku="review-api-foreign",
-        asin="B0REVIEWFOREIGN", country="US", fob_unit_cost=0, sort_order=999982, is_active=True)
-    wrong_market = SkuRecord(project_id=project.id, project_name=project.project_name, sku="review-api-wrong-country",
-        asin="B0REVIEWCOUNTRY", country="UK", fob_unit_cost=0, sort_order=999983, is_active=True)
+    local = SkuRecord(project_id=project.id, project_name=project.project_name, sku=f"review-api-local-{suffix}",
+        asin=f"B0LOCAL{suffix.upper()}", country="US", fob_unit_cost=0, sort_order=999981, is_active=True)
+    foreign = SkuRecord(project_id=other.id, project_name=other.project_name, sku=f"review-api-foreign-{suffix}",
+        asin=f"B0FOREIGN{suffix.upper()}", country="US", fob_unit_cost=0, sort_order=999982, is_active=True)
+    wrong_market = SkuRecord(project_id=project.id, project_name=project.project_name, sku=f"review-api-country-{suffix}",
+        asin=f"B0COUNTRY{suffix.upper()}", country="UK", fob_unit_cost=0, sort_order=999983, is_active=True)
     db_session.add_all([local, foreign, wrong_market])
     db_session.flush()
-    payload = dict(project_id=project.id, marketplace="US", name="api-cross-check", member_ids=[local.id], representative_id=local.id)
-    for ids in ([local.id, foreign.id], [local.id, wrong_market.id]):
-        with pytest.raises(ValueError, match="same Project and Marketplace"):
-            create_group(db_session, **{**payload, "member_ids": list(ids)})
-    assert db_session.execute(select(AmazonReviewGroup).where(AmazonReviewGroup.name == "api-cross-check")).first() is None
-    assert db_session.execute(select(AmazonReviewGroupMember).where(AmazonReviewGroupMember.sku_record_id.in_([foreign.id, wrong_market.id]))).first() is None
+    group_name = f"api-cross-check-{suffix}"
+    group = create_group(db_session, project_id=project.id, marketplace="US", name=group_name,
+        member_ids=[local.id], representative_id=local.id)
+    db_session.commit()
+
+    monkeypatch.setattr(endpoint, "append_operation_audit_log", lambda *args, **kwargs: None)
+    # The existing client overrides auth dependencies, so these requests exercise real HTTP validation and DB deps.
+    for sku_id, expected in ((foreign.id, 422), (wrong_market.id, 422)):
+        response = client.patch(f"/api/v1/amazon-review-tracking/groups/{group.id}", json={"member_ids": [local.id, sku_id]})
+        assert response.status_code == expected
+        assert response.json()["detail"]
+        db_session.expire_all()
+        persisted_group = db_session.get(AmazonReviewGroup, group.id)
+        assert persisted_group is not None
+        assert persisted_group.name == group_name
+        assert db_session.execute(select(AmazonReviewGroupMember.sku_record_id).where(
+            AmazonReviewGroupMember.group_id == group.id, AmazonReviewGroupMember.removed_at.is_(None)
+        )).scalars().all() == [local.id]
+        assert db_session.execute(select(AmazonReviewGroup).where(AmazonReviewGroup.name == group_name)).scalars().all() == [persisted_group]
 
 
 def test_group_listing_loads_members_in_one_batch(client, db_session, monkeypatch):

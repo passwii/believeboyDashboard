@@ -33,6 +33,9 @@
 
 验证：`TEST_DATABASE_URL='postgresql+psycopg://damon@/BLF_test?host=/tmp' pytest tests/api/test_amazon_review_tracking.py tests/services/test_amazon_review_tracking_service.py -q`，14 passed。另有 3 条 SlowAPI 弃用警告。
 
-## 审查范围与验证
+## 复审补充（2026-10-12）
 
-初审仅审查 Task 4 差异包 `3b0c7cd8..03c678a7`、指定 brief 与完成报告；修复后已运行上述目标测试。
+按 reviewer 要求，将跨 Project / Marketplace 拒绝场景从 service 直调补充为真实 HTTP client PATCH 调用。两种外部 SKU 都通过组成员替换请求提交，均断言稳定返回 422，并检查原组仍存在、成员列表未改变且没有额外组写入，覆盖事务失败无部分写。
+
+验证：`TEST_DATABASE_URL='postgresql+psycopg://damon@/BLF_test?host=/tmp' pytest tests/api/test_amazon_review_tracking.py::test_api_rejects_cross_project_and_marketplace_members -q`，1 passed；3 条 SlowAPI 弃用警告。
+
