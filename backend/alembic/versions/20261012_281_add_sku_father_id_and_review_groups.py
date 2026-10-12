@@ -16,7 +16,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     bind = op.get_bind()
-    if "father_id" not in {column["name"] for column in sa.inspect(bind).get_columns("product_costs")}:
+    # father_id belongs to Task 1, not revision 281. Create it for clean
+    # revision-280 schemas, but preserve it on downgrade in either case.
+    existing_columns = {column["name"] for column in sa.inspect(bind).get_columns("product_costs")}
+    if "father_id" not in existing_columns:
         op.add_column("product_costs", sa.Column("father_id", sa.String(), nullable=True))
     op.create_table(
         "amazon_review_groups",
@@ -67,4 +70,4 @@ def downgrade() -> None:
     op.drop_table("amazon_review_group_members")
     op.drop_index("idx_amazon_review_groups_scope_active", table_name="amazon_review_groups")
     op.drop_table("amazon_review_groups")
-    op.drop_column("product_costs", "father_id")
+    # father_id is a Task 1 feature column; downgrade deliberately preserves it.
