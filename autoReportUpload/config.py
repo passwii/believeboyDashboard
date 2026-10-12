@@ -61,8 +61,6 @@ WATCH_ROOT = _resolve_watch_root()
 # All project folder names (must match projects.project_name in the DB)
 PROJECTS = [
     "博朗姆",
-    "金石",
-    "弥森",
     "卡斯摩",
     "创酷",
     "吕沃",
@@ -70,8 +68,6 @@ PROJECTS = [
     "骏成",
     "华洋泛航",
     "玥涵",
-    "博智1店",
-    "博智2店",
     "犀牛",
     # 2026-06-27 增量：瑞迪特（WESTTHOR）— 之前未在白名单导致新订单无法入库
     "瑞迪特",
