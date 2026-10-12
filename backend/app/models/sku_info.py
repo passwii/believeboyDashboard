@@ -33,6 +33,10 @@ class SkuRecord(Base):
             "country",
             name="product_costs_project_id_sku_asin_country_key",
         ),
+        UniqueConstraint(
+            "id", "project_id", "country",
+            name="uq_product_costs_id_project_country",
+        ),
         Index("idx_product_costs_project_id", "project_id"),
         Index("idx_product_costs_project_sort", "project_id", "sort_order", "id"),
         Index("idx_product_costs_project_sku_active", "project_id", "sku", "is_active"),

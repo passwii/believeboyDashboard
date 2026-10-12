@@ -25,9 +25,29 @@ def test_review_group_metadata_contract():
     assert "removed_at" in member.c
     assert "is_active" in group.c
 
-    fk_targets = {fk.target_fullname for fk in member.foreign_keys}
-    assert "product_costs.id" in fk_targets
-    assert "projects.id" in fk_targets
+    group_fk_constraints = {
+        tuple(column.name for column in constraint.columns): tuple(
+            element.target_fullname for element in constraint.elements
+        )
+        for constraint in group.foreign_key_constraints
+    }
+    assert group_fk_constraints[("representative_sku_record_id", "project_id", "marketplace")] == (
+        "product_costs.id", "product_costs.project_id", "product_costs.country"
+    )
+
+    member_fk_constraints = {
+        tuple(column.name for column in constraint.columns): tuple(
+            element.target_fullname for element in constraint.elements
+        )
+        for constraint in member.foreign_key_constraints
+    }
+    assert member_fk_constraints[("sku_record_id", "project_id", "marketplace")] == (
+        "product_costs.id", "product_costs.project_id", "product_costs.country"
+    )
+    assert member_fk_constraints[("group_id", "project_id", "marketplace")] == (
+        "amazon_review_groups.id", "amazon_review_groups.project_id", "amazon_review_groups.marketplace"
+    )
+    assert "projects.id" not in {fk.target_fullname for fk in member.foreign_keys}
 
     active_members = [
         index
@@ -58,5 +78,6 @@ def test_foreign_key_types_match_referenced_primary_keys():
 
     group_fk_targets = {fk.target_fullname for fk in group.foreign_keys}
     member_fk_targets = {fk.target_fullname for fk in member.foreign_keys}
-    assert {"projects.id", "product_costs.id"} <= group_fk_targets
-    assert {"projects.id", "product_costs.id", "amazon_review_groups.id"} <= member_fk_targets
+    assert {"product_costs.id", "product_costs.project_id", "product_costs.country"} <= group_fk_targets
+    assert {"product_costs.id", "product_costs.project_id", "product_costs.country"} <= member_fk_targets
+    assert {"amazon_review_groups.id", "amazon_review_groups.project_id", "amazon_review_groups.marketplace"} <= member_fk_targets

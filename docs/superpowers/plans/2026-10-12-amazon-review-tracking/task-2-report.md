@@ -9,18 +9,14 @@
 
 ## 验证命令与结果
 
-运行目录：`/Users/damon/DamonProjects/believeboyDashboard/.worktrees/feat/amazon-review-tracking/backend`。显式使用 `TEST_DATABASE_URL=postgresql+psycopg://damon@/BLF_test?host=/tmp`，所有迁移写入均针对 `BLF_test`，未对 `BLF` 执行写操作。
+运行目录：`/Users/damon/DamonProjects/believeboyDashboard/.worktrees/feat/amazon-review-tracking/backend`。由于该 worktree 无 `backend/.env.test`，按仓库 `TESTING.md` 从主工作区既有 `.env.test` 读取并显式使用 `TEST_DATABASE_URL=postgresql+psycopg://damon@/BLF_test?host=/tmp`；操作目标为本地隔离库 `BLF_test`。
 
-- `pytest tests/services/test_amazon_review_tracking_service.py -q`：2 passed（显式 `TEST_DATABASE_URL=...BLF_test`）。
-- `python scripts/check_alembic.py`：通过，命名、迁移链及单 head 检查通过。
-- `alembic heads`：`281 (head)`。
-- `alembic current`：`281 (head)`。
-- `alembic upgrade 281`、`alembic downgrade 280`、`alembic upgrade 281`：往返通过。
+- 未设置环境变量的首轮 `pytest tests/services/test_amazon_review_tracking_service.py` 收集失败：`DATABASE_URL` 未配置，错误提示需配置 `DATABASE_URL` 或 `TEST_DATABASE_URL`。随后按仓库入口显式设 `TEST_DATABASE_URL`。
+- `pytest tests/services/test_amazon_review_tracking_service.py -q`：2 passed。
+- `python scripts/check_alembic.py`：通过。
+- `alembic downgrade 280` 后 `alembic upgrade 281`：往返通过，`alembic current` 为 `281 (head)`；验证 `product_costs.father_id` 在 downgrade 后仍存在。
 - `git diff --check`：通过。
 
-TDD 过程中的首次 pytest 收集因未设置 `TEST_DATABASE_URL` 而被数据库配置阻断；随后显式设置本地 `BLF_test` URL 后目标用例通过。首次迁移升级遇到测试库在 revision 280 时已有 Task 1 ORM 所对应的 `father_id` 列（数据库 schema 先于迁移版本记录），故迁移在升级时检查列是否已存在，仅在不存在时增加；后续 upgrade/downgrade/upgrade 往返通过。此兼容逻辑未改变 Task 1 字段语义。
-
-- `git diff --check`：通过。
 
 ## 数据库环境差异与处理
 
