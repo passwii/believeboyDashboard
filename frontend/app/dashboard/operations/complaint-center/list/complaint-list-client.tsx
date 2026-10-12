@@ -394,7 +394,8 @@ export default function ComplaintListClient() {
         {data && data.spam_count > 0 && (
           <div className="flex items-center gap-2 rounded-none border border-term-border bg-term-raised px-3 py-2 text-xs text-term-muted">
             <Trash2 size={12} />
-            今日标记垃圾 <span className="font-semibold text-term-text">{data.spam_count}</span> 条
+            {date ? `${toYmdLocal(date)} 标记垃圾` : '全部日期标记垃圾'}{' '}
+            <span className="font-semibold text-term-text">{data.spam_count}</span> 条
             <Button
               variant="ghost"
               size="xs"
@@ -415,10 +416,28 @@ export default function ComplaintListClient() {
             title="客诉列表"
             description={data ? `共 ${data.total} 条` : undefined}
             action={
-              <Button variant="ghost" size="xs" onClick={() => setSort((s) => (s === 'sla_asc' ? 'sla_desc' : 'sla_asc'))}>
-                {sort === 'sla_asc' ? <ArrowDownAz size={12} /> : <ArrowUpZa size={12} />}
-                SLA
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={sort.startsWith('date_') ? 'secondary' : 'ghost'}
+                  size="xs"
+                  aria-label={`按最近消息${sort === 'date_asc' ? '正序' : '倒序'}排序`}
+                  aria-pressed={sort.startsWith('date_')}
+                  onClick={() => setSort((s) => (s === 'date_desc' ? 'date_asc' : 'date_desc'))}
+                >
+                  {sort === 'date_asc' ? <ArrowDownAz size={12} /> : <ArrowUpZa size={12} />}
+                  最近消息
+                </Button>
+                <Button
+                  variant={sort.startsWith('sla_') ? 'secondary' : 'ghost'}
+                  size="xs"
+                  aria-label={`按 SLA ${sort === 'sla_desc' ? '降序' : '升序'}排序`}
+                  aria-pressed={sort.startsWith('sla_')}
+                  onClick={() => setSort((s) => (s === 'sla_asc' ? 'sla_desc' : 'sla_asc'))}
+                >
+                  {sort === 'sla_desc' ? <ArrowUpZa size={12} /> : <ArrowDownAz size={12} />}
+                  SLA
+                </Button>
+              </div>
             }
           />
           <DataTableCardBody>
