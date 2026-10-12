@@ -147,11 +147,17 @@ function toYmdLocal(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+type SpamCountScope = {
+  date?: string
+  project_id?: number
+  country?: string
+}
+
 export default function ComplaintListClient() {
   const { notify } = useNotifications()
   const searchParams = useSearchParams()
   const { projects } = useManagedProjects()
-  const [date, setDate] = useState<Date>(new Date())
+  const [date, setDate] = useState<Date | null>(null)
   const [firstMessageDate, setFirstMessageDate] = useState<Date | null>(() => {
     const v = searchParams.get('first_message_date')
     return parseDateInputValue(v) ?? null
@@ -166,15 +172,16 @@ export default function ComplaintListClient() {
   const [country, setCountry] = useState(searchParams.get('country') ?? '')
   const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '')
   const [sort, setSort] = useState<'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc'>(
-    (searchParams.get('sort') as 'sla_asc') ?? 'sla_asc'
+    (searchParams.get('sort') as 'sla_asc' | 'sla_desc' | 'date_asc' | 'date_desc') ?? 'date_desc'
   )
   const [page, setPage] = useState(1)
   const [data, setData] = useState<ComplaintListResponse | null>(null)
+  const [spamCountScope, setSpamCountScope] = useState<SpamCountScope | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const filters = useMemo(
     () => ({
-      date: toYmdLocal(date),
+      ...(date ? { date: toYmdLocal(date) } : {}),
       first_message_date: firstMessageDate ? toYmdLocal(firstMessageDate) : undefined,
       project_id: projectId ? Number(projectId) : undefined,
       category: category || undefined,
@@ -199,6 +206,11 @@ export default function ComplaintListClient() {
     try {
       const result = await fetchComplaintList(filters, projectNameById)
       setData(result)
+      setSpamCountScope({
+        date: filters.date,
+        project_id: filters.project_id,
+        country: filters.country,
+      })
     } catch (err) {
       notify({ type: 'error', title: '加载失败', message: `加载明细失败: ${(err as Error).message}` })
     } finally {
@@ -230,24 +242,47 @@ export default function ComplaintListClient() {
     setSelectedId(id)
   }, [])
 
+  const handleInspectionDateChange = useCallback((d?: Date) => {
+    setPage(1)
+    setDate(d ? getDayStart(d) : null)
+  }, [])
+
+  const handleAllInspectionDates = useCallback(() => {
+    setPage(1)
+    setDate(null)
+  }, [])
+
   const handleStatusChanged = useCallback(() => {
     setSelectedId(null)
     void loadData()
   }, [loadData])
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
+  const spamCountScopeIsCurrent =
+    spamCountScope !== null &&
+    spamCountScope.date === filters.date &&
+    spamCountScope.project_id === filters.project_id &&
+    spamCountScope.country === filters.country
 
   // Desktop header-slot controls
   const headerControls = (
     <>
-      <SingleDatePicker
-        value={date}
-        onChange={(d) => {
-          setPage(1)
-          if (d) setDate(getDayStart(d))
-        }}
-        className="h-10 w-[130px]"
-      />
+      <div className="flex items-center gap-1">
+        <SingleDatePicker
+          value={date ?? undefined}
+          onChange={handleInspectionDateChange}
+          className="h-10 w-[130px]"
+        />
+        <Button
+          variant={date ? 'ghost' : 'secondary'}
+          size="xs"
+          className="h-10 px-1.5"
+          aria-pressed={!date}
+          onClick={handleAllInspectionDates}
+        >
+          全部日期
+        </Button>
+      </div>
       <SingleDatePicker
         value={firstMessageDate ?? undefined}
         onChange={(d) => {
@@ -309,14 +344,22 @@ export default function ComplaintListClient() {
   const mobileSummary = `${country} · ${status ? STATUS_LABEL[status] : '全部'} · ${CATEGORY_LABEL[category] ?? '全部'}`
   const mobileControls = (
     <>
-      <SingleDatePicker
-        value={date}
-        onChange={(d) => {
-          setPage(1)
-          if (d) setDate(getDayStart(d))
-        }}
-        className="h-10 w-full"
-      />
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <SingleDatePicker
+          value={date ?? undefined}
+          onChange={handleInspectionDateChange}
+          className="h-10 w-0 flex-1"
+        />
+        <Button
+          variant={date ? 'ghost' : 'secondary'}
+          size="xs"
+          className="h-10 shrink-0 px-2"
+          aria-pressed={!date}
+          onClick={handleAllInspectionDates}
+        >
+          全部日期
+        </Button>
+      </div>
       <SingleDatePicker
         value={firstMessageDate ?? undefined}
         onChange={(d) => {
@@ -365,10 +408,11 @@ export default function ComplaintListClient() {
       {desktopSlot}
       {mobileStrip}
       <div className="w-full space-y-6">
-        {data && data.spam_count > 0 && (
+        {data && spamCountScopeIsCurrent && data.spam_count > 0 && (
           <div className="flex items-center gap-2 rounded-none border border-term-border bg-term-raised px-3 py-2 text-xs text-term-muted">
             <Trash2 size={12} />
-            今日标记垃圾 <span className="font-semibold text-term-text">{data.spam_count}</span> 条
+            {date ? `${toYmdLocal(date)} 标记垃圾` : '全部日期标记垃圾'}{' '}
+            <span className="font-semibold text-term-text">{data.spam_count}</span> 条
             <Button
               variant="ghost"
               size="xs"
@@ -389,10 +433,28 @@ export default function ComplaintListClient() {
             title="客诉列表"
             description={data ? `共 ${data.total} 条` : undefined}
             action={
-              <Button variant="ghost" size="xs" onClick={() => setSort((s) => (s === 'sla_asc' ? 'sla_desc' : 'sla_asc'))}>
-                {sort === 'sla_asc' ? <ArrowDownAz size={12} /> : <ArrowUpZa size={12} />}
-                SLA
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={sort.startsWith('date_') ? 'secondary' : 'ghost'}
+                  size="xs"
+                  aria-label={`按最近消息${sort === 'date_asc' ? '正序' : '倒序'}排序`}
+                  aria-pressed={sort.startsWith('date_')}
+                  onClick={() => setSort((s) => (s === 'date_desc' ? 'date_asc' : 'date_desc'))}
+                >
+                  {sort === 'date_asc' ? <ArrowDownAz size={12} /> : <ArrowUpZa size={12} />}
+                  最近消息
+                </Button>
+                <Button
+                  variant={sort.startsWith('sla_') ? 'secondary' : 'ghost'}
+                  size="xs"
+                  aria-label={`按 SLA ${sort === 'sla_desc' ? '降序' : '升序'}排序`}
+                  aria-pressed={sort.startsWith('sla_')}
+                  onClick={() => setSort((s) => (s === 'sla_asc' ? 'sla_desc' : 'sla_asc'))}
+                >
+                  {sort === 'sla_desc' ? <ArrowUpZa size={12} /> : <ArrowDownAz size={12} />}
+                  SLA
+                </Button>
+              </div>
             }
           />
           <DataTableCardBody>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   AlertTriangle,
@@ -61,9 +62,11 @@ const CHECK_STATUS_STYLE: Record<CheckStatus, string> = {
   login_page: 'text-term-warn',
 }
 
-function formatDateLabel(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function getDayStart(d: Date | undefined): Date {
@@ -81,8 +84,7 @@ export default function ComplaintCenterClient() {
   const loadOverview = useCallback(async () => {
     setLoading(true)
     try {
-      const iso = date.toISOString().slice(0, 10)
-      const data = await fetchComplaintOverview({ date: iso, country: 'US' })
+      const data = await fetchComplaintOverview({ date: formatLocalDate(date), country: 'US' })
       setOverview(data)
     } catch (err) {
       notify({ type: 'error', title: '加载失败', message: `加载概览失败: ${(err as Error).message}` })
@@ -99,7 +101,7 @@ export default function ComplaintCenterClient() {
   handleRefreshRef.current = loadOverview
   useHeaderRefresh(() => handleRefreshRef.current(), { loading })
 
-  const dateLabel = date.toISOString().slice(0, 10)
+  const dateLabel = formatLocalDate(date)
   const isToday = useMemo(() => {
     const today = new Date()
     return (
@@ -212,6 +214,14 @@ export default function ComplaintCenterClient() {
               <DataTableCardHeader
                 title="店铺健康"
                 description={`15 店铺巡检状态 · ${dateLabel}${isToday ? ' 今天' : ''}`}
+                action={
+                  <Link
+                    href="/dashboard/operations/complaint-center/list"
+                    className="text-xs text-term-muted underline-offset-2 transition-colors hover:text-term-text hover:underline"
+                  >
+                    查看全部客诉
+                  </Link>
+                }
               />
               <DataTableCardBody>
                 {isEmpty ? (

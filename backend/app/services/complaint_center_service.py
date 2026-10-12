@@ -624,20 +624,40 @@ def fetch_complaints(
         stmt = stmt.where(first_date_filter)
     total = db.execute(select(func.count(Complaint.id)).where(*filters)).scalar_one()
 
+    active_first = sql_case(
+        (Complaint.status.in_(('pending', 'drafted', 'replied')), 0),
+        else_=1,
+    )
     if sort is None:
         stmt = stmt.order_by(
-            sql_case((Complaint.status == 'pending', 0), else_=1),
+            active_first,
             Complaint.message_date.desc(),
             Complaint.id.asc(),
         )
     elif sort == 'sla_asc':
-        stmt = stmt.order_by(_sla_sort_key().asc().nulls_last(), Complaint.id.asc())
+        stmt = stmt.order_by(
+            active_first,
+            _sla_sort_key().asc().nulls_last(),
+            Complaint.id.asc(),
+        )
     elif sort == 'sla_desc':
-        stmt = stmt.order_by(_sla_sort_key().desc().nulls_last(), Complaint.id.asc())
+        stmt = stmt.order_by(
+            active_first,
+            _sla_sort_key().desc().nulls_last(),
+            Complaint.id.asc(),
+        )
     elif sort == 'date_asc':
-        stmt = stmt.order_by(Complaint.message_date.asc(), Complaint.id.asc())
+        stmt = stmt.order_by(
+            active_first,
+            Complaint.message_date.asc(),
+            Complaint.id.asc(),
+        )
     elif sort == 'date_desc':
-        stmt = stmt.order_by(Complaint.message_date.desc(), Complaint.id.asc())
+        stmt = stmt.order_by(
+            active_first,
+            Complaint.message_date.desc(),
+            Complaint.id.asc(),
+        )
     else:
         raise ValueError(f'不支持的客诉排序：{sort}')
 
