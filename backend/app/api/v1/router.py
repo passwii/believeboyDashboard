@@ -28,6 +28,7 @@ from app.api.v1.endpoints.internal.user_api_keys import (
     router as internal_user_api_keys_router,
 )
 from app.api.v1.endpoints.internal.ad_data import router as internal_ad_data_router
+from app.api.v1.endpoints.amazon_review_tracking import router as amazon_review_tracking_router
 from app.api.v1.endpoints.internal_jobs import router as internal_jobs_router
 from app.api.v1.endpoints.jobs import router as jobs_router
 from app.api.v1.endpoints.notifications import router as notifications_router
@@ -122,3 +123,4 @@ api_router.include_router(internal_api_keys_router)
 api_router.include_router(internal_user_api_keys_router)
 # BLF-459 V3：/external/* 下线后浏览器 ad-data 页的内部读路由。
 api_router.include_router(internal_ad_data_router)
+api_router.include_router(amazon_review_tracking_router)
