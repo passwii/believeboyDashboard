@@ -4,7 +4,7 @@
 
 - 目标测试、迁移往返、Alembic 图检查、OpenAPI 与审计回滚验证通过。
 - 全量 pytest 首次收集失败，确认分支 `backend/requirements.txt` 未声明 `pytest-asyncio`，本地 `/Users/damon/DamonProjects/believeboyDashboard/backend/.venv` 初始也缺包。按要求仅在本地虚拟环境安装 `pytest-asyncio==1.3.0`，并保持 requirements 不变；保留项目锁定 `pytest==8.3.4`。
-- 尚需在依赖补齐后重跑全量 pytest，并记录结果；此前失败不作为最终全量结论。
+- 全量 pytest 已在依赖补齐后执行，结果见下方：40 failed, 4097 passed, 14 skipped。40 条失败清单未能在本次收尾中逐项精确归档并与 main 相同环境对账；因此失败原因/基线归属未验证，不能认定为既有失败，也不能将全量 pytest 视为通过。此项仍是未解决验证限制。
 
 ## 测试数据库安全
 

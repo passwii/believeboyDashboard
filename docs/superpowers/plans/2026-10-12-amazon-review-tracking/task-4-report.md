@@ -37,5 +37,8 @@
 
 按 reviewer 要求，将跨 Project / Marketplace 拒绝场景从 service 直调补充为真实 HTTP client PATCH 调用。两种外部 SKU 都通过组成员替换请求提交，均断言稳定返回 422，并检查原组仍存在、成员列表未改变且没有额外组写入，覆盖事务失败无部分写。
 
-验证：`TEST_DATABASE_URL='postgresql+psycopg://damon@/BLF_test?host=/tmp' pytest tests/api/test_amazon_review_tracking.py::test_api_rejects_cross_project_and_marketplace_members -q`，1 passed；3 条 SlowAPI 弃用警告。
+## 报告提交状态
+
+- 本报告在代码审查和复审后补写，但截至阶段 A 收尾前没有被 git 跟踪/提交（历史上 Task 4 的实现 brief 曾意外提交；该 brief 与本报告不是同一文件）。因此本报告中的修复记录是工作树报告内容，不能据此称 Task 4 报告已随实现提交。
+- 后续任务目标测试结果见 Task 5 报告；此报告没有单独宣称全量 pytest 通过。
 
