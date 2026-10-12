@@ -25,6 +25,7 @@ from app.services.amazon_review_tracking_service import (
     deactivate_group,
     replace_group_members,
     set_representative,
+    update_group_name,
 )
 from app.services.audit_log_service import append_operation_audit_log
 
@@ -68,8 +69,16 @@ class ReviewGroupPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    member_ids: list[int] | None = Field(default=None, validate_default=False)
+    member_ids: list[int] | None = Field(default=None, min_length=1, validate_default=False)
     representative_id: int | None = Field(default=None, gt=0, validate_default=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_member_ids(cls, value):
+        if isinstance(value, dict) and "member_ids" in value and value["member_ids"] is not None:
+            members = ReviewGroupMemberReplace(member_ids=value["member_ids"])
+            value = {**value, "member_ids": members.member_ids}
+        return value
 
     @model_validator(mode="before")
     @classmethod
@@ -223,7 +232,7 @@ def patch_review_group(
             name = changes["name"]
             if not isinstance(name, str) or not name.strip() or len(name.strip()) > 255:
                 raise HTTPException(status_code=422, detail="invalid name")
-            group.name = name.strip()
+            _call_service(update_group_name, db, group_id=group_id, name=name)
         if "description" in changes:
             group.description = changes["description"]
         if "member_ids" in changes:

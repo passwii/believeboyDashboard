@@ -55,6 +55,63 @@ def test_patch_rejects_explicit_null_fields():
             ReviewGroupPatch.model_validate({field: None})
 
 
+@pytest.mark.parametrize("payload", [
+    {"member_ids": []},
+    {"member_ids": [-1]},
+    {"representative_id": -1},
+])
+def test_patch_invalid_member_updates_return_422_without_changes(client, db_session, monkeypatch, payload):
+    from app.models import Project, SkuRecord
+    import uuid
+
+    suffix = uuid.uuid4().hex[:8]
+    project = db_session.execute(select(Project).where(Project.is_active.is_(True)).limit(1)).scalar_one()
+    sku = SkuRecord(project_id=project.id, project_name=project.project_name,
+        sku=f"review-invalid-{suffix}", asin=f"B0INVALID{suffix.upper()}", country="US",
+        fob_unit_cost=0, sort_order=999980, is_active=True)
+    db_session.add(sku)
+    db_session.flush()
+    group = create_group(db_session, project_id=project.id, marketplace="US",
+        name=f"invalid-{suffix}", member_ids=[sku.id], representative_id=sku.id)
+    db_session.commit()
+    monkeypatch.setattr(endpoint, "append_operation_audit_log", lambda *args, **kwargs: None)
+
+    response = client.patch(f"/api/v1/amazon-review-tracking/groups/{group.id}", json=payload)
+    assert response.status_code == 422
+    db_session.expire_all()
+    persisted = db_session.get(AmazonReviewGroup, group.id)
+    assert persisted.name == f"invalid-{suffix}"
+    assert persisted.representative_sku_record_id == sku.id
+    assert db_session.execute(select(AmazonReviewGroupMember.sku_record_id).where(
+        AmazonReviewGroupMember.group_id == group.id, AmazonReviewGroupMember.removed_at.is_(None)
+    )).scalars().all() == [sku.id]
+
+
+def test_patch_duplicate_active_group_name_returns_409_without_changes(client, db_session, monkeypatch):
+    from app.models import Project, SkuRecord
+    import uuid
+
+    suffix = uuid.uuid4().hex[:8]
+    project = db_session.execute(select(Project).where(Project.is_active.is_(True)).limit(1)).scalar_one()
+    skus = [SkuRecord(project_id=project.id, project_name=project.project_name,
+        sku=f"review-duplicate-{suffix}-{i}", asin=f"B0DUP{suffix.upper()}{i}", country="US",
+        fob_unit_cost=0, sort_order=999981 + i, is_active=True) for i in range(2)]
+    db_session.add_all(skus)
+    db_session.flush()
+    first = create_group(db_session, project_id=project.id, marketplace="US", name=f"target-{suffix}",
+        member_ids=[skus[0].id], representative_id=skus[0].id)
+    second = create_group(db_session, project_id=project.id, marketplace="US", name=f"other-{suffix}",
+        member_ids=[skus[1].id], representative_id=skus[1].id)
+    db_session.commit()
+    monkeypatch.setattr(endpoint, "append_operation_audit_log", lambda *args, **kwargs: None)
+
+    response = client.patch(f"/api/v1/amazon-review-tracking/groups/{second.id}", json={"name": first.name})
+    assert response.status_code == 409
+    db_session.expire_all()
+    assert db_session.get(AmazonReviewGroup, first.id).name == f"target-{suffix}"
+    assert db_session.get(AmazonReviewGroup, second.id).name == f"other-{suffix}"
+
+
 def test_api_rejects_cross_project_and_marketplace_members(client, db_session, monkeypatch):
     from app.models import Project, SkuRecord
 

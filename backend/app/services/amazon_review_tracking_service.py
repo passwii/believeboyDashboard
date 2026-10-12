@@ -97,6 +97,25 @@ def create_group(db: Session, *, project_id: int, marketplace: str, name: str, m
     return group
 
 
+def update_group_name(db: Session, *, group_id: int, name: str) -> AmazonReviewGroup:
+    group = _active_group(db, group_id)
+    name = name.strip()
+    if not name or len(name) > 255:
+        raise ReviewGroupError("invalid name")
+    duplicate = db.execute(select(AmazonReviewGroup.id).where(
+        AmazonReviewGroup.project_id == group.project_id,
+        AmazonReviewGroup.marketplace == group.marketplace,
+        AmazonReviewGroup.name == name,
+        AmazonReviewGroup.is_active.is_(True),
+        AmazonReviewGroup.id != group.id,
+    )).first()
+    if duplicate:
+        raise ReviewGroupError("active review group with this name already exists")
+    group.name = name
+    db.flush()
+    return group
+
+
 def replace_group_members(db: Session, *, group_id: int, member_ids: list[int]) -> AmazonReviewGroup:
     group = _active_group(db, group_id)
     if len(set(member_ids)) != len(member_ids):
