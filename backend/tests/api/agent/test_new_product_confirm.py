@@ -324,13 +324,48 @@ class TestUpsertValidation:
         assert resp.status_code == 400, resp.text
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
 
-    def test_non_positive_profit_rejected(
-        self, client, shipment_env, confirm_memory_store
+    @pytest.mark.parametrize(
+        ("profit_usd", "profit_rate"),
+        [(0.0, 0.0), (-1.0, -0.05)],
+    )
+    def test_zero_or_negative_profit_is_accepted_and_persisted(
+        self,
+        client,
+        shipment_env,
+        confirm_memory_store,
+        profit_usd,
+        profit_rate,
     ):
-        body = new_product_body(sku="X-001", profit_usd=-1.0)
-        resp = _post(client, shipment_env, body)
-        assert resp.status_code == 400, resp.text
-        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        body = new_product_body(
+            sku="X-001", profit_usd=profit_usd, profit_rate=profit_rate
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, body, idem=idem)
+        assert preview.status_code == 200, preview.text
+
+        replay = _post(
+            client,
+            shipment_env,
+            body,
+            token=preview.json()["confirm_token"],
+            idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(NewProductCalculation)
+                .filter(
+                    NewProductCalculation.project_id == shipment_env["project_id"],
+                    NewProductCalculation.sku == "X-001",
+                )
+                .one()
+            )
+            assert float(row.profit_usd) == profit_usd
+            assert float(row.profit_rate) == profit_rate
+        finally:
+            db.close()
 
     def test_future_observed_at_rejected(
         self, client, shipment_env, confirm_memory_store

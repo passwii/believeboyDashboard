@@ -244,7 +244,7 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
 1. `source` ∈ `{agent_listing_pull, agent_review_scrape, agent_market_research, external_api}`（必填，禁 manual）→ 否则 400 `NEW_PRODUCT_CALCULATION_INVALID_SOURCE`；
 2. **SKU 存在性校验**（对齐店铺域 D2）：`select SkuRecord.sku where project_id == {pid} and country == body.country and sku == body.sku`，不存在 → 400 `NEW_PRODUCT_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据；
 3. `calculation_type` 白名单 = **4 种全可存** `{profit_calc, profit_reverse, cost_reverse, fbm_calc}`（D2b 拍板）；
-4. `observed_at` 不晚于 now()+24h；金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库。
+4. `observed_at` 不晚于 now()+24h；`sale_price_usd` 与 `total_fee_usd` 为正数，`profit_usd` 允许为正、零或负数，`profit_rate ∈ (-1, 1)` → 保留真实经营结果，同时防止售价和费用结构无效。
 
 ### 6.3 `_preview_upsert`（confirm 预览摘要）
 
