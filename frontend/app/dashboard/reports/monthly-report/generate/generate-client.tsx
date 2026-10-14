@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
   AlertCircle,
@@ -38,6 +38,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useSharedReportProject } from '../shared-project'
 import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
@@ -306,6 +307,23 @@ export default function GenerateTab() {
   // 默认月份用 useMemo 锁定（保持与原 useState 一致的"挂载时一次性快照"语义）。
   const defaultReportMonth = useMemo(() => currentMonthString(), [])
   const [projectName, setProjectName] = useUrlParam<string>('project', '')
+  // BLF-1344：月报三个 tab 共享一个「当前项目」（共享记忆里存项目 id）。本页面向 URL 和
+  // 接口历来都用项目名称，所以这里做一层 id ↔ 名称适配，共享记忆仍以 id 为准。
+  const projectIdFromName = useMemo(
+    () => projects.find((project) => project.name === projectName)?.id ?? null,
+    [projects, projectName]
+  )
+  const selectProjectById = useCallback(
+    (id: string) => {
+      const target = projects.find((project) => String(project.id) === id)
+      if (target) setProjectName(target.name)
+    },
+    [projects, setProjectName]
+  )
+  useSharedReportProject({
+    projectId: projectIdFromName === null ? '' : String(projectIdFromName),
+    setProjectId: selectProjectById,
+  })
   const [country, setCountry] = useUrlParam<CountryOption>(
     'country',
     DEFAULT_REPORT_UPLOAD_COUNTRY,

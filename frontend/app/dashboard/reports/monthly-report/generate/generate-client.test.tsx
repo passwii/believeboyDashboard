@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 import GenerateTab from './generate-client'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { readSharedReportProjectId, writeSharedReportProjectId } from '../shared-project'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
@@ -31,8 +32,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, push: nav.replace }),
 }))
 
+// 共享记忆按操作者身份隔离：这个身份就是测试里读写记忆用的身份
+const TEST_OWNER = { id: 'user-1', roleType: 'admin', operatorNameZh: '张三', isAdmin: true }
 vi.mock('next-auth/react', () => ({
-  useSession: () => stableSession({ user: { isAdmin: true } }),
+  useSession: () => stableSession({ user: TEST_OWNER }),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -66,6 +69,7 @@ beforeEach(() => {
     { id: 2, name: '玥涵' },
   ])
   nav.setParams('project=铨富&country=US&month=2026-07')
+  window.localStorage.clear()
 })
 
 afterEach(() => {
@@ -105,5 +109,41 @@ describe('BLF-963 头部插槽契约', () => {
 
     render(<>{headerCapture.mobileNode}</>)
     expect(await screen.findByText(/铨富.*美国站.*2026-07/)).toBeInTheDocument()
+  })
+})
+
+describe('BLF-1344 项目选择跨 tab 共享', () => {
+  it('URL 没带项目时按共享记忆里的项目 id 选中同名项目，并写回 URL', async () => {
+    // 上一次在月报某个 tab 选过项目 2（共享记忆存项目 id）
+    writeSharedReportProjectId(TEST_OWNER, '2')
+    nav.setParams('country=US&month=2026-07')
+
+    render(<GenerateTab />)
+    await screen.findByText('文件识别与上传')
+
+    // 本页 URL / 接口历来用项目名称：采用共享记忆后应落成对应名称
+    //（测试 mock 的 router.replace 不会触发重渲染，所以断言落在 URL 而不是渲染结果上）
+    await waitFor(() => expect(new URLSearchParams(nav.toString()).get('project')).toBe('玥涵'))
+  })
+
+  it('URL 指定项目名时把对应项目 id 写回共享记忆', async () => {
+    nav.setParams('project=玥涵&country=US&month=2026-07')
+
+    render(<GenerateTab />)
+    await screen.findByText('文件识别与上传')
+
+    await waitFor(() => expect(readSharedReportProjectId(TEST_OWNER)).toBe('2'))
+  })
+
+  it('共享记忆里的项目不在本页项目列表时保持未选，不静默选错项目', async () => {
+    writeSharedReportProjectId(TEST_OWNER, '999')
+    nav.setParams('country=US&month=2026-07')
+
+    render(<GenerateTab />)
+    await screen.findByText('文件识别与上传')
+
+    await waitFor(() => expect(headerCapture.slotNode).not.toBeNull())
+    expect(new URLSearchParams(nav.toString()).get('project')).toBeNull()
+    expect(readSharedReportProjectId(TEST_OWNER)).toBe('999')
   })
 })
