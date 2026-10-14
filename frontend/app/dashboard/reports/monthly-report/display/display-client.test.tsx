@@ -9,6 +9,7 @@ import DisplayTab, {
 } from './display-client'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { clearClientCacheByPrefix } from '@/lib/client-cache'
+import { readSharedReportProjectId, writeSharedReportProjectId } from '../shared-project'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
@@ -177,6 +178,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
   clearClientCacheByPrefix('financial:')
   window.sessionStorage.clear()
+  window.localStorage.clear()
   nav.setParams('project=1&fromMonth=2025-08&toMonth=2026-07')
   financialPayload = makePayload(['2026-05', '2026-06'])
   financialDelayMs = 0
@@ -394,5 +396,43 @@ describe('BLF-962 头部插槽契约', () => {
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
     expect(screen.getByText('2025-08')).toBeInTheDocument()
     expect(screen.getByText('2026-07')).toBeInTheDocument()
+  })
+})
+
+describe('BLF-1344 项目选择跨 tab 共享', () => {
+  /** 财务序列请求里带过的 project_id（accounting-detail 不算） */
+  function seriesProjectIds(): string[] {
+    return fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/monthly-reports/financial-series?'))
+      .map((url) => new URLSearchParams(url.split('?')[1] ?? '').get('project_id') ?? '')
+  }
+
+  it('URL 没带项目时沿用共享记忆里的项目（其它 tab 选过的），并写回 URL', async () => {
+    // 上一次在月报某个 tab 选过项目 2
+    writeSharedReportProjectId('2')
+    ;(fetchManagedProjectsCached as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 1, name: '铨富' },
+      { id: 2, name: '玥涵' },
+    ])
+    nav.setParams('fromMonth=2025-08&toMonth=2026-07')
+
+    render(<DisplayTab />)
+
+    // 拉数用的是共享记忆里的项目，而不是列表里的第一个
+    await waitFor(() => expect(seriesProjectIds()).toContain('2'))
+    expect(seriesProjectIds()).not.toContain('1')
+    // 选择同步进 URL，刷新 / 分享链接仍能还原
+    await waitFor(() => expect(new URLSearchParams(nav.toString()).get('project')).toBe('2'))
+  })
+
+  it('URL 显式项目优先于共享记忆，并写回共享记忆供其它 tab 沿用', async () => {
+    writeSharedReportProjectId('2')
+    nav.setParams('project=1&fromMonth=2025-08&toMonth=2026-07')
+
+    render(<DisplayTab />)
+
+    await waitFor(() => expect(seriesProjectIds()).toContain('1'))
+    await waitFor(() => expect(readSharedReportProjectId()).toBe('1'))
   })
 })

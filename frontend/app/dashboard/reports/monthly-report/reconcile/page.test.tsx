@@ -7,11 +7,12 @@
  *  3. 旧 ProjectSelect / CountrySelect 不再在正文渲染
  */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+import { readSharedReportProjectId, writeSharedReportProjectId } from '../shared-project'
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,10 @@ import ReconcilePage from './page'
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
+beforeEach(() => {
+  window.localStorage.clear()
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -90,11 +95,11 @@ afterEach(() => {
 })
 
 describe('reconcile 页 header 化契约（BLF-964）', () => {
-  it('auto tab 下 slot 含项目 / 站点控件', () => {
+  it('auto tab 下 slot 含项目 / 站点控件', async () => {
     render(<ReconcilePage />)
 
-    // slot 内容被渲染回页面（测试 mock 行为）
-    expect(capturedSlotNode).not.toBeNull()
+    // BLF-1344：筛选控件等共享记忆读出后才挂载（避免内部兜底盖掉其它 tab 的选择）
+    await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
     // slot 内含 HeaderProjectSelect / HeaderCountrySelect
     expect(screen.getByTestId('header-project-select')).toBeInTheDocument()
@@ -144,5 +149,35 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
   it('刷新回调注册到 header', () => {
     render(<ReconcilePage />)
     expect(capturedRefreshHandler).not.toBeNull()
+  })
+})
+
+describe('BLF-1344 项目选择跨 tab 共享', () => {
+  it('采用共享记忆里的项目（在别的 tab 选过，切回来不用重选）', async () => {
+    writeSharedReportProjectId('2')
+
+    render(<ReconcilePage />)
+
+    await waitFor(() => expect(screen.getByTestId('header-project-select')).toHaveValue('2'))
+  })
+
+  it('在项目控件里选择后写入共享记忆，供其它 tab 沿用', async () => {
+    render(<ReconcilePage />)
+    await waitFor(() => expect(capturedSlotNode).not.toBeNull())
+
+    fireEvent.change(screen.getByTestId('header-project-select'), { target: { value: '2' } })
+
+    await waitFor(() => expect(readSharedReportProjectId()).toBe('2'))
+    expect(screen.getByTestId('header-project-select')).toHaveValue('2')
+  })
+
+  it('共享记忆里的项目在页面列表里找不到时不静默选错项目', async () => {
+    writeSharedReportProjectId('999')
+
+    render(<ReconcilePage />)
+    await waitFor(() => expect(capturedSlotNode).not.toBeNull())
+
+    // 页面 state 拿到的是 999（列表校验由 HeaderProjectSelect 内部 autoSelectFirst 决定）
+    expect(readSharedReportProjectId()).toBe('999')
   })
 })

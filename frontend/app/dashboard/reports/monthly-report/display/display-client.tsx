@@ -58,6 +58,7 @@ import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
+import { useSharedReportProject } from '../shared-project'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 import { getExcelNumFmt } from './excel-num-fmt'
@@ -760,10 +761,17 @@ export default function DisplayTab() {
 
   // 项目 / 国家同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
   // 默认值为空串，URL 有值时覆盖。（起止月份见下方 monthUrl，带滚动默认语义）
-  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [urlProjectId, setProjectId] = useUrlParam<string>('project', '')
+  // BLF-1344：URL 没带项目时沿用上次在月报任一 tab 选过的项目（跨 tab 共享，并写回 URL）
+  const { projectId, ready: sharedProjectReady } = useSharedReportProject({
+    projectId: urlProjectId,
+    setProjectId,
+  })
 
-  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
-  useAutoSelectFirstProject(projects, projectId, setProjectId)
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）。
+  // BLF-1344：共享记忆读出前不兜底——项目列表命中客户端缓存时兜底会先落地，
+  // 把其它 tab 刚选的项目覆盖成第一个项目。
+  useAutoSelectFirstProject(sharedProjectReady ? projects : [], projectId, setProjectId)
   const [country, setCountry] = useUrlParam<ReportUploadCountry>(
     'country',
     DEFAULT_REPORT_UPLOAD_COUNTRY,
@@ -878,7 +886,8 @@ export default function DisplayTab() {
       // 1. URL 没指定 projectId（空字符串）→ 选第一个
       // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
       // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
-      if (payload.length > 0) {
+      // BLF-1344：共享记忆读出前不兜底（同上，避免盖掉其它 tab 的选择）。
+      if (payload.length > 0 && sharedProjectReady) {
         const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
         if (!projectId || !existsInList) {
           setProjectId(String(payload[0].id))
@@ -889,7 +898,7 @@ export default function DisplayTab() {
     } finally {
       setProjectsLoading(false)
     }
-  }, [projectId, session])
+  }, [projectId, session, sharedProjectReady])
 
   const loadExchangeRates = useCallback(
     async (months: string[]) => {
