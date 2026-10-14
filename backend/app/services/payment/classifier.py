@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.utils.payment_locale import (
+    is_fba_storage_fee,
     normalize_payment_description,
     normalize_payment_type,
 )
@@ -39,6 +40,12 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
         "deal_fee": [],
         "debt": [],
         "fba_transaction_fees": [],
+        # Rows whose ``type`` is "FBA Transaction Fees" but whose
+        # ``description`` says storage (e.g. "FBA Inventory Storage Fee",
+        # "FBA Long Term Storage Fee"). These belong to the 库存和入库服务费
+        # bucket, not to 派送费 — see ``is_fba_storage_fee``. Inbound placement
+        # / transportation fees stay in 派送费 per the agreed business rule.
+        "fba_inventory_and_inbound_fees": [],
         "fba_order": [],
         "fbm_order": [],
         "fba_refund": [],
@@ -140,7 +147,10 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
             classified["debt"].append(row)
             continue
         if row_type == "FBA Transaction Fees":
-            classified["fba_transaction_fees"].append(row)
+            if is_fba_storage_fee(description):
+                classified["fba_inventory_and_inbound_fees"].append(row)
+            else:
+                classified["fba_transaction_fees"].append(row)
             continue
         if row_type == "Fee Adjustment":
             classified["fee_adjustment"].append(row)

@@ -813,6 +813,7 @@ def _build_financial_accounting_detail_workbook(
 
     wb = Workbook()
     ws = wb.active
+    assert ws is not None  # 新建 Workbook 必有一个 active sheet
     ws.title = "报表核算"
     ws.append(
         [
@@ -879,7 +880,11 @@ def _build_financial_accounting_detail_workbook(
         ("其他赔偿", classified["adjustment_expense"]),
         ("清算费用", classified["liquidation"]),
         ("拒付退款", classified["chargeback_refund"]),
-        ("FBA仓储及入库服务费", classified["fba_inventory_fee"]),
+        (
+            "FBA仓储及入库服务费",
+            classified["fba_inventory_fee"]
+            + classified["fba_inventory_and_inbound_fees"],
+        ),
         ("服务费（不含广告）", classified["amazon_fees_and_service_fee_without_ad"]),
         ("广告费", classified["advertising"]),
         ("广告退款", classified["service_refund_for_advertiser"]),

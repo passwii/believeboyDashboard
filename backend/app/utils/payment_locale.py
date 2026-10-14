@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-import csv
-import io
 
 # BLF-1036: pandas imported lazily — this module sits on the API/worker boot
 # import chain via app.services.report.monthly; the pandas stack costs ~65MB
@@ -12,7 +12,7 @@ import io
 if TYPE_CHECKING:
     import pandas as pd
 
-from app.utils.country import normalize_country, COUNTRY_TO_LOCALE
+from app.utils.country import COUNTRY_TO_LOCALE, normalize_country
 
 
 @dataclass
@@ -242,6 +242,61 @@ def _normalize_payment_token(value: str) -> str:
     )
 
 
+# ─── FBA 仓储费 vs 派送费拆分 ──────────────────────────────────────
+#
+# Amazon 结算 CSV 把**仓储费**也写成 ``type = "FBA Transaction fees"``，只有
+# ``description`` 才说明它其实是仓储费，例如::
+#
+#   type="FBA Transaction fees", description="FBA Inventory Storage Fee"
+#   type="FBA Transaction fees", description="FBA Long Term Storage Fee"
+#
+# 这些属于月报汇总行 *FBA inventory and inbound service fees*
+# （中文：FBA 库存和入库服务费），**不**属于 *FBA transaction fees*
+# （FBA 派送费）—— 后者是 Amazon 已经写在每条 ``Order`` 行 ``fba fees`` 列里的
+# 单均履约费。
+#
+# 旧的取数把两者合进派送费，导致仓储费算进派送费、而库存和入库服务费恒为 0。
+# 只能按 description 而不是 ``type`` 拆分，因为两者的 type 完全相同。
+#
+# 规则（已与业务核对）：``FBA Transaction Fees`` 类型下**只有仓储类**算库存及其入库
+# 服务费——含 storage（月度 / 长期 / DE ``Lagergebühr``）。其余全部留在派送费，
+# 包括 ``FBA Inbound Placement Service Fee``（入库配置服务费）、
+# ``FBA Inbound Transportation Fee``、weight-based fee、removal / disposal 等。
+# 注意：inbound placement 虽名义上属入库，但按业务口径归派送费，故**不**在关键词里。
+FBA_STORAGE_FEE_DESCRIPTION_KEYWORDS = (
+    'storage fee',
+    'lagergebuehr',
+    'inventory storage',
+)
+
+
+def is_fba_storage_fee(description: Any) -> bool:
+    """Whether an ``FBA Transaction Fees`` row is a storage (仓储) fee.
+
+    Accepts the raw or already-normalized description. Matching is done on the
+    umlaut-folded, lower-cased token form so it works for US (``FBA Inventory
+    Storage Fee``) and DE (``FBA Lagergebühr``) rows alike.
+
+    Rows under ``FBA Transaction Fees`` that this returns ``False`` for stay in
+    the 派送费 bucket — that includes ``FBA Inbound Placement Service Fee`` /
+    ``FBA Inbound Transportation Fee``, per the agreed business rule.
+
+    Args:
+        description: Raw CSV description cell (``None`` / empty is allowed).
+
+    Returns:
+        ``True`` when the description indicates a storage fee.
+    """
+    if description is None:
+        return False
+    normalized = _normalize_payment_token(str(description))
+    if not normalized:
+        return False
+    return any(
+        keyword in normalized for keyword in FBA_STORAGE_FEE_DESCRIPTION_KEYWORDS
+    )
+
+
 def _match_payment_columns(columns: list[str], fallback_locale: str) -> tuple[dict[str, str], str] | None:
     normalized_columns = {_normalize_payment_token(column): column for column in columns}
     mapped: dict[str, str] = {}
@@ -347,11 +402,8 @@ def parse_localized_number(value: Any, locale: str) -> float:
 
     if locale == 'de':
         cleaned = cleaned.replace('.', '').replace(',', '.')
-    else:
-        if ',' in cleaned and '.' in cleaned:
-            cleaned = cleaned.replace(',', '')
-        elif ',' in cleaned:
-            cleaned = cleaned.replace(',', '')
+    elif ',' in cleaned:
+        cleaned = cleaned.replace(',', '')
 
     number = float(cleaned)
     return -number if negative and number > 0 else number
@@ -527,8 +579,10 @@ __all__ = [
     "PAYMENT_NUMERIC_COLUMNS",
     "PAYMENT_TYPE_ALIASES",
     "PAYMENT_DESCRIPTION_ALIASES",
+    "FBA_STORAGE_FEE_DESCRIPTION_KEYWORDS",
     "PaymentReportStructure",
     "_normalize_payment_token",
+    "is_fba_storage_fee",
     "_match_payment_columns",
     "is_payment_report_by_columns",
     "detect_payment_report_structure",

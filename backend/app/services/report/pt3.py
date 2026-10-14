@@ -4,15 +4,13 @@ Builds detailed income/expense rows from MonthlyReportPT3Calculation model.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    MonthlyReport,
     MonthlyReportPT3Calculation,
     MonthlyReportTransaction,
 )
@@ -21,7 +19,6 @@ from app.services.report.utils import (
     _round2,
     _to_decimal,
     _to_float,
-    _first_non_empty,
     normalize_text,
 )
 from app.utils.country import get_currency
@@ -413,6 +410,7 @@ def _classify_monthly_rows(
         - adjustment_income, adjustment_expense, advertising, service_refund_for_advertiser
     """
     from app.utils.payment_locale import (
+        is_fba_storage_fee,
         normalize_payment_description,
         normalize_payment_type,
     )
@@ -424,6 +422,9 @@ def _classify_monthly_rows(
         "fba_inventory_fee": [],
         "amazon_fees_and_service_fee_without_ad": [],
         "fba_transaction_fees": [],
+        # "FBA Transaction Fees" 类型里描述为仓储（storage）的行（如 "FBA
+        # Inventory Storage Fee"）。与 classifier.py 保持同一拆分口径，供导出明细表使用。
+        "fba_inventory_and_inbound_fees": [],
         "fba_order": [],
         "fbm_order": [],
         "fba_refund": [],
@@ -475,7 +476,10 @@ def _classify_monthly_rows(
             classified["fba_inventory_fee"].append(row)
             continue
         if row_type == "FBA Transaction Fees":
-            classified["fba_transaction_fees"].append(row)
+            if is_fba_storage_fee(description):
+                classified["fba_inventory_and_inbound_fees"].append(row)
+            else:
+                classified["fba_transaction_fees"].append(row)
             continue
         if row_type == "Amazon Fees - Reversal":
             if description not in ad_excluded_descriptions:

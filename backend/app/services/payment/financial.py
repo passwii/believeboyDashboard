@@ -5,8 +5,7 @@ Handles income/expense line items, pt3/pt4 payload generation.
 """
 from __future__ import annotations
 
-from collections import defaultdict
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 from app.utils.sales_amount import VAT_INCLUSIVE_COUNTRIES
@@ -128,15 +127,16 @@ def compute_metrics(
     order = classified["order"]
     refund = classified["refund"]
     fba_customer_return_fee = classified["fba_customer_return_fee"]
-    amazon_fees_reversal = classified["amazon_fees_reversal"]
     chargeback_refund = classified["chargeback_refund"]
     liquidation = classified["liquidation"]
-    service_fee = classified["service_fee"]
     fba_inventory_fee = classified["fba_inventory_fee"]
-    amazon_fees = classified["amazon_fees"]
-    fee_adjustment = classified["fee_adjustment"]
-    deal_fee = classified["deal_fee"]
-    debt = classified["debt"]
+    # Rows under type "FBA Transaction Fees" whose description is a
+    # storage / inbound fee (e.g. "FBA Inventory Storage Fee"). They are
+    # excluded from ``fba_transaction_fees`` by the classifier so they are
+    # only ever counted once, in the inventory/inbound bucket below.
+    fba_inventory_and_inbound_fees = classified.get(
+        "fba_inventory_and_inbound_fees", []
+    )
     fba_transaction_fees = classified["fba_transaction_fees"]
 
     fba_order = classified["fba_order"]
@@ -148,7 +148,6 @@ def compute_metrics(
     advertising = classified["advertising"]
     agl_selection = classified["agl_selection"]
     service_refund_for_advertiser = classified["service_refund_for_advertiser"]
-    price_discount = classified["price_discount"]
     amazon_fees_and_service_fee_without_ad = classified[
         "amazon_fees_and_service_fee_without_ad"
     ]
@@ -204,10 +203,12 @@ def compute_metrics(
     fba_selling_fees = _sum_field(fba_order, "selling fees")
     selling_fee_refunds = _sum_field(refund, "selling fees")
     # FBA 派送费总额 = Amazon 履约 Order 行的 fba fees 列
-    #   + 独立 "FBA Transaction Fees" 类型行的 fba fees 列之和。
+    #   + 独立 "FBA Transaction Fees" 类型行中**非仓储/入库**部分的 fba fees 列。
     # 该桶同时涵盖别名 "Fulfilment by Amazon (FBA) transaction fees"
     # （见 app.utils.payment_locale.PAYMENT_TYPE_ALIASES），其 fba fees 经
     # 归一化后同样归入此桶，无需额外求和处理。
+    # 仓储 / 入库行（"FBA Inventory Storage Fee"、"FBA Long Term Storage Fee"
+    # 等）由 classifier 归入 ``fba_inventory_and_inbound_fees``，不在此处重复。
     fba_transaction_fees_total = _round2(
         _sum_field(fba_order, "fba fees")
         + _sum_field(fba_transaction_fees, "fba fees")
@@ -221,8 +222,12 @@ def compute_metrics(
     # Liquidations 的 otf 已计入 liquidations_fees，此处均不重复计入。
     other_transaction_fees = _sum_field(order, "other transaction fees")
     other_transaction_fee_refunds = _sum_field(refund, "other transaction fees")
+    # FBA 库存和入库服务费 = "FBA Inventory Fee" 类型行
+    #   + "FBA Transaction Fees" 类型行里描述为仓储/入库的部分的 total
+    #   + FBA 退货处理费 + AGL 头程相关费用。
     fba_inventory_and_inbound_services_fees = _round2(
         _sum_field(fba_inventory_fee, "total")
+        + _sum_field(fba_inventory_and_inbound_fees, "total")
         + _sum_field(fba_customer_return_fee, "total")
         + _sum_field(agl_selection, "total")
     )

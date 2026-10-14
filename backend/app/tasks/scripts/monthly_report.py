@@ -3,20 +3,20 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from openpyxl import Workbook
 
-from app.services.payment import read_payment_csv, classify_rows
+from app.services.payment import classify_rows, read_payment_csv
 from app.services.payment.financial import (
     _compute_vat_metrics,
     _round2,
-    _to_decimal,
-    _sum_field,
     _safe_div_percent_decimal,
+    _sum_field,
+    _to_decimal,
 )
 from app.services.report.utils import _safe_project_name
 from app.utils.country import normalize_country
@@ -45,7 +45,7 @@ def _rows_to_sheet(ws, rows: list[dict[str, object]]) -> None:
     headers: list[str] = []
     seen: set[str] = set()
     for row in rows:
-        for key in row.keys():
+        for key in row:
             if key not in seen:
                 seen.add(key)
                 headers.append(key)
@@ -192,6 +192,9 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     fee_adjustment = c["fee_adjustment"]
     deal_fee = c["deal_fee"]
     debt = c["debt"]
+    # "FBA Transaction Fees" 行里描述为仓储/入库的部分（如 "FBA Inventory
+    # Storage Fee"）已由 classifier 归入此桶，不再计入 fba_transaction_fees。
+    fba_inventory_and_inbound_fees = c.get("fba_inventory_and_inbound_fees", [])
     fba_transaction_fees = c["fba_transaction_fees"]
 
     fba_order = c["fba_order"]
@@ -255,6 +258,8 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     seller_fulfilled_selling_fees = _sum_field(fbm_order, "selling fees")
     fba_selling_fees = _sum_field(fba_order, "selling fees")
     selling_fee_refunds = _sum_field(refund, "selling fees")
+    # FBA 派送费 = 履约 Order 行的 fba fees 列 + "FBA Transaction Fees" 类型行中
+    # 非仓储/入库部分的 fba fees（仓储行已由 classifier 拆到库存桶）。
     fba_transaction_fees_total = _round2(_sum_field(fba_order, "fba fees") + _sum_field(fba_transaction_fees, "fba fees"))
     fba_transaction_fee_refunds = _round2(_sum_field(fba_refund, "fba fees") + fee_adjustment_fee)
     # Other transaction fees / refunds：对齐 Amazon 月报 PDF 口径，
@@ -263,6 +268,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
     other_transaction_fee_refunds = _sum_field(refund, "other transaction fees")
     fba_inventory_and_inbound_services_fees = _round2(
         _sum_field(fba_inventory_fee, "total")
+        + _sum_field(fba_inventory_and_inbound_fees, "total")
         + _sum_field(fba_customer_return_fee, "total")
         + _sum_field(agl_selection, "total")
     )
@@ -364,6 +370,7 @@ def run(input_path: str, output_dir: str, params: dict) -> dict:
 
     report("building_overview", 58, "合成数据：正在生成报表总览")
     ws_overview = wb.active
+    assert ws_overview is not None  # 新建 Workbook 必有一个 active sheet
     ws_overview.title = "总览草稿"
     ws_overview.append([
         "1-销售额",
