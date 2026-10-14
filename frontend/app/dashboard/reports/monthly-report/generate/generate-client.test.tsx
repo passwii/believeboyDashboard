@@ -32,8 +32,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, push: nav.replace }),
 }))
 
+// 共享记忆按操作者身份隔离：这个身份就是测试里读写记忆用的身份
+const TEST_OWNER = { id: 'user-1', roleType: 'admin', operatorNameZh: '张三', isAdmin: true }
 vi.mock('next-auth/react', () => ({
-  useSession: () => stableSession({ user: { isAdmin: true } }),
+  useSession: () => stableSession({ user: TEST_OWNER }),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -113,7 +115,7 @@ describe('BLF-963 头部插槽契约', () => {
 describe('BLF-1344 项目选择跨 tab 共享', () => {
   it('URL 没带项目时按共享记忆里的项目 id 选中同名项目，并写回 URL', async () => {
     // 上一次在月报某个 tab 选过项目 2（共享记忆存项目 id）
-    writeSharedReportProjectId('2')
+    writeSharedReportProjectId(TEST_OWNER, '2')
     nav.setParams('country=US&month=2026-07')
 
     render(<GenerateTab />)
@@ -130,11 +132,11 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
     render(<GenerateTab />)
     await screen.findByText('文件识别与上传')
 
-    await waitFor(() => expect(readSharedReportProjectId()).toBe('2'))
+    await waitFor(() => expect(readSharedReportProjectId(TEST_OWNER)).toBe('2'))
   })
 
   it('共享记忆里的项目不在本页项目列表时保持未选，不静默选错项目', async () => {
-    writeSharedReportProjectId('999')
+    writeSharedReportProjectId(TEST_OWNER, '999')
     nav.setParams('country=US&month=2026-07')
 
     render(<GenerateTab />)
@@ -142,6 +144,6 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
 
     await waitFor(() => expect(headerCapture.slotNode).not.toBeNull())
     expect(new URLSearchParams(nav.toString()).get('project')).toBeNull()
-    expect(readSharedReportProjectId()).toBe('999')
+    expect(readSharedReportProjectId(TEST_OWNER)).toBe('999')
   })
 })

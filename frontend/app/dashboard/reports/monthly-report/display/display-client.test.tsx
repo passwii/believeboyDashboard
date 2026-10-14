@@ -38,8 +38,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, push: nav.replace }),
 }))
 
+// 共享记忆按操作者身份隔离：这个身份就是测试里读写记忆用的身份
+const TEST_OWNER = { id: 'user-1', roleType: 'admin', operatorNameZh: '张三', isAdmin: true }
 vi.mock('next-auth/react', () => ({
-  useSession: () => stableSession({ user: { isAdmin: true } }),
+  useSession: () => stableSession({ user: TEST_OWNER }),
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -410,7 +412,7 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
 
   it('URL 没带项目时沿用共享记忆里的项目（其它 tab 选过的），并写回 URL', async () => {
     // 上一次在月报某个 tab 选过项目 2
-    writeSharedReportProjectId('2')
+    writeSharedReportProjectId(TEST_OWNER, '2')
     ;(fetchManagedProjectsCached as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 1, name: '铨富' },
       { id: 2, name: '玥涵' },
@@ -427,12 +429,30 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
   })
 
   it('URL 显式项目优先于共享记忆，并写回共享记忆供其它 tab 沿用', async () => {
-    writeSharedReportProjectId('2')
+    writeSharedReportProjectId(TEST_OWNER, '2')
     nav.setParams('project=1&fromMonth=2025-08&toMonth=2026-07')
 
     render(<DisplayTab />)
 
     await waitFor(() => expect(seriesProjectIds()).toContain('1'))
-    await waitFor(() => expect(readSharedReportProjectId()).toBe('1'))
+    await waitFor(() => expect(readSharedReportProjectId(TEST_OWNER)).toBe('1'))
+  })
+
+  it('可见项目列表为空时不拿未校验的 id 请求财务序列（换账号残留 / 无可见项目）', async () => {
+    // 上一个账号在这台浏览器上选过项目 2，但当前操作者一个可见项目都没有
+    writeSharedReportProjectId(TEST_OWNER, '2')
+    ;(fetchManagedProjectsCached as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    nav.setParams('fromMonth=2025-08&toMonth=2026-07')
+
+    render(<DisplayTab />)
+
+    // 等页面与项目列表都落地（列表为空 → 不选任何项目）
+    await screen.findByRole('tab', { name: '月度明细' })
+    await waitFor(() => expect(fetchManagedProjectsCached).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    // 未校验的 2 既没进 URL，也没拿去请求财务序列
+    expect(new URLSearchParams(nav.toString()).get('project')).toBeNull()
+    expect(seriesProjectIds()).toHaveLength(0)
   })
 })

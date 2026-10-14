@@ -763,7 +763,11 @@ export default function DisplayTab() {
   // 默认值为空串，URL 有值时覆盖。（起止月份见下方 monthUrl，带滚动默认语义）
   const [urlProjectId, setProjectId] = useUrlParam<string>('project', '')
   // BLF-1344：URL 没带项目时沿用上次在月报任一 tab 选过的项目（跨 tab 共享，并写回 URL）
-  const { projectId, ready: sharedProjectReady } = useSharedReportProject({
+  const {
+    projectId,
+    ready: sharedProjectReady,
+    forgetProjectId,
+  } = useSharedReportProject({
     projectId: urlProjectId,
     setProjectId,
   })
@@ -887,10 +891,14 @@ export default function DisplayTab() {
       // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
       // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
       // BLF-1344：共享记忆读出前不兜底（同上，避免盖掉其它 tab 的选择）。
-      if (payload.length > 0 && sharedProjectReady) {
-        const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
+      if (sharedProjectReady) {
+        const existsInList = Boolean(projectId) && payload.some((p) => String(p.id) === projectId)
         if (!projectId || !existsInList) {
-          setProjectId(String(payload[0].id))
+          // 不可见（换账号残留 / 权限被收回 / 项目下架）先清掉共享记忆：不清的话 hook 会把
+          // 这个不可见的项目再写回 URL；然后回退到第一个可见项目，一个都没有就清空
+          // （宁可不选，也不拿未校验的 id 去请求财务序列）。
+          if (projectId && !existsInList) forgetProjectId()
+          setProjectId(payload.length > 0 ? String(payload[0].id) : '')
         }
       }
     } catch (loadError) {
@@ -898,7 +906,7 @@ export default function DisplayTab() {
     } finally {
       setProjectsLoading(false)
     }
-  }, [projectId, session, sharedProjectReady])
+  }, [projectId, session, sharedProjectReady, forgetProjectId])
 
   const loadExchangeRates = useCallback(
     async (months: string[]) => {
