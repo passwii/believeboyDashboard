@@ -21,9 +21,7 @@ from app.api.deps import (
 from app.core.config import get_settings
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
-    InsightChunkResponse,
     InsightDetail,
-    InsightDoneResponse,
     InsightGenerateRequest,
     InsightItem,
     InsightListResponse,

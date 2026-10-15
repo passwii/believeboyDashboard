@@ -152,7 +152,7 @@ def extract_run_metadata(
 
 def evolve_dimension_weights(
     accumulated_runs: list[AnalysisRunMetadata],
-    current_registry: Any,
+    _current_registry: Any,
 ) -> dict[str, Any]:
     """基于累积的分析运行数据，计算维度优先级调整建议。
 

@@ -105,7 +105,7 @@ def _allowed_image_origins() -> set[tuple[str, str, int | None]]:
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """不跟随图片 URL 的重定向，防止公开资源 URL 被用于 SSRF 跳转。"""
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
+    def redirect_request(self, req, _fp, code, msg, headers, _newurl):
         return None
 
 

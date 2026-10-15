@@ -72,7 +72,7 @@ def _install_read_session_guard(session) -> None:
     actionable error).
     """
     @event.listens_for(session, "before_flush")
-    def _block_writes(sess, flush_context, instances):  # noqa: ANN001
+    def _block_writes(_sess, _flush_context, _instances):  # noqa: ANN001
         raise RuntimeError(
             "BEL-73: read-routed session attempted a flush "
             "(INSERT/UPDATE/DELETE). Use Depends(get_primary_db) for "

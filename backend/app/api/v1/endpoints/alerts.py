@@ -24,7 +24,7 @@ from app.schemas.alert import (
 )
 from app.services import project_service
 from app.services.alert.detector import detect_anomalies
-from app.services.alert.dispatcher import dispatch_alert, dispatch_batch
+from app.services.alert.dispatcher import dispatch_batch
 
 router = APIRouter(prefix="/alerts", tags=["alerts"], dependencies=[Depends(protected)])
 

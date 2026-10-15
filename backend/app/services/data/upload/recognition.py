@@ -23,7 +23,6 @@ from app.utils.recognition import (
     _normalize_identifier,
     _normalize_columns,
     _read_csv_with_encoding_fallback,
-    _read_excel,
 )
 from app.utils.parsers import detect_countries_in_sales_file
 from app.utils.payment_locale import read_payment_report_dataframe

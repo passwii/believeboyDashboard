@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Any, Hashable
+from typing import Any
 
 from app.services import project_service
 
@@ -165,8 +165,6 @@ def _resolve_related_campaigns(
         _load_search_term_rows,
         _load_placement_rows,
     )
-    from app.utils.parsers import _normalize_sku as _ns
-
     normalized = (campaign or "").strip()
     campaign_names: set[str] | None = {normalized} if normalized else None
 
