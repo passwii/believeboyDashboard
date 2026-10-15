@@ -8,6 +8,10 @@
 以便把"逻辑过期"分类为 CONFIRM_TOKEN_EXPIRED（区别于"从未存在"的 INVALID）。
 消费走原子 pop（Lua GET+DEL），并发重放只有一个能取到 token。
 测试经 ``set_confirm_store`` 注入内存实现。
+
+预览期算定的派生值（如自动生成的货件编号/发货日期）经 ``bind`` 绑定进 confirm
+记录，重放时用 ``get_confirm_context`` 取回复用——避免「预览一个、落库另一个」
+（跨日重算、候选编号被并发占用后静默换号）。
 """
 
 from __future__ import annotations
@@ -51,6 +55,8 @@ class ConfirmRecord:
     idempotency_key: str | None
     body_hash: str
     created_at: float  # unix timestamp
+    #: 预览期算定、重放期复用的绑定值（JSON 可序列化；旧记录无此字段时缺省 None）
+    context: dict[str, Any] | None = None
 
 
 class ConfirmStore(Protocol):
@@ -161,7 +167,9 @@ def issue_confirm_token(
     body: bytes,
     ttl_seconds: int = DEFAULT_CONFIRM_TTL_SECONDS,
     body_hash: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> tuple[ConfirmRecord, int]:
+    """签发 token；``context`` 为预览期算定的绑定值（须 JSON 可序列化）。"""
     token = f"cf_{secrets.token_urlsafe(24)}"
     record = ConfirmRecord(
         token=token,
@@ -170,6 +178,7 @@ def issue_confirm_token(
         idempotency_key=idempotency_key,
         body_hash=body_hash or compute_body_hash(body),
         created_at=time.time(),
+        context=context,
     )
     get_confirm_store().put(record, physical_ttl_seconds=ttl_seconds * 2)
     return record, ttl_seconds
@@ -217,18 +226,23 @@ def require_confirmation(
     action: str,
     build_preview: Callable[[dict, Request], dict] | None = None,
     validate: Callable[[dict, Request], None] | None = None,
+    bind: Callable[[dict, Request], dict] | None = None,
 ):
     """危险写操作两步确认门（设计稿 §3.2）。
 
     被装饰 handler 必须是 **async** 且签名只接 ``request: Request``
     （请求体经 ``await request.body()`` 读取，FastAPI 会缓存）。
 
-    * 第一次调用（无 X-Confirm-Token）：``validate(body, request)`` → 签发 token →
-      返回 HTTP 200 预览壳（不进 handler）；
+    * 第一次调用（无 X-Confirm-Token）：``validate(body, request)`` →
+      ``bind(body, request)`` → 签发 token → 返回 HTTP 200 预览壳（不进 handler）；
     * 第二次调用（带 X-Confirm-Token）：token 校验（body-hash 绑定保证
       请求体一致）→ 执行 handler。
     ``validate`` 抛 ``AgentApiError`` 时在签发 token 之前失败（spec S6）。
-    ``validate``/``build_preview`` 均接收 ``(body, request)``。
+    ``validate``/``build_preview``/``bind`` 均接收 ``(body, request)``。
+
+    ``bind`` 用于**非确定性派生值**：预览期算一次，返回值（JSON 可序列化 dict）
+    随 confirm 记录存储，重放时由 ``get_confirm_context`` 取回复用，因此预览里
+    展示的值就是最终落库的值（跨日/并发占用都不会漂移）。
     """
 
     def decorator(handler):
@@ -240,7 +254,11 @@ def require_confirmation(
         @functools.wraps(handler)
         async def wrapper(request: Request, *args, **kwargs):
             decision = await _confirm_gate(
-                request, action=action, build_preview=build_preview, validate=validate
+                request,
+                action=action,
+                build_preview=build_preview,
+                validate=validate,
+                bind=bind,
             )
             if decision is not None:
                 return decision
@@ -257,6 +275,7 @@ async def _confirm_gate(
     action: str,
     build_preview: Callable[[dict, Request], dict] | None,
     validate: Callable[[dict, Request], None] | None,
+    bind: Callable[[dict, Request], dict] | None = None,
 ) -> JSONResponse | None:
     """返回 JSONResponse = 预览壳（短路）；返回 None = 放行 handler。"""
     from app.api.agent.errors import AgentApiError, ErrorCode
@@ -282,13 +301,18 @@ async def _confirm_gate(
             validate(
                 body, request
             )  # 业务校验先于 confirm（spec S6）；抛 AgentApiError 直接短路
+        # 预览期算定的派生值随 token 落库，重放时复用同一份（预览=落库）
+        context = bind(body, request) if bind is not None else None
         record, ttl = issue_confirm_token(
             agent_id=agent_id,
             action=action,
             idempotency_key=idempotency_key,
             body=body_bytes,
             ttl_seconds=DEFAULT_CONFIRM_TTL_SECONDS,
+            context=context,
         )
+        if context is not None:
+            request.state.confirm_context = context
         preview: dict[str, Any] = {"action": action}
         if build_preview is not None:
             preview.update(build_preview(body, request))
@@ -309,7 +333,7 @@ async def _confirm_gate(
         )
 
     try:
-        consume_confirm_token(
+        record = consume_confirm_token(
             token=confirm_header,
             agent_id=agent_id,
             idempotency_key=idempotency_key,
@@ -322,7 +346,27 @@ async def _confirm_gate(
             else ErrorCode.CONFIRM_TOKEN_INVALID
         )
         raise AgentApiError(code) from None
+    # 重放期把记录与绑定值挂到 request.state，供 handler 复用（预览=落库）
+    request.state.confirm_record = record
+    if record.context is not None:
+        request.state.confirm_context = record.context
     return None
+
+
+def get_confirm_context(request: Request) -> dict[str, Any] | None:
+    """本次请求的 confirm 绑定上下文（``bind`` 返回值）。
+
+    预览阶段为刚算定的值，重放阶段为确认记录里存的值；非 confirm 流程
+    （内部调用 / 无确认门）返回 None——调用方应回退到即时计算。
+    """
+    context = getattr(request.state, "confirm_context", None)
+    return context if isinstance(context, dict) else None
+
+
+def get_confirm_record(request: Request) -> ConfirmRecord | None:
+    """本次请求消费掉的 confirm 记录；预览阶段（未带 token）返回 None。"""
+    record = getattr(request.state, "confirm_record", None)
+    return record if isinstance(record, ConfirmRecord) else None
 
 
 async def _parse_multipart_fields(

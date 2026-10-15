@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.12 — 文件型资源二进制响应规范）
+# Agent API 设计文档（v0.13 — 新建货件缺省参数自动生成）
 
-> **状态**：v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -174,7 +174,9 @@ Content-Type: application/json
 - `confirm_token` 必须未过期（默认 300s）
 - 校验失败返回 `CONFIRM_TOKEN_INVALID | CONFIRM_TOKEN_EXPIRED | IDEMPOTENCY_KEY_CONFLICT`
 
-`confirm_token` 存 Redis（现有 `app/services/infra` 提供 Redis 客户端），key=`{redis_key_prefix}:agent:confirm:{token}`，value 含 `{agent_id, action, idempotency_key, body_hash, created_at}`，逻辑 TTL=300s（物理 TTL=2×，以区分过期与不存在），**原子 pop（Lua GET+DEL）用后即删**——并发重放只有一个能取到 token（P2 准入门槛）。
+`confirm_token` 存 Redis（现有 `app/services/infra` 提供 Redis 客户端），key=`{redis_key_prefix}:agent:confirm:{token}`，value 含 `{agent_id, action, idempotency_key, body_hash, created_at, context}`，逻辑 TTL=300s（物理 TTL=2×，以区分过期与不存在），**原子 pop（Lua GET+DEL）用后即删**——并发重放只有一个能取到 token（P2 准入门槛）。
+
+> **预览期派生值绑定（BLF-1347 review 修正）**：`require_confirmation(bind=...)` 让预览期算定的**非确定性派生值**（如自动生成的货件编号/默认发货日期）随 `context` 一起存进 confirm 记录，重放时用 `get_confirm_context(request)` 取回复用（`get_confirm_record(request)` 可判断是否处于重放阶段）。重放**不重算**，所以跨日预览/确认、候选编号被并发占用都不会出现「预览一个、落库另一个」；`context` 必须 JSON 可序列化（进 Redis），旧记录无该字段时缺省 `None`（向后兼容）。
 
 > **HTTP 状态约定**：confirm 预览响应返回 **HTTP 200** + `ok:false, requires_confirmation:true`——这是协议内的正常一步，不是错误；让 Agent 用统一的成功解析路径处理它。真正的失败（token 过期/不匹配）才返回 4xx（见 §5.3）。
 
@@ -192,6 +194,17 @@ Content-Type: application/json
 | 隐藏（shipment batch hidden） | ❌ 不开放给 Agent（admin only） |
 
 > 通过一个 FastAPI 装饰器 `@require_confirmation(action="shipment.create")` 集中表达，handler 在第一次调用时返回 confirm 壳，第二次调用时才执行真正的 service 调用。
+
+**新建货件缺省参数（BLF-1347）**：`POST .../shipments`（W1）未提供的参数由服务端自动生成/填充，`preview` 返回填充后的有效值并用 `preview.auto_filled` 列出被自动填充的字段名（重放落库值与预览一致，不因自动生成而产生「预览与落库不一致」）：
+
+| 参数 | 未提供时 | 备注 |
+|---|---|---|
+| `shipment_no` | `FBA-<生成日期 YYYYMMDD>-<4 位标识>`（如 `FBA-20261015-K7Q2`） | 占位编号，拿到真实 FBA 编码后用 W3 PATCH 覆盖；候选编号全局唯一，冲突按 attempt 递增重试（最多 20 次） |
+| `created_date`（发货时间） | 当天 | 仅新建时默认；W3 PATCH 仍为「未提供即保持原值」 |
+| `shipping_method` | `sea` | 与前端新建表单默认一致 |
+| `shipment_status` | `draft` | 与前端新建表单默认一致 |
+
+自动生成的 `shipment_no` 由 `Idempotency-Key + 规范化请求体` 的 SHA-256 派生出**首个候选**（候选被占用按 attempt 递增，最多 20 次）；**预览期算定的自动填充值（编号与发货日期）绑定进 confirm 记录**（`bind=_bind_create_defaults` → `ConfirmRecord.context`），重放直接复用——跨日或候选被并发占用都不会漂移。若重放时该编号已被占用，返回 `409 SHIPMENT_DUPLICATE_NO`（提示重新预览），**不会**静默换成预览里没展示过的编号。审计 `after_json.auto_filled` 记录本次自动填充的字段名。**不自动生成**（属业务事实）：`etd_date` / `eta_date` / `actual_inbound_date` / `tracking_no` / `warehouse_code` / `forwarder_name` / `shipment_batch` / `remark`。
 
 **SKU 装箱信息先行（BLF-604 强制约定）**：建货件（`POST .../shipments`）与替换明细（`PUT .../shipments/{no}/items`）时，明细中每个 SKU 必须在 SKU 主数据（`product_costs`）里维护了装箱率——`units_per_carton ≤ 0` 即拒绝并返回 `SHIPMENT_ITEMS_MISSING_CARTON_INFO`（details 逐行给出 `row/sku/reason=missing_carton_info`），与前端「未维护单箱数」禁用口径一致。原因：建货件数量 = 箱数 × 装箱率，未维护装箱率的 SKU 直接收裸 quantity 会导致「只有总数量、没有箱数/体积/重量」的货件（核算依赖外箱尺寸/毛重/装箱率，见 `backend/app/services/shipment/schedule.py` `calculate_shipment_schedule_costs`）。先存在性（`SHIPMENT_ITEMS_INVALID_SKU`）后装箱信息（`SHIPMENT_ITEMS_MISSING_CARTON_INFO`）的顺序校验，均发生在 confirm 预览阶段（业务校验先于签发 token）。
 
@@ -642,6 +655,13 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 ---
 
 ## 修订记录
+
+- **v0.13（2026-10-15）**：shipments W1 新建货件缺省参数自动生成（BLF-1347）——
+  1. `POST /api/v1/agent/projects/{project_id}/shipments` 未提供 `shipment_no` 时自动生成 `FBA-<生成日期>-<标识>` 占位编号（用户后续用 W3 PATCH 覆盖为真实 FBA 编码）；候选编号按 `Idempotency-Key + 规范化请求体` 的 SHA-256 确定性派生出首个候选并做全局唯一性重试；
+  2. 未提供 `created_date`（发货时间）时默认当天；未提供 `shipping_method` / `shipment_status` 时默认 `sea` / `draft`（与前端新建表单默认一致）；`country` / `logistics_unit_price` / `include_in_history_shipping_calc` 维持既有默认；
+  3. 默认值**仅新建时生效**：W3 PATCH 保持「未提供即保持原值」的合并语义，不会把发货时间改回当天、也不重生成编号；
+  4. `preview` 新增 `created_date` 与 `auto_filled`（本次被自动填充的字段名数组），审计 `after_json` 同步记录 `auto_filled`；
+  5. **预览=落库**：`require_confirmation` 新增 `bind` 回调，预览期算定的自动填充值（编号/发货日期）随 confirm 记录存储（`ConfirmRecord.context`），重放经 `get_confirm_context` 复用、不重算——跨日或候选被并发占用都不会出现「预览一个、落库另一个」；被占用时显式 409 `SHIPMENT_DUPLICATE_NO` 要求重新预览。
 
 - **v0.12（2026-09-28）**：固化 Agent 文件型资源二进制响应规范——成功响应必须直接返回文件原始字节，通过 MIME 类型与 RFC 5987 `Content-Disposition` 描述文件；OpenAPI 声明二进制媒体类型；错误保持 Agent JSON。新增共享 helper `app/api/agent/file_response.py`，由 FBA 模板和店铺测算 XLSX 导出复用；后者原先已直接返回二进制，本次补齐统一文件头和 OpenAPI 二进制 schema。
 - **v0.11（2026-09-27）**：文件型资源统一使用二进制流（BLF-1178）——
