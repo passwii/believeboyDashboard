@@ -226,8 +226,16 @@ def test_scan_self_heals_resolves_reclaimed_entity(db_session):
     assert _active_logs(db_session) == []
 
 
-def test_scan_reactivates_after_followup_and_restale(db_session):
+def test_scan_reactivates_after_followup_and_restale(db_session, monkeypatch):
     """闭环：跟进 resolve → 再过 7 天无跟进 → 重新提醒。"""
+    from app.services.crm import follow_service
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW
+
+    monkeypatch.setattr(follow_service, "datetime", FrozenDatetime)
     c = _mk_customer(db_session, last_follow_at=_old())
     scan_stale_entities(db_session, now=NOW, days=DAYS)
     # 跟进 → resolve 旧记录
