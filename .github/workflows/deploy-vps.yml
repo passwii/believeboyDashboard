@@ -156,8 +156,9 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          ssh -o BatchMode=yes "$VPS_HOST" \
-            'echo "ssh ok: $(hostname) @ $(date -Is)"'
+          # 必须显式 root@：不写用户名会拿 runner 本地用户（runner）去登
+          ssh -o BatchMode=yes "root@$VPS_HOST" \
+            'echo "ssh ok: $(whoami)@$(hostname) @ $(date -Is)"'
 
       - name: 部署到 VPS
         if: steps.changed.outputs.backend_changed == 'true'
