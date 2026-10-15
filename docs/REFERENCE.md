@@ -206,14 +206,23 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 ### Workflow
 - 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
-- 推送 + 部署：**用 `git deploy`**（替代旧 pre-push hook）。脚本在 `productEnvAgent/deploy.sh`，做三件事：
-  1. 校验当前在 main 分支
-  2. `git push origin main`
-  3. 若 `origin/main..HEAD` 命中 `backend/`，跑 `python productEnvAgent/deploy_vps.py --auto`
+- 推送 + 部署（2026-10-15 起）：**用 `git deploy` 推送，部署由 GitHub Actions 执行**。
+  - `productEnvAgent/deploy.sh`（本地，`git deploy`）做两件事：① 校验在 main 分支；② `backend/` 改动时先跑 `backend/scripts/check_alembic.py` fail-fast，然后 `git push origin main`。**不再本地直连 SSH 部署**。
+  - `.github/workflows/deploy-vps.yml`（CI，push 到 main 后触发）做部署：先 `git diff --name-only ${{ github.event.before }} ${sha}` 判定是否命中 `backend/`（与 `deploy.sh` 同口径），命中才 runner 从公网 SSH `root@145.79.143.98` 跑 `python productEnvAgent/deploy_vps.py --auto`；`concurrency: vps-deploy` + `cancel-in-progress: false` 保证同一时间只有一条部署路径、排队不取消。
+  - 为什么搬出本地：本机 IP 可能被 fail2ban 拦、机器可能不在线；push 与部署解耦后，本地网络故障不会再造成"代码上了 main、VPS 未更新"。
 
-> **为什么不用 pre-push hook**：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
-> - **只推代码不部署**：`git push origin main`（直接 push，绕开 alias；旧 `SKIP_POST_PUSH_DEPLOY` 环境变量已废弃）
-> - **单独部署**：`python productEnvAgent/deploy_vps.py --auto`（SSH `root@145.79.143.98` → `git pull` → `alembic upgrade head` → `systemctl restart believeboy-api` → 健康检查）
+> **只推代码不部署 / 跳过本次部署**：commit message 带 `[skip ci]`（GitHub 内建跳过，workflow 整个不跑）。
+> - **查看进度 / 手动触发 / 只预览**：`gh run list --workflow deploy-vps.yml --limit 3` / `gh workflow run deploy-vps.yml` / `gh workflow run deploy-vps.yml -f dry_run=true`
+> - **本地兜底部署（CI 不可用时）**：`LOCAL_DEPLOY=1 git deploy`，或直接 `python productEnvAgent/deploy_vps.py --auto`（需本机 SSH 可达 VPS）
+> - **CI 需要的 secrets**（repo: `passwii/believeboyDashboard`）：`VPS_SSH_KEY`（能登录 root 的私钥，写到 runner 的 `~/.ssh/id_ed25519`，`deploy_vps.py` 走系统 ssh 默认私钥名）、`VPS_HOST`、`VPS_KNOWN_HOSTS`（不配则退化 TOFU）。设置：
+>   ```bash
+>   gh secret set VPS_HOST --repo passwii/believeboyDashboard --body 145.79.143.98
+>   gh secret set VPS_SSH_KEY --repo passwii/believeboyDashboard < ~/.ssh/id_ed25519
+>   gh secret set VPS_KNOWN_HOSTS --repo passwii/believeboyDashboard \
+>     --body "$(ssh-keygen -F 145.79.143.98 | grep -v '^#')"
+>   ```
+>   建议后续改成 CI 专用密钥（并在 VPS 的 `authorized_keys` 加 `restrict` 选项）而不是个人密钥；轮换方式：把新公钥用一次 workflow 的 SSH 通道追加到 VPS，再替换 `VPS_SSH_KEY`。
+> - **部署失败怎么办**：workflow 在 step summary 打出 bad-sha 与回滚命令（因为 `productEnvAgent/logs/last-failed-deploy.json` 落在 runner 临时磁盘上，本地 `rollback.py --auto` 取不到），按 `productEnvAgent/ROLLBACK.md` 用 `--bad-sha <sha>` 回滚；重跑部署用 `gh workflow run deploy-vps.yml`。
 > - **新机器首次配置**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`
 
 ### Key Conventions

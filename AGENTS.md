@@ -18,14 +18,15 @@
 
 ## Push / 部署规则（重要）
 
-- **用 `git deploy` 推送 + 部署**（替代旧的 pre-push hook）：`git push origin main` 后脚本自动判断 — 若 `origin/main..HEAD` 命中 `backend/` 则跑 `python productEnvAgent/deploy_vps.py --auto`（SSH `root@145.79.143.98` → `git pull --ff-only` → `alembic upgrade head` → `systemctl restart believeboy-api` → 健康检查）。
-- **触发条件**：仅当本次 push 命中 `backend/` 路径才部署；纯前端 / docs / 配置改动只推代码、不碰 VPS（前端在 Vercel 自动部署）。
+- **用 `git deploy` 推送，部署由 GitHub Actions 执行**（2026-10-15 起，替代本地直连部署）：`git deploy` = 校验 main 分支 + `backend/` 改动时跑迁移图检查 + `git push origin main`；**VPS 部署交给 `.github/workflows/deploy-vps.yml`**（push 后自动跑 `python productEnvAgent/deploy_vps.py --auto`，runner 从公网 SSH `root@145.79.143.98` → `git pull --ff-only` → 停后台单元 → `alembic upgrade head` → 启回 worker/beat → 健康检查）。为什么搬走：本地 IP 可能被 fail2ban 拦、机器可能不在线，且 push 与部署解耦后天然串行（workflow 有 `concurrency: vps-deploy` 锁）。
+- **触发条件**：仅当本次 push 命中 `backend/` 路径才部署（workflow 用 `git diff --name-only $before $sha` 判定，与 `deploy.sh` 口径对齐）；纯前端 / docs / 配置改动只推代码、不碰 VPS（前端在 Vercel 自动部署）。
 - **必须从 main 分支跑**：脚本会检查 `symbolic-ref --short HEAD`，非 main 直接报错退出。
 - **为什么不用 pre-push hook**：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
-- **只推代码不部署**：`git push origin main`（直接 push，绕过 alias）
-- **单独部署**：`python productEnvAgent/deploy_vps.py --auto`
-- **deploy 失败怎么办**：代码已上 `origin/main` 但 VPS 未更新，脚本会以非零退出并提示手动 `python productEnvAgent/deploy_vps.py --auto` 补齐；重推会因 up-to-date 不再触发 deploy。
-- **新机器首次配置 alias**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`
+- **跳过本次部署**：commit message 带 `[skip ci]`（GitHub 内建跳过，workflow 整个不跑）。
+- **查看 / 手动触发 / 只预览**：`gh run list --workflow deploy-vps.yml --limit 3` / `gh workflow run deploy-vps.yml` / `gh workflow run deploy-vps.yml -f dry_run=true`。
+- **本地兜底部署（CI 不可用时）**：`LOCAL_DEPLOY=1 git deploy`，或直接 `python productEnvAgent/deploy_vps.py --auto`（需本机 SSH 可达 VPS）。
+- **deploy 失败怎么办**：代码已在 `origin/main` 但 VPS 未更新；workflow 失败会在 step summary 打出 bad-sha 与回滚命令，照 `productEnvAgent/ROLLBACK.md` 走回滚（`python productEnvAgent/rollback.py --bad-sha <sha> --auto --force`）。重推不会重触发（universe 无新 commit），必须用 `gh workflow run deploy-vps.yml` 重跑。
+- **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST`，设置方法见 [docs/REFERENCE.md](./docs/REFERENCE.md) §Git 提交与部署。
 
 ## 测试规则
 
